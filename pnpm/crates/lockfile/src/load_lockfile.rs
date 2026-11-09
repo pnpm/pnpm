@@ -2,8 +2,9 @@ pub use error::LoadLockfileError;
 
 use crate::{
     ComVer, EnvLockfile, Lockfile, LockfileVersion, NextLockfile, ProjectSnapshot, Shape,
-    declares_next_format, extract_env_document, extract_main_document,
+    declares_next_format, extract_env_document, extract_main_document, from_json_str,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
+    is_json_document,
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
 };
@@ -248,22 +249,10 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        let options = yaml_parse_options(main.len());
         let parsed = if shape == Shape::OfVersion && declares_next_format(&main) {
-            let parsed = match crate::parallel_parse::parse_sections_in_parallel(
-                &main,
-                yaml_parse_options,
-            ) {
-                Some(next) => Ok(next),
-                None => serde_saphyr::from_str_with_options::<NextLockfile>(&main, options),
-            };
-            parsed
-                .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
-                .and_then(|next| {
-                    Lockfile::from_next(next)
-                        .map_err(|source| LoadLockfileError::next_format(file_path, &source))
-                })
+            parse_next(&main, file_path)
         } else {
+            let options = yaml_parse_options(main.len());
             match crate::parallel_parse::parse_sections_in_parallel(&main, yaml_parse_options) {
                 Some(lockfile) => Ok(lockfile),
                 None => serde_saphyr::from_str_with_options::<Self>(&main, options),
@@ -284,16 +273,20 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        let mut value = serde_saphyr::from_str_with_options::<serde_json::Value>(
-            &main,
-            yaml_parse_options(main.len()),
-        )
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
-        prepare_value_for_fix(&mut value);
         let parse_error = |source: serde_json::Error| LoadLockfileError::ParseYaml {
             path: file_path.to_path_buf(),
             reason: source.to_string(),
         };
+        let mut value = if is_json_document(&main) {
+            from_json_str::<serde_json::Value>(&main).map_err(parse_error)?
+        } else {
+            serde_saphyr::from_str_with_options::<serde_json::Value>(
+                &main,
+                yaml_parse_options(main.len()),
+            )
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?
+        };
+        prepare_value_for_fix(&mut value);
         let parsed = if declares_next_format(&main) {
             serde_json::from_value::<NextLockfile>(value)
                 .map_err(parse_error)
@@ -546,4 +539,30 @@ fn merge_git_branch_lockfile_repairs(
         }
     }
     Ok((base, merged_conflict_files))
+}
+
+/// A next-format document, written as JSON or, by an earlier pnpm, as YAML,
+/// as the lockfile it describes.
+fn parse_next(main: &str, file_path: &Path) -> Result<Lockfile, LoadLockfileError> {
+    let next = if is_json_document(main) {
+        match crate::parallel_parse::parse_json_in_parallel(main) {
+            Some(next) => Ok(next),
+            None => from_json_str::<NextLockfile>(main),
+        }
+        .map_err(|source| LoadLockfileError::ParseYaml {
+            path: file_path.to_path_buf(),
+            reason: source.to_string(),
+        })
+    } else {
+        let options = yaml_parse_options(main.len());
+        match crate::parallel_parse::parse_sections_in_parallel(main, yaml_parse_options) {
+            Some(next) => Ok(next),
+            None => serde_saphyr::from_str_with_options::<NextLockfile>(main, options),
+        }
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+    };
+    next.and_then(|next| {
+        Lockfile::from_next(next)
+            .map_err(|source| LoadLockfileError::next_format(file_path, &source))
+    })
 }

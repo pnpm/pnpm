@@ -21,7 +21,7 @@ pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
 pub use settings::NextSettings;
 
-pub(crate) use parse::{Shape, declares_next_format};
+pub(crate) use parse::{Shape, declares_next_format, from_json_str, is_json_document};
 
 use crate::{
     Lockfile, LockfileSettings, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,

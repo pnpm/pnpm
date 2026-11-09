@@ -65,33 +65,42 @@ const OPTIONAL_PEER_LOCKFILE: &str = text_block_macros::text_block! {
 #[test]
 fn optional_peer_bound_from_the_root_round_trips() {
     let (yaml, _) = written_and_read(&parse(OPTIONAL_PEER_LOCKFILE));
-    let packages = &yaml[yaml.find("\npackages:").expect("a packages section")..];
+    let packages = &yaml[yaml.find("\n  \"packages\"").expect("a packages section")..];
     assert_eq!(
         packages,
         text_block_macros::text_block_fnl! {
             ""
-            "packages:"
+            r#"  "packages": {"#
+            r#"    "buffer-impl@3.7.1": {"#
+            r#"      "integrity": "sha512-AAAA","#
+            "    },"
             ""
-            "  buffer-impl@3.7.1:"
-            "    integrity: sha512-AAAA"
+            r#"    "container@3.2.2": {"#
+            r#"      "integrity": "sha512-BBBB","#
+            r#"      "peerDependencies": {"#
+            r#"        "buffer-impl": {"version": "3.7.1", "below": true},"#
+            "      },"
+            r#"      "dependencies": {"#
+            r#"        "fs-impl": "4.8.4","#
+            "      },"
+            "    },"
             ""
-            "  container@3.2.2:"
-            "    integrity: sha512-BBBB"
-            "    peerDependencies:"
-            "      buffer-impl: {version: 3.7.1, below: true}"
-            "    dependencies:"
-            "      fs-impl: 4.8.4"
+            r#"    "fs-impl@4.8.4": {"#
+            r#"      "integrity": "sha512-CCCC","#
+            r#"      "peerDependencies": {"#
+            r#"        "abort-impl": "*","#
+            r#"        "buffer-impl": {"specifier": "*", "version": "3.7.1", "optional": true},"#
+            "      },"
+            r#"      "dependencies": {"#
+            r#"        "path-impl": "3.1.2","#
+            "      },"
+            "    },"
             ""
-            "  fs-impl@4.8.4:"
-            "    integrity: sha512-CCCC"
-            "    peerDependencies:"
-            "      abort-impl: '*'"
-            "      buffer-impl: {specifier: '*', version: 3.7.1, optional: true}"
-            "    dependencies:"
-            "      path-impl: 3.1.2"
-            ""
-            "  path-impl@3.1.2:"
-            "    integrity: sha512-DDDD"
+            r#"    "path-impl@3.1.2": {"#
+            r#"      "integrity": "sha512-DDDD","#
+            "    },"
+            "  },"
+            "}"
         },
     );
 }
@@ -155,7 +164,7 @@ fn package_that_is_the_peer_of_its_own_dependency_round_trips() {
         "      core: 2.0.0"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    assert!(yaml.contains("      helper: 1.0.0\n"), "{yaml}");
+    assert!(yaml.contains("        \"helper\": \"1.0.0\",\n"), "{yaml}");
 }
 
 /// `parent` binds no peers, so its scope does not say which snapshot of
@@ -216,13 +225,18 @@ fn reference_the_scope_does_not_select_names_its_snapshot() {
     });
     let (yaml, _) = written_and_read(&lockfile);
     assert!(
-        yaml.contains(
-            "      child:\n        version: 1.0.0\n        with:\n          react: 18.0.0\n"
-        ),
+        yaml.contains(concat!(
+            "        \"child\": {\n",
+            "          \"version\": \"1.0.0\",\n",
+            "          \"with\": {\n",
+            "            \"react\": \"18.0.0\",\n",
+            "          },\n",
+            "        },\n",
+        )),
         "{yaml}",
     );
-    assert!(yaml.contains("      child: 1.0.0\n"), "{yaml}");
-    assert!(yaml.contains("      parent: 1.0.0\n"), "{yaml}");
+    assert!(yaml.contains("        \"child\": \"1.0.0\",\n"), "{yaml}");
+    assert!(yaml.contains("        \"parent\": \"1.0.0\",\n"), "{yaml}");
     assert!(!yaml.contains('('), "{yaml}");
 }
 
@@ -288,32 +302,42 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
         "  react@18.0.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    let start = yaml.find("\nimporters:").expect("an importers section");
-    let end = yaml.find("\npackages:").expect("a packages section");
+    let start = yaml.find("\n  \"importers\"").expect("an importers section");
+    let end = yaml.find("\n  \"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
         text_block_macros::text_block_fnl! {
             ""
-            "importers:"
+            r#"  "importers": {"#
+            r#"    ".": {"#
+            r#"      "dependencies": {"#
+            r#"        "child": {"#
+            r#"          "specifier": "1.0.0","#
+            r#"          "with": {"#
+            r#"            "react": "18.0.0","#
+            "          },"
+            "        },"
+            "      },"
+            "    },"
             ""
-            "  .:"
-            "    dependencies:"
-            "      child:"
-            "        specifier: 1.0.0"
-            "        with:"
-            "          react: 18.0.0"
+            r#"    "packages/a": {"#
+            r#"      "dependencies": {"#
+            r#"        "child": {"#
+            r#"          "specifier": "^1.0.0","#
+            r#"          "version": "1.0.0","#
+            r#"          "with": {"#
+            r#"            "react": "18.0.0","#
+            "          },"
+            "        },"
+            "      },"
+            "    },"
             ""
-            "  packages/a:"
-            "    dependencies:"
-            "      child:"
-            "        specifier: ^1.0.0"
-            "        version: 1.0.0"
-            "        with:"
-            "          react: 18.0.0"
-            ""
-            "  packages/b:"
-            "    dependencies:"
-            "      parent: 1.0.0"
+            r#"    "packages/b": {"#
+            r#"      "dependencies": {"#
+            r#"        "parent": "1.0.0","#
+            "      },"
+            "    },"
+            "  },"
         },
     );
 }
@@ -346,8 +370,14 @@ fn patched_packages_carry_no_hash() {
         "  foo@2.1.0(patch_hash=abc123): {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    assert!(yaml.contains("      foo: {specifier: ^2.0.0, version: 2.1.0}\n"), "{yaml}");
-    assert!(yaml.contains("\n  foo@2.1.0:\n    integrity: sha512-AAAA\n"), "{yaml}");
+    assert!(
+        yaml.contains("        \"foo\": {\"specifier\": \"^2.0.0\", \"version\": \"2.1.0\"},\n"),
+        "{yaml}",
+    );
+    assert!(
+        yaml.contains("\n    \"foo@2.1.0\": {\n      \"integrity\": \"sha512-AAAA\",\n    },\n"),
+        "{yaml}",
+    );
     assert!(!yaml.contains("patch_hash"), "{yaml}");
 }
 
@@ -438,33 +468,38 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  tool@2.1.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    assert!(yaml.contains("\n  injected@file:packages/injected: {}\n"), "{yaml}");
-    assert!(!yaml.contains("resolution:"), "{yaml}");
-    let start = yaml.find("\nsettings:").expect("a settings section");
-    let end = yaml.find("\npackages:").expect("a packages section");
+    assert!(yaml.contains("\n    \"injected@file:packages/injected\": {},\n"), "{yaml}");
+    assert!(!yaml.contains("resolution"), "{yaml}");
+    let start = yaml.find("\n  \"settings\"").expect("a settings section");
+    let end = yaml.find("\n  \"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
         text_block_macros::text_block_fnl! {
             ""
-            "settings:"
-            "  catalogs:"
-            "    default:"
-            "      '@scope/renamed': npm:@scope/real@1.0.0"
-            "      pinned: 3.0.0"
-            "      tool: {specifier: ^2.0.0, version: 2.1.0}"
+            r#"  "settings": {"#
+            r#"    "catalogs": {"#
+            r#"      "default": {"#
+            r#"        "@scope/renamed": "npm:@scope/real@1.0.0","#
+            r#"        "pinned": "3.0.0","#
+            r#"        "tool": {"specifier": "^2.0.0", "version": "2.1.0"},"#
+            "      },"
+            "    },"
+            "  },"
             ""
-            "importers:"
-            ""
-            "  .:"
-            "    dependencies:"
-            "      '@scope/renamed': 'catalog:'"
-            "      exact: 1.2.3"
-            "      injected: workspace:*"
-            "      injected-alias: workspace:injected@*"
-            "      pinned: 'catalog:'"
-            "      ranged: {specifier: ^1.0.0, version: 1.2.3}"
-            "      shared: {specifier: workspace:*, version: link:../shared}"
-            "      tool: 'catalog:'"
+            r#"  "importers": {"#
+            r#"    ".": {"#
+            r#"      "dependencies": {"#
+            r#"        "@scope/renamed": "catalog:","#
+            r#"        "exact": "1.2.3","#
+            r#"        "injected": "workspace:*","#
+            r#"        "injected-alias": "workspace:injected@*","#
+            r#"        "pinned": "catalog:","#
+            r#"        "ranged": {"specifier": "^1.0.0", "version": "1.2.3"},"#
+            r#"        "shared": {"specifier": "workspace:*", "version": "link:../shared"},"#
+            r#"        "tool": "catalog:","#
+            "      },"
+            "    },"
+            "  },"
         },
     );
 }
@@ -501,26 +536,62 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
         "        version: link:../tool"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    let start = yaml.find("\nimporters:").expect("an importers section");
+    let start = yaml.find("\n  \"importers\"").expect("an importers section");
     assert_eq!(
         &yaml[start..],
         text_block_macros::text_block_fnl! {
             ""
-            "importers:"
+            r#"  "importers": {"#
+            r#"    ".": {"#
+            r#"      "devDependencies": {"#
+            r#"        "@scope/a": "workspace:*","#
+            "      },"
+            "    },"
             ""
-            "  .:"
-            "    devDependencies:"
-            "      '@scope/a': workspace:*"
+            r#"    "packages/a": {"#
+            r#"      "name": "@scope/a","#
+            "    },"
             ""
-            "  packages/a:"
-            "    name: '@scope/a'"
-            ""
-            "  packages/b:"
-            "    dependencies:"
-            "      '@scope/a': workspace:^"
-            "      a-alias: workspace:@scope/a@*"
-            "      tool: {specifier: workspace:*, version: link:../tool}"
+            r#"    "packages/b": {"#
+            r#"      "dependencies": {"#
+            r#"        "@scope/a": "workspace:^","#
+            r#"        "a-alias": "workspace:@scope/a@*","#
+            r#"        "tool": {"specifier": "workspace:*", "version": "link:../tool"},"#
+            "      },"
+            "    },"
+            "  },"
+            "}"
         },
+    );
+}
+
+/// The JSON reader allows a trailing comma, and leaves a comma inside a
+/// string alone.
+#[test]
+fn json_reader_allows_a_trailing_comma_and_keeps_one_in_a_string() {
+    let value = super::from_json_str::<serde_json::Value>(text_block_macros::text_block_fnl! {
+        "{"
+        r#"  "a": "x,]","#
+        r#"  "b": [1, 2,],"#
+        r#"  "c": {"d": "\",}",},"#
+        "}"
+    })
+    .expect("parse");
+    assert_eq!(value, serde_json::json!({"a": "x,]", "b": [1, 2], "c": {"d": r#"",}"#}}));
+}
+
+/// A JSON document laid out otherwise than pnpm writes it, here on one
+/// line, does not split into sections and is parsed whole.
+#[test]
+fn json_document_in_another_layout_is_parsed_whole() {
+    let text = r#"{"lockfileVersion":"13.0","importers":{".":{"dependencies":{"a":"1.0.0"}}},"packages":{"a@1.0.0":{"integrity":"sha512-AAAA"}}}"#;
+    let lockfile = parse(text);
+    assert_eq!(lockfile.importers.len(), 1);
+    assert_eq!(lockfile.packages.as_ref().map(std::collections::HashMap::len), Some(1));
+    let (yaml, _) = written_and_read(&lockfile);
+    assert!(
+        yaml.contains("\n    \"a@1.0.0\": {\n      \"integrity\": \"sha512-AAAA\",\n    },\n"),
+        "{yaml}",
     );
 }
 

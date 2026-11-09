@@ -2,12 +2,17 @@
 //!
 //! `importers`, `packages`, and `snapshots` are independent YAML blocks, and
 //! together most of a lockfile. Parsing them in parallel takes the time of
-//! the largest instead of the sum.
+//! the largest instead of the sum. The next format's [JSON](json) splits
+//! the same way.
+
+pub(crate) use json::parse_json_in_parallel;
 
 use crate::{LockfileDocument, PackageKey};
 use rayon::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
 use std::collections::HashMap;
+
+mod json;
 
 const SECTIONS: [&str; 3] = ["importers:", "packages:", "snapshots:"];
 

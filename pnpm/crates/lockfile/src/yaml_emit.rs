@@ -36,18 +36,16 @@ use std::cmp::Ordering;
 /// would dominate.
 const PARALLEL_ENTRY_THRESHOLD: usize = 64;
 
-/// Keys whose collection value always renders on a single line (flow style).
-/// Mirrors the fork's [`SINGLE_LINE_KEYS`][fork-single-line-keys].
-///
-/// [fork-single-line-keys]: https://cdn.jsdelivr.net/npm/@zkochan/js-yaml@0.0.11/lib/dumper.js
-const SINGLE_LINE_KEYS: [&str; 4] = ["cpu", "engines", "os", "libc"];
-
 /// One indentation level, in spaces (`js-yaml`'s default `indent`).
 const INDENT: usize = 2;
 
+mod flow;
 mod nesting;
 mod next_order;
-use nesting::{Format, Nesting, ValueStyle, names_snapshot, one_line_values};
+use nesting::{
+    Format, Nesting, ValueStyle, is_single_line_key, is_single_line_map, names_snapshot,
+    one_line_values,
+};
 use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
@@ -90,19 +88,26 @@ const ROOT_KEYS: [&str; 10] = [
 ];
 
 /// Render an already-normalized lockfile document to a YAML string
-/// matching pnpm's lockfile formatting.
+/// matching pnpm's lockfile formatting: today's block style, or the next
+/// format's [JSON](flow).
 pub(crate) fn to_string(value: Value) -> String {
     let (value, format) = sort_lockfile_keys(value);
-    let mut dump = render(
-        &value,
-        0,
-        CollectionStyle::Block,
-        FirstEntry::OnKeyLine,
-        None,
-        ScalarLines::Multiline,
-        Nesting { format, values: ValueStyle::Block },
-    );
-    dump.push('\n');
+    let dump = match format {
+        Format::Next => flow::to_string(&value),
+        Format::V9 => {
+            let mut dump = render(
+                &value,
+                0,
+                CollectionStyle::Block,
+                FirstEntry::OnKeyLine,
+                None,
+                ScalarLines::Multiline,
+                Nesting { format, values: ValueStyle::Block },
+            );
+            dump.push('\n');
+            dump
+        }
+    };
     pnpm_fs::background_drop(value);
     dump
 }
@@ -301,23 +306,6 @@ fn render_map(
         };
     let values = one_line_values(object_key, nesting);
     write_block_mapping(map, level, first_entry, spacing, Nesting { values, ..nesting })
-}
-
-fn is_single_line_key(key: &str) -> bool {
-    SINGLE_LINE_KEYS.contains(&key)
-}
-
-/// Whether a map value renders on a single line. `resolution` is single-line
-/// except for the nested `variations`/`binary` shapes (detected by the `type`
-/// discriminator pnpm's tagged resolutions carry).
-fn is_single_line_map(object_key: Option<&str>, map: &serde_json::Map<String, Value>) -> bool {
-    match object_key {
-        Some(key) if is_single_line_key(key) => true,
-        Some("resolution") => {
-            !matches!(map.get("type").and_then(Value::as_str), Some("variations" | "binary"))
-        }
-        _ => false,
-    }
 }
 
 /// `generateNextLine`: a newline (doubled for [`EntrySpacing::BlankLine`])
