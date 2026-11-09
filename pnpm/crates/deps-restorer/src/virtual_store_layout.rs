@@ -111,20 +111,11 @@ impl VirtualStoreLayout {
     }
 
     /// Where this install builds `key`'s package before renaming it into
-    /// its global virtual store slot: a sibling of the package directory
-    /// named `.<name>-<token>`, so the package resolves its dependencies
-    /// from the slot's `node_modules` there as it does once renamed.
+    /// its global virtual store slot. See [`pnpm_store_dir::staging_dir_name`].
     pub(crate) fn staging_package_dir(&self, key: &PackageKey) -> PathBuf {
         let package_dir = crate::build_modules::slots::virtual_store_dir_for_key(self, key);
-        let name = package_dir
-            .file_name()
-            .map(std::ffi::OsStr::to_os_string)
-            .unwrap_or_default();
-        let mut staged = std::ffi::OsString::from(".");
-        staged.push(name);
-        staged.push("-");
-        staged.push(&self.staging_token);
-        package_dir.with_file_name(staged)
+        let name = package_dir.file_name().unwrap_or_default();
+        package_dir.with_file_name(pnpm_store_dir::staging_dir_name(name, &self.staging_token))
     }
 
     pub(crate) fn engine_name(&self) -> Option<&str> {
