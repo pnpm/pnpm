@@ -5,11 +5,11 @@ use super::{
     cache_keys::{SlotReuse, SnapshotCacheKey},
     cas::{retain_fetch_pass_rows, retained_cache_keys},
     cold::ColdInputs,
-    create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
+    init_store_dir_unless_frozen, nothing_to_materialize, partition,
     publish_planned_canonical_fetches, removed_aliases_by_key, run_checked,
     slot_linking::LinkSlotsParallel,
     snapshot_plan,
-    warm::{WarmLinkBatch, link_warm_batch},
+    warm::{SlotBuilds, WarmLinkBatch, link_warm_batch},
 };
 
 mod downloads;
@@ -19,10 +19,7 @@ use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry}
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache};
 use pnpm_tarball::PrefetchResult;
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::collections::{HashMap, HashSet};
 
 impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
@@ -48,7 +45,7 @@ impl<'a> CreateVirtualStore<'a> {
         let Some(wanted) = self.wanted()? else {
             return Ok((nothing_to_materialize(self.is_hoisted()), None));
         };
-        let (prefetch, marker_source) = self.prefetch_and_prepare_store(wanted, check).await?;
+        let prefetch = self.prefetch_and_prepare_store(wanted, check).await?;
         let retained_keys =
             retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
@@ -71,7 +68,6 @@ impl<'a> CreateVirtualStore<'a> {
                 index: prefetch.store_index.as_ref(),
                 verified_files_cache: &prefetch.verified_files_cache,
             },
-            marker_source.as_ref(),
             check,
         )
         .await?;
@@ -110,10 +106,10 @@ impl<'a> CreateVirtualStore<'a> {
         &mut self,
         wanted: WantedEntries<'a>,
         check: &mut Option<ConcurrentCheck<'_>>,
-    ) -> Result<(CasPrefetch, Option<tempfile::NamedTempFile>), CreateVirtualStoreError> {
+    ) -> Result<CasPrefetch, CreateVirtualStoreError> {
         let prefetch = run_checked(check, async { Ok(self.prefetch(wanted).await) }).await?;
-        let marker_source = run_checked(check, self.prepare_store()).await?;
-        Ok((prefetch, marker_source))
+        self.prepare_store().await;
+        Ok(prefetch)
     }
 
     /// `pnpm:stats added` fires one event per project once the
@@ -146,12 +142,8 @@ impl<'a> CreateVirtualStore<'a> {
         }));
     }
 
-    fn rebuilds<'p>(
-        &'p self,
-        plan: &'p snapshot_plan::SnapshotPlan<'a>,
-    ) -> partition::Rebuilds<'p> {
+    fn rebuilds(&self) -> partition::Rebuilds<'_> {
         partition::Rebuilds {
-            markers: &plan.marker_rebuilds,
             allow_build_policy: self.ctx.allow_build_policy,
             known_requires_build: self.selection.known_requires_build,
             known_bins: self.selection.known_bins,
@@ -169,14 +161,13 @@ impl<'a> CreateVirtualStore<'a> {
         plan: snapshot_plan::SnapshotPlan<'a>,
         prefetched: &PrefetchResult,
         store: CreateVirtualStoreStoreContext<'_>,
-        marker_source: Option<&tempfile::NamedTempFile>,
         check: &mut Option<ConcurrentCheck<'_>>,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         let mut partition = partition::partition_snapshots(
             &plan.survivors,
             &plan.skipped_entries,
             prefetched,
-            &self.rebuilds(&plan),
+            &self.rebuilds(),
             self.ctx.linker.kind,
         );
 
@@ -198,14 +189,15 @@ impl<'a> CreateVirtualStore<'a> {
         let links = self.link_plan(&plan);
         let mut indexes =
             CasIndexes::warm(links.shared_packages.as_ref(), &partition.warm, self.is_hoisted());
-        self.link_warm::<Reporter>(
-            wanted,
-            &partition,
-            &links,
-            marker_source.map(tempfile::NamedTempFile::path),
-        )?;
+        self.link_warm::<Reporter>(wanted, &partition, &links)?;
         let fetch_failed = self.download_and_apply_side_effects::<Reporter>(
-            ColdInputs { wanted, store, prefetched, marker_source, links: &links },
+            ColdInputs {
+                wanted,
+                store,
+                prefetched,
+                slot_builds: self.slot_builds(),
+                links: &links,
+            },
             (&mut partition, &mut indexes),
             check,
         )
@@ -272,15 +264,15 @@ impl<'a> CreateVirtualStore<'a> {
         }
     }
 
-    async fn prepare_store(
-        &self,
-    ) -> Result<Option<tempfile::NamedTempFile>, CreateVirtualStoreError> {
+    async fn prepare_store(&self) {
         let config = self.ctx.config;
-        let store_dir: &'static _ = &config.store_dir;
         if self.fetching.store_context.is_none() {
-            init_store_dir_unless_frozen(config, store_dir).await;
+            init_store_dir_unless_frozen(config, &config.store_dir).await;
         }
-        create_build_marker_source(config, self.ctx.linker.layout, store_dir)
+    }
+
+    fn slot_builds(&self) -> Option<SlotBuilds<'_>> {
+        SlotBuilds::of(self.ctx.config, self.ctx.linker.layout, self.ctx.allow_build_policy)
     }
 
     /// The plan pass consumes the keys [`CasPrefetch::start`] derived
@@ -309,8 +301,6 @@ impl<'a> CreateVirtualStore<'a> {
             packages: wanted.packages,
             current_entries: self.current_entries,
             layout: self.ctx.linker.layout,
-            allow_build_policy: self.ctx.allow_build_policy,
-
             cache_keys: &mut cache_keys,
         })
     }
@@ -359,14 +349,13 @@ impl<'a> CreateVirtualStore<'a> {
         wanted: WantedEntries<'a>,
         partition: &partition::Partition<'_>,
         links: &LinkPlan<'_>,
-        marker_source: Option<&Path>,
     ) -> Result<(), CreateVirtualStoreError> {
         link_warm_batch::<Reporter>(
             &partition.warm,
             &WarmLinkBatch {
                 reuse: self.slot_reuse(wanted.packages),
                 is_hoisted: self.is_hoisted(),
-                needs_build_marker_source: marker_source,
+                slot_builds: self.slot_builds(),
                 removed_aliases_by_key: &links.removed_aliases_by_key,
                 template: &links.template,
             },

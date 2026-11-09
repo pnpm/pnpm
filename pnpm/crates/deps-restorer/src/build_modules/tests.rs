@@ -19,7 +19,7 @@ mod patches_and_approvals;
 mod build_policy;
 
 #[cfg(unix)]
-mod gvs_markers;
+mod global_slots;
 
 #[cfg(unix)]
 mod empty_side_effects;

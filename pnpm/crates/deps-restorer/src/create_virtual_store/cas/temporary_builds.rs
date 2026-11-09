@@ -108,13 +108,16 @@ fn candidates(
         .filter(|key| fetched.requires_build_by_snapshot.get(*key) == Some(&true))
     {
         if !installer.ctx.config.force
-            && crate::build_modules::slots::built_slot_is_complete(
+            && crate::build_modules::slots::package_is_placed(
                 &crate::build_modules::slots::virtual_store_dir_for_key(
                     installer.ctx.linker.layout,
                     key,
                 ),
             )
-            .map_err(CreateVirtualStoreError::LoadedBuild)?
+            .map_err(|source| CreateVirtualStoreError::LoadedBuildIo {
+                path: installer.ctx.linker.layout.slot_dir(key),
+                source,
+            })?
         {
             continue;
         }

@@ -91,11 +91,40 @@ pub struct VirtualStoreLayout {
     /// lockfile context, in which case `link:` dependencies inside a
     /// slot are left unlinked exactly as before.
     lockfile_dir: Option<PathBuf>,
+
+    /// Names this install's staging directories, so they never collide
+    /// with another install's. See [`Self::staging_package_dir`].
+    staging_token: String,
+}
+
+/// A token no other live install holds: the process id, plus a counter
+/// for the installs one process runs.
+fn new_staging_token() -> String {
+    static INSTALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let install = INSTALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    format!("{:x}-{install:x}", std::process::id())
 }
 
 impl VirtualStoreLayout {
     pub(crate) fn relocated(&self, root: &Path) -> Self {
         Self { package_store_dir: root.to_path_buf(), ..self.clone() }
+    }
+
+    /// Where this install builds `key`'s package before renaming it into
+    /// its global virtual store slot: a sibling of the package directory
+    /// named `.<name>-<token>`, so the package resolves its dependencies
+    /// from the slot's `node_modules` there as it does once renamed.
+    pub(crate) fn staging_package_dir(&self, key: &PackageKey) -> PathBuf {
+        let package_dir = crate::build_modules::slots::virtual_store_dir_for_key(self, key);
+        let name = package_dir
+            .file_name()
+            .map(std::ffi::OsStr::to_os_string)
+            .unwrap_or_default();
+        let mut staged = std::ffi::OsString::from(".");
+        staged.push(name);
+        staged.push("-");
+        staged.push(&self.staging_token);
+        package_dir.with_file_name(staged)
     }
 
     pub(crate) fn engine_name(&self) -> Option<&str> {
@@ -115,6 +144,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: None,
             virtual_store_dir_max_length,
             lockfile_dir: None,
+            staging_token: new_staging_token(),
         }
     }
 
@@ -193,6 +223,7 @@ impl VirtualStoreLayout {
                 gvs_suffixes: None,
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+                staging_token: new_staging_token(),
             };
         }
         Self::global(
@@ -273,6 +304,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: Some(gvs_suffixes),
             virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            staging_token: new_staging_token(),
         }
     }
 
@@ -310,6 +342,7 @@ impl VirtualStoreLayout {
                 gvs_suffixes: Some(HashMap::new()),
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+                staging_token: new_staging_token(),
             };
         };
         let mut hasher = GvsHasher::new(
@@ -326,6 +359,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: Some(hasher.suffixes(snapshots)),
             virtual_store_dir_max_length,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            staging_token: new_staging_token(),
         }
     }
 

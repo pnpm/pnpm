@@ -227,7 +227,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
             is_mutable: false,
             source_exists: true,
             force: false,
-            build_marker: None,
+            awaits_build: false,
             needs_build: false,
         },
         layout: &layout,
@@ -320,7 +320,7 @@ fn needs_build_slots_never_share_inodes_with_their_source() {
                 is_mutable,
                 source_exists: true,
                 force: false,
-                build_marker: None,
+                awaits_build: false,
                 needs_build,
             },
             layout: &layout,
@@ -438,7 +438,7 @@ fn a_build_write_does_not_reach_the_import_source() {
             is_mutable: true,
             source_exists: true,
             force: false,
-            build_marker: None,
+            awaits_build: false,
             needs_build: true,
         },
         layout: &layout,
@@ -464,15 +464,13 @@ fn a_build_write_does_not_reach_the_import_source() {
 }
 
 #[test]
-fn run_imports_needs_build_marker_with_a_fresh_package() {
+fn a_package_awaiting_its_build_is_imported_into_staging() {
     let dir = tempdir().expect("tempdir");
     let cas_dir = dir.path().join("cas");
     std::fs::create_dir_all(&cas_dir).expect("create cas dir");
     let package_json = cas_dir.join("package.json");
-    let marker_source = cas_dir.join("needs-build-marker");
     std::fs::write(&package_json, r#"{"name":"react","version":"18.0.0"}"#)
         .expect("write package manifest source");
-    std::fs::write(&marker_source, "").expect("write marker source");
 
     let cas_paths = HashMap::from([("package.json".to_string(), package_json.into())]);
     let logged_methods = AtomicU8::new(0);
@@ -504,7 +502,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
             is_mutable: false,
             source_exists: true,
             force: false,
-            build_marker: Some(&marker_source),
+            awaits_build: true,
             needs_build: true,
         },
         layout: &layout,
@@ -516,11 +514,16 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         link_concurrency_probe: None,
     }
     .run::<pnpm_reporter::SilentReporter>()
-    .expect("import package with build marker");
+    .expect("import package awaiting its build");
 
     let package_dir = layout.slot_dir(&package_key).join("node_modules/react");
-    assert!(package_dir.join("package.json").exists());
-    assert!(package_dir.join(crate::NEEDS_BUILD_MARKER).is_file());
+    assert!(!package_dir.exists(), "the build phase places the package");
+    assert!(
+        layout
+            .staging_package_dir(&package_key)
+            .join("package.json")
+            .is_file()
+    );
 }
 
 #[test]
@@ -562,7 +565,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
             is_mutable: false,
             source_exists: true,
             force: true,
-            build_marker: None,
+            awaits_build: false,
             needs_build: false,
         },
         layout: &layout,
@@ -621,7 +624,7 @@ fn run_rejects_traversal_package_name() {
             is_mutable: false,
             source_exists: true,
             force: false,
-            build_marker: None,
+            awaits_build: false,
             needs_build: false,
         },
         layout: &layout,
@@ -713,7 +716,7 @@ fn run_rejects_uncontained_slot_before_creating_dirs() {
             is_mutable: false,
             source_exists: true,
             force: false,
-            build_marker: None,
+            awaits_build: false,
             needs_build: false,
         },
         layout: &layout,
@@ -802,7 +805,7 @@ async fn run_removes_obsolete_child_links() {
             is_mutable: false,
             source_exists: true,
             force: false,
-            build_marker: None,
+            awaits_build: false,
             needs_build: false,
         },
         layout: &layout,
@@ -884,64 +887,32 @@ fn slot_import_opts_forces_only_when_a_mutable_source_exists() {
 
     let missing_source = slot_import_opts(
         &layout,
-        SlotForceInputs {
-            interrupted_build: false,
-            source_is_mutable: true,
-            source_exists: false,
-            force_import: false,
-        },
+        SlotForceInputs { source_is_mutable: true, source_exists: false, force_import: false },
         None,
     );
     assert!(!missing_source.force, "a missing mutable source must not force a reimport");
 
     let existing_source = slot_import_opts(
         &layout,
-        SlotForceInputs {
-            interrupted_build: false,
-            source_is_mutable: true,
-            source_exists: true,
-            force_import: false,
-        },
+        SlotForceInputs { source_is_mutable: true, source_exists: true, force_import: false },
         None,
     );
     assert!(existing_source.force, "an existing mutable source must still force a reimport");
 }
 
-/// `interrupted_build` and `force_import` are independent reasons to force a
-/// reimport, but neither may override the missing-source preservation above:
-/// `pnpm install --force`, or a stale `.pnpm-needs-build` marker from an
-/// interrupted build, must not wipe a slot whose mutable source is missing.
+/// `pnpm install --force` must not wipe a slot whose mutable source is
+/// missing.
 #[test]
-fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import() {
+fn slot_import_opts_missing_source_overrides_force_import() {
     let dir = tempdir().expect("tempdir");
     let layout = crate::VirtualStoreLayout::legacy(
         dir.path().to_path_buf(),
         pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
 
-    let interrupted_build = slot_import_opts(
-        &layout,
-        SlotForceInputs {
-            interrupted_build: true,
-            source_is_mutable: true,
-            source_exists: false,
-            force_import: false,
-        },
-        None,
-    );
-    assert!(
-        !interrupted_build.force,
-        "interrupted_build must not force a reimport of a missing source",
-    );
-
     let force_import = slot_import_opts(
         &layout,
-        SlotForceInputs {
-            interrupted_build: false,
-            source_is_mutable: true,
-            source_exists: false,
-            force_import: true,
-        },
+        SlotForceInputs { source_is_mutable: true, source_exists: false, force_import: true },
         None,
     );
     assert!(!force_import.force, "force_import must not force a reimport of a missing source");

@@ -1,6 +1,6 @@
 use super::{SnapshotPlan, SnapshotPlanInputs, optional_children_match, plan_snapshots};
 use crate::{
-    AllowBuildPolicy, CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout,
+    CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout,
     create_virtual_store::{
         SnapshotCacheKey, snapshot_plan::children::optional_children_match_with,
     },
@@ -198,7 +198,6 @@ impl PlanFixture {
     }
 
     fn plan_inner(&self, current_matches_wanted: bool, force: bool) -> SnapshotPlan<'_> {
-        let allow_build_policy = AllowBuildPolicy::new(HashSet::new(), HashSet::new(), false);
         let mut cache_keys = self.snapshots
             .keys()
             .map(|snapshot_key| {
@@ -227,8 +226,6 @@ impl PlanFixture {
                 snapshots: current_matches_wanted.then_some(&self.snapshots),
             },
             layout: &self.layout,
-            allow_build_policy: &allow_build_policy,
-
             cache_keys: &mut cache_keys,
         })
         .expect("plan snapshots")

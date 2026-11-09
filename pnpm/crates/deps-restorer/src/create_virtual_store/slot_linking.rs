@@ -1,18 +1,15 @@
 use super::{
     ColdCapture, CreateVirtualStoreError, cache_keys::dir_clone_cacheable, removed_aliases_for,
-    snapshot_needs_build_marker,
+    snapshot_needs_build_marker, warm::SlotBuilds,
 };
 use crate::InstallPackageBySnapshotError;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
 use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::PathBuf};
 
 pub(super) struct SlotLink<'a> {
-    pub source: crate::SlotImportSource<'a>,
+    pub source: crate::SlotImportSource,
     pub(super) snapshot_key: &'a PackageKey,
     pub(super) snapshot: &'a SnapshotEntry,
     pub(super) cas_paths: &'a pnpm_fs::CasPaths,
@@ -103,7 +100,7 @@ pub(super) fn merge_into_slot_group<'a>(group: &mut SlotDirGroup<'a>, slot: &'a 
 pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
     chunk: &[ColdCapture<'_>],
     packages: &HashMap<PackageKey, PackageMetadata>,
-    marker_path: Option<&Path>,
+    slot_builds: Option<SlotBuilds<'_>>,
     removed_aliases_by_key: &HashMap<PackageKey, Vec<PkgName>>,
     template: &LinkSlotsParallel<'_>,
 ) -> Result<(), CreateVirtualStoreError> {
@@ -120,7 +117,9 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
                     is_mutable: capture.installed.source_is_mutable,
                     source_exists: capture.installed.source_exists,
                     force: capture.force_import,
-                    build_marker: needs_build.then_some(marker_path).flatten(),
+                    awaits_build: slot_builds.is_some_and(|builds| {
+                        builds.places(capture.snapshot_key, capture.requires_build)
+                    }),
                     needs_build,
                 },
                 snapshot_key: capture.snapshot_key,

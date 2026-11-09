@@ -418,7 +418,7 @@ fn slot_link<'a>(
             is_mutable: true,
             source_exists: true,
             force: false,
-            build_marker: None,
+            awaits_build: false,
             needs_build: false,
         },
         snapshot_key,

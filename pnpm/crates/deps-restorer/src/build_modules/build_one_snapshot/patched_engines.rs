@@ -13,8 +13,22 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
 ) -> Result<bool, BuildModulesError> {
+    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else { return Ok(false) };
+    skip_incompatible_optional_at::<EventReporter>(context, snapshot_key, candidate, &pkg_dir)
+}
+
+/// [`skip_incompatible_optional`], reading the patched manifest from
+/// `pkg_dir`.
+pub(super) fn skip_incompatible_optional_at<EventReporter: Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    pkg_dir: &std::path::Path,
+) -> Result<bool, BuildModulesError> {
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
-    let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional)? else {
+    let Some(details) =
+        enforce_patched_engines(context, snapshot_key, candidate, (pkg_dir, optional))?
+    else {
         return Ok(false);
     };
     EventReporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
@@ -65,15 +79,12 @@ pub(super) fn enforce_patched_engines(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
-    optional: bool,
+    (pkg_dir, optional): (&std::path::Path, bool),
 ) -> Result<Option<String>, BuildModulesError> {
     if !context.scripts.patched_engines.engine_strict || candidate.patch.is_none() {
         return Ok(None);
     }
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
-        return Ok(None);
-    };
-    let manifest = read_package_json(&pkg_dir)
+    let manifest = read_package_json(pkg_dir)
         .map_err(|()| BuildModulesError::PatchedManifestUnreadable {
             dep_path: snapshot_key.to_string(),
         })?;

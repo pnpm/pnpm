@@ -5,10 +5,7 @@ use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pnpm_network::ThrottledClient;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{MemCache, PrefetchedCasPaths, SharedReportedProgressKeys};
-use std::{
-    path::Path,
-    sync::{Arc, atomic::AtomicU8},
-};
+use std::sync::{Arc, atomic::AtomicU8};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PackageImportOptions<'a> {
@@ -66,7 +63,7 @@ impl<'a> PackageImportOptions<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub struct SlotImportSource<'a> {
+pub struct SlotImportSource {
     /// Whether this package's file map points at mutable local source
     /// (a `file:` / [`pnpm_lockfile::LockfileResolution::Directory`]
     /// resolution) rather than immutable CAS entries. pnpm's `file:` is
@@ -90,9 +87,10 @@ pub struct SlotImportSource<'a> {
     /// Whether an existing slot contains a different immutable artifact
     /// under the same package key and must be replaced.
     pub force: bool,
-    /// Empty source file imported as `.pnpm-needs-build` before the package's
-    /// atomic completion marker when the package needs a build or patch.
-    pub build_marker: Option<&'a Path>,
+    /// Whether the build phase places this package into its global virtual
+    /// store slot. The link phase then creates only the slot's dependency
+    /// links.
+    pub awaits_build: bool,
     /// Whether a lifecycle script or a patch will still write this slot's
     /// files after the import. Such a slot must not share inodes with its
     /// source, so it imports with `clone-or-copy` unless

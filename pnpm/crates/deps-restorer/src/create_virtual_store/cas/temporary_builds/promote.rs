@@ -21,7 +21,9 @@ pub(super) fn retain(
         if !moved.insert(target.clone()) {
             continue;
         }
-        let _slot_lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(layout, key);
+        if placed(layout, key) {
+            continue;
+        }
         promote(temporary, layout, key, &target)
             .map_err(|source| CreateVirtualStoreError::LoadedBuildIo {
                 path: target.clone(),
@@ -29,6 +31,15 @@ pub(super) fn retain(
             })?;
     }
     Ok(retained)
+}
+
+/// Whether the slot already holds the package. A slot's package directory
+/// is final once its `package.json` exists, so it is never replaced.
+fn placed(layout: &VirtualStoreLayout, key: &PackageKey) -> bool {
+    crate::build_modules::slots::package_is_placed(
+        &crate::build_modules::slots::virtual_store_dir_for_key(layout, key),
+    )
+    .unwrap_or(false)
 }
 
 fn promote(
