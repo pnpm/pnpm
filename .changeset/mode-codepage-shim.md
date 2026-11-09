@@ -1,5 +1,6 @@
 ---
 '@pnpm/bins.cmd-shim': patch
+'@pnpm/os.env.path-extender-windows': patch
 'pnpm': patch
 'pacquet': patch
 ---
