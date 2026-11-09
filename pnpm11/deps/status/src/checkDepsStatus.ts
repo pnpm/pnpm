@@ -118,8 +118,7 @@ function checkWithoutLockfiles (opts: CheckDepsStatusOptions, workspaceState: Wo
   }
 
   if (opts.nodeLinker === 'pnp') {
-    globalWarn('verify-deps-before-run does not work with node-linker=pnp')
-    return { upToDate: true, workspaceState: undefined }
+    return checkPnpStatus(opts, workspaceState)
   }
 
   if (
@@ -133,6 +132,15 @@ function checkWithoutLockfiles (opts: CheckDepsStatusOptions, workspaceState: Wo
 
   const settingsIssue = findSettingsIssue(opts, workspaceState)
   return settingsIssue == null ? undefined : outdatedResult(settingsIssue, workspaceState)
+}
+
+function checkPnpStatus (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): CheckDepsStatusResult {
+  if (opts.checkSettingsForPnp) {
+    const settingsIssue = findSettingsIssue(opts, workspaceState)
+    if (settingsIssue != null) return outdatedResult(settingsIssue, workspaceState)
+  }
+  globalWarn('verify-deps-before-run does not work with node-linker=pnp')
+  return { upToDate: true, workspaceState: undefined }
 }
 
 function isUnfilteredWorkspaceInstall (opts: CheckDepsStatusOptions): boolean {

@@ -41,6 +41,8 @@ export type CheckDepsStatusOptions = Pick<Config,
    * after a filtered install.
    */
   dir?: string
+  /** Install callers check settings before the unsupported PnP status shortcut. */
+  checkSettingsForPnp?: boolean
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]

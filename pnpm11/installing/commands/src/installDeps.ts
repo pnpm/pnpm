@@ -223,6 +223,7 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
   if (opts.nodeLinker === 'hoisted' && (opts.hooks?.customFetchers?.length ?? 0) > 0) return false
   const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
     ...opts,
+    checkSettingsForPnp: true,
     ignoreFilteredInstallCache: true,
     treatLocalFileDepsAsOutdated: true,
   })

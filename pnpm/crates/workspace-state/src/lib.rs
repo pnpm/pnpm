@@ -10,8 +10,6 @@
 //! pnpm read state written by pacquet, which is what lets
 //! `verify-deps-before-run` stay enabled.
 
-mod runtime_on_fail;
-
 pub use runtime_on_fail::RuntimeOnFail;
 
 use derive_more::{Display, Error};
@@ -25,6 +23,8 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+mod runtime_on_fail;
 
 /// Basename of the workspace-state file, written inside `node_modules/`.
 pub const WORKSPACE_STATE_FILENAME: &str = ".pnpm-workspace-state-v1.json";

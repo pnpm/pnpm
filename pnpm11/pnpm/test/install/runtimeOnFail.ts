@@ -7,7 +7,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
-test('repeat install applies runtimeOnFail changes', async () => {
+test.each(['isolated', 'hoisted', 'pnp'])('repeat install applies runtimeOnFail changes with %s', async (nodeLinker) => {
   const project = prepare({
     devEngines: {
       runtime: {
@@ -16,11 +16,11 @@ test('repeat install applies runtimeOnFail changes', async () => {
       },
     },
   })
-  fs.writeFileSync('pnpm-workspace.yaml', 'runtimeOnFail: ignore\n', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `nodeLinker: ${nodeLinker}\nruntimeOnFail: ignore\n`, 'utf8')
   await execPnpm(['install'])
   expectNoNodeBin()
 
-  fs.writeFileSync('pnpm-workspace.yaml', 'runtimeOnFail: download\n', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `nodeLinker: ${nodeLinker}\nruntimeOnFail: download\n`, 'utf8')
   await execPnpm(['install'])
 
   project.isExecutable('.bin/node')

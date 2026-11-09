@@ -69,6 +69,33 @@ describe('checkDepsStatus - settings change detection', () => {
     jest.clearAllMocks()
   })
 
+  it.each([
+    { checkSettingsForPnp: true, runtimeOnFail: 'download', ignoredWorkspaceStateSettings: [], upToDate: false },
+    { checkSettingsForPnp: true, runtimeOnFail: 'ignore', ignoredWorkspaceStateSettings: [], upToDate: true },
+    { checkSettingsForPnp: true, runtimeOnFail: 'download', ignoredWorkspaceStateSettings: ['runtimeOnFail'], upToDate: true },
+    { checkSettingsForPnp: false, runtimeOnFail: 'download', ignoredWorkspaceStateSettings: [], upToDate: true },
+  ] as const)('checks PnP runtime policy only for install callers: %j', async ({ checkSettingsForPnp, runtimeOnFail, ignoredWorkspaceStateSettings, upToDate }) => {
+    const workspaceState: WorkspaceState = {
+      lastValidatedTimestamp: recentTimestamp(),
+      pnpmfiles: [],
+      settings: { nodeLinker: 'pnp', runtimeOnFail: 'ignore' },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(workspaceState)
+    const result = await checkDepsStatus({
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...workspaceState.settings,
+      runtimeOnFail,
+      checkSettingsForPnp,
+      ignoredWorkspaceStateSettings: [...ignoredWorkspaceStateSettings],
+    })
+    expect(result.upToDate).toBe(upToDate)
+    expect(result.issue).toBe(upToDate ? undefined : 'The value of the runtimeOnFail setting has changed')
+  })
+
   it('returns upToDate: false when overrides have changed', async () => {
     const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
