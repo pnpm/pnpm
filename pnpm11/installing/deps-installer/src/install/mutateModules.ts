@@ -7,7 +7,7 @@ import {
   runLifecycleHook,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
-import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
 import { cleanGitBranchLockfiles, getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { streamParser } from '@pnpm/logger'
 import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
@@ -47,7 +47,7 @@ export async function mutateModules (
   const detachReporter = attachReporter(maybeOpts?.reporter)
 
   const opts = extendOptions(maybeOpts)
-  opts.allProjects ??= []
+  const allProjectsWereProvided = Boolean(maybeOpts.allProjects?.length)
 
   // Taken before any fetching so the store-verification figures this
   // install reports are its own. See the tally in `@pnpm/worker` for
@@ -55,7 +55,7 @@ export async function mutateModules (
   const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
 
   // When a pnpr server is configured, use server-side resolution.
-  if (opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
+  if (allProjectsWereProvided && opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -67,12 +67,24 @@ export async function mutateModules (
     }
   }
 
+  if (!allProjectsWereProvided) {
+    opts.allProjects = await getMutationProjectOptions(projects)
+  }
+
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
   const result = await settleInstall(runMutations(run), run.verifyLockfilePromise, detachReporter)
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
   return finishMutation(run, result)
+}
+
+async function getMutationProjectOptions (projects: MutatedProject[]): Promise<ProjectOptions[]> {
+  return Promise.all(projects.map(async (project, buildIndex) => ({
+    buildIndex,
+    manifest: await safeReadProjectManifestOnly(project.rootDir) ?? {},
+    rootDir: project.rootDir,
+  })))
 }
 
 function attachReporter (reporter: MutateModulesOptions['reporter'] | undefined): () => void {
