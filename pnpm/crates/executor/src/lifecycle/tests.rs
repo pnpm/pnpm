@@ -446,13 +446,12 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
     });
-    // A user key and an auth key, so the dump shows which one `build_env`
-    // keeps. The hook finds its shell along this `PATH`.
     let mut parent_env: HashMap<String, String> =
         [("npm_config_platform_arch", "x64"), ("npm_config__authtoken", "should-not-leak")]
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.to_string()))
             .collect();
+    // The hook finds its shell along `PATH`.
     if let Ok(path) = std::env::var("PATH") {
         parent_env.insert("PATH".to_string(), path);
     }
