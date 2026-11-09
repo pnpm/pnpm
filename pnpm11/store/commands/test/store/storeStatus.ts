@@ -1,10 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { expect, test } from '@jest/globals'
+import { STORE_VERSION } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { store } from '@pnpm/store.commands'
+import { StoreIndex } from '@pnpm/store.index'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
@@ -17,6 +21,45 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 // the user's global pnpm config (e.g. enable-global-virtual-store).
 const cleanConfigDir = temporaryDirectory()
 const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
+
+test.each([true, false])('store status rechecks legacy git rows against the pristine manifest (install script: %s)', async (hasInstallScript) => {
+  prepare()
+  const repo = temporaryDirectory()
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+    name: 'legacy-git',
+    version: '1.0.0',
+    scripts: hasInstallScript ? { postinstall: 'node -e "require(\'fs\').appendFileSync(\'index.js\', \'// built\\n\')"' } : {},
+  }))
+  fs.writeFileSync(path.join(repo, 'index.js'), 'module.exports = true\n')
+  await execa('git', ['init'], { cwd: repo })
+  await execa('git', ['add', '.'], { cwd: repo })
+  await execa('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'test fixture'], { cwd: repo })
+  const storeDir = path.join(temporaryDirectory(), STORE_VERSION)
+  const options = [`--store-dir=${storeDir}`, '--config.side-effects-cache=false', '--config.enable-global-virtual-store=false']
+  await execa('node', [pnpmBin, 'add', `git+${pathToFileURL(repo).href}`, '--dangerously-allow-all-builds', ...options], execaOpts)
+  if (hasInstallScript) {
+    expect(fs.readFileSync('node_modules/legacy-git/index.js', 'utf8')).toContain('// built\n')
+  } else {
+    fs.appendFileSync('node_modules/legacy-git/index.js', '// edited\n')
+  }
+  fs.writeFileSync('node_modules/legacy-git/package.json', '{}')
+
+  const storeIndex = new StoreIndex(storeDir)
+  try {
+    const keys = Array.from(storeIndex.keys())
+    expect(keys).toHaveLength(1)
+    const row = storeIndex.get(keys[0]) as PackageFilesIndex
+    const { manifest: _manifest, ...legacyRow } = row
+    storeIndex.set(keys[0], { ...legacyRow, requiresBuild: !hasInstallScript, requiresPrepare: false })
+  } finally {
+    storeIndex.close()
+  }
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(hasInstallScript ? 0 : 1)
+  if (!hasInstallScript) {
+    expect(result.stderr).toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+  }
+})
 
 test.each(['', 'virtualStoreDir: custom-links\n'])('store status checks global virtual store packages (%s)', async (settings) => {
   prepare()
@@ -378,5 +421,3 @@ test('removes reporter listener on early return when lockfile is missing', async
 
   expect(reportedMessages).not.toContain('logged after the store status')
 })
-
-

@@ -5,6 +5,65 @@ use super::{
 };
 use assert_cmd::assert::OutputAssertExt;
 
+#[test]
+fn store_status_rechecks_legacy_git_rows_against_the_pristine_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "legacy-git");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"legacy-git","version":"1.0.0","scripts":{"postinstall":"node -e \"require('fs').appendFileSync('index.js', '// built\\n')\""}}"#,
+    );
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("legacy-git", &spec)]);
+    allow_builds(&workspace, &[&format!("legacy-git@{spec}")]);
+    pacquet
+        .with_args(["install", "--no-side-effects-cache"])
+        .assert()
+        .success();
+    assert!(
+        fs::read_to_string(workspace.join("node_modules/legacy-git/index.js"))
+            .unwrap()
+            .contains("// built\n"),
+    );
+    fs::write(workspace.join("node_modules/legacy-git/package.json"), "{}").unwrap();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let key = pnpm_store_dir::git_hosted_store_index_key(&spec, true);
+    let store_index = pnpm_store_dir::StoreIndex::open_in(&store_dir).unwrap();
+    let mut row = store_index.get(&key).unwrap().unwrap();
+    row.manifest = None;
+    row.requires_build = Some(false);
+    row.requires_prepare = Some(false);
+    store_index.set(&key, &row).unwrap();
+    drop(store_index);
+
+    pnpm_at(&workspace)
+        .with_args(["store", "status"])
+        .assert()
+        .success();
+
+    let installed_file = workspace.join("node_modules/legacy-git/index.js");
+    let external_file = root.path().join("hardlinked.js");
+    fs::copy(&installed_file, &external_file).unwrap();
+    fs::remove_file(&installed_file).unwrap();
+    fs::hard_link(&external_file, &installed_file).unwrap();
+    let output = pnpm_at(&workspace)
+        .with_args(["store", "status"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_MODIFIED_DEPENDENCY"));
+    drop((root, npmrc_info));
+}
+
 /// TS: `run prepare script for git-hosted dependencies`
 /// (`lifecycleScripts.ts:311`).
 ///
