@@ -17,6 +17,13 @@ import { PUBLISH_EXECUTABLE_FILES, sortKeysInManifest, updateManifest } from './
 
 const CLI_PKG_NAME = 'pnpm'
 
+interface TypeScriptConfigContext {
+  workspaceDir: string
+  dir: string
+  tsConfig: object
+  linkValues: string[]
+}
+
 // These packages have their own release metadata and build pipelines;
 // the TypeScript package entry points, engine range, and Jest scripts do not apply.
 const NON_TYPESCRIPT_PKGS = new Set([
@@ -210,13 +217,19 @@ async function updateTSConfig (
   const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
-  const linkValues = findTypeScriptReferences(context.workspaceDir, dir, importer, manifest.name)
-  await writeTsConfigFiles(context.workspaceDir, dir, tsConfig, linkValues)
+  const linkValues = findTypeScriptReferences({
+    workspaceDir: context.workspaceDir,
+    dir,
+    importer,
+    projectName: manifest.name,
+  })
+  const configContext = { workspaceDir: context.workspaceDir, dir, tsConfig, linkValues }
+  await writeTsConfigFiles(configContext)
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
     compilerOptions: {
-      ...(tsConfig as any)['compilerOptions'], // eslint-disable-line
+      ...getCompilerOptions(tsConfig),
       rootDir: 'src',
     },
     references: linkValues.map(path => ({ path })),
@@ -228,12 +241,21 @@ function shouldKeepTSConfig (name: string | undefined): boolean {
     (name != null && NON_TYPESCRIPT_PKGS.has(name))
 }
 
-function findTypeScriptReferences (
-  workspaceDir: string,
-  dir: string,
-  importer: ProjectSnapshot,
+function getCompilerOptions (tsConfig: object): (Record<string, unknown> & { composite?: boolean }) | undefined {
+  return (tsConfig as { compilerOptions?: Record<string, unknown> & { composite?: boolean } }).compilerOptions
+}
+
+function findTypeScriptReferences ({
+  workspaceDir,
+  dir,
+  importer,
+  projectName,
+}: {
+  workspaceDir: string
+  dir: string
+  importer: ProjectSnapshot
   projectName: string | undefined
-): string[] {
+}): string[] {
   const deps = { ...importer.dependencies, ...importer.devDependencies }
   return Object.entries(deps)
     .filter(([depName, spec]) => {
@@ -256,15 +278,10 @@ function isExcludedTypeScriptReference (dependencyName: string, projectName: str
     dependencyName === 'pnpm' && projectName === '@pnpm/lockfile.make-dedicated-lockfile'
 }
 
-async function writeTsConfigFiles (
-  workspaceDir: string,
-  dir: string,
-  tsConfig: object,
-  linkValues: string[]
-): Promise<void> {
+async function writeTsConfigFiles ({ workspaceDir, dir, tsConfig, linkValues }: TypeScriptConfigContext): Promise<void> {
   const testDir = path.join(dir, 'test')
   const testConfig = fs.existsSync(testDir)
-    ? writeTestTsConfig(workspaceDir, dir, testDir, tsConfig, linkValues)
+    ? writeTestTsConfig({ workspaceDir, dir, testDir, tsConfig, linkValues })
     : Promise.resolve()
   await Promise.all([
     testConfig,
@@ -279,13 +296,7 @@ async function writeTsConfigFiles (
   ])
 }
 
-async function writeTestTsConfig (
-  workspaceDir: string,
-  dir: string,
-  testDir: string,
-  tsConfig: object,
-  linkValues: string[]
-): Promise<void> {
+async function writeTestTsConfig ({ workspaceDir, dir, testDir, tsConfig, linkValues }: TypeScriptConfigContext & { testDir: string }): Promise<void> {
   await writeJsonFile(path.join(testDir, 'tsconfig.json'), {
     extends: '../tsconfig.json',
     compilerOptions: {
@@ -298,12 +309,12 @@ async function writeTestTsConfig (
       '**/*.ts',
       normalizePath(path.relative(testDir, path.join(workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
     ],
-    references: getTestReferences(tsConfig, dir, testDir, linkValues),
+    references: getTestReferences({ tsConfig, dir, testDir, linkValues }),
   }, { indent: 2 })
 }
 
-function getTestReferences (tsConfig: object, dir: string, testDir: string, linkValues: string[]): Array<{ path: string }> {
-  const compilerOptions = (tsConfig as any)?.compilerOptions // eslint-disable-line
+function getTestReferences ({ tsConfig, dir, testDir, linkValues }: Pick<TypeScriptConfigContext, 'tsConfig' | 'dir' | 'linkValues'> & { testDir: string }): Array<{ path: string }> {
+  const compilerOptions = getCompilerOptions(tsConfig)
   if (compilerOptions?.composite !== false) return [{ path: '..' }]
   return linkValues.map(relativePath => ({
     path: normalizePath(path.relative(testDir, path.join(dir, relativePath))),
