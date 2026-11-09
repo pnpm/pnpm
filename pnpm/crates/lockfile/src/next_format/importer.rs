@@ -1,6 +1,8 @@
 //! The next format's importers. A dependency is its specifier alone when the
-//! version follows from it, and `{specifier, version}` otherwise, with
-//! `with` where the project's scope does not say which snapshot it links.
+//! version follows from it, and `{specifier, version}` otherwise. Where the
+//! project's scope does not say which snapshot it links, the dependency
+//! adds `with`, and still leaves out a version that follows from the
+//! specifier.
 //!
 //! The version follows from an exact version, from an `npm:` alias of an
 //! exact version, from a `link:` or `file:` path, from a `catalog:`
@@ -26,10 +28,46 @@ use std::collections::HashMap;
 #[serde(untagged)]
 pub enum NextImporterDep {
     Specifier(String),
+    Named(Box<NextNamedDep>),
     Resolved(Box<NextResolvedDep>),
 }
 
-/// A string is the specifier and a map the resolved form, read directly
+/// A dependency whose version follows from its specifier, with the bindings
+/// that name the snapshot.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NextNamedDep {
+    pub specifier: String,
+    #[serde(rename = "with")]
+    pub peers: NamedBindings,
+}
+
+/// The map form of a dependency as read. `version` is absent when it
+/// follows from the specifier.
+#[derive(Deserialize)]
+struct DepWire {
+    specifier: String,
+    #[serde(default)]
+    version: Option<ImporterDepVersion>,
+    #[serde(default, rename = "with")]
+    peers: Option<NamedBindings>,
+}
+
+impl From<DepWire> for NextImporterDep {
+    fn from(wire: DepWire) -> Self {
+        let DepWire { specifier, version, peers } = wire;
+        match (version, peers) {
+            (Some(version), peers) => {
+                NextImporterDep::Resolved(Box::new(NextResolvedDep { specifier, version, peers }))
+            }
+            (None, Some(peers)) => {
+                NextImporterDep::Named(Box::new(NextNamedDep { specifier, peers }))
+            }
+            (None, None) => NextImporterDep::Specifier(specifier),
+        }
+    }
+}
+
+/// A string is the specifier and a map one of the other forms, read directly
 /// rather than through an untagged enum's buffering.
 impl<'de> Deserialize<'de> for NextImporterDep {
     fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
@@ -39,7 +77,7 @@ impl<'de> Deserialize<'de> for NextImporterDep {
             type Value = NextImporterDep;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a specifier, or a map of specifier and version")
+                formatter.write_str("a specifier, or a map of specifier with version or bindings")
             }
 
             fn visit_str<Error: de::Error>(self, text: &str) -> Result<NextImporterDep, Error> {
@@ -57,8 +95,8 @@ impl<'de> Deserialize<'de> for NextImporterDep {
                 self,
                 map: Map,
             ) -> Result<NextImporterDep, Map::Error> {
-                NextResolvedDep::deserialize(de::value::MapAccessDeserializer::new(map))
-                    .map(|dep| NextImporterDep::Resolved(Box::new(dep)))
+                DepWire::deserialize(de::value::MapAccessDeserializer::new(map))
+                    .map(NextImporterDep::from)
             }
         }
 
@@ -129,7 +167,7 @@ impl NextImporter {
             .flat_map(HashMap::iter)
             .filter_map(|(alias, dep)| match dep {
                 NextImporterDep::Resolved(dep) => Some((alias, dep.as_ref())),
-                NextImporterDep::Specifier(_) => None,
+                NextImporterDep::Specifier(_) | NextImporterDep::Named(_) => None,
             })
     }
 
@@ -146,7 +184,8 @@ impl NextImporter {
     }
 
     /// This importer with every dependency whose version follows from its
-    /// specifier, and which names no snapshot, written as the specifier.
+    /// specifier written without the version: the specifier alone, or with
+    /// the bindings that name the snapshot.
     #[must_use]
     pub fn collapsed(&self, implied: Implied<'_>) -> NextImporter {
         let mut collapsed = self.clone();
@@ -185,7 +224,7 @@ fn resolved_map(
     deps.iter()
         .filter_map(|(alias, dep)| match dep {
             NextImporterDep::Resolved(dep) => Some((alias, dep.as_ref())),
-            NextImporterDep::Specifier(_) => None,
+            NextImporterDep::Specifier(_) | NextImporterDep::Named(_) => None,
         })
         .map(|(alias, dep)| {
             let spec = ResolvedDependencySpec {
@@ -226,10 +265,16 @@ fn resolve_map(
     implied: Implied<'_>,
 ) -> Result<(), NextFormatError> {
     for (alias, dep) in map.iter_mut() {
-        if let NextImporterDep::Specifier(specifier) = dep {
-            let specifier = std::mem::take(specifier);
-            *dep = NextImporterDep::Resolved(Box::new(resolved(id, alias, specifier, implied)?));
-        }
+        let (specifier, peers) = match dep {
+            NextImporterDep::Specifier(specifier) => (std::mem::take(specifier), None),
+            NextImporterDep::Named(named) => {
+                (std::mem::take(&mut named.specifier), Some(std::mem::take(&mut named.peers)))
+            }
+            NextImporterDep::Resolved(_) => continue,
+        };
+        let mut resolved = resolved(id, alias, specifier, implied)?;
+        resolved.peers = peers;
+        *dep = NextImporterDep::Resolved(Box::new(resolved));
     }
     Ok(())
 }
@@ -255,11 +300,13 @@ fn resolved(
 
 fn collapse(alias: &PkgName, dep: &mut NextImporterDep, implied: Implied<'_>) {
     let NextImporterDep::Resolved(resolved) = dep else { return };
-    if resolved.peers.is_some() {
+    let implied = implied.version(alias, &resolved.specifier);
+    if implied.is_none_or(|implied| implied != resolved.version.to_string()) {
         return;
     }
-    let implied = implied.version(alias, &resolved.specifier);
-    if implied.is_some_and(|implied| implied == resolved.version.to_string()) {
-        *dep = NextImporterDep::Specifier(std::mem::take(&mut resolved.specifier));
-    }
+    let specifier = std::mem::take(&mut resolved.specifier);
+    *dep = match resolved.peers.take() {
+        Some(peers) => NextImporterDep::Named(Box::new(NextNamedDep { specifier, peers })),
+        None => NextImporterDep::Specifier(specifier),
+    };
 }

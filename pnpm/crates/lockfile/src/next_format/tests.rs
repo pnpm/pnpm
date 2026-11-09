@@ -226,6 +226,98 @@ fn reference_the_scope_does_not_select_names_its_snapshot() {
     assert!(!yaml.contains('('), "{yaml}");
 }
 
+/// A project's dependency that names its snapshot leaves out a version
+/// that follows from the specifier, as a dependency without `with` does.
+#[test]
+fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      child:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0(react@18.0.0)"
+        ""
+        "  packages/a:"
+        "    dependencies:"
+        "      child:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0(react@18.0.0)"
+        ""
+        "  packages/b:"
+        "    dependencies:"
+        "      parent:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        ""
+        "packages:"
+        ""
+        "  child@1.0.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        "    peerDependencies:"
+        "      react: '*'"
+        ""
+        "  parent@1.0.0:"
+        "    resolution: {integrity: sha512-BBBB}"
+        ""
+        "  react@17.0.0:"
+        "    resolution: {integrity: sha512-CCCC}"
+        ""
+        "  react@18.0.0:"
+        "    resolution: {integrity: sha512-DDDD}"
+        ""
+        "snapshots:"
+        ""
+        "  child@1.0.0(react@17.0.0):"
+        "    dependencies:"
+        "      react: 17.0.0"
+        ""
+        "  child@1.0.0(react@18.0.0):"
+        "    dependencies:"
+        "      react: 18.0.0"
+        ""
+        "  parent@1.0.0:"
+        "    dependencies:"
+        "      child: 1.0.0(react@17.0.0)"
+        ""
+        "  react@17.0.0: {}"
+        ""
+        "  react@18.0.0: {}"
+    });
+    let (yaml, _) = written_and_read(&lockfile);
+    let start = yaml.find("\nimporters:").expect("an importers section");
+    let end = yaml.find("\npackages:").expect("a packages section");
+    assert_eq!(
+        &yaml[start..end],
+        text_block_macros::text_block_fnl! {
+            ""
+            "importers:"
+            ""
+            "  .:"
+            "    dependencies:"
+            "      child:"
+            "        specifier: 1.0.0"
+            "        with:"
+            "          react: 18.0.0"
+            ""
+            "  packages/a:"
+            "    dependencies:"
+            "      child:"
+            "        specifier: ^1.0.0"
+            "        version: 1.0.0"
+            "        with:"
+            "          react: 18.0.0"
+            ""
+            "  packages/b:"
+            "    dependencies:"
+            "      parent: 1.0.0"
+        },
+    );
+}
+
 /// A patched package's key and references carry no patch hash: the hash is
 /// in `patchedDependencies`, which the reader applies to the package.
 #[test]

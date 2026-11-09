@@ -12,7 +12,9 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
-pub use importer::{Implied, NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep};
+pub use importer::{
+    Implied, NextImporter, NextImporterDep, NextImporterDeps, NextNamedDep, NextResolvedDep,
+};
 pub use package::{NextPackage, NextPackageOut, PeerDetails, PeerEntry};
 pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
