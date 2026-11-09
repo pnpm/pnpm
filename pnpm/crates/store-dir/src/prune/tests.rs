@@ -416,10 +416,11 @@ fn mark_fails_when_a_dependency_link_cannot_be_read() {
         super::mark::mark_reachable_slots::<DeniedReadLink>(&store.links(), &[project], &[], &[])
             .unwrap_err();
 
+    let walked_link = dunce::canonicalize(&scope).unwrap().join("installed");
     assert!(matches!(
         error,
         super::PruneError::ReadMarkLink { path, error }
-            if path == link && error.kind() == std::io::ErrorKind::PermissionDenied
+            if path == walked_link && error.kind() == std::io::ErrorKind::PermissionDenied
     ));
 }
 
