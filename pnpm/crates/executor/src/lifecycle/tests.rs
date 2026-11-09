@@ -416,6 +416,7 @@ fn missing_manifest_returns_false() {
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
+    use std::fmt::Write as _;
     /// RAII guard that restores a process env var to its pre-test
     /// value on drop, so an assertion failure can't leak the seed
     /// into sibling tests — nor clobber a value the env already had.
@@ -455,18 +456,30 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
 
+    // Each line of the dump, as a label and the shell expression behind it.
+    const DUMPED: &[(&str, &str)] = &[
+        ("stage", "$npm_lifecycle_event"),
+        ("script", "$npm_lifecycle_script"),
+        ("name", "$npm_package_name"),
+        ("ver", "$npm_package_version"),
+        ("config", "$npm_package_config_myKey"),
+        ("init_cwd", "$INIT_CWD"),
+        ("user", "$npm_config_platform_arch"),
+        ("auth", "$npm_config__authtoken"),
+    ];
+    // `printf`, not `echo`, so the line endings are consistent across shells.
+    let mut template = String::new();
+    let mut arguments = String::new();
+    for (label, expression) in DUMPED {
+        write!(template, r"{label}=%s\n").expect("write to a String");
+        write!(arguments, r#" "{expression}""#).expect("write to a String");
+    }
+    let postinstall = format!("printf '{template}'{arguments} > '{}'", dump_path.display());
     let manifest = serde_json::json!({
         "name": "stamp-target",
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
-        "scripts": {
-            // printf, not echo, so the line endings are deterministic
-            // across shells.
-            "postinstall": format!(
-                r#"printf 'stage=%s\nscript=%s\nname=%s\nver=%s\nconfig=%s\ninit_cwd=%s\nuser=%s\nauth=%s\n' "$npm_lifecycle_event" "$npm_lifecycle_script" "$npm_package_name" "$npm_package_version" "$npm_package_config_myKey" "$INIT_CWD" "$npm_config_platform_arch" "$npm_config__authtoken" > {}"#,
-                dump_path.display(),
-            ),
-        },
+        "scripts": { "postinstall": postinstall },
     });
     fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
 
