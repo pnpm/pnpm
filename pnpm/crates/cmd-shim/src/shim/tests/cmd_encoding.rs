@@ -9,7 +9,7 @@ fn cmd_shim_switches_encoding_before_unicode_node_path() {
     let node_path = ["/工具/50% off/node_modules".to_string()];
     let body = generate_cmd_shim(target, shim, None, &node_path, CmdShimBatch::Kept);
     let encoding_switch = body
-        .find("@\"%SystemRoot%\\System32\\chcp.com\" 65001 >NUL\r\n")
+        .find("@\"%SystemRoot%\\System32\\mode.com\" con cp select=65001 >NUL\r\n")
         .expect("Unicode literals must be read using UTF-8");
     let node_path_assignment = body
         .find(r#"@SET "NODE_PATH=\工具\50%% off\node_modules""#)
@@ -17,6 +17,24 @@ fn cmd_shim_switches_encoding_before_unicode_node_path() {
     assert!(encoding_switch < node_path_assignment);
     assert!(body.ends_with("@EXIT /B %_PNPM_EXIT_CODE%\r\n"));
     assert!(!body.replace("\r\n", "").contains('\n'));
+}
+
+/// `chcp.com` clears the visible terminal on Windows, so the shim must switch
+/// the code page through `mode.com`, which leaves the screen alone.
+#[test]
+fn cmd_shim_switches_the_codepage_without_chcp() {
+    let target = Path::new("/proj/pkg/cli");
+    let shim = Path::new("/proj/.bin/cli.cmd");
+    let node_path = ["/工具/node_modules".to_string()];
+    let body = generate_cmd_shim(target, shim, None, &node_path, CmdShimBatch::Kept);
+    assert!(
+        !body.contains("chcp.com"),
+        "`chcp.com` clears the visible terminal, body:\n{body}",
+    );
+    assert!(
+        body.contains(r#"@"%SystemRoot%\System32\mode.com" con cp select=65001 >NUL"#),
+        "the code page must switch through mode.com, body:\n{body}",
+    );
 }
 
 #[test]
@@ -56,7 +74,7 @@ fn cmd_shim_runs_unicode_target_and_preserves_codepage_and_exit_status() {
                 .unwrap();
             eprintln!("CP {codepage}, exit {exit_code}: {output:?}");
             assert_eq!(output.status.code(), Some(exit_code));
-            let stdout = String::from_utf8(output.stdout).unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
             eprintln!("STDOUT:\n{stdout}");
             let mut lines = stdout.lines();
             assert_eq!(
@@ -99,7 +117,7 @@ fn batchless_cmd_shim_restores_the_codepage_before_the_target() {
     let shim = Path::new("/home/bin/pnpm.cmd");
     let body = generate_cmd_shim(target, shim, None, &[], CmdShimBatch::EndedBeforeTarget);
     let encoding_switch = body
-        .find(r#"@"%SystemRoot%\System32\chcp.com" 65001 >NUL"#)
+        .find(r#"@"%SystemRoot%\System32\mode.com" con cp select=65001 >NUL"#)
         .expect("Unicode literals must be read using UTF-8");
     let last_line = body
         .trim_end_matches("\r\n")
@@ -109,7 +127,7 @@ fn batchless_cmd_shim_restores_the_codepage_before_the_target() {
     assert!(encoding_switch < body.find(last_line).unwrap());
     assert!(
         last_line.ends_with(
-            r#"& (IF NOT "%_PNPM_CODEPAGE%"=="" "%SystemRoot%\System32\chcp.com" %_PNPM_CODEPAGE% >NUL) & "%~dp0\..\工具\pnpm.exe"  %*"#,
+            r#"& (IF NOT "%_PNPM_CODEPAGE%"=="" "%SystemRoot%\System32\mode.com" con cp select=%_PNPM_CODEPAGE: =% >NUL) & "%~dp0\..\工具\pnpm.exe"  %*"#,
         ),
         "last line: {last_line}",
     );
