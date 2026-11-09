@@ -131,8 +131,11 @@ fn split_sections(document: &str) -> Option<(String, [&str; 2])> {
     if splitter.current.is_some() {
         return None;
     }
-    let sections =
-        splitter.sections.map(|range| range.map_or("", |(start, end)| &document[start..end]));
+    let sections = splitter.sections.map(|range| {
+        range
+            .map(|(start, end)| &document[start..end])
+            .unwrap_or("")
+    });
     Some((splitter.rest, sections))
 }
 

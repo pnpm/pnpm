@@ -134,15 +134,29 @@ function packageInfo (key: string, entry: NextPackage): LockfilePackageInfo {
   return info
 }
 
-/** The resolution, with the entry's `integrity` folded back into it. */
+/**
+ * The resolution, with the entry's `integrity` folded back into it. An
+ * entry with neither has the directory resolution its `name@file:<path>`
+ * key implies.
+ */
 function resolutionOf (key: string, { integrity, resolution }: NextPackage): LockfileResolution {
   if (resolution == null) {
-    if (integrity == null) {
+    if (integrity != null) return { integrity }
+    const directory = keyDirectory(key)
+    if (directory == null) {
       throw new PnpmError('NEXT_LOCKFILE_ENV_RESOLUTION', `The env document of ${LOCKFILE_VERSION_NAME} records no resolution for ${key}`)
     }
-    return { integrity }
+    return { type: 'directory', directory }
   }
   return integrity != null && 'tarball' in resolution ? { ...resolution, integrity } : resolution
+}
+
+/** The path of a `name@file:<path>` key, or `undefined` for any other key. */
+function keyDirectory (key: string): string | undefined {
+  const at = key.indexOf('@', 1)
+  if (at === -1) return undefined
+  const version = key.slice(at + 1)
+  return version.startsWith('file:') ? version.slice('file:'.length) : undefined
 }
 
 function declaredPeers (peers: Record<string, NextPeer>): {

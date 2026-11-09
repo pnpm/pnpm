@@ -277,6 +277,18 @@ test('readEnvLockfile reads the env document of a lockfile in the v13 format', a
   })
 })
 
+test('readEnvLockfile derives the resolution of a v13 directory entry from its key, and rejects an entry that names none', async () => {
+  const dir = temporaryDirectory()
+  const envDocument = (packages: string): string => `---\n{"lockfileVersion": "13.0", "projects": {".": {"configDependencies": {"local": "file:tools/local"}}}, "packages": {${packages}}}\n---\n`
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), envDocument('"local@file:tools/local": {}'))
+
+  const lockfile = await readEnvLockfile(dir)
+  expect(lockfile?.packages['local@file:tools/local']).toStrictEqual({ resolution: { type: 'directory', directory: 'tools/local' } })
+
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), envDocument('"local@file:tools/local": {}, "nothing@1.0.0": {}'))
+  await expect(readEnvLockfile(dir)).rejects.toMatchObject({ code: 'ERR_PNPM_NEXT_LOCKFILE_ENV_RESOLUTION' })
+})
+
 test('readEnvLockfile rejects a v13 env document whose config dependency implies no version', async () => {
   const dir = temporaryDirectory()
   fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), '---\n{"lockfileVersion": "13.0", "projects": {".": {"configDependencies": {"renamed": "npm:real"}}}}\n---\n')

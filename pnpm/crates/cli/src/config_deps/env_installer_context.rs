@@ -86,15 +86,7 @@ impl EnvInstallerContext {
         );
 
         let registries: HashMap<String, String> = registries.into_iter().collect();
-        let retry_opts = config.retry_opts();
-        let network = EnvironmentNetwork {
-            http_client,
-            auth_headers,
-            registries,
-            retry_opts,
-            offline: config.offline,
-            tar_limits: config.tar_limits(),
-        };
+        let network = EnvironmentNetwork::new(http_client, auth_headers, registries, config);
         let resolver = network.resolver(config);
 
         Ok(Self {
@@ -125,6 +117,7 @@ impl EnvInstallerContext {
             mode: ConfigDepsInstallMode::Reconcile,
             verification: ConfigDependencyVerification {
                 registries: &self.network.registries,
+                registry_options_by_url: &self.network.registry_options_by_url,
                 resolution_verifiers: Vec::new(),
                 resolution_policy: ResolutionPolicyOptions::default(),
             },
