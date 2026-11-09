@@ -27,10 +27,7 @@ fn cmd_shim_switches_the_codepage_without_chcp() {
     let shim = Path::new("/proj/.bin/cli.cmd");
     let node_path = ["/工具/node_modules".to_string()];
     let body = generate_cmd_shim(target, shim, None, &node_path, CmdShimBatch::Kept);
-    assert!(
-        !body.contains("chcp.com"),
-        "`chcp.com` clears the visible terminal, body:\n{body}",
-    );
+    assert!(!body.contains("chcp.com"), "the shim must not emit chcp.com");
     assert!(
         body.contains(r#"@"%SystemRoot%\System32\mode.com" con cp select=65001 >NUL"#),
         "the code page must switch through mode.com, body:\n{body}",
