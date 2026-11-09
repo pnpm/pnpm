@@ -354,7 +354,8 @@ fn patched_packages_carry_no_hash() {
 /// An importer's dependency is its specifier alone when the version follows
 /// from it: an exact version, a `catalog:` entry, with the alias the catalog
 /// names, an injected workspace package, through its `packages` entry, under
-/// an alias too. A range and a workspace link write both.
+/// an alias too. A range and a workspace link write both. A catalog entry
+/// follows the same rule, with the bare version of an `npm:` alias.
 #[test]
 fn importer_versions_that_follow_from_the_specifier_are_not_written() {
     let lockfile = parse(text_block_macros::text_block! {
@@ -365,6 +366,9 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "    '@scope/renamed':"
         "      specifier: npm:@scope/real@1.0.0"
         "      version: 1.0.0"
+        "    pinned:"
+        "      specifier: 3.0.0"
+        "      version: 3.0.0"
         "    tool:"
         "      specifier: ^2.0.0"
         "      version: 2.1.0"
@@ -385,6 +389,9 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "      injected-alias:"
         "        specifier: workspace:injected@*"
         "        version: injected@file:packages/injected"
+        "      pinned:"
+        "        specifier: 'catalog:'"
+        "        version: 3.0.0"
         "      ranged:"
         "        specifier: ^1.0.0"
         "        version: 1.2.3"
@@ -406,6 +413,9 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  injected@file:packages/injected:"
         "    resolution: {directory: packages/injected, type: directory}"
         ""
+        "  pinned@3.0.0:"
+        "    resolution: {integrity: sha512-EEEE}"
+        ""
         "  ranged@1.2.3:"
         "    resolution: {integrity: sha512-CCCC}"
         ""
@@ -419,6 +429,8 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  exact@1.2.3: {}"
         ""
         "  injected@file:packages/injected: {}"
+        ""
+        "  pinned@3.0.0: {}"
         ""
         "  ranged@1.2.3: {}"
         ""
@@ -434,7 +446,8 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             "settings:"
             "  catalogs:"
             "    default:"
-            "      '@scope/renamed': {specifier: npm:@scope/real@1.0.0, version: 1.0.0}"
+            "      '@scope/renamed': npm:@scope/real@1.0.0"
+            "      pinned: 3.0.0"
             "      tool: {specifier: ^2.0.0, version: 2.1.0}"
             ""
             "importers:"
@@ -445,11 +458,34 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             "      exact: 1.2.3"
             "      injected: workspace:*"
             "      injected-alias: workspace:injected@*"
+            "      pinned: 'catalog:'"
             "      ranged: {specifier: ^1.0.0, version: 1.2.3}"
             "      shared: {specifier: workspace:*, version: link:../shared}"
             "      tool: 'catalog:'"
         },
     );
+}
+
+/// A catalog entry written as `npm:name`, without a version, implies none.
+#[test]
+fn catalog_entry_whose_version_does_not_follow_is_rejected() {
+    let text = text_block_macros::text_block! {
+        "lockfileVersion: '10.0'"
+        ""
+        "settings:"
+        "  catalogs:"
+        "    default:"
+        "      renamed: npm:real"
+        ""
+        "importers:"
+        ""
+        "  .: {}"
+    };
+    let error = Lockfile::parse(text, Path::new("pnpm-lock.yaml"))
+        .expect_err("a catalog entry without a version");
+    let message = error.to_string();
+    assert!(message.contains("renamed resolves to in the catalog default"), "{message}");
+    assert!(message.contains("npm:real"), "{message}");
 }
 
 #[test]

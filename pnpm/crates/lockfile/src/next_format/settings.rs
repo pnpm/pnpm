@@ -3,7 +3,8 @@
 //! `overrides`, `patchedDependencies`, the two checksums and
 //! `ignoredOptionalDependencies`, which today are top-level sections.
 
-use crate::{CatalogSnapshots, Lockfile, LockfileSettings};
+use super::catalogs::{self, NextCatalogs};
+use crate::{Lockfile, LockfileSettings};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -16,7 +17,7 @@ pub struct NextSettings {
     #[serde(flatten)]
     pub base: Option<LockfileSettings>,
     #[serde(default)]
-    pub catalogs: Option<CatalogSnapshots>,
+    pub catalogs: Option<NextCatalogs>,
     #[serde(default)]
     pub overrides: Option<IndexMap<String, String>>,
     #[serde(default)]
@@ -36,7 +37,7 @@ pub(super) struct NextSettingsOut<'a> {
     #[serde(flatten)]
     base: Option<&'a LockfileSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    catalogs: Option<&'a CatalogSnapshots>,
+    catalogs: Option<NextCatalogs>,
     #[serde(skip_serializing_if = "Option::is_none")]
     overrides: Option<&'a IndexMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,7 +55,7 @@ impl<'a> NextSettingsOut<'a> {
     pub(super) fn of(lockfile: &'a Lockfile) -> Option<Self> {
         let out = NextSettingsOut {
             base: lockfile.settings.as_ref(),
-            catalogs: lockfile.catalogs.as_ref(),
+            catalogs: lockfile.catalogs.as_ref().map(catalogs::collapsed),
             overrides: lockfile.overrides.as_ref(),
             package_extensions_checksum: lockfile.package_extensions_checksum.as_ref(),
             pnpmfile_checksum: lockfile.pnpmfile_checksum.as_ref(),

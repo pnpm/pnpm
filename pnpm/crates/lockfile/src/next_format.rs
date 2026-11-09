@@ -12,6 +12,7 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
+pub use catalogs::{NextCatalogEntry, NextCatalogs};
 pub use importer::{
     Implied, NextImporter, NextImporterDep, NextImporterDeps, NextNamedDep, NextResolvedDep,
 };
@@ -31,6 +32,7 @@ use pnpm_diagnostics::miette::{self, Diagnostic};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+mod catalogs;
 mod document;
 mod importer;
 mod package;
@@ -209,6 +211,13 @@ pub enum NextFormatError {
     )]
     #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION))]
     UnderivableVersion { importer: String, name: String, specifier: String },
+
+    #[display(
+        "The lockfile does not say which version {name} resolves to in the catalog {catalog}: \
+         nothing follows from the specifier {specifier}"
+    )]
+    #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION))]
+    UnderivableCatalogVersion { catalog: String, name: String, specifier: String },
 }
 
 /// Every importer with its versions written out.
@@ -226,15 +235,17 @@ fn resolve_importers(
 impl Lockfile {
     /// The lockfile a next-format document describes, with peer-suffixed keys.
     ///
-    /// Fails when an importer's version does not follow from its specifier.
+    /// Fails when an importer's or a catalog entry's version does not
+    /// follow from its specifier.
     pub fn from_next(next: NextLockfile) -> Result<Lockfile, NextFormatError> {
         let (packages, snapshots) = match next.packages {
             Some(merged) => crate::parallel_parse::pool().install(|| split_packages(merged))?,
             None => (None, None),
         };
         let settings = next.settings.unwrap_or_default();
+        let catalogs = settings.catalogs.map(catalogs::resolved).transpose()?;
         let injected = injected_paths(packages.iter().flat_map(HashMap::keys));
-        let implied = Implied { catalogs: settings.catalogs.as_ref(), injected: &injected };
+        let implied = Implied { catalogs: catalogs.as_ref(), injected: &injected };
         let importers = resolve_importers(next.importers, implied)?;
         let sections = NextSections { importers, snapshots };
         let context = RestoreContext {
@@ -247,7 +258,7 @@ impl Lockfile {
         Ok(Lockfile {
             lockfile_version: next.lockfile_version,
             settings: settings.base,
-            catalogs: settings.catalogs,
+            catalogs,
             overrides: settings.overrides,
             package_extensions_checksum: settings.package_extensions_checksum,
             pnpmfile_checksum: settings.pnpmfile_checksum,

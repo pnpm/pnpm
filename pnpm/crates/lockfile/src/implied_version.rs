@@ -65,6 +65,14 @@ pub(crate) fn implied_version<'path>(
     )
 }
 
+/// The version a catalog entry's specifier implies: the specifier itself, or
+/// the version of an `npm:name@1.2.3` alias, since a catalog entry records
+/// the alias's bare version. `None` for `npm:name` without a version.
+pub(crate) fn catalog_implied_version(specifier: &str) -> Option<&str> {
+    let Some(target) = specifier.strip_prefix("npm:") else { return Some(specifier) };
+    target.get(alias_name(target).len() + 1..)
+}
+
 /// The package name of an `npm:` alias target, `name` or `name@range`.
 fn alias_name(target: &str) -> &str {
     match target[1..].find('@') {
