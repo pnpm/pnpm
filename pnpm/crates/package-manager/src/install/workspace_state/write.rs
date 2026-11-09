@@ -91,6 +91,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         state.settings.optional = kept.optional;
         state.settings.production = kept.production;
         state.settings.runtime = kept.runtime;
+        state.settings.runtime_on_fail = kept.runtime_on_fail;
         state.settings.store_dir.clone_from(&kept.store_dir);
         state.settings.virtual_store_dir.clone_from(&kept.virtual_store_dir);
     }

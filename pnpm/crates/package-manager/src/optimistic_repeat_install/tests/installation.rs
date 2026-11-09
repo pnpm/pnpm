@@ -505,8 +505,10 @@ fn returns_skipped_when_the_declared_registry_prefixes_drift() {
 }
 /// `pnpm install --runtime-on-fail=download` followed by a plain `pnpm run`
 /// must not report drift: the script runs with the runtime the install linked.
+/// The state the run gate refreshes keeps the recorded policy for the next
+/// install to compare.
 #[test]
-fn run_gate_ignores_runtime_on_fail_drift() {
+fn run_gate_ignores_and_keeps_runtime_on_fail() {
     let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
         pnpm_config::NodeLinker::Isolated,
         "root",
@@ -518,6 +520,8 @@ fn run_gate_ignores_runtime_on_fail_drift() {
     let mut declared = recorded_config.clone();
     declared.runtime_on_fail = None;
     let declared = declared.leak();
+    let before = super::recorded_timestamp(dir.path());
+    super::date_lockfile_after(dir.path(), before);
 
     let status = super::single_project_deps_status(&dir, declared, &project_manifests);
 
@@ -525,6 +529,7 @@ fn run_gate_ignores_runtime_on_fail_drift() {
     let state = pnpm_workspace_state::load_workspace_state(dir.path())
         .expect("read the workspace state")
         .expect("a workspace state");
+    assert!(state.last_validated_timestamp > before, "the run gate must refresh the state");
     assert_eq!(state.settings.runtime_on_fail, Some(pnpm_config::RuntimeOnFail::Download));
 }
 
