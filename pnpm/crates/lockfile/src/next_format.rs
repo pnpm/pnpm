@@ -16,6 +16,7 @@ pub use importer::{NextImporter, NextImporterDep, NextImporterDeps, NextResolved
 pub use package::{NextPackage, NextPackageOut, PeerDetails, PeerEntry};
 pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
+pub use settings::NextSettings;
 
 pub(crate) use parse::{Shape, declares_next_format};
 
@@ -34,6 +35,7 @@ mod package;
 mod parse;
 mod read;
 mod reference;
+mod settings;
 mod snapshot_wire;
 mod tarjan;
 mod write;
@@ -115,7 +117,8 @@ impl NextSnapshotEntry {
 
 /// A lockfile in the next format, as read from the file. It has no
 /// `snapshots`: each `packages` entry carries its resolved graph.
-pub type NextLockfile = crate::LockfileDocument<NextImporter, serde::de::IgnoredAny, NextPackage>;
+pub type NextLockfile =
+    crate::LockfileDocument<NextImporter, serde::de::IgnoredAny, NextPackage, NextSettings>;
 
 /// The next format's `packages`, built from the peer-suffixed `packages` and
 /// the converted `snapshots`. A `packages` entry no snapshot uses is not
@@ -215,30 +218,31 @@ impl Lockfile {
             Some(merged) => crate::parallel_parse::pool().install(|| split_packages(merged))?,
             None => (None, None),
         };
+        let settings = next.settings.unwrap_or_default();
         let importers = next.importers
             .into_iter()
             .map(|(id, importer)| {
-                Ok((importer.resolve_specifiers(&id, next.catalogs.as_ref())?, id))
+                Ok((importer.resolve_specifiers(&id, settings.catalogs.as_ref())?, id))
             })
             .map(|entry| entry.map(|(importer, id)| (id, importer)))
             .collect::<Result<HashMap<String, NextImporter>, NextFormatError>>()?;
         let sections = NextSections { importers, snapshots };
         let context = RestoreContext {
             packages: packages.as_ref(),
-            settings: next.settings.as_ref(),
-            patched_dependencies: next.patched_dependencies.as_ref(),
+            settings: settings.base.as_ref(),
+            patched_dependencies: settings.patched_dependencies.as_ref(),
         };
         let restored =
             crate::parallel_parse::pool().install(|| restore_sections(&sections, context));
         Ok(Lockfile {
             lockfile_version: next.lockfile_version,
-            settings: next.settings,
-            catalogs: next.catalogs,
-            overrides: next.overrides,
-            package_extensions_checksum: next.package_extensions_checksum,
-            pnpmfile_checksum: next.pnpmfile_checksum,
-            ignored_optional_dependencies: next.ignored_optional_dependencies,
-            patched_dependencies: next.patched_dependencies,
+            settings: settings.base,
+            catalogs: settings.catalogs,
+            overrides: settings.overrides,
+            package_extensions_checksum: settings.package_extensions_checksum,
+            pnpmfile_checksum: settings.pnpmfile_checksum,
+            ignored_optional_dependencies: settings.ignored_optional_dependencies,
+            patched_dependencies: settings.patched_dependencies,
             importers: restored.importers,
             packages,
             snapshots: restored.snapshots,

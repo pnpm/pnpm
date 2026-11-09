@@ -127,7 +127,9 @@ fn sort_lockfile_keys(value: Value) -> (Value, Format) {
         }
     }
 
-    sort_plain_sections(&mut root);
+    if !next {
+        sort_plain_sections(&mut root);
+    }
     let format = if next { Format::Next } else { Format::V9 };
     (Value::Object(sort_by_priority(root, &ROOT_KEYS, false)), format)
 }

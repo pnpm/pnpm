@@ -49,21 +49,23 @@ pub(crate) fn pool() -> &'static rayon::ThreadPool {
 /// on separate threads. `None` when the document does not split into those
 /// blocks, or when any part fails to parse: the caller then parses it whole,
 /// which reports an error at its place in the document.
-pub(crate) fn parse_sections_in_parallel<Importer, Snapshot, Package>(
+pub(crate) fn parse_sections_in_parallel<Importer, Snapshot, Package, Settings>(
     document: &str,
     options: impl Fn(usize) -> serde_saphyr::Options + Sync,
-) -> Option<LockfileDocument<Importer, Snapshot, Package>>
+) -> Option<LockfileDocument<Importer, Snapshot, Package, Settings>>
 where
     Importer: DeserializeOwned + Send,
     Snapshot: DeserializeOwned + Send,
     Package: DeserializeOwned + Send,
+    Settings: DeserializeOwned + Send,
 {
     let (rest, [importers, packages, snapshots]) = split_sections(document)?;
-    let ((rest, importers), (packages, snapshots)) = parse_parts::<Importer, Snapshot, Package>(
-        &rest,
-        [importers, packages, snapshots],
-        &options,
-    );
+    let ((rest, importers), (packages, snapshots)) =
+        parse_parts::<Importer, Snapshot, Package, Settings>(
+            &rest,
+            [importers, packages, snapshots],
+            &options,
+        );
     // A section that was not found as a block, as in a flow-style document,
     // was parsed as part of the rest and stays as parsed.
     let mut lockfile = rest??;
@@ -156,31 +158,32 @@ fn chunk_entries(text: &str, count: usize) -> Vec<String> {
     chunks
 }
 
-type Parsed<Importer, Snapshot, Package> = (
+type Parsed<Importer, Snapshot, Package, Settings> = (
     (
-        Option<Option<LockfileDocument<Importer, Snapshot, Package>>>,
+        Option<Option<LockfileDocument<Importer, Snapshot, Package, Settings>>>,
         Option<Option<HashMap<String, Importer>>>,
     ),
     (Option<Option<HashMap<PackageKey, Package>>>, Option<Option<HashMap<PackageKey, Snapshot>>>),
 );
 
 /// The rest and the three sections, parsed on the pool at once.
-fn parse_parts<Importer, Snapshot, Package>(
+fn parse_parts<Importer, Snapshot, Package, Settings>(
     rest: &str,
     [importers, packages, snapshots]: [&str; 3],
     options: &(impl Fn(usize) -> serde_saphyr::Options + Sync),
-) -> Parsed<Importer, Snapshot, Package>
+) -> Parsed<Importer, Snapshot, Package, Settings>
 where
     Importer: DeserializeOwned + Send,
     Snapshot: DeserializeOwned + Send,
     Package: DeserializeOwned + Send,
+    Settings: DeserializeOwned + Send,
 {
     pool()
         .join(
             || {
                 rayon::join(
                     || {
-                        parse_optional::<LockfileDocument<Importer, Snapshot, Package>>(
+                        parse_optional::<LockfileDocument<Importer, Snapshot, Package, Settings>>(
                             rest, options,
                         )
                     },

@@ -316,16 +316,17 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  tool@2.1.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    let start = yaml.find("\ncatalogs:").expect("a catalogs section");
+    let start = yaml.find("\nsettings:").expect("a settings section");
     let end = yaml.find("\npackages:").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
         text_block_macros::text_block_fnl! {
             ""
-            "catalogs:"
-            "  default:"
-            "    '@scope/renamed': {specifier: npm:@scope/real@1.0.0, version: 1.0.0}"
-            "    tool: {specifier: ^2.0.0, version: 2.1.0}"
+            "settings:"
+            "  catalogs:"
+            "    default:"
+            "      '@scope/renamed': {specifier: npm:@scope/real@1.0.0, version: 1.0.0}"
+            "      tool: {specifier: ^2.0.0, version: 2.1.0}"
             ""
             "importers:"
             ""

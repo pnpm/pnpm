@@ -164,14 +164,16 @@ pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 /// A pnpm lockfile, with peer-suffixed keys.
 pub type Lockfile = LockfileDocument;
 
-/// A lockfile document. `Importer` and `Snapshot` are the shapes of the two
-/// sections the formats differ in. [`Lockfile`] holds the peer-suffixed ones,
+/// A lockfile document. `Importer`, `Snapshot` and `Settings` are the shapes
+/// of the parts the formats differ in. [`Lockfile`] holds the peer-suffixed ones,
 /// and [`NextLockfile`] those of [the next format](crate::NEXT_LOCKFILE_MAJOR).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound(
-    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync, Package: Serialize + Sync",
-    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>, Package: Deserialize<'de>",
+    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync, Package: Serialize + Sync, \
+                 Settings: Serialize",
+    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>, Package: Deserialize<'de>, \
+                   Settings: Deserialize<'de>",
 ))]
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -184,11 +186,12 @@ pub struct LockfileDocument<
     Importer = ProjectSnapshot,
     Snapshot = SnapshotEntry,
     Package = PackageMetadata,
+    Settings = LockfileSettings,
 > {
     pub lockfile_version: LockfileVersion<9>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<LockfileSettings>,
+    pub settings: Option<Settings>,
 
     /// `catalogs:` snapshot — the resolved specifier + version for every
     /// catalog-referenced direct dependency. Sits between `settings` and
@@ -468,7 +471,7 @@ impl Lockfile {
 /// hash — the path is redundant, since patch paths come from the
 /// project's `patchedDependencies` config — so a lockfile committed by
 /// pnpm 10 installs unchanged and normalizes the next time it is saved.
-fn deserialize_patched_dependencies<'de, Deser>(
+pub(crate) fn deserialize_patched_dependencies<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<BTreeMap<String, String>>, Deser::Error>
 where

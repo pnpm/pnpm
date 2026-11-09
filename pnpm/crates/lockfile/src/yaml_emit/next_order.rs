@@ -84,11 +84,56 @@ fn sort_next_importer(entry: Value) -> Value {
     Value::Object(sorted)
 }
 
-/// Sorts the `packages` and `importers` entries of a next-format document in
-/// place, and says whether the document is one.
+/// The maps `settings` holds in the next format, written after today's
+/// settings, in this order.
+const NEXT_SETTINGS_RECORDS: [&str; 6] = [
+    "catalogs",
+    "overrides",
+    "patchedDependencies",
+    "packageExtensionsChecksum",
+    "pnpmfileChecksum",
+    "ignoredOptionalDependencies",
+];
+
+/// Today's settings alphabetical, then the recorded sections in
+/// [`NEXT_SETTINGS_RECORDS`] order: `catalogs` by catalog and entry,
+/// `patchedDependencies` by key, `overrides` as configured.
+fn sort_next_settings(settings: Map<String, Value>) -> Map<String, Value> {
+    let mut sorted = sort_direct_keys(settings);
+    let records: Vec<(String, Value)> = NEXT_SETTINGS_RECORDS
+        .iter()
+        .filter_map(|key| {
+            sorted
+                .shift_remove(*key)
+                .map(|value| ((*key).to_string(), value))
+        })
+        .collect();
+    for (key, value) in records {
+        let value = match (key.as_str(), value) {
+            ("catalogs", Value::Object(catalogs)) => {
+                Value::Object(map_values(sort_direct_keys(catalogs), sort_deep_keys))
+            }
+            ("patchedDependencies", Value::Object(patches)) => {
+                Value::Object(sort_direct_keys(patches))
+            }
+            (_, value) => value,
+        };
+        sorted.insert(key, value);
+    }
+    sorted
+}
+
+/// Sorts the `packages`, `importers` and `settings` of a next-format
+/// document in place, and says whether the document is one.
 pub(super) fn sort_next_sections(root: &mut Map<String, Value>) -> bool {
     if !is_next_format(root) {
         return false;
+    }
+    if let Some(Value::Object(settings)) = root.remove("settings") {
+        root.insert("settings".to_string(), Value::Object(sort_next_settings(settings)));
+    }
+    if let Some(Value::Object(time)) = root.remove("time") {
+        root.insert("time".to_string(), Value::Object(sort_direct_keys(time)));
     }
     let sorts: [(&str, SortEntry); 2] =
         [("packages", sort_next_package), ("importers", sort_next_importer)];
