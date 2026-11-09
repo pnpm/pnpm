@@ -57,7 +57,7 @@ use crate::{
     },
     resolve_dependency_tree::{
         DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
-        resolve_direct_dependency_detached, unwrap_package_name,
+        resolve_direct_dependency_detached,
     },
     resolve_peers::{
         CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
@@ -65,6 +65,7 @@ use crate::{
         index_missing_names, resolve_peers, resolved_name_and_version,
     },
     resolved_tree::ResolvedTree,
+    unwrap_package_name::unwrap_package_name,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, safe_read_package_json_from_dir};
 use pnpm_resolving_resolver_base::{PreferredVersions, Resolver};

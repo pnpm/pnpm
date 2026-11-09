@@ -56,6 +56,12 @@ ENTRYPOINT ["node", "index.js"]
 
 A deployed symlink to a directory inside the project is kept even if the directory is not deployed. So is a symlink to a missing path inside the project, such as a link into a removed `node_modules`. A link into `node_modules` resolves to the dependency installed in the output directory. A symlink to a file that is not deployed is replaced by a copy of the file.
 
+To deploy without registry metadata, keep the source lockfile and populate the
+store with `pnpm install` or `pnpm fetch` before running `pnpm deploy --offline`.
+This also works with per-project lockfiles and `--legacy`. Use `--trust-lockfile`
+if deployment should skip supply-chain policy checks on the locked dependencies.
+New or changed dependencies may still require registry metadata.
+
 ## Options
 
 `pnpm deploy` accepts the options of [`pnpm install`](./install.md) for the install it runs into the target directory.

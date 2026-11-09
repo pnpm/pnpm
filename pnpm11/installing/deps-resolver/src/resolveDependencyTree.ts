@@ -159,6 +159,7 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   peersSuffixMaxLength: number
+  trustLockfile?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy

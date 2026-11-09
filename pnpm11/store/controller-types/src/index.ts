@@ -193,6 +193,7 @@ export interface RequestPackageOptions {
    * package without forcing unrelated transitives to jump to their latest.
    */
   updateRequested?: boolean
+  trustLockfile?: boolean
   updateChecksums?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean

@@ -43,11 +43,13 @@
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "normalize-path": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.utils": "workspace:*",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "tempy": "catalog:",
     "write-yaml-file": "catalog:",

@@ -879,3 +879,44 @@ fn locked_child_admits_a_bare_named_registry_spec_only_for_the_alias_package() {
     let own: PkgNameVerPeer = "foo@work:1.2.0".parse().expect("parse key");
     assert_eq!(super::locked_child_admits(&alias, &own, "work:^1.0.0", &context), Some(true));
 }
+
+#[test]
+fn npm_alias_reuses_only_the_named_package_from_the_routed_registry() {
+    let registries = registry_context(HashMap::from([
+        ("default".to_string(), "https://registry.example/".to_string()),
+        ("@fixture".to_string(), "https://scoped.example/".to_string()),
+    ]));
+    let alias: PkgName = "aliased".parse().unwrap();
+    for (key, specifier, expected) in [
+        ("@fixture/target@1.2.0", "npm:@fixture/target@^1.0.0", Some(true)),
+        ("@fixture/target@1.2.0", "npm:@fixture/target@^2.0.0", Some(false)),
+        ("@fixture/other@1.2.0", "npm:@fixture/target@^1.0.0", Some(false)),
+        ("target@1.2.0", "npm:@fixture/target@^1.0.0", Some(false)),
+        ("@fixture/target@1.2.0", "npm:@fixture/target", Some(true)),
+    ] {
+        assert_eq!(
+            super::locked_child_admits(&alias, &key.parse().unwrap(), specifier, &registries),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn directory_entry_seeds_children_only_for_an_unchanged_specifier() {
+    let mut lockfile = single_dep_lockfile("fixture", "workspace:*", "file:../fixture");
+    let metadata = lockfile.packages
+        .as_mut()
+        .unwrap()
+        .values_mut()
+        .next()
+        .unwrap();
+    metadata.resolution = LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
+        directory: "../fixture".to_string(),
+    });
+    let registries = registry_context(HashMap::new());
+    assert_eq!(
+        reusable_importer_dep(&lockfile, ".", "fixture", "workspace:*", &registries),
+        Some("fixture@file:../fixture".parse().unwrap()),
+    );
+    assert_eq!(reusable_importer_dep(&lockfile, ".", "fixture", "workspace:^2", &registries), None);
+}

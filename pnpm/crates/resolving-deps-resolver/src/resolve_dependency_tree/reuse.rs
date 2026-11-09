@@ -38,6 +38,7 @@ use crate::{
     resolved_tree::{
         AncestorPkgIds, DirectDep, PeerSet, ResolvedPackage, ResolvedPackageInput, TreeChildren,
     },
+    unwrap_package_name::unwrap_package_name,
 };
 
 use super::{
@@ -214,29 +215,6 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
         range,
         &ctx.workspace.cache.registry_context,
     )
-}
-
-/// Normalize an `npm:` alias specifier into the real package name and
-/// the wanted range (`("is-positive", "^1.0.0")` for the edge
-/// `my-alias@npm:is-positive@^1.0.0`; the range is `"*"` for the
-/// spec-less `npm:is-positive` form). A specifier without the `npm:`
-/// prefix is returned as-is: the alias is the real package name.
-///
-/// Mirrors the TypeScript resolver's `unwrapPackageName`; unlike
-/// [`fn@real_package_name_of`] it also yields the range and does not
-/// special-case the `npm:<range>` form, so the locked-entry check
-/// matches its TypeScript counterpart byte for byte.
-pub(crate) fn unwrap_package_name<'a>(
-    alias: &'a str,
-    bare_specifier: &'a str,
-) -> (&'a str, &'a str) {
-    let Some(rest) = bare_specifier.strip_prefix("npm:") else {
-        return (alias, bare_specifier);
-    };
-    match rest.rfind('@') {
-        None | Some(0) => (rest, "*"),
-        Some(index) => (&rest[..index], &rest[index + 1..]),
-    }
 }
 
 /// Resolve the *real* package name an `(alias, bare_specifier)` edge

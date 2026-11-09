@@ -110,39 +110,39 @@ fn negated_unscoped_pattern_without_version() {
 #[test]
 fn an_npm_alias_selector_targets_the_aliased_package_name() {
     let selectors = vec![parse_update_param("alias@npm:@scope/real@^1.0.0")];
-    assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
+    assert_eq!(update_target_name(&selectors, "alias", "*"), "@scope/real");
 }
 
 #[test]
 fn a_jsr_alias_selector_targets_the_npm_package_name_it_installs() {
     let selectors = vec![parse_update_param("bar-from-jsr@jsr:@pnpm-e2e/bar@^1.0.0")];
-    assert_eq!(update_target_name(&selectors, "bar-from-jsr"), "@jsr/pnpm-e2e__bar");
+    assert_eq!(update_target_name(&selectors, "bar-from-jsr", "*"), "@jsr/pnpm-e2e__bar");
 }
 
 #[test]
 fn a_versioned_selector_without_an_alias_targets_the_name_it_names() {
     let selectors = vec![parse_update_param("foo@^1.0.0")];
-    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+    assert_eq!(update_target_name(&selectors, "foo", "*"), "foo");
 }
 
 #[test]
 fn an_npm_selector_carrying_only_a_range_keeps_the_alias() {
     let selectors = vec![parse_update_param("foo@npm:^1.0.0")];
-    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+    assert_eq!(update_target_name(&selectors, "foo", "*"), "foo");
 }
 
 #[test]
 fn a_bare_selector_targets_the_name_it_names() {
     let selectors = vec![parse_update_param("foo")];
-    assert_eq!(update_target_name(&selectors, "foo"), "foo");
+    assert_eq!(update_target_name(&selectors, "foo", "*"), "foo");
 }
 
 #[test]
 fn a_wildcard_selector_does_not_shadow_an_alias_selector_that_also_matches() {
     let selectors =
         vec![parse_update_param("*"), parse_update_param("alias@npm:@scope/real@^1.0.0")];
-    assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
-    assert_eq!(update_target_name(&selectors, "other"), "other");
+    assert_eq!(update_target_name(&selectors, "alias", "*"), "@scope/real");
+    assert_eq!(update_target_name(&selectors, "other", "*"), "other");
 }
 
 #[test]
@@ -696,7 +696,7 @@ fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
         .collect::<Vec<_>>();
     let expanded = expand_update_selectors(&parsed);
     let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
-    insert_update_target(&mut targets, &expanded, name);
+    insert_update_target(&mut targets, &expanded, name, name);
     versions
         .iter()
         .map(|version| targets.covers(name, Some(&version.parse().expect("parse version"))))
@@ -812,5 +812,23 @@ fn a_negated_selector_is_not_judged() {
 fn a_range_or_a_tag_is_not_rejected() {
     for selector in ["bar@^1.2.3", "bar@latest"] {
         reject_indirect(&[selector]).unwrap_or_else(|err| panic!("{selector}: {err}"));
+    }
+}
+
+#[test]
+fn a_versioned_update_of_an_existing_alias_targets_its_real_name_and_version_line() {
+    for selector in ["alias@1.2.0", "alias@npm:@scope/real@1.2.0"] {
+        let selectors = vec![parse_update_param(selector)];
+        let name = update_target_name(&selectors, "alias", "npm:@scope/real@^1.0.0");
+        assert_eq!(name, "@scope/real");
+        let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
+        insert_update_target(&mut targets, &expand_update_selectors(&selectors), "alias", &name);
+        assert_eq!(
+            [
+                targets.covers(&name, Some(&"1.9.0".parse().unwrap())),
+                targets.covers(&name, Some(&"2.0.0".parse().unwrap())),
+            ],
+            [true, false],
+        );
     }
 }

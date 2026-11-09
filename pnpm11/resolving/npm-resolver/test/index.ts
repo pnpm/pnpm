@@ -3279,7 +3279,7 @@ test.each([true, false])('workspace protocol: a local package without a version 
   expect(resolveResult!.normalizedBareSpecifier).toBe('workspace:*')
 })
 
-test('peekManifestFromStore: reuses store manifest and bypasses network when package is in store', async () => {
+test.each([false, true])('peekManifestFromStore: reuses the stored manifest with trustLockfile=%s', async (trustLockfile) => {
   const storeDir = temporaryDirectory()
   const storeIndex = new StoreIndex(storeDir)
   const integrity = 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ=='
@@ -3302,6 +3302,8 @@ test('peekManifestFromStore: reuses store manifest and bypasses network when pac
   const resolveResult = await resolveFromNpm(
     { alias: 'is-positive', bareSpecifier: '1.0.0' },
     {
+      trustLockfile,
+      ...(trustLockfile ? { publishedBy: new Date(0), trustPolicy: 'no-downgrade' as const } : {}),
       currentPkg: {
         id: 'is-positive@1.0.0' as PkgResolutionId,
         name: 'is-positive',
@@ -3314,6 +3316,7 @@ test('peekManifestFromStore: reuses store manifest and bypasses network when pac
     }
   )
 
+  expect(resolveResult!.policyViolation).toBeUndefined()
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(resolveResult!.manifest!.name).toBe('is-positive')
@@ -3409,7 +3412,7 @@ test('peekManifestFromStore: bypassed when cached version does not satisfy reque
   getMockAgent().assertNoPendingInterceptors()
 })
 
-test('peekManifestFromStore: bypassed when updateChecksums is true', async () => {
+test.each(['updateChecksums', 'updateRequested'] as const)('peekManifestFromStore: bypassed for trusted pins when %s is true', async (updateOption) => {
   const storeDir = temporaryDirectory()
   const storeIndex = new StoreIndex(storeDir)
   const integrity = 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ=='
@@ -3436,7 +3439,8 @@ test('peekManifestFromStore: bypassed when updateChecksums is true', async () =>
   const resolveResult = await resolveFromNpm(
     { alias: 'is-positive', bareSpecifier: '1.0.0' },
     {
-      updateChecksums: true,
+      [updateOption]: true,
+      trustLockfile: true,
       currentPkg: {
         id: 'is-positive@1.0.0' as PkgResolutionId,
         name: 'is-positive',

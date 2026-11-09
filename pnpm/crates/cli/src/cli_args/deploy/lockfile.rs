@@ -192,7 +192,7 @@ fn converted_deploy_lockfile(
 /// The deployed lockfile's `packages` map: every source package with its
 /// paths rewritten, plus a directory entry for each other workspace
 /// importer the deploy links.
-fn convert_deploy_packages(
+pub(super) fn convert_deploy_packages(
     lockfile: &Lockfile,
     project_id: &str,
     lockfile_dir: &Path,
@@ -260,7 +260,7 @@ fn workspace_project_package_metadata(
 /// The directories the deploy installs the project at `project_root` from:
 /// its root, and the publish directory the other importers link it from,
 /// when the lockfile records one that workspace links use.
-fn importer_package_dirs(
+pub(super) fn importer_package_dirs(
     project_root: &Path,
     project_snapshot: &ProjectSnapshot,
 ) -> impl Iterator<Item = PathBuf> {
