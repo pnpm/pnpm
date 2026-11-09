@@ -74,7 +74,8 @@ pub(crate) fn catalog_implied_version(specifier: &str) -> Option<&str> {
 
 /// The package name of an `npm:` alias target, `name` or `name@range`.
 fn alias_name(target: &str) -> &str {
-    match target[1..].find('@') {
+    let Some(rest) = target.get(1..) else { return target };
+    match rest.find('@') {
         Some(at) => &target[..=at],
         None => target,
     }

@@ -158,12 +158,12 @@ pub fn split_packages(
         .into_par_iter()
         .map(|(key, package)| {
             let (metadata, snapshots) = package.split(&key)?;
-            Ok((metadata.map(|metadata| (key.without_peer(), metadata)), (key, snapshots)))
+            Ok(((key.without_peer(), metadata), (key, snapshots)))
         })
         .collect::<Result<Vec<_>, NextFormatError>>()?
         .into_iter()
         .unzip();
-    Ok((Some(packages.into_iter().flatten().collect()), Some(snapshots.into_iter().collect())))
+    Ok((Some(packages.into_iter().collect()), Some(snapshots.into_iter().collect())))
 }
 
 /// The peer-suffixed `packages` and the next format's `snapshots`.
@@ -223,6 +223,10 @@ pub enum NextFormatError {
     )]
     #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION))]
     UnderivableCatalogVersion { catalog: String, name: String, specifier: String },
+
+    #[display("The lockfile records no resolution for {key}")]
+    #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_MISSING_RESOLUTION))]
+    MissingResolution { key: String },
 }
 
 /// Every importer with its versions written out.

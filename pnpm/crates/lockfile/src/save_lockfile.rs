@@ -137,8 +137,32 @@ pub fn render_value_for_path<Document: serde::Serialize>(
     path: &Path,
 ) -> Result<String, SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
+    render_text_for_path(content, path)
+}
+
+/// [`render_value_for_path`] for a main document already rendered.
+pub fn render_text_for_path(content: String, path: &Path) -> Result<String, SaveLockfileError> {
     let existing = read_normalized_lockfile(path)?;
     render_content_over(content, existing.as_deref(), path)
+}
+
+/// The text of a lockfile a hook returned as a document. One whose
+/// `lockfileVersion` names the next format is read as a [`Lockfile`] and
+/// rendered through its writer, so the hook's result is written in that
+/// format rather than as the document's own shape; any other document is
+/// serialized as it is.
+pub fn render_hook_lockfile(value: &serde_json::Value) -> Result<String, SaveLockfileError> {
+    let next_format = value
+        .get("lockfileVersion")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|version| version.parse::<crate::ComVer>().ok())
+        .is_some_and(|version| version.major == crate::NEXT_LOCKFILE_MAJOR);
+    if !next_format {
+        return serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml);
+    }
+    let lockfile: Lockfile =
+        serde_json::from_value(value.clone()).map_err(SaveLockfileError::SerializeYaml)?;
+    lockfile.to_yaml_string()
 }
 
 fn read_normalized_lockfile(path: &Path) -> Result<Option<String>, SaveLockfileError> {

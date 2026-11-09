@@ -8,7 +8,7 @@
 //! read, so the repair starts from as much of the broken file as the
 //! types allow.
 
-use crate::{Lockfile, LockfileResolution, SnapshotEntry};
+use crate::{Lockfile, LockfileResolution, NextPackage, NextSettings, SnapshotEntry};
 
 pub(super) fn prepare_value_for_fix(value: &mut serde_json::Value) {
     let Some(root) = value.as_object_mut() else { return };
@@ -32,6 +32,56 @@ pub(super) fn prepare_value_for_fix(value: &mut serde_json::Value) {
             reduce_snapshot(snapshot);
         }
     }
+}
+
+/// [`prepare_value_for_fix`] for a document in the next format, whose
+/// generated fields live under `settings` and whose `packages` entries
+/// carry their `integrity` apart from a `resolution`.
+pub(super) fn prepare_next_value_for_fix(value: &mut serde_json::Value) {
+    let Some(root) = value.as_object_mut() else { return };
+    if root
+        .get("settings")
+        .is_some_and(|settings| serde_json::from_value::<NextSettings>(settings.clone()).is_err())
+    {
+        root.remove("settings");
+    }
+    if root
+        .get("time")
+        .is_some_and(|time| {
+            serde_json::from_value::<std::collections::BTreeMap<String, String>>(time.clone())
+                .is_err()
+        })
+    {
+        root.remove("time");
+    }
+    if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
+        packages.retain(|_, entry| reduce_next_package(entry));
+    }
+}
+
+/// Keep a next-format `packages` entry that already decodes, or narrow it
+/// to what names and pins the package: its resolution, its integrity and
+/// its dependency edges. An entry with neither resolution nor integrity
+/// names nothing and is dropped.
+fn reduce_next_package(entry: &mut serde_json::Value) -> bool {
+    if serde_json::from_value::<NextPackage>(entry.clone()).is_ok() {
+        return true;
+    }
+    let mut retained = serde_json::Map::new();
+    for key in ["resolution", "integrity", "dependencies", "optionalDependencies"] {
+        if let Some(value) = entry.get(key).cloned() {
+            retained.insert(key.to_string(), value);
+        }
+    }
+    if !retained.contains_key("resolution") && !retained.contains_key("integrity") {
+        return false;
+    }
+    let candidate = serde_json::Value::Object(retained);
+    if serde_json::from_value::<NextPackage>(candidate.clone()).is_err() {
+        return false;
+    }
+    *entry = candidate;
+    true
 }
 
 /// Keep a `packages:` entry that already decodes, or narrow it to the

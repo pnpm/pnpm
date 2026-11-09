@@ -5,7 +5,7 @@ use crate::{
     declares_next_format, extract_env_document, extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
     json_document::{from_json_str, is_json_document},
-    load_lockfile::repair_document::prepare_value_for_fix,
+    load_lockfile::repair_document::{prepare_next_value_for_fix, prepare_value_for_fix},
     merge_lockfile_changes,
 };
 use pipe_trait::Pipe;
@@ -286,8 +286,13 @@ impl Lockfile {
             )
             .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?
         };
-        prepare_value_for_fix(&mut value);
-        let parsed = if declares_next_format(&main) {
+        let next = declares_next_format(&main);
+        if next {
+            prepare_next_value_for_fix(&mut value);
+        } else {
+            prepare_value_for_fix(&mut value);
+        }
+        let parsed = if next {
             serde_json::from_value::<NextLockfile>(value)
                 .map_err(parse_error)
                 .and_then(|next| {

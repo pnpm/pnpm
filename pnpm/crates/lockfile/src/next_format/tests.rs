@@ -660,6 +660,31 @@ fn json_document_with_todays_version_is_todays_format() {
     assert!(yaml.starts_with("lockfileVersion: '9.0'\n"), "{yaml}");
 }
 
+/// A catalog specifier of `npm:` alone, or one whose target starts with a
+/// multi-byte character, is rejected rather than sliced through.
+#[test]
+fn catalog_entry_with_an_odd_npm_alias_is_rejected() {
+    for specifier in ["npm:", "npm:\u{e9}"] {
+        let text = format!(
+            r#"{{"lockfileVersion": "13.0", "settings": {{"catalogs": {{"default": {{"renamed": "{specifier}"}}}}}}, "importers": {{".": {{}}}}}}"#,
+        );
+        let error = Lockfile::parse(&text, Path::new("pnpm-lock.yaml"))
+            .expect_err("a catalog entry without a version");
+        assert!(error.to_string().contains("nothing follows from the specifier"), "{error}");
+    }
+}
+
+/// A registry entry that records neither a resolution nor an integrity
+/// would install without a check, so it is an error rather than a package
+/// without metadata.
+#[test]
+fn registry_entry_without_a_resolution_is_rejected() {
+    let text = r#"{"lockfileVersion": "13.0", "importers": {".": {"dependencies": {"foo": "1.0.0"}}}, "packages": {"foo@1.0.0": {}}}"#;
+    let error = Lockfile::parse(text, Path::new("pnpm-lock.yaml"))
+        .expect_err("an entry without a resolution");
+    assert!(error.to_string().contains("records no resolution for foo@1.0.0"), "{error}");
+}
+
 /// A catalog entry written as `npm:name`, without a version, implies none.
 #[test]
 fn catalog_entry_whose_version_does_not_follow_is_rejected() {

@@ -204,6 +204,58 @@ fn parses_main_document_from_combined_yaml() {
     assert_eq!(combined_loaded, main_only_loaded);
 }
 
+/// The repair loader keeps a next-format entry that has only its
+/// `integrity`, narrows one whose generated fields do not decode, and drops
+/// one that names nothing.
+#[test]
+fn fix_loader_keeps_next_format_entries_pinned_by_integrity() {
+    let tmp = tempdir().expect("create tempdir");
+    std::fs::write(
+        tmp.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "{"
+            r#"  "lockfileVersion": "13.0","#
+            r#"  "settings": "invalid","#
+            r#"  "importers": {".": {"dependencies": {"valid": "1.0.0"}}},"#
+            r#"  "packages": {"#
+            r#"    "broken@1.0.0": {"engines": "invalid"},"#
+            r#"    "valid@1.0.0": {"#
+            r#"      "integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
+            r#"      "engines": "invalid","#
+            r#"      "dependencies": {"child": "1.0.0"},"#
+            "    },"
+            r#"    "child@1.0.0": {"#
+            r#"      "integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
+            "    },"
+            "  },"
+            "}"
+        },
+    )
+    .expect("write wanted lockfile");
+
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let lockfile = lazy
+        .get_for_fix()
+        .expect("load for repair")
+        .expect("lockfile present");
+    assert!(lockfile.settings.is_none());
+    let packages = lockfile.packages.as_ref().expect("packages present");
+    assert!(!packages.contains_key(&"broken@1.0.0".parse().expect("broken key")));
+    let valid = packages
+        .get(&"valid@1.0.0".parse().expect("valid key"))
+        .expect("valid entry");
+    assert!(valid.engines.is_none());
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
+    let valid = snapshots
+        .get(&"valid@1.0.0".parse().expect("valid snapshot key"))
+        .expect("valid snapshot");
+    assert!(
+        valid.dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.len() == 1),
+    );
+}
+
 #[test]
 fn fix_loader_discards_broken_and_derived_package_fields() {
     let tmp = tempdir().expect("create tempdir");

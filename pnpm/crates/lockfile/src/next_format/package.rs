@@ -244,7 +244,7 @@ impl NextPackage {
     pub fn split(
         mut self,
         key: &crate::PackageKey,
-    ) -> Result<(Option<PackageMetadata>, Vec<NextSnapshotEntry>), NextFormatError> {
+    ) -> Result<(PackageMetadata, Vec<NextSnapshotEntry>), NextFormatError> {
         let peers = split_peer_dependencies(key, self.peer_dependencies.take())?;
         let shared = NextSnapshotEntry {
             id: self.id.take(),
@@ -255,7 +255,7 @@ impl NextPackage {
             optional: self.optional,
         };
         let snapshots = self.snapshots.take();
-        let metadata = self.into_metadata(key, peers.ranges, peers.meta);
+        let metadata = self.into_metadata(key, peers.ranges, peers.meta)?;
         let snapshots = match snapshots {
             None => vec![shared],
             Some(snapshots) => snapshots
@@ -266,20 +266,23 @@ impl NextPackage {
         Ok((metadata, snapshots))
     }
 
-    /// `None` when the entry records no resolution and none follows from
-    /// `key`.
+    /// Fails when the entry records no resolution and none follows from
+    /// `key`: a registry package without its integrity could be installed
+    /// without a check.
     fn into_metadata(
         self,
         key: &crate::PackageKey,
         peer_dependencies: Option<HashMap<String, String>>,
         peer_dependencies_meta: Option<HashMap<String, crate::PeerDependencyMeta>>,
-    ) -> Option<PackageMetadata> {
+    ) -> Result<PackageMetadata, NextFormatError> {
         let resolution = match (self.resolution, self.integrity) {
             (None, Some(integrity)) => {
                 LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
             }
             (None, None) => {
-                let directory = key_directory(key)?.clone();
+                let directory = key_directory(key)
+                    .ok_or_else(|| NextFormatError::MissingResolution { key: key.to_string() })?
+                    .clone();
                 LockfileResolution::Directory(DirectoryResolution { directory })
             }
             (Some(LockfileResolution::Tarball(tarball)), Some(integrity)) => {
@@ -290,7 +293,7 @@ impl NextPackage {
             }
             (Some(resolution), _) => resolution,
         };
-        Some(PackageMetadata {
+        Ok(PackageMetadata {
             resolution,
             version: self.version,
             engines: self.engines,

@@ -12,7 +12,7 @@ use crate::{
     ImporterDepVersion, LoadLockfileError, Lockfile, LockfileVersion, NextFormatError, PkgName,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SaveLockfileError,
     implied_version::injected_paths,
-    json_document::from_json_str,
+    json_document::{from_json_str, is_json_document},
     next_format::{
         Implied, LinkedImporters, NextImporter, NextImporterDeps, NextPackage, NextPackageOut,
         NextSections, RestoreContext, merge_packages, restore_sections, split_packages,
@@ -83,11 +83,15 @@ pub(super) fn to_text(
 
 /// The env document `text` as the env lockfile it describes.
 pub(super) fn from_text(text: &str, path: &Path) -> Result<EnvLockfile, LoadLockfileError> {
-    let document: NextEnvDocument<NextPackage> = from_json_str(text)
-        .map_err(|source| LoadLockfileError::ParseYaml {
-            path: path.to_path_buf(),
-            reason: source.to_string(),
-        })?;
+    let document: NextEnvDocument<NextPackage> = if is_json_document(text) {
+        from_json_str(text)
+            .map_err(|source| LoadLockfileError::ParseYaml {
+                path: path.to_path_buf(),
+                reason: source.to_string(),
+            })?
+    } else {
+        serde_saphyr::from_str(text).map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+    };
     let next_format = |source| LoadLockfileError::next_format(path, &source);
     let (packages, snapshots) = match document.packages {
         Some(merged) => split_packages(merged).map_err(next_format)?,

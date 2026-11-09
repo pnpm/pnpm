@@ -589,3 +589,29 @@ fn writing_todays_format_over_a_next_format_env_document_resets_its_version() {
     let read_again = EnvLockfile::read(dir.path()).unwrap().expect("env document present");
     assert_eq!(read_again, env);
 }
+
+/// A tool may rewrite a next-format env document as block YAML; it reads
+/// as the same document.
+#[test]
+fn reads_a_next_format_env_document_written_as_block_yaml() {
+    let dir = TempDir::new().unwrap();
+    let env = sample_env_lockfile();
+    let integrity = match &env.packages
+        .values()
+        .next()
+        .expect("one package")
+        .resolution
+    {
+        LockfileResolution::Registry(registry) => registry.integrity.to_string(),
+        other => panic!("a registry resolution, not {other:?}"),
+    };
+    let yaml = format!(
+        "---\nlockfileVersion: '13.0'\nimporters:\n  .:\n    configDependencies:\n      '@pnpm.e2e/foo': 100.0.0\npackages:\n  '@pnpm.e2e/foo@100.0.0':\n    integrity: {integrity}\n---\n",
+    );
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), yaml).unwrap();
+
+    let read = EnvLockfile::read(dir.path()).unwrap().expect("env document present");
+    let mut expected = env;
+    expected.lockfile_version = "13.0".to_string();
+    assert_eq!(read, expected);
+}
