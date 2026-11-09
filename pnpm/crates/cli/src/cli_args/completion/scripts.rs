@@ -2,7 +2,7 @@ use super::CompletionContext;
 use pnpm_workspace::safe_read_project_manifest_only;
 
 pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Result<Vec<String>> {
-    if context.has_positional || context.awaiting_option_value {
+    if context.has_positional || context.pending_option.is_some() {
         return Ok(Vec::new());
     }
     let directory = context.resolve_project_directory()?;

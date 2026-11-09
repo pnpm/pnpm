@@ -7494,9 +7494,6 @@ importers:
       js-yaml:
         specifier: 'catalog:'
         version: '@zkochan/js-yaml@0.0.11'
-      normalize-path:
-        specifier: 'catalog:'
-        version: 3.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7525,9 +7522,6 @@ importers:
       '@types/js-yaml':
         specifier: 'catalog:'
         version: 4.0.9
-      '@types/normalize-path':
-        specifier: 'catalog:'
-        version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.32.0
@@ -7836,6 +7830,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7846,6 +7843,9 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: 'link:'
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.32.0

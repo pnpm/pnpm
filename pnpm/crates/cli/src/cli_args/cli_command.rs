@@ -92,7 +92,7 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use clap::{CommandFactory, Parser, Subcommand, ValueHint, error::ErrorKind};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -132,7 +132,7 @@ pub struct CliArgs {
     // field exists so the flag is still accepted, validated, documented,
     // and completed — a valueless `--env-file` is reported instead of
     // silently ignored.
-    #[clap(long = "env-file", value_name = "PATH", global = true)]
+    #[clap(long = "env-file", value_name = "PATH", value_hint = ValueHint::FilePath, global = true)]
     pub env_file: Vec<PathBuf>,
     #[clap(flatten)]
     pub paths: CliPathArgs,
@@ -172,7 +172,14 @@ pub struct CliWorkspaceArgs {
 pub struct CliPathArgs {
     /// Set working directory. Accepted anywhere on the command line,
     /// before or after the subcommand, like every other rc-option.
-    #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
+    #[clap(
+        short = 'C',
+        long,
+        alias = "prefix",
+        default_value = ".",
+        value_hint = ValueHint::DirPath,
+        global = true
+    )]
     pub dir: PathBuf,
     /// Whether `--dir` came from the command line rather than from its
     /// default. pnpm keeps that distinction: a `--dir` it was given is
@@ -189,17 +196,29 @@ pub struct CliPathArgs {
         long = "store-dir",
         alias = "store",
         value_name = "DIR",
+        value_hint = ValueHint::DirPath,
         global = true,
         overrides_with = "store_dir",
         value_parser = parse_store_dir
     )]
     pub store_dir: Option<PathBuf>,
     /// Directory in which pnpm persists machine-local state.
-    #[clap(long = "state-dir", value_name = "DIR", global = true, overrides_with = "state_dir")]
+    #[clap(
+        long = "state-dir",
+        value_name = "DIR",
+        value_hint = ValueHint::DirPath,
+        global = true,
+        overrides_with = "state_dir"
+    )]
     pub state_dir: Option<PathBuf>,
     /// Path to an `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`.
-    #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
+    #[clap(
+        long = "npmrc-auth-file",
+        visible_alias = "userconfig",
+        value_hint = ValueHint::FilePath,
+        global = true
+    )]
     pub npmrc_auth_file: Option<PathBuf>,
     /// Run as if the project were standalone, ignoring any
     /// `pnpm-workspace.yaml` above it.

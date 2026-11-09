@@ -368,8 +368,12 @@ pub fn resolve_peers_workspace(
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, settings.resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let mut finished =
-        finish_workspace_graph(&walker, &importers, lockfile_dir, settings.dedupe_peer_dependents);
+    let mut finished = finish_workspace_graph(
+        &mut walker,
+        &importers,
+        lockfile_dir,
+        settings.dedupe_peer_dependents,
+    );
     finished.dedupe_peer_dependents(
         walker.opts.peers_suffix_max_length,
         settings.dedupe_peer_dependents,

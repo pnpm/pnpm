@@ -298,9 +298,12 @@ pub(super) fn create_file_url_key(
 ) -> miette::Result<PkgNameVerPeer> {
     let normalized = lexical_normalize(resolved_path);
     let normalized_display = normalized.display();
+    // Parentheses delimit peer contexts in dependency keys.
     let dep_file_url = url::Url::from_file_path(&normalized)
         .map_err(|()| miette::miette!("could not convert {} to a file URL", normalized_display))?
-        .to_string();
+        .to_string()
+        .replace('(', "%28")
+        .replace(')', "%29");
     let name = projects_by_path
         .get(&ProjectPathKey::new(&normalized))
         .or_else(|| {

@@ -1,17 +1,14 @@
 use super::{
-    Arc, Config, Context, DeployArgs, DeployInstallMode, DirectSpecs, LazyLockfile, Lockfile,
-    NodeLinker, NodeLinkerArg, Path, PathBuf, PreferredVersions, Reporter, State,
-    WantedLockfileSelection, approve_legacy_workspace_project_builds, deployed_workspace_projects,
-    get_preferred_versions_from_lockfile_and_manifests, resolve_bool_override, warn,
+    Arc, Config, Context, DeployArgs, DeployInstallMode, LazyLockfile, Lockfile, NodeLinker,
+    NodeLinkerArg, Path, PathBuf, PreferredVersions, Reporter, State, WantedLockfileSelection,
+    approve_legacy_workspace_project_builds, deployed_workspace_projects,
+    legacy_source::LegacyDeploySource, resolve_bool_override,
 };
-use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
-use pnpm_package_manager::build_resolution_verifiers;
 
 /// The lockfile a shared deploy generates records no
 /// `pnpmfileChecksum`, so the pnpmfile behind these hooks must not
-/// claim one either. The legacy path resolves the deployed project
-/// from scratch and writes its own lockfile, which records the
-/// checksum as any other install does.
+/// claim one either. A legacy deploy preserves the source checksum for
+/// the resolver's hook freshness check.
 fn deploy_pnpmfile_hooks(
     source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     legacy: bool,
@@ -23,7 +20,7 @@ fn deploy_pnpmfile_hooks(
 
 /// A shared deploy installs the deployed project as a workspace of its
 /// own, so none of the source workspace's graph-level settings apply to
-/// it. The legacy path resolves from scratch and keeps them.
+/// it. The legacy path keeps them.
 fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: DeployInstallMode) {
     let DeployInstallMode::Shared { workspace_config } = mode else {
         return;
@@ -31,14 +28,7 @@ fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: Depl
     workspace_config.apply_to_config(config, deploy_dir);
 }
 
-/// The lockfile a legacy deploy install reads and writes.
-///
-/// The deployed project is not one of the source workspace's importers —
-/// the deploy hook rewrites the copied manifest — so its resolution must
-/// not be seeded from the workspace lockfile. Plain `pnpm-lock.yaml`
-/// whatever the branch settings say, for the same reason: they describe
-/// that workspace's resolution, and pnpm's deploy reads and writes the
-/// deployed lockfile under the plain name too.
+/// The deploy directory's lockfile when no source lockfile can seed resolution.
 fn deployed_lockfile(state: &State, deploy_dir: &Path, frozen_lockfile: bool) -> LazyLockfile {
     if state.config.lockfile || frozen_lockfile {
         LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
@@ -62,78 +52,6 @@ pub(super) fn source_pnpmfile_hooks(
         pnpm_package_manager::pnpmfile_selection(config),
     )
     .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))
-}
-
-/// The source workspace lockfile whose pins a legacy deploy prefers.
-pub(super) struct LegacyDeploySource {
-    lockfile: Lockfile,
-    path: PathBuf,
-}
-
-impl LegacyDeploySource {
-    /// The source install's branch-lockfile selection is preserved, while a
-    /// missing or malformed source lockfile falls back to fresh resolution.
-    pub(super) fn load<ReporterT: Reporter>(
-        config: &Config,
-        source_lockfile_dir: &Path,
-    ) -> Option<Self> {
-        if !config.lockfile {
-            return None;
-        }
-        match Lockfile::load_wanted(source_lockfile_dir, &config.wanted_lockfile_selection()) {
-            Ok(Some(lockfile)) => Some(Self {
-                lockfile,
-                path: source_lockfile_dir.join(config.wanted_lockfile_name()),
-            }),
-            Ok(None) => None,
-            Err(error) => {
-                warn::<ReporterT>(
-                    source_lockfile_dir,
-                    format!(
-                        "Ignoring broken lockfile at {}: {error}",
-                        source_lockfile_dir.display(),
-                    ),
-                );
-                None
-            }
-        }
-    }
-
-    fn preferred_versions(&self) -> PreferredVersions {
-        get_preferred_versions_from_lockfile_and_manifests(
-            self.lockfile.snapshots.as_ref(),
-            DirectSpecs::without_catalogs(&[]),
-        )
-    }
-
-    /// Applies the resolution policies to the source lockfile, as an install
-    /// in the source workspace does. The resolver treats its pins only as
-    /// preferences, so it would otherwise replace a rejected pin silently.
-    async fn verify<ReporterT: Reporter>(&self, state: &State) -> miette::Result<()> {
-        let verifiers = build_resolution_verifiers(
-            state.config,
-            Arc::clone(&state.http_client),
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .map_err(miette::Report::new)?;
-        verify_lockfile_resolutions::<ReporterT>(
-            &self.lockfile,
-            &verifiers,
-            &VerifyLockfileResolutionsOptions {
-                concurrency: None,
-                lockfile_path: Some(&self.path),
-                cache_dir: Some(&state.config.cache_dir),
-                replaced: None,
-                repairs_lockfile: false,
-            },
-        )
-        .await
-        .map_err(miette::Report::new)
-    }
 }
 
 /// A global virtual store or an absolute `virtualStoreDir` is shared with
@@ -205,13 +123,17 @@ impl DeployArgs {
         {
             source.verify::<ReporterT>(&state).await?;
         }
+        let preferred_versions = legacy_source.as_ref().map(LegacyDeploySource::preferred_versions);
+        if let Some(source) = legacy_source {
+            state.lockfile = LazyLockfile::preloaded(Some(source.lockfile));
+        }
         self.install_deployed_state::<ReporterT>(
             &state,
             deploy_dir,
             legacy,
             frozen_lockfile,
             pnpmfile_hook,
-            legacy_source.as_ref().map(LegacyDeploySource::preferred_versions),
+            preferred_versions,
         )
         .await
     }

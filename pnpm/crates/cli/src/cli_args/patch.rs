@@ -4,7 +4,7 @@ use crate::{
     State,
     cli_args::patch_state::{EditDirState, StateFileError, write_edit_dir_state},
 };
-use clap::Args;
+use clap::{Args, ValueHint};
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::Select;
@@ -34,7 +34,7 @@ pub struct PatchArgs {
     /// Name of the package to patch.
     pub package_name: Option<String>,
     /// The package that needs to be modified will be extracted to this directory.
-    #[clap(short = 'd', long = "edit-dir", value_name = "dir")]
+    #[clap(short = 'd', long = "edit-dir", value_name = "dir", value_hint = ValueHint::DirPath)]
     pub edit_dir: Option<PathBuf>,
     /// Ignore existing patch files when patching.
     #[clap(long = "ignore-existing")]

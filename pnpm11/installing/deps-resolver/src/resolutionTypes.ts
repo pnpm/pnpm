@@ -154,6 +154,7 @@ export interface ResolutionContext extends RegistryContext {
    * prompt / abort / persist without re-walking the resolved tree.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
+  trustLockfile?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number

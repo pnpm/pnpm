@@ -1,6 +1,7 @@
 import { refToRelative } from '@pnpm/deps.path'
 
 export { findLockedRootNodeRuntime, type LockedNodeRuntime } from './findLockedRootNodeRuntime.js'
+export { getLockfileImporterId } from './getLockfileImporterId.js'
 export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'

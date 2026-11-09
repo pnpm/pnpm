@@ -1162,3 +1162,5 @@ mod self_containment;
 mod reproducible;
 
 mod workspace_project_builds;
+
+mod offline;

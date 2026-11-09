@@ -24,7 +24,7 @@ use build::{
     print_built, reject_non_regular_output_file, reject_non_regular_outputs,
     resolve_builder_binary, resolve_version, run_command,
 };
-use clap::Args;
+use clap::{Args, ValueHint};
 use config::{
     ParsedTarget, ReadProjectAppConfigResult, default_runtime_version,
     derive_output_name_from_package, escapes_project, output_file_name, parse_runtime,
@@ -71,7 +71,7 @@ pub struct PackAppArgs {
     pub params: Vec<String>,
 
     /// Path to the CJS entry file to embed in the executable.
-    #[clap(long)]
+    #[clap(long, value_hint = ValueHint::FilePath)]
     pub entry: Option<String>,
 
     /// Target to build for. May be specified multiple times. Supported:
@@ -87,7 +87,7 @@ pub struct PackAppArgs {
     pub runtime: Option<String>,
 
     /// Output directory for the built executables. Defaults to `dist-app`.
-    #[clap(short = 'o', long = "output-dir")]
+    #[clap(short = 'o', long = "output-dir", value_hint = ValueHint::DirPath)]
     pub output_dir: Option<String>,
 
     /// Name for the output executable (without extension). Defaults to the

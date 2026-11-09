@@ -115,6 +115,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
     update: options.update,
     updateRequested: options.updateRequested,
     updateChecksums: options.updateChecksums,
+    trustLockfile: ctx.trustLockfile,
     workspacePackages: ctx.workspacePackages,
     supportedArchitectures: options.supportedArchitectures,
     onFetchError: createFetchErrorDecorator(request),
