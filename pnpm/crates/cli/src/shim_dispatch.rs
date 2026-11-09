@@ -488,7 +488,7 @@ fn run_runtime_from_store(
             );
             if name == "node" {
                 pnpm_diagnostics::eprintln!(
-                    "pnpm: check tools.node and nodeDownloadMirrors in the global configuration, and PNPM_CONFIG_TOOLS and PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS in the environment.",
+                    "pnpm: for Node.js mirrors, check tools.node, nodeDownloadMirrors, PNPM_CONFIG_TOOLS, and PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS.",
                 );
             }
             1
