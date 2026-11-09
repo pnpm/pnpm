@@ -44,6 +44,7 @@
     "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.npm-lifecycle": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",

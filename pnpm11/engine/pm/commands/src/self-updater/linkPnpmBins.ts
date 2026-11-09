@@ -5,6 +5,7 @@ import { linkBins } from '@pnpm/bins.linker'
 import { createStagingToken } from '@pnpm/building.during-install'
 import { packageManager } from '@pnpm/cli.meta'
 import { isError } from '@pnpm/error'
+import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 
 import { linkExePlatformBinary } from './linkExePlatformBinary.js'
 
@@ -24,7 +25,8 @@ const STORE_BINS_MARKER = '.pnpm-bins-linked'
  * Links a store slot's bins unless this pnpm already did. Concurrent commands
  * may link the same slot: each links the bins into a private directory beside
  * `binDir` and renames them into `binDir` one by one, so a shim in `binDir` is
- * always complete. The marker is written last.
+ * always complete. On Windows, concurrent renames onto one path fail
+ * transiently, so they are retried. The marker is written last.
  */
 export async function ensureStoreBinsLinked (pnpmGvsPath: string, binDir: string, pkgName: string): Promise<void> {
   if (areStoreBinsCurrent(binDir)) return
@@ -34,11 +36,11 @@ export async function ensureStoreBinsLinked (pnpmGvsPath: string, binDir: string
     await linkPnpmBins(pnpmGvsPath, privateBinDir, pkgName)
     await fs.promises.mkdir(binDir, { recursive: true })
     await Promise.all((await fs.promises.readdir(privateBinDir)).map(async (binName) =>
-      fs.promises.rename(path.join(privateBinDir, binName), path.join(binDir, binName))
+      renameFileWithRetryAsync(path.join(privateBinDir, binName), path.join(binDir, binName))
     ))
     const markerTemp = path.join(binDir, `${STORE_BINS_MARKER}-${token}`)
     await fs.promises.writeFile(markerTemp, packageManager.version)
-    await fs.promises.rename(markerTemp, path.join(binDir, STORE_BINS_MARKER))
+    await renameFileWithRetryAsync(markerTemp, path.join(binDir, STORE_BINS_MARKER))
   } finally {
     await fs.promises.rm(privateBinDir, { recursive: true, force: true })
   }
