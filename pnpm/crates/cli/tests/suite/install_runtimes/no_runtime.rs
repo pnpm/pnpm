@@ -380,7 +380,7 @@ fn run_after_a_runtime_on_fail_flag_install_does_not_install_again() {
     let mut state = load_workspace_state(&workspace).unwrap().unwrap();
     assert_eq!(state.settings.runtime_on_fail, Some(RuntimeOnFail::Download));
     // A lockfile newer than the state, with unchanged content, makes the gate
-    // compare the settings.
+    // refresh the state.
     state.last_validated_timestamp -= 4 * MTIME_STEP_MS;
     let validated = state.last_validated_timestamp;
     update_workspace_state(&workspace, &state).unwrap();
@@ -390,6 +390,9 @@ fn run_after_a_runtime_on_fail_flag_install_does_not_install_again() {
         .with_args(["run", "noop"])
         .assert()
         .success();
+    let state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert!(state.last_validated_timestamp > validated);
+    assert_eq!(state.settings.runtime_on_fail, Some(RuntimeOnFail::Download));
 }
 
 #[test]
