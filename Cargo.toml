@@ -187,7 +187,7 @@ insta = { version = "1.49.0", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.15.0" }
 libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication", "sync"] }
 futures-util = { version = "0.3.34" }
-flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
+flate2 = { version = "1.1.11", default-features = false, features = ["zlib-rs"] }
 gethostname = { version = "1.1.0" }
 getrandom = { version = "0.4.3" }
 miette = { version = "7.6.0", features = ["fancy"] }
@@ -249,7 +249,7 @@ serde-saphyr = { version = "2.1.1" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2 = { version = "0.10.9" }
-sigstore-sign = { version = "0.15.1" }
+sigstore-sign = { version = "0.16.0" }
 # C2SP signed notes and tiled transparency logs, ported from Go's
 # `golang.org/x/mod/sumdb/note` and `sumdb/tlog`. Pure Rust, so the release
 # record verifier also builds for WebAssembly.
@@ -271,7 +271,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # Native IO features live in consumers' target dependencies so Cargo's feature
 # unification does not pull OS networking or process drivers into WASI builds.
 tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "sync"] }
-toml = { version = "1.2.0" }
+toml = { version = "1.2.1" }
 tlog_tiles = { version = "0.2.0" }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["tls12"] }
 unicode-security = "0.1.3"
@@ -289,7 +289,7 @@ yamlpath = { version = "1.32.0" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.1" }
-zip = { version = "9.4.1", default-features = false, features = ["deflate"] }
+zip = { version = "9.5.0", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.3", default-features = false }
 zune-inflate = { version = "0.2.54" }
 

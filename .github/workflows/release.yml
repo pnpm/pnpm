@@ -513,7 +513,7 @@ jobs:
         id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4 # zizmor: ignore[superfluous-actions]
         with:
           # Draft so a maintainer publishes it deliberately, like the Rust and
           # pnpr releases: the repository uses immutable releases, so a
@@ -1317,7 +1317,7 @@ jobs:
         # publishes it deliberately. `make_latest: false` keeps a published v12
         # prerelease from stealing the "Latest" badge from the stable v11
         # line.
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
@@ -1379,7 +1379,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cross
 
@@ -1809,7 +1809,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1882,7 +1882,7 @@ jobs:
         # byte-for-byte as attested there. Draft so a maintainer publishes it
         # deliberately; `make_latest: false` keeps a pnpr release off the
         # repository's "Latest" badge, which tracks the stable pnpm CLI.
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}
