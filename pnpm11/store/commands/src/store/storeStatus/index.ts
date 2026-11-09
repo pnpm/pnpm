@@ -17,6 +17,7 @@ import {
   type PackageFilesIndex,
   readManifestFromCafs,
   type SideEffectsDiff,
+  verifyFileIntegrity,
 } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
 import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
@@ -203,6 +204,8 @@ async function isPackageModified (
     return true
   }
   const fileEntries = getMapEntries<PackageFileInfo>(pkgFilesIndex.files)
+  const requiresBuild = indexRequiresBuild(pkgFilesIndex, fileEntries, storeDir)
+  if (requiresBuild == null) return true
   const dintFiles = toDintFiles(fileEntries, pkgFilesIndex.algo)
   if (await dint.check(targetDir, dintFiles)) {
     return false
@@ -210,7 +213,6 @@ async function isPackageModified (
   if (await checkSideEffects(pkgFilesIndex, targetDir, fileEntries)) {
     return false
   }
-  const requiresBuild = indexRequiresBuild(pkgFilesIndex, fileEntries, storeDir)
   if (requiresBuild && isIsolatedDir(targetDir, fileEntries.map(([filePath]) => filePath))) {
     return false
   }
@@ -221,11 +223,13 @@ function indexRequiresBuild (
   index: PackageFilesIndex,
   fileEntries: Array<[string, PackageFileInfo]>,
   storeDir: string
-): boolean {
+): boolean | undefined {
   if (index.requiresPrepare != null && index.manifest == null) {
-    const filesMap = new Map(fileEntries.map(([filename, info]) =>
-      [filename, getFilePathByModeInCafs(storeDir, info.digest, info.mode)]))
-    return pkgRequiresBuild(readManifestFromCafs(filesMap), index.files)
+    const manifestFile = fileEntries.find(([filename]) => filename === 'package.json')?.[1]
+    if (manifestFile == null) return pkgRequiresBuild(undefined, index.files)
+    const manifestPath = getFilePathByModeInCafs(storeDir, manifestFile.digest, manifestFile.mode)
+    if (!verifyFileIntegrity(manifestPath, { algorithm: index.algo, digest: manifestFile.digest })) return undefined
+    return pkgRequiresBuild(readManifestFromCafs(new Map([['package.json', manifestPath]])), index.files)
   }
   return index.requiresBuild === true || pkgRequiresBuild(index.manifest, index.files)
 }

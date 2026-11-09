@@ -15,7 +15,9 @@ use pnpm_deps_restorer::{
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::{AllowBuildValue, Host, Modules, read_modules_manifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex, package_dir_matches_index};
+use pnpm_store_dir::{
+    PackageFilesIndex, StoreDir, StoreIndex, file_content_matches_digest, package_dir_matches_index,
+};
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -281,9 +283,12 @@ fn find_modified(
         .collect::<Vec<_>>();
     let mut rows = store_index.get_many(&keys).into_diagnostic()?;
     let store_dir = StoreDir::new(store_dir);
-    for row in rows.values_mut() {
-        repair_legacy_git_build_flag(&store_dir, row);
-    }
+    let invalid_manifest_rows: HashSet<_> = rows
+        .iter_mut()
+        .filter_map(|(key, row)| {
+            repair_legacy_git_build_flag(&store_dir, row).err().map(|()| key.clone())
+        })
+        .collect();
     for package in packages {
         if package.global_virtual_store
             && rows.contains_key(&package.store_index_key)
@@ -299,26 +304,37 @@ fn find_modified(
         .par_iter()
         .filter(|package| {
             rows.get(&package.store_index_key)
-                .is_some_and(|row| !package_dir_matches_index(&package.package_dir, row))
+                .is_some_and(|row| {
+                    invalid_manifest_rows.contains(&package.store_index_key)
+                        || !package_dir_matches_index(&package.package_dir, row)
+                })
         })
         .map(|package| package.dep_path.clone())
         .collect())
 }
 
-fn repair_legacy_git_build_flag(store_dir: &StoreDir, row: &mut PackageFilesIndex) {
+fn repair_legacy_git_build_flag(
+    store_dir: &StoreDir,
+    row: &mut PackageFilesIndex,
+) -> Result<(), ()> {
     if row.requires_prepare.is_none() || row.manifest.is_some() {
-        return;
+        return Ok(());
     }
-    let cas_paths: HashMap<_, _> = row.files
-        .get("package.json")
-        .and_then(|file| store_dir.cas_file_path_by_mode(&file.digest, file.mode))
-        .map(|path| ("package.json".to_string(), path))
-        .into_iter()
-        .collect();
+    let mut cas_paths = HashMap::new();
+    if let Some(file) = row.files.get("package.json") {
+        let path = store_dir
+            .cas_file_path_by_mode(&file.digest, file.mode)
+            .ok_or(())?;
+        if !file_content_matches_digest(&path, &file.digest, &row.algo) {
+            return Err(());
+        }
+        cas_paths.insert("package.json".to_string(), path);
+    }
     let manifest = pnpm_package_manifest::read_package_json_from_cas_paths(&cas_paths);
     row.requires_build =
         Some(pnpm_package_manifest::requires_build_from_files(manifest.as_ref(), row.files.keys()));
     row.manifest = manifest;
+    Ok(())
 }
 
 /// `.modules.yaml` records the virtual store it built, and is the source

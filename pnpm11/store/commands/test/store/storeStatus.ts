@@ -6,7 +6,7 @@ import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { store } from '@pnpm/store.commands'
 import { StoreIndex } from '@pnpm/store.index'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
@@ -22,7 +22,11 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 const cleanConfigDir = temporaryDirectory()
 const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
 
-test.each([true, false])('store status rechecks legacy git rows against the pristine manifest (install script: %s)', async (hasInstallScript) => {
+test.each([
+  { hasInstallScript: true, corruptStoreManifest: false },
+  { hasInstallScript: false, corruptStoreManifest: false },
+  { hasInstallScript: false, corruptStoreManifest: true },
+])('store status rechecks legacy git rows (install script: $hasInstallScript, corrupt manifest: $corruptStoreManifest)', async ({ hasInstallScript, corruptStoreManifest }) => {
   prepare()
   const repo = temporaryDirectory()
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
@@ -35,7 +39,7 @@ test.each([true, false])('store status rechecks legacy git rows against the pris
   await execa('git', ['add', '.'], { cwd: repo })
   await execa('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'test fixture'], { cwd: repo })
   const storeDir = path.join(temporaryDirectory(), STORE_VERSION)
-  const options = [`--store-dir=${storeDir}`, '--config.side-effects-cache=false', '--config.enable-global-virtual-store=false']
+  const options = [`--store-dir=${storeDir}`, '--config.side-effects-cache=false', '--config.enable-global-virtual-store=false', '--config.package-import-method=copy']
   await execa('node', [pnpmBin, 'add', `git+${pathToFileURL(repo).href}`, '--dangerously-allow-all-builds', ...options], execaOpts)
   if (hasInstallScript) {
     expect(fs.readFileSync('node_modules/legacy-git/index.js', 'utf8')).toContain('// built\n')
@@ -51,6 +55,12 @@ test.each([true, false])('store status rechecks legacy git rows against the pris
     const row = storeIndex.get(keys[0]) as PackageFilesIndex
     const { manifest: _manifest, ...legacyRow } = row
     storeIndex.set(keys[0], { ...legacyRow, requiresBuild: !hasInstallScript, requiresPrepare: false })
+    if (corruptStoreManifest) {
+      const manifestFile = row.files.get('package.json')!
+      fs.writeFileSync(getFilePathByModeInCafs(storeDir, manifestFile.digest, manifestFile.mode), JSON.stringify({
+        scripts: { postinstall: 'node build.js' },
+      }))
+    }
   } finally {
     storeIndex.close()
   }

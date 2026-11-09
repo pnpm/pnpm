@@ -6,6 +6,51 @@ use super::{
 use assert_cmd::assert::OutputAssertExt;
 
 #[test]
+fn store_status_rejects_a_corrupted_legacy_git_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "legacy-plain");
+    repo.write_file("package.json", r#"{"name":"legacy-plain","version":"1.0.0"}"#);
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("legacy-plain", &spec)]);
+    allow_builds(&workspace, &[&format!("legacy-plain@{spec}")]);
+    pacquet
+        .with_args(["install", "--package-import-method=copy"])
+        .assert()
+        .success();
+    fs::write(workspace.join("node_modules/legacy-plain/index.js"), "// edited\n").unwrap();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let key = pnpm_store_dir::git_hosted_store_index_key(&spec, true);
+    let store_index = pnpm_store_dir::StoreIndex::open_in(&store_dir).unwrap();
+    let mut row = store_index.get(&key).unwrap().unwrap();
+    row.manifest = None;
+    row.requires_build = Some(false);
+    row.requires_prepare = Some(false);
+    let manifest_file = &row.files["package.json"];
+    let manifest_path =
+        store_dir.cas_file_path_by_mode(&manifest_file.digest, manifest_file.mode).unwrap();
+    fs::write(manifest_path, r#"{"scripts":{"postinstall":"node build.js"}}"#).unwrap();
+    store_index.set(&key, &row).unwrap();
+    drop(store_index);
+
+    let output = pnpm_at(&workspace)
+        .with_args(["store", "status"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_MODIFIED_DEPENDENCY"));
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn store_status_rechecks_legacy_git_rows_against_the_pristine_manifest() {
     let CommandTempCwd {
         pacquet,
