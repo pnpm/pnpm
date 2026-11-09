@@ -58,6 +58,13 @@ ignore = [
   { id = "RUSTSEC-2026-0367", reason = "pnpm and pnpr do not use ZipArchive::extract() or stream extraction; zip extraction iterates entries manually with enclosed_name validation and explicit safe file writing." },
   { id = "RUSTSEC-2026-0368", reason = "pnpm and pnpr do not use ZipArchive::extract(); symlink validation is handled independently in pnpm-tarball." },
   { id = "RUSTSEC-2026-0369", reason = "pnpm and pnpr do not use ZipStreamReader::extract(); zip streams are never extracted through the vulnerable API." },
+  # The fix needs `libsqlite3-sys` 0.39 (rusqlite 0.41). Its bundled SQLite
+  # defines symbols that libsql-ffi's older copy lacks, so pnpr, which links
+  # both, gets two SQLite copies and fails to link. Exposure needs a database
+  # and its `-wal` file written by a less trusted party. pnpm opens only the
+  # store index and pnpr only its own data directory; a party that can write
+  # either can already change package contents or registry state.
+  { id = "RUSTSEC-2026-0459", reason = "Temporary risk acceptance: pnpm and pnpr open SQLite databases only in directories they own, and rusqlite 0.41 cannot link next to libsql-ffi in pnpr." },
 ]
 
 # --- Licenses ------------------------------------------------------------
