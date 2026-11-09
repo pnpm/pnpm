@@ -240,6 +240,17 @@ impl AsyncCommand {
         self
     }
 
+    /// Arrange for the child to close every descriptor it inherits except
+    /// its stdio.
+    ///
+    /// A passthrough rather than a way to reach the command itself, which
+    /// a caller could spawn without the lock [`Self::spawn`] takes.
+    #[cfg(target_vendor = "apple")]
+    pub fn inherit_only_stdio(&mut self) -> &mut Self {
+        pnpm_ffi_process::inherit_only_stdio(self.inner.as_std_mut());
+        self
+    }
+
     pub fn kill_on_drop(&mut self, enabled: bool) -> &mut Self {
         self.inner.kill_on_drop(enabled);
         self

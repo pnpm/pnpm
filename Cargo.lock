@@ -6370,6 +6370,7 @@ dependencies = [
 name = "pnpm-process"
 version = "0.0.1"
 dependencies = [
+ "pnpm-ffi-process",
  "pnpm-wasm-host",
  "serde",
  "serde_json",
