@@ -483,6 +483,14 @@ fn run_runtime_from_store(
             pnpm_diagnostics::eprintln!(
                 "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
             );
+            pnpm_diagnostics::eprintln!(
+                "pnpm: global runtime downloads use global configuration and environment settings. pnpm-workspace.yaml is ignored.",
+            );
+            if name == "node" {
+                pnpm_diagnostics::eprintln!(
+                    "pnpm: check tools.node and nodeDownloadMirrors in the global configuration, and PNPM_CONFIG_TOOLS and PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS in the environment.",
+                );
+            }
             1
         }
     }

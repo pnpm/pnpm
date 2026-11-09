@@ -200,6 +200,8 @@ Alternatively, configure [`tools.node.channels.release`](./settings/cli.md#tools
 
 If `pnpm install` prints `pnpm: failed to prepare node@runtime:...`, check whether `node --version` fails the same way inside the project. A command launched through `node` can fail while preparing Node.js before the install starts. Check the global mirror settings and the `PNPM_CONFIG_TOOLS` and `PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS` environment variables. A mirror configured only in `pnpm-workspace.yaml` does not affect this download.
 
+Runtime preparation failures explain that workspace settings are ignored. For Node.js, the diagnostic also lists the global mirror settings and environment variables to check.
+
 ### `.nvmrc` and `.node-version`
 
 Added in: v12.7.0

@@ -418,7 +418,8 @@ fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
         .with_env(AUTO_TRUST_ENV, "1")
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .assert()
-        .success();
+        .success()
+        .stderr("");
     let environment = managed_runtime_environment(&root);
     let package_dir = fs::canonicalize(environment.join("node_modules/node")).unwrap();
     let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
@@ -1306,3 +1307,4 @@ fn a_shim_without_a_project_target_reports_it() {
 }
 
 mod migration;
+mod runtime_diagnostics;
