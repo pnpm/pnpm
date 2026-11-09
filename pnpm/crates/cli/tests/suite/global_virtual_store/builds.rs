@@ -622,7 +622,7 @@ fn an_unplaced_build_is_placed_by_the_next_install() {
 
     assert!(
         pkg.join("generated-by-postinstall.js").exists(),
-        "the package must be built and placed"
+        "the package must be built and placed",
     );
 
     drop((root, mock_instance));

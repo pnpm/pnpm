@@ -135,12 +135,12 @@ pub(super) struct GvsHasher<'h> {
 }
 /// Which snapshots an install builds, for the slot hash.
 #[derive(Clone, Copy)]
-pub(crate) struct BuildGating<'p> {
+pub struct BuildGating<'p> {
     /// `None` gates nothing: every snapshot hashes with the engine.
-    pub(crate) policy: Option<&'p AllowBuildPolicy>,
+    pub policy: Option<&'p AllowBuildPolicy>,
     /// `false` under `ignoreScripts`, whose install builds nothing, so
     /// every snapshot takes the slot of its unbuilt package.
-    pub(crate) runs_builds: bool,
+    pub runs_builds: bool,
 }
 
 impl<'h> GvsHasher<'h> {

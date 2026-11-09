@@ -37,20 +37,31 @@ pub(super) fn build<Reporter: self::Reporter>(
     let slot = PlacedPackage {
         target: crate::build_modules::slots::virtual_store_dir_for_key(layout, snapshot_key),
         staging: layout.staging_package_dir(snapshot_key),
+        placed: false,
     };
-    let placed = slot.is_placed()?;
+    let slot = PlacedPackage { placed: slot.is_placed()?, ..slot };
     let rerun = Rerun::of(context, candidate, (snapshot_key, cache_key));
-    if placed && rerun == Rerun::No {
+    if slot.placed && rerun == Rerun::No {
         slot.discard_staging();
         return already_placed::<Reporter>(context, snapshot_key, candidate);
     }
-    if !placed
+    if !slot.placed
         && let Some(overlay) =
             side_effects::cached_overlay(context, snapshot_key, candidate, cache_key)
     {
         slot.place_cached::<Reporter>(context, overlay)?;
         return already_placed::<Reporter>(context, snapshot_key, candidate);
     }
+    build_and_place::<Reporter>(context, (snapshot_key, cache_key), candidate, (&slot, rerun))
+}
+
+/// Build the package in this install's staging directory and place it.
+fn build_and_place<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    (snapshot_key, cache_key): (&PackageKey, Option<&str>),
+    candidate: &BuildCandidate<'_>,
+    (slot, rerun): (&PlacedPackage, Rerun),
+) -> Result<(), BuildModulesError> {
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
     if reject_frozen_store_build::<Reporter>(
         context,
@@ -64,20 +75,20 @@ pub(super) fn build<Reporter: self::Reporter>(
     )? {
         return Ok(());
     }
-    if placed && side_effects::rebuild_found_empty_row(context, snapshot_key, cache_key) {
+    if slot.placed && side_effects::rebuild_found_empty_row(context, snapshot_key, cache_key) {
         return already_placed::<Reporter>(context, snapshot_key, candidate);
     }
-    if !slot.staged(placed)? {
+    if !slot.staged()? {
         return Ok(());
     }
     let built =
         build_staged::<Reporter>(context, snapshot_key, candidate, cache_key, &slot.staging)
             .inspect_err(|_| slot.discard_staging())?;
-    if !built || (placed && rerun == Rerun::OutsideEffects) {
+    if !built || (slot.placed && rerun == Rerun::OutsideEffects) {
         slot.discard_staging();
         return Ok(());
     }
-    slot.place_staged(placed)
+    slot.place_staged(slot.placed)
 }
 
 /// Why a placed package is built again.
@@ -218,6 +229,8 @@ fn run_scripts<Reporter: self::Reporter>(
 struct PlacedPackage {
     target: PathBuf,
     staging: PathBuf,
+    /// Whether `target` held the package when the build began.
+    placed: bool,
 }
 
 impl PlacedPackage {
@@ -234,11 +247,11 @@ impl PlacedPackage {
 
     /// Whether a package is staged for the build. A placed package that
     /// the link phase left alone is staged as a copy of it.
-    fn staged(&self, placed: bool) -> Result<bool, BuildModulesError> {
+    fn staged(&self) -> Result<bool, BuildModulesError> {
         if self.staging.is_dir() {
             return Ok(true);
         }
-        if !placed {
+        if !self.placed {
             return Ok(false);
         }
         pnpm_fs::copy_dirent(&self.target, &self.staging)

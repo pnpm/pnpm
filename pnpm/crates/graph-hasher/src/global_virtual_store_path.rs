@@ -56,18 +56,7 @@ pub fn calc_graph_node_hash<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let (build_required_dep_paths, builds_run) = build_required;
-    let gated = build_required_dep_paths.is_some_and(|set| set.contains(dep_path));
-    let include_engine = gated || build_required_dep_paths.is_none();
-    let built = gated && builds_run;
-    let engine_value = if include_engine {
-        match engine {
-            Some(s) => Value::String(s.to_owned()),
-            None => Value::Null,
-        }
-    } else {
-        Value::Null
-    };
+    let (engine_value, built) = engine_and_built(dep_path, engine, build_required);
     let deps_hash = calc_dep_graph_hash(graph, cache, dep_path);
     // The object-hash serialization of
     // `{ engine, deps }`, plus `built` and `project` when they apply, with
@@ -81,9 +70,9 @@ where
     buf.push(b':');
     serialize_str(&mut buf, "engine");
     buf.push(b':');
-    match &engine_value {
-        Value::String(engine) => serialize_str(&mut buf, engine),
-        _ => buf.extend_from_slice(b"Null"),
+    match engine_value {
+        Some(engine) => serialize_str(&mut buf, engine),
+        None => buf.extend_from_slice(b"Null"),
     }
     buf.push(b',');
     serialize_str(&mut buf, "deps");
@@ -101,6 +90,21 @@ where
         buf.push(b',');
     }
     digest_hex(&buf)
+}
+
+/// The `engine` a snapshot hashes, `None` for `null`, and whether it hashes
+/// `built: true`. See [`calc_graph_node_hash`].
+fn engine_and_built<'e, Key>(
+    dep_path: &Key,
+    engine: Option<&'e str>,
+    (build_required_dep_paths, builds_run): (Option<&HashSet<Key>>, bool),
+) -> (Option<&'e str>, bool)
+where
+    Key: Eq + std::hash::Hash,
+{
+    let gated = build_required_dep_paths.is_some_and(|set| set.contains(dep_path));
+    let include_engine = gated || build_required_dep_paths.is_none();
+    (engine.filter(|_| include_engine), gated && builds_run)
 }
 
 /// Compute the GVS hash for a config dependency that has no children

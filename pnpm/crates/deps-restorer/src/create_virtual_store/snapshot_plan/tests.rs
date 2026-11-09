@@ -157,8 +157,7 @@ impl PlanFixture {
             None,
             Some(&snapshots),
             Some(&packages),
-            None,
-            true,
+            crate::BuildGating { policy: None, runs_builds: true },
             None,
             &crate::platform_selection::VariantPlatforms::host(),
         );
@@ -318,8 +317,7 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         None,
         Some(&snapshots),
         Some(&packages),
-        None,
-        true,
+        crate::BuildGating { policy: None, runs_builds: true },
         None,
         &crate::platform_selection::VariantPlatforms::host(),
     );

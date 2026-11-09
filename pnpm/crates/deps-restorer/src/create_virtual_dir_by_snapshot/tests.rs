@@ -522,7 +522,7 @@ fn a_package_awaiting_its_build_is_imported_into_staging() {
         layout
             .staging_package_dir(&package_key)
             .join("package.json")
-            .is_file()
+            .is_file(),
     );
 }
 
