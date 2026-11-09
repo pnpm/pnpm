@@ -470,3 +470,51 @@ test('the project pnpmfile runs after the pnpmfile of a config dependency plugin
   expect(nodeModulesFiles).toContain('.pnpm')
   expect(nodeModulesFiles).not.toContain('kind-of')
 })
+
+test('updateConfig relative path filter works with --dir and from a subdirectory', async () => {
+  preparePackages([
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        scripts: {
+          hello: 'node -e "fs.writeFileSync(\'ran.txt\', \'app\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/other',
+      package: {
+        name: 'other',
+        version: '1.0.0',
+        scripts: {
+          hello: 'node -e "fs.writeFileSync(\'ran.txt\', \'other\')"',
+        },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig (config) {
+    return Object.assign(config, { filter: config.filter ?? ['./packages/app'] })
+  },
+}
+`, 'utf8')
+
+  await execPnpm(['--dir', 'packages/other', '-r', 'run', 'hello'])
+  expect(fs.existsSync('packages/app/ran.txt')).toBe(true)
+  expect(fs.existsSync('packages/other/ran.txt')).toBe(false)
+
+  fs.unlinkSync('packages/app/ran.txt')
+  const cwd = process.cwd()
+  process.chdir('packages/other')
+  try {
+    await execPnpm(['-r', 'run', 'hello'])
+  } finally {
+    process.chdir(cwd)
+  }
+  expect(fs.existsSync('packages/app/ran.txt')).toBe(true)
+  expect(fs.existsSync('packages/other/ran.txt')).toBe(false)
+})

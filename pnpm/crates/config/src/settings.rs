@@ -1090,6 +1090,10 @@ pub struct Config {
     /// `None` falls back to `~/.npmrc`.
     pub npmrc_auth_file: Option<PathBuf>,
 
+    /// The working directory [`Config::current`] loaded for (`--dir`, or the
+    /// process working directory).
+    pub dir: PathBuf,
+
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`](crate::WorkspaceSettings::apply_to) when yaml was found, so
     /// later install-time code (notably [`pnpm_patching::resolve_and_group`] for

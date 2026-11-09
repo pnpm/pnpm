@@ -625,6 +625,26 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(result.config.publicHoistPattern).toStrictEqual(['*'])
   })
 
+  test('an updateConfig hook rebases relative filter and filterProd selectors to config.dir', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      filter: ['./packages/app', 'named-pkg'],
+      filterProd: ['{./packages/app}...'],
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const rootDir = config.dir
+    config.workspaceDir = rootDir
+    config.lockfileDir = rootDir
+    config.dir = path.join(rootDir, 'packages/other')
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.filter).toStrictEqual(['../app', 'named-pkg'])
+    expect(result.config.filterProd).toStrictEqual(['{../app}...'])
+  })
+
   function writeUpdateConfigHook (updateConfig: string): void {
     fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig: ${updateConfig} } }`)
   }

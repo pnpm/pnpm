@@ -98,6 +98,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("dedupe_peers", Recorded { key: "dedupePeers", change: |config| config.dedupe_peers = !config.dedupe_peers }),
     ("deploy_all_files", NotAnInput(OTHER_COMMAND)),
     ("disallow_workspace_cycles", NotAnInput("whether a cycle fails the install")),
+    ("dir", Through("the modules directory and project selection the checks run in")),
     ("dlx_cache_max_age", NotAnInput(OTHER_COMMAND)),
     ("embed_readme", NotAnInput(OTHER_COMMAND)),
     ("enable_global_virtual_store", Recorded { key: "enableGlobalVirtualStore", change: |config| config.enable_global_virtual_store = !config.enable_global_virtual_store }),

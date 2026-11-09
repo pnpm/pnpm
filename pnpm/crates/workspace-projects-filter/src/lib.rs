@@ -25,7 +25,9 @@ pub use filter::{
     filter_workspace_projects,
 };
 pub use get_changed_projects::{ChangedProjects, GetChangedProjectsOptions, get_changed_projects};
-pub use parse_project_selector::{ProjectSelector, parse_project_selector};
+pub use parse_project_selector::{
+    ProjectSelector, parse_project_selector, rebase_project_selector,
+};
 pub use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
 
 mod filter;
