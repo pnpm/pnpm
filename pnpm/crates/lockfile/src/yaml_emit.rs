@@ -47,7 +47,7 @@ const INDENT: usize = 2;
 
 mod nesting;
 mod next_order;
-use nesting::{Format, Nesting, ValueStyle, one_line_values};
+use nesting::{Format, Nesting, ValueStyle, names_snapshot, one_line_values};
 use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
@@ -364,7 +364,7 @@ fn write_block_mapping(
         .collect();
     let mut result = String::new();
     for (index, entry) in entries.iter().enumerate() {
-        if index > 0 || !omits_leading_newline(first_entry) {
+        if index > 0 || !first_entry.omits_leading_newline() {
             result.push_str(&next_line(level, spacing));
         }
         result.push_str(entry);
@@ -383,21 +383,12 @@ fn write_block_mapping_serial(
 ) -> String {
     let mut result = String::new();
     for (key, value) in map {
-        if !result.is_empty() || !omits_leading_newline(first_entry) {
+        if !result.is_empty() || !first_entry.omits_leading_newline() {
             result.push_str(&next_line(level, spacing));
         }
         render_entry_into(&mut result, key, value, level, nesting);
     }
     if result.is_empty() { "{}".to_string() } else { result }
-}
-
-/// Whether the first entry of a block collection starts on the line its key
-/// already opened, so no newline precedes it.
-fn omits_leading_newline(first_entry: FirstEntry) -> bool {
-    match first_entry {
-        FirstEntry::OnKeyLine => true,
-        FirstEntry::OnOwnLine => false,
-    }
 }
 
 fn render_entry_into(
@@ -421,6 +412,7 @@ fn render_entry_into(
     }
     let style = match nesting.values {
         ValueStyle::Block | ValueStyle::FlowBelow => CollectionStyle::Block,
+        ValueStyle::Flow if names_snapshot(value) => CollectionStyle::Block,
         ValueStyle::Flow => CollectionStyle::Flow,
     };
     let rendered =
@@ -449,7 +441,7 @@ fn write_block_sequence(
             ScalarLines::Multiline,
             Nesting { format, values: ValueStyle::Block },
         );
-        if !result.is_empty() || !omits_leading_newline(first_entry) {
+        if !result.is_empty() || !first_entry.omits_leading_newline() {
             result.push_str(&next_line(level, EntrySpacing::Tight));
         }
         result.push('-');

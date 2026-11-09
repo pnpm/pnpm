@@ -30,9 +30,10 @@ pub(super) enum ValueStyle {
 /// The maps the next lockfile format writes on their keys' lines: a
 /// `peerDependencies` entry, which is the peer's `specifier`, `version`,
 /// `optional` and `below`; an importer's dependency, which is its
-/// `specifier` and `version`; and a catalog entry, the same pair. Today's
-/// format writes a `peerDependencies` entry as a string, so that rule
-/// applies to both.
+/// `specifier` and `version`; and a catalog entry, the same pair. A map
+/// among them that [names a snapshot](names_snapshot) is written in block
+/// style instead. Today's format writes a `peerDependencies` entry as a
+/// string, so that rule applies to both.
 pub(super) fn one_line_values(object_key: Option<&str>, nesting: Nesting) -> ValueStyle {
     match (object_key, nesting.format, nesting.values) {
         (Some("peerDependencies"), _, _) => ValueStyle::Flow,
@@ -43,4 +44,13 @@ pub(super) fn one_line_values(object_key: Option<&str>, nesting: Nesting) -> Val
         (_, _, ValueStyle::FlowBelow) => ValueStyle::Flow,
         _ => ValueStyle::Block,
     }
+}
+
+/// Whether a map carries `with`, the bindings that name a snapshot. Such a
+/// map is written in block style, one binding per line, where its siblings
+/// are written on their keys' lines: its `version` and its bindings change
+/// for different reasons, and on separate lines two branches that change
+/// one each merge without a conflict.
+pub(super) fn names_snapshot(value: &super::Value) -> bool {
+    matches!(value, super::Value::Object(map) if map.contains_key("with"))
 }
