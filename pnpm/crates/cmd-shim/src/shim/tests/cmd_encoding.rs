@@ -219,7 +219,12 @@ fn cmd_shim_resolves_a_module_through_a_unicode_node_path() {
     .unwrap();
     fs::write(package.join("index.js"), "module.exports = 'UNICODE_NODE_PATH_OK'\n").unwrap();
 
-    let target = unicode_dir.join("cli.js");
+    // The target lives outside the tree that holds `node_modules`, so Node.js
+    // finds the package only through `NODE_PATH`, not by walking up from the
+    // script.
+    let target_dir = root.path().join("app");
+    fs::create_dir(&target_dir).unwrap();
+    let target = target_dir.join("cli.js");
     fs::write(&target, "process.stdout.write(require('工具模块'))\n").unwrap();
 
     let shim = root.path().join("shim.cmd");
