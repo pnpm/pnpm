@@ -282,13 +282,7 @@ fn find_modified(
         .map(|package| package.store_index_key.clone())
         .collect::<Vec<_>>();
     let mut rows = store_index.get_many(&keys).into_diagnostic()?;
-    let store_dir = StoreDir::new(store_dir);
-    let invalid_manifest_rows: HashSet<_> = rows
-        .iter_mut()
-        .filter_map(|(key, row)| {
-            repair_legacy_git_build_flag(&store_dir, row).err().map(|()| key.clone())
-        })
-        .collect();
+    let invalid_manifest_rows = repair_legacy_git_build_flags(store_dir, &mut rows);
     for package in packages {
         if package.global_virtual_store
             && rows.contains_key(&package.store_index_key)
@@ -311,6 +305,18 @@ fn find_modified(
         })
         .map(|package| package.dep_path.clone())
         .collect())
+}
+
+fn repair_legacy_git_build_flags(
+    store_dir: &Path,
+    rows: &mut HashMap<String, PackageFilesIndex>,
+) -> HashSet<String> {
+    let store_dir = StoreDir::new(store_dir);
+    rows.iter_mut()
+        .filter_map(|(key, row)| {
+            repair_legacy_git_build_flag(&store_dir, row).err().map(|()| key.clone())
+        })
+        .collect()
 }
 
 fn repair_legacy_git_build_flag(
