@@ -21,7 +21,7 @@ pub(super) fn retain(
         if !moved.insert(target.clone()) {
             continue;
         }
-        if placed(layout, key) {
+        if placed(layout, key)? {
             continue;
         }
         promote(temporary, layout, key, &target)
@@ -35,13 +35,17 @@ pub(super) fn retain(
 
 /// Whether the slot already holds the package. A slot's package directory
 /// is final once its `package.json` exists, so it is never replaced.
-fn placed(layout: &VirtualStoreLayout, key: &PackageKey) -> bool {
-    crate::build_modules::slots::package_is_placed(
-        &crate::build_modules::slots::virtual_store_dir_for_key(layout, key),
-    )
-    .unwrap_or(false)
+fn placed(layout: &VirtualStoreLayout, key: &PackageKey) -> Result<bool, CreateVirtualStoreError> {
+    let package_dir = crate::build_modules::slots::virtual_store_dir_for_key(layout, key);
+    crate::build_modules::slots::package_is_placed(&package_dir)
+        .map_err(|source| CreateVirtualStoreError::LoadedBuildIo { path: package_dir, source })
 }
 
+/// Move the slot `temporary` built for `key` into the shared store. A slot
+/// that does not exist yet is renamed into place whole. Otherwise only the
+/// package directory is, by the rule every placement follows: another
+/// install that placed the package first wins, and a package directory
+/// without `package.json`, an import that did not finish, is replaced.
 fn promote(
     temporary: &VirtualStoreLayout,
     layout: &VirtualStoreLayout,
@@ -55,19 +59,31 @@ fn promote(
     let staging = tempfile::Builder::new().prefix(".pnpm-loaded-build-").tempdir_in(parent)?;
     let staged = staging.path().join("node_modules");
     pnpm_fs::rename_even_across_devices::<pnpm_fs::Host>(&source, &staged)?;
-    let backup = staging.path().join("previous");
-    let replaced = match pnpm_fs::rename_with_retry(target, &backup) {
-        Ok(()) => true,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-        Err(error) => return Err(error),
-    };
-    if let Err(error) = pnpm_fs::rename_with_retry(&staged, target) {
-        if replaced {
-            pnpm_fs::rename_with_retry(&backup, target)?;
-        }
-        return Err(error);
+    if !target.exists() && fs::rename(&staged, target).is_ok() {
+        return Ok(());
     }
-    Ok(())
+    let package_dir = crate::build_modules::slots::virtual_store_dir_for_key(layout, key);
+    let relative = package_dir.strip_prefix(target).expect("the package sits in the slot");
+    place_package(&staged.join(relative), &package_dir, &staging.path().join("previous"))
+}
+
+fn place_package(staged: &Path, target: &Path, aside: &Path) -> io::Result<()> {
+    const ATTEMPTS: usize = 3;
+    for attempt in 1..=ATTEMPTS {
+        let Err(error) = fs::rename(staged, target) else { return Ok(()) };
+        if crate::build_modules::slots::package_is_placed(target)? {
+            return Ok(());
+        }
+        if !target.exists() || attempt == ATTEMPTS {
+            return Err(error);
+        }
+        match fs::rename(target, aside) {
+            Ok(()) => fs::remove_dir_all(aside)?,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the last attempt returns")
 }
 
 fn rewrite_links(directory: &Path, source: &Path, target: &Path) -> io::Result<()> {
@@ -99,3 +115,6 @@ fn rewrite_links(directory: &Path, source: &Path, target: &Path) -> io::Result<(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

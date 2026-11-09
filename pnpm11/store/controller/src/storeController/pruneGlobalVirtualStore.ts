@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { type Dirent, promises as fs } from 'node:fs'
+import { type Dirent, promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
 import { isStagingDirName } from '@pnpm/deps.graph-hasher'
@@ -11,8 +11,10 @@ import { isSubdir } from 'is-subdir'
 import { getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'
-// An install may still be building in a younger staging directory.
-const ABANDONED_STAGING_DIR_AGE_MS = 60 * 60 * 1000
+// An install may still be building in a staging directory, or wait long for
+// the build of the package staged there, so leftovers of crashed installs are
+// left for a day.
+const ABANDONED_STAGING_DIR_AGE_MS = 24 * 60 * 60 * 1000
 
 /**
  * Prune unused packages from the global virtual store using mark-and-sweep:
@@ -303,19 +305,33 @@ async function removeAbandonedStagingDirs (slotDir: string, pkgPath: string): Pr
     .filter((entry) => entry.isDirectory() && isStagingDirName(entry.name))
     .map(async (entry) => {
       const stagingDir = path.join(parentDir, entry.name)
-      const mtimeMs = await readMtimeMs(stagingDir)
-      if (mtimeMs != null && mtimeMs <= abandonedBefore) await rimraf(stagingDir)
+      const changed = await changedSince(stagingDir, abandonedBefore)
+      if (changed === false) await rimraf(stagingDir)
     }))
 }
 
-/** `undefined` when the entry is gone, as when an install renamed its staging directory into place. */
-async function readMtimeMs (entryPath: string): Promise<number | undefined> {
+/**
+ * Whether anything in the tree at `entryPath` changed after `cutoffMs`. A
+ * build writes deep into its staging directory without touching the directory
+ * itself, so every entry counts. Links are not followed. `undefined` when the
+ * entry is gone, as when an install renamed its staging directory into place.
+ */
+async function changedSince (entryPath: string, cutoffMs: number): Promise<boolean | undefined> {
+  let stats: Stats
   try {
-    return (await fs.stat(entryPath)).mtimeMs
+    stats = await fs.lstat(entryPath)
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
+  if (stats.mtimeMs > cutoffMs) return true
+  if (!stats.isDirectory()) return false
+  const entries = await readDirEntriesSafely(entryPath)
+  for (const entry of entries ?? []) {
+    // eslint-disable-next-line no-await-in-loop -- stops at the first entry that changed
+    if (await changedSince(path.join(entryPath, entry.name), cutoffMs) !== false) return true
+  }
+  return false
 }
 
 async function pathExists (checkedPath: string): Promise<boolean> {

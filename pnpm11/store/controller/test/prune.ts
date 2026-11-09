@@ -311,7 +311,7 @@ test('prune removes abandoned staging directories beside the package directories
   await fs.symlink(path.join(scopedSlot, 'node_modules', '@scope', 'bar'), path.join(modulesDir, '@scope', 'bar'), 'junction')
   await registerProject(options.storeDir, projectDir)
 
-  const oldDate = new Date(Date.now() - 2 * 60 * 60_000)
+  const oldDate = new Date(Date.now() - 48 * 60 * 60_000)
   const createStagingDir = async (dir: string, old: boolean) => {
     await fs.mkdir(dir, { recursive: true })
     if (old) await fs.utimes(dir, oldDate, oldDate)
@@ -325,6 +325,11 @@ test('prune removes abandoned staging directories beside the package directories
   const unrelatedDir = await createStagingDir(path.join(unscopedModules, '.cache'), true)
   const oldScopedStaging = await createStagingDir(path.join(scopedModules, '.pnpm-5a2b3c4d'), true)
   const freshScopedStaging = await createStagingDir(path.join(scopedModules, '.pnpm-6a2b3c4d'), false)
+  const buildingStaging = path.join(unscopedModules, '.pnpm-7a2b3c4d')
+  await fs.mkdir(path.join(buildingStaging, 'build'), { recursive: true })
+  await fs.writeFile(path.join(buildingStaging, 'build', 'out.o'), '')
+  await fs.utimes(path.join(buildingStaging, 'build'), oldDate, oldDate)
+  await fs.utimes(buildingStaging, oldDate, oldDate)
 
   await prune(options)
 
@@ -333,6 +338,7 @@ test('prune removes abandoned staging directories beside the package directories
   expect(existsSync(oldScopedStaging)).toBe(false)
   expect(existsSync(freshStaging)).toBe(true)
   expect(existsSync(freshScopedStaging)).toBe(true)
+  expect(existsSync(buildingStaging)).toBe(true)
   expect(existsSync(unrelatedDir)).toBe(true)
   expect(existsSync(path.join(unscopedModules, 'foo'))).toBe(true)
   expect(existsSync(path.join(scopedModules, 'bar'))).toBe(true)
@@ -347,12 +353,12 @@ test('prune skips a staging directory that disappears while it scans the slot', 
   await registerProject(options.storeDir, projectDir)
   const stagingDir = path.join(slotDir, 'node_modules', '.pnpm-1a2b3c4d')
   await fs.mkdir(stagingDir)
-  const stat = fs.stat.bind(fs)
-  jest.spyOn(fs, 'stat').mockImplementation(async (target, ...args) => {
+  const lstat = fs.lstat.bind(fs)
+  jest.spyOn(fs, 'lstat').mockImplementation(async (target, ...args) => {
     if (target === stagingDir) {
-      throw Object.assign(new Error(`ENOENT: no such file or directory, stat '${stagingDir}'`), { code: 'ENOENT' })
+      throw Object.assign(new Error(`ENOENT: no such file or directory, lstat '${stagingDir}'`), { code: 'ENOENT' })
     }
-    return stat(target, ...args as [])
+    return lstat(target, ...args as [])
   })
 
   await prune(options)
