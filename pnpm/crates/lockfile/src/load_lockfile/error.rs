@@ -35,7 +35,7 @@ impl LoadLockfileError {
     }
 
     /// A next-format document that parsed but describes no lockfile.
-    pub(crate) fn next_format(path: &Path, source: &crate::NextFormatError) -> Self {
+    pub(super) fn next_format(path: &Path, source: &crate::NextFormatError) -> Self {
         Self::ParseYaml { path: path.to_path_buf(), reason: source.to_string() }
     }
 }

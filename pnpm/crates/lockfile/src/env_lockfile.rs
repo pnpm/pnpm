@@ -10,12 +10,11 @@
 //! The `packages:` and `snapshots:` maps reuse the same
 //! [`PackageMetadata`] / [`SnapshotEntry`] types as the main lockfile, so
 //! the env document inherits the main lockfile's byte-for-byte
-//! serialization parity. In the next format it has the main document's
-//! shape and syntax too, through [`next`].
+//! serialization parity.
 
 use crate::{
-    LoadLockfileError, Lockfile, LockfileFormat, PackageKey, PackageMetadata, SaveLockfileError,
-    SnapshotEntry, SymlinkedLockfile, declares_next_format, extract_main_document,
+    LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
+    SymlinkedLockfile, extract_main_document,
     git_merge_file::{ParsedWantedFile, parse_wanted_file},
     merge_env_lockfile_changes,
     save_lockfile::lockfile_write_target,
@@ -135,29 +134,24 @@ impl EnvLockfile {
     }
 
     fn parse_document(env_doc: &str, path: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        let mut env = if declares_next_format(env_doc) {
-            next::from_text(env_doc, path)?
-        } else {
-            serde_saphyr::from_str::<EnvLockfile>(env_doc)
-                .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
-        };
+        let mut env: EnvLockfile = serde_saphyr::from_str(env_doc)
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?;
         env.root_importer_mut();
         Ok(Some(env))
     }
 
     /// Write this env document as the first YAML document of
-    /// `<root_dir>/pnpm-lock.yaml`, in `format`, preserving any existing
-    /// main document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An
-    /// unchanged document is not rewritten, and a changed one treats a
-    /// symlinked lockfile as `symlinked` says.
+    /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
+    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An unchanged
+    /// document is not rewritten, and a changed one treats a symlinked
+    /// lockfile as `symlinked` says.
     pub fn write(
         &self,
         root_dir: &Path,
         symlinked: SymlinkedLockfile<'_>,
-        format: LockfileFormat,
     ) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        let env_yaml = self.document_text(format)?;
+        let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
         let raw = match fs::read_to_string(&path) {
             Ok(raw) => Some(raw),
             Err(error) if error.kind() == ErrorKind::NotFound => None,
@@ -177,21 +171,6 @@ impl EnvLockfile {
         write_atomic(&target, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
     }
 }
-
-impl EnvLockfile {
-    /// This document's text in `format`, which decides its shape and
-    /// syntax and the `lockfileVersion` it declares.
-    fn document_text(&self, format: LockfileFormat) -> Result<String, SaveLockfileError> {
-        match format {
-            LockfileFormat::V13 => next::to_text(self, format.version()),
-            LockfileFormat::V9 => {
-                serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
-            }
-        }
-    }
-}
-
-mod next;
 
 /// Reads the leading env document, following a symlink;
 /// [`SymlinkedLockfile`] covers why only writes may refuse one.

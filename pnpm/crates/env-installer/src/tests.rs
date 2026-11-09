@@ -196,7 +196,6 @@ fn options<'a>(
         lockfile: crate::EnvLockfileOptions {
             frozen,
             symlinked: pnpm_lockfile::SymlinkedLockfile::Refuse,
-            format: pnpm_lockfile::LockfileFormat::default(),
         },
     }
 }
