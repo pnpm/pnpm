@@ -1,4 +1,3 @@
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
@@ -7,6 +6,7 @@ import type { ConfigDependencies } from '@pnpm/types'
 import { type ConfigDepResolverOpts, type ConfigDepResolvers, createConfigDepResolvers } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
+import { pickTarballUrlOptions } from './pickTarballUrlOptions.js'
 import { pruneEnvLockfile, retainConfigDependencies } from './pruneEnvLockfile.js'
 import { type ConfigDepsInstallMode, readConfigDependencyLockfile } from './readConfigDependencyLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
@@ -41,6 +41,7 @@ export async function resolveAndInstallConfigDeps (
   const { depsToResolve, lockfileChanged } = collectConfigDepsToResolve(configDeps, {
     envLockfile,
     registriesByScope: opts.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     pruneRemovedConfigDependencies: opts.mode !== 'bootstrap',
   })
 
@@ -78,6 +79,7 @@ interface ConfigDepToResolve {
 interface ConfigDepPlanContext {
   envLockfile: EnvLockfile
   registriesByScope: ResolveAndInstallConfigDepsOpts['registriesByScope']
+  registryOptionsByUrl: ResolveAndInstallConfigDepsOpts['registryOptionsByUrl']
   pruneRemovedConfigDependencies: boolean
 }
 
@@ -139,11 +141,10 @@ function planObjectFormatConfigDep (
   if (value.tarball == null) {
     return { name, specifier: version, pinnedIntegrity: integrity }
   }
-  const registry = pickRegistryForPackage(ctx.registriesByScope, name)
   const pkgKey = `${name}@${version}`
   ctx.envLockfile.importers['.'].configDependencies[name] = { specifier: version, version }
   ctx.envLockfile.packages[pkgKey] = {
-    resolution: toLockfileResolution({ name, version }, { integrity, tarball: value.tarball }, { registry }),
+    resolution: toLockfileResolution({ name, version }, { integrity, tarball: value.tarball }, pickTarballUrlOptions(ctx, name)),
   }
   ctx.envLockfile.snapshots[pkgKey] = {}
   return MIGRATED_INTO_LOCKFILE
@@ -185,9 +186,7 @@ async function resolveConfigDepIntoLockfile (ctx: ResolveConfigDepContext, dep: 
     ? resolution.resolution
     : { ...resolution.resolution, integrity: pinnedIntegrity }
   envLockfile.packages[pkgKey] = {
-    resolution: toLockfileResolution({ name, version }, pkgResolution, {
-      registry: pickRegistryForPackage(opts.registriesByScope, name),
-    }),
+    resolution: toLockfileResolution({ name, version }, pkgResolution, pickTarballUrlOptions(opts, name)),
   }
   // A pinned dependency covers only itself, so its optional subdeps stay out
   // of the lockfile until it is declared as a clean specifier.
@@ -196,6 +195,7 @@ async function resolveConfigDepIntoLockfile (ctx: ResolveConfigDepContext, dep: 
       envLockfile,
       lockfileDir: opts.rootDir,
       registriesByScope: opts.registriesByScope,
+      registryOptionsByUrl: opts.registryOptionsByUrl,
       resolveFromNpm: ctx.resolvers.resolve,
     })
     : undefined

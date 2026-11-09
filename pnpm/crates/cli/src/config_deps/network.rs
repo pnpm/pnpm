@@ -4,18 +4,39 @@ use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 pub(super) struct EnvironmentNetwork {
     pub(super) http_client: Arc<ThrottledClient>,
     pub(super) auth_headers: Arc<pnpm_network::AuthHeaders>,
     pub(super) registries: HashMap<String, String>,
+    pub(super) registry_options_by_url: BTreeMap<String, pnpm_lockfile::RegistryOptions>,
     pub(super) retry_opts: RetryOpts,
     pub(super) offline: bool,
     pub(super) tar_limits: pnpm_tarball::TarLimits,
 }
 
 impl EnvironmentNetwork {
+    pub(super) fn new(
+        http_client: Arc<ThrottledClient>,
+        auth_headers: Arc<pnpm_network::AuthHeaders>,
+        registries: HashMap<String, String>,
+        config: &Config,
+    ) -> Self {
+        Self {
+            http_client,
+            auth_headers,
+            registries,
+            registry_options_by_url: config.registry_options_by_url.clone(),
+            retry_opts: config.retry_opts(),
+            offline: config.offline,
+            tar_limits: config.tar_limits(),
+        }
+    }
+
     pub(super) fn resolver(&self, config: &Config) -> NpmResolver<InMemoryPackageMetaCache> {
         NpmResolver {
             registries: self.registries.clone(),

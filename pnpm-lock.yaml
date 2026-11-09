@@ -6875,6 +6875,9 @@ importers:
 
   pnpm11/installing/env-installer:
     dependencies:
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable

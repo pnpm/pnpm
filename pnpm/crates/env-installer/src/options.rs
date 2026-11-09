@@ -52,6 +52,8 @@ pub struct ConfigDependencyStoreIndex {
 pub struct ConfigDependencyVerification<'a> {
     /// `default` plus per-scope (`@scope`) registry entries.
     pub registries: &'a HashMap<String, String>,
+    pub registry_options_by_url:
+        &'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>,
     pub resolution_verifiers: Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>,
     /// Applied when resolving a config dependency, so a resolution never
     /// picks a version the resolution verifiers reject.
@@ -75,6 +77,18 @@ impl ConfigDependencyVerification<'_> {
             return registry;
         }
         self.default_registry()
+    }
+
+    /// Registry serving `name` and the tarball layout it declares.
+    pub(crate) fn tarball_url_options(&self, name: &str) -> pnpm_lockfile::TarballUrlOptions<'_> {
+        let registry = self.pick_registry(name);
+        pnpm_lockfile::TarballUrlOptions {
+            registry,
+            server_type: pnpm_lockfile::registry_server_type(
+                self.registry_options_by_url,
+                registry,
+            ),
+        }
     }
 }
 

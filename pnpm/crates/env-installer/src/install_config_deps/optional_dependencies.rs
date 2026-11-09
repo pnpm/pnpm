@@ -172,7 +172,7 @@ pub(super) fn normalize_from_lockfile(
             &pkg.resolution,
             name,
             &spec.version,
-            opts.verification.pick_registry(name),
+            opts.verification.tarball_url_options(name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
@@ -247,7 +247,7 @@ fn read_optional_subdeps(
             &pkg.resolution,
             &subdep_name,
             &version,
-            opts.verification.pick_registry(&subdep_name),
+            opts.verification.tarball_url_options(&subdep_name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
@@ -292,12 +292,12 @@ fn integrity_and_tarball(
     resolution: &LockfileResolution,
     name: &str,
     version: &str,
-    registry: &str,
+    tarball_url_options: TarballUrlOptions<'_>,
 ) -> Option<(Integrity, String)> {
     match resolution {
         LockfileResolution::Registry(registry_resolution) => Some((
             registry_resolution.integrity.clone(),
-            npm_tarball_url(name, version, TarballUrlOptions { registry, server_type: None }),
+            npm_tarball_url(name, version, tarball_url_options),
         )),
         LockfileResolution::Tarball(tarball) => {
             let integrity = tarball.integrity.clone()?;

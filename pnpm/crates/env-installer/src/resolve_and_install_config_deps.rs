@@ -18,7 +18,7 @@ use crate::{
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    SnapshotEntry, SpecifierAndResolution, TarballResolution, TarballUrlOptions,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_registry::RangeSpecStyle;
@@ -34,11 +34,9 @@ use std::collections::BTreeMap;
 mod plan;
 use plan::{ToResolve, plan_config_deps};
 
-/// Config deps keep the npm tarball layout: `registries` is a workspace
-/// setting, and config deps are resolved before workspace settings apply. The
-/// writer and the reader here agree because both use this same default.
-fn npm_lockfile_form(registry: &str) -> LockfileFormOptions<'_> {
-    LockfileFormOptions { registry, server_type: None, include_tarball_url: false }
+fn lockfile_form(tarball_url_options: TarballUrlOptions<'_>) -> LockfileFormOptions<'_> {
+    let TarballUrlOptions { registry, server_type } = tarball_url_options;
+    LockfileFormOptions { registry, server_type, include_tarball_url: false }
 }
 
 /// Resolve + install the config dependencies declared in
@@ -246,7 +244,7 @@ async fn resolve_one(
         &version,
         result.resolution,
         pinned_integrity,
-        opts.verification.pick_registry(name),
+        opts,
     )?;
 
     // A pinned dependency covers only itself, so its optional subdeps stay out
@@ -279,7 +277,7 @@ fn record_config_dependency(
     version: &str,
     mut resolution: LockfileResolution,
     pinned_integrity: Option<&Integrity>,
-    registry: &str,
+    opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
     let (name, specifier) = declaration;
     env_lockfile
@@ -297,7 +295,11 @@ fn record_config_dependency(
         key.clone(),
         registry_package_metadata(
             resolution
-                .to_lockfile_form(name, version, npm_lockfile_form(registry))
+                .to_lockfile_form(
+                    name,
+                    version,
+                    lockfile_form(opts.verification.tarball_url_options(name)),
+                )
                 .map_err(ConfigDepError::LockfileForm)?,
         ),
     );
@@ -368,7 +370,7 @@ fn migrate_into_lockfile(
     version: &str,
     integrity: Integrity,
     tarball: String,
-    registry: &str,
+    tarball_url_options: TarballUrlOptions<'_>,
 ) -> Result<(), ConfigDepError> {
     let key = pkg_key(name, version)?;
     env_lockfile
@@ -385,7 +387,7 @@ fn migrate_into_lockfile(
         git_hosted: None,
         path: None,
     })
-    .to_lockfile_form(name, version, npm_lockfile_form(registry))
+    .to_lockfile_form(name, version, lockfile_form(tarball_url_options))
     .map_err(ConfigDepError::LockfileForm)?;
     env_lockfile.packages.insert(key.clone(), registry_package_metadata(resolution));
     env_lockfile.snapshots.insert(key, SnapshotEntry::default());

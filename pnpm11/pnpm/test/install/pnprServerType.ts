@@ -3,10 +3,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import type { LockfileFile } from '@pnpm/lockfile.types'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
@@ -22,6 +21,7 @@ test('serverType pnpr leaves the tarball URLs of the registry out of the lockfil
   })
   const workspaceManifest = {
     registries: { [REGISTRY]: { serverType: 'pnpr' } },
+    configDependencies: { '@pnpm.e2e/foo': '100.0.0' },
   }
   writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
@@ -42,6 +42,6 @@ test('serverType pnpr leaves the tarball URLs of the registry out of the lockfil
   })
   await execPnpm(['install'])
 
-  expect(Object.keys(readYamlFileSync<LockfileFile>(WANTED_LOCKFILE).packages ?? {})).toContain('@pnpm.e2e/foo@100.1.0')
+  expect(Object.keys((await readWantedLockfile(process.cwd(), { ignoreIncompatible: false }))?.packages ?? {})).toContain('@pnpm.e2e/foo@100.1.0')
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).not.toContain('tarball:')
 })

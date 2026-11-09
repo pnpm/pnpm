@@ -99,6 +99,33 @@ test('configuration dependency is installed from env lockfile', async () => {
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
 })
 
+test('an integrity-only config dependency is fetched from the tarball layout its registry declares', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+  const fetchedTarballs: string[] = []
+  const store: typeof storeController = {
+    ...storeController,
+    fetchPackage: async (opts) => {
+      fetchedTarballs.push((opts.pkg.resolution as { tarball: string }).tarball)
+      return storeController.fetchPackage(opts)
+    },
+  }
+
+  const lockfile = makeEnvLockfile({
+    '@pnpm.e2e/foo': { version: '100.0.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  })
+  await installConfigDeps(lockfile, {
+    registriesByScope: { default: registry },
+    registryOptionsByUrl: { [registry]: { serverType: 'pnpr' } },
+    rootDir: process.cwd(),
+    store,
+    storeDir,
+  })
+
+  expect(fetchedTarballs).toStrictEqual([`${registry}@pnpm.e2e/foo@100.0.0`])
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBe(true)
+})
+
 test('a config dependency with a path-traversal name in the env lockfile is rejected', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
