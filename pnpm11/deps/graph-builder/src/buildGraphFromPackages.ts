@@ -5,6 +5,7 @@ import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
+import { buildsDependenciesDuringInstall } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
@@ -53,6 +54,12 @@ interface PkgDirCheck {
   pkgSnapshot: PackageSnapshot
   isDirectoryDep: boolean
   isUnchanged: boolean
+  /**
+   * Whether this install runs the package's build. Such a package is fetched
+   * even when placed, since a build with effects outside the package runs in
+   * every install.
+   */
+  buildsInThisInstall: boolean
 }
 
 type PkgDirReuse = 'up-to-date' | 'reusable' | 'needs-fetch'
@@ -150,6 +157,7 @@ async function addLocatedPkgToGraph (ctx: BuildGraphContext, pkg: LocatedPkg): P
       currentPkgSnapshot != null &&
       equals(currentPkgSnapshot.dependencies, pkgSnapshot.dependencies) &&
       depIntegrityIsUnchanged,
+    buildsInThisInstall: opts.allowBuild?.(depPath) === true && buildsDependenciesDuringInstall(opts),
   })
   if (dirReuse === 'up-to-date') return
 
@@ -179,6 +187,7 @@ async function checkPkgDirReuse (opts: LockfileToDepGraphOptions, check: PkgDirC
     opts.enableGlobalVirtualStore &&
     !check.isDirectoryDep &&
     !opts.force &&
+    !check.buildsInThisInstall &&
     await isGlobalVirtualStorePackagePlaced(check.dir)
   ) {
     return 'reusable'

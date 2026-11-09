@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createStagingToken, selectImportDir } from '@pnpm/building.during-install'
+import { createStagingToken, getCacheRow, selectImportDir } from '@pnpm/building.during-install'
 import { reportPackageImported } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
@@ -105,19 +105,20 @@ async function importIntoSlot (
   { files, sideEffectsCacheKey }: { files: FetchedFiles, sideEffectsCacheKey: string | undefined },
   { opts, stagingToken, storeController }: ImportContext
 ): Promise<(ImportPackageResult & { dir: string }) | undefined> {
-  const hasCachedBuild = sideEffectsCacheKey != null && files.sideEffectsMaps?.has(sideEffectsCacheKey) === true
-  const importDir = await selectImportDir(depNode, { hasCachedBuild, opts: { ...opts, stagingToken } })
-  if (importDir == null) return undefined
-  if (importDir !== depNode.dir) {
-    depNode.stagingDir = importDir
+  const cacheRow = getCacheRow(files, sideEffectsCacheKey)
+  const target = await selectImportDir(depNode, { cacheRow, opts: { ...opts, stagingToken } })
+  if (target == null) return undefined
+  if (target.dir !== depNode.dir) {
+    depNode.stagingDir = target.dir
+    depNode.buildsForOutsideEffects = target.buildsForOutsideEffects
     return {
-      ...await storeController.importPackage(importDir, {
+      ...await storeController.importPackage(target.dir, {
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         filesResponse: files,
         force: true,
         requiresBuild: true,
       }),
-      dir: importDir,
+      dir: target.dir,
     }
   }
   return {
@@ -127,7 +128,7 @@ async function importIntoSlot (
       force: opts.force,
       requiresBuild: depNode.patch != null || depNode.requiresBuild,
       safeToSkip: opts.enableGlobalVirtualStore,
-      sideEffectsCacheKey,
+      sideEffectsCacheKey: cacheRow === 'empty' ? undefined : sideEffectsCacheKey,
     }),
     dir: depNode.dir,
   }
@@ -153,7 +154,8 @@ async function getSideEffectsCacheKey (
     version: depNode.version,
   })
   if (remoteCacheKey != null) return remoteCacheKey
-  if (!opts.sideEffectsCacheRead || !files.sideEffectsMaps || isEmpty(files.sideEffectsMaps)) return remoteCacheKey
+  const hasLocalSideEffects = (files.sideEffectsMaps != null && !isEmpty(files.sideEffectsMaps)) || files.emptySideEffects != null
+  if (!opts.sideEffectsCacheRead || !hasLocalSideEffects) return remoteCacheKey
   if (opts.allowBuild?.(depNode.depPath) !== true) return remoteCacheKey
   const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
     includeDepGraphHash: shouldIncludeDepGraphHash({

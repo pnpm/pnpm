@@ -32,7 +32,7 @@ export {
   lockfileToDepGraph,
 } from './lockfileToDepGraph.js'
 export { readSnapshotRuntimePin } from './readSnapshotRuntimePin.js'
-export { getStagingDir, isStagingDirName } from './stagingDir.js'
+export { createStagingToken, getStagingDir, isStagingDirName } from './stagingDir.js'
 export type {
   DepGraphHashContext,
   DepsGraph,

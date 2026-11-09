@@ -123,6 +123,8 @@ export type ResolveDependenciesOpts = ResolveDependenciesOptions & {
   /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
   deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
+  enableModulesDir?: boolean
   allProjectIds: string[]
   /**
    * Generic checkpoint invoked between `resolveDependencyTree` and

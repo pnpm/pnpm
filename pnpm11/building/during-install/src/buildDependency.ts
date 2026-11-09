@@ -147,8 +147,9 @@ async function buildInPackageDir<NodeId extends string> (
  * Builds a package that the link phase staged for its global virtual store
  * slot, then renames it into place. A package another install placed first is
  * not built, unless it comes from a local directory, whose build replaces the
- * placed package. A failed build leaves nothing in the slot. The build output
- * is cached only once the package is placed.
+ * placed package. A build with effects only outside the package runs in its
+ * staging copy, which is then discarded. A failed build leaves nothing in the
+ * slot. The build output is cached only once the package is placed.
  */
 async function buildInStagingDir<NodeId extends string> (
   depPath: NodeId,
@@ -157,14 +158,10 @@ async function buildInStagingDir<NodeId extends string> (
 ): Promise<boolean> {
   const depNode = depGraph[depPath]
   const stagingDir = depNode.stagingDir!
+  if (depNode.buildsForOutsideEffects) return buildForOutsideEffects(depPath, depGraph, opts)
   const replacesPlaced = isFromLocalDirectory(depNode)
   if (!replacesPlaced && await isPackagePlaced(depNode.dir)) {
-    await discardStagingDir(stagingDir)
-    // The placed package's bins may differ from those linked before the build.
-    if (depNode.patch != null || depNode.hasBin) {
-      opts.builtDepPaths?.add(depNode.depPath)
-      opts.builtPackageDirs?.add(path.normalize(depNode.dir))
-    }
+    await useBuildPlacedByOther(depNode, opts)
     return true
   }
   let built: BuiltPackage<NodeId> | undefined
@@ -183,6 +180,31 @@ async function buildInStagingDir<NodeId extends string> (
   }
   if (built.output != null) await storeBuildOutput({ ...built.output, pkgNode: depNode })
   return true
+}
+
+/** Discards this install's staging copy of a package another install placed first. */
+async function useBuildPlacedByOther<NodeId extends string> (depNode: DependenciesGraphNode<NodeId>, opts: BuildDependencyOptions): Promise<void> {
+  await discardStagingDir(depNode.stagingDir!)
+  // The placed package's bins may differ from those linked before the build.
+  if (depNode.patch != null || depNode.hasBin) {
+    opts.builtDepPaths?.add(depNode.depPath)
+    opts.builtPackageDirs?.add(path.normalize(depNode.dir))
+  }
+}
+
+/** Builds the staged copy of a placed package for its effects outside the package, then discards the copy. */
+async function buildForOutsideEffects<NodeId extends string> (
+  depPath: NodeId,
+  depGraph: DependenciesGraph<NodeId>,
+  opts: BuildDependencyOptions
+): Promise<boolean> {
+  const depNode = depGraph[depPath]
+  const stagingDir = depNode.stagingDir!
+  try {
+    return await buildPackage(depPath, depGraph, { ...depNode, dir: stagingDir }, opts) != null
+  } finally {
+    await discardStagingDir(stagingDir)
+  }
 }
 
 interface BuiltPackage<NodeId extends string> {

@@ -3,14 +3,16 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { getStagingDir } from '@pnpm/deps.graph-hasher'
+import { createStagingToken, getStagingDir } from '@pnpm/deps.graph-hasher'
 
 import type { DependenciesGraphNode } from '../lib/buildGraph.js'
 import {
-  createStagingToken,
+  type CacheRow,
+  getCacheRow,
   placeBuiltPackage,
   replacePlacedPackage,
   selectImportDir,
+  type SlotImportOptions,
 } from '../lib/globalVirtualStoreSlot.js'
 import { removeLinksToSkippedOptionalDependency } from '../lib/removeSkippedDependency.js'
 
@@ -33,8 +35,8 @@ function writePackage (dir: string, files: Record<string, string>): void {
 }
 
 test('getStagingDir() names a staging directory beside the package, inside its scope', () => {
-  expect(getStagingDir('/slot/node_modules/foo', 'tok')).toBe(path.normalize('/slot/node_modules/.foo-tok'))
-  expect(getStagingDir('/slot/node_modules/@scope/foo', 'tok')).toBe(path.normalize('/slot/node_modules/@scope/.foo-tok'))
+  expect(getStagingDir('/slot/node_modules/foo', 'tok')).toBe(path.normalize('/slot/node_modules/.pnpm-tok'))
+  expect(getStagingDir('/slot/node_modules/@scope/foo', 'tok')).toBe(path.normalize('/slot/node_modules/@scope/.pnpm-tok'))
   expect(createStagingToken()).not.toBe(createStagingToken())
 })
 
@@ -90,23 +92,41 @@ test('selectImportDir() stages only a package that this install builds and that 
   const pkgDir = path.join(slotModulesDir, 'foo')
   const pkg = { depPath: 'foo@1.0.0' as never, dir: pkgDir, requiresBuild: true }
   const opts = { allowBuild: () => true, enableGlobalVirtualStore: true, stagingToken: 'tok' }
+  const select = async (selected: Parameters<typeof selectImportDir>[0], cacheRow: CacheRow, selectOpts: SlotImportOptions = opts) =>
+    selectImportDir(selected, { cacheRow, opts: selectOpts })
+  const staged = { dir: getStagingDir(pkgDir, 'tok'), buildsForOutsideEffects: false }
+  const inPlace = { dir: pkgDir, buildsForOutsideEffects: false }
 
-  expect(await selectImportDir(pkg, { hasCachedBuild: false, opts })).toBe(getStagingDir(pkgDir, 'tok'))
-  expect(await selectImportDir(pkg, { hasCachedBuild: true, opts })).toBe(pkgDir)
-  expect(await selectImportDir(pkg, { hasCachedBuild: false, opts: { ...opts, ignoreScripts: true } })).toBe(pkgDir)
-  expect(await selectImportDir(pkg, { hasCachedBuild: false, opts: { ...opts, allowBuild: () => undefined } })).toBe(pkgDir)
-  expect(await selectImportDir({ ...pkg, requiresBuild: false, patch: {} }, { hasCachedBuild: false, opts: { ...opts, ignoreScripts: true } }))
-    .toBe(getStagingDir(pkgDir, 'tok'))
+  expect(await select(pkg, 'none')).toStrictEqual(staged)
+  expect(await select(pkg, 'empty')).toStrictEqual(staged)
+  expect(await select(pkg, 'files')).toStrictEqual(inPlace)
+  expect(await select(pkg, 'none', { ...opts, ignoreScripts: true })).toStrictEqual(inPlace)
+  expect(await select(pkg, 'none', { ...opts, enableModulesDir: false })).toStrictEqual(inPlace)
+  expect(await select(pkg, 'none', { ...opts, allowBuild: () => undefined })).toStrictEqual(inPlace)
+  const patched = { ...pkg, requiresBuild: false, patch: {} }
+  expect(await select(patched, 'none', { ...opts, ignoreScripts: true })).toStrictEqual(staged)
+  // An install without a modules directory has no build phase to apply the patch.
+  expect(await select(patched, 'none', { ...opts, enableModulesDir: false })).toBeUndefined()
 
   writePackage(pkgDir, { 'package.json': '{}' })
-  expect(await selectImportDir(pkg, { hasCachedBuild: false, opts })).toBeUndefined()
+  expect(await select(pkg, 'none')).toBeUndefined()
+  expect(await select(pkg, 'files')).toBeUndefined()
+  // A placed package whose build changed nothing in it is built again for its effects outside it.
+  expect(await select(pkg, 'empty')).toStrictEqual({ ...staged, buildsForOutsideEffects: true })
   // A package from a local directory is staged again, for its build to replace the placed package.
-  expect(await selectImportDir({ ...pkg, resolution: { type: 'directory', directory: '../foo' } }, { hasCachedBuild: true, opts }))
-    .toBe(getStagingDir(pkgDir, 'tok'))
+  expect(await select({ ...pkg, resolution: { type: 'directory', directory: '../foo' } }, 'files')).toStrictEqual(staged)
+})
+
+test('getCacheRow() tells an empty row from one with files', () => {
+  const files = { emptySideEffects: ['empty-key'], sideEffectsMaps: new Map([['empty-key', {}], ['files-key', {}]]) }
+  expect(getCacheRow(files, undefined)).toBe('none')
+  expect(getCacheRow(files, 'missing-key')).toBe('none')
+  expect(getCacheRow(files, 'empty-key')).toBe('empty')
+  expect(getCacheRow(files, 'files-key')).toBe('files')
 })
 
 test('createStagingToken() carries random bits', () => {
-  expect(createStagingToken()).toMatch(/^[\da-f]+-[\da-f]+-[\da-f]{16}$/)
+  expect(createStagingToken()).toMatch(/^[\da-f]{8}$/)
 })
 
 test('removeLinksToSkippedOptionalDependency() removes links to a package that was never placed', async () => {

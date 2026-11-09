@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createStagingToken, selectImportDir } from '@pnpm/building.during-install'
+import { createStagingToken, getCacheRow, selectImportDir } from '@pnpm/building.during-install'
 import { reportPackageImported } from '@pnpm/core-loggers'
 import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
@@ -29,6 +29,7 @@ export interface LinkAllPkgsOptions {
   deferDependencyBuilds: boolean
   disableRelinkLocalDirDeps?: boolean
   enableGlobalVirtualStore?: boolean
+  enableModulesDir?: boolean
   force: boolean
   ignoreScripts: boolean
   lockfileDir: string
@@ -143,7 +144,8 @@ async function findSideEffectsCacheKey (
     version: depNode.version,
   })
   if (remoteCacheKey != null) return remoteCacheKey
-  const hasLocalSideEffects = opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)
+  const hasLocalSideEffects = opts.sideEffectsCacheRead &&
+    ((filesResponse.sideEffectsMaps != null && !isEmpty(filesResponse.sideEffectsMaps)) || filesResponse.emptySideEffects != null)
   if (!hasLocalSideEffects || opts.allowBuild?.(depNode.depPath) !== true) return remoteCacheKey
   const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
     includeDepGraphHash: shouldIncludeDepGraphHash({
@@ -164,19 +166,20 @@ async function importIntoSlot (
   { filesResponse, sideEffectsCacheKey }: { filesResponse: PackageFilesResponse, sideEffectsCacheKey: SideEffectsCacheKey },
   { opts, stagingToken, storeController }: PackageImportContext
 ): Promise<(ImportPackageResult & { dir: string }) | undefined> {
-  const hasCachedBuild = sideEffectsCacheKey != null && filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
-  const importDir = await selectImportDir(depNode, { hasCachedBuild, opts: { ...opts, stagingToken } })
-  if (importDir == null) return undefined
-  if (importDir !== depNode.dir) {
-    depNode.stagingDir = importDir
+  const cacheRow = getCacheRow(filesResponse, sideEffectsCacheKey)
+  const target = await selectImportDir(depNode, { cacheRow, opts: { ...opts, stagingToken } })
+  if (target == null) return undefined
+  if (target.dir !== depNode.dir) {
+    depNode.stagingDir = target.dir
+    depNode.buildsForOutsideEffects = target.buildsForOutsideEffects
     return {
-      ...await storeController.importPackage(importDir, {
+      ...await storeController.importPackage(target.dir, {
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         filesResponse,
         force: true,
         requiresBuild: true,
       }),
-      dir: importDir,
+      dir: target.dir,
     }
   }
   return {
@@ -186,7 +189,7 @@ async function importIntoSlot (
       force: depNode.forceImportPackage || opts.force,
       requiresBuild: depNode.patch != null || depNode.requiresBuild,
       safeToSkip: opts.enableGlobalVirtualStore,
-      sideEffectsCacheKey,
+      sideEffectsCacheKey: cacheRow === 'empty' ? undefined : sideEffectsCacheKey,
     }),
     dir: depNode.dir,
   }

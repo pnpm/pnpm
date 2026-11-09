@@ -8,7 +8,10 @@
 "@pnpm/installing.deps-resolver": patch
 "@pnpm/installing.deps-restorer": patch
 "@pnpm/store.commands": patch
+"@pnpm/store.cafs": patch
+"@pnpm/store.cafs-types": patch
 "@pnpm/store.controller": patch
+"@pnpm/worker": patch
 "pnpm": patch
 "pacquet": patch
 ---

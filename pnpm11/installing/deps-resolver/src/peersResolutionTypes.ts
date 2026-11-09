@@ -29,6 +29,8 @@ export interface BaseGenericDependenciesGraphNode {
   requiresBuild?: boolean
   /** See `DependenciesGraphNode.stagingDir` in `@pnpm/building.during-install`. */
   stagingDir?: string
+  /** See `ImportTarget.buildsForOutsideEffects` in `@pnpm/building.during-install`. */
+  buildsForOutsideEffects?: boolean
 }
 
 export interface GenericDependenciesGraphNode extends BaseGenericDependenciesGraphNode {

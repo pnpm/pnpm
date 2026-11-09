@@ -736,6 +736,35 @@ test.each([
   expect(fs.realpathSync(path.join(otherProject, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'))).toBe(fs.realpathSync(pkgInGvs))
 })
 
+test('rebuild of selected packages leaves the builds of other approved packages pending', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  const allowBuilds = {
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    '@pnpm.e2e/failing-postinstall': true,
+  }
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'allowBuilds:',
+    ...Object.keys(allowBuilds).map((name) => `  "${name}": true`),
+    '',
+  ].join('\n'))
+  await execa('node', [pnpmBin, 'add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/failing-postinstall@1.0.0',
+    `--registry=${REGISTRY}`, `--store-dir=${storeDir}`, '--ignore-scripts'])
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    allowBuilds,
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/failing-postinstall/package.json')).toBe(true)
+})
+
 test('rebuild relocates transitive global store packages and their dependents', async () => {
   prepare()
   const storeDir = path.resolve('store')

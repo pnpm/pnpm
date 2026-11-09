@@ -38,14 +38,18 @@ export interface GraphNodeHashOptions {
 /**
  * Whether an install builds dependencies into the global virtual store slots
  * it places. An install that defers its builds to a rebuild still builds the
- * packages it places in slots keyed as built. Every caller that locates a slot
- * an install placed passes the install's own options.
+ * packages it places in slots keyed as built. An install without a modules
+ * directory, such as one that only populates the store, builds nothing. Every
+ * caller that locates a slot an install placed passes the install's own
+ * options.
  */
 export function buildsDependenciesDuringInstall (opts: {
   deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  enableModulesDir?: boolean
   ignoreScripts?: boolean
 }): boolean {
+  if (opts.enableModulesDir === false) return false
   return !opts.ignoreScripts || (opts.enableGlobalVirtualStore === true && opts.deferDependencyBuilds === true)
 }
 

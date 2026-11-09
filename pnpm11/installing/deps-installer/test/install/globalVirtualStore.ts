@@ -875,6 +875,65 @@ test('virtualStoreOnly with enableModulesDir=false works when GVS is enabled', a
   expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('virtualStoreOnly with enableModulesDir=false places packages that need a build in unbuilt slots', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('gvs-no-modules')
+  const manifest = { dependencies: { [BUILT_PKG]: '1.0.0' } }
+  const installOpts = {
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { [BUILT_PKG]: true },
+  }
+  await install(manifest, testDefaults(installOpts))
+  const [builtPkg] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  rimrafSync('node_modules')
+  rimrafSync(globalVirtualStoreDir)
+
+  await install(manifest, testDefaults({ ...installOpts, virtualStoreOnly: true, enableModulesDir: false, frozenLockfile: true }))
+
+  const [pkgInGvs] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  expect(pkgInGvs).not.toBe(builtPkg)
+  expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+  expect(readStagingLeftovers(pkgInGvs)).toStrictEqual([])
+})
+
+test('GVS runs a placed package\'s build again when its effects are outside the package', async () => {
+  prepareEmpty()
+  const log = path.resolve('outside-log')
+  fs.writeFileSync(log, '')
+  process.env.PNPM_E2E_OUTSIDE_LOG = log
+  try {
+    const globalVirtualStoreDir = path.resolve('links')
+    const pkgName = '@pnpm.e2e/postinstall-writes-outside-package'
+    const manifest = { dependencies: { [pkgName]: '1.1.0' } }
+    const installOpts = {
+      enableGlobalVirtualStore: true,
+      virtualStoreDir: globalVirtualStoreDir,
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      allowBuilds: { [pkgName]: true },
+    }
+    const opts = testDefaults(installOpts)
+    await install(manifest, opts)
+    expect(fs.readFileSync(log, 'utf8')).toBe('x')
+    const [pkgInGvs] = readSlotPackageDirs(globalVirtualStoreDir, pkgName, '1.1.0')
+    const placedFiles = fs.readdirSync(pkgInGvs).sort()
+
+    rimrafSync('node_modules')
+    await install(manifest, testDefaults({ ...installOpts, frozenLockfile: true, storeDir: opts.storeDir }))
+
+    expect(fs.readFileSync(log, 'utf8')).toBe('xx')
+    expect(fs.realpathSync(path.resolve('node_modules', pkgName))).toBe(pkgInGvs)
+    expect(fs.readdirSync(pkgInGvs).sort()).toStrictEqual(placedFiles)
+    expect(readStagingLeftovers(pkgInGvs)).toStrictEqual([])
+  } finally {
+    delete process.env.PNPM_E2E_OUTSIDE_LOG
+  }
+})
+
 test('virtualStoreOnly with GVS populates global virtual store without importer links', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('gvs')

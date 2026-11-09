@@ -40,6 +40,8 @@ export interface DependenciesGraphNode {
   packageRootLinks?: Record<string, string>
   /** See `DependenciesGraphNode.stagingDir` in `@pnpm/building.during-install`. */
   stagingDir?: string
+  /** See `ImportTarget.buildsForOutsideEffects` in `@pnpm/building.during-install`. */
+  buildsForOutsideEffects?: boolean
 }
 
 export interface DependenciesGraph {
@@ -52,6 +54,8 @@ export interface LockfileToDepGraphOptions extends RegistryContext {
   /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
   deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
+  enableModulesDir?: boolean
   engineStrict: boolean
   force: boolean
   /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */

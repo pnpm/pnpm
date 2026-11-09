@@ -292,7 +292,7 @@ async function removeUnreachableVersions (
  * scope `@`) and `node_modules/<scope>/<name>` for a scoped one.
  */
 async function removeAbandonedStagingDirs (slotDir: string, pkgPath: string): Promise<void> {
-  const [scope, pkgName] = pkgPath.split(path.sep)
+  const [scope] = pkgPath.split(path.sep)
   const parentDir = scope === '@'
     ? path.join(slotDir, 'node_modules')
     : path.join(slotDir, 'node_modules', scope)
@@ -300,7 +300,7 @@ async function removeAbandonedStagingDirs (slotDir: string, pkgPath: string): Pr
   if (!entries) return
   const abandonedBefore = Date.now() - ABANDONED_STAGING_DIR_AGE_MS
   await Promise.all(entries
-    .filter((entry) => entry.isDirectory() && isStagingDirName(pkgName, entry.name))
+    .filter((entry) => entry.isDirectory() && isStagingDirName(entry.name))
     .map(async (entry) => {
       const stagingDir = path.join(parentDir, entry.name)
       const mtimeMs = await readMtimeMs(stagingDir)

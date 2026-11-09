@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -22,23 +21,13 @@ export async function isPackagePlaced (pkgDir: string): Promise<boolean> {
   return pathExists(path.join(pkgDir, 'package.json'))
 }
 
-let stagingTokenCount = 0
-
-/**
- * A token that is unique to one install. It names the install's staging
- * directories. The random part keeps installs in different containers or on
- * different hosts apart when they share a store and a process id.
- */
-export function createStagingToken (): string {
-  return `${process.pid.toString(16)}-${(stagingTokenCount++).toString(16)}-${randomBytes(8).toString('hex')}`
-}
-
 export interface SlotImportOptions {
   allowBuild?: AllowBuild
   deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  enableModulesDir?: boolean
   ignoreScripts?: boolean
-  /** See {@link createStagingToken}. Set under the global virtual store only. */
+  /** See `createStagingToken` in `@pnpm/deps.graph-hasher`. Set under the global virtual store only. */
   stagingToken?: string
 }
 
@@ -51,22 +40,55 @@ interface SlotPackage {
 }
 
 /**
- * The directory the link phase imports a package into: its staging directory
- * when this install builds it into a global virtual store slot and has no
- * cached build to import, and its package directory otherwise. Resolves to
- * `undefined` when the slot already holds such a package, which needs no
- * import. A package from a local directory is staged even then, since its
- * files may have changed: its build replaces the placed package.
+ * The side-effects cache row of a package's build for this install: `files`
+ * when the build changed files in the package, `empty` when it changed
+ * nothing in it, so its effects lie outside the package
+ * (https://github.com/pnpm/pnpm/issues/14717), and `none` without a row.
+ */
+export type CacheRow = 'none' | 'empty' | 'files'
+
+export function getCacheRow (
+  files: { emptySideEffects?: string[], sideEffectsMaps?: Map<string, unknown> },
+  sideEffectsCacheKey: string | undefined
+): CacheRow {
+  if (sideEffectsCacheKey == null) return 'none'
+  if (files.emptySideEffects?.includes(sideEffectsCacheKey)) return 'empty'
+  return files.sideEffectsMaps?.has(sideEffectsCacheKey) ? 'files' : 'none'
+}
+
+export interface ImportTarget {
+  dir: string
+  /**
+   * The slot already holds the package, and its build only has effects
+   * outside the package. This install builds the staged copy for those
+   * effects, then discards it.
+   */
+  buildsForOutsideEffects: boolean
+}
+
+/**
+ * Where the link phase imports a package. A package that this install builds
+ * into a global virtual store slot goes to its staging directory, unless the
+ * cache holds a build that changed files in it, which is imported into the
+ * slot. Resolves to `undefined` when the slot already holds the package and
+ * nothing needs to run: either the cached build changed files in it, or this
+ * install applies no patches to stage it with. A package from a local
+ * directory is staged even when placed, since its files may have changed: its
+ * build replaces the placed package.
  */
 export async function selectImportDir (
   pkg: SlotPackage,
-  { hasCachedBuild, opts }: { hasCachedBuild: boolean, opts: SlotImportOptions }
-): Promise<string | undefined> {
-  if (opts.stagingToken == null || !buildsInThisInstall(pkg, opts)) return pkg.dir
-  const stagingDir = getStagingDir(pkg.dir, opts.stagingToken)
-  if (isFromLocalDirectory(pkg)) return stagingDir
-  if (await isPackagePlaced(pkg.dir)) return undefined
-  return hasCachedBuild ? pkg.dir : stagingDir
+  { cacheRow, opts }: { cacheRow: CacheRow, opts: SlotImportOptions }
+): Promise<ImportTarget | undefined> {
+  const inPackageDir = { dir: pkg.dir, buildsForOutsideEffects: false }
+  if (opts.stagingToken == null || !buildsInThisInstall(pkg, opts)) return inPackageDir
+  const staged = { dir: getStagingDir(pkg.dir, opts.stagingToken), buildsForOutsideEffects: false }
+  if (!runsBuildPhase(opts)) return undefined
+  if (isFromLocalDirectory(pkg)) return staged
+  if (await isPackagePlaced(pkg.dir)) {
+    return cacheRow === 'empty' ? { ...staged, buildsForOutsideEffects: true } : undefined
+  }
+  return cacheRow === 'files' ? inPackageDir : staged
 }
 
 /** Whether a package was resolved from a local directory, such as a `file:` directory or an injected workspace package. */
@@ -78,6 +100,14 @@ export function isFromLocalDirectory (pkg: { resolution?: unknown }): boolean {
 function buildsInThisInstall (pkg: SlotPackage, opts: SlotImportOptions): boolean {
   return pkg.patch != null ||
     (pkg.requiresBuild === true && opts.allowBuild?.(pkg.depPath) === true && buildsDependenciesDuringInstall(opts))
+}
+
+/**
+ * Whether the install has a build phase that places staged packages. An install
+ * without a modules directory has none, so it never stages a patched package.
+ */
+function runsBuildPhase (opts: SlotImportOptions): boolean {
+  return opts.enableModulesDir !== false
 }
 
 const MAX_PLACE_ATTEMPTS = 3

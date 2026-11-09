@@ -14,6 +14,7 @@ import { groupPatchedDependenciesWithPaths } from '@pnpm/patching.config'
 import type { DepPath } from '@pnpm/types'
 
 import type { StrictBuildOptions } from './extendBuildOptions.js'
+import { getSelectionBuildPolicy } from './selectionBuildPolicy.js'
 
 /**
  * The build options of the install that places the installed graph in the
@@ -33,7 +34,16 @@ export type RebuildContext = PnpmContext & {
   placedPackageDirs?: ReadonlySet<string>
 }
 
-export async function getRebuildContext (projects: ProjectOptions[], opts: StrictBuildOptions): Promise<RebuildContext> {
+/**
+ * `selectDepPaths` picks the packages the rebuild builds from the installed
+ * lockfile. When it is passed, placing the graph builds only those packages
+ * and what they depend on. See `getSelectionBuildPolicy`.
+ */
+export async function getRebuildContext (
+  projects: ProjectOptions[],
+  opts: StrictBuildOptions,
+  selectDepPaths?: (ctx: PnpmContext) => DepPath[]
+): Promise<RebuildContext> {
   const ctx = await getContext({ ...opts, allProjects: projects })
   if (!opts.enableGlobalVirtualStore || opts.nodeLinker !== 'isolated' || !ctx.currentLockfile.packages) return ctx
   const slotPackageDirs = getBuildSlotPackageDirs(ctx, opts)
@@ -45,6 +55,7 @@ export async function getRebuildContext (projects: ProjectOptions[], opts: Stric
   // A policy change also changes the slots of packages depending on the build.
   // Materialize the installed graph before running only the selected scripts.
   const unplacedPackageDirs = await filterUnplaced(slotPackageDirs.values())
+  const buildPolicy = await getPlacementBuildPolicy(ctx, opts, { selectDepPaths, slotPackageDirs })
   await headlessInstall({
     ...opts,
     ...ctx,
@@ -56,6 +67,7 @@ export async function getRebuildContext (projects: ProjectOptions[], opts: Stric
     force: false,
     globalVirtualStoreDir: getGlobalVirtualStoreDir(opts),
     ...SLOT_PLACEMENT_BUILD_OPTIONS,
+    ...buildPolicy,
     wantedLockfile: ctx.currentLockfile,
     useLockfile: false,
     pruneStore: false,
@@ -72,10 +84,24 @@ export async function getRebuildContext (projects: ProjectOptions[], opts: Stric
   if (rebuiltContext.modulesFile) {
     rebuiltContext.modulesFile.ignoredBuilds = ctx.modulesFile?.ignoredBuilds
   }
-  const stillUnplaced = new Set(await filterUnplaced(unplacedPackageDirs))
+  return { ...rebuiltContext, placedPackageDirs: await filterPlaced(unplacedPackageDirs) }
+}
+
+async function filterPlaced (packageDirs: string[]): Promise<Set<string>> {
+  const stillUnplaced = new Set(await filterUnplaced(packageDirs))
+  return new Set(packageDirs.filter((dir) => !stillUnplaced.has(dir)))
+}
+
+async function getPlacementBuildPolicy (
+  ctx: PnpmContext,
+  opts: StrictBuildOptions,
+  { selectDepPaths, slotPackageDirs }: { selectDepPaths?: (ctx: PnpmContext) => DepPath[], slotPackageDirs: Map<DepPath, string> }
+): Promise<{ allowBuilds?: Record<string, boolean>, dangerouslyAllowAllBuilds?: boolean }> {
+  const selected = selectDepPaths?.(ctx)
+  if (selected == null) return {}
   return {
-    ...rebuiltContext,
-    placedPackageDirs: new Set(unplacedPackageDirs.filter((dir) => !stillUnplaced.has(dir))),
+    allowBuilds: await getSelectionBuildPolicy(ctx.currentLockfile, opts, { selected, builtSlotPackageDirs: slotPackageDirs }),
+    dangerouslyAllowAllBuilds: false,
   }
 }
 

@@ -319,12 +319,12 @@ test('prune removes abandoned staging directories beside the package directories
   }
   const unscopedModules = path.join(unscopedSlot, 'node_modules')
   const scopedModules = path.join(scopedSlot, 'node_modules', '@scope')
-  const oldStaging = await createStagingDir(path.join(unscopedModules, '.foo-1a2b-0'), true)
-  const oldReplaced = await createStagingDir(path.join(unscopedModules, '.foo-1a2b-1-replaced'), true)
-  const freshStaging = await createStagingDir(path.join(unscopedModules, '.foo-1a2b-2'), false)
-  const otherPackageStaging = await createStagingDir(path.join(unscopedModules, '.baz-1a2b-0'), true)
-  const oldScopedStaging = await createStagingDir(path.join(scopedModules, '.bar-1a2b-0'), true)
-  const freshScopedStaging = await createStagingDir(path.join(scopedModules, '.bar-1a2b-1'), false)
+  const oldStaging = await createStagingDir(path.join(unscopedModules, '.pnpm-1a2b3c4d'), true)
+  const oldReplaced = await createStagingDir(path.join(unscopedModules, '.pnpm-2a2b3c4d-replaced'), true)
+  const freshStaging = await createStagingDir(path.join(unscopedModules, '.pnpm-3a2b3c4d'), false)
+  const unrelatedDir = await createStagingDir(path.join(unscopedModules, '.cache'), true)
+  const oldScopedStaging = await createStagingDir(path.join(scopedModules, '.pnpm-5a2b3c4d'), true)
+  const freshScopedStaging = await createStagingDir(path.join(scopedModules, '.pnpm-6a2b3c4d'), false)
 
   await prune(options)
 
@@ -333,7 +333,7 @@ test('prune removes abandoned staging directories beside the package directories
   expect(existsSync(oldScopedStaging)).toBe(false)
   expect(existsSync(freshStaging)).toBe(true)
   expect(existsSync(freshScopedStaging)).toBe(true)
-  expect(existsSync(otherPackageStaging)).toBe(true)
+  expect(existsSync(unrelatedDir)).toBe(true)
   expect(existsSync(path.join(unscopedModules, 'foo'))).toBe(true)
   expect(existsSync(path.join(scopedModules, 'bar'))).toBe(true)
 })
@@ -345,7 +345,7 @@ test('prune skips a staging directory that disappears while it scans the slot', 
   await writeInstalledLockfile(modulesDir, ['.'])
   const slotDir = await linkGlobalVirtualStorePackage(options.storeDir, 'foo', modulesDir)
   await registerProject(options.storeDir, projectDir)
-  const stagingDir = path.join(slotDir, 'node_modules', '.foo-1a2b-0')
+  const stagingDir = path.join(slotDir, 'node_modules', '.pnpm-1a2b3c4d')
   await fs.mkdir(stagingDir)
   const stat = fs.stat.bind(fs)
   jest.spyOn(fs, 'stat').mockImplementation(async (target, ...args) => {

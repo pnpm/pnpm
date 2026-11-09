@@ -29,6 +29,7 @@ interface IteratePkgsForVirtualStoreOptions {
   allowBuild?: AllowBuild
   deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  enableModulesDir?: boolean
   ignoreScripts?: boolean
   lockfileDir: string
   virtualStoreDirMaxLength: number

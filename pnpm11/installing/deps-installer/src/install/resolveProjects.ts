@@ -200,6 +200,7 @@ function describeResolutionTarget (ctx: PnpmContext, opts: InstallInContextOptio
     allowBuild: opts.allowBuild,
     currentLockfile: ctx.currentLockfile,
     deferDependencyBuilds: opts.deferDependencyBuilds,
+    enableModulesDir: opts.enableModulesDir,
     dryRun: opts.lockfileOnly || isCheckOnlyInstall(opts),
     // The hoisted linker shares one tree and handles such an entry itself.
     hideAlienModules: opts.materializeAfterResolution && opts.nodeLinker !== 'hoisted',

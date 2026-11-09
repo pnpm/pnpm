@@ -21,6 +21,7 @@ export function extendGraph (
     deferDependencyBuilds?: boolean
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
+    enableModulesDir?: boolean
     ignoreScripts?: boolean
     lockfileDir: string
     supportedArchitectures?: SupportedArchitectures

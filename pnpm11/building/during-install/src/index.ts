@@ -21,8 +21,10 @@ import { buildDependency, type BuildDependencyOptions, buildIsAllowed, relinkBui
 import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export {
-  createStagingToken,
+  type CacheRow,
   discardStagingDir,
+  getCacheRow,
+  type ImportTarget,
   isPackagePlaced,
   placeBuiltPackage,
   removeDir,
@@ -31,7 +33,7 @@ export {
   type SlotImportOptions,
 } from './globalVirtualStoreSlot.js'
 export { linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from './linkBinsOfDependencies.js'
-export { buildsDependenciesDuringInstall, getStagingDir } from '@pnpm/deps.graph-hasher'
+export { buildsDependenciesDuringInstall, createStagingToken, getStagingDir } from '@pnpm/deps.graph-hasher'
 
 export type { DepsStateCache }
 
