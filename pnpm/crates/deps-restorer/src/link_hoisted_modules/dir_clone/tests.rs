@@ -41,6 +41,7 @@ fn cache<'a>(
         &Config {
             enable_global_virtual_store: false,
             global_virtual_store_dir: root.join("links"),
+            store_dir: pnpm_store_dir::StoreDir::new(root.join("store")),
             modules_dir: root.join("project/node_modules"),
             package_import_method: PackageImportMethod::Clone,
             ..Config::default()
