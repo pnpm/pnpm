@@ -109,6 +109,7 @@ export type ResolveFromNpmOptions = {
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
   updateRequested?: boolean
+  trustLockfile?: boolean
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean

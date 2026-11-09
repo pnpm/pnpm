@@ -4,7 +4,7 @@ use crate::{
         EditDirState, StateFileError, read_all_edit_dir_states, read_edit_dir_state,
     },
 };
-use clap::Args;
+use clap::{Args, ValueHint};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use lockfile_update::update_lockfile_snapshots;
@@ -36,7 +36,7 @@ pub struct PatchCommitArgs {
     /// Directory created by `pnpm patch` or package name/specifier.
     pub patch_dir: PathBuf,
     /// The generated patch file will be saved to this directory.
-    #[clap(long = "patches-dir", value_name = "dir")]
+    #[clap(long = "patches-dir", value_name = "dir", value_hint = ValueHint::DirPath)]
     pub patches_dir: Option<String>,
 }
 

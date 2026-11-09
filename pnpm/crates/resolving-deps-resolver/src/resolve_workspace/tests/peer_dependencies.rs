@@ -1063,3 +1063,97 @@ async fn an_optional_peer_is_supplied_when_the_required_peers_it_brings_in_accep
             .starts_with("needs-carrier@1.0.0(carrier@1.0.0"),
     );
 }
+
+#[tokio::test]
+async fn project_scoped_optional_peers_stay_unbound_across_cyclic_peer_variants() {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({
+            "name": "x",
+            "version": "1.0.0",
+            "dependencies": { "y": "1.0.0", "z": "1.0.0" },
+        }),
+        serde_json::json!({
+            "name": "y",
+            "version": "1.0.0",
+            "dependencies": { "z": "1.0.0" },
+            "peerDependencies": { "z": "1.0.0" },
+        }),
+        serde_json::json!({
+            "name": "z",
+            "version": "1.0.0",
+            "dependencies": { "p": "1.0.0" },
+            "peerDependencies": { "y": "1.0.0" },
+        }),
+        serde_json::json!({
+            "name": "p",
+            "version": "1.0.0",
+            "dependencies": { "v": "1.0.0" },
+            "peerDependencies": { "w": "*" },
+            "peerDependenciesMeta": { "w": { "optional": true } },
+        }),
+        serde_json::json!({
+            "name": "w",
+            "version": "1.0.0",
+            "dependencies": { "t": "1.0.0" },
+        }),
+        serde_json::json!({
+            "name": "v",
+            "version": "1.0.0",
+            "peerDependencies": { "t": "*" },
+            "peerDependenciesMeta": { "t": { "optional": true } },
+        }),
+        serde_json::json!({ "name": "t", "version": "1.0.0" }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert(
+            (name.clone(), "1.0.0".to_string()),
+            fake_result(&name, "1.0.0", None, manifest),
+        );
+    }
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({}));
+    let (tmp_other, other_manifest) =
+        fake_manifest(serde_json::json!({ "x": "1.0.0", "w": "1.0.0" }));
+    let (tmp_app, app_manifest) = fake_manifest(serde_json::json!({ "x": "1.0.0", "v": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "a-other".to_string(), manifest: &other_manifest },
+        WorkspaceImporter { id: "app".to_string(), manifest: &app_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_other.path(), tmp_app.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = PeerDependentsDedupe::OnWithProjectScopedOptionalPeers;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut importer = importer_opts(dir, None);
+        importer.peers.dedupe_peer_dependents =
+            PeerDependentsDedupe::OnWithProjectScopedOptionalPeers;
+        importer
+    })
+    .await
+    .unwrap();
+
+    let app_x = &result.peers.direct_dependencies_by_importer["app"]["x"];
+    let app_y = &result.peers.graph[app_x].edges.children["y"];
+    let app_z = &result.peers.graph[app_y].edges.children["z"];
+    let app_p = &result.peers.graph[app_z].edges.children["p"];
+    assert_eq!(app_p.as_str(), "p@1.0.0");
+    assert_eq!(result.peers.graph[app_p].edges.children["v"].as_str(), "v@1.0.0");
+    assert_eq!(result.peers.direct_dependencies_by_importer["app"]["v"].as_str(), "v@1.0.0");
+
+    let other_x = &result.peers.direct_dependencies_by_importer["a-other"]["x"];
+    let other_y = &result.peers.graph[other_x].edges.children["y"];
+    let other_z = &result.peers.graph[other_y].edges.children["z"];
+    let other_p = &result.peers.graph[other_z].edges.children["p"];
+    assert_eq!(other_p.as_str(), "p@1.0.0(t@1.0.0)(w@1.0.0)");
+    assert_eq!(result.peers.graph[other_p].edges.children["v"].as_str(), "v@1.0.0(t@1.0.0)");
+}

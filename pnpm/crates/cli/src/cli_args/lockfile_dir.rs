@@ -7,7 +7,7 @@
 //! install — the lockfile, the root `node_modules`, the virtual store, and
 //! the importer ids — is anchored at the pinned directory.
 
-use clap::Args;
+use clap::{Args, ValueHint};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 pub struct LockfileDirArg {
     /// The directory in which `pnpm-lock.yaml` is created. Several
     /// projects may share a single lockfile.
-    #[clap(long = "lockfile-dir", value_name = "dir")]
+    #[clap(long = "lockfile-dir", value_name = "dir", value_hint = ValueHint::DirPath)]
     pub lockfile_dir: Option<PathBuf>,
 }
 

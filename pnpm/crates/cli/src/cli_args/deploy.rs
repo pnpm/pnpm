@@ -7,7 +7,8 @@ use crate::{
 };
 use clap::Args;
 use derive_more::{Display, Error};
-use install::{LegacyDeploySource, source_pnpmfile_hooks};
+use install::source_pnpmfile_hooks;
+use legacy_source::LegacyDeploySource;
 use lockfile::{
     ConvertCtx, DeployFiles, create_deploy_files, deployed_workspace_projects,
     load_deploy_lockfile, manifest_dependency_names,
@@ -217,7 +218,10 @@ impl DeployArgs {
     ) -> miette::Result<()> {
         apply_deploy_hook(deploy_dir, &selected.project.root_dir)?;
         let source_lockfile_dir = config.lockfile_dir_for(&selected.project.root_dir);
-        let legacy_source = LegacyDeploySource::load::<ReporterT>(config, source_lockfile_dir);
+        let mut legacy_source = LegacyDeploySource::load::<ReporterT>(config, source_lockfile_dir);
+        if let Some(source) = &mut legacy_source {
+            source.rebase(selected, deploy_dir, source_lockfile_dir)?;
+        }
         // Boxed: the install future exceeds clippy's large-future threshold
         // (the captured `Config` is large).
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -439,3 +443,5 @@ mod install;
 mod workspace_manifest;
 
 mod workspace_project_builds;
+
+mod legacy_source;

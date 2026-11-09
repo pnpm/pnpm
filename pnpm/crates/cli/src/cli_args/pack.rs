@@ -16,7 +16,7 @@ use crate::cli_args::{
         select_recursive_projects,
     },
 };
-use clap::Args;
+use clap::{Args, ValueHint};
 use miette::Context;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
@@ -84,7 +84,7 @@ pub struct PackArgs {
 
     /// Directory in which to save the tarball. Defaults to the current
     /// working directory.
-    #[clap(long = "pack-destination")]
+    #[clap(long = "pack-destination", value_hint = ValueHint::DirPath)]
     pub pack_destination: Option<String>,
 
     /// Print the packed tarball and its contents in JSON.
@@ -93,7 +93,7 @@ pub struct PackArgs {
 
     /// Customize the output path. `%s` expands to the package name and
     /// `%v` to the version, e.g. `%s.tgz` or `some-dir/%s-%v.tgz`.
-    #[clap(long)]
+    #[clap(long, value_hint = ValueHint::FilePath)]
     pub out: Option<String>,
 
     /// Pack only the archive of the `publishConfig.variants` entry this

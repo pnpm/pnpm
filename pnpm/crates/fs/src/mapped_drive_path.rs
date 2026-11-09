@@ -32,7 +32,8 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
 pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
-    is_unc_path(path) || drive_letter(path).is_some_and(|drive| mapped_drive(drive).is_some())
+    is_unc_path(path)
+        || drive_letter(path).is_some_and(|drive| pnpm_ffi_fs::mapped_drive_target(drive).is_some())
 }
 
 #[cfg(windows)]

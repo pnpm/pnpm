@@ -94,7 +94,7 @@ pub struct PublishNotesArgs {
     /// `serverType: pnpr`. Publishing one package, they are its version
     /// notes. Publishing several with `--batch`, they are the notes of the
     /// whole release.
-    #[clap(long = "release-notes", value_name = "FILE")]
+    #[clap(long = "release-notes", value_name = "FILE", value_hint = clap::ValueHint::FilePath)]
     pub release_notes: Option<String>,
     /// Send no release notes, not even those read from `CHANGELOG.md` or
     /// change intents.

@@ -381,7 +381,7 @@ pub(super) fn widen_drop_targets_by_selectors(
         if matches_update_pattern(&target_matcher, ignore_matcher, &name)
             && !ignored_resolved_names.contains(&name)
         {
-            insert_update_target(&mut plan.drop_targets, expanded, &name);
+            insert_update_target(&mut plan.drop_targets, expanded, &name, &name);
         }
     }
 }

@@ -254,6 +254,7 @@ function describeResolutionPolicies (opts: InstallInContextOptions) {
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    trustLockfile: opts.trustLockfile,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

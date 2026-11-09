@@ -74,14 +74,12 @@ pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<Parse
     }
     expanded
 }
-/// Record `name` as an update target once per selector that claims it: a
-/// selector pinning an exact version scopes the target to that version's
-/// line, while a bare or ranged one widens it to every version. Negated
-/// selectors exclude names, never versions, so they claim nothing here --
-/// the matcher that found `name` has already applied them.
+/// Record `name` for selectors matching `matched`, preserving their version
+/// lines. Negated selectors are handled by the caller's matcher.
 pub(super) fn insert_update_target(
     targets: &mut UpdateTargets,
     selectors: &[ParsedSelector],
+    matched: &str,
     name: &str,
 ) {
     let mut claimed = false;
@@ -89,16 +87,28 @@ pub(super) fn insert_update_target(
         .iter()
         .filter(|selector| !selector.pattern.starts_with('!'))
     {
-        if !matcher_one(&selector.pattern).matches(name) {
+        if !matcher_one(&selector.pattern).matches(matched) {
             continue;
         }
         claimed = true;
-        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
+        targets.insert(
+            name.to_string(),
+            selector.version.as_deref().and_then(selector_version_line),
+        );
     }
     if !claimed {
         targets.insert(name.to_string(), None);
     }
 }
+fn selector_version_line(version: &str) -> Option<VersionLine> {
+    match version.strip_prefix("npm:") {
+        Some(aliased) => {
+            parse_update_param(aliased).version.as_deref().and_then(VersionLine::parse)
+        }
+        None => VersionLine::parse(version),
+    }
+}
+
 /// Whether any of `manifests` declares a dependency `selector` names, so the
 /// update has a manifest entry to write the requested version into.
 pub(super) fn selector_matches_a_direct_dependency(
@@ -197,9 +207,12 @@ pub(super) fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError
 /// dependency by its alias, but the resolver matches update targets — and
 /// [`UpdateSeedPolicy::DropOnly`](crate::UpdateSeedPolicy::DropOnly) keys them — by the package name the edge
 /// resolves under, which an `npm:` or `jsr:` selector states separately from
-/// the alias. Falls back to the alias, which is the name for every other
-/// selector shape.
-pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) -> String {
+/// the alias. Other selectors keep the target of the existing declaration.
+pub(super) fn update_target_name(
+    selectors: &[ParsedSelector],
+    matched: &str,
+    previous: &str,
+) -> String {
     selectors
         .iter()
         .filter(|selector| matcher_one(&selector.pattern).matches(matched))
@@ -207,6 +220,7 @@ pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) ->
             real_package_name_of(Some(matched), Some(selector.version.as_deref()?))
         })
         .find(|name| name.as_ref() != matched)
+        .or_else(|| real_package_name_of(Some(matched), Some(previous)))
         .map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
 }
 /// Compile a single pattern into a matcher. Used to map a matched direct
