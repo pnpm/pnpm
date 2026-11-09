@@ -185,16 +185,21 @@ fn format_token_list(tokens: &[TokenItem]) -> String {
 fn format_token_list_parseable(tokens: &[TokenItem]) -> String {
     let mut lines = Vec::new();
     lines.push("key\ttoken\tid\tname\tcreated\treadonly\tCIDR whitelist".to_string());
-    // Each hole names its value, in the order the header above lists the
-    // columns, so a swapped column is visible on the line that writes it.
-    for item in tokens {
-        let key = &item.key;
-        let token = &item.token;
-        let id = item.id.as_deref().unwrap_or(&item.key);
-        let name = item.name.as_deref().unwrap_or("");
-        let created = item.created.as_deref().unwrap_or("");
-        let readonly = if item.readonly { "true" } else { "false" };
-        let cidrs = item.cidr_whitelist
+    for TokenItem {
+        key,
+        token,
+        id,
+        name,
+        created,
+        readonly,
+        cidr_whitelist,
+    } in tokens
+    {
+        let id = id.as_deref().unwrap_or(key);
+        let name = name.as_deref().unwrap_or("");
+        let created = created.as_deref().unwrap_or("");
+        let readonly = if *readonly { "true" } else { "false" };
+        let cidrs = cidr_whitelist
             .as_ref()
             .map(|whitelist| whitelist.join(","))
             .unwrap_or_default();

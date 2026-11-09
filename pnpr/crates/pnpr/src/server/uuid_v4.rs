@@ -3,17 +3,25 @@
 
 use std::fmt::Write as _;
 
-/// How many bytes each of a UUID's five hyphen-separated groups covers.
-/// Two hex digits per byte, so these render as the familiar 8-4-4-4-12.
+/// Two hex digits per byte, so these groups render as the familiar
+/// 8-4-4-4-12.
 const GROUP_BYTES: &[usize] = &[4, 2, 2, 2, 6];
 
 /// Generate a fresh random (version 4) UUID from the OS CSPRNG.
 pub(crate) fn generate() -> String {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
-    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
-    bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 9562 variant
+    set_version_4(&mut bytes);
+    set_rfc_9562_variant(&mut bytes);
     hyphenate(&bytes)
+}
+
+fn set_version_4(bytes: &mut [u8; 16]) {
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+}
+
+fn set_rfc_9562_variant(bytes: &mut [u8; 16]) {
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
 }
 
 /// Render `bytes` as hex in the groups [`GROUP_BYTES`] names.

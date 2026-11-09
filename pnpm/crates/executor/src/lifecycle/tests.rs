@@ -456,7 +456,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
 
-    // Each line of the dump, as a label and the shell expression behind it.
+    // Each entry becomes one line of the dump.
     const DUMPED: &[(&str, &str)] = &[
         ("stage", "$npm_lifecycle_event"),
         ("script", "$npm_lifecycle_script"),
