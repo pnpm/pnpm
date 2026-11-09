@@ -192,3 +192,94 @@ function envLockfileWithConfigDep () {
   }
   return lockfile
 }
+
+test('readEnvLockfile reads the env document of a lockfile in the v13 format', async () => {
+  const dir = temporaryDirectory()
+  const envDocument = [
+    '{',
+    '  "lockfileVersion": "13.0",',
+    '',
+    '  "importers": {',
+    '    ".": {',
+    '      "configDependencies": {',
+    '        "my-config": {"specifier": "^1.0.0", "version": "1.0.0"},',
+    '        "renamed": "npm:real@2.0.0",',
+    '      },',
+    '      "packageManagerDependencies": {',
+    '        "pnpm": "13.0.0",',
+    '      },',
+    '    },',
+    '  },',
+    '',
+    '  "packages": {',
+    '    "my-config@1.0.0": {',
+    '      "integrity": "sha512-AAAA",',
+    '      "peerDependencies": {',
+    '        "host": {"specifier": "*", "version": "3.0.0", "optional": true},',
+    '      },',
+    '      "dependencies": {',
+    '        "util": "1.2.3",',
+    '      },',
+    '    },',
+    '',
+    '    "pnpm@13.0.0": {',
+    '      "integrity": "sha512-BBBB",',
+    '      "engines": {"node": ">=18"},',
+    '      "hasBin": true,',
+    '    },',
+    '',
+    '    "real@2.0.0": {',
+    '      "resolution": {"tarball": "https://example.com/real-2.0.0.tgz"},',
+    '      "integrity": "sha512-CCCC",',
+    '    },',
+    '  },',
+    '}',
+    '',
+  ].join('\n')
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), `---\n${envDocument}---\n{"lockfileVersion": "13.0", "importers": {".": {}}}\n`)
+
+  await expect(readEnvLockfile(dir)).resolves.toStrictEqual({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        configDependencies: {
+          'my-config': { specifier: '^1.0.0', version: '1.0.0' },
+          renamed: { specifier: 'npm:real@2.0.0', version: 'real@2.0.0' },
+        },
+        packageManagerDependencies: {
+          pnpm: { specifier: '13.0.0', version: '13.0.0' },
+        },
+      },
+    },
+    packages: {
+      'my-config@1.0.0': {
+        resolution: { integrity: 'sha512-AAAA' },
+        peerDependencies: { host: '*' },
+        peerDependenciesMeta: { host: { optional: true } },
+      },
+      'pnpm@13.0.0': {
+        resolution: { integrity: 'sha512-BBBB' },
+        engines: { node: '>=18' },
+        hasBin: true,
+      },
+      'real@2.0.0': {
+        resolution: { tarball: 'https://example.com/real-2.0.0.tgz', integrity: 'sha512-CCCC' },
+      },
+    },
+    snapshots: {
+      'my-config@1.0.0': {
+        dependencies: { util: '1.2.3' },
+        optionalDependencies: { host: '3.0.0' },
+      },
+      'pnpm@13.0.0': {},
+      'real@2.0.0': {},
+    },
+  })
+})
+
+test('readEnvLockfile rejects a v13 env document whose config dependency implies no version', async () => {
+  const dir = temporaryDirectory()
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), '---\n{"lockfileVersion": "13.0", "importers": {".": {"configDependencies": {"renamed": "npm:real"}}}}\n---\n')
+
+  await expect(readEnvLockfile(dir)).rejects.toMatchObject({ code: 'ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION' })
+})
