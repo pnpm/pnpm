@@ -6,7 +6,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_graph_hasher::{host_arch, host_platform};
 use pnpm_testing_utils::fs::{MTIME_STEP_MS, set_mtime_ms};
-use pnpm_workspace_state::{load_workspace_state, update_workspace_state};
+use pnpm_workspace_state::{RuntimeOnFail, load_workspace_state, update_workspace_state};
 use serde_json::{Value, json};
 use std::{fs, path::Path};
 
@@ -358,6 +358,38 @@ fn run_after_a_no_runtime_install_does_not_install_again() {
     let state = load_workspace_state(&workspace).unwrap().unwrap();
     assert!(state.last_validated_timestamp > validated);
     assert_eq!(state.settings.runtime, Some(false));
+}
+
+/// A script runs with the runtime the last install linked, so a
+/// `--runtime-on-fail` the run does not repeat must not make the gate install.
+#[test]
+fn run_after_a_runtime_on_fail_flag_install_does_not_install_again() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, _fixture) =
+        locked_runtime_project(&root, &mut server, "verifyDepsBeforeRun: error\n");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["scripts"] = json!({ "noop": "exit 0" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--runtime-on-fail=download"])
+        .assert()
+        .success();
+    let mut state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert_eq!(state.settings.runtime_on_fail, Some(RuntimeOnFail::Download));
+    // A lockfile newer than the state, with unchanged content, makes the gate
+    // compare the settings.
+    state.last_validated_timestamp -= 4 * MTIME_STEP_MS;
+    let validated = state.last_validated_timestamp;
+    update_workspace_state(&workspace, &state).unwrap();
+    set_mtime_ms(&workspace.join("pnpm-lock.yaml"), validated + 2 * MTIME_STEP_MS);
+
+    command(&workspace)
+        .with_args(["run", "noop"])
+        .assert()
+        .success();
 }
 
 #[test]

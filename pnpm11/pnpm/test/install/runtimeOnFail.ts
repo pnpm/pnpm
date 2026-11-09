@@ -67,6 +67,25 @@ test('a repeat install downloads Node.js after runtimeOnFail changes to download
   project.isExecutable('.bin/node')
 })
 
+test('pnpm run does not reinstall when only an earlier install set runtimeOnFail on the command line', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+        onFail: 'download',
+      },
+    },
+    scripts: {
+      noop: 'node -e ""',
+    },
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'verifyDepsBeforeRun: error\n', 'utf8')
+  await execPnpm(['install', '--config.runtimeOnFail=download'])
+
+  await execPnpm(['run', 'noop'])
+})
+
 test('--no-runtime keeps the runtime entry in the lockfile but skips installing the binary', async () => {
   const project = prepare({
     devEngines: {
