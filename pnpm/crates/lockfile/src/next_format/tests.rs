@@ -354,8 +354,9 @@ fn patched_packages_carry_no_hash() {
 /// An importer's dependency is its specifier alone when the version follows
 /// from it: an exact version, a `catalog:` entry, with the alias the catalog
 /// names, an injected workspace package, through its `packages` entry, under
-/// an alias too. A range and a workspace link write both. A catalog entry
-/// follows the same rule, with the bare version of an `npm:` alias.
+/// an alias too. A range writes both, and so does a workspace link to a
+/// project the lockfile does not list. A catalog entry follows the same
+/// rule, with the bare version of an `npm:` alias.
 #[test]
 fn importer_versions_that_follow_from_the_specifier_are_not_written() {
     let lockfile = parse(text_block_macros::text_block! {
@@ -437,6 +438,8 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  tool@2.1.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
+    assert!(yaml.contains("\n  injected@file:packages/injected: {}\n"), "{yaml}");
+    assert!(!yaml.contains("resolution:"), "{yaml}");
     let start = yaml.find("\nsettings:").expect("a settings section");
     let end = yaml.find("\npackages:").expect("a packages section");
     assert_eq!(
@@ -462,6 +465,61 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             "      ranged: {specifier: ^1.0.0, version: 1.2.3}"
             "      shared: {specifier: workspace:*, version: link:../shared}"
             "      tool: 'catalog:'"
+        },
+    );
+}
+
+/// A `workspace:` dependency linked to another project is its specifier
+/// alone, and the project it links to records its `name`, under which the
+/// reader finds the link's target. A link to a path that is no importer
+/// writes its version.
+#[test]
+fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    devDependencies:"
+        "      '@scope/a':"
+        "        specifier: workspace:*"
+        "        version: link:packages/a"
+        ""
+        "  packages/a: {}"
+        ""
+        "  packages/b:"
+        "    dependencies:"
+        "      '@scope/a':"
+        "        specifier: workspace:^"
+        "        version: link:../a"
+        "      a-alias:"
+        "        specifier: 'workspace:@scope/a@*'"
+        "        version: link:../a"
+        "      tool:"
+        "        specifier: workspace:*"
+        "        version: link:../tool"
+    });
+    let (yaml, _) = written_and_read(&lockfile);
+    let start = yaml.find("\nimporters:").expect("an importers section");
+    assert_eq!(
+        &yaml[start..],
+        text_block_macros::text_block_fnl! {
+            ""
+            "importers:"
+            ""
+            "  .:"
+            "    devDependencies:"
+            "      '@scope/a': workspace:*"
+            ""
+            "  packages/a:"
+            "    name: '@scope/a'"
+            ""
+            "  packages/b:"
+            "    dependencies:"
+            "      '@scope/a': workspace:^"
+            "      a-alias: workspace:@scope/a@*"
+            "      tool: {specifier: workspace:*, version: link:../tool}"
         },
     );
 }
@@ -603,6 +661,29 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
         packages.retain(|key, _| used.contains(key));
         for metadata in packages.values_mut() {
             metadata.deprecated = None;
+        }
+        // The next format cannot say that a directory package has no
+        // metadata: its resolution follows from the key.
+        for key in &used {
+            let crate::VersionPart::File(directory) = key.suffix.version() else { continue };
+            packages
+                .entry(key.clone())
+                .or_insert_with(|| crate::PackageMetadata {
+                    resolution: crate::LockfileResolution::Directory(crate::DirectoryResolution {
+                        directory: directory.clone(),
+                    }),
+                    version: None,
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                });
         }
     }
     if lockfile.packages.as_ref().is_some_and(std::collections::HashMap::is_empty) {

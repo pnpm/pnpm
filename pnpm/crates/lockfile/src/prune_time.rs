@@ -46,12 +46,24 @@ fn importer_dep_paths(document: &Value) -> HashSet<String> {
     dep_paths
 }
 
+/// A catalog entry's specifier and version. In the next lockfile format the
+/// entry can be the specifier alone, whose version follows from it.
+fn catalog_entry(entry: &Value) -> Option<(String, String)> {
+    if let Some(specifier) = entry.as_str() {
+        let version = crate::implied_version::catalog_implied_version(specifier)?;
+        return Some((specifier.to_string(), version.to_string()));
+    }
+    let text = |key: &str| Some(entry.get(key)?.as_str()?.to_string());
+    Some((text("specifier")?, text("version")?))
+}
+
 /// The peer-suffix-stripped depPath one importer dependency entry resolves
 /// to. An entry the reader cannot parse names no `time:` key. In the next
 /// lockfile format, an entry can be the specifier alone, whose version is
 /// implied, through `catalogs`, under `settings` in that format, for a
 /// `catalog:` specifier. A `workspace:` specifier alone names an injected
-/// package, which has no `time:` entry, so it is not looked up.
+/// or a linked workspace project, which has no `time:` entry, so it is not
+/// looked up.
 fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Option<String> {
     let version = match dependency {
         Value::String(specifier) => crate::implied_version::implied_version(
@@ -61,10 +73,9 @@ fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Optio
                 let catalogs = document
                     .get("catalogs")
                     .or_else(|| document.get("settings")?.get("catalogs"))?;
-                let entry = catalogs.get(catalog)?.get(alias)?;
-                let text = |key: &str| Some(entry.get(key)?.as_str()?.to_string());
-                Some((text("specifier")?, text("version")?))
+                catalog_entry(catalogs.get(catalog)?.get(alias)?)
             },
+            |_| None,
             |_| None,
         )?,
         _ => dependency

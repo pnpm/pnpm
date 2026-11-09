@@ -35,6 +35,7 @@ use std::collections::HashMap;
 mod catalogs;
 mod document;
 mod importer;
+mod linked;
 mod package;
 mod parse;
 mod read;
@@ -138,7 +139,8 @@ pub fn merge_packages(
         .flatten()
         .map(|(key, snapshots)| {
             let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
-            (key, NextPackageOut::new(metadata, snapshots))
+            let out = NextPackageOut::new(&key, metadata, snapshots);
+            (key, out)
         })
         .collect()
 }
@@ -245,7 +247,8 @@ impl Lockfile {
         let settings = next.settings.unwrap_or_default();
         let catalogs = settings.catalogs.map(catalogs::resolved).transpose()?;
         let injected = injected_paths(packages.iter().flat_map(HashMap::keys));
-        let implied = Implied { catalogs: catalogs.as_ref(), injected: &injected };
+        let linked = linked::named_importers(&next.importers);
+        let implied = Implied { catalogs: catalogs.as_ref(), injected: &injected, linked: &linked };
         let importers = resolve_importers(next.importers, implied)?;
         let sections = NextSections { importers, snapshots };
         let context = RestoreContext {
@@ -292,14 +295,31 @@ impl Lockfile {
             self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
         let packages = merge_packages(self.packages.as_ref(), snapshots);
         let injected = injected_paths(packages.keys());
-        let implied = Implied { catalogs: self.catalogs.as_ref(), injected: &injected };
-        let importers: HashMap<String, NextImporter> = importers
-            .iter()
-            .map(|(id, importer)| (id.clone(), importer.collapsed(implied)))
-            .collect();
+        let linked = linked::linked_importers(&importers);
+        let implied =
+            Implied { catalogs: self.catalogs.as_ref(), injected: &injected, linked: &linked };
+        let importers = collapse_importers(&importers, implied, &linked);
         crate::serialize_yaml::to_string(&document::NextDocument::new(self, &importers, &packages))
             .map_err(crate::SaveLockfileError::SerializeYaml)
     }
+}
+
+/// Every importer with the versions that follow from their specifiers left
+/// out, and its `name` where a `workspace:` dependency links to it.
+fn collapse_importers(
+    importers: &HashMap<String, NextImporter>,
+    implied: Implied<'_>,
+    linked: &linked::LinkedImporters,
+) -> HashMap<String, NextImporter> {
+    let names = linked::names(linked);
+    importers
+        .iter()
+        .map(|(id, importer)| {
+            let mut collapsed = importer.collapsed(id, implied);
+            collapsed.name = names.get(id.as_str()).map(|name| (*name).to_string());
+            (id.clone(), collapsed)
+        })
+        .collect()
 }
 
 #[cfg(test)]

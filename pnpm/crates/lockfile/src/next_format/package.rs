@@ -7,8 +7,8 @@ pub use peers::{PeerDetails, PeerEntry};
 
 use super::{NextFormatError, NextRef, NextSnapshotEntry};
 use crate::{
-    BundledDependencies, LockfileResolution, PackageMetadata, PkgName, RegistryResolution,
-    StringOrList, TarballResolution,
+    BundledDependencies, DirectoryResolution, LockfileResolution, PackageMetadata, PkgName,
+    RegistryResolution, StringOrList, TarballResolution,
 };
 use peers::{merge_peer_dependencies, split_peer_dependencies};
 use serde::{Deserialize, Serialize};
@@ -30,11 +30,11 @@ mod peers;
     )
 )]
 pub struct NextPackage {
-    /// The resolution without its integrity, and absent for a registry
-    /// package without a revision, the common case, whose resolution is the
-    /// integrity alone. Also absent for a package whose metadata the lockfile
-    /// does not record, such as a directory dependency written by an older
-    /// pnpm.
+    /// The resolution without its integrity, and absent where it follows
+    /// from the entry: a registry package without a revision, the common
+    /// case, whose resolution is the integrity alone, and a directory
+    /// package, whose directory is the `<path>` of its `name@file:<path>`
+    /// key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<LockfileResolution>,
     /// The integrity of the package's tarball, whatever its resolution:
@@ -165,9 +165,13 @@ impl<'a> NextPackageOut<'a> {
     /// The entry for `metadata` installed as `snapshots`, sorted. A map entry
     /// every snapshot has with the same value is written once, in `shared`.
     #[must_use]
-    pub fn new(metadata: Option<&'a PackageMetadata>, snapshots: Vec<NextSnapshotEntry>) -> Self {
+    pub fn new(
+        key: &crate::PackageKey,
+        metadata: Option<&'a PackageMetadata>,
+        snapshots: Vec<NextSnapshotEntry>,
+    ) -> Self {
         let (resolution, integrity) = match metadata {
-            Some(metadata) => split_resolution(&metadata.resolution),
+            Some(metadata) => split_resolution(key, &metadata.resolution),
             None => (None, None),
         };
         let (shared, snapshots) = hoist(snapshots);
@@ -251,7 +255,7 @@ impl NextPackage {
             optional: self.optional,
         };
         let snapshots = self.snapshots.take();
-        let metadata = self.into_metadata(peers.ranges, peers.meta);
+        let metadata = self.into_metadata(key, peers.ranges, peers.meta);
         let snapshots = match snapshots {
             None => vec![shared],
             Some(snapshots) => snapshots
@@ -262,15 +266,21 @@ impl NextPackage {
         Ok((metadata, snapshots))
     }
 
-    /// `None` when the entry records no resolution.
+    /// `None` when the entry records no resolution and none follows from
+    /// `key`.
     fn into_metadata(
         self,
+        key: &crate::PackageKey,
         peer_dependencies: Option<HashMap<String, String>>,
         peer_dependencies_meta: Option<HashMap<String, crate::PeerDependencyMeta>>,
     ) -> Option<PackageMetadata> {
         let resolution = match (self.resolution, self.integrity) {
             (None, Some(integrity)) => {
                 LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
+            }
+            (None, None) => {
+                let directory = key_directory(key)?.clone();
+                LockfileResolution::Directory(DirectoryResolution { directory })
             }
             (Some(LockfileResolution::Tarball(tarball)), Some(integrity)) => {
                 LockfileResolution::Tarball(TarballResolution {
@@ -279,7 +289,6 @@ impl NextPackage {
                 })
             }
             (Some(resolution), _) => resolution,
-            (None, None) => return None,
         };
         Some(PackageMetadata {
             resolution,
@@ -298,13 +307,27 @@ impl NextPackage {
     }
 }
 
+/// The `<path>` of a `name@file:<path>` key.
+fn key_directory(key: &crate::PackageKey) -> Option<&String> {
+    match key.suffix.version() {
+        crate::VersionPart::File(path) => Some(path),
+        _ => None,
+    }
+}
+
 /// The resolution as the entry writes it, with the integrity apart.
-fn split_resolution(
-    resolution: &LockfileResolution,
-) -> (Option<std::borrow::Cow<'_, LockfileResolution>>, Option<&Integrity>) {
+fn split_resolution<'a>(
+    key: &crate::PackageKey,
+    resolution: &'a LockfileResolution,
+) -> (Option<std::borrow::Cow<'a, LockfileResolution>>, Option<&'a Integrity>) {
     match resolution {
         LockfileResolution::Registry(RegistryResolution { integrity, revision: None }) => {
             (None, Some(integrity))
+        }
+        LockfileResolution::Directory(DirectoryResolution { directory })
+            if Some(directory) == key_directory(key) =>
+        {
+            (None, None)
         }
         LockfileResolution::Tarball(tarball) if tarball.integrity.is_some() => (
             Some(std::borrow::Cow::Owned(LockfileResolution::Tarball(TarballResolution {

@@ -8,14 +8,13 @@
 //! exact version, from a `link:` or `file:` path, from a `catalog:`
 //! specifier through the `catalogs` section, and from a `workspace:`
 //! specifier through the injected package's `name@file:<path>` entry in
-//! `packages`. A linked workspace dependency writes its `link:` version, so
-//! the lockfile says where it lives without the workspace.
+//! `packages`, or through the `name` the linked project's importer records.
 
-use super::{NamedBindings, NextFormatError};
+use super::{NamedBindings, NextFormatError, linked::LinkedImporters};
 use crate::{
     CatalogSnapshots, ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
-    implied_version::{InjectedPaths, implied_version},
+    implied_version::{InjectedPaths, implied_version, link_path},
 };
 use serde::{
     Deserialize, Deserializer, Serialize,
@@ -121,6 +120,11 @@ pub type NextImporterDeps = HashMap<PkgName, NextImporterDep>;
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextImporter {
+    /// The project's package name, recorded when a `workspace:` dependency
+    /// of another project links to it, so that dependency can be its
+    /// specifier alone and the reader can find the link's target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -183,15 +187,15 @@ impl NextImporter {
         Ok(self)
     }
 
-    /// This importer with every dependency whose version follows from its
-    /// specifier written without the version: the specifier alone, or with
-    /// the bindings that name the snapshot.
+    /// This importer, `id`, with every dependency whose version follows
+    /// from its specifier written without the version: the specifier alone,
+    /// or with the bindings that name the snapshot.
     #[must_use]
-    pub fn collapsed(&self, implied: Implied<'_>) -> NextImporter {
+    pub fn collapsed(&self, id: &str, implied: Implied<'_>) -> NextImporter {
         let mut collapsed = self.clone();
         for map in collapsed.groups_mut() {
             for (alias, dep) in map.iter_mut() {
-                collapse(alias, dep, implied);
+                collapse(id, alias, dep, implied);
             }
         }
         collapsed
@@ -236,17 +240,19 @@ fn resolved_map(
         .collect()
 }
 
-/// What a specifier's version follows from: the `catalogs` section and the
-/// injected packages' entries.
+/// What a specifier's version follows from: the `catalogs` section, the
+/// injected packages' entries and the linked projects' importers.
 #[derive(Clone, Copy)]
 pub struct Implied<'a> {
     pub catalogs: Option<&'a CatalogSnapshots>,
     pub injected: &'a InjectedPaths,
+    pub linked: &'a LinkedImporters,
 }
 
 impl Implied<'_> {
-    /// The version `specifier` implies for `alias`, if any.
-    fn version(self, alias: &PkgName, specifier: &str) -> Option<String> {
+    /// The version `specifier` implies for `alias` in the importer `id`, if
+    /// any.
+    fn version(self, id: &str, alias: &PkgName, specifier: &str) -> Option<String> {
         implied_version(
             &alias.to_string(),
             specifier,
@@ -255,6 +261,7 @@ impl Implied<'_> {
                 Some((entry.specifier.clone(), entry.version.clone()))
             },
             |name| self.injected.get(name).map(String::as_str),
+            |name| self.linked.get(name).map(|target| link_path(id, target)),
         )
     }
 }
@@ -291,16 +298,16 @@ fn resolved(
         specifier: specifier.clone(),
     };
     let version = implied
-        .version(alias, &specifier)
+        .version(id, alias, &specifier)
         .ok_or_else(underivable)?
         .parse::<ImporterDepVersion>()
         .map_err(|_| underivable())?;
     Ok(NextResolvedDep { specifier, version, peers: None })
 }
 
-fn collapse(alias: &PkgName, dep: &mut NextImporterDep, implied: Implied<'_>) {
+fn collapse(id: &str, alias: &PkgName, dep: &mut NextImporterDep, implied: Implied<'_>) {
     let NextImporterDep::Resolved(resolved) = dep else { return };
-    let implied = implied.version(alias, &resolved.specifier);
+    let implied = implied.version(id, alias, &resolved.specifier);
     if implied.is_none_or(|implied| implied != resolved.version.to_string()) {
         return;
     }

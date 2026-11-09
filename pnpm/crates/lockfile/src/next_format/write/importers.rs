@@ -27,6 +27,7 @@ pub(super) fn next_importer(
             })
     };
     NextImporter {
+        name: None,
         dependencies: convert(&importer.dependencies),
         dev_dependencies: convert(&importer.dev_dependencies),
         optional_dependencies: convert(&importer.optional_dependencies),
