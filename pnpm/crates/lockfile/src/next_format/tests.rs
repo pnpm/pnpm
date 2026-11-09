@@ -528,7 +528,7 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
 #[test]
 fn catalog_entry_whose_version_does_not_follow_is_rejected() {
     let text = text_block_macros::text_block! {
-        "lockfileVersion: '10.0'"
+        "lockfileVersion: '13.0'"
         ""
         "settings:"
         "  catalogs:"
@@ -553,7 +553,7 @@ fn current_lockfile_stays_suffixed_under_the_next_version() {
     lockfile.save_current_to_install_state_dir(dir.path()).expect("save the current lockfile");
     let text = std::fs::read_to_string(dir.path().join(Lockfile::CURRENT_FILE_NAME))
         .expect("read the current lockfile");
-    assert!(text.starts_with("lockfileVersion: '10.0'"), "{text}");
+    assert!(text.starts_with("lockfileVersion: '13.0'"), "{text}");
     assert!(text.contains("  fs-impl@4.8.4(buffer-impl@3.7.1):"), "{text}");
     let read = Lockfile::load_current_from_install_state_dir(dir.path())
         .expect("load the current lockfile")
@@ -596,7 +596,7 @@ fn corpus_round_trips() {
 }
 
 fn as_next(mut lockfile: Lockfile) -> Lockfile {
-    lockfile.lockfile_version = crate::LockfileVersion::<9>::try_from(crate::ComVer::new(10, 0))
+    lockfile.lockfile_version = crate::LockfileVersion::<9>::try_from(crate::ComVer::new(13, 0))
         .expect("the next major is supported");
     lockfile
 }

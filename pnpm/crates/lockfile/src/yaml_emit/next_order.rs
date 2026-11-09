@@ -34,7 +34,7 @@ fn is_next_format(root: &Map<String, Value>) -> bool {
         && root
             .get("lockfileVersion")
             .and_then(Value::as_str)
-            .is_some_and(|version| version.starts_with("10."))
+            .is_some_and(|version| version.starts_with(&format!("{}.", crate::NEXT_LOCKFILE_MAJOR)))
 }
 
 fn sort_next_package(entry: Value) -> Value {

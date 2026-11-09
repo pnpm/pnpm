@@ -1,5 +1,5 @@
-//! The next lockfile format, written under `lockfileVersion: '10.0'` while it
-//! is experimental. See pnpm/rfcs#72.
+//! The next lockfile format, under `lockfileVersion: '13.0'`: the number of
+//! the pnpm major that first writes it by default. See pnpm/rfcs#72.
 //!
 //! A snapshot is keyed by `name@version`, plus the patch group when there is
 //! one, and every reference drops its peer groups. A package installed with
@@ -45,8 +45,9 @@ mod snapshot_wire;
 mod tarjan;
 mod write;
 
-/// The `lockfileVersion` major of the next format.
-pub const NEXT_LOCKFILE_MAJOR: u16 = 10;
+/// The `lockfileVersion` major of the next format: the pnpm major that first
+/// writes it by default.
+pub const NEXT_LOCKFILE_MAJOR: u16 = 13;
 
 /// The format pnpm writes the lockfile in: the `lockfile.format` setting.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
