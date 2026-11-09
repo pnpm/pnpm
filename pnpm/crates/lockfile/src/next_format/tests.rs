@@ -569,13 +569,15 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
 /// string alone.
 #[test]
 fn json_reader_allows_a_trailing_comma_and_keeps_one_in_a_string() {
-    let value = super::from_json_str::<serde_json::Value>(text_block_macros::text_block_fnl! {
-        "{"
-        r#"  "a": "x,]","#
-        r#"  "b": [1, 2,],"#
-        r#"  "c": {"d": "\",}",},"#
-        "}"
-    })
+    let value = crate::json_document::from_json_str::<serde_json::Value>(
+        text_block_macros::text_block_fnl! {
+            "{"
+            r#"  "a": "x,]","#
+            r#"  "b": [1, 2,],"#
+            r#"  "c": {"d": "\",}",},"#
+            "}"
+        },
+    )
     .expect("parse");
     assert_eq!(value, serde_json::json!({"a": "x,]", "b": [1, 2], "c": {"d": r#"",}"#}}));
 }
@@ -593,6 +595,19 @@ fn json_document_in_another_layout_is_parsed_whole() {
         yaml.contains("\n    \"a@1.0.0\": {\n      \"integrity\": \"sha512-AAAA\",\n    },\n"),
         "{yaml}",
     );
+}
+
+/// A 9.0 lockfile written as JSON, as a test or a tool may write it, is
+/// today's format: JSON is YAML, and the `lockfileVersion` says which
+/// format the document is in.
+#[test]
+fn json_document_with_todays_version_is_todays_format() {
+    let text = r#"{"lockfileVersion":"9.0","importers":{".":{"dependencies":{"a":{"specifier":"1.0.0","version":"1.0.0"}}}},"packages":{"a@1.0.0":{"resolution":{"integrity":"sha512-AAAA"}}},"snapshots":{"a@1.0.0":{}}}"#;
+    let lockfile = parse(text);
+    assert!(!lockfile.is_next_format());
+    assert_eq!(lockfile.snapshots.as_ref().map(std::collections::HashMap::len), Some(1));
+    let yaml = lockfile.to_yaml_string().expect("render today's format");
+    assert!(yaml.starts_with("lockfileVersion: '9.0'\n"), "{yaml}");
 }
 
 /// A catalog entry written as `npm:name`, without a version, implies none.

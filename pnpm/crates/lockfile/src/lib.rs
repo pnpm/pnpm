@@ -45,6 +45,7 @@ mod git_merge_file;
 mod implied_version;
 mod injected_deps;
 mod integrity_target;
+mod json_document;
 mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;

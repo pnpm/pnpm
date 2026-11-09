@@ -2,9 +2,9 @@ pub use error::LoadLockfileError;
 
 use crate::{
     ComVer, EnvLockfile, Lockfile, LockfileVersion, NextLockfile, ProjectSnapshot, Shape,
-    declares_next_format, extract_env_document, extract_main_document, from_json_str,
+    declares_next_format, extract_env_document, extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
-    is_json_document,
+    json_document::{from_json_str, is_json_document},
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
 };
