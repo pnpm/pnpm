@@ -85,6 +85,21 @@ test('an install that fetches a missing slot also repairs a slot missing a depen
   expect(fs.existsSync(path.join(childLink, 'package.json'))).toBeTruthy()
 })
 
+test('a frozen reinstall re-imports a slot package that has no package.json', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = { dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const opts = testDefaults({ enableGlobalVirtualStore: true, virtualStoreDir: globalVirtualStoreDir })
+  await install(manifest, opts)
+  const [pkgInGvs] = readSlotPackageDirs(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  // As an import that did not finish leaves the package directory.
+  fs.rmSync(path.join(pkgInGvs, 'package.json'))
+
+  await install(manifest, { ...opts, frozenLockfile: true })
+
+  expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
+})
+
 test('reinstall from warm global virtual store after deleting node_modules', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')

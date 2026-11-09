@@ -176,9 +176,7 @@ async function checkPkgDirReuse (opts: LockfileToDepGraphOptions, check: PkgDirC
   if (
     check.isUnchanged &&
     equals(check.currentPkgSnapshot!.optionalDependencies, check.pkgSnapshot.optionalDependencies) &&
-    await isPkgDirReusable(check, dirExists, () => {
-      brokenModulesLogger.debug({ missing: check.dir })
-    })
+    await isUnchangedPkgDirReusable(opts, check, dirExists)
   ) {
     return 'reusable'
   }
@@ -215,9 +213,20 @@ async function pathExistsOrLogMissing (dir: string): Promise<boolean> {
   return dirExists
 }
 
-async function isPkgDirReusable (check: PkgDirCheck, dirExists: boolean | undefined, onMissingDir?: () => void): Promise<boolean> {
-  if (dirExists ?? await pathExists(check.dir)) return true
-  onMissingDir?.()
+/**
+ * Whether the directory of a package the current lockfile already records can
+ * be reused. Under the global virtual store it must hold a placed package, and
+ * a package this install builds goes through the import, which decides whether
+ * its build runs again.
+ */
+async function isUnchangedPkgDirReusable (opts: LockfileToDepGraphOptions, check: PkgDirCheck, dirExists: boolean | undefined): Promise<boolean> {
+  if (opts.enableGlobalVirtualStore) {
+    if (check.buildsInThisInstall) return false
+    if (await isGlobalVirtualStorePackagePlaced(check.dir)) return true
+  } else if (dirExists ?? await pathExists(check.dir)) {
+    return true
+  }
+  brokenModulesLogger.debug({ missing: check.dir })
   return false
 }
 
