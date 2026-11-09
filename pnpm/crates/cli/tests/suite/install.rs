@@ -103,7 +103,8 @@ fn should_install_dependencies() {
     drop((root, mock_instance));
 }
 
-/// Files outside materialized package slots and project registrations.
+/// CAFS file names encode executable modes; materialized package files do not.
+/// Project-registration names depend on the temporary project path.
 fn store_files_without_materializations(store_dir: &Path) -> Vec<String> {
     get_all_files(store_dir)
         .into_iter()
