@@ -78,6 +78,18 @@ impl ConfigDependencyVerification<'_> {
         }
         self.default_registry()
     }
+
+    /// Registry serving `name` and the tarball layout it declares.
+    pub(crate) fn tarball_url_options(&self, name: &str) -> pnpm_lockfile::TarballUrlOptions<'_> {
+        let registry = self.pick_registry(name);
+        pnpm_lockfile::TarballUrlOptions {
+            registry,
+            server_type: pnpm_lockfile::registry_server_type(
+                self.registry_options_by_url,
+                registry,
+            ),
+        }
+    }
 }
 
 impl ConfigDepsInstallOptions<'_> {

@@ -124,7 +124,10 @@ struct Harness {
 }
 
 fn harness() -> Harness {
-    let registry_url = TestRegistry::start().url().to_string();
+    harness_for(TestRegistry::start().url().to_string())
+}
+
+fn harness_for(registry_url: String) -> Harness {
     let mut registries = std::collections::HashMap::new();
     registries.insert("default".to_string(), registry_url.clone());
     let store_root = TempDir::new().unwrap();
@@ -355,5 +358,7 @@ mod lockfile;
 mod security;
 
 mod streaming;
+
+mod server_type;
 
 mod release_age;

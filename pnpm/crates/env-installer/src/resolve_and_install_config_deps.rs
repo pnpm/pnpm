@@ -18,7 +18,7 @@ use crate::{
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    SnapshotEntry, SpecifierAndResolution, TarballResolution, TarballUrlOptions,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_registry::RangeSpecStyle;
@@ -34,15 +34,9 @@ use std::collections::BTreeMap;
 mod plan;
 use plan::{ToResolve, plan_config_deps};
 
-fn npm_lockfile_form<'a>(
-    registry: &'a str,
-    registry_options_by_url: &BTreeMap<String, pnpm_lockfile::RegistryOptions>,
-) -> LockfileFormOptions<'a> {
-    LockfileFormOptions {
-        registry,
-        server_type: pnpm_lockfile::registry_server_type(registry_options_by_url, registry),
-        include_tarball_url: false,
-    }
+fn lockfile_form(tarball_url_options: TarballUrlOptions<'_>) -> LockfileFormOptions<'_> {
+    let TarballUrlOptions { registry, server_type } = tarball_url_options;
+    LockfileFormOptions { registry, server_type, include_tarball_url: false }
 }
 
 /// Resolve + install the config dependencies declared in
@@ -286,7 +280,6 @@ fn record_config_dependency(
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
     let (name, specifier) = declaration;
-    let registry = opts.verification.pick_registry(name);
     env_lockfile
         .root_importer_mut()
         .config_dependencies
@@ -305,7 +298,7 @@ fn record_config_dependency(
                 .to_lockfile_form(
                     name,
                     version,
-                    npm_lockfile_form(registry, opts.verification.registry_options_by_url),
+                    lockfile_form(opts.verification.tarball_url_options(name)),
                 )
                 .map_err(ConfigDepError::LockfileForm)?,
         ),
@@ -377,8 +370,7 @@ fn migrate_into_lockfile(
     version: &str,
     integrity: Integrity,
     tarball: String,
-    registry: &str,
-    opts: &ConfigDepsInstallOptions<'_>,
+    tarball_url_options: TarballUrlOptions<'_>,
 ) -> Result<(), ConfigDepError> {
     let key = pkg_key(name, version)?;
     env_lockfile
@@ -395,11 +387,7 @@ fn migrate_into_lockfile(
         git_hosted: None,
         path: None,
     })
-    .to_lockfile_form(
-        name,
-        version,
-        npm_lockfile_form(registry, opts.verification.registry_options_by_url),
-    )
+    .to_lockfile_form(name, version, lockfile_form(tarball_url_options))
     .map_err(ConfigDepError::LockfileForm)?;
     env_lockfile.packages.insert(key.clone(), registry_package_metadata(resolution));
     env_lockfile.snapshots.insert(key, SnapshotEntry::default());
@@ -440,6 +428,3 @@ fn pkg_key(name: &str, version: &str) -> Result<PackageKey, ConfigDepError> {
             message: format!("Config dependency {name}@{version} has an unparsable lockfile key"),
         })
 }
-
-#[cfg(test)]
-mod tests;

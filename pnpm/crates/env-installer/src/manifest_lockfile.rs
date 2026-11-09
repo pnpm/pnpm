@@ -1,6 +1,6 @@
 use pnpm_lockfile::{
     BundledDependencies, LockfileFormError, LockfileFormOptions, PackageMetadata,
-    PeerDependencyMeta, StringOrList,
+    PeerDependencyMeta, StringOrList, TarballUrlOptions,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
@@ -10,11 +10,11 @@ pub(crate) fn package_metadata(
     name: &str,
     version: &str,
     result: &ResolveResult,
-    registry: &str,
-    server_type: Option<pnpm_lockfile::RegistryServerType>,
+    tarball_url_options: TarballUrlOptions<'_>,
     lockfile_include_tarball_url: bool,
 ) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = result.package.manifest.as_deref();
+    let TarballUrlOptions { registry, server_type } = tarball_url_options;
     Ok(PackageMetadata {
         resolution: result.resolution.to_lockfile_form(
             name,

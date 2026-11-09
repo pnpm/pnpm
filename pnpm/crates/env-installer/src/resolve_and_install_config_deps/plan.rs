@@ -89,8 +89,8 @@ fn plan_detailed(
     let Some(tarball) = detail.tarball.clone() else {
         return Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) });
     };
-    let registry = opts.verification.pick_registry(name);
-    migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry, opts)?;
+    let tarball_url_options = opts.verification.tarball_url_options(name);
+    migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, tarball_url_options)?;
     Ok(ConfigDepPlan::Migrated)
 }
 

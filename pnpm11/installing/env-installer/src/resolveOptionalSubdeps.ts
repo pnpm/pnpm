@@ -1,21 +1,18 @@
 
-import { getRegistryServerType } from '@pnpm/config.normalize-registries'
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { isError, PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import type { ResolvedDependencies } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
-import type { DependencyManifest, RegistriesByScope, RegistryContext } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import semver from 'semver'
 
 import type { ResolveConfigDep } from './createConfigDepResolvers.js'
+import { type ConfigDepRegistryOpts, pickTarballUrlOptions } from './pickTarballUrlOptions.js'
 
-export interface ResolveOptionalSubdepsOpts {
+export interface ResolveOptionalSubdepsOpts extends ConfigDepRegistryOpts {
   envLockfile: EnvLockfile
   lockfileDir: string
-  registriesByScope: RegistriesByScope
-  registryOptionsByUrl?: RegistryContext['registryOptionsByUrl']
   resolveFromNpm: ResolveConfigDep
 }
 
@@ -69,14 +66,13 @@ async function resolveOptionalSubdep (ctx: OptionalSubdepContext, subdepName: st
     )
   }
   const subdepVersion = resolution.manifest.version
-  const registry = pickRegistryForPackage(opts.registriesByScope, subdepName)
   const subdepKey = `${subdepName}@${subdepVersion}`
 
   opts.envLockfile.packages[subdepKey] = {
     resolution: toLockfileResolution(
       { name: subdepName, version: subdepVersion },
       resolution.resolution,
-      { registry, serverType: getRegistryServerType(opts, registry) }
+      pickTarballUrlOptions(opts, subdepName)
     ),
     ...pickPlatformFields(resolution.manifest),
   }
