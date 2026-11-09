@@ -19,8 +19,12 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pnpm_graph_hasher::format_global_virtual_store_path`]: pnpm_graph_hasher::format_global_virtual_store_path
 
+pub use graph_hash::BuildGating;
+
 mod graph_hash;
+mod staging;
 use graph_hash::GvsHasher;
+use staging::new_staging_token;
 
 use crate::{
     AllowBuildPolicy,
@@ -91,6 +95,10 @@ pub struct VirtualStoreLayout {
     /// lockfile context, in which case `link:` dependencies inside a
     /// slot are left unlinked exactly as before.
     lockfile_dir: Option<PathBuf>,
+
+    /// Names this install's staging directories, so they never collide
+    /// with another install's. See [`Self::staging_package_dir`].
+    staging_token: String,
 }
 
 impl VirtualStoreLayout {
@@ -115,6 +123,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: None,
             virtual_store_dir_max_length,
             lockfile_dir: None,
+            staging_token: new_staging_token(),
         }
     }
 
@@ -193,6 +202,7 @@ impl VirtualStoreLayout {
                 gvs_suffixes: None,
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+                staging_token: new_staging_token(),
             };
         }
         Self::global(
@@ -201,7 +211,7 @@ impl VirtualStoreLayout {
             engine,
             snapshots,
             packages,
-            allow_build_policy,
+            BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
             &selected_platform(config),
         )
@@ -239,7 +249,7 @@ impl VirtualStoreLayout {
             snapshots,
             packages,
             engine,
-            allow_build_policy,
+            BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
             &platform,
         );
@@ -272,6 +282,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: Some(gvs_suffixes),
             virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            staging_token: new_staging_token(),
         }
     }
 
@@ -297,7 +308,7 @@ impl VirtualStoreLayout {
         engine: Option<&str>,
         snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-        allow_build_policy: Option<&AllowBuildPolicy>,
+        gating: BuildGating<'_>,
         lockfile_dir: Option<&Path>,
         platform: &VariantPlatforms,
     ) -> Self {
@@ -308,16 +319,18 @@ impl VirtualStoreLayout {
                 gvs_suffixes: Some(HashMap::new()),
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+                staging_token: new_staging_token(),
             };
         };
         let mut hasher =
-            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir, platform);
+            GvsHasher::new(snapshots, packages, engine, gating, lockfile_dir, platform);
         VirtualStoreLayout {
             engine_name: engine.map(str::to_owned),
             package_store_dir,
             gvs_suffixes: Some(hasher.suffixes(snapshots)),
             virtual_store_dir_max_length,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            staging_token: new_staging_token(),
         }
     }
 

@@ -5,6 +5,7 @@ use super::{
     cas_paths_key, requires_build_from_cas_paths, run_checked,
     slot_linking::{LinkSlotsParallel, link_cold_chunk},
     snapshot_needs_build_marker,
+    warm::SlotBuilds,
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError};
 use futures_util::{StreamExt, stream::FuturesUnordered};
@@ -19,7 +20,6 @@ use pnpm_tarball::{PrefetchResult, pending_progress_key};
 use std::{
     collections::{HashMap, HashSet},
     ops::ControlFlow,
-    path::Path,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -30,7 +30,7 @@ pub(super) struct ColdInputs<'i, 'a> {
     pub(super) wanted: WantedEntries<'a>,
     pub(super) store: CreateVirtualStoreStoreContext<'i>,
     pub(super) prefetched: &'i PrefetchResult,
-    pub(super) marker_source: Option<&'i tempfile::NamedTempFile>,
+    pub(super) slot_builds: Option<SlotBuilds<'i>>,
     pub(super) links: &'i LinkPlan<'a>,
 }
 /// A cold snapshot whose CAS paths are staged and whose slot link was
@@ -118,9 +118,7 @@ pub(super) struct ColdBatch<'a> {
     pub(super) cold: &'a [(&'a PackageKey, &'a SnapshotEntry)],
     pub(super) installer: InstallPackageBySnapshot<'a>,
     pub(super) reuse: SlotReuse<'a>,
-    /// Kept alive by the caller for the whole batch: every slot that
-    /// needs a build marker hard-links this one file.
-    pub(super) marker_source: Option<&'a tempfile::NamedTempFile>,
+    pub(super) slot_builds: Option<SlotBuilds<'a>>,
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     pub(super) link_template: &'a LinkSlotsParallel<'a>,
     pub(super) shared_packages: Option<&'a HashSet<&'a str>>,
@@ -160,7 +158,7 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
     let cold_template = LinkSlotsParallel { batch: "cold", ..*batch.link_template };
     let linker = ColdLinker {
         packages: batch.reuse.packages,
-        marker_path: batch.marker_source.map(tempfile::NamedTempFile::path),
+        slot_builds: batch.slot_builds,
         removed_aliases_by_key: batch.removed_aliases_by_key,
         template: &cold_template,
     };
@@ -231,7 +229,7 @@ where
 /// The pass-invariant inputs of the cold link passes.
 struct ColdLinker<'a> {
     packages: &'a HashMap<PackageKey, PackageMetadata>,
-    marker_path: Option<&'a Path>,
+    slot_builds: Option<SlotBuilds<'a>>,
     removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     template: &'a LinkSlotsParallel<'a>,
 }
@@ -291,7 +289,7 @@ impl ColdLinker<'_> {
         link_cold_chunk::<Reporter>(
             batch,
             self.packages,
-            self.marker_path,
+            self.slot_builds,
             self.removed_aliases_by_key,
             self.template,
         )

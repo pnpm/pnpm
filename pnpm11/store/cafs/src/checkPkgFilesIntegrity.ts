@@ -55,6 +55,8 @@ export interface VerifyResult {
   filesMap: FilesMap
   sideEffectsMaps?: Map<string, SideEffectsFilesMap>
   sideEffectsDiffs?: SideEffects
+  /** See `PackageFilesResponse.emptySideEffects`. */
+  emptySideEffects?: string[]
   remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
 }
 
@@ -187,8 +189,17 @@ function createPassedVerifyResult (
     filesMap,
     sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
     sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
+    emptySideEffects: listEmptySideEffects(pkgIndex.sideEffects),
     remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
   }
+}
+
+function listEmptySideEffects (sideEffects: SideEffects | undefined): string[] | undefined {
+  if (sideEffects == null) return undefined
+  const keys = Array.from(sideEffects)
+    .filter(([, diff]) => (diff.added == null || diff.added.size === 0) && (diff.deleted == null || diff.deleted.length === 0))
+    .map(([cacheKey]) => cacheKey)
+  return keys.length > 0 ? keys : undefined
 }
 
 function matchingSideEffects (

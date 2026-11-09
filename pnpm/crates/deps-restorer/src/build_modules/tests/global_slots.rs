@@ -10,40 +10,60 @@ use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tempfile::{TempDir, tempdir};
 
-/// `--ignore-scripts` patches a package whose build scripts it leaves for a
-/// later install in the same global-virtual-store slot, so the slot keeps
-/// its `.pnpm-needs-build` marker. Removing it would make that install skip
-/// the build, and a concurrent one mistake the slot for built.
 #[test]
-fn ignored_scripts_keep_the_marker_of_a_patched_slot() {
+fn a_staged_package_is_built_and_renamed_into_its_slot() {
     let slot = PatchedSlot::new();
-    fs::write(slot.pkg_dir.join(crate::NEEDS_BUILD_MARKER), "").expect("write marker");
+    slot.stage();
 
     slot.build().expect("build modules must complete cleanly");
 
-    assert!(slot.pkg_dir.join("patched.txt").exists(), "the patch must still be applied");
-    assert!(
-        slot.pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file(),
-        "the withheld build must keep the slot's marker",
-    );
+    assert!(slot.pkg_dir.join("patched.txt").exists(), "the patched package must be placed");
+    assert!(!slot.staging_dir().exists(), "the staging directory must be gone");
 }
 
-/// A marker that exists but cannot be read leaves the slot's state unknown,
-/// so the build fails instead of writing into a slot another install's
-/// build may have left half-built.
 #[test]
-fn an_unreadable_marker_fails_the_build() {
+fn a_placed_package_is_left_alone() {
     let slot = PatchedSlot::new();
-    fs::create_dir(slot.pkg_dir.join(crate::NEEDS_BUILD_MARKER)).expect("make marker unreadable");
+    slot.stage();
+    fs::create_dir_all(&slot.pkg_dir).expect("create pkg dir");
+    fs::write(slot.pkg_dir.join("package.json"), MANIFEST).expect("write manifest");
 
-    let error = slot.build().expect_err("an unreadable marker must fail the build");
+    slot.build().expect("build modules must complete cleanly");
 
-    assert!(matches!(error, BuildModulesError::ReadBuildMarker { .. }), "got {error:?}");
-    assert!(!slot.pkg_dir.join("patched.txt").exists(), "the patch must not be applied");
+    assert!(!slot.pkg_dir.join("patched.txt").exists(), "the placed package must not change");
+    assert!(!slot.staging_dir().exists(), "the staging directory must be gone");
 }
+
+#[test]
+fn a_built_package_replaces_an_unfinished_import() {
+    let slot = PatchedSlot::new();
+    slot.stage();
+    fs::create_dir_all(&slot.pkg_dir).expect("create pkg dir");
+    fs::write(slot.pkg_dir.join("partial.txt"), "").expect("write a partial import");
+
+    slot.build().expect("build modules must complete cleanly");
+
+    assert!(slot.pkg_dir.join("patched.txt").exists(), "the patched package must be placed");
+    assert!(!slot.pkg_dir.join("partial.txt").exists(), "the unfinished import must be gone");
+}
+
+#[test]
+fn a_failed_build_leaves_the_slot_without_its_package() {
+    let slot = PatchedSlot::new();
+    slot.stage();
+    fs::write(slot.root.path().join("is-positive.patch"), "not a patch").expect("break the patch");
+
+    slot.build().expect_err("a broken patch must fail the build");
+
+    assert!(!slot.pkg_dir.exists(), "the slot must not hold the package");
+    assert!(!slot.staging_dir().exists(), "the staging directory must be gone");
+}
+
+const MANIFEST: &str = r#"{"name":"is-positive","version":"1.0.0"}"#;
 
 /// A patched `is-positive@1.0.0` that requires a build, in a
-/// global-virtual-store slot, built with `--ignore-scripts`.
+/// global-virtual-store slot, built with `--ignore-scripts`, so only the
+/// patch writes to it.
 struct PatchedSlot {
     root: TempDir,
     layout: &'static VirtualStoreLayout,
@@ -57,9 +77,6 @@ impl PatchedSlot {
         let layout = gvs_layout(root.path());
         let pkg_key = key("is-positive", "1.0.0");
         let pkg_dir = virtual_store_dir_for_key(layout, &pkg_key);
-        fs::create_dir_all(&pkg_dir).expect("create pkg dir");
-        fs::write(pkg_dir.join("package.json"), r#"{"name":"is-positive","version":"1.0.0"}"#)
-            .expect("write manifest");
         fs::write(
             root.path().join("is-positive.patch"),
             "\
@@ -75,6 +92,18 @@ new file mode 100644
         Self { root, layout, pkg_key, pkg_dir }
     }
 
+    fn staging_dir(&self) -> PathBuf {
+        self.layout.staging_package_dir(&self.pkg_key)
+    }
+
+    /// Import the package into its staging directory, as the link phase
+    /// does for a package this install builds.
+    fn stage(&self) {
+        let staging = self.staging_dir();
+        fs::create_dir_all(&staging).expect("create staging dir");
+        fs::write(staging.join("package.json"), MANIFEST).expect("write manifest");
+    }
+
     fn build(&self) -> Result<crate::BuildModulesOutput, BuildModulesError> {
         let snapshots = HashMap::from([(self.pkg_key.clone(), SnapshotEntry::default())]);
         let requires_build = HashMap::from([(self.pkg_key.clone(), true)]);
@@ -87,6 +116,10 @@ new file mode 100644
                 patch_file_path: Some(self.root.path().join("is-positive.patch")),
                 key: "is-positive@1.0.0".to_string(),
             },
+        )]);
+        let packages = HashMap::from([(
+            self.pkg_key.without_peer(),
+            super::empty_side_effects::registry_package(),
         )]);
         let modules_dir = self.root.path().join("node_modules");
 
@@ -113,7 +146,7 @@ new file mode 100644
             },
             graph: crate::BuildGraphInputs {
                 snapshots: Some(&snapshots),
-                packages: None,
+                packages: Some(&packages),
                 patches: Some(&patches),
                 requires_build_by_snapshot: Some(&requires_build),
                 importers: &importers,

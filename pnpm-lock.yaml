@@ -1788,6 +1788,9 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
+      '@pnpm/building.during-install':
+        specifier: workspace:*
+        version: link:../during-install
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../pkg-requires-build
@@ -2063,9 +2066,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
-      '@pnpm/fs.dir-lock':
+      '@pnpm/fs.graceful-fs':
         specifier: workspace:*
-        version: link:../../fs/dir-lock
+        version: link:../../fs/graceful-fs
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
@@ -6417,9 +6420,6 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/fs.dir-lock':
-        specifier: workspace:*
-        version: link:../../fs/dir-lock
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -10291,6 +10291,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../deps/graph-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

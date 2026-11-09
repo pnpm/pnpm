@@ -13,8 +13,7 @@ pub use skills_policy::SkillsPolicy;
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
     PkgRoots, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
-    is_started_build_marker, mark_global_virtual_store_build_started, materialize_side_effects,
-    slot_carries_overlay,
+    materialize_side_effects,
 };
 
 mod build_requirements;
@@ -25,7 +24,7 @@ use build_requirements::{
 };
 
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
+    ImportIndexedDirError, ImportIndexedDirOpts, SkippedSnapshots,
     build_graph::build_graph,
     find_root_runtime_node_key, import_indexed_dir, store_index_key_for_resolution,
     version_policy::{
@@ -134,11 +133,10 @@ pub enum BuildModulesError {
         source: std::io::Error,
     },
 
-    /// A global-virtual-store slot's `.pnpm-needs-build` marker exists but
-    /// cannot be read, so whether another install's build left the slot
-    /// half-built is unknown.
-    #[display("Failed to read the build marker at {}: {source}", path.display())]
-    ReadBuildMarker {
+    /// A built package could not be renamed into its global virtual store
+    /// slot.
+    #[display("Failed to place the built package at {}: {source}", path.display())]
+    PlaceBuiltPackage {
         path: PathBuf,
         #[error(source)]
         source: std::io::Error,

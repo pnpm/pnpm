@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import {
+  buildsDependenciesDuringInstall,
   calcGraphNodeHash,
   type DepsGraph,
   type DepsStateCache,
@@ -26,7 +27,10 @@ export interface PkgSnapshotWithLocation {
 
 interface IteratePkgsForVirtualStoreOptions {
   allowBuild?: AllowBuild
+  deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  enableModulesDir?: boolean
+  ignoreScripts?: boolean
   lockfileDir: string
   virtualStoreDirMaxLength: number
   virtualStoreDir: string
@@ -64,6 +68,7 @@ function * iteratePkgsInGlobalVirtualStore (
 ): IterableIterator<PkgSnapshotWithLocation> {
   for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, {
     allowBuild: opts.allowBuild,
+    buildsRun: buildsDependenciesDuringInstall(opts),
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion,
     lockfileDir: opts.lockfileDir,

@@ -6,8 +6,8 @@ use std::{
 };
 
 /// How long an install waits for another install's linking phase under
-/// the same modules directory before it replaces unserialized, as the
-/// global virtual store slot lock does. A linking phase that runs
+/// the same modules directory before it replaces unserialized. A linking
+/// phase that runs
 /// longer than this, as a large cold install on a slow disk can, leaves
 /// the waiter to the tolerant swap, which accepts or replaces an
 /// equivalent concurrent import on its own.

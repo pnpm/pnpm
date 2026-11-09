@@ -5,11 +5,7 @@ use crate::{
 };
 use pnpm_store_dir::{SideEffectsDiff, SideEffectsOverlay};
 use pnpm_tarball::PrefetchResult;
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 fn prefetch() -> PrefetchResult {
     let files = HashMap::from([(
@@ -38,11 +34,9 @@ fn prefetch() -> PrefetchResult {
 #[test]
 fn restores_an_empty_row_from_the_package_files_only_when_asked() {
     let prefetch = prefetch();
-    let markers = HashSet::new();
     let allow_build_policy = AllowBuildPolicy::default();
     for empty_builds in [EmptyBuilds::Rerun, EmptyBuilds::Restore] {
         let rebuilds = Rebuilds {
-            markers: &markers,
             allow_build_policy: &allow_build_policy,
             known_requires_build: None,
             known_bins: None,

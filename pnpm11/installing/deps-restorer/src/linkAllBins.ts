@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { isPackagePlaced } from '@pnpm/building.during-install'
 import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/deps.graph-builder'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
@@ -29,6 +30,8 @@ export async function linkAllBins (
 }
 
 async function linkBinsOfDepNode (depNode: DependenciesGraphNode, depGraph: DependenciesGraph, opts: LinkAllBinsOptions): Promise<void> {
+  // The build links the bins of a staged package in its staging directory.
+  if (depNode.stagingDir != null) return
   const childrenToLink: Record<string, string> = opts.optional
     ? depNode.children
     : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
@@ -63,9 +66,9 @@ async function linkBinsOfChildren (children: DependenciesGraphNode[], binPath: s
   const pkgs = await Promise.all(
     children
       .filter(({ hasBin }) => hasBin)
-      .map(async ({ dir }) => ({
+      .map(async ({ dir, stagingDir }) => ({
         location: dir,
-        manifest: await readPackageJsonFromDir(dir) as DependencyManifest,
+        manifest: await readPackageJsonFromDir(stagingDir != null && !await isPackagePlaced(dir) ? stagingDir : dir) as DependencyManifest,
       }))
   )
 

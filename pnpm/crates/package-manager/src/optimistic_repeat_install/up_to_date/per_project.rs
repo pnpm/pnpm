@@ -187,7 +187,6 @@ fn check_project(
     let lockfile = lazy_wanted_lockfile(&record.config, root_dir);
     let context = FastPathContext {
         state_root: root_dir,
-        lockfile_root: root_dir,
         workspace_root: workspace.root,
         workspace_manifest: Some(workspace.manifest),
         lockfile: &lockfile,

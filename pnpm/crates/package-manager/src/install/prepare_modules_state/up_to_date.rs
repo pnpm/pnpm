@@ -1,6 +1,6 @@
 use super::super::{
     Arc, Config, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
-    ResolutionVerifier, Stage, StageLog, SystemTime, frozen_tree_intact, gvs_build_marker_present,
+    ResolutionVerifier, Stage, StageLog, SystemTime, frozen_tree_intact,
     has_newly_allowed_ignored_builds, hoisted_linker_workspace_links_intact,
     hoisted_workspace_packages_present, map_frozen_lockfile_error, modules_consistent_with,
     moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
@@ -85,7 +85,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
             context.recorded.state,
             config.extend_node_path,
         )
-        || !build_state_unchanged(context, current, modules)
+        || !build_state_unchanged(context, modules)
     {
         return None;
     }
@@ -158,7 +158,6 @@ fn bins_resolve_where_the_tree_is(context: &FrozenTreeUpToDate<'_>, current: &Lo
 /// records on its own.
 fn build_state_unchanged(
     context: &FrozenTreeUpToDate<'_>,
-    current: &Lockfile,
     modules: &pnpm_modules_yaml::ModulesLayout,
 ) -> bool {
     let config = context.tree.config;
@@ -169,16 +168,12 @@ fn build_state_unchanged(
         // hashes its slots on the set, so a flipped decision leaves the
         // tree in a slot this install would no longer produce.
         && !recorded_allow_builds_differ(modules, config)
-        // A build marker lives in the shared slot, outside every
-        // project-state input checked above. Let materialization inspect
-        // buildable and patched GVS slots instead of declaring the local
-        // tree complete from importer links alone.
-        && !gvs_build_marker_present(
-            current,
-            config,
-            context.tree.workspace_root,
-            context.repeat.effective_node_version,
-        )
+        // A global virtual store keeps a build an `--ignore-scripts`
+        // install withheld in the slot of the unbuilt package, so the tree
+        // moves to the built slot only through materialization.
+        && (!config.enable_global_virtual_store
+            || config.ignore_scripts
+            || modules.pending_builds.is_empty())
 }
 pub(super) fn modules_cache_prune_due(
     config: &Config,

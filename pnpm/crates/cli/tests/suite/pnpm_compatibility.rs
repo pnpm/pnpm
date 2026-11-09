@@ -378,11 +378,15 @@ fn same_global_virtual_store_layout_pure_js() {
 /// would split the same approved-build package across two slot
 /// directories.
 ///
+/// The in-repo pnpm v11 is required: a built package's slot hashes the
+/// `built` field, which released versions leave out.
+///
 /// Scripts run on both sides (neither install uses `--ignore-scripts`) —
 /// if pnpm skipped scripts while pacquet ran them the slot trees would
 /// diverge on the script-generated `generated-by-*.js` files even
 /// though the hash itself agreed.
 #[test]
+#[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
 fn same_global_virtual_store_layout_with_approved_postinstall() {
     let CommandTempCwd {
         pacquet,

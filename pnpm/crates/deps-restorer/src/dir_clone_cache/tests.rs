@@ -166,7 +166,7 @@ mod macos {
             Some("node-22"),
             Some(&snapshots),
             None,
-            None,
+            crate::BuildGating { policy: None, runs_builds: true },
             None,
             &crate::platform_selection::VariantPlatforms::host(),
         )

@@ -51,6 +51,7 @@ export function readPkgFromStoreIndex (message: ReadPkgFromCafsMessage): object 
         filesMap: verifyResult.filesMap,
         sideEffectsMaps: verifyResult.sideEffectsMaps,
         sideEffectsDiffs: verifyResult.sideEffectsDiffs,
+        emptySideEffects: verifyResult.emptySideEffects,
         remoteSideEffectsQuarantine: verifyResult.remoteSideEffectsQuarantine,
         resolvedFrom: 'store',
         requiresBuild,

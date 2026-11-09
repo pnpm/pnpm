@@ -24,8 +24,7 @@ pub(crate) use modules_state::{
 };
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub(crate) use run::{
-    check_strict_dep_builds_for_fast_path, gvs_build_markers_complete, hook_one_manifest,
-    register_workspace_in_store,
+    check_strict_dep_builds_for_fast_path, hook_one_manifest, register_workspace_in_store,
 };
 pub use workspace_state::build_workspace_packages_map;
 pub(crate) use workspace_state::{
@@ -134,7 +133,6 @@ use lockfile_freshness::{
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
     build_modules_manifest, current_contains_ignored_build, drain_settled_projects,
-    gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     has_newly_allowed_ignored_builds, keep_recorded_layout, manifest_string_field,
     merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,
     project_requires_implicit_gyp_build, recorded_allow_builds_differ, refuse_drifted_modules_dir,

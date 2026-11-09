@@ -1,6 +1,9 @@
 use crate::{InUse, StoreDir, register_project};
 use pnpm_fs::symlink_dir;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
 
 /// Helper: lay out a slot under
@@ -324,4 +327,18 @@ fn prune_keeping_keeps_in_use_files_and_their_rows() {
         .keys()
         .unwrap();
     assert_eq!(keys, ["in-use"]);
+}
+
+#[test]
+fn a_slot_package_dir_sits_under_its_scope() {
+    let slot = Path::new("/links/@scope/pkg/1.0.0/hash");
+    assert_eq!(
+        super::slot_package_dir(slot, Path::new("@scope/pkg/1.0.0")),
+        slot.join("node_modules/@scope/pkg"),
+    );
+    assert_eq!(
+        super::slot_package_dir(slot, Path::new("@/pkg/1.0.0")),
+        slot.join("node_modules/pkg"),
+        "the `@` scope of an unscoped package is a store directory, not a slot one",
+    );
 }

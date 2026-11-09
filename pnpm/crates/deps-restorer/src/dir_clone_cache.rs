@@ -155,7 +155,10 @@ impl<'install> DirCloneCache<'install> {
                 engine,
                 snapshots,
                 packages,
-                allow_build_policy,
+                gating: crate::BuildGating {
+                    policy: allow_build_policy,
+                    runs_builds: !config.ignore_scripts,
+                },
                 lockfile_dir,
                 platform: crate::virtual_store_layout::selected_platform(config),
             },
@@ -370,7 +373,7 @@ struct CanonicalLayoutInputs<'install> {
     engine: EngineNameSource,
     snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
-    allow_build_policy: Option<&'install AllowBuildPolicy>,
+    gating: crate::BuildGating<'install>,
     lockfile_dir: Option<&'install Path>,
     platform: VariantPlatforms,
 }
@@ -387,7 +390,7 @@ impl CanonicalLayoutInputs<'_> {
             engine.as_deref(),
             self.snapshots,
             self.packages,
-            self.allow_build_policy,
+            self.gating,
             self.lockfile_dir,
             &self.platform,
         )

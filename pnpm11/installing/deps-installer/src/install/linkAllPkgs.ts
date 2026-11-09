@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { createStagingToken, getCacheRow, selectImportDir } from '@pnpm/building.during-install'
 import { reportPackageImported } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
@@ -45,12 +46,15 @@ export interface LinkAllPkgsOptions {
 }
 
 interface ImportContext {
+  /** Names this install's global virtual store staging directories. */
+  stagingToken?: string
   opts: LinkAllPkgsOptions
   restorer: RemoteSideEffectsRestorer<DepPath> | undefined
   storeController: StoreController
 }
 
 type FetchedFiles = Awaited<ReturnType<DependenciesGraphNode['fetching']>>['files']
+type ImportPackageResult = Awaited<ReturnType<StoreController['importPackage']>>
 
 export async function linkAllPkgs (
   storeController: StoreController,
@@ -71,34 +75,63 @@ export async function linkAllPkgs (
     supportedArchitectures: opts.supportedArchitectures,
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
+  const stagingToken = opts.enableGlobalVirtualStore ? createStagingToken() : undefined
   await Promise.all(
-    depNodes.map(async (depNode) => importDepNode(depNode, { opts, restorer, storeController }))
+    depNodes.map(async (depNode) => importDepNode(depNode, { opts, restorer, stagingToken, storeController }))
   )
 }
 
 async function importDepNode (depNode: DependenciesGraphNode, context: ImportContext): Promise<void> {
-  const { opts, storeController } = context
+  const { opts } = context
   const { files } = await depNode.fetching()
   depNode.requiresBuild = files.requiresBuild
   const sideEffectsCacheKey = await getSideEffectsCacheKey(depNode, files, context)
-  const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-    disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-    filesResponse: files,
-    force: opts.force,
-    safeToSkip: opts.enableGlobalVirtualStore,
-    sideEffectsCacheKey,
-    requiresBuild: depNode.patch != null || depNode.requiresBuild,
-  })
-  if (importMethod) {
+  const imported = await importIntoSlot(depNode, { files, sideEffectsCacheKey }, context)
+  if (imported?.importMethod) {
     reportPackageImported({
-      method: importMethod,
+      method: imported.importMethod,
       requester: opts.lockfileDir,
-      to: depNode.dir,
+      to: imported.dir,
     })
   }
-  depNode.isBuilt = isBuilt
+  depNode.isBuilt = imported?.isBuilt ?? true
 
   await linkSelfDependency(depNode, opts.depGraph)
+}
+
+/** Resolves to `undefined` when the global virtual store slot already holds the package. See `selectImportDir`. */
+async function importIntoSlot (
+  depNode: DependenciesGraphNode,
+  { files, sideEffectsCacheKey }: { files: FetchedFiles, sideEffectsCacheKey: string | undefined },
+  { opts, stagingToken, storeController }: ImportContext
+): Promise<(ImportPackageResult & { dir: string }) | undefined> {
+  const cacheRow = getCacheRow(files, sideEffectsCacheKey)
+  const target = await selectImportDir(depNode, { cacheRow, opts: { ...opts, stagingToken } })
+  if (target == null) return undefined
+  if (target.dir !== depNode.dir) {
+    depNode.stagingDir = target.dir
+    depNode.buildsForOutsideEffects = target.buildsForOutsideEffects
+    return {
+      ...await storeController.importPackage(target.dir, {
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        filesResponse: files,
+        force: true,
+        requiresBuild: true,
+      }),
+      dir: target.dir,
+    }
+  }
+  return {
+    ...await storeController.importPackage(depNode.dir, {
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      filesResponse: files,
+      force: opts.force,
+      requiresBuild: depNode.patch != null || depNode.requiresBuild,
+      safeToSkip: opts.enableGlobalVirtualStore,
+      sideEffectsCacheKey: cacheRow === 'empty' ? undefined : sideEffectsCacheKey,
+    }),
+    dir: depNode.dir,
+  }
 }
 
 /**
@@ -121,7 +154,8 @@ async function getSideEffectsCacheKey (
     version: depNode.version,
   })
   if (remoteCacheKey != null) return remoteCacheKey
-  if (!opts.sideEffectsCacheRead || !files.sideEffectsMaps || isEmpty(files.sideEffectsMaps)) return remoteCacheKey
+  const hasLocalSideEffects = (files.sideEffectsMaps != null && !isEmpty(files.sideEffectsMaps)) || files.emptySideEffects != null
+  if (!opts.sideEffectsCacheRead || !hasLocalSideEffects) return remoteCacheKey
   if (opts.allowBuild?.(depNode.depPath) !== true) return remoteCacheKey
   const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
     includeDepGraphHash: shouldIncludeDepGraphHash({
@@ -141,6 +175,6 @@ async function linkSelfDependency (depNode: DependenciesGraphNode, depGraph: Dep
   if (!selfDep) return
   const pkg = depGraph[selfDep]
   if (!pkg || !pkg.installable && pkg.optional) return
-  const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
+  const targetModulesDir = path.join(depNode.stagingDir ?? path.join(depNode.modules, depNode.name), 'node_modules')
   await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
 }

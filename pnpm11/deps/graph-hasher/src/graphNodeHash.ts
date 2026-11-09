@@ -28,6 +28,29 @@ export interface GraphNodeHashOptions {
    * hashing. Omitting it is only safe for a lockfile known to contain neither.
    */
   lockfileDir?: string
+  /**
+   * Whether the install builds the packages it places. See
+   * {@link buildsDependenciesDuringInstall}. Defaults to `true`.
+   */
+  buildsRun?: boolean
+}
+
+/**
+ * Whether an install builds dependencies into the global virtual store slots
+ * it places. An install that defers its builds to a rebuild still builds the
+ * packages it places in slots keyed as built. An install without a modules
+ * directory, such as one that only populates the store, builds nothing. Every
+ * caller that locates a slot an install placed passes the install's own
+ * options.
+ */
+export function buildsDependenciesDuringInstall (opts: {
+  deferDependencyBuilds?: boolean
+  enableGlobalVirtualStore?: boolean
+  enableModulesDir?: boolean
+  ignoreScripts?: boolean
+}): boolean {
+  if (opts.enableModulesDir === false) return false
+  return !opts.ignoreScripts || (opts.enableGlobalVirtualStore === true && opts.deferDependencyBuilds === true)
 }
 
 export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
@@ -48,6 +71,7 @@ export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
     graph,
     cache: {},
     buildRequiredDepPaths,
+    buildsRun: opts.buildsRun,
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion: opts.nodeVersion,
     lockfileDir: opts.lockfileDir,
@@ -61,11 +85,13 @@ export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<Meta extends PkgMeta> (
-  { graph, cache, buildRequiredDepPaths, supportedArchitectures, nodeVersion, lockfileDir }: {
+  { graph, cache, buildRequiredDepPaths, buildsRun, supportedArchitectures, nodeVersion, lockfileDir }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
     /** See computeBuildRequiredDepPaths. */
     buildRequiredDepPaths?: Set<DepPath>
+    /** See GraphNodeHashOptions.buildsRun. */
+    buildsRun?: boolean
     supportedArchitectures?: SupportedArchitectures
     /** See GraphNodeHashOptions.nodeVersion. */
     nodeVersion?: string
@@ -80,7 +106,9 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
   // to build or transitively depend on a package that is allowed to build.
   // This makes GVS hashes engine-agnostic for pure-JS packages,
   // so they survive Node.js upgrades and architecture changes.
-  const includeEngine = buildRequiredDepPaths === undefined || buildRequiredDepPaths.has(depPath)
+  const buildRequired = buildRequiredDepPaths?.has(depPath) === true
+  const includeEngine = buildRequired || buildRequiredDepPaths === undefined
+  const built = buildRequired && buildsRun !== false
   // A snapshot that declares engines.runtime carries the desugared
   // node@runtime:<version> pin as a child; that's the Node the bin
   // linker spawns for its lifecycle scripts, so it has to drive the
@@ -99,9 +127,14 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
   // know that the package is a local directory, so a caller that leaves
   // lockfileDir out still gets a well-formed path.
   const project = isLocalDirectory ? lockfileDir : undefined
-  const hexDigest = project == null
-    ? hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
-    : hashObjectWithoutSorting({ engine, deps, project }, { encoding: 'hex' })
+  // A built slot holds the package an install renames into place once its
+  // build finishes, so it never shares a path with the pristine package.
+  const hexDigest = hashObjectWithoutSorting({
+    engine,
+    deps,
+    ...(built ? { built } : {}),
+    ...(project == null ? {} : { project }),
+  }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, isLocalDirectory ? LOCAL_DIRECTORY_SEGMENT : version, hexDigest)
 }
 

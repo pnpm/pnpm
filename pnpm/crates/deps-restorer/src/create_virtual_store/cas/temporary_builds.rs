@@ -107,15 +107,7 @@ fn candidates(
         .keys()
         .filter(|key| fetched.requires_build_by_snapshot.get(*key) == Some(&true))
     {
-        if !installer.ctx.config.force
-            && crate::build_modules::slots::built_slot_is_complete(
-                &crate::build_modules::slots::virtual_store_dir_for_key(
-                    installer.ctx.linker.layout,
-                    key,
-                ),
-            )
-            .map_err(CreateVirtualStoreError::LoadedBuild)?
-        {
+        if !installer.ctx.config.force && placed(installer.ctx.linker.layout, key)? {
             continue;
         }
         let mut closure = HashMap::new();
@@ -168,4 +160,14 @@ async fn materialize<Report: Reporter>(
         link_concurrency_probe: None,
     };
     temporary.run_retaining::<Report>(installer.entries.snapshots, &mut None).await
+}
+
+/// Whether `key`'s global virtual store slot holds its package.
+fn placed(
+    layout: &crate::VirtualStoreLayout,
+    key: &PackageKey,
+) -> Result<bool, CreateVirtualStoreError> {
+    let package_dir = crate::build_modules::slots::virtual_store_dir_for_key(layout, key);
+    crate::build_modules::slots::package_is_placed(&package_dir)
+        .map_err(|source| CreateVirtualStoreError::LoadedBuildIo { path: package_dir, source })
 }

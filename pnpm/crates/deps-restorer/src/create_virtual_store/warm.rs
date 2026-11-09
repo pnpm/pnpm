@@ -17,7 +17,6 @@ use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
-    path::Path,
     sync::Arc,
 };
 
@@ -132,23 +131,35 @@ pub(super) fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool 
 pub(super) fn snapshot_needs_build_marker(snapshot_key: &PackageKey, requires_build: bool) -> bool {
     requires_build || crate::snapshot_has_patch(snapshot_key)
 }
-pub(super) fn gvs_slot_needs_rebuild(
-    layout: &crate::VirtualStoreLayout,
-    allow_build_policy: &crate::AllowBuildPolicy,
-    snapshot_key: &PackageKey,
-) -> bool {
-    if !layout.enable_global_virtual_store() {
-        return false;
+/// The builds that place packages into global virtual store slots. A slot
+/// whose package one of them places gets only its dependency links from
+/// the link phase: the build phase builds the package in a private
+/// directory and renames it into the slot.
+#[derive(Clone, Copy)]
+pub(super) struct SlotBuilds<'a> {
+    pub(super) allow_build_policy: &'a crate::AllowBuildPolicy,
+    pub(super) ignore_scripts: bool,
+}
+impl<'a> SlotBuilds<'a> {
+    /// `None` outside a writable global virtual store.
+    pub(super) fn of(
+        config: &pnpm_config::Config,
+        layout: &crate::VirtualStoreLayout,
+        allow_build_policy: &'a crate::AllowBuildPolicy,
+    ) -> Option<Self> {
+        (layout.enable_global_virtual_store() && !config.frozen_store).then_some(Self {
+            allow_build_policy,
+            ignore_scripts: config.ignore_scripts,
+        })
     }
-    let can_build = crate::snapshot_has_patch(snapshot_key)
-        || allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
-    can_build
-        && layout
-            .slot_dir(snapshot_key)
-            .join("node_modules")
-            .join(snapshot_key.name.to_string())
-            .join(crate::NEEDS_BUILD_MARKER)
-            .is_file()
+
+    pub(super) fn places(self, snapshot_key: &PackageKey, requires_build: bool) -> bool {
+        crate::snapshot_has_patch(snapshot_key)
+            || (requires_build
+                && !self.ignore_scripts
+                && self.allow_build_policy.check(&snapshot_key.without_peer().to_string())
+                    == Some(true))
+    }
 }
 /// The pristine CAS paths of every warm snapshot whose package may publish
 /// shared side effects.
@@ -180,7 +191,7 @@ pub(super) fn warm_cas_paths_by_pkg_id(warm: &[partition::WarmEntry<'_>]) -> Cas
 pub(super) struct WarmLinkBatch<'a> {
     pub(super) reuse: SlotReuse<'a>,
     pub(super) is_hoisted: bool,
-    pub(super) needs_build_marker_source: Option<&'a Path>,
+    pub(super) slot_builds: Option<SlotBuilds<'a>>,
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     pub(super) template: &'a LinkSlotsParallel<'a>,
 }
@@ -207,9 +218,11 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                     is_mutable: false,
                     source_exists: true,
                     force: force_import,
-                    build_marker: needs_build_marker
-                        .then_some(batch.needs_build_marker_source)
-                        .flatten(),
+                    // Unpatched, a package needs a build only when it
+                    // requires one.
+                    awaits_build: batch.slot_builds.is_some_and(|builds| {
+                        builds.places(snapshot_key, *needs_build_marker)
+                    }),
                     needs_build: *needs_build_marker,
                 },
                 snapshot_key,

@@ -271,12 +271,37 @@ fn remove_unreachable_slots(
     let mut removed = 0usize;
     for hash in &hashes {
         if reachable.contains(&version_rel.join(hash)) {
+            remove_abandoned_staging(&slot_package_dir(&version_dir.join(hash), version_rel))?;
             continue;
         }
         remove_slot_dir(&version_dir.join(hash))?;
         removed += 1;
     }
     Ok((removed, removed == hashes.len() && !hashes.is_empty()))
+}
+
+/// The package directory of the slot at `slot_dir`, whose
+/// `<scope>/<name>/<version>` path is `version_rel`. An unscoped package
+/// sits under the `@` scope.
+fn slot_package_dir(slot_dir: &Path, version_rel: &Path) -> PathBuf {
+    let mut components = version_rel.components();
+    let (Some(scope), Some(name)) = (components.next(), components.next()) else {
+        return slot_dir.join("node_modules");
+    };
+    let modules_dir = slot_dir.join("node_modules");
+    if scope.as_os_str() == "@" {
+        modules_dir.join(name)
+    } else {
+        modules_dir.join(scope).join(name)
+    }
+}
+
+/// Remove what installs that died left in a reachable slot: the staging
+/// directories beside its package directory.
+fn remove_abandoned_staging(package_dir: &Path) -> Result<(), PruneError> {
+    crate::staging::remove_abandoned_staging_dirs(package_dir)
+        .map(drop)
+        .map_err(|error| PruneError::RemoveSlot { path: package_dir.to_path_buf(), error })
 }
 
 /// Returns the names of every directory entry under `dir`, swallowing

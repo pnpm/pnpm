@@ -374,6 +374,8 @@ fn compute_engine_slot(
     cfg.global_virtual_store_dir = config.store_dir.links();
     cfg.allow_builds.clear();
     cfg.disable_agent_skills();
+    // The same settings as the install that materializes the slot.
+    cfg.ignore_scripts = true;
     for name in packages.pinned {
         cfg.allow_builds.insert((*name).to_string(), true);
     }

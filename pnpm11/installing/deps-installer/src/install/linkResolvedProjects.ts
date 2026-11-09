@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { buildModules, type DepsStateCache } from '@pnpm/building.during-install'
+import { buildModules, buildsDependenciesDuringInstall, type DepsStateCache } from '@pnpm/building.during-install'
 import { isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { LAYOUT_VERSION } from '@pnpm/constants'
@@ -231,7 +231,7 @@ async function buildNewDependencies (
         newDepPaths.filter((depPath) => resolution.dependenciesGraph[depPath].requiresBuild)
       )
   }
-  if (opts.ignoreScripts && Object.keys(opts.patchedDependencies ?? {}).length === 0) return { ignoredBuilds }
+  if (!buildsDependenciesDuringInstall(opts) && Object.keys(opts.patchedDependencies ?? {}).length === 0) return { ignoredBuilds }
   // postinstall hooks
   const { ignoredBuilds: ignoredBuildsFromBuild, builtDepPaths, builtPackageDirs } = await buildDependencies(step, {
     hoistedDependencies,
@@ -294,7 +294,7 @@ function describeBuildEnvironment (
     extraEnv,
     hoistedDependencies,
     hoistedModulesDir: ctx.hoistedModulesDir,
-    ignoreScripts: opts.ignoreScripts,
+    ignoreScripts: !buildsDependenciesDuringInstall(opts),
     lockfileDir: ctx.lockfileDir,
     nodeVersion: findLockedRootNodeRuntime(resolution.newLockfile)?.version,
     optional: opts.include.optionalDependencies,
