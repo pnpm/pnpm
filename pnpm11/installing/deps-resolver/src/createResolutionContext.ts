@@ -23,6 +23,7 @@ type ResolutionPolicies = Pick<ResolutionContext,
 | 'engineStrict'
 | 'maximumPublishedBy'
 | 'publishedByExclude'
+| 'trustLockfile'
 | 'trustPolicy'
 | 'trustPolicyExclude'
 | 'trustPolicyIgnoreAfter'
@@ -118,6 +119,7 @@ function getResolutionPolicies (opts: ResolveDependenciesOptions): ResolutionPol
     engineStrict: opts.engineStrict,
     maximumPublishedBy: publishedBy,
     publishedByExclude,
+    trustLockfile: opts.trustLockfile,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

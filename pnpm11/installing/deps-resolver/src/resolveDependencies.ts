@@ -151,7 +151,8 @@ function extendWantedDependencies (
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
     ...pickRegistryContext(ctx),
-    resolvedDependencies: options.resolvedDependencies,
+    resolvedDependencies: options.resolvedDependencies ??
+      (options.parentPkg.resolvedVia === 'workspace' ? options.lockedDependencies : undefined),
     staleOverrideTargets: ctx.staleOverrideTargets,
   })
 }

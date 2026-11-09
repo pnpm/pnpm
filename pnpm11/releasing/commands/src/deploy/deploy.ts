@@ -194,7 +194,7 @@ async function deployWithoutSharedLockfile (
     // being included in the hoisted install. If project-2 is errantly hoisted
     // to the root node_modules dir, downstream logic will fail to inject it to
     // the deploy directory.
-    pruneLockfileImporters: true,
+    pruneLockfileImporters: opts.nodeLinker === 'hoisted',
     // The node_modules for a pnpm deploy should be self-contained. The global
     // virtual store would create symlinks outside of the deploy directory.
     enableGlobalVirtualStore: false,

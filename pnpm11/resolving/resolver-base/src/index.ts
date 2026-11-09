@@ -452,6 +452,7 @@ export interface ResolveOptions {
    * unrelated transitives to jump to their latest versions.
    */
   updateRequested?: boolean
+  trustLockfile?: boolean
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean

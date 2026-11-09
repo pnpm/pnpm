@@ -105,7 +105,7 @@ function workspacePackagesToTry (opts: ResolveFromNpmOptions): WorkspacePackages
 async function resolveNpmSpec (request: NpmSpecRequest): Promise<NpmResolveResult | WorkspaceResolveResult> {
   const { opts } = request
   const locked = await peekLockedPackageUnlessUpdating(request)
-  if (locked != null && (opts.publishedBy == null || locked.publishedAt != null)) {
+  if (locked != null && (opts.trustLockfile || opts.publishedBy == null || locked.publishedAt != null)) {
     return resolveFromLockedPackage(locked, opts)
   }
   const preferredWorkspaceResolution = resolveFromPreferredWorkspacePackage(request)
@@ -133,15 +133,14 @@ async function resolveNpmSpec (request: NpmSpecRequest): Promise<NpmResolveResul
 // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
 // This avoids the expensive metadata fetch from the registry.
 // We do this AFTER ensuring the spec is valid for this resolver to avoids hijacking other resolvers.
-// If publishedBy is set (resolutionMode=time-based or minimumReleaseAge is configured), we only take
-// the fast path when publishedAt is already known from the lockfile's `time:` block; otherwise we
-// fall through to a registry fetch so the cutoff isn't computed from missing data.
+// An untrusted pin needs its publish date to apply a configured release-age policy.
 async function peekLockedPackageUnlessUpdating ({ ctx, opts, spec, registry }: NpmSpecRequest): Promise<LockedPackage | undefined> {
   if (
     opts.currentPkg == null ||
     opts.update ||
+    opts.updateRequested ||
     opts.updateChecksums ||
-    opts.trustPolicy === 'no-downgrade'
+    (!opts.trustLockfile && opts.trustPolicy === 'no-downgrade')
   ) return undefined
   return peekLockedPackage(ctx, { spec, registry }, opts.currentPkg)
 }
@@ -158,7 +157,7 @@ function resolveFromLockedPackage (locked: LockedPackage, opts: ResolveFromNpmOp
     // resolver time, but the peek path skips the maturity check.
     // Report inline so the deps-resolver aggregator surfaces it
     // to the install command.
-    policyViolation: detectMinReleaseAgeViolation({
+    policyViolation: opts.trustLockfile ? undefined : detectMinReleaseAgeViolation({
       name: locked.manifest.name,
       version: locked.manifest.version,
       publishedAt: locked.publishedAt,

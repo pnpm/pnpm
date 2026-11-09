@@ -1,7 +1,6 @@
 export { checkPatchedDepPaths, type PatchedDepPathsStatus } from './checkPatchedDepPaths.js'
 export { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from './envLockfile.js'
 export { existsNonEmptyWantedLockfile } from './existsWantedLockfile.js'
-export { getLockfileImporterId } from './getLockfileImporterId.js'
 export { cleanGitBranchLockfiles, getGitBranchLockfileNamesSync } from './gitBranchLockfile.js'
 export { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
 export { getWantedLockfileName } from './lockfileName.js'
@@ -16,3 +15,4 @@ export {
 } from './write.js'
 export { extractMainDocument } from './yamlDocuments.js'
 export * from '@pnpm/lockfile.types'
+export { getLockfileImporterId } from '@pnpm/lockfile.utils'
