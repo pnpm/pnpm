@@ -35,7 +35,7 @@ export function readPkgFromStoreIndex (message: ReadPkgFromCafsMessage): object 
     ? checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
     : buildFileMapsFromIndex(storeDir, pkgFilesIndex)
   const bundledManifest = pkgFilesIndex.manifest
-  const requiresBuild = resolveRequiresBuild(pkgFilesIndex.requiresBuild, bundledManifest, verifyResult)
+  const requiresBuild = resolveRequiresBuild(pkgFilesIndex, verifyResult)
 
   return {
     status: 'success',
@@ -98,11 +98,11 @@ function isStoredPkgMismatch (manifest: BundledManifest | undefined, expectedPkg
  * before the refetch.
  */
 function resolveRequiresBuild (
-  stored: boolean | undefined,
-  bundledManifest: BundledManifest | undefined,
+  { requiresBuild: stored, requiresPrepare, manifest: bundledManifest }: PackageFilesIndex,
   { passed, filesMap }: VerifyResult
 ): boolean {
   const readManifest = (): DependencyManifest | undefined => passed ? readManifestFromCafs(filesMap) : undefined
+  if (requiresPrepare != null && bundledManifest == null) return pkgRequiresBuild(readManifest(), filesMap)
   if (stored == null) return pkgRequiresBuild(bundledManifest ?? readManifest(), filesMap)
   if (!stored || !storedRequiresBuildNeedsManifestCheck(bundledManifest, filesMap)) return stored
   const manifest = readManifest()
