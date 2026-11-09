@@ -875,7 +875,7 @@ test('virtualStoreOnly with enableModulesDir=false works when GVS is enabled', a
   expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
-test('virtualStoreOnly with enableModulesDir=false places packages that need a build in unbuilt slots', async () => {
+test('virtualStoreOnly with enableModulesDir=false places packages that need a build in slots of packages that are not built', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('gvs-no-modules')
   const manifest = { dependencies: { [BUILT_PKG]: '1.0.0' } }

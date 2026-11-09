@@ -11,7 +11,7 @@ import type { StrictBuildOptions } from './extendBuildOptions.js'
  * The `allowBuilds` policy for placing the installed graph when only some
  * packages are rebuilt. It allows the selected packages and the packages they
  * depend on, as the build policy does, and the packages already placed built.
- * Every other package stays unbuilt, so its build is left pending.
+ * Every other package is not built, so its build is left pending.
  */
 export async function getSelectionBuildPolicy (
   lockfile: LockfileObject,
