@@ -7,7 +7,7 @@ use super::{Map, Value, map_values, sort_by_priority, sort_deep_keys, sort_direc
 /// alphabetical, except the items of `snapshots`, which follow this order too,
 /// and the entries of `peerDependencies`, which keep `specifier` before
 /// `optional`.
-const NEXT_PACKAGE_KEYS: [&str; 18] = [
+const NEXT_PACKAGE_KEYS: [&str; 16] = [
     "resolution",
     "integrity",
     "version",
@@ -23,8 +23,6 @@ const NEXT_PACKAGE_KEYS: [&str; 18] = [
     "optional",
     "dependencies",
     "optionalDependencies",
-    "peers",
-    "transitivePeers",
     "snapshots",
 ];
 
@@ -52,11 +50,7 @@ fn sort_next_package(entry: Value) -> Value {
                         .collect(),
                 ),
                 (
-                    "peerDependencies"
-                    | "dependencies"
-                    | "optionalDependencies"
-                    | "peers"
-                    | "transitivePeers",
+                    "peerDependencies" | "dependencies" | "optionalDependencies",
                     Value::Object(entries),
                 ) => Value::Object(sort_direct_keys(entries)),
                 (_, value) => sort_deep_keys(value),

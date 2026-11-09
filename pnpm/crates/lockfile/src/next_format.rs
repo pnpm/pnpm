@@ -13,7 +13,7 @@
 //! builds the peer-suffixed ones back.
 
 pub use importer::{NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep};
-pub use package::{NextPackage, NextPackageOut};
+pub use package::{NextPackage, NextPackageOut, PeerDetails, PeerEntry};
 pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
 
@@ -34,6 +34,7 @@ mod package;
 mod parse;
 mod read;
 mod reference;
+mod snapshot_wire;
 mod tarjan;
 mod write;
 
@@ -73,45 +74,18 @@ pub type NextSnapshots = HashMap<PackageKey, Vec<NextSnapshotEntry>>;
 ///
 /// References carry no groups. `dependencies` and `optionalDependencies`
 /// hold only the package's own dependencies.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// Written and read through a wire form that puts both binding maps in one
+/// `peerDependencies` map.
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
+#[serde(from = "snapshot_wire::SnapshotWire")]
 pub struct NextSnapshotEntry {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
     pub dependencies: Option<HashMap<PkgName, NextRef>>,
-
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
     pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
-
     /// The package's own peers that are bound, linked next to it.
-    #[serde(
-        default,
-        rename = "peers",
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
     pub peer_dependencies: Option<HashMap<PkgName, NextRef>>,
-
     /// The peers bound below this package from outside it.
-    #[serde(
-        default,
-        rename = "transitivePeers",
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
     pub transitive_peer_dependencies: Option<HashMap<PkgName, NextRef>>,
-
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
 }
 
@@ -164,20 +138,24 @@ pub fn merge_packages(
 
 /// The peer-suffixed `packages` and the next format's `snapshots` an entry
 /// map holds.
-#[must_use]
 pub fn split_packages(
     merged: HashMap<PackageKey, NextPackage>,
-) -> (Option<HashMap<PackageKey, PackageMetadata>>, Option<NextSnapshots>) {
+) -> Result<SplitSections, NextFormatError> {
     use rayon::prelude::*;
     let (packages, snapshots): (Vec<_>, Vec<_>) = merged
         .into_par_iter()
         .map(|(key, package)| {
-            let (metadata, snapshots) = package.split();
-            (metadata.map(|metadata| (key.without_peer(), metadata)), (key, snapshots))
+            let (metadata, snapshots) = package.split(&key)?;
+            Ok((metadata.map(|metadata| (key.without_peer(), metadata)), (key, snapshots)))
         })
+        .collect::<Result<Vec<_>, NextFormatError>>()?
+        .into_iter()
         .unzip();
-    (Some(packages.into_iter().flatten().collect()), Some(snapshots.into_iter().collect()))
+    Ok((Some(packages.into_iter().flatten().collect()), Some(snapshots.into_iter().collect())))
 }
+
+/// The peer-suffixed `packages` and the next format's `snapshots`.
+pub type SplitSections = (Option<HashMap<PackageKey, PackageMetadata>>, Option<NextSnapshots>);
 
 /// The two sections that differ between the formats.
 #[derive(Debug, Clone, PartialEq)]
@@ -234,7 +212,7 @@ impl Lockfile {
     /// Fails when an importer's version does not follow from its specifier.
     pub fn from_next(next: NextLockfile) -> Result<Lockfile, NextFormatError> {
         let (packages, snapshots) = match next.packages {
-            Some(merged) => crate::parallel_parse::pool().install(|| split_packages(merged)),
+            Some(merged) => crate::parallel_parse::pool().install(|| split_packages(merged))?,
             None => (None, None),
         };
         let importers = next.importers

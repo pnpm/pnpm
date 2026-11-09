@@ -5,18 +5,59 @@
 //! No reference carries a peer or patch group.
 
 use crate::{PkgName, PkgNameVerPeer, SnapshotDepRef};
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize, Deserializer, Serialize,
+    de::{self, MapAccess, Visitor},
+};
 use std::collections::BTreeMap;
 
 /// The bindings that name a snapshot: the peer's name, and the reference the
 /// snapshot binds it to, without groups.
 pub type NamedBindings = BTreeMap<String, SnapshotDepRef>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum NextRef {
     Plain(SnapshotDepRef),
     Named { version: SnapshotDepRef, peers: NamedBindings },
+}
+
+/// The map form of a reference.
+#[derive(Deserialize)]
+struct NamedWire {
+    version: SnapshotDepRef,
+    peers: NamedBindings,
+}
+
+/// A string is a plain reference and a map a named one. Reading the two
+/// shapes directly spares serde the buffering an untagged enum needs, on
+/// every reference of the file.
+impl<'de> Deserialize<'de> for NextRef {
+    fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
+        struct RefVisitor;
+
+        impl<'de> Visitor<'de> for RefVisitor {
+            type Value = NextRef;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a version, or a map of version and peers")
+            }
+
+            fn visit_str<Error: de::Error>(self, text: &str) -> Result<NextRef, Error> {
+                SnapshotDepRef::try_from(std::borrow::Cow::Borrowed(text))
+                    .map(NextRef::Plain)
+                    .map_err(Error::custom)
+            }
+
+            fn visit_map<Map: MapAccess<'de>>(self, map: Map) -> Result<NextRef, Map::Error> {
+                let NamedWire { version, peers } =
+                    NamedWire::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                Ok(NextRef::Named { version, peers })
+            }
+        }
+
+        deserializer.deserialize_any(RefVisitor)
+    }
 }
 
 impl NextRef {

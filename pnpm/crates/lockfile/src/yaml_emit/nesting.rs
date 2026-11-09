@@ -28,24 +28,17 @@ pub(super) enum ValueStyle {
 }
 
 /// The maps the next lockfile format writes on their keys' lines: a
-/// `peerDependencies` entry, which is the peer's `specifier` and `optional`;
-/// an importer's dependency, which is its `specifier` and `version`; and a
-/// catalog entry, the same pair. Today's format writes a `peerDependencies`
-/// entry as a string, so that rule applies to both.
+/// `peerDependencies` entry, which is the peer's `specifier`, `version`,
+/// `optional` and `below`; an importer's dependency, which is its
+/// `specifier` and `version`; and a catalog entry, the same pair. Today's
+/// format writes a `peerDependencies` entry as a string, so that rule
+/// applies to both.
 pub(super) fn one_line_values(object_key: Option<&str>, nesting: Nesting) -> ValueStyle {
     match (object_key, nesting.format, nesting.values) {
         (Some("peerDependencies"), _, _) => ValueStyle::Flow,
-        (
-            Some(
-                "dependencies"
-                | "devDependencies"
-                | "optionalDependencies"
-                | "peers"
-                | "transitivePeers",
-            ),
-            Format::Next,
-            _,
-        ) => ValueStyle::Flow,
+        (Some("dependencies" | "devDependencies" | "optionalDependencies"), Format::Next, _) => {
+            ValueStyle::Flow
+        }
         (Some("catalogs"), Format::Next, _) => ValueStyle::FlowBelow,
         (_, _, ValueStyle::FlowBelow) => ValueStyle::Flow,
         _ => ValueStyle::Block,

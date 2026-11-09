@@ -2,9 +2,10 @@
 //! resolved dependencies, and its peer bindings, with a `snapshots` list for a
 //! package installed with several sets of peers.
 
-pub use peers::{NextPeerDependency, NextPeerDependencyOut};
+pub(super) use peers::{BindingOut, Bindings};
+pub use peers::{PeerDetails, PeerEntry};
 
-use super::{NextRef, NextSnapshotEntry};
+use super::{NextFormatError, NextRef, NextSnapshotEntry};
 use crate::{
     BundledDependencies, LockfileResolution, PackageMetadata, PkgName, RegistryResolution,
     StringOrList, TarballResolution,
@@ -60,13 +61,14 @@ pub struct NextPackage {
     pub prepare: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundled_dependencies: Option<BundledDependencies>,
-    /// The peers the package declares, with `peerDependenciesMeta` folded in.
+    /// The peers the package declares, with `peerDependenciesMeta` folded in,
+    /// and the peer bindings every snapshot shares.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub peer_dependencies: Option<HashMap<String, NextPeerDependency>>,
+    pub peer_dependencies: Option<HashMap<String, PeerEntry>>,
 
     // The graph fields, as in [`NextSnapshotEntry`]. What every snapshot
     // shares, or the one snapshot.
@@ -84,18 +86,6 @@ pub struct NextPackage {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
-    pub peers: Option<HashMap<PkgName, NextRef>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
-    pub transitive_peers: Option<HashMap<PkgName, NextRef>>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
 
@@ -103,20 +93,6 @@ pub struct NextPackage {
     /// has several.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snapshots: Option<Vec<NextSnapshotEntry>>,
-}
-
-impl NextPackage {
-    /// The shared graph fields, moved out.
-    fn take_shared(&mut self) -> NextSnapshotEntry {
-        NextSnapshotEntry {
-            id: self.id.take(),
-            dependencies: self.dependencies.take(),
-            optional_dependencies: self.optional_dependencies.take(),
-            peer_dependencies: self.peers.take(),
-            transitive_peer_dependencies: self.transitive_peers.take(),
-            optional: self.optional,
-        }
-    }
 }
 
 /// [`NextPackage`] borrowed from the lockfile it is written from, so a write
@@ -151,16 +127,29 @@ pub struct NextPackageOut<'a> {
     pub prepare: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bundled_dependencies: Option<&'a BundledDependencies>,
+    /// The declared peers and the bindings every snapshot shares.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_dependencies: Option<BTreeMap<&'a str, NextPeerDependencyOut<'a>>>,
-    #[serde(flatten)]
-    pub shared: NextSnapshotEntry,
+    pub peer_dependencies: Option<BTreeMap<String, PeerEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies: Option<HashMap<PkgName, NextRef>>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub optional: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snapshots: Option<Vec<NextSnapshotEntry>>,
 }
 
 /// A borrowed map written with its keys sorted.
-pub struct SortedMap<'a, Key, Value>(&'a HashMap<Key, Value>);
+pub struct SortedMap<'a, Key, Value>(pub &'a HashMap<Key, Value>);
 
 impl<Key, Value> Serialize for SortedMap<'_, Key, Value>
 where
@@ -195,13 +184,15 @@ impl<'a> NextPackageOut<'a> {
             bundled_dependencies: metadata.and_then(|metadata| {
                 metadata.bundled_dependencies.as_ref()
             }),
-            peer_dependencies: metadata.and_then(|metadata| {
-                merge_peer_dependencies(
-                    metadata.peer_dependencies.as_ref(),
-                    metadata.peer_dependencies_meta.as_ref(),
-                )
-            }),
-            shared,
+            peer_dependencies: merge_peer_dependencies(
+                metadata.and_then(|metadata| metadata.peer_dependencies.as_ref()),
+                metadata.and_then(|metadata| metadata.peer_dependencies_meta.as_ref()),
+                &shared,
+            ),
+            id: shared.id,
+            dependencies: shared.dependencies,
+            optional_dependencies: shared.optional_dependencies,
+            optional: shared.optional,
             snapshots,
         }
     }
@@ -244,12 +235,23 @@ fn hoist(
 }
 
 impl NextPackage {
-    /// The metadata and the snapshots this entry was built from.
-    #[must_use]
-    pub fn split(mut self) -> (Option<PackageMetadata>, Vec<NextSnapshotEntry>) {
-        let shared = self.take_shared();
+    /// The metadata and the snapshots this entry was built from. Fails on a
+    /// bound peer whose name is not a package name.
+    pub fn split(
+        mut self,
+        key: &crate::PackageKey,
+    ) -> Result<(Option<PackageMetadata>, Vec<NextSnapshotEntry>), NextFormatError> {
+        let peers = split_peer_dependencies(key, self.peer_dependencies.take())?;
+        let shared = NextSnapshotEntry {
+            id: self.id.take(),
+            dependencies: self.dependencies.take(),
+            optional_dependencies: self.optional_dependencies.take(),
+            peer_dependencies: peers.bindings.own,
+            transitive_peer_dependencies: peers.bindings.below,
+            optional: self.optional,
+        };
         let snapshots = self.snapshots.take();
-        let metadata = self.into_metadata();
+        let metadata = self.into_metadata(peers.ranges, peers.meta);
         let snapshots = match snapshots {
             None => vec![shared],
             Some(snapshots) => snapshots
@@ -257,11 +259,15 @@ impl NextPackage {
                 .map(|snapshot| snapshot.over(&shared))
                 .collect(),
         };
-        (metadata, snapshots)
+        Ok((metadata, snapshots))
     }
 
     /// `None` when the entry records no resolution.
-    fn into_metadata(self) -> Option<PackageMetadata> {
+    fn into_metadata(
+        self,
+        peer_dependencies: Option<HashMap<String, String>>,
+        peer_dependencies_meta: Option<HashMap<String, crate::PeerDependencyMeta>>,
+    ) -> Option<PackageMetadata> {
         let resolution = match (self.resolution, self.integrity) {
             (None, Some(integrity)) => {
                 LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
@@ -275,8 +281,6 @@ impl NextPackage {
             (Some(resolution), _) => resolution,
             (None, None) => return None,
         };
-        let (peer_dependencies, peer_dependencies_meta) =
-            split_peer_dependencies(self.peer_dependencies);
         Some(PackageMetadata {
             resolution,
             version: self.version,

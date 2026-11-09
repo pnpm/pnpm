@@ -13,15 +13,55 @@ use crate::{
     CatalogSnapshots, ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, implied_version::implied_version,
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize, Deserializer, Serialize,
+    de::{self, MapAccess, Visitor},
+};
 use std::collections::HashMap;
 
 /// One dependency of an importer.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum NextImporterDep {
     Specifier(String),
     Resolved(Box<NextResolvedDep>),
+}
+
+/// A string is the specifier and a map the resolved form, read directly
+/// rather than through an untagged enum's buffering.
+impl<'de> Deserialize<'de> for NextImporterDep {
+    fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
+        struct DepVisitor;
+
+        impl<'de> Visitor<'de> for DepVisitor {
+            type Value = NextImporterDep;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a specifier, or a map of specifier and version")
+            }
+
+            fn visit_str<Error: de::Error>(self, text: &str) -> Result<NextImporterDep, Error> {
+                Ok(NextImporterDep::Specifier(text.to_owned()))
+            }
+
+            fn visit_string<Error: de::Error>(
+                self,
+                text: String,
+            ) -> Result<NextImporterDep, Error> {
+                Ok(NextImporterDep::Specifier(text))
+            }
+
+            fn visit_map<Map: MapAccess<'de>>(
+                self,
+                map: Map,
+            ) -> Result<NextImporterDep, Map::Error> {
+                NextResolvedDep::deserialize(de::value::MapAccessDeserializer::new(map))
+                    .map(|dep| NextImporterDep::Resolved(Box::new(dep)))
+            }
+        }
+
+        deserializer.deserialize_any(DepVisitor)
+    }
 }
 
 /// A dependency whose version is written out.
