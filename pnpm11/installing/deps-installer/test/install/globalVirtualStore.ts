@@ -535,18 +535,18 @@ new file mode 100644
     patchedDependencies: { [`${BUILT_PKG}@1.0.0`]: patchPath },
   }
   await install(manifest, testDefaults({ ...opts, ignoreScripts: true }))
-  const [unbuiltPkg] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
-  expect(fs.existsSync(path.join(unbuiltPkg, 'patched.txt'))).toBeTruthy()
-  expect(fs.existsSync(path.join(unbuiltPkg, 'generated-by-postinstall.js'))).toBeFalsy()
+  const [pristinePkg] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  expect(fs.existsSync(path.join(pristinePkg, 'patched.txt'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pristinePkg, 'generated-by-postinstall.js'))).toBeFalsy()
 
   rimrafSync('node_modules')
   await install(manifest, testDefaults({ ...opts, frozenLockfile: true }))
 
   const builtPkg = fs.realpathSync(path.resolve('node_modules', BUILT_PKG))
-  expect(builtPkg).not.toBe(fs.realpathSync(unbuiltPkg))
+  expect(builtPkg).not.toBe(fs.realpathSync(pristinePkg))
   expect(fs.existsSync(path.join(builtPkg, 'patched.txt'))).toBeTruthy()
   expect(fs.existsSync(path.join(builtPkg, 'generated-by-postinstall.js'))).toBeTruthy()
-  expect(fs.existsSync(path.join(unbuiltPkg, 'generated-by-postinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pristinePkg, 'generated-by-postinstall.js'))).toBeFalsy()
 })
 
 test('GVS rebuilds successfully after simulated build failure cleanup', async () => {

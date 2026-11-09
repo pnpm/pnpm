@@ -291,7 +291,7 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
     `--store-dir=${storeDir}`,
   ])
 
-  // Both projects link the single built projection, and the pristine one is left unbuilt.
+  // Both projects link the single built projection, and the pristine one is not built.
   const rebuiltPkg = fs.realpathSync('project-1/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.realpathSync('project-2/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')).toBe(rebuiltPkg)
   expect(rebuiltPkg).not.toBe(fs.realpathSync(pkgInGvs))
