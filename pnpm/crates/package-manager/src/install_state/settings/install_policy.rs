@@ -22,7 +22,7 @@ pub(super) fn install_policy_settings(
         dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
         extend_node_path: (!config.extend_node_path).then_some(false),
         runtime: config.skip_runtimes.then_some(false),
-        runtime_on_fail: config.runtime_on_fail.map(|policy| policy.as_str().to_string()),
+        runtime_on_fail: config.runtime_on_fail,
         trust_lockfile: config.trust_lockfile.then_some(true),
         ..rest
     }

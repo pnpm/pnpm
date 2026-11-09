@@ -10,6 +10,10 @@
 //! pnpm read state written by pacquet, which is what lets
 //! `verify-deps-before-run` stay enabled.
 
+mod runtime_on_fail;
+
+pub use runtime_on_fail::RuntimeOnFail;
+
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -381,7 +385,7 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub runtime_on_fail: Option<String>,
+    pub runtime_on_fail: Option<RuntimeOnFail>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,

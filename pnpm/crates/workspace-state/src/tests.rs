@@ -1,5 +1,5 @@
 use super::{
-    LoadWorkspaceStateError, NodeLinker, ProjectEntry, UpdateWorkspaceStateError,
+    LoadWorkspaceStateError, NodeLinker, ProjectEntry, RuntimeOnFail, UpdateWorkspaceStateError,
     WORKSPACE_STATE_FILENAME, WorkspaceState, WorkspaceStateSettings, get_file_path,
     load_workspace_state, now_millis, update_workspace_state,
 };
@@ -7,6 +7,34 @@ use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 use tempfile::tempdir;
+
+#[test]
+fn runtime_on_fail_preserves_policy_strings() {
+    for policy in
+        [RuntimeOnFail::Download, RuntimeOnFail::Error, RuntimeOnFail::Warn, RuntimeOnFail::Ignore]
+    {
+        let settings =
+            WorkspaceStateSettings { runtime_on_fail: Some(policy), ..Default::default() };
+        let value = serde_json::to_value(&settings).unwrap();
+        assert_eq!(value["runtimeOnFail"], policy.as_str());
+        assert_eq!(serde_json::from_value::<WorkspaceStateSettings>(value).unwrap(), settings);
+    }
+    let value = serde_json::to_value(WorkspaceStateSettings::default()).unwrap();
+    assert!(value.get("runtimeOnFail").is_none());
+    assert_eq!(
+        serde_json::from_value::<WorkspaceStateSettings>(value).unwrap().runtime_on_fail,
+        None,
+    );
+}
+
+#[test]
+fn runtime_on_fail_rejects_unknown_policies() {
+    let error = serde_json::from_value::<WorkspaceStateSettings>(
+        serde_json::json!({ "runtimeOnFail": "invalid" }),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("unknown variant `invalid`"));
+}
 
 #[test]
 fn file_path_matches_upstream() {
