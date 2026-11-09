@@ -3,18 +3,18 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
-import { ABBREVIATED_META_DIR, WANTED_LOCKFILE } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { testDefaults } from '../utils/index.js'
+import { readMetadataMirror, testDefaults } from '../utils/index.js'
 
 test('install with lockfileOnly = true', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -25,9 +25,9 @@ test('install with lockfileOnly = true', async () => {
   const { cafsHasNot } = assertStore(opts.storeDir)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm/@pnpm.e2e/pkg-with-1-dep.jsonl`))).toBeTruthy()
+  await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/pkg-with-1-dep')
   cafsHasNot('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm/@pnpm.e2e/dep-of-pkg-with-1-dep.jsonl`))).toBeTruthy()
+  await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/dep-of-pkg-with-1-dep')
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
@@ -43,9 +43,9 @@ test('install with lockfileOnly = true', async () => {
   await install(manifest, opts)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm/@pnpm.e2e/pkg-with-1-dep.jsonl`))).toBeTruthy()
+  await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/pkg-with-1-dep')
   cafsHasNot('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm/@pnpm.e2e/dep-of-pkg-with-1-dep.jsonl`))).toBeTruthy()
+  await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/dep-of-pkg-with-1-dep')
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(project.readCurrentLockfile()).toBeFalsy()
