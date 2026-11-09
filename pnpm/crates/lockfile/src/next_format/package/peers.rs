@@ -55,14 +55,14 @@ impl<'de> Deserialize<'de> for PeerEntry {
 #[derive(Serialize)]
 pub(in crate::next_format) struct BindingOut<'a> {
     version: &'a SnapshotDepRef,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "with", skip_serializing_if = "Option::is_none")]
     peers: Option<&'a NamedBindings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     below: Option<bool>,
 }
 
 /// A peer written as a map. `specifier` is the range the package declares,
-/// `version` the binding, `peers` what names the binding's snapshot when its
+/// `version` the binding, `with` what names the binding's snapshot when its
 /// version does not, `optional` what `peerDependenciesMeta` says, and
 /// `below` marks a peer the package does not declare: a dependency below it
 /// does, and the binding is this package's to pass down.
@@ -72,7 +72,7 @@ pub struct PeerDetails {
     pub specifier: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<SnapshotDepRef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "with", skip_serializing_if = "Option::is_none")]
     pub peers: Option<NamedBindings>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub optional: Option<bool>,

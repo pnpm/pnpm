@@ -65,7 +65,7 @@ fn sort_next_package(entry: Value) -> Value {
 type SortEntry = fn(Value) -> Value;
 
 /// An importer's keys and each dependency group's names, alphabetical. A
-/// dependency written as a map keeps `specifier`, `version`, `peers`.
+/// dependency written as a map keeps `specifier`, `version`, `with`.
 fn sort_next_importer(entry: Value) -> Value {
     let Value::Object(map) = entry else { return entry };
     let sorted = sort_direct_keys(map)

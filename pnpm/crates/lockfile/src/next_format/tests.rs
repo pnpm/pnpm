@@ -215,7 +215,7 @@ fn reference_the_scope_does_not_select_names_its_snapshot() {
         "  react@18.0.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    assert!(yaml.contains("      child: {version: 1.0.0, peers: {react: 18.0.0}}\n"), "{yaml}");
+    assert!(yaml.contains("      child: {version: 1.0.0, with: {react: 18.0.0}}\n"), "{yaml}");
     assert!(yaml.contains("      child: 1.0.0\n"), "{yaml}");
     assert!(yaml.contains("      parent: 1.0.0\n"), "{yaml}");
     assert!(!yaml.contains('('), "{yaml}");

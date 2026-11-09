@@ -1,6 +1,6 @@
 //! The next format's importers. A dependency is its specifier alone when the
 //! version follows from it, and `{specifier, version}` otherwise, with
-//! `peers` where the project's scope does not say which snapshot it links.
+//! `with` where the project's scope does not say which snapshot it links.
 //!
 //! The version follows from an exact version, from an `npm:` alias of an
 //! exact version, from a `link:` or `file:` path, and from a `catalog:`
@@ -71,7 +71,7 @@ pub struct NextResolvedDep {
     pub version: ImporterDepVersion,
     /// The bindings that name the snapshot, where the project's scope does
     /// not select it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "with", skip_serializing_if = "Option::is_none")]
     pub peers: Option<NamedBindings>,
 }
 

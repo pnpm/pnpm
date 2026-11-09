@@ -1,7 +1,7 @@
 //! A reference of the next format: a version, `name: version`. Where the
 //! referrer's scope does not say which snapshot of that version it links,
 //! the reference names the snapshot by the peer bindings that tell the
-//! package's snapshots apart: `name: {version, peers: {peer: version}}`.
+//! package's snapshots apart: `name: {version, with: {peer: version}}`.
 //! No reference carries a peer or patch group.
 
 use crate::{PkgName, PkgNameVerPeer, SnapshotDepRef};
@@ -19,13 +19,18 @@ pub type NamedBindings = BTreeMap<String, SnapshotDepRef>;
 #[serde(untagged)]
 pub enum NextRef {
     Plain(SnapshotDepRef),
-    Named { version: SnapshotDepRef, peers: NamedBindings },
+    Named {
+        version: SnapshotDepRef,
+        #[serde(rename = "with")]
+        peers: NamedBindings,
+    },
 }
 
 /// The map form of a reference.
 #[derive(Deserialize)]
 struct NamedWire {
     version: SnapshotDepRef,
+    #[serde(rename = "with")]
     peers: NamedBindings,
 }
 
@@ -40,7 +45,9 @@ impl<'de> Deserialize<'de> for NextRef {
             type Value = NextRef;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a version, or a map of version and peers")
+                formatter.write_str(
+                    "a version, or a map of version and the bindings that name the snapshot",
+                )
             }
 
             fn visit_str<Error: de::Error>(self, text: &str) -> Result<NextRef, Error> {
