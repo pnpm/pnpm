@@ -225,6 +225,8 @@ Since v12.5.0, prefer [`tools.node`](#tools) for machine-level mirrors. `nodeDow
 
 Configure custom Node.js download mirrors in `pnpm-workspace.yaml`. The keys are release channels (`release`, `rc`, `nightly`, `v8-canary`, etc.) and each value is the complete base URL for its channel. For example, the `release` URL below downloads checksums from `https://npmmirror.com/mirrors/node/v<version>/SHASUMS256.txt`.
 
+The project-aware global `node` command ignores workspace mirror settings. Configure its mirror in the global configuration file or the environment. See [Runtime download mirrors](../global-packages.md#runtime-download-mirrors) if a command fails with `pnpm: failed to prepare node@runtime:...`.
+
 When multiple mirror settings are configured, `tools.node.channels.<channel>` takes precedence over `nodeDownloadMirrors.<channel>`, which takes precedence over `tools.node.mirror`.
 
 Here is how pnpm may be configured to download Node.js from a mirror in China:

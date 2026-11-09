@@ -185,6 +185,21 @@ Directories inside the pnpm home are skipped, since global installs are not proj
 
 If the project provides nothing, or the lookup is declined, the globally installed version runs. Commands never fail merely because dispatch did not apply.
 
+### Runtime download mirrors
+
+Project-aware global runtime commands download their pinned versions using the [global configuration file](./cli/config.md) and environment settings. They ignore `pnpm-workspace.yaml`, including `nodeDownloadMirrors`. A project's mirror settings still apply to runtime dependencies installed by `pnpm install`.
+
+For example, to use a Node.js mirror for the global `node` command, put this in the global configuration file:
+
+```yaml title="config.yaml"
+nodeDownloadMirrors:
+  release: https://npmmirror.com/mirrors/node/
+```
+
+Alternatively, configure [`tools.node.channels.release`](./settings/cli.md#tools).
+
+If `pnpm install` prints `pnpm: failed to prepare node@runtime:...`, check whether `node --version` fails the same way inside the project. A command launched through `node` can fail while preparing Node.js before the install starts. Check the global mirror settings and the `PNPM_CONFIG_TOOLS` and `PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS` environment variables. A mirror configured only in `pnpm-workspace.yaml` does not affect this download.
+
 ### `.nvmrc` and `.node-version`
 
 Added in: v12.7.0
