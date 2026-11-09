@@ -84,6 +84,7 @@ pub use materialization_options::{
     ModuleLinkerContext, PackageImportOptions, RegistryFetchContext, SlotImportSource,
     SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
 };
+pub use materialization_plan::{TargetNodeUse, target_node_major, target_node_version};
 pub use modules_swap_lock::ModulesSwapLock;
 pub use package_map::*;
 pub use phase_options::{

@@ -19,9 +19,9 @@ use super::{check_optimistic_repeat_install_with_state, config_blocks_fast_path}
 use crate::{
     install::{
         build_project_manifests_list, check_strict_dep_builds_for_fast_path,
-        configured_or_discovered_workspace_dir, effective_node_version, gvs_build_markers_complete,
-        included_dependencies, load_workspace_projects, lockfile_root_for,
-        project_requires_lifecycle_scripts, register_workspace_in_store,
+        configured_or_discovered_workspace_dir, gvs_build_markers_complete, included_dependencies,
+        load_workspace_projects, lockfile_root_for, project_requires_lifecycle_scripts,
+        register_workspace_in_store,
     },
     install_state::{Decision, OptimisticRepeatInstallCheck, Scope},
 };
@@ -271,7 +271,6 @@ fn check_fast_path_repeat_install(
             check.config,
             MaybeLazyLockfile::Lazy(context.lockfile),
             context.lockfile_root,
-            effective_node_version(check.config, check.manifest).as_deref(),
         ),
         Decision::Skipped { reason } => Err(reason),
     }

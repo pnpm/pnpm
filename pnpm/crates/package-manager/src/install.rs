@@ -218,7 +218,14 @@ pub(crate) fn effective_node_version(
     config: &Config,
     manifest: &PackageManifest,
 ) -> Option<String> {
-    config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
+    let runtime_pin = node_version_from_engines_runtime(manifest.value());
+    pnpm_deps_restorer::target_node_version(
+        pnpm_deps_restorer::TargetNodeUse::Compatibility,
+        config.node_version.as_deref(),
+        runtime_pin.as_deref(),
+        None,
+    )
+    .map(ToString::to_string)
 }
 
 /// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →
