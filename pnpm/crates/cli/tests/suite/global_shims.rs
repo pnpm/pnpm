@@ -502,9 +502,7 @@ fn a_held_runtime_lock_installs_the_runtime_privately() {
 
     dispatch();
 
-    // The shared path would have re-created the environment around the
-    // slot. (`links` itself is no evidence on macOS, where every install
-    // stages packages under it through the directory clone cache.)
+    // The shared path would have re-created the environment around the slot.
     assert!(
         !environment.exists(),
         "the held environment must not be entered: {}",

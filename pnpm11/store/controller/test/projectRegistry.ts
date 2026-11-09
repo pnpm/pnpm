@@ -2,7 +2,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from '@jest/globals'
+import { describe, expect, it, jest } from '@jest/globals'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { getRegisteredProjects, registerProject } from '@pnpm/store.controller'
 import { temporaryDirectory } from 'tempy'
@@ -172,6 +172,33 @@ describe('projectRegistry', () => {
       await Promise.all(packageDirs.map(async (packageDir) => {
         expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
       }))
+    })
+
+    it('stops pruning when a dependency link cannot be read', async () => {
+      const root = await fs.realpath(temporaryDirectory())
+      const storeDir = path.join(root, 'store')
+      const projectDir = await createProject(root, 'project')
+      const modulesDir = path.join(projectDir, 'node_modules', '@scope')
+      const packageDir = path.join(storeDir, 'links', '@scope', 'installed', '1.0.0', 'hash', 'node_modules', '@scope', 'installed')
+      await fs.mkdir(packageDir, { recursive: true })
+      await fs.mkdir(modulesDir, { recursive: true })
+      const link = path.join(modulesDir, 'installed')
+      await fs.symlink(packageDir, link, 'junction')
+      await registerProject(storeDir, projectDir)
+      const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      const readlink = jest.spyOn(fs, 'readlink')
+        .mockResolvedValueOnce(projectDir)
+        .mockRejectedValueOnce(error)
+      try {
+        await expect(pruneGlobalVirtualStore(storeDir)).rejects.toMatchObject({
+          code: 'ERR_PNPM_STORE_DIR_PRUNE_READ_MARK_LINK',
+          cause: error,
+        })
+        expect(readlink).toHaveBeenLastCalledWith(link)
+      } finally {
+        readlink.mockRestore()
+      }
+      expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
     })
 
     it('keeps packages linked from a modules directory it is given', async () => {

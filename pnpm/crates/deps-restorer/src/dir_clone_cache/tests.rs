@@ -44,12 +44,12 @@ fn eligible_for_clone_capable_local_materialization() {
 }
 
 #[test]
-fn not_eligible_when_the_canonical_root_is_the_virtual_store() {
+fn not_eligible_when_deploy_uses_the_virtual_store_as_the_global_store() {
     let config = Config { enable_global_virtual_store: false, ..Config::default() };
     let config = Config { global_virtual_store_dir: config.install_state_dir.clone(), ..config };
     assert!(
         !DirCloneCache::eligible(&config, NodeLinker::Isolated),
-        "canonical slots under the virtual store would be a second copy of every package",
+        "deploy installs must not populate the shared materialization cache",
     );
 }
 
@@ -71,22 +71,22 @@ mod macos {
         HashMap::from([(key.clone(), SnapshotEntry::default())])
     }
 
-    /// Build a cache whose canonical root is `links_root`, with
+    /// Build a cache whose canonical root is `cache_root`, with
     /// `snapshots` so the layout precomputes their hashed slots. The
-    /// virtual-store dir is pinned next to the links root so the
+    /// virtual-store dir is pinned next to the cache root so the
     /// capability probe in `build` clones within one volume — the
     /// default would point at the crate's working directory, which may
     /// live on another volume than the temp root.
     fn cache_for_snapshots<'a>(
-        links_root: &std::path::Path,
+        cache_root: &std::path::Path,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         engine: EngineNameSource,
     ) -> DirCloneCache<'a> {
         let config = Config {
             enable_global_virtual_store: false,
             package_import_method: PackageImportMethod::Clone,
-            global_virtual_store_dir: links_root.to_path_buf(),
-            install_state_dir: links_root.with_file_name("probe-virtual-store"),
+            store_dir: pnpm_store_dir::StoreDir::new(cache_root.parent().unwrap()),
+            install_state_dir: cache_root.with_file_name("probe-virtual-store"),
             ..Config::default()
         };
         DirCloneCache::build(
@@ -121,7 +121,7 @@ mod macos {
         ]);
 
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
-        let links_root = dir.path().join("links");
+        let cache_root = pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache();
         let snapshots = one_snapshot(&key);
         let engine_slot = std::sync::Arc::new(std::sync::OnceLock::new());
         let probe = std::thread::spawn({
@@ -132,7 +132,7 @@ mod macos {
             }
         });
         let cache = cache_for_snapshots(
-            &links_root,
+            &cache_root,
             &snapshots,
             EngineNameSource::Pending(std::sync::Arc::clone(&engine_slot)),
         );
@@ -155,13 +155,13 @@ mod macos {
             b"module.exports = 1",
         );
 
-        let canonical_manifests = walk_files(&links_root)
+        let canonical_manifests = walk_files(&cache_root)
             .into_iter()
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
         let expected_slot = crate::VirtualStoreLayout::global(
-            links_root.clone(),
+            cache_root.clone(),
             Config::default().virtual_store_dir_max_length as usize,
             Some("node-22"),
             Some(&snapshots),
@@ -205,7 +205,7 @@ mod macos {
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
         let snapshots = one_snapshot(&key);
         let cache = cache_for_snapshots(
-            &dir.path().join("links"),
+            &pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache(),
             &snapshots,
             EngineNameSource::Ready(None),
         );
@@ -230,7 +230,7 @@ mod macos {
         let other: PackageKey = "bar@2.0.0".parse().expect("valid snapshot key");
         let snapshots = one_snapshot(&key);
         let cache = cache_for_snapshots(
-            &dir.path().join("links"),
+            &pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache(),
             &snapshots,
             EngineNameSource::Ready(None),
         );
