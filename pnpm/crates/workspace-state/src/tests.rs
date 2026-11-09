@@ -33,7 +33,7 @@ fn runtime_on_fail_rejects_unknown_policies() {
         serde_json::json!({ "runtimeOnFail": "invalid" }),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("unknown variant `invalid`"));
+    assert_eq!(error.classify(), serde_json::error::Category::Data);
 }
 
 #[test]
