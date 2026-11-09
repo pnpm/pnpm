@@ -650,6 +650,7 @@ fn the_yaml_version_line_may_be_quoted_or_commented() {
     use super::parse::declares_next_format;
     assert!(declares_next_format("lockfileVersion: '13.0' # experimental\n\nprojects: {}\n"));
     assert!(declares_next_format("'lockfileVersion': '13.0'\n"));
+    assert!(declares_next_format("lockfileVersion: '13.0'\t# a tab before the comment\n"));
     assert!(declares_next_format(r#""lockfileVersion": "13.0""#));
     assert!(!declares_next_format("lockfileVersion: '9.0' # 13.0 later\n"));
     assert!(!declares_next_format("settings:\n  lockfileVersion: '13.0'\n"));

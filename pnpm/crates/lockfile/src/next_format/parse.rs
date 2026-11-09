@@ -37,6 +37,16 @@ fn yaml_version_value(line: &str) -> Option<&str> {
     let value = ["lockfileVersion:", "'lockfileVersion':", r#""lockfileVersion":"#]
         .iter()
         .find_map(|key| line.strip_prefix(key))?;
-    let value = value.split_once(" #").map_or(value, |(before, _)| before);
+    let value = comment_start(value)
+        .map(|at| &value[..at])
+        .unwrap_or(value);
     Some(value.trim().trim_matches(['\'', '"']))
+}
+
+/// Where a YAML comment starts in `value`: a `#` after a space or a tab.
+fn comment_start(value: &str) -> Option<usize> {
+    value
+        .char_indices()
+        .find(|&(at, character)| character == '#' && value[..at].ends_with([' ', '\t']))
+        .map(|(at, _)| at)
 }
