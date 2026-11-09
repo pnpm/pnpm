@@ -322,9 +322,10 @@ fn rebase_project_selector_preserves_target_dir_and_modifiers() {
     assert_eq!(rebase_project_selector("./packages/app", from, to), "../app");
     assert_eq!(rebase_project_selector("./packages/app", from, same), ".");
     assert_eq!(rebase_project_selector("./packages/app/sub", from, same), "./sub");
-    assert_eq!(rebase_project_selector("./packages/app", Path::new("rel"), from), "./packages/app");
+    let abs = std::env::temp_dir();
+    assert_eq!(rebase_project_selector("./packages/app", Path::new("rel"), &abs), "./packages/app");
     assert_eq!(
-        rebase_project_selector("{./packages/app}", Path::new("rel"), from),
+        rebase_project_selector("{./packages/app}", Path::new("rel"), &abs),
         "{./packages/app}",
     );
 }
