@@ -231,7 +231,7 @@ describe('paths containing non-ASCII characters', () => {
     const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
     assert.ok(content.includes('@SET "NODE_PATH=\\工具\\node_modules;%NODE_PATH%"'), content)
     assert.ok(content.includes('@"%SystemRoot%\\System32\\mode.com" con cp select=65001 >NUL'), content)
-    assert.ok(!/chcp\.com/.test(content), content)
+    assert.ok(!content.includes('chcp'), content)
   })
 })
 
