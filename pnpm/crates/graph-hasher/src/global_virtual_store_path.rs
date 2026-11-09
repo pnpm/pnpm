@@ -34,11 +34,11 @@ use std::{
 ///   [`crate::build_required_dep_paths`]. `None` disables the gating and
 ///   forces `include_engine = true`.
 ///
-/// A snapshot in a `Some` `build_required_dep_paths` also hashes
-/// `built: true`. Its slot holds the built package, which an install
-/// renames into place once the build has finished, so it never shares a
-/// path with the pristine package that an install not running the build
-/// imports.
+/// With `builds_run`, a snapshot in a `Some` `build_required_dep_paths`
+/// also hashes `built: true`. Its slot holds the built package, which an
+/// install renames into place once the build has finished, so it never
+/// shares a path with the pristine package that an install not running
+/// the build imports. An install under `ignoreScripts` passes `false`.
 ///
 /// `project` scopes the slot to one project instead of sharing it
 /// across every project in the store. Callers pass `Some(lockfile_dir)`
@@ -50,14 +50,16 @@ pub fn calc_graph_node_hash<Key>(
     cache: &mut DepsStateCache<Key>,
     dep_path: &Key,
     engine: Option<&str>,
-    build_required_dep_paths: Option<&HashSet<Key>>,
+    build_required: (Option<&HashSet<Key>>, bool),
     project: Option<&str>,
 ) -> String
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let built = build_required_dep_paths.is_some_and(|set| set.contains(dep_path));
-    let include_engine = built || build_required_dep_paths.is_none();
+    let (build_required_dep_paths, builds_run) = build_required;
+    let gated = build_required_dep_paths.is_some_and(|set| set.contains(dep_path));
+    let include_engine = gated || build_required_dep_paths.is_none();
+    let built = gated && builds_run;
     let engine_value = if include_engine {
         match engine {
             Some(s) => Value::String(s.to_owned()),
