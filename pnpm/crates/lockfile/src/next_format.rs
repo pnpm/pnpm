@@ -16,6 +16,7 @@ pub use catalogs::{NextCatalogEntry, NextCatalogs};
 pub use importer::{
     Implied, NextImporter, NextImporterDep, NextImporterDeps, NextNamedDep, NextResolvedDep,
 };
+pub(crate) use linked::LinkedImporters;
 pub use package::{NextPackage, NextPackageOut, PeerDetails, PeerEntry};
 pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};

@@ -41,6 +41,9 @@ pub struct EnvLockfileOptions<'dirs> {
     /// `--frozen-lockfile`: refuse to mutate the env lockfile.
     pub frozen: bool,
     pub symlinked: pnpm_lockfile::SymlinkedLockfile<'dirs>,
+    /// `lockfile.format`: the format the env document is written in, as
+    /// the main document is.
+    pub format: pnpm_lockfile::LockfileFormat,
 }
 
 #[derive(Default)]
