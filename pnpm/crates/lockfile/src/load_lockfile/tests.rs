@@ -256,6 +256,65 @@ fn fix_loader_keeps_next_format_entries_pinned_by_integrity() {
     );
 }
 
+/// The repair loader drops a malformed `settings` field without the
+/// catalogs beside it, keeps the pin of an entry whose edges do not decode,
+/// drops a registry entry that names no resolution, and keeps an injected
+/// package whose resolution follows from its key.
+#[test]
+fn fix_loader_narrows_next_format_settings_and_pins() {
+    let tmp = tempdir().expect("create tempdir");
+    std::fs::write(
+        tmp.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "{"
+            r#"  "lockfileVersion": "13.0","#
+            r#"  "settings": {"#
+            r#"    "overrides": "invalid","#
+            r#"    "catalogs": {"default": {"from-catalog": {"specifier": "^2.0.0", "version": "2.0.0"}}},"#
+            "  },"
+            r#"  "projects": {"#
+            r#"    ".": {"dependencies": {"from-catalog": "catalog:", "injected": "workspace:*"}},"#
+            "  },"
+            r#"  "packages": {"#
+            r#"    "from-catalog@2.0.0": {"#
+            r#"      "integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
+            r#"      "dependencies": "invalid","#
+            "    },"
+            r#"    "nothing@1.0.0": {},"#
+            r#"    "injected@file:packages/injected": {},"#
+            "  },"
+            "}"
+        },
+    )
+    .expect("write wanted lockfile");
+
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let lockfile = lazy
+        .get_for_fix()
+        .expect("load for repair")
+        .expect("lockfile present");
+    assert!(lockfile.overrides.is_none());
+    assert!(lockfile.catalogs.is_some());
+    let root = lockfile.importers.get(".").expect("root project");
+    let from_catalog = root.dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&"from-catalog".parse().expect("name")))
+        .expect("catalog dependency");
+    assert_eq!(from_catalog.version.to_string(), "2.0.0");
+    let packages = lockfile.packages.as_ref().expect("packages present");
+    assert!(!packages.contains_key(&"nothing@1.0.0".parse().expect("nothing key")));
+    assert!(packages.contains_key(&"from-catalog@2.0.0".parse().expect("pinned key")));
+    let injected = packages
+        .get(&"injected@file:packages/injected".parse().expect("injected key"))
+        .expect("injected entry");
+    assert!(matches!(injected.resolution, LockfileResolution::Directory(_)));
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
+    let pinned = snapshots
+        .get(&"from-catalog@2.0.0".parse().expect("pinned snapshot key"))
+        .expect("pinned snapshot");
+    assert!(pinned.dependencies.is_none());
+}
+
 #[test]
 fn fix_loader_discards_broken_and_derived_package_fields() {
     let tmp = tempdir().expect("create tempdir");

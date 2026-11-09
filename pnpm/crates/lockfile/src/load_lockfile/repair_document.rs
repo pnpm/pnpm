@@ -8,7 +8,9 @@
 //! read, so the repair starts from as much of the broken file as the
 //! types allow.
 
-use crate::{Lockfile, LockfileResolution, NextPackage, NextSettings, SnapshotEntry};
+use crate::{
+    Lockfile, LockfileResolution, NextPackage, NextSettings, PackageKey, SnapshotEntry, VersionPart,
+};
 
 pub(super) fn prepare_value_for_fix(value: &mut serde_json::Value) {
     let Some(root) = value.as_object_mut() else { return };
@@ -39,12 +41,7 @@ pub(super) fn prepare_value_for_fix(value: &mut serde_json::Value) {
 /// carry their `integrity` apart from a `resolution`.
 pub(super) fn prepare_next_value_for_fix(value: &mut serde_json::Value) {
     let Some(root) = value.as_object_mut() else { return };
-    if root
-        .get("settings")
-        .is_some_and(|settings| serde_json::from_value::<NextSettings>(settings.clone()).is_err())
-    {
-        root.remove("settings");
-    }
+    reduce_next_settings(root);
     if root
         .get("time")
         .is_some_and(|time| {
@@ -55,33 +52,70 @@ pub(super) fn prepare_next_value_for_fix(value: &mut serde_json::Value) {
         root.remove("time");
     }
     if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
-        packages.retain(|_, entry| reduce_next_package(entry));
+        packages.retain(|key, entry| reduce_next_package(key, entry));
     }
 }
 
-/// Keep a next-format `packages` entry that already decodes, or narrow it
-/// to what names and pins the package: its resolution, its integrity and
-/// its dependency edges. An entry with neither resolution nor integrity
-/// names nothing and is dropped.
-fn reduce_next_package(entry: &mut serde_json::Value) -> bool {
+/// Drop each `settings` field that does not decode and keep the rest. A
+/// project's `catalog:` dependencies take their versions from the
+/// catalogs, so a malformed field beside them must not take them along.
+fn reduce_next_settings(root: &mut serde_json::Map<String, serde_json::Value>) {
+    let Some(settings) = root.get_mut("settings") else { return };
+    let Some(fields) = settings.as_object_mut() else {
+        root.remove("settings");
+        return;
+    };
+    fields.retain(|key, field| {
+        let candidate = serde_json::Map::from_iter([(key.clone(), field.clone())]);
+        serde_json::from_value::<NextSettings>(serde_json::Value::Object(candidate)).is_ok()
+    });
+}
+
+/// Keep a next-format `packages` entry that decodes and names a
+/// resolution, or narrow it to what names and pins the package: its
+/// resolution and integrity, with its dependency edges when they decode
+/// too. An entry whose resolution neither is written nor follows from its
+/// key names nothing and is dropped.
+fn reduce_next_package(key: &str, entry: &mut serde_json::Value) -> bool {
+    if !names_resolution(key, entry) {
+        return false;
+    }
     if serde_json::from_value::<NextPackage>(entry.clone()).is_ok() {
         return true;
     }
-    let mut retained = serde_json::Map::new();
-    for key in ["resolution", "integrity", "dependencies", "optionalDependencies"] {
-        if let Some(value) = entry.get(key).cloned() {
-            retained.insert(key.to_string(), value);
+    const PIN: [&str; 2] = ["resolution", "integrity"];
+    const PIN_WITH_EDGES: [&str; 4] =
+        ["resolution", "integrity", "dependencies", "optionalDependencies"];
+    for keys in [&PIN_WITH_EDGES[..], &PIN[..]] {
+        let candidate = retained_fields(entry, keys);
+        if serde_json::from_value::<NextPackage>(candidate.clone()).is_ok() {
+            *entry = candidate;
+            return true;
         }
     }
-    if !retained.contains_key("resolution") && !retained.contains_key("integrity") {
-        return false;
-    }
-    let candidate = serde_json::Value::Object(retained);
-    if serde_json::from_value::<NextPackage>(candidate.clone()).is_err() {
-        return false;
-    }
-    *entry = candidate;
-    true
+    false
+}
+
+/// Whether the entry under `key` names its resolution: written out, as an
+/// integrity alone, or implied by an injected package's `file:` key.
+fn names_resolution(key: &str, entry: &serde_json::Value) -> bool {
+    entry.get("resolution").is_some()
+        || entry.get("integrity").is_some()
+        || key
+            .parse::<PackageKey>()
+            .is_ok_and(|key| matches!(key.suffix.version(), VersionPart::File(_)))
+}
+
+fn retained_fields(entry: &serde_json::Value, keys: &[&str]) -> serde_json::Value {
+    let retained = keys
+        .iter()
+        .filter_map(|key| {
+            entry
+                .get(*key)
+                .map(|value| ((*key).to_string(), value.clone()))
+        })
+        .collect::<serde_json::Map<_, _>>();
+    serde_json::Value::Object(retained)
 }
 
 /// Keep a `packages:` entry that already decodes, or narrow it to the
