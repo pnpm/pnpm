@@ -213,6 +213,28 @@ describe('paths containing %', () => {
   })
 })
 
+describe('paths containing non-ASCII characters', () => {
+  const src = path.resolve(fixtures, '工具', 'src.env')
+  const to = path.resolve(fixtures, 'unicode.shim')
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.mkdir(path.dirname(src), { recursive: true })
+    await fs.promises.writeFile(src, '#!/usr/bin/env node\n')
+    return cmdShim(src, to, {
+      nodePath: ['/工具/node_modules'],
+      createCmdFile: true,
+      fs,
+    })
+  })
+
+  test('switch the code page without `chcp`', async () => {
+    const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@SET "NODE_PATH=\\工具\\node_modules;%NODE_PATH%"'), content)
+    assert.ok(content.includes('@"%SystemRoot%\\System32\\mode.com" con cp select=65001 >NUL'), content)
+    assert.ok(!content.includes('chcp'), content)
+  })
+})
+
 describe('env shebang with no NODE_PATH', () => {
   const src = path.resolve(fixtures, 'src.env')
   const to = path.resolve(fixtures, 'env.shim')
