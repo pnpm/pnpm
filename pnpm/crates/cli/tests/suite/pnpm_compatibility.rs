@@ -105,6 +105,7 @@ fn same_file_structure() {
             // Pacquet still uses the older per-project `.pnpm/` virtual store,
             // so these paths exist only on the pnpm side.
             .filter(|path| !path.starts_with("v11/links/"))
+            .filter(|path| !path.starts_with("v11/dir-clone-cache/"))
             // SQLite WAL sidecars exist only while a connection holds the
             // journal open. Their presence at compare-time depends on timing.
             .filter(|path| path != "v11/index.db-wal" && path != "v11/index.db-shm")
