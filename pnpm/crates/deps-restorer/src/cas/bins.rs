@@ -9,6 +9,7 @@ use url::Url;
 
 pub(crate) struct BinInstall<'a> {
     pub config: &'a pnpm_config::Config,
+    pub layout: &'a crate::VirtualStoreLayout,
     pub root: &'a Path,
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
     pub importers: &'a std::collections::HashMap<String, pnpm_lockfile::ProjectSnapshot>,
@@ -65,7 +66,7 @@ fn bin_source(
                 .join(".pnpm-loader")
                 .join(&hash)
         });
-    let metadata = read_manifest(package, &manifest.store_dir, &root)?;
+    let metadata = read_manifest(package, &manifest.store_dir, &manifest_root(inputs, id, &root))?;
     if package.resolution.as_deref() == Some("node") {
         return Ok(Some(PackageBinSource::new(root, Arc::new(metadata))));
     }
@@ -121,6 +122,20 @@ fn file_url(path: &Path) -> io::Result<String> {
     Url::from_file_path(path)
         .map(String::from)
         .map_err(|()| io::Error::other(format!("Invalid file path: {}", path.display())))
+}
+
+/// Where the package's `package.json` is now: `root`, or the staging
+/// directory of a package this install builds, which the build phase
+/// renames to `root` once built.
+fn manifest_root(inputs: &BinInstall<'_>, id: &str, root: &Path) -> std::path::PathBuf {
+    if root.join("package.json").exists() {
+        return root.to_path_buf();
+    }
+    id.parse::<pnpm_lockfile::PackageKey>()
+        .ok()
+        .map(|key| inputs.layout.staging_package_dir(&key))
+        .filter(|staging| staging.join("package.json").exists())
+        .unwrap_or_else(|| root.to_path_buf())
 }
 
 fn read_manifest(

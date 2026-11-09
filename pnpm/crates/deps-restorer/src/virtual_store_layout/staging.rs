@@ -4,16 +4,16 @@ use super::VirtualStoreLayout;
 use pnpm_lockfile::PackageKey;
 use std::path::PathBuf;
 
-/// A token no other install holds: the process id and a counter for the
-/// installs one process runs, plus 64 random bits for processes that share
-/// a store across containers or hosts, where process ids repeat.
+/// A token no other install holds: a counter for the installs one process
+/// runs, plus 64 random bits for the processes that share a store, across
+/// containers and hosts too.
 pub(super) fn new_staging_token() -> String {
     use std::hash::{BuildHasher as _, Hasher as _};
     static INSTALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let install = INSTALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // Each `RandomState` is seeded from the operating system's random source.
     let random = std::collections::hash_map::RandomState::new().build_hasher().finish();
-    format!("{:x}-{install:x}-{random:016x}", std::process::id())
+    format!("{install:x}-{random:016x}")
 }
 
 impl VirtualStoreLayout {
