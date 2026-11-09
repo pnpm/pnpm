@@ -1,4 +1,8 @@
-use super::{Command, fs, install_shim, isolated_in};
+use super::fs;
+#[cfg(not(windows))]
+use super::{Command, install_shim, isolated_in};
+#[cfg(windows)]
+use super::{Path, windows_shim_command};
 
 #[test]
 fn failed_runtime_download_explains_global_mirror_configuration() {
@@ -37,15 +41,21 @@ fn failed_runtime_download_explains_global_mirror_configuration() {
         .to_string(),
     )
     .unwrap();
-    let shim = install_shim(&root.path().join("global-bin"), "node", b"pkg:node");
-    let output = isolated_in(Command::new(shim), &root, &project)
+    #[cfg(not(windows))]
+    let mut command = {
+        let shim = install_shim(&root.path().join("global-bin"), "node", b"pkg:node");
+        isolated_in(Command::new(shim), &root, &project)
+    };
+    #[cfg(windows)]
+    let mut command = windows_shim_command(&root, &project, "node", Path::new("pkg:node"));
+    let output = command
         .arg("--version")
         .output()
         .unwrap();
 
-    assert_eq!(output.status.code(), Some(1));
-    checksums.assert();
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    checksums.assert();
     for expected in [
         "pnpm: failed to prepare node@runtime:24.19.0",
         "/mirrors/release/",
