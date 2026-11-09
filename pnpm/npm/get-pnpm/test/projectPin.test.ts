@@ -275,6 +275,34 @@ describe('readProjectPin', () => {
     assert.equal(pinOf(exact)?.lockedVersion, undefined)
   })
 
+  test('reads the locked version of a boot document in lockfile format 13', () => {
+    const pinned = (entry: string): string | undefined => pinOf(project({
+      'package.json': manifest({ devEngines: { packageManager: { name: 'pnpm', version: '^14.0.0' } } }),
+      'pnpm-lock.yaml': `---
+{
+  "lockfileVersion": "13.0",
+  "projects": {
+    ".": {
+      "configDependencies": {},
+      "packageManagerDependencies": {
+        "pnpm": ${entry},
+      },
+    },
+  },
+}
+---
+{
+  "lockfileVersion": "13.0",
+  "projects": {".": {}},
+}
+`,
+    }))?.lockedVersion
+
+    assert.equal(pinned('{"specifier": "^14.0.0", "version": "14.2.0"}'), '14.2.0')
+    assert.equal(pinned('"14.2.0"'), '14.2.0')
+    assert.equal(pinned('{"specifier": "^14.0.0", "version": "13.0.0"}'), undefined)
+  })
+
   test('reads no pin where there is no manifest at all', () => {
     assert.equal(pinOf(project({ 'src/.keep': '' })), undefined)
   })

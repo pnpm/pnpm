@@ -192,3 +192,106 @@ function envLockfileWithConfigDep () {
   }
   return lockfile
 }
+
+test('readEnvLockfile reads the env document of a lockfile in the v13 format', async () => {
+  const dir = temporaryDirectory()
+  const envDocument = [
+    '{',
+    '\t"lockfileVersion": "13.0",',
+    '',
+    '\t"projects": {',
+    '\t\t".": {',
+    '\t\t\t"configDependencies": {',
+    '\t\t\t\t"my-config": {"specifier": "^1.0.0", "version": "1.0.0"},',
+    '\t\t\t\t"renamed": "npm:real@2.0.0",',
+    '\t\t\t},',
+    '\t\t\t"packageManagerDependencies": {',
+    '\t\t\t\t"pnpm": "13.0.0",',
+    '\t\t\t},',
+    '\t\t},',
+    '\t},',
+    '',
+    '\t"packages": {',
+    '\t\t"my-config@1.0.0": {',
+    '\t\t\t"integrity": "sha512-AAAA",',
+    '\t\t\t"peerDependencies": {',
+    '\t\t\t\t"host": {"specifier": "*", "version": "3.0.0", "optional": true},',
+    '\t\t\t},',
+    '\t\t\t"dependencies": {',
+    '\t\t\t\t"util": "1.2.3",',
+    '\t\t\t},',
+    '\t\t},',
+    '',
+    '\t\t"pnpm@13.0.0": {',
+    '\t\t\t"integrity": "sha512-BBBB",',
+    '\t\t\t"engines": {"node": ">=18"},',
+    '\t\t\t"hasBin": true,',
+    '\t\t},',
+    '',
+    '\t\t"real@2.0.0": {',
+    '\t\t\t"resolution": {"tarball": "https://example.com/real-2.0.0.tgz"},',
+    '\t\t\t"integrity": "sha512-CCCC",',
+    '\t\t},',
+    '\t},',
+    '}',
+    '',
+  ].join('\n')
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), `---\n${envDocument}---\n{"lockfileVersion": "13.0", "projects": {".": {}}}\n`)
+
+  await expect(readEnvLockfile(dir)).resolves.toStrictEqual({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        configDependencies: {
+          'my-config': { specifier: '^1.0.0', version: '1.0.0' },
+          renamed: { specifier: 'npm:real@2.0.0', version: 'real@2.0.0' },
+        },
+        packageManagerDependencies: {
+          pnpm: { specifier: '13.0.0', version: '13.0.0' },
+        },
+      },
+    },
+    packages: {
+      'my-config@1.0.0': {
+        resolution: { integrity: 'sha512-AAAA' },
+        peerDependencies: { host: '*' },
+        peerDependenciesMeta: { host: { optional: true } },
+      },
+      'pnpm@13.0.0': {
+        resolution: { integrity: 'sha512-BBBB' },
+        engines: { node: '>=18' },
+        hasBin: true,
+      },
+      'real@2.0.0': {
+        resolution: { tarball: 'https://example.com/real-2.0.0.tgz', integrity: 'sha512-CCCC' },
+      },
+    },
+    snapshots: {
+      'my-config@1.0.0': {
+        dependencies: { util: '1.2.3' },
+        optionalDependencies: { host: '3.0.0' },
+      },
+      'pnpm@13.0.0': {},
+      'real@2.0.0': {},
+    },
+  })
+})
+
+test('readEnvLockfile derives the resolution of a v13 directory entry from its key, and rejects an entry that names none', async () => {
+  const dir = temporaryDirectory()
+  const envDocument = (packages: string): string => `---\n{"lockfileVersion": "13.0", "projects": {".": {"configDependencies": {"local": "file:tools/local"}}}, "packages": {${packages}}}\n---\n`
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), envDocument('"local@file:tools/local": {}'))
+
+  const lockfile = await readEnvLockfile(dir)
+  expect(lockfile?.packages['local@file:tools/local']).toStrictEqual({ resolution: { type: 'directory', directory: 'tools/local' } })
+
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), envDocument('"local@file:tools/local": {}, "nothing@1.0.0": {}'))
+  await expect(readEnvLockfile(dir)).rejects.toMatchObject({ code: 'ERR_PNPM_NEXT_LOCKFILE_ENV_RESOLUTION' })
+})
+
+test('readEnvLockfile rejects a v13 env document whose config dependency implies no version', async () => {
+  const dir = temporaryDirectory()
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), '---\n{"lockfileVersion": "13.0", "projects": {".": {"configDependencies": {"renamed": "npm:real"}}}}\n---\n')
+
+  await expect(readEnvLockfile(dir)).rejects.toMatchObject({ code: 'ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION' })
+})

@@ -17,6 +17,17 @@ pub(super) enum FirstEntry {
     OnOwnLine,
 }
 
+impl FirstEntry {
+    /// Whether the first entry of a block collection starts on the line its
+    /// key already opened, so no newline precedes it.
+    pub(super) fn omits_leading_newline(self) -> bool {
+        match self {
+            FirstEntry::OnKeyLine => true,
+            FirstEntry::OnOwnLine => false,
+        }
+    }
+}
+
 /// Whether a blank line separates the entries of a block mapping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum EntrySpacing {

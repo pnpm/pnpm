@@ -10,11 +10,13 @@
 //! The `packages:` and `snapshots:` maps reuse the same
 //! [`PackageMetadata`] / [`SnapshotEntry`] types as the main lockfile, so
 //! the env document inherits the main lockfile's byte-for-byte
-//! serialization parity.
+//! serialization parity. In the next format it has the main document's
+//! shape and syntax too, through [`next`].
 
 use crate::{
-    LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
-    SymlinkedLockfile, extract_main_document,
+    LoadLockfileError, Lockfile, LockfileFormat, LockfileVersion, PackageKey, PackageMetadata,
+    SaveLockfileError, SnapshotEntry, SymlinkedLockfile, declares_next_format,
+    extract_main_document,
     git_merge_file::{ParsedWantedFile, parse_wanted_file},
     merge_env_lockfile_changes,
     save_lockfile::lockfile_write_target,
@@ -134,24 +136,30 @@ impl EnvLockfile {
     }
 
     fn parse_document(env_doc: &str, path: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        let mut env: EnvLockfile = serde_saphyr::from_str(env_doc)
-            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?;
+        let mut env = if declares_next_format(env_doc) {
+            next::from_text(env_doc, path)?
+        } else {
+            serde_saphyr::from_str::<EnvLockfile>(env_doc)
+                .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+        };
         env.root_importer_mut();
         Ok(Some(env))
     }
 
     /// Write this env document as the first YAML document of
-    /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
-    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An unchanged
-    /// document is not rewritten, and a changed one treats a symlinked
-    /// lockfile as `symlinked` says.
+    /// `<root_dir>/pnpm-lock.yaml`, in `format`, the pinned pnpm's (see
+    /// [`EnvDocumentFormat::for_pnpm`]), preserving any existing main
+    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An
+    /// unchanged document is not rewritten, and a changed one treats a
+    /// symlinked lockfile as `symlinked` says.
     pub fn write(
         &self,
         root_dir: &Path,
         symlinked: SymlinkedLockfile<'_>,
+        format: EnvDocumentFormat,
     ) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
+        let env_yaml = self.document_text(format)?;
         let raw = match fs::read_to_string(&path) {
             Ok(raw) => Some(raw),
             Err(error) if error.kind() == ErrorKind::NotFound => None,
@@ -172,6 +180,73 @@ impl EnvLockfile {
     }
 }
 
+/// The format of the env document: that of the pnpm major that owns the
+/// project, the pinned one, so that the pnpm writing the document and the
+/// pinned pnpm agree on it whichever writes. The env document changes
+/// format one major after the main document, so that the pnpm versions
+/// that switch into a project can read it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnvDocumentFormat {
+    /// Lockfile 9.0's shape and syntax.
+    V9,
+    /// The next format's shape and syntax, under `lockfileVersion: '13.0'`.
+    V13,
+}
+
+impl EnvDocumentFormat {
+    /// The first pnpm major whose projects have a v13 env document.
+    pub const V13_FROM_MAJOR: u64 = 14;
+
+    /// The format for a project that pins, or runs, pnpm `version`. A
+    /// version that does not parse gets today's.
+    #[must_use]
+    pub fn for_pnpm(version: &str) -> Self {
+        let major = version
+            .split('.')
+            .next()
+            .and_then(|major| major.parse::<u64>().ok());
+        if major.is_some_and(|major| major >= Self::V13_FROM_MAJOR) { Self::V13 } else { Self::V9 }
+    }
+
+    fn lockfile_version(self) -> LockfileVersion<9> {
+        match self {
+            EnvDocumentFormat::V9 => LockfileFormat::V9.version(),
+            EnvDocumentFormat::V13 => LockfileFormat::V13.version(),
+        }
+    }
+}
+
+impl EnvLockfile {
+    /// This document's text in `format`, which decides its shape and
+    /// syntax and the `lockfileVersion` it declares. A document read in
+    /// the next format and written in today's declares today's version,
+    /// so that it reads back as today's shape; any other version string is
+    /// kept, since the env installer does not own it.
+    fn document_text(&self, format: EnvDocumentFormat) -> Result<String, SaveLockfileError> {
+        match format {
+            EnvDocumentFormat::V13 => next::to_text(self, format.lockfile_version()),
+            EnvDocumentFormat::V9 if self.declares_next_format() => {
+                let mut env = self.clone();
+                env.lockfile_version = EnvDocumentFormat::V9.lockfile_version().to_string();
+                serialize_yaml::to_string(&env).map_err(SaveLockfileError::SerializeYaml)
+            }
+            EnvDocumentFormat::V9 => {
+                serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
+            }
+        }
+    }
+
+    fn declares_next_format(&self) -> bool {
+        self.lockfile_version
+            .split('.')
+            .next()
+            .and_then(|major| major.parse::<u16>().ok())
+            == Some(crate::NEXT_LOCKFILE_MAJOR)
+    }
+}
+
+mod next;
+
 /// Reads the leading env document, following a symlink;
 /// [`SymlinkedLockfile`] covers why only writes may refuse one.
 fn read_env_document(path: &Path) -> io::Result<Option<String>> {
@@ -179,6 +254,21 @@ fn read_env_document(path: &Path) -> io::Result<Option<String>> {
         Ok(file) => read_first_yaml_document(file),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
+    }
+}
+
+impl EnvLockfile {
+    /// The version of the package manager the env document pins, when it
+    /// records one.
+    #[must_use]
+    pub fn pinned_package_manager_version(&self) -> Option<&str> {
+        self.importers
+            .get(Self::ROOT_IMPORTER_KEY)?
+            .package_manager_dependencies
+            .as_ref()?
+            .values()
+            .next()
+            .map(|pin| pin.version.as_str())
     }
 }
 

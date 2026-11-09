@@ -64,7 +64,11 @@ impl ImportArgs {
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {
                 env_lockfile
-                    .write(lockfile_dir, symlinked)
+                    .write(
+                        lockfile_dir,
+                        symlinked,
+                        pnpm_lockfile::EnvDocumentFormat::for_pnpm(pnpm_config::PNPM_VERSION),
+                    )
                     .into_diagnostic()
                     .wrap_err("preserving the env lockfile after import")?;
             }

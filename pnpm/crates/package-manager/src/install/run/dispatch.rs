@@ -132,7 +132,8 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
     }
     if install.context.config.lockfile {
         lockfile
-            .save_to_path(
+            .save_to_path_as(
+                install.context.config.lockfile_format,
                 &workspace.dirs.workspace_root.join(install.context.config.wanted_lockfile_name()),
                 install.context.config.symlinked_lockfile(),
             )

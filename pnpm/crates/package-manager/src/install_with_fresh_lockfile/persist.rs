@@ -279,9 +279,8 @@ pub(super) async fn save_wanted_lockfile(
     let wanted = after_all_resolved(built_lockfile, hook, log).await?;
     match &wanted {
         HookedLockfile::Unchanged(lockfile) => lockfile.save_to_path(target, symlinked),
-        HookedLockfile::Replaced(value) => {
-            pnpm_lockfile::save_value_to_path(value, target, symlinked)
-        }
+        HookedLockfile::Replaced(value) => pnpm_lockfile::render_hook_lockfile(value)
+            .and_then(|text| pnpm_lockfile::save_text_to_path(text, target, symlinked)),
     }
     .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
     Ok(matches!(wanted, HookedLockfile::Unchanged(_)))
@@ -310,11 +309,14 @@ enum HookedLockfile<'a> {
 }
 
 impl HookedLockfile<'_> {
+    /// The text [`save_wanted_lockfile`] would write: the lockfile in the
+    /// format its version names, through the same writer.
     fn render_for_path(&self, target: &Path) -> Result<String, pnpm_lockfile::SaveLockfileError> {
-        match self {
-            Self::Unchanged(lockfile) => pnpm_lockfile::render_value_for_path(*lockfile, target),
-            Self::Replaced(value) => pnpm_lockfile::render_value_for_path(value, target),
-        }
+        let text = match self {
+            Self::Unchanged(lockfile) => lockfile.to_yaml_string()?,
+            Self::Replaced(value) => pnpm_lockfile::render_hook_lockfile(value)?,
+        };
+        pnpm_lockfile::render_text_for_path(text, target)
     }
 }
 

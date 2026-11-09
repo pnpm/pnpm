@@ -110,12 +110,17 @@ pub async fn read_lockfile(
     pnpm_package_manager::configure_rayon_pool();
     let kind = LockfileKind::parse(options.kind.as_deref())?;
     let path = lockfile_path(&options.dir, options.modules_dir.as_deref(), &kind);
-    let loaded = tokio::task::spawn_blocking(move || Lockfile::load_from_path(&path))
-        .await
-        .map_err(|join_error| {
-            napi::Error::from_reason(format!("readLockfile task panicked: {join_error}"))
-        })?
-        .map_err(|error| to_napi_error(&error))?;
+    let loaded = tokio::task::spawn_blocking(move || match kind {
+        LockfileKind::Wanted => Lockfile::load_from_path(&path),
+        LockfileKind::Current => {
+            Lockfile::load_current_from_install_state_dir(install_state_dir(&path))
+        }
+    })
+    .await
+    .map_err(|join_error| {
+        napi::Error::from_reason(format!("readLockfile task panicked: {join_error}"))
+    })?
+    .map_err(|error| to_napi_error(&error))?;
     loaded
         .map(|lockfile| {
             serde_json::to_value(lockfile)
@@ -134,12 +139,17 @@ pub async fn write_lockfile(options: WriteLockfileOptions) -> napi::Result<()> {
         .map_err(|err| {
             napi::Error::from_reason(format!("the lockfile argument is not a lockfile: {err}"))
         })?;
-    tokio::task::spawn_blocking(move || lockfile.save_to_path(&path, SymlinkedLockfile::Refuse))
-        .await
-        .map_err(|join_error| {
-            napi::Error::from_reason(format!("writeLockfile task panicked: {join_error}"))
-        })?
-        .map_err(|error| to_napi_error(&error))
+    tokio::task::spawn_blocking(move || match kind {
+        LockfileKind::Wanted => lockfile.save_to_path(&path, SymlinkedLockfile::Refuse),
+        LockfileKind::Current => {
+            lockfile.save_current_to_install_state_dir(install_state_dir(&path))
+        }
+    })
+    .await
+    .map_err(|join_error| {
+        napi::Error::from_reason(format!("writeLockfile task panicked: {join_error}"))
+    })?
+    .map_err(|error| to_napi_error(&error))
 }
 
 fn into_filter_options(options: Option<FilterLockfileOptions>) -> FilterByImportersOptions {
@@ -213,6 +223,13 @@ pub async fn read_modules_manifest(modules_dir: String) -> napi::Result<Option<s
                 })
         })
         .transpose()
+}
+
+/// The install state directory a current lockfile path lies in. The
+/// current lockfile is read and written in the peer-suffixed shape an
+/// install keeps it in, whatever `lockfileVersion` it records.
+fn install_state_dir(current_lockfile: &Path) -> &Path {
+    current_lockfile.parent().expect("the current lockfile path has a parent")
 }
 
 fn lockfile_path(dir: &str, modules_dir: Option<&str>, kind: &LockfileKind) -> PathBuf {

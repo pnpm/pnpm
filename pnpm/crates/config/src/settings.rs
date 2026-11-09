@@ -622,6 +622,9 @@ pub struct Config {
     /// lockfile's `settings` when it is `tar`.
     pub lockfile_integrity_target: pnpm_lockfile::IntegrityTarget,
 
+    /// The format pnpm writes the lockfile in. The `lockfile.format` setting.
+    pub lockfile_format: pnpm_lockfile::LockfileFormat,
+
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)

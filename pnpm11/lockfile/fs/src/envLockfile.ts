@@ -4,6 +4,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
 
+import { envLockfileFromNextFormat, isNextFormatDocument, type NextEnvDocument } from './envLockfileNextFormat.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { lockfileYamlDump, writeWantedLockfileAtomic } from './write.js'
 import {
@@ -36,6 +37,11 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
   const parsed = yaml.load(rawContent)
   if (parsed == null || typeof parsed !== 'object') {
     return null
+  }
+  // The next format's env document, which pnpm 11 reads so that it can
+  // switch to the pnpm version the project pins.
+  if (isNextFormatDocument(parsed as Record<string, unknown>)) {
+    return envLockfileFromNextFormat(parsed as Record<string, unknown> & NextEnvDocument)
   }
   if (!hasEnvLockfileShape(parsed as Record<string, unknown>)) {
     return null
