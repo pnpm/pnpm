@@ -1,3 +1,4 @@
+use pnpm_fs::is_non_link_read_error;
 use std::{
     io,
     path::{Path, PathBuf},
@@ -45,12 +46,6 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
         return Ok(());
     }
     replace_stale_hoist_symlink(dep_dir, dest).map_err(symlink_error)
-}
-
-fn is_non_link_read_error(error: &io::Error) -> bool {
-    const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
-    error.kind() == io::ErrorKind::InvalidInput
-        || (cfg!(windows) && error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT))
 }
 
 fn replace_stale_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {

@@ -1,5 +1,5 @@
 use super::PruneError;
-use pnpm_fs::read_symlink_dir;
+use pnpm_fs::{is_non_link_read_error, read_symlink_dir};
 use std::{
     collections::HashSet,
     fs,
@@ -211,7 +211,7 @@ fn linked_store_slot<Sys: FsReadLink>(
 ) -> Result<Option<PathBuf>, PruneError> {
     let target = match Sys::read_link(entry_path) {
         Ok(target) => target,
-        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::InvalidInput) => {
+        Err(error) if error.kind() == ErrorKind::NotFound || is_non_link_read_error(&error) => {
             return Ok(None);
         }
         Err(error) => {
