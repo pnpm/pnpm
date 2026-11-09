@@ -43,7 +43,7 @@ pub(super) fn build<Reporter: self::Reporter>(
     };
     let slot = PlacedPackage { placed: slot.is_placed()?, ..slot };
     let rerun = Rerun::of(context, candidate, (snapshot_key, cache_key));
-    if slot.placed && rerun == Rerun::No {
+    if slot.placed && !rerun.builds_placed() {
         slot.discard_staging();
         return already_placed::<Reporter>(context, snapshot_key, candidate);
     }
@@ -106,7 +106,7 @@ fn settle_built(
         }
         return Ok(());
     };
-    if slot.placed && rerun == Rerun::OutsideEffects {
+    if slot.placed && !rerun.replaces_placed() {
         slot.discard_staging();
         return Ok(());
     }
@@ -129,7 +129,7 @@ fn settle_built(
 }
 
 /// Why a placed package is built again.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Rerun {
     No,
     /// The build changed nothing in its package, so its effect lies
@@ -143,6 +143,22 @@ enum Rerun {
 }
 
 impl Rerun {
+    /// Whether a placed package is built again.
+    fn builds_placed(self) -> bool {
+        match self {
+            Rerun::No => false,
+            Rerun::OutsideEffects | Rerun::Replace => true,
+        }
+    }
+
+    /// Whether the build replaces the placed package.
+    fn replaces_placed(self) -> bool {
+        match self {
+            Rerun::No | Rerun::OutsideEffects => false,
+            Rerun::Replace => true,
+        }
+    }
+
     fn of(
         context: &BuildOneSnapshot<'_>,
         candidate: &BuildCandidate<'_>,
@@ -249,13 +265,22 @@ fn run_scripts<Reporter: self::Reporter>(
 }
 
 /// What placing a staged package does to a package already in the slot.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum WhenPlaced {
     /// Another install placed the package first, so this one discards its
     /// copy.
     Keep,
     /// A rebuild or a changed local directory replaces the placed package.
     Replace,
+}
+
+impl WhenPlaced {
+    fn keeps_placed(self) -> bool {
+        match self {
+            WhenPlaced::Keep => true,
+            WhenPlaced::Replace => false,
+        }
+    }
 }
 
 /// A package's directory in its slot, and this install's staging
@@ -338,7 +363,7 @@ impl PlacedPackage {
                     source: error,
                 });
             }
-            if when_placed == WhenPlaced::Keep && self.is_placed()? {
+            if when_placed.keeps_placed() && self.is_placed()? {
                 self.discard_staging();
                 return Ok(());
             }

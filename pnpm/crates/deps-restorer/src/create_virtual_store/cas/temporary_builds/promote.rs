@@ -24,7 +24,7 @@ pub(super) fn retain(
         if !moved.insert(target.clone()) {
             continue;
         }
-        if when_placed == WhenPlaced::Keep && placed(layout, key)? {
+        if when_placed.keeps_placed() && placed(layout, key)? {
             continue;
         }
         promote(temporary, layout, key, (&target, when_placed))
@@ -37,11 +37,20 @@ pub(super) fn retain(
 }
 
 /// What promoting a package does to a package already in the slot.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum WhenPlaced {
     /// Another install placed the package first, and it stays.
     Keep,
     Replace,
+}
+
+impl WhenPlaced {
+    fn keeps_placed(self) -> bool {
+        match self {
+            WhenPlaced::Keep => true,
+            WhenPlaced::Replace => false,
+        }
+    }
 }
 
 /// Whether the slot already holds the package. A slot's package directory
@@ -98,7 +107,12 @@ fn merge_missing_entries(staged: &Path, target: &Path, package: &Path) -> io::Re
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
-        pnpm_fs::rename_with_retry(&staged.join(name), &destination)?;
+        if let Err(error) = pnpm_fs::rename_with_retry(&staged.join(name), &destination) {
+            // Another install may have moved the same link in meanwhile.
+            if fs::symlink_metadata(&destination).is_err() {
+                return Err(error);
+            }
+        }
     }
     Ok(())
 }
@@ -133,9 +147,7 @@ fn place_package(
     }
     for attempt in 1..=ATTEMPTS {
         let Err(error) = rename_into_place(staged, target) else { return Ok(()) };
-        if when_placed == WhenPlaced::Keep
-            && crate::build_modules::slots::package_is_placed(target)?
-        {
+        if when_placed.keeps_placed() && crate::build_modules::slots::package_is_placed(target)? {
             return Ok(());
         }
         if !target.exists() || attempt == ATTEMPTS {
