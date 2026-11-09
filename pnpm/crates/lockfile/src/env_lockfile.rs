@@ -183,7 +183,7 @@ impl EnvLockfile {
     /// syntax and the `lockfileVersion` it declares.
     fn document_text(&self, format: LockfileFormat) -> Result<String, SaveLockfileError> {
         match format {
-            LockfileFormat::Next => next::to_text(self, format.version()),
+            LockfileFormat::V13 => next::to_text(self, format.version()),
             LockfileFormat::V9 => {
                 serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
             }

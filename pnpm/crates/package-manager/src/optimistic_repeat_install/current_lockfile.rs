@@ -20,7 +20,7 @@ impl<'a> CurrentLockfile<'a> {
     /// lockfile's digest has to be taken from. Rendered once, for the check
     /// and the regeneration both.
     pub(crate) fn regenerated_text(&self, format: pnpm_lockfile::LockfileFormat) -> Option<&str> {
-        if format != pnpm_lockfile::LockfileFormat::Next {
+        if format != pnpm_lockfile::LockfileFormat::V13 {
             return None;
         }
         self.regenerated

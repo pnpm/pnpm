@@ -58,8 +58,9 @@ pub enum LockfileFormat {
     #[default]
     V9,
     /// Snapshots keyed by name and version, with their peer bindings as
-    /// properties. Experimental, see pnpm/rfcs#72.
-    Next,
+    /// properties, under `lockfileVersion: '13.0'`. Experimental, see
+    /// pnpm/rfcs#72.
+    V13,
 }
 
 impl LockfileFormat {
@@ -68,7 +69,7 @@ impl LockfileFormat {
     pub fn version(self) -> crate::LockfileVersion<9> {
         let major = match self {
             LockfileFormat::V9 => 9,
-            LockfileFormat::Next => NEXT_LOCKFILE_MAJOR,
+            LockfileFormat::V13 => NEXT_LOCKFILE_MAJOR,
         };
         crate::LockfileVersion::<9>::try_from(crate::ComVer::new(major, 0))
             .expect("both formats are supported")

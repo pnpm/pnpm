@@ -66,7 +66,7 @@ fn write_then_read_round_trips() {
 fn write_then_read_round_trips_in_the_next_format() {
     let dir = TempDir::new().unwrap();
     let env = sample_env_lockfile();
-    env.write(dir.path(), SymlinkedLockfile::Refuse, LockfileFormat::Next).unwrap();
+    env.write(dir.path(), SymlinkedLockfile::Refuse, LockfileFormat::V13).unwrap();
 
     let raw = std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).unwrap();
     let env_doc = extract_env_document(&raw).expect("an env document");
