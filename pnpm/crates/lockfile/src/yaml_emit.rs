@@ -299,13 +299,12 @@ fn render_map(
         let lines = if single_line { ScalarLines::OneLine } else { ScalarLines::Multiline };
         return write_flow_mapping(map, level, lines, nesting.format);
     }
-    let spacing = if level == 0
-        || matches!(object_key, Some("packages" | "importers" | "projects" | "snapshots"))
-    {
-        EntrySpacing::BlankLine
-    } else {
-        EntrySpacing::Tight
-    };
+    let spacing =
+        if level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots")) {
+            EntrySpacing::BlankLine
+        } else {
+            EntrySpacing::Tight
+        };
     let values = one_line_values(object_key, nesting);
     write_block_mapping(map, level, first_entry, spacing, Nesting { values, ..nesting })
 }

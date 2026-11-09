@@ -66,8 +66,7 @@ fn write_map(
         write_one_line_map(out, map, level, nesting.format);
         return;
     }
-    let blank_lines =
-        level == 0 || matches!(key, Some("packages" | "importers" | "projects" | "snapshots"));
+    let blank_lines = separates_with_blank_lines(level, key);
     let nesting = Nesting { values: one_line_values(key, nesting), ..nesting };
     out.push('{');
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
@@ -83,6 +82,13 @@ fn write_map(
     }
     next_line(out, level);
     out.push('}');
+}
+
+/// The top-level map and the `projects` and `packages` sections keep a
+/// blank line between their entries; a project or package with a section's
+/// name does not.
+fn separates_with_blank_lines(level: usize, key: Option<&str>) -> bool {
+    level == 0 || level == 1 && matches!(key, Some("projects" | "packages"))
 }
 
 /// The entries of a workspace-scale map, each rendered into its own buffer
