@@ -189,6 +189,26 @@ describe('readProjectPin', () => {
     assert.equal(pinOf(path.join(everything, 'node_modules', 'dep'))?.spec, '12.1.0')
   })
 
+  for (const [included, excluded, spec, manifestDir] of [
+    ['**/.dev/**', '!packages/**', '12.1.0', 'packages/.dev/tool'],
+    ['packages/.dev/*', '!packages/*/tool', '12.1.0', 'packages/.dev/tool'],
+    ['packages/.dev/*', '!packages/*/other', '11.20.0', '.'],
+    ['packages/*/tool', '!other/**', '12.1.0', 'packages/.dev/tool'],
+  ]) {
+    test(`applies ${excluded} to an explicitly included hidden directory`, () => {
+      const dir = project({
+        'pnpm-workspace.yaml': `packages:\n  - '${included}'\n  - '${excluded}'\n`,
+        'package.json': manifest({ packageManager: 'pnpm@11.20.0' }),
+        'packages/.dev/tool/package.json': manifest({ packageManager: 'pnpm@12.1.0' }),
+      })
+      assert.deepEqual(pinOf(path.join(dir, 'packages', '.dev', 'tool')), {
+        spec,
+        field: 'packageManager',
+        manifestPath: path.join(dir, manifestDir, 'package.json'),
+      })
+    })
+  }
+
   test('includes no project but the root in a workspace without packages', () => {
     const dir = project({
       'pnpm-workspace.yaml': 'nodeLinker: isolated\n',
