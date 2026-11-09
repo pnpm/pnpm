@@ -4257,6 +4257,9 @@ importers:
       '@pnpm/exec.npm-lifecycle':
         specifier: workspace:*
         version: link:../../../exec/npm-lifecycle
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../../fs/graceful-fs
       '@pnpm/global.commands':
         specifier: workspace:*
         version: link:../../../global/commands
