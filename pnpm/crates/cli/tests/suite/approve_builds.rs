@@ -1002,3 +1002,18 @@ fn ignore_workspace_skips_the_allow_builds_scaffold() {
 
     drop(harness);
 }
+
+#[test]
+fn permissions_approval_rebuilds_the_selected_dependency() {
+    let (harness, workspace) = install_with_ignored_build();
+    let marker = workspace.join(INSTALL_MARKER);
+    assert!(!marker.exists());
+    pacquet(&workspace)
+        .with_args(["permissions", "approve", "@pnpm.e2e/install-script-example"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "permissions approval must run the install script");
+    let modules = fs::read_to_string(workspace.join("node_modules/.modules.yaml")).unwrap();
+    assert!(!modules.contains("pendingBuilds:"), "{modules}");
+    drop(harness);
+}

@@ -30,6 +30,7 @@ fn from_resolved_reports_every_setting() {
         node_version: Some("24.0.0".to_string()),
         publish_branch: Some("production".to_string()),
         script_shell: Some("/bin/bash".to_string()),
+        editor: Some("example-editor --wait".to_string()),
         node_options: Some("--max-old-space-size=8192".to_string()),
         patches_dir: Some("patches".to_string()),
         save_prefix: Some("~".to_string()),
