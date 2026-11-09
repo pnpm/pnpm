@@ -53,7 +53,7 @@ fn prune_keeps_everything_when_no_projects() {
 }
 
 #[test]
-fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
+fn prune_removes_slots_when_no_registered_project_uses_the_links() {
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());
     let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
@@ -65,7 +65,7 @@ fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
-    assert!(slot.exists());
+    assert!(!slot.exists(), "unreferenced clone-cache slots must be removed");
 }
 
 #[test]

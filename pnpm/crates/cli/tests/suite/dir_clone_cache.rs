@@ -169,3 +169,35 @@ fn explicit_copy_method_bypasses_the_cache() {
 
     drop(mock_instance);
 }
+
+#[test]
+fn prune_removes_cached_clones_without_global_virtual_store() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let cached_package = canonical_pkg_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
+    assert!(cached_package.join("package.json").exists());
+    let installed_manifest = project_pkg_manifest(&workspace);
+    let manifest = fs::read(&installed_manifest).unwrap();
+
+    pacquet(&workspace)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    assert!(!cached_package.exists(), "prune must remove the unreferenced clone cache");
+    assert_eq!(fs::read(&installed_manifest).unwrap(), manifest);
+    drop(mock_instance);
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    pacquet(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read(installed_manifest).unwrap(), manifest);
+}

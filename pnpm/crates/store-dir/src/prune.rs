@@ -188,13 +188,6 @@ impl StoreDir {
 
         let reachable =
             mark::mark_reachable_slots(&links_dir, &projects, loader_roots, modules_dirs)?;
-        // Projects without the global virtual store register too, so no link
-        // from any registered project leaves the slots' users as unknown as
-        // an empty registry does.
-        if reachable.is_empty() {
-            pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
-            return Ok(());
-        }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
             pnpm_diagnostics::eprintln!(

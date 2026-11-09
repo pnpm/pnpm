@@ -99,7 +99,7 @@ project pins a version that another pnpm process is installing at that moment.
 
 Without the global virtual store, an install with `--frozen-store` or `enableModulesDir: false` does not write the registry. Neither do `--lockfile-only` and `--dry-run` installs.
 
-When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on the global virtual store's `links/` directory. It walks the registered projects to find the packages still in use and removes the rest. If no registered project links into `links/`, prune leaves it unchanged.
+`pnpm store prune` also cleans the [global virtual store]'s `links/` directory, including cached clones created on macOS when the global virtual store is disabled. It walks the registered projects to find the packages still linked from them and removes the rest. If no projects are registered, prune leaves `links/` unchanged.
 
 [global virtual store]: ../settings/node-modules.md#enableglobalvirtualstore
 
