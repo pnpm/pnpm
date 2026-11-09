@@ -604,6 +604,27 @@ Can be specified as an integer number of seconds (e.g. `10`) or with a duration 
 packumentTtl: 30s
 ```
 
+## `maxTarballSize`
+
+The largest tarball pnpr fetches from an upstream registry. pnpr writes each
+proxied tarball to a temporary file while it verifies the integrity, so this
+bounds the disk one request can take. An upstream tarball over the limit is
+refused with `502 Bad Gateway`, and the install fails with
+`ERR_PNPM_TARBALL_HTTP_STATUS`.
+
+Defaults to `100MiB`. Takes an integer number of bytes or a size suffix such
+as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
+Must be greater than zero.
+
+A published package is still at most 100 MiB, the limit npm applies to a
+publish. The setting only affects tarballs proxied from upstream registries,
+where packages with large native binaries, such as `onnxruntime-node`, exceed
+100 MiB.
+
+```yaml title="pnpr.yaml"
+maxTarballSize: 256MiB
+```
+
 ## `packageDocuments`
 
 How pnpr serves its own package document, which pnpm asks for from a registry

@@ -293,6 +293,7 @@ fn build_http_config(
         }
         None => Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
     };
+    let max_tarball_bytes = build_max_tarball_bytes(file.max_tarball_size.take())?;
     Ok(super::HttpConfig {
         listen,
         public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
@@ -306,12 +307,32 @@ fn build_http_config(
                 })?,
             None => Config::DEFAULT_PACKUMENT_TTL,
         },
+        max_tarball_bytes,
         trusted_proxies,
         trusted_proxy_header,
         request_timeout,
         metrics: build_metrics_config(file, listen)?,
         package_documents: super::build_package_documents_config(file.package_documents.take())?,
     })
+}
+
+/// The `maxTarballSize:` key as bytes, defaulting to
+/// [`super::HttpConfig::DEFAULT_MAX_TARBALL_BYTES`]. Zero is refused: it would
+/// turn every upstream tarball away.
+fn build_max_tarball_bytes(raw: Option<super::ByteSize>) -> Result<u64, RegistryError> {
+    let Some(super::ByteSize(raw)) = raw else {
+        return Ok(super::HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
+    };
+    let bytes = super::parse_byte_size(&raw)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("maxTarballSize {raw:?} is not a valid byte size"),
+        })?;
+    if bytes == 0 {
+        return Err(RegistryError::InvalidConfig {
+            reason: "maxTarballSize must be greater than zero".to_string(),
+        });
+    }
+    Ok(bytes)
 }
 
 fn build_metrics_config(

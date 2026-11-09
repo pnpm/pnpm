@@ -221,6 +221,10 @@ pub(super) struct ConfigFile {
     /// Duration before a cached packument is considered stale and refetched.
     #[serde(default)]
     pub(super) packument_ttl: Option<Interval>,
+    /// The largest tarball pnpr fetches from an upstream registry (e.g.
+    /// `100MiB`).
+    #[serde(default)]
+    pub(super) max_tarball_size: Option<ByteSize>,
     /// pnpr-only: how pnpr's own package document is served.
     #[serde(default)]
     pub(super) package_documents: Option<PackageDocumentsFile>,

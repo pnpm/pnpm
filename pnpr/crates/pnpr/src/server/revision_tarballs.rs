@@ -9,13 +9,12 @@
 
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, FetchOutcome, HeaderMap, Identity,
-    Integrity, MAX_TARBALL_BYTES, RegistryError, RegistrySource, Response, Storage, TarSource,
-    TgzTrust, Upstream, Value, authorize, authorized_upstream, ensure_osv_allowed,
-    extract_upstream_revision_integrity, header, hosted_read_namespace, not_found,
-    private_no_cache, read_source_packument, resolve_registry_source, revision_source_registry,
-    streaming, tar_decode_limit, tar_resource_integrity, tar_response, tarball_integrity_error,
-    tarball_response, tarball_stream_error_for_package, tgz_integrity_key,
-    upstream_cache_namespace,
+    Integrity, RegistryError, RegistrySource, Response, Storage, TarSource, TgzTrust, Upstream,
+    Value, authorize, authorized_upstream, ensure_osv_allowed, extract_upstream_revision_integrity,
+    header, hosted_read_namespace, not_found, private_no_cache, read_source_packument,
+    resolve_registry_source, revision_source_registry, streaming, tar_decode_limit,
+    tar_resource_integrity, tar_response, tarball_integrity_error, tarball_response,
+    tarball_stream_error_for_package, tgz_integrity_key, upstream_cache_namespace,
 };
 use axum::{body::Body, response::IntoResponse};
 use pnpm_crypto_hash::has_complete_sha512_digest;
@@ -209,9 +208,8 @@ impl UpstreamRevision<'_> {
         let storage = &self.state.inner.storage;
         let mut write =
             storage.open_upstream_blob_tmp(namespace, self.name, self.cache_filename).await?;
-        if let Err(err) =
-            streaming::download_unverified(response, &mut write, MAX_TARBALL_BYTES).await
-        {
+        let max_bytes = self.state.max_tarball_bytes();
+        if let Err(err) = streaming::download_unverified(response, &mut write, max_bytes).await {
             write.abandon().await;
             let label = format!("{}+r{}", self.version, self.revision);
             return Err(tarball_stream_error_for_package(err, self.name.as_str(), &label));

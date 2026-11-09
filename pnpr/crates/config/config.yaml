@@ -9,6 +9,9 @@ storage: ./storage
 #  maxSize: 20GB
 #  maxAge: 30d
 
+# The largest tarball fetched from an upstream registry. Defaults to 100MiB.
+#maxTarballSize: 256MiB
+
 # Cross-origin browser access (disabled unless exact origins are listed).
 #cors:
 #  allowedOrigins:

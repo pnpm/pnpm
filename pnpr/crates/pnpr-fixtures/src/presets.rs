@@ -187,6 +187,7 @@ fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
         ui: UiConfig::default(),
         oci: OciConfig::default(),
         packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        max_tarball_bytes: pnpr_config::HttpConfig::DEFAULT_MAX_TARBALL_BYTES,
         trusted_proxies: Vec::new(),
         trusted_proxy_header: TrustedProxyHeader::default(),
         request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
