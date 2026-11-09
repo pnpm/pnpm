@@ -201,6 +201,55 @@ fn batchless_cmd_shim_runs_unicode_target_and_preserves_codepage_and_exit_status
     }
 }
 
+/// The code-page switch must run before the shim sets `NODE_PATH`, or cmd.exe
+/// decodes the Unicode path with the caller's code page and Node.js cannot
+/// resolve the module.
+#[test]
+#[cfg_attr(not(windows), ignore = "requires Windows CMD code pages")]
+fn cmd_shim_resolves_a_module_through_a_unicode_node_path() {
+    let root = tempdir().unwrap();
+    let unicode_dir = root.path().join("工具");
+    let node_modules = unicode_dir.join("node_modules");
+    let package = node_modules.join("工具模块");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(
+        package.join("package.json"),
+        "{\"name\":\"工具模块\",\"version\":\"1.0.0\",\"main\":\"index.js\"}\n",
+    )
+    .unwrap();
+    fs::write(package.join("index.js"), "module.exports = 'UNICODE_NODE_PATH_OK'\n").unwrap();
+
+    let target = unicode_dir.join("cli.js");
+    fs::write(&target, "process.stdout.write(require('工具模块'))\n").unwrap();
+
+    let shim = root.path().join("shim.cmd");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let node_path_entry = String::from(node_modules.to_string_lossy());
+    let node_path = [node_path_entry];
+    fs::write(
+        &shim,
+        generate_cmd_shim(&target, &shim, Some(&runtime), &node_path, CmdShimBatch::Kept),
+    )
+    .unwrap();
+
+    let driver = "@echo off\r\n\
+                  @for /f \"tokens=2 delims=:\" %%a in ('chcp') do @set \"original_codepage=%%a\"\r\n\
+                  @chcp 936>nul\r\n\
+                  @call shim.cmd\r\n\
+                  @set \"shim_exit=%errorlevel%\"\r\n\
+                  @chcp %original_codepage%>nul\r\n\
+                  @exit /b %shim_exit%\r\n";
+    fs::write(root.path().join("run.cmd"), driver).unwrap();
+
+    let output = cmd_in_own_console()
+        .args(["/d", "/c", "run.cmd"])
+        .current_dir(root.path())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "UNICODE_NODE_PATH_OK");
+}
+
 /// The interpreter itself, not whatever launcher answers to `node` on `PATH`:
 /// a version manager's launcher may dispatch on its own file name.
 fn node_executable() -> std::path::PathBuf {
