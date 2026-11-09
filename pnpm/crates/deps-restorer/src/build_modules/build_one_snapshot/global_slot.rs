@@ -356,16 +356,16 @@ impl PlacedPackage {
                 Ok(()) => return Ok(()),
                 Err(error) => error,
             };
+            if when_placed.keeps_placed() && self.is_placed()? {
+                self.discard_staging();
+                return Ok(());
+            }
             if !self.target.exists() || attempt == ATTEMPTS {
                 self.discard_staging();
                 return Err(BuildModulesError::PlaceBuiltPackage {
                     path: self.target.clone(),
                     source: error,
                 });
-            }
-            if when_placed.keeps_placed() && self.is_placed()? {
-                self.discard_staging();
-                return Ok(());
             }
             self.move_target_aside().inspect_err(|_| self.discard_staging())?;
         }
