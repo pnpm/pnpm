@@ -416,41 +416,8 @@ fn missing_manifest_returns_false() {
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
+    use super::run_lifecycle_hook;
     use std::fmt::Write as _;
-    /// RAII guard that restores a process env var to its pre-test
-    /// value on drop, so an assertion failure can't leak the seed
-    /// into sibling tests — nor clobber a value the env already had.
-    struct EnvGuard {
-        key: &'static str,
-        prev: Option<std::ffi::OsString>,
-    }
-    impl EnvGuard {
-        fn new(key: &'static str) -> Self {
-            EnvGuard { key, prev: std::env::var_os(key) }
-        }
-    }
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            // SAFETY: nextest runs each test in its own thread, so the
-            // only risk is sibling tests calling `env::vars()`
-            // concurrently — this `Drop` still runs on panic.
-            unsafe {
-                match self.prev.take() {
-                    Some(value) => std::env::set_var(self.key, value),
-                    None => std::env::remove_var(self.key),
-                }
-            }
-        }
-    }
-    let _user_guard = EnvGuard::new("npm_config_platform_arch");
-    let _auth_guard = EnvGuard::new("npm_config__authtoken");
-    // SAFETY: nextest runs each test in its own thread, so the only
-    // risk is sibling tests calling `env::vars()` concurrently — the
-    // guards' `Drop` removes the vars even on panic.
-    unsafe {
-        std::env::set_var("npm_config_platform_arch", "x64");
-        std::env::set_var("npm_config__authtoken", "should-not-leak");
-    }
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
@@ -473,14 +440,21 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         write!(template, r"{label}=%s\n").expect("write to a String");
         write!(arguments, r#" "{expression}""#).expect("write to a String");
     }
-    let postinstall = format!("printf '{template}'{arguments} > '{}'", dump_path.display());
+    let script = format!("printf '{template}'{arguments} > '{}'", dump_path.display());
     let manifest = serde_json::json!({
         "name": "stamp-target",
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
-        "scripts": { "postinstall": postinstall },
     });
-    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+    let mut parent_env: HashMap<String, String> =
+        [("npm_config_platform_arch", "x64"), ("npm_config__authtoken", "should-not-leak")]
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect();
+    // The hook finds its shell along `PATH`.
+    if let Ok(path) = std::env::var("PATH") {
+        parent_env.insert("PATH".to_string(), path);
+    }
 
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
@@ -509,8 +483,8 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("postinstall");
-    assert!(ran, "run_postinstall_hooks must report at least one script ran: ran={ran}");
+    run_lifecycle_hook::<SilentReporter>("postinstall", &script, &opts, &manifest, &parent_env)
+        .expect("postinstall");
 
     let dump = fs::read_to_string(&dump_path).expect("read env dump");
 

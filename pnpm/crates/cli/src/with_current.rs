@@ -31,9 +31,15 @@ pub struct MissingWithCurrentCommand;
 pub fn rewrite(argv: Vec<OsString>) -> miette::Result<Vec<OsString>> {
     let (argv, force_pm_on_fail_ignore) = plan(argv)?;
     if force_pm_on_fail_ignore {
-        // SAFETY: `rewrite` runs in `main` before the tokio runtime and
-        // rayon pool start, so the process is single-threaded and no other
-        // thread can be reading the environment concurrently.
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "a script this invocation runs may call pnpm again, and that nested pnpm \
+                      skips the pin check too, as the child of `pnpm with <version>` does. An \
+                      argv flag or a `ConfigOverrides` entry would reach only this process"
+        )]
+        // SAFETY: `rewrite` runs on the thread `run_on_big_stack` spawned,
+        // whose spawner is parked in `join` for the whole scope, so no other
+        // thread reads the environment while this writes it.
         unsafe {
             std::env::set_var("pnpm_config_pm_on_fail", "ignore");
         }
