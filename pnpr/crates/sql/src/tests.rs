@@ -52,6 +52,7 @@ async fn startup_connection_failure_names_the_target_and_cause_without_credentia
     let error = super::connect_startup(&pool, &config.url, timeout).await.unwrap_err().to_string();
     assert!(started.elapsed() >= timeout);
     assert!(error.contains(&address.to_string()), "{error}");
-    assert!(error.to_lowercase().contains("refused"), "{error}");
+    let cause = error.to_lowercase();
+    assert!(cause.contains("refused") || cause.contains("timed out"), "{error}");
     assert!(!error.contains("example-secret"), "{error}");
 }

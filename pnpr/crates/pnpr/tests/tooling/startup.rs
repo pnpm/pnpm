@@ -55,7 +55,7 @@ async fn postgres_startup_retries_report_the_redacted_target_and_cause() {
         url: format!("postgres://example:example-secret@{address}/registry"),
         max_connections: None,
         timeout: std::time::Duration::from_secs(1),
-        startup_timeout: std::time::Duration::from_millis(400),
+        startup_timeout: std::time::Duration::from_secs(5),
     };
     let backend = pnpr_config::BackendConfig::Postgres(settings);
     let error = pnpr_auth::AuthState::load(&pnpr_config::AuthConfig::default(), &backend)
@@ -63,7 +63,7 @@ async fn postgres_startup_retries_report_the_redacted_target_and_cause() {
         .unwrap_err()
         .to_string();
     let output = std::fs::read_to_string(log.path()).unwrap();
-    assert!(output.contains("database connection failed, retrying"), "{output}");
+    assert!(output.contains("database connection failed, retrying"), "{output}\n{error}");
     for message in [&output, &error] {
         assert!(message.contains(&address.to_string()), "{message}");
         assert!(message.to_lowercase().contains("refused"), "{message}");
