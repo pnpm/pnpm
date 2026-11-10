@@ -334,6 +334,67 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     missing.assert_async().await;
 }
 
+/// A `cache: false` upstream spools each download through a verified temp
+/// file, so the response carries its length and the cache holds nothing.
+#[tokio::test]
+async fn an_uncached_upstream_streams_verified_downloads_without_caching() {
+    let mut upstream = mockito::Server::new_async().await;
+    let archive = crate_archive("sample_crate", "1.0.0");
+    upstream
+        .mock("GET", "/config.json")
+        .with_body(json!({ "dl": format!("{}/dl", upstream.url()) }).to_string())
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/sa/mp/sample_crate")
+        .with_body(format!(
+            "{}\n",
+            json!({
+                "name": "sample_crate",
+                "vers": "1.0.0",
+                "deps": [],
+                "cksum": sha256_hex(&archive),
+                "features": {},
+                "yanked": false,
+                "v": 1,
+            })
+        ))
+        .create_async()
+        .await;
+    let download_mock = upstream
+        .mock("GET", "/dl/sample_crate/1.0.0/download")
+        .with_body(archive.clone())
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = cargo_config(tmp.path().to_path_buf(), &upstream.url(), "$all");
+    config.routing.upstreams.get_mut("cratesio").expect("`cratesio` upstream").cache = false;
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/cargo/api/v1/crates/sample_crate/1.0.0/download")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_LENGTH], archive.len().to_string());
+        assert_eq!(body_bytes(response.into_body()).await, archive);
+    }
+    download_mock.assert_async().await;
+    let cache = tmp.path().join(".pnpr-cache");
+    assert!(
+        find_file(&cache, &blob_segment("sample-crate", "sample_crate-1.0.0.crate")).is_none(),
+        "a cache: false upstream persists no download",
+    );
+}
+
 #[tokio::test]
 async fn a_download_that_fails_the_index_checksum_is_never_cached() {
     let mut upstream = mockito::Server::new_async().await;

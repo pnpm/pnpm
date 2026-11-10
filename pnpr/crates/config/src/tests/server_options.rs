@@ -412,6 +412,16 @@ fn request_timeout_defaults_and_overrides() {
 }
 
 #[test]
+fn packument_ttl_rejects_an_invalid_interval() {
+    let yaml = "storage: ./s\npackumentTtl: forever\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("packumentTtl")),
+        "expected InvalidConfig naming packumentTtl, got {err:?}",
+    );
+}
+
+#[test]
 fn max_tarball_size_defaults_to_100_mib() {
     let config = Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.http.max_tarball_bytes, crate::HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
