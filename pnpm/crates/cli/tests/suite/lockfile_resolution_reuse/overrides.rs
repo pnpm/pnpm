@@ -813,10 +813,22 @@ fn a_version_selector_override_applies_to_a_catalog_dependency() {
         .with_arg("install")
         .assert()
         .success();
+    let wanted_before_latest = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let deps_before_latest =
+        wanted_before_latest.importers["."].dependencies.as_ref().expect("dependencies");
+    assert_eq!(deps_before_latest[&bar_name].specifier, "catalog:legacy");
+    assert_eq!(deps_before_latest[&bar_name].version.to_string(), "100.0.0");
     pacquet_at(&fixture.workspace)
         .with_args(["update", "--latest", "@pnpm.e2e/bar"])
         .assert()
         .success();
+    let updated_workspace = pnpm_workspace::read_workspace_manifest(&fixture.workspace)
+        .expect("read workspace manifest")
+        .expect("workspace manifest");
+    let catalogs = updated_workspace.catalogs.expect("named catalogs");
+    assert_eq!(catalogs["legacy"]["@pnpm.e2e/bar"], "100.1.0");
     let wanted_after_latest = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");

@@ -3652,5 +3652,40 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
       overrides: overridesMatchingBumpedBar,
     })
   ).resolves.toBeDefined()
+
+  // When a catalog update activates a removal override (`'-'`), the dependency
+  // is dropped from the resolved importer on the second pass.
+  const overridesRemovingBumpedBar: Record<string, string> = {
+    '@pnpm.e2e/foo@^100.0.0': '100.0.0',
+    '@pnpm.e2e/bar@^100.1.0': '-',
+  }
+  catalogs.legacy['@pnpm.e2e/bar'] = '100.0.0'
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides: overridesRemovingBumpedBar,
+  })
+  await mutateModules(
+    [
+      {
+        ...projects['project1' as ProjectId],
+        rootDir: path.resolve('project1') as ProjectRootDir,
+        mutation: 'installSome' as const,
+        dependencySelectors: ['@pnpm.e2e/bar'],
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      },
+    ],
+    {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      overrides: overridesRemovingBumpedBar,
+    }
+  )
+  expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toBeUndefined()
 })
 

@@ -1458,5 +1458,26 @@ test('createVersionsOverrider() matches version-selector overrides against catal
   const depOverrider = createDependencyOverrider(overrides, process.cwd(), catalogs)!
   expect(depOverrider('ms', 'catalog:', process.cwd())).toBe('2.1.1')
   expect(depOverrider('ms', 'catalog:legacy', process.cwd())).toBeUndefined()
+  expect(depOverrider('ms', 'catalog:missing', process.cwd())).toBeUndefined()
+
+  const fallbackOverrider = createVersionsOverrider(parseOverrides({
+    'ms@^2.0.0': '2.1.1',
+    bar: '1.0.0',
+  }, catalogs), process.cwd(), { catalogs })
+  expect(fallbackOverrider({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:missing',
+      bar: 'catalog:missing',
+    },
+  })).toStrictEqual({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:missing',
+      bar: '1.0.0',
+    },
+  })
 })
 

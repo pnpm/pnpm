@@ -283,7 +283,12 @@ async function resolveGraphWithUpdatedCatalogOverrides (
   if (resolution.updatedCatalogs == null || isEmpty(opts.overrides ?? {})) return resolution
   const updatedCatalogsConfig = mergeCatalogs(opts.catalogs, resolution.updatedCatalogs)
   const overridesWithUpdatedCatalogs = parseOverrides(opts.overrides!, updatedCatalogsConfig)
-  if (!catalogUpdateAffectsOverrides(opts.catalogs, updatedCatalogsConfig, resolution.parsedOverrides, overridesWithUpdatedCatalogs)) {
+  if (!catalogUpdateAffectsOverrides({
+    previousCatalogs: opts.catalogs,
+    updatedCatalogs: updatedCatalogsConfig,
+    previousOverrides: resolution.parsedOverrides,
+    updatedOverrides: overridesWithUpdatedCatalogs,
+  })) {
     return resolution
   }
   return resolveGraphWithUpdatedCatalogs(resolveGraph, {
@@ -296,10 +301,12 @@ async function resolveGraphWithUpdatedCatalogOverrides (
 }
 
 function catalogUpdateAffectsOverrides (
-  previousCatalogs: Catalogs | undefined,
-  updatedCatalogs: Catalogs | undefined,
-  previousOverrides: VersionOverride[],
-  updatedOverrides: VersionOverride[]
+  { previousCatalogs, updatedCatalogs, previousOverrides, updatedOverrides }: {
+    previousCatalogs: Catalogs | undefined
+    updatedCatalogs: Catalogs | undefined
+    previousOverrides: VersionOverride[]
+    updatedOverrides: VersionOverride[]
+  }
 ): boolean {
   if (!equals(createOverridesMapFromParsed(updatedOverrides), createOverridesMapFromParsed(previousOverrides))) {
     return true
@@ -351,38 +358,42 @@ async function reapplyReadPackageHookToProjects (
   }
 ): Promise<void> {
   const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(parsedOverrides, opts.overridesRootDir, updatedCatalogsConfig)
-  await Promise.all(projects.map(async (project) => reapplyReadPackageHookToProject(project, overriddenDependencyMatcherFor, readPackageHook)))
+  await Promise.all(projects.map(async (project) => reapplyReadPackageHookToProject(project, { overriddenDependencyMatcherFor, readPackageHook })))
 }
 
 async function reapplyReadPackageHookToProject (
   project: ImporterToUpdate,
-  overriddenDependencyMatcherFor: ReturnType<typeof createOverriddenDependencyMatcher>,
-  readPackageHook: ReadPackageHook | undefined
+  { overriddenDependencyMatcherFor, readPackageHook }: {
+    overriddenDependencyMatcherFor: ReturnType<typeof createOverriddenDependencyMatcher>
+    readPackageHook: ReadPackageHook | undefined
+  }
 ): Promise<void> {
   const unhookedManifest = clone(project.originalManifest ?? project.manifest)
   if (project.originalManifest != null) project.originalManifest = unhookedManifest
   project.manifest = readPackageHook != null ? await readPackageHook(clone(unhookedManifest), project.rootDir) : clone(unhookedManifest)
   const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
   if (project.updatePackageManifest) project.isOverriddenDependency = isOverriddenDependency
-  project.wantedDependencies = project.wantedDependencies.map((dep) =>
-    rewriteWantedDependencyForUpdatedCatalogs(project, dep, isOverriddenDependency, unhookedManifest))
+  project.wantedDependencies = project.wantedDependencies.flatMap((dep) =>
+    rewriteWantedDependencyForUpdatedCatalogs(project, dep, { isOverriddenDependency, unhookedManifest }))
 }
 
 function rewriteWantedDependencyForUpdatedCatalogs (
   project: ImporterToUpdate,
   dep: ImporterToUpdate['wantedDependencies'][number],
-  isOverriddenDependency: ImporterToUpdate['isOverriddenDependency'],
-  unhookedManifest: ImporterToUpdate['manifest']
-): ImporterToUpdate['wantedDependencies'][number] {
-  if (!dep.alias) return dep
+  { isOverriddenDependency, unhookedManifest }: {
+    isOverriddenDependency: ImporterToUpdate['isOverriddenDependency']
+    unhookedManifest: ImporterToUpdate['manifest']
+  }
+): Array<ImporterToUpdate['wantedDependencies'][number]> {
+  if (!dep.alias) return [dep]
   const hookedSpec = getSpecFromPackageManifest(project.manifest, dep.alias)
   const unhookedSpec = getSpecFromPackageManifest(unhookedManifest, dep.alias)
-  if (hookedSpec === '') return dep
+  if (hookedSpec === '') return unhookedSpec === '' ? [dep] : []
   if (hookedSpec !== unhookedSpec || isOverriddenDependency?.(dep.alias, unhookedSpec) === true) {
     project.hookOwnedAliases?.add(dep.alias)
-    return { ...dep, bareSpecifier: hookedSpec, saveSpec: false, updateToLatestAllowed: false }
+    return [{ ...dep, bareSpecifier: hookedSpec, saveSpec: false, updateToLatestAllowed: false }]
   }
-  return project.hookOwnedAliases?.delete(dep.alias) ? { ...dep, bareSpecifier: hookedSpec } : dep
+  return [project.hookOwnedAliases?.delete(dep.alias) ? { ...dep, bareSpecifier: hookedSpec } : dep]
 }
 
 function excludeUnincludedDependencies (
