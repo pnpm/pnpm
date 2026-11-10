@@ -7,12 +7,12 @@ import {
   runLifecycleHook,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
-import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
 import { cleanGitBranchLockfiles, getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { streamParser } from '@pnpm/logger'
 import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import { extendOptions, type ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
@@ -47,6 +47,7 @@ export async function mutateModules (
   const detachReporter = attachReporter(maybeOpts?.reporter)
 
   const opts = extendOptions(maybeOpts)
+  const allProjectsWereProvided = Boolean(maybeOpts.allProjects?.length)
 
   // Taken before any fetching so the store-verification figures this
   // install reports are its own. See the tally in `@pnpm/worker` for
@@ -54,7 +55,7 @@ export async function mutateModules (
   const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
 
   // When a pnpr server is configured, use server-side resolution.
-  if (opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
+  if (allProjectsWereProvided && opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -66,12 +67,34 @@ export async function mutateModules (
     }
   }
 
+  if (!allProjectsWereProvided) {
+    try {
+      opts.allProjects = await readMutationProjectOptions(projects, opts.ignorePackageManifest)
+    } catch (err) {
+      detachReporter()
+      throw err
+    }
+  }
+
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
   const result = await settleInstall(runMutations(run), run.verifyLockfilePromise, detachReporter)
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
   return finishMutation(run, result)
+}
+
+async function readMutationProjectOptions (
+  projects: MutatedProject[],
+  ignorePackageManifest: boolean
+): Promise<ProjectOptions[]> {
+  return Promise.all(projects.map(async (project, buildIndex) => ({
+    buildIndex,
+    manifest: ignorePackageManifest
+      ? await safeReadProjectManifestOnly(project.rootDir) ?? {}
+      : await readProjectManifestOnly(project.rootDir),
+    rootDir: project.rootDir,
+  })))
 }
 
 function attachReporter (reporter: MutateModulesOptions['reporter'] | undefined): () => void {

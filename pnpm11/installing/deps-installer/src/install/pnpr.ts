@@ -137,7 +137,8 @@ async function preparePnprProjects (
   projects: MutatedProject[],
   opts: MutateModulesOptions
 ): Promise<PnprInstallProject[] | null> {
-  const targetSet = listPnprTargets(projects, opts.allProjects ?? [])
+  if (!opts.allProjects?.length) return null
+  const targetSet = listPnprTargets(projects, opts.allProjects)
   // Bail to the normal flow if any mutated project isn't in allProjects —
   // we can't pre-process its manifest correctly.
   for (const project of projects) {
@@ -154,26 +155,11 @@ function listPnprTargets (
   for (const project of projects) {
     mutationByRootDir.set(project.rootDir, project)
   }
-  // Include every workspace project, not just the mutated ones — otherwise
-  // the pnpr server's resulting lockfile would only contain the targeted importer
-  // and `headlessInstall` (or a later install) would crash on the missing
-  // entries for the other workspace projects. Projects without a mutation
-  // are sent with their current manifest (no-op for resolution).
-  if (allProjects.length > 0) {
-    return allProjects.map((ap) => ({
-      rootDir: ap.rootDir,
-      manifest: ap.manifest,
-      mutation: mutationByRootDir.get(ap.rootDir),
-    }))
-  }
-  return projects.map((project) => {
-    const proj = allProjects.find((ap) => ap.rootDir === project.rootDir)
-    return {
-      rootDir: project.rootDir,
-      manifest: proj?.manifest ?? ({} as ProjectManifest),
-      mutation: project,
-    }
-  })
+  return allProjects.map((ap) => ({
+    rootDir: ap.rootDir,
+    manifest: ap.manifest,
+    mutation: mutationByRootDir.get(ap.rootDir),
+  }))
 }
 
 async function preparePnprProject (target: PnprTarget): Promise<PnprInstallProject> {
