@@ -665,6 +665,7 @@ defaultRegistry:
 }
 
 #[test]
+#[cfg(feature = "backend-libsql")]
 fn test_config_check_reports_the_s3_key_prefix() {
     let dir = TempDir::new().unwrap();
     let report = |prefix: &str| {

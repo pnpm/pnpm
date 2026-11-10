@@ -164,12 +164,19 @@ async fn fails_a_refused_dial_without_retrying() {
 }
 
 #[tokio::test]
-async fn refused_dial_names_the_target_without_credentials() {
+async fn refused_startup_dial_names_the_target_once_without_credentials() {
     let dialer = service_fn(|_: Uri| async {
         Err::<(), _>(std::io::Error::from(std::io::ErrorKind::ConnectionRefused))
     });
-    let uri = "http://database.example.test:8080/?token=example-secret".parse().unwrap();
-    let error = dial(dialer, &uri, &AtomicBool::new(false)).await.unwrap_err().to_string();
+    let target = "http://database.example.test:8080/?token=example-secret";
+    let uri = target.parse().unwrap();
+    let error = dial(dialer, &uri, &AtomicBool::new(false)).await.unwrap_err();
+    let error = crate::startup_error(
+        &settings(target.to_string()),
+        RegistryError::Libsql(libsql::Error::Hrana(error)),
+    )
+    .to_string();
+    assert_eq!(error.matches("database.example.test:8080").count(), 1, "{error}");
     assert!(error.contains("database.example.test:8080"), "{error}");
     assert!(error.contains("refused"), "{error}");
     assert!(!error.contains("example-secret"), "{error}");

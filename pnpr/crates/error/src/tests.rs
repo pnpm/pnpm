@@ -347,3 +347,13 @@ fn database_targets_redact_driver_credentials_in_query_parameters() {
     assert!(target.contains("database.example.test/registry"), "{target}");
     assert!(target.contains("other=value"), "{target}");
 }
+
+#[test]
+fn database_targets_hide_passwords_parsed_as_paths() {
+    assert_eq!(
+        crate::redact_connection_url(
+            "postgres://localhost:1/example-secret@database.example.test/registry"
+        ),
+        "[redacted]",
+    );
+}

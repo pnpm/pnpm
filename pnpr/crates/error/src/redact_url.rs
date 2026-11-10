@@ -1,6 +1,9 @@
 /// Redact credentials in a database target, hiding malformed URLs entirely.
 #[must_use]
 pub fn redact_connection_url(raw: &str) -> String {
+    if find_password_parsed_as_port(raw).is_some() {
+        return "[redacted]".to_string();
+    }
     let Ok(mut parsed) = url::Url::parse(raw) else {
         return "[redacted]".to_string();
     };

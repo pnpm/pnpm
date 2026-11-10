@@ -194,7 +194,7 @@ where
         .join(": ");
         let cause = pnpr_error::redact_url_credentials(&cause);
         if !retries_timed_out_dials.load(Ordering::Relaxed) || !is_timeout(&*error) {
-            return Err(format!("database {target}: {cause}").into());
+            return Err(cause.into());
         }
         tracing::warn!(%target, error = %cause, ?delay, "libSQL database dial timed out, retrying");
         tokio::time::sleep(delay).await;
