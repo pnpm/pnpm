@@ -112,6 +112,7 @@ fn assert_clean_v13_git_merge(
 
     let merged_lockfile =
         git_merge_lockfiles(root.path(), &base_lockfile, &a_lockfile, &b_lockfile);
+    eprintln!("merged_lockfile:\n{merged_lockfile}\nexpected_lockfile:\n{expected_lockfile}");
     assert_eq!(merged_lockfile, expected_lockfile);
 
     write_state(&workspace, expected_merged);

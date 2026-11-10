@@ -1,5 +1,14 @@
 //! Keys whose collection value renders on one line in both formats.
 
+/// Which syntax [`super::to_string`] renders a lockfile in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Format {
+    /// Today's YAML block style.
+    Block,
+    /// The next format's tab-indented JSON flow style.
+    Flow,
+}
+
 /// Keys whose collection value always renders on a single line (flow style).
 /// Mirrors the fork's [`SINGLE_LINE_KEYS`][fork-single-line-keys].
 ///

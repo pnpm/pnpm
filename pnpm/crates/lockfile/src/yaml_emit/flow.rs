@@ -54,7 +54,7 @@ fn write_map(
         out.push_str("{}");
         return;
     }
-    if layout == Layout::OneLine || is_single_line_map(key, map) {
+    if layout == Layout::OneLine || level == 3 && is_single_line_map(key, map) {
         write_one_line_map(out, map, level);
         return;
     }
@@ -128,8 +128,9 @@ fn write_one_line_map(out: &mut String, map: &Map<String, Value>, level: usize) 
 /// A list is one entry per line, except an empty one, one inside a one-line
 /// map, and one under a key the block emitter writes on one line.
 fn write_list(out: &mut String, items: &[Value], level: usize, layout: Layout, key: Option<&str>) {
-    let one_line =
-        items.is_empty() || layout == Layout::OneLine || key.is_some_and(is_single_line_key);
+    let one_line = items.is_empty()
+        || layout == Layout::OneLine
+        || level == 3 && key.is_some_and(is_single_line_key);
     out.push('[');
     for (index, item) in items.iter().enumerate() {
         if one_line {

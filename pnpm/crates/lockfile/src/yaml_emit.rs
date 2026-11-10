@@ -41,7 +41,7 @@ const INDENT: usize = 2;
 mod flow;
 mod nesting;
 mod next_order;
-use nesting::{is_single_line_key, is_single_line_map};
+use nesting::{Format, is_single_line_key, is_single_line_map};
 use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
@@ -88,20 +88,21 @@ const ROOT_KEYS: [&str; 11] = [
 /// matching pnpm's lockfile formatting: today's block style, or the next
 /// format's [JSON](flow).
 pub(crate) fn to_string(value: Value) -> String {
-    let (value, next) = sort_lockfile_keys(value);
-    let dump = if next {
-        flow::to_string(&value)
-    } else {
-        let mut dump = render(
-            &value,
-            0,
-            CollectionStyle::Block,
-            FirstEntry::OnKeyLine,
-            None,
-            ScalarLines::Multiline,
-        );
-        dump.push('\n');
-        dump
+    let (value, format) = sort_lockfile_keys(value);
+    let dump = match format {
+        Format::Flow => flow::to_string(&value),
+        Format::Block => {
+            let mut dump = render(
+                &value,
+                0,
+                CollectionStyle::Block,
+                FirstEntry::OnKeyLine,
+                None,
+                ScalarLines::Multiline,
+            );
+            dump.push('\n');
+            dump
+        }
     };
     pnpm_fs::background_drop(value);
     dump
@@ -113,8 +114,8 @@ pub(crate) fn to_string(value: Value) -> String {
 /// entries are deep-sorted (by the priority map for packages/snapshots, by the
 /// root priority for importers, lexically for catalogs), and finally the root
 /// keys are ordered by priority.
-fn sort_lockfile_keys(value: Value) -> (Value, bool) {
-    let Value::Object(mut root) = value else { return (value, false) };
+fn sort_lockfile_keys(value: Value) -> (Value, Format) {
+    let Value::Object(mut root) = value else { return (value, Format::Block) };
 
     let next = sort_next_sections(&mut root);
     for (section, priority) in [
@@ -127,10 +128,13 @@ fn sort_lockfile_keys(value: Value) -> (Value, bool) {
         }
     }
 
-    if !next {
+    let format = if next {
+        Format::Flow
+    } else {
         sort_plain_sections(&mut root);
-    }
-    (Value::Object(sort_by_priority(root, &ROOT_KEYS, false)), next)
+        Format::Block
+    };
+    (Value::Object(sort_by_priority(root, &ROOT_KEYS, false)), format)
 }
 
 /// Sorts `catalogs` by catalog and entry, deep, and `time`,

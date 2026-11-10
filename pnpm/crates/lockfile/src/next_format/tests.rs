@@ -776,6 +776,69 @@ fn current_lockfile_stays_suffixed_under_the_next_version() {
     assert_eq!(read, lockfile);
 }
 
+#[test]
+fn packages_named_after_metadata_keys_still_render_across_lines() {
+    let text = text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "catalogs:"
+        "  default:"
+        "    engines:"
+        "      specifier: ^1.0.0"
+        "      version: 1.0.0"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      os:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0(resolution@1.0.0)"
+        "      resolution:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+        ""
+        "packages:"
+        ""
+        "  engines@1.0.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        ""
+        "  os@1.0.0:"
+        "    resolution: {integrity: sha512-BBBB}"
+        "    engines: {node: '>=18'}"
+        "    peerDependencies:"
+        "      resolution: ^1.0.0"
+        ""
+        "  resolution@1.0.0:"
+        "    resolution: {integrity: sha512-CCCC}"
+        ""
+        "snapshots:"
+        ""
+        "  engines@1.0.0: {}"
+        ""
+        "  os@1.0.0(resolution@1.0.0):"
+        "    dependencies:"
+        "      resolution: 1.0.0"
+        ""
+        "  resolution@1.0.0: {}"
+    };
+    let (yaml, _) = written_and_read(&parse(text));
+    eprintln!("yaml:\n{yaml}");
+    assert!(
+        yaml.contains("\t\t\t\t\"engines\": {\n\t\t\t\t\t\"specifier\": \"^1.0.0\",\n\t\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t},\n"),
+        "{yaml}",
+    );
+    assert!(
+        yaml.contains("\t\t\t\t\"os\": {\n\t\t\t\t\t\"specifier\": \"^1.0.0\",\n\t\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t},\n"),
+        "{yaml}",
+    );
+    assert!(
+        yaml.contains("\t\t\t\t\"resolution\": {\n\t\t\t\t\t\"specifier\": \"^1.0.0\",\n\t\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t},\n"),
+        "{yaml}",
+    );
+    assert!(yaml.contains("\t\t\t\"engines\": {\"node\": \">=18\"},\n"), "{yaml}");
+}
+
 /// Round-trips every lockfile listed in `PNPM_NEXT_LOCKFILE_CORPUS`,
 /// separated by the platform's path separator.
 #[test]
