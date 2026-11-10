@@ -512,12 +512,13 @@ async fn cancelling_delayed_blob_slot_write_removes_file_after_creation() {
 
     proceed_tx.send(()).unwrap();
     finished_rx.await.unwrap();
-    for _ in 0..50 {
-        if !staged_path.exists() {
+    for _ in 0..1_000 {
+        if !crate::blob_write::is_active_temp(&staged_path) {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
+    assert!(!crate::blob_write::is_active_temp(&staged_path));
     assert!(!staged_path.exists());
 }
 

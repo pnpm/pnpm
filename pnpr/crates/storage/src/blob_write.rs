@@ -1,4 +1,66 @@
-use super::{AsyncSeekExt, AsyncWriteExt, CanonicalPackageName, ErrorKind, PathBuf, SeekFrom, fs};
+use super::{
+    AsyncSeekExt, AsyncWriteExt, CanonicalPackageName, ErrorKind, Path, PathBuf, SeekFrom, fs,
+};
+use std::{
+    collections::HashSet,
+    sync::{LazyLock, Mutex, PoisonError},
+};
+
+static ACTIVE_TEMPS: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Registers an in-flight temporary file path against [`crate::sweep_stale_temps`]
+/// and removes the file if dropped before [`Self::disarm`].
+#[derive(Debug)]
+pub struct TempFileGuard(Option<PathBuf>);
+
+impl TempFileGuard {
+    #[must_use]
+    pub fn new(path: PathBuf) -> Self {
+        ACTIVE_TEMPS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(path.clone());
+        Self(Some(path))
+    }
+
+    pub fn disarm(&mut self) {
+        if let Some(path) = self.0.take() {
+            ACTIVE_TEMPS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&path);
+        }
+    }
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let Some(path) = self.0.take() else { return };
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    path = %path.display(),
+                    "archive staging temp cleanup failed",
+                );
+            }
+        }
+        ACTIVE_TEMPS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&path);
+    }
+}
+
+pub(crate) fn is_active_temp(path: &Path) -> bool {
+    ACTIVE_TEMPS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(path)
+}
 
 /// Handle returned from [`crate::Storage::open_upstream_blob_tmp`]. The caller
 /// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to
@@ -25,7 +87,7 @@ pub struct BlobSlot {
     pub(super) filename: String,
     /// The version the file belongs to, empty when none.
     pub(super) version: String,
-    pub(super) guard: crate::TempFileGuard,
+    pub(super) guard: TempFileGuard,
 }
 
 impl BlobSlot {
@@ -69,7 +131,17 @@ impl BlobSlot {
     }
 
     pub async fn abandon(mut self) {
-        let _ = fs::remove_file(&self.tmp_path).await;
+        match fs::remove_file(&self.tmp_path).await {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    path = %self.tmp_path.display(),
+                    "archive staging temp cleanup failed",
+                );
+            }
+        }
         self.guard.disarm();
     }
 }
