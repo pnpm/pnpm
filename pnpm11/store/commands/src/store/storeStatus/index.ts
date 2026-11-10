@@ -17,7 +17,7 @@ import {
   type PackageFilesIndex,
   readManifestFromCafs,
   type SideEffectsDiff,
-  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
 } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
 import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
@@ -204,7 +204,7 @@ async function isPackageModified (
     return true
   }
   const fileEntries = getMapEntries<PackageFileInfo>(pkgFilesIndex.files)
-  const requiresBuild = indexRequiresBuild(pkgFilesIndex, fileEntries, storeDir)
+  const requiresBuild = await indexRequiresBuild(pkgFilesIndex, fileEntries, storeDir)
   if (requiresBuild == null) return true
   const dintFiles = toDintFiles(fileEntries, pkgFilesIndex.algo)
   if (await dint.check(targetDir, dintFiles)) {
@@ -219,16 +219,16 @@ async function isPackageModified (
   return true
 }
 
-function indexRequiresBuild (
+async function indexRequiresBuild (
   index: PackageFilesIndex,
   fileEntries: Array<[string, PackageFileInfo]>,
   storeDir: string
-): boolean | undefined {
+): Promise<boolean | undefined> {
   if (index.requiresPrepare != null && index.manifest == null) {
     const manifestFile = fileEntries.find(([filename]) => filename === 'package.json')?.[1]
     if (manifestFile == null) return pkgRequiresBuild(undefined, index.files)
     const manifestPath = getFilePathByModeInCafs(storeDir, manifestFile.digest, manifestFile.mode)
-    if (!verifyFileIntegrity(manifestPath, { algorithm: index.algo, digest: manifestFile.digest })) return undefined
+    if (!await verifyFileIntegrityAsync(manifestPath, { algorithm: index.algo, digest: manifestFile.digest })) return undefined
     return pkgRequiresBuild(readManifestFromCafs(new Map([['package.json', manifestPath]])), index.files)
   }
   return index.requiresBuild === true || pkgRequiresBuild(index.manifest, index.files)
