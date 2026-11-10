@@ -120,7 +120,8 @@ overrides:
   minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   minimatch@>=9.0.0 <10.0.0: '^10.2.4'
   # CVE-2026-84947: no undici 6 release has the fix. node-gyp 12 only uses
-  # undici's EnvHttpProxyAgent, which undici 7 keeps.
+  # undici's EnvHttpProxyAgent, which undici 7 keeps. undici 7 needs a global
+  # File, which .config/pnpm/patches/node-gyp@12.3.0.patch adds on Node.js 18.
   node-gyp@12>undici: 'catalog:'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
