@@ -469,6 +469,7 @@ snapshots:
 			"lodash@>=4.0.0 <=4.17.23": ">=4.18.0",
 			"minimatch@>=7.0.0 <7.4.7": "^7.4.7",
 			"minimatch@>=9.0.0 <10.0.0": "^10.2.4",
+			"node-gyp@12>undici": "^7.30.1",
 			"nopt@5": "npm:@pnpm/nopt@^0.2.1",
 			"on-headers@<1.1.0": ">=1.1.0",
 			"path-to-regexp@<0.1.13": "^0.1.13",
@@ -498,6 +499,7 @@ snapshots:
 			"glob@13.0.7": "4180fd60a9de76af2ee45420e5bb63a5917c0dd37d298b0845c74707b83c8455",
 			"graceful-fs@4.2.11": "68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1",
 			"minimatch@10.2.6": "c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239",
+			"node-gyp@12.3.0": "0e6399c2530c044eefac3121f87dacb290be9b82c5b21ae7a13c7b903fec13db",
 			"normalize-registry-url@2.0.1": "e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932",
 			"unrs-resolver@1.13.0": "6f0022496a3c1e1d6436551000ed4048efec3f0420f57edb3864c699ad948fea",
 		},
@@ -16095,7 +16097,7 @@ snapshots:
 				"semver": "7.8.6",
 				"tar": "7.5.22",
 				"tinyglobby": "0.2.17",
-				"undici": "6.29.1",
+				"undici": "7.30.1",
 				"which": "6.0.1",
 			},
 		},
@@ -18964,11 +18966,6 @@ snapshots:
 
 		"undici-types@6.21.0": {
 			"integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
-		},
-
-		"undici@6.29.1": {
-			"integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
-			"engines": {"node": ">=18.17"},
 		},
 
 		"undici@7.30.1": {
