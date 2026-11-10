@@ -621,7 +621,8 @@ declared the size or pnpr found it during the download.
 
 Defaults to `100MiB`. Takes an integer number of bytes or a size suffix such
 as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
-Must be greater than zero.
+Must be greater than zero. The limit applies to downloads: a tarball pnpr
+cached under a higher limit is still served from the cache.
 
 A published package is still at most 100 MiB, the limit npm applies to a
 publish. The setting only affects tarballs proxied from upstream registries,
