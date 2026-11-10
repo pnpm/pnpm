@@ -48,7 +48,24 @@ pub(crate) fn to_string<Document: Serialize>(
         }
     }
     crate::prune_time(&mut document);
+    prune_directory_specifiers(&mut document);
     Ok(crate::yaml_emit::to_string(document))
+}
+
+fn prune_directory_specifiers(document: &mut serde_json::Value) {
+    let legacy = document
+        .get("lockfileVersion")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|version| version.starts_with("9."));
+    if !legacy {
+        return;
+    }
+    if let Some(packages) = document.get_mut("packages").and_then(serde_json::Value::as_object_mut)
+    {
+        for metadata in packages.values_mut().filter_map(serde_json::Value::as_object_mut) {
+            metadata.remove("specifiers");
+        }
+    }
 }
 
 /// Entry threshold below which [`sorted_map`] keeps the plain serial

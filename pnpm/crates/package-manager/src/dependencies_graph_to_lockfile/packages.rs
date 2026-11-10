@@ -13,12 +13,14 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 
+mod directory;
 mod variant_snapshots;
 
 pub(super) type PackagesAndSnapshots =
     (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
 /// Registry configuration and prior package records used to serialize package metadata.
 pub struct PackageMetadataSources<'a> {
+    pub lockfile_format: pnpm_lockfile::LockfileFormat,
     /// Registry routes keyed by `@scope`, plus `default`, as
     /// [`registry_for_package`] takes them.
     pub registries: &'a HashMap<String, String>,
@@ -130,6 +132,7 @@ pub(super) fn insert_package_metadata(
         },
     )
     .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
+    metadata.specifiers = directory::specifiers(node, entry.key(), sources.lockfile_format);
     carry_previous_deprecation(&mut metadata, entry.key(), sources);
     entry.insert(metadata);
     Ok(())
@@ -202,6 +205,7 @@ pub(super) fn build_package_metadata(
         lockfile_form,
     )?;
     Ok(PackageMetadata {
+        specifiers: None,
         version: explicit_version(node, metadata_key, &resolution, manifest),
         resolution,
         engines: read_engines(manifest),

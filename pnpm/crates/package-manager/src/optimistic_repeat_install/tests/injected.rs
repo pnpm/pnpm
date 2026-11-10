@@ -48,16 +48,27 @@ fn injected_sibling_decision(
     shared_workspace_lockfile: bool,
     sibling_manifest: Option<&serde_json::Value>,
 ) -> Decision {
+    injected_sibling_decision_with_lockfile(shared_workspace_lockfile, sibling_manifest, LOCKFILE)
+}
+
+fn injected_sibling_decision_with_lockfile(
+    shared_workspace_lockfile: bool,
+    sibling_manifest: Option<&serde_json::Value>,
+    lockfile: &str,
+) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let sibling_dir = workspace_root.join("pkg-a");
     fs::create_dir_all(&sibling_dir).unwrap();
-    fs::write(workspace_root.join(Lockfile::FILE_NAME), LOCKFILE).unwrap();
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), lockfile).unwrap();
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.install_state_dir = config.modules_dir.join(".pnpm");
     config.inject_workspace_packages = true;
+    if lockfile.contains("'13.0'") {
+        config.lockfile_format = pnpm_lockfile::LockfileFormat::V13;
+    }
     config.shared_workspace_lockfile = shared_workspace_lockfile;
     fs::create_dir_all(&config.modules_dir).unwrap();
     // A fresh install links the injected `workspace:*` dependency.
@@ -188,4 +199,18 @@ fn assert_skipped_for_local_file_dependency(decision: &Decision) {
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
         "expected Skipped(local file dependency), got {decision:?}",
     );
+}
+
+#[test]
+fn recorded_injected_inputs_allow_a_dedicated_lockfile_repeat_install() {
+    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'")
+        .replace("resolution: {directory: pkg-a, type: directory}",
+            "resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace}");
+    assert_eq!(
+        injected_sibling_decision_with_lockfile(false, Some(&unchanged_sibling()), &lockfile),
+        Decision::UpToDate
+    );
+    let changed = serde_json::json!({ "name": "pkg-a", "version": "1.0.0", "dependencies": { "is-positive": "1.0.0" } });
+    let decision = injected_sibling_decision_with_lockfile(false, Some(&changed), &lockfile);
+    assert!(matches!(decision, Decision::Skipped { .. }), "{decision:?}");
 }

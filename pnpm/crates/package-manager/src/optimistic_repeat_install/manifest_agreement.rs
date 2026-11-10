@@ -157,7 +157,7 @@ fn require_recorded_in_current(
 
 /// The full content check of the modified projects against the wanted
 /// lockfile, once its settings are known not to have drifted.
-pub(super) fn check_projects_content(
+pub(crate) fn check_projects_content(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],

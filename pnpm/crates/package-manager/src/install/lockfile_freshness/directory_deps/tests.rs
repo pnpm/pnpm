@@ -1287,3 +1287,63 @@ fn an_omitted_optional_catalog_child_of_a_path_declared_dependency_is_fresh() {
     );
     assert!(result.is_ok(), "resolution drops the optional child: {result:?}");
 }
+
+fn recorded_case(manifest: serde_json::Value, record: serde_json::Value) -> DirectoryDepCase {
+    let mut metadata = directory_metadata();
+    metadata["specifiers"] = record;
+    DirectoryDepCase {
+        manifest,
+        metadata,
+        snapshot: serde_json::json!({ "dependencies": { "child": "1.0.0" } }),
+        declaration: Declaration::default(),
+        frozen_lockfile: true,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    }
+}
+
+#[test]
+fn recorded_inputs_reject_changes_that_a_locked_version_still_satisfies() {
+    let record = serde_json::json!({ "dependencies": { "child": "1.0.0" } });
+    for manifest in [
+        serde_json::json!({ "dependencies": { "child": "^1.0.0" } }),
+        serde_json::json!({ "optionalDependencies": { "child": "1.0.0" } }),
+        serde_json::json!({ "dependencies": { "child": "1.0.0" }, "dependenciesMeta": { "child": { "injected": true } } }),
+        serde_json::json!({}),
+    ] {
+        let result = check_directory_dep(&recorded_case(manifest.clone(), record.clone()));
+        assert!(result.is_err(), "{manifest}: {result:?}");
+    }
+}
+
+#[test]
+fn recorded_inputs_accept_unchanged_sources_without_interpreting_registry_resolutions() {
+    for specifier in [
+        "^1.0.0",
+        "npm:original@^1.0.0",
+        "https://example.invalid/archive.tgz",
+        "github:example/repository#commit",
+    ] {
+        let manifest = serde_json::json!({ "dependencies": { "child": specifier } });
+        let result = check_directory_dep(&recorded_case(manifest.clone(), manifest));
+        assert!(result.is_ok(), "{specifier}: {result:?}");
+    }
+}
+
+#[test]
+fn recorded_inputs_check_optional_peer_declarations_even_without_a_binding() {
+    let mut case = recorded_case(
+        serde_json::json!({ "peerDependencies": { "peer": "^1" },
+            "peerDependenciesMeta": { "peer": { "optional": true } }
+        }),
+        serde_json::json!({}),
+    );
+    case.metadata["peerDependencies"] = serde_json::json!({ "peer": "^1" });
+    case.metadata["peerDependenciesMeta"] = serde_json::json!({ "peer": { "optional": true } });
+    let unchanged = check_directory_dep(&case);
+    assert!(unchanged.is_ok(), "{unchanged:?}");
+    case.manifest["peerDependenciesMeta"] = serde_json::json!({});
+    let changed = check_directory_dep(&case);
+    assert!(changed.is_err(), "{changed:?}");
+}

@@ -45,6 +45,47 @@ pub(super) fn has_unvouched_injected_dep(
     check: &OptimisticRepeatInstallCheck<'_>,
     lockfile: &Lockfile,
 ) -> bool {
+    if check.config.lockfile_format == pnpm_lockfile::LockfileFormat::V13
+        && has_directory_records(lockfile)
+    {
+        return !directory_records_are_current(check, lockfile);
+    }
+    has_legacy_unvouched_injected_dep(check, lockfile)
+}
+
+fn has_directory_records(lockfile: &Lockfile) -> bool {
+    lockfile.packages
+        .as_ref()
+        .is_some_and(|packages| {
+            packages
+                .values()
+                .all(|metadata| {
+                    !matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+                        || metadata.specifiers.is_some()
+                })
+        })
+}
+
+fn directory_records_are_current(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    lockfile: &Lockfile,
+) -> bool {
+    let projects = crate::optimistic_repeat_install::manifest_agreement::manifest_stats(
+        check.project_manifests,
+        |_, _, _| crate::optimistic_repeat_install::freshness::ProjectStatus::Proven,
+    );
+    crate::optimistic_repeat_install::manifest_agreement::check_projects_content(
+        check,
+        lockfile,
+        &projects.iter().collect::<Vec<_>>(),
+    )
+    .is_ok()
+}
+
+fn has_legacy_unvouched_injected_dep(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    lockfile: &Lockfile,
+) -> bool {
     let included_groups = dependency_fields(check)
         .into_iter()
         .filter_map(|(_, group, included)| included.then_some(group))

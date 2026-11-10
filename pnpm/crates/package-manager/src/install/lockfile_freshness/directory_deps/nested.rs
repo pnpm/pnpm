@@ -197,13 +197,6 @@ impl<'a> DirectoryPackages<'a> {
     }
 }
 
-/// Checks `nested` as the importer walk checks a directory package. The
-/// `file:` and `workspace:` declarations can read different manifests (see
-/// [`super::unhooked_manifest`]), and the lockfile does not record which one
-/// the parent used, so the snapshot must match both. Where they differ, a
-/// lockfile the resolver just wrote fails the check: the price of never
-/// accepting a stale one until the lockfile records the declaration
-/// (pnpm/tasks#228).
 pub(crate) fn check_nested_directory_package(
     check: &ImporterSatisfactionCheck<'_>,
     nested: &NestedDirectoryPackage,
@@ -245,6 +238,10 @@ pub(crate) fn check_nested_directory_package(
             &mut visited.clone(),
         )
     };
+    if let Some(source) = pkg_meta.specifiers.as_ref().and_then(|recorded| recorded.manifest_source)
+    {
+        return check_declared(matches!(source, pnpm_lockfile::DirectoryManifestSource::Path));
+    }
     let declared_as_workspace = false;
     let declared_by_path = true;
     check_declared(declared_as_workspace).and_then(|()| check_declared(declared_by_path))

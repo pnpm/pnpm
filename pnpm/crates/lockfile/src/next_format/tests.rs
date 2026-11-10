@@ -957,6 +957,7 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
             packages
                 .entry(key.clone())
                 .or_insert_with(|| crate::PackageMetadata {
+                    specifiers: None,
                     resolution: crate::LockfileResolution::Directory(crate::DirectoryResolution {
                         directory: directory.clone(),
                     }),
@@ -978,4 +979,62 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
         lockfile.packages = None;
     }
     lockfile
+}
+
+#[test]
+fn directory_specifiers_survive_next_format_round_trip() {
+    for specifiers in [
+        serde_json::json!({}),
+        serde_json::json!({ "manifestSource": "path" }),
+        serde_json::json!({ "manifestSource": "workspace" }),
+        serde_json::json!({
+            "dependencies": { "host": "workspace:../host", "registry": "catalog:" },
+            "optionalDependencies": { "extra": "npm:alias@^1" },
+            "dependenciesMeta": { "host": { "injected": true } }
+        }),
+    ] {
+        let lockfile = parse(&format!(
+            "lockfileVersion: '9.0'\nimporters: {{}}\npackages:\n  local@file:../local:\n    resolution: {{type: directory, directory: ../local}}\n    specifiers: {specifiers}\nsnapshots:\n  local@file:../local: {{}}\n"
+        ));
+        let (written, restored) = written_and_read(&lockfile);
+        assert!(written.contains("\"specifiers\""), "{written}");
+        let metadata = restored.packages
+            .expect("package entries")
+            .remove(&"local@file:../local".parse().expect("package key"))
+            .expect("directory entry");
+        assert_eq!(
+            serde_json::to_value(metadata.specifiers).expect("serialize specifiers"),
+            specifiers
+        );
+    }
+}
+
+#[test]
+fn a_directory_without_recorded_inputs_keeps_the_legacy_fallback() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  local@file:local:\n    resolution: {type: directory, directory: local}\nsnapshots:\n  local@file:local: {}\n",
+    );
+    let (written, restored) = written_and_read(&lockfile);
+    assert!(!written.contains("specifiers"), "{written}");
+    let packages = restored.packages.expect("package entries");
+    assert_eq!(
+        packages
+            .values()
+            .next()
+            .expect("directory metadata")
+            .specifiers,
+        None
+    );
+}
+
+#[test]
+fn converting_a_recorded_directory_to_v9_omits_the_new_fields() {
+    let mut lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  local@file:local:\n    resolution: {type: directory, directory: local}\n    specifiers: {dependencies: {child: '^1'}}\nsnapshots:\n  local@file:local: {}\n",
+    );
+    let (_, restored) = written_and_read(&lockfile);
+    lockfile = restored;
+    lockfile.lockfile_version = crate::LockfileFormat::V9.version();
+    let written = lockfile.to_yaml_string().expect("write v9 lockfile");
+    assert!(!written.contains("specifiers"), "{written}");
 }

@@ -195,6 +195,36 @@ pub fn manifest_child_specs(
     Ok(out)
 }
 
+pub fn declared_specifiers(
+    manifest: &Value,
+    parent: &str,
+) -> Result<pnpm_lockfile::DeclaredSpecifiers, ResolveDependencyTreeError> {
+    let children = manifest_child_specs(manifest, parent)?;
+    let group = |optional: bool| {
+        let specifiers: std::collections::HashMap<String, String> = children
+            .iter()
+            .filter(|child| child.optional == optional)
+            .map(|child| (child.alias.clone(), child.bare_specifier.clone()))
+            .collect();
+        (!specifiers.is_empty()).then_some(specifiers)
+    };
+    let dependencies_meta = manifest
+        .get("dependenciesMeta")
+        .and_then(Value::as_object)
+        .filter(|meta| !meta.is_empty())
+        .map(|meta| {
+            meta.iter()
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect()
+        });
+    Ok(pnpm_lockfile::DeclaredSpecifiers {
+        manifest_source: None,
+        dependencies: group(false),
+        optional_dependencies: group(true),
+        dependencies_meta,
+    })
+}
+
 /// Add the dependencies only a platform variant declares. Every archive's
 /// dependencies are resolved on every machine, so the lockfile is the same
 /// everywhere; the lockfile writer splits them into the version's snapshot

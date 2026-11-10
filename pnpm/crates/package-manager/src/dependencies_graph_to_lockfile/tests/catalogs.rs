@@ -112,6 +112,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
+            lockfile_format: pnpm_lockfile::LockfileFormat::V9,
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             registries: &NPM_REGISTRIES,

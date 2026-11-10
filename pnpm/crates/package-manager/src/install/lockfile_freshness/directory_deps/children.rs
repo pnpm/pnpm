@@ -24,22 +24,7 @@ pub(super) fn check_local_dep_children_freshness(
     shadowed: &HashSet<&str>,
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
-    // A `file:` dependency resolves through the local resolver, which leaves
-    // its children's `catalog:` specs alone.
-    let catalogs = (!dep.declared_by_path).then_some(ChildCatalogs {
-        catalogs: dep.catalogs,
-        workspace_dir: check.config.workspace_dir.as_deref(),
-        package_dir: dep.dir,
-    });
-    let is_peer_shadowed = |name: &str| shadowed.contains(name);
-    let children =
-        local_directory_child_specs(local_manifest.value(), dep.name, is_peer_shadowed, catalogs)
-            .map_err(|error| match error {
-                ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
-                    FreshnessCheckError::InvalidCatalog(error)
-                }
-                _ => dep.outdated(),
-            })?;
+    let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
     check_snapshot_keys_are_children(check, dep, local_manifest, (&children, snapshot))?;
     for child in &children {
         if !child_is_fresh(check, dep, snapshot, child) {
@@ -48,6 +33,92 @@ pub(super) fn check_local_dep_children_freshness(
         check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
     }
     Ok(())
+}
+
+fn local_dep_children(
+    check: &ImporterSatisfactionCheck<'_>,
+    (dep, manifest): (&LocalDepContext<'_>, &PackageManifest),
+    shadowed: &HashSet<&str>,
+) -> Result<Vec<DependencySpec>, FreshnessCheckError> {
+    let catalogs = (!dep.declared_by_path).then_some(ChildCatalogs {
+        catalogs: dep.catalogs,
+        workspace_dir: check.config.workspace_dir.as_deref(),
+        package_dir: dep.dir,
+    });
+    let is_peer_shadowed = |name: &str| shadowed.contains(name);
+    local_directory_child_specs(manifest.value(), dep.name, is_peer_shadowed, catalogs)
+        .map_err(|error| match error {
+            ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
+                FreshnessCheckError::InvalidCatalog(error)
+            }
+            _ => dep.outdated(),
+        })
+}
+
+pub(super) fn check_recorded_local_targets(
+    check: &ImporterSatisfactionCheck<'_>,
+    (dep, scope): (&LocalDepContext<'_>, &AliasScope),
+    local_manifest: &PackageManifest,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    shadowed: &HashSet<&str>,
+    visited: &mut Visited,
+) -> Result<(), FreshnessCheckError> {
+    let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
+    for child in &children {
+        if child.optional && !check.config.optional {
+            continue;
+        }
+        if !recorded_local_target_is_fresh(check, dep, snapshot, child) {
+            return Err(dep.outdated());
+        }
+        check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
+    }
+    Ok(())
+}
+
+fn recorded_local_target_is_fresh(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    child: &DependencySpec,
+) -> bool {
+    let recorded = recorded_child(snapshot, &child.alias, RecordedDeps::of(child));
+    if let Some(recorded) = recorded
+        && recorded
+            .ver_peer()
+            .is_some_and(|version| matches!(version.version(), pnpm_lockfile::VersionPart::File(_)))
+        && !child.bare_specifier.starts_with("workspace:")
+        && !super::is_declared_by_path(&child.bare_specifier)
+    {
+        let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
+        return super::spec::spec_satisfies_snapshot_dep(
+            &dep.dirs,
+            dep.dir,
+            &child.alias,
+            &format!("workspace:{spec}"),
+            recorded,
+        )
+        .unwrap_or(false);
+    }
+    let local = child.bare_specifier.starts_with("workspace:")
+        || child.bare_specifier.starts_with("link:")
+        || super::is_declared_by_path(&child.bare_specifier)
+        || recorded.is_some_and(|recorded| recorded.as_link_target().is_some());
+    if !local {
+        return true;
+    }
+    child_is_fresh(check, dep, snapshot, child)
+        && recorded
+            .and_then(|recorded| recorded.as_link_target())
+            .is_none_or(|target| {
+                super::spec::importer_range_link_satisfies(
+                    &dep.dirs,
+                    check.lockfile_dir,
+                    &child.alias,
+                    &child.bare_specifier,
+                    target,
+                )
+            })
 }
 
 fn check_child_directory_dep_freshness(

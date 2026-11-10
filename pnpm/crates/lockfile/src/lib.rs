@@ -451,6 +451,7 @@ impl Lockfile {
             packages
                 .entry(key)
                 .or_insert_with(|| PackageMetadata {
+                    specifiers: None,
                     resolution: LockfileResolution::Directory(directory_resolution),
                     version: None,
                     engines: None,

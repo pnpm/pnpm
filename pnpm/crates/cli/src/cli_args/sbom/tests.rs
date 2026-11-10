@@ -17,6 +17,7 @@ fn registry_package(
     libc: Option<StringOrList>,
 ) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                 .parse()

@@ -23,6 +23,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
     packages.insert(
         key.clone(),
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
                     .parse()
@@ -77,6 +78,7 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
     packages.insert(
         metadata_key,
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP"
                     .parse()
