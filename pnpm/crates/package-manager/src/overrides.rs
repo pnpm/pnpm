@@ -94,13 +94,17 @@ impl ResolvedOverride {
     }
 
     /// The specifier this override writes into a manifest in
-    /// `manifest_dir`. A local target that cannot be rendered without
-    /// that directory is written as declared.
+    /// `manifest_dir`.
     fn render(&self, manifest_dir: Option<&Path>) -> String {
         match &self.local_target {
             Some(target) if manifest_dir.is_some() || !target.needs_consumer_dir() => {
                 target.render(manifest_dir)
             }
+            Some(target) => target
+                .render(None)
+                .strip_prefix("workspace:./")
+                .map(|path| format!("file:{path}"))
+                .unwrap_or_else(|| self.inner.new_bare_specifier.clone()),
             _ => self.inner.new_bare_specifier.clone(),
         }
     }
