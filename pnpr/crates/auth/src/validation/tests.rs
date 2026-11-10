@@ -101,7 +101,6 @@ async fn assert_cltest_lookalikes_rejected(users: &dyn crate::UserBackend) {
     assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
     assert!(matches!(err, crate::RegistryError::AdminConflict { .. }));
 
-    // Renaming an account to a case variant of its own name keeps the single account.
     users.rename_user(&cltest_id, "Cltest").await.unwrap();
     assert_eq!(users.account_id("cltest").await.unwrap(), None);
     assert_eq!(
@@ -304,6 +303,19 @@ fn opening_accounts_file_rejects_confusable_active_accounts() {
     let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
         .unwrap_err();
     assert!(matches!(error, crate::RegistryError::InvalidUsersFile { .. }), "{error:?}");
+    let message = error.to_string();
+    assert!(
+        message.contains(r#"username "cltest" is too similar to username "CLTEST""#),
+        "{message}",
+    );
+
+    let invalid_script = serde_json::json!({
+        "cl\u{0442}est": { "id": "u_01", "password_hash": hash },
+    });
+    std::fs::write(&path, invalid_script.to_string()).unwrap();
+    let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
+        .unwrap_err();
+    assert!(error.to_string().contains("invalid username \"cl\u{0442}est\""), "{error}");
 
     let with_deleted = serde_json::json!({
         "cltest": { "id": "u_01", "password_hash": hash },
