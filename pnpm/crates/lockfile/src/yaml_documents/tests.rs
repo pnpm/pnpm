@@ -22,7 +22,7 @@ fn reads_a_file_with_no_second_separator_as_env_only() {
 
 #[test]
 fn reads_a_next_format_env_document_with_no_second_separator_as_env_only() {
-    let env = "{\n\t\"lockfileVersion\": \"13.0\",\n\n\t\"importers\": {\n\t\t\".\": {\n\t\t\t\"configDependencies\": {},\n\t\t},\n\t},\n}";
+    let env = "{\n\t\"lockfileVersion\": \"13.0\",\n\t\"importers\": {\n\t\t\".\": {\n\t\t\t\"configDependencies\": {},\n\t\t},\n\t},\n}";
     let content = format!("---\n{env}\n---");
     assert_eq!(extract_main_document(&content), "");
     assert_eq!(extract_env_document(&content).as_deref(), Some(env));

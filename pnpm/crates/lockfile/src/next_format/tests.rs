@@ -74,7 +74,6 @@ fn optional_peer_bound_from_the_root_round_trips() {
             r#"		"buffer-impl@3.7.1": {"#
             r#"			"integrity": "sha512-AAAA","#
             "		},"
-            ""
             r#"		"container@3.2.2": {"#
             r#"			"integrity": "sha512-BBBB","#
             r#"			"peerDependencies": {"#
@@ -84,7 +83,6 @@ fn optional_peer_bound_from_the_root_round_trips() {
             r#"				"fs-impl": "4.8.4","#
             "			},"
             "		},"
-            ""
             r#"		"fs-impl@4.8.4": {"#
             r#"			"integrity": "sha512-CCCC","#
             r#"			"peerDependencies": {"#
@@ -95,7 +93,6 @@ fn optional_peer_bound_from_the_root_round_trips() {
             r#"				"path-impl": "3.1.2","#
             "			},"
             "		},"
-            ""
             r#"		"path-impl@3.1.2": {"#
             r#"			"integrity": "sha512-DDDD","#
             "		},"
@@ -306,7 +303,7 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
     let end = yaml.find("\n\t\"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
-        text_block_macros::text_block_fnl! {
+        text_block_macros::text_block! {
             ""
             r#"	"projects": {"#
             r#"		".": {"#
@@ -319,7 +316,6 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
             "				},"
             "			},"
             "		},"
-            ""
             r#"		"packages/a": {"#
             r#"			"dependencies": {"#
             r#"				"child": {"#
@@ -331,7 +327,6 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
             "				},"
             "			},"
             "		},"
-            ""
             r#"		"packages/b": {"#
             r#"			"dependencies": {"#
             r#"				"parent": "1.0.0","#
@@ -490,7 +485,7 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
     let end = yaml.find("\n\t\"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
-        text_block_macros::text_block_fnl! {
+        text_block_macros::text_block! {
             ""
             r#"	"settings": {"#
             r#"		"catalogs": {"#
@@ -501,7 +496,6 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             "			},"
             "		},"
             "	},"
-            ""
             r#"	"projects": {"#
             r#"		".": {"#
             r#"			"dependencies": {"#
@@ -515,7 +509,6 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             r#"				"tool": "catalog:","#
             "			},"
             "		},"
-            ""
             r#"		"packages/app": {"#
             r#"			"dependencies": {"#
             r#"				"lib": {"specifier": "file:../lib", "version": "file:packages/lib"},"#
@@ -599,11 +592,9 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
             r#"				"@scope/a": "workspace:*","#
             "			},"
             "		},"
-            ""
             r#"		"packages/a": {"#
             r#"			"name": "@scope/a","#
             "		},"
-            ""
             r#"		"packages/b": {"#
             r#"			"dependencies": {"#
             r#"				"@scope/a": "workspace:^","#
@@ -756,8 +747,7 @@ fn corpus_round_trips() {
     let mut failures = Vec::new();
     let mut converted = 0;
     for path in corpus.lines().map(Path::new) {
-        let Ok(text) = std::fs::read_to_string(path) else { continue };
-        let Ok(Some(lockfile)) = Lockfile::parse(&text, path) else { continue };
+        let Some((text, lockfile)) = corpus_input(path) else { continue };
         if !parallel_parse_matches_whole(&text, &lockfile) {
             failures.push(format!("{}: the parallel parse differs", path.display()));
         }
@@ -821,6 +811,17 @@ fn compare_timings() {
             next_text.len(),
         );
     }
+}
+
+/// A corpus lockfile in today's format, parsed. `None` for a file that
+/// cannot be read or parsed, or that is already in the next format.
+fn corpus_input(path: &Path) -> Option<(String, Lockfile)> {
+    let text = std::fs::read_to_string(path).ok()?;
+    if super::parse::declares_next_format(&crate::extract_main_document(&text)) {
+        return None;
+    }
+    let lockfile = Lockfile::parse(&text, path).ok()??;
+    Some((text, lockfile))
 }
 
 /// Whether `lockfile`, parsed section by section, equals `text` parsed whole.
