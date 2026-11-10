@@ -136,6 +136,21 @@ fn reads_non_numeric_lockfile_version() {
 }
 
 #[test]
+fn reads_an_implicit_key_longer_than_1024_characters() {
+    let dir = TempDir::new().unwrap();
+    let name = format!("@scope/{}", "a".repeat(1100));
+    let combined = format!(
+        "---\nlockfileVersion: env-1.0\nimporters:\n  .:\n    configDependencies:\n      '{name}':\n        specifier: 1.0.0\n        version: 1.0.0\npackages: {{}}\nsnapshots: {{}}\n---\n",
+    );
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), combined).unwrap();
+    let env = EnvLockfile::read(dir.path()).unwrap().expect("env document parses");
+    assert_eq!(
+        env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies[&name].version,
+        "1.0.0",
+    );
+}
+
+#[test]
 fn reads_a_crlf_combined_lockfile() {
     let dir = TempDir::new().unwrap();
     let env = sample_env_lockfile();
