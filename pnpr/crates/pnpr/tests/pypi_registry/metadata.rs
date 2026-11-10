@@ -144,3 +144,82 @@ fn sha512_hex(bytes: &[u8]) -> String {
         .to_hex()
         .1
 }
+
+#[tokio::test]
+async fn hosted_wheel_metadata_is_persisted_advertised_and_served_verbatim() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = super::issue_token(&auth, "publisher").await;
+    let config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
+    let app = router_with_auth(config.clone(), auth.clone());
+    let metadata = "Metadata-Version: 2.1\r\nName: demo-pkg\r\nVersion: 1.0.0\r\nRequires-Dist: sample-dep>=2\r\n\r\nDescription\r\n";
+    let wheel = super::common::python_wheel_with_metadata("demo-pkg", "1.0.0", metadata);
+    let filename = "demo_pkg-1.0.0-py3-none-any.whl";
+    let response = app
+        .oneshot(super::upload_request(
+            Some(&token),
+            super::wheel_upload("demo-pkg", "1.0.0", filename, &wheel),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let app = router_with_auth(config, auth.clone());
+    let digest = sha256_hex(metadata.as_bytes());
+    for base in ["/pypi", "/pypi/~internal"] {
+        let response = app
+            .clone()
+            .oneshot(get(&format!("{base}/simple/demo-pkg/"), Some(JSON)))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(page["files"][0]["core-metadata"], json!({"sha256": digest}));
+        assert!(page["files"][0].get("hosted-metadata").is_none());
+        let response = app
+            .clone()
+            .oneshot(get(&format!("{base}/simple/demo-pkg/"), None))
+            .await
+            .unwrap();
+        let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(html.contains(&format!("data-core-metadata=\"sha256={digest}\"")), "{html}");
+        let response = app
+            .clone()
+            .oneshot(get(&format!("{base}/files/demo-pkg/{filename}.metadata"), None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], "text/plain; charset=utf-8");
+        assert_eq!(body_bytes(response.into_body()).await, metadata.as_bytes());
+    }
+    let response = app
+        .oneshot(get("/pypi/files/demo-pkg/missing.whl.metadata", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let private_config = super::common::mixed_router_config(
+        tmp.path().to_path_buf(),
+        pnpr::Ecosystem::Pypi,
+        super::common::HostedSource {
+            name: "internal",
+            org: "python",
+            access: "$authenticated",
+            packages: &["demo-pkg"],
+        },
+        ("pypiorg", "http://upstream.invalid/"),
+    );
+    let app = router_with_auth(private_config, auth);
+    let path = format!("/pypi/files/demo-pkg/{filename}.metadata");
+    let response = app
+        .clone()
+        .oneshot(get(&path, None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let mut request = get(&path, None);
+    request
+        .headers_mut()
+        .insert("authorization", format!("Bearer {token}").parse().unwrap());
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, metadata.as_bytes());
+}

@@ -7,6 +7,7 @@ use super::{
     sha256_hex, stage_hosted_artifact, store_hosted_artifact,
 };
 use axum::{extract::FromRequest as _, response::IntoResponse};
+use pnpr_pypi::CoreMetadata;
 
 /// `POST legacy/` — the legacy upload API `twine` speaks.
 pub(super) async fn post_upload(
@@ -146,7 +147,8 @@ fn verify_distribution(
     {
         return Err(bad_request("sha256_digest does not match the uploaded file"));
     }
-    verify_distribution_metadata(&upload)?;
+    let metadata = verify_distribution_metadata(&upload)?;
+    let metadata = upload.filename.ends_with(".whl").then_some(metadata);
     let entry = ProjectFile {
         filename: upload.filename,
         url: None,
@@ -154,7 +156,15 @@ fn verify_distribution(
         requires_python: upload.requires_python,
         yanked: Yanked::Flag(false),
         size: Some(upload.content.len() as u64),
-        core_metadata: None,
+        core_metadata: metadata
+            .as_ref()
+            .map(|metadata| {
+                CoreMetadata::Hashes(BTreeMap::from([(
+                    "sha256".to_string(),
+                    sha256_hex(metadata.as_bytes()),
+                )]))
+            }),
+        hosted_metadata: metadata,
         dist_info_metadata: None,
         data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
@@ -162,7 +172,7 @@ fn verify_distribution(
     Ok(PypiPublication { key, org, entry, content: upload.content })
 }
 
-fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
+fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError> {
     let metadata = if upload.filename.ends_with(".tar.gz") {
         pnpr_pypi::archive::metadata_from_sdist(&upload.content, &upload.filename)
     } else {
@@ -173,7 +183,7 @@ fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
         )
     }
     .map_err(bad_request)?;
-    let metadata = std::str::from_utf8(&metadata).map_err(bad_request)?;
+    let metadata = String::from_utf8(metadata).map_err(bad_request)?;
     for field in ["Name", "Version"] {
         let count = metadata
             .lines()
@@ -189,13 +199,13 @@ fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
         }
     }
     pnpm_python_resolver::WheelMetadata::parse_for(
-        metadata,
+        &metadata,
         &upload.name.parse().map_err(bad_request)?,
         &upload.version.parse().map_err(bad_request)?,
         &upload.filename,
     )
     .map_err(|err| bad_request(format!("{err:#}")))?;
-    Ok(())
+    Ok(metadata)
 }
 
 impl PypiPublication {

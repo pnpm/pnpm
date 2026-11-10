@@ -165,6 +165,10 @@ yanked; a crate whose releases are all yanked reports its newest release.
 
 ## Python
 
+Hosted wheel uploads expose their validated core metadata at
+`<filename>.metadata`. The Simple API advertises its SHA-256 in JSON and HTML,
+so installers can resolve dependencies without downloading the whole wheel.
+
 A Python registry serves the Simple Repository API at `/pypi/simple/` (PEP 503
 HTML and PEP 691 JSON, chosen by `Accept`), files at
 `/pypi/files/<project>/<filename>`, and accepts uploads on the legacy API at

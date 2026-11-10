@@ -36,6 +36,9 @@ pub struct ProjectFile {
         deserialize_with = "crate::core_metadata::deserialize_optional_metadata"
     )]
     pub core_metadata: Option<CoreMetadata>,
+    /// Validated hosted distribution metadata, retained verbatim for sidecar requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hosted_metadata: Option<String>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -53,6 +56,10 @@ pub struct ProjectFile {
 impl ProjectFile {
     pub(super) fn render_json(&self, file_base: &str) -> Value {
         let mut entry = serde_json::to_value(self).expect("project file serializes");
+        entry
+            .as_object_mut()
+            .expect("project file is an object")
+            .remove("hosted-metadata");
         entry["url"] = json!(file_url(file_base, &self.filename));
         for metadata_key in ["core-metadata", "dist-info-metadata", "data-dist-info-metadata"] {
             entry

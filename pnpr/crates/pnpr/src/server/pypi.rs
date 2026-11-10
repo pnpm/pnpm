@@ -316,10 +316,8 @@ async fn get_file(
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
             match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
-                Ok(Some(document)) if document.file(filename).is_some() => {
-                    serve_hosted_blob(&state, &identity, &source, &key, filename)
-                        .await
-                        .unwrap_or_else(IntoResponse::into_response)
+                Ok(Some(document)) => {
+                    hosted_file(&state, &identity, &source, &key, &document, filename).await
                 }
                 Ok(_) => not_found(),
                 Err(err) => err.into_response(),
@@ -375,4 +373,31 @@ async fn file_via_upstream(
     };
     serve_upstream_artifact(state, upstream, &namespace, key, filename, url.as_str(), &integrity)
         .await
+}
+
+async fn hosted_file(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &CanonicalPackageName,
+    document: &ProjectDocument,
+    filename: &str,
+) -> Response {
+    if let Some(distribution) = filename.strip_suffix(".metadata") {
+        return match document
+            .file(distribution)
+            .and_then(|entry| entry.hosted_metadata.as_ref())
+        {
+            Some(metadata) => {
+                ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], metadata.clone())
+                    .into_response()
+            }
+            None => not_found(),
+        };
+    }
+    if document.file(filename).is_none() {
+        return not_found();
+    }
+    serve_hosted_blob(state, identity, source, key, filename).await
+        .unwrap_or_else(IntoResponse::into_response)
 }
