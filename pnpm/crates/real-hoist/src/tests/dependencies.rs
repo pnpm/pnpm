@@ -1,5 +1,5 @@
 use super::{
-    HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
+    HashMap, HoistOpts, HoisterResult, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, assert_eq, dep_key, empty_lockfile,
     hoist, lockfile_version, percent_encode_path, pkg_metadata_with_peer, pkg_name, resolved_dep,
     ver_peer,
@@ -455,6 +455,113 @@ fn file_tarball_peer_variants_collapse_like_registry_packages() {
             "a tarball peer variant must dedup against the root copy: {importer_node:#?}",
         );
     }
+}
+
+/// Both peer variants of `md@1.0.0` share one locator, so the first
+/// to reach the root takes the slot and the other's edge dedups
+/// against it, dropping its own children. The variant under the
+/// root's direct dependency `nds@1.0.0` is hoisted in the first wave,
+/// before the one under `widget` (itself hoisted in that wave) is
+/// walked, so the root copy carries `nds@1.0.0`'s `core@1.0.0`
+/// nested beneath it. Mirrors a `nodeLinker: hoisted` layout where
+/// `node_modules/md/node_modules/core` holds the version the root
+/// slot does not.
+#[test]
+fn shallower_peer_variant_wins_the_root_slot_and_nests_its_own_dep() {
+    let mut importers = HashMap::new();
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("apps"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("nds"), resolved_dep("1.0.0"));
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    let mut apps_deps = HashMap::new();
+    apps_deps.insert(pkg_name("widget"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
+    snapshots.insert(
+        dep_key("apps", "1.0.0"),
+        SnapshotEntry { dependencies: Some(apps_deps), ..SnapshotEntry::default() },
+    );
+    let mut widget_deps = HashMap::new();
+    widget_deps.insert(pkg_name("core"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    widget_deps.insert(pkg_name("nds"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("widget", "1.0.0"),
+        SnapshotEntry { dependencies: Some(widget_deps), ..SnapshotEntry::default() },
+    );
+    for core_ver in ["1.0.0", "2.0.0"] {
+        let mut nds_deps = HashMap::new();
+        nds_deps.insert(pkg_name("core"), SnapshotDepRef::Plain(ver_peer(core_ver)));
+        nds_deps.insert(
+            pkg_name("md"),
+            SnapshotDepRef::Plain(ver_peer(&format!("1.0.0(core@{core_ver})"))),
+        );
+        snapshots.insert(
+            dep_key("nds", core_ver),
+            SnapshotEntry { dependencies: Some(nds_deps), ..SnapshotEntry::default() },
+        );
+        let mut md_deps = HashMap::new();
+        md_deps.insert(pkg_name("core"), SnapshotDepRef::Plain(ver_peer(core_ver)));
+        snapshots.insert(
+            dep_key("md", &format!("1.0.0(core@{core_ver})")),
+            SnapshotEntry { dependencies: Some(md_deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key("core", core_ver), SnapshotEntry::default());
+    }
+    let mut packages = HashMap::new();
+    packages.insert(dep_key("md", "1.0.0"), pkg_metadata_with_peer("core"));
+
+    let lockfile = Lockfile {
+        importers,
+        packages: Some(packages),
+        snapshots: Some(snapshots),
+        ..empty_lockfile()
+    };
+
+    let opts = HoistOpts { auto_install_peers: true, ..HoistOpts::default() };
+    let result = hoist(&lockfile, &opts).expect("variant hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
+    names.sort_unstable();
+    assert_eq!(names, ["apps", "core", "md", "nds", "widget"], "one md at root: {result:#?}");
+
+    let child_of = |parent: &HoisterResult, name: &str| -> Rc<HoisterResult> {
+        let children = parent.dependencies.borrow();
+        let names: Vec<&str> = children
+            .iter()
+            .map(|dep| dep.0.name.as_str())
+            .collect();
+        let child = children
+            .iter()
+            .find(|dep| dep.0.name == name)
+            .unwrap_or_else(|| panic!("{} has no child {name}, only {names:?}", parent.name));
+        Rc::clone(&child.0)
+    };
+    assert!(
+        child_of(&result, "core").references.borrow().contains("core@2.0.0"),
+        "the more-used core@2.0.0 takes the root slot",
+    );
+    let md = child_of(&result, "md");
+    let core_under_md = child_of(&md, "core");
+    assert!(
+        core_under_md.references.borrow().contains("core@1.0.0"),
+        "the root md is nds@1.0.0's variant and keeps its core@1.0.0 nested: {md:#?}",
+    );
+    assert_eq!(
+        child_of(&result, "nds").dependencies.borrow().len(),
+        1,
+        "nds@1.0.0 keeps only its conflicting core@1.0.0; its md dedups against the root",
+    );
+    let nds_under_widget = child_of(&child_of(&result, "widget"), "nds");
+    assert!(
+        nds_under_widget.dependencies.borrow().is_empty(),
+        "nds@2.0.0's md and core dedup against the root copies: {nds_under_widget:#?}",
+    );
 }
 
 #[test]

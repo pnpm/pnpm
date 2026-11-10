@@ -362,8 +362,8 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
 
 /// Pacquet's port of the `@yarnpkg/nm` hoist algorithm. Walks the
 /// input tree, deep-copies it into a [`HoisterResult`] shape, then
-/// pulls eligible descendants up to the root via a depth-first
-/// recursion run to a fixed point (see [`hoist_into_root`]) with
+/// pulls eligible descendants up to the root via [`hoist_graph`]
+/// passes run to a fixed point (see [`hoist_into_root`]) with
 /// parent-wins conflict resolution. Models the common case
 /// of pnpm's `nodeLinker: hoisted` install — every transitive
 /// dependency that doesn't collide with an already-hoisted name
@@ -413,9 +413,9 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
 ///
 /// Children are decoupled before they become roots: a hoist root's
 /// dependency set is mutated (descendants are inserted), which is
-/// only safe on a single-parent copy. In practice
-/// [`hoist_subtree`] has already decoupled every remaining child
-/// while walking, so the call here is a cheap no-op safety net.
+/// only safe on a single-parent copy. In practice [`hoist_graph`]
+/// has already decoupled every remaining child while walking, so the
+/// call here is a cheap no-op safety net.
 ///
 /// [hoist-to]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L309
 fn hoist_to(
@@ -570,11 +570,11 @@ fn decouple_child(
     clone
 }
 
-/// Immutable context shared across every [`hoist_subtree`] call in
-/// one [`hoist_into_root`] pass: the hoisting root, the active
+/// Immutable context shared across every [`hoist_node_dependencies`]
+/// call in one [`hoist_into_root`] pass: the hoisting root, the active
 /// border-name set, and the per-name preferred-ident map. Bundled
 /// into one struct so the recursive walker stays under the argument
-/// limit; only `root_index` and the per-node position
+/// limit; only `root_index`, `next_wave`, and the per-node position
 /// (`node`, `ancestor_path`, `under_border`) vary per call.
 struct HoistCtx<'a> {
     root: &'a Rc<HoisterResult>,
@@ -593,11 +593,11 @@ struct HoistCtx<'a> {
 /// stays O(1). Without the index a graph with `N` packages all
 /// hoisting freely would do O(N²) `IndexSet` scans.
 ///
-/// Each round is a recursive depth-first walk (see
-/// [`hoist_subtree`]) whose `ancestor_path` reflects the current
-/// result-graph position of each node — a freshly-hoisted child
-/// recurses with `[root]`, a child that stayed nested recurses
-/// with `parent_path + [parent]`. The outer loop re-runs the DFS
+/// Each round is one [`hoist_graph`] pass, whose `ancestor_path`
+/// reflects the current result-graph position of each node — a
+/// freshly-hoisted child is walked from `[root]` in the next wave, a
+/// child that stayed nested is walked at once with
+/// `parent_path + [parent]`. The outer loop re-runs the pass
 /// whenever a round made at least one move, because that move can
 /// unlock further hoists: a previously-blocking peer ident may
 /// have shifted out of the ancestor chain (a sibling's dep moved
@@ -643,7 +643,7 @@ fn hoist_into_root(
 
     loop {
         let ctx = HoistCtx { root, border_names, hoist_ident_map: &hoist_ident_map, used };
-        let changed = hoist_subtree(root, &[], &ctx, &mut root_index, false);
+        let changed = hoist_graph(root, &ctx, &mut root_index);
 
         // Per-pass ident shift: a name with more than one candidate
         // ident whose preferred ident still hasn't reached the root
@@ -679,26 +679,88 @@ fn node_ident(node: &HoisterResult) -> String {
         .unwrap_or_default()
 }
 
-/// Depth-first hoist driver. `ancestor_path` is the path from
-/// `root` down to (but *excluding*) `node`, so for the root
-/// itself it is empty and for a child of root it is `[root]`.
-/// Returns whether this subtree moved at least one node in the
-/// current round — the outer multi-round loop uses that to
-/// decide whether another round can unlock further hoists.
+/// One hoist pass over `root`'s subtree, in the wave order of upstream's
+/// [`hoistGraph`][hoist-graph]: the root's current children are walked
+/// first, and a node that moves to the root during a wave is walked in
+/// the next one, after every node of the current wave (upstream's
+/// `newNodes.add(node)` at [hoist.ts:660][defer]). A node that stays
+/// nested is walked at once, inside its parent's turn. Returns whether
+/// the pass moved or dropped at least one edge.
+///
+/// The order decides which of two nodes sharing a locator (the peer
+/// variants of one package version) reaches the root first; the other
+/// dedups against it and its own children are dropped (see
+/// [`AbsorbDecision::SameNode`](absorption::AbsorbDecision::SameNode)).
+/// Walking a hoisted node at once instead would let a variant found
+/// deep under an early root child claim the slot ahead of one sitting
+/// directly under a later root child, and nest a different dependency
+/// set under the root copy than upstream does.
+///
+/// [hoist-graph]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L588-L716
+/// [defer]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L660
+fn hoist_graph(
+    root: &Rc<HoisterResult>,
+    ctx: &HoistCtx<'_>,
+    root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
+) -> bool {
+    let mut changed = false;
+    let root_path = [Rc::clone(root)];
+    let children_blocked = ctx.border_names.contains(&root.name);
+    let mut next_wave: Vec<RcByPtr<HoisterResult>> = root.dependencies
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
+    while !next_wave.is_empty() {
+        for child in std::mem::take(&mut next_wave) {
+            if is_cycle_edge(&child.0, &root_path) {
+                root.dependencies.borrow_mut().shift_remove(&child);
+                changed = true;
+                continue;
+            }
+            let child = decouple_child(root, &child);
+            root_index.insert(child.0.name.clone(), child.clone());
+            changed |= hoist_node_dependencies(
+                &child.0,
+                &root_path,
+                ctx,
+                root_index,
+                &mut next_wave,
+                children_blocked,
+            );
+        }
+    }
+    changed
+}
+
+/// Decide every child of `node` against the root, then walk the children
+/// that stayed. `ancestor_path` is the path from the root down to (but
+/// *excluding*) `node`, so for a child of the root it is `[root]`. A
+/// child that moved to the root is pushed onto `next_wave` for
+/// [`hoist_graph`] to walk from its new position. Returns whether this
+/// subtree moved or dropped at least one edge in the current pass.
+///
+/// All of a node's children are placed before any of them is descended
+/// into, as in upstream's `hoistNodeDependencies` at
+/// [hoist.ts:594][hoist-node-deps], so a child's subtree never claims a
+/// root slot ahead of a sibling.
 ///
 /// `node` must be decoupled — the walk mutates its dependency set.
-/// The recursion keeps that invariant: every child is decoupled
-/// (relative to its post-decision parent) before it is descended
-/// into, so a package shared by several parents is walked — and
-/// decided — once per path, on that path's own copy. The walk tree
-/// therefore has the shape of the final materialized layout, and
-/// termination follows from the cycle cut below: no locator repeats
-/// on a path, so paths (and the walk) are finite.
-fn hoist_subtree(
+/// The recursion keeps that invariant: every child that stays is
+/// decoupled before it is descended into, so a package shared by
+/// several parents is walked — and decided — once per path, on that
+/// path's own copy. The walk tree therefore has the shape of the final
+/// materialized layout, and termination follows from the cycle cut
+/// below: no locator repeats on a path, so paths (and the walk) are
+/// finite.
+///
+/// [hoist-node-deps]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L594-L696
+fn hoist_node_dependencies(
     node: &Rc<HoisterResult>,
     ancestor_path: &[Rc<HoisterResult>],
     ctx: &HoistCtx<'_>,
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
+    next_wave: &mut Vec<RcByPtr<HoisterResult>>,
     under_border: bool,
 ) -> bool {
     let mut changed_in_subtree = false;
@@ -723,12 +785,12 @@ fn hoist_subtree(
 
     // Path from root down to and including `node` — i.e. the
     // ancestor path for `node`'s direct children. Used for the
-    // peer-shadow checks, the cycle cut, and as the starting point
-    // for the path passed into recursion when a child stays
-    // nested.
+    // peer-shadow checks, the cycle cut, and as the path passed into
+    // recursion for a child that stays nested.
     let mut path_for_children: Vec<Rc<HoisterResult>> = ancestor_path.to_vec();
     path_for_children.push(Rc::clone(node));
 
+    let mut stayed: Vec<RcByPtr<HoisterResult>> = Vec::new();
     for child in children {
         if is_cycle_edge(&child.0, &path_for_children) {
             node.dependencies.borrow_mut().shift_remove(&child);
@@ -738,33 +800,29 @@ fn hoist_subtree(
 
         let decision =
             absorb_decision(&child.0, &path_for_children, ctx, root_index, children_blocked);
-        let child_recursion_path =
-            match apply_decision(decision, &child, node, ctx, &path_for_children, root_index) {
-                ChildStep::Dropped => {
-                    changed_in_subtree = true;
-                    continue;
-                }
-                ChildStep::Descend { path, moved } => {
-                    changed_in_subtree |= moved;
-                    path
-                }
-            };
+        match apply_decision(decision, &child, node, ctx, root_index) {
+            ChildStep::Dropped => changed_in_subtree = true,
+            ChildStep::Hoisted => {
+                changed_in_subtree = true;
+                next_wave.push(child);
+            }
+            ChildStep::Stayed => stayed.push(child),
+        }
+    }
 
+    for child in stayed {
         // Decouple before descending: the recursion mutates the
         // child's dependency set, which must not leak into other
-        // paths that share the child. The child's current parent is
-        // the last element of its recursion path — root for a
-        // just-moved (or root-direct) child, `node` otherwise.
-        let parent =
-            child_recursion_path.last().expect("the recursion path ends at the child's parent");
-        let child = decouple_child(parent, &child);
-        if Rc::ptr_eq(parent, ctx.root) {
-            root_index.insert(child.0.name.clone(), child.clone());
-        }
-
-        let child_changed =
-            hoist_subtree(&child.0, &child_recursion_path, ctx, root_index, children_blocked);
-        changed_in_subtree |= child_changed;
+        // paths that share the child.
+        let child = decouple_child(node, &child);
+        changed_in_subtree |= hoist_node_dependencies(
+            &child.0,
+            &path_for_children,
+            ctx,
+            root_index,
+            next_wave,
+            children_blocked,
+        );
     }
     changed_in_subtree
 }

@@ -166,13 +166,14 @@ fn refuse_shadowed(
 pub(super) enum ChildStep {
     /// The edge was removed at this parent; there is nothing to descend into.
     Dropped,
-    /// The child stays in the graph and must be walked. `path` is its
-    /// ancestor path computed from its *new* position — the load-bearing
-    /// detail: the recursion path always reflects the child's current
-    /// position in the result graph, so peer checks deeper down see
-    /// ancestors that are actually ancestors. `moved` reports whether
-    /// applying the decision changed the graph.
-    Descend { path: Vec<Rc<HoisterResult>>, moved: bool },
+    /// The child moved to the root. It is walked from there in the next
+    /// wave of [`hoist_graph`](crate::hoist_graph), not now: upstream
+    /// defers a hoisted node the same way, and the order decides which of
+    /// two same-locator nodes claims the root slot.
+    Hoisted,
+    /// The child stays under this parent and is walked from here, with
+    /// the path through the parent as its ancestor path.
+    Stayed,
 }
 
 pub(super) fn apply_decision(
@@ -180,26 +181,17 @@ pub(super) fn apply_decision(
     child: &RcByPtr<HoisterResult>,
     node: &Rc<HoisterResult>,
     ctx: &HoistCtx<'_>,
-    path_for_children: &[Rc<HoisterResult>],
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
 ) -> ChildStep {
-    let root = ctx.root;
-    // Root's direct children are already at root — no movement happens, and
-    // their ancestor path is `[root]`.
-    if Rc::ptr_eq(node, root) {
-        return ChildStep::Descend { path: path_for_children.to_vec(), moved: false };
-    }
     match decision {
         AbsorbDecision::Free => {
             node.dependencies.borrow_mut().shift_remove(child);
             node.hoisted_dependencies
                 .borrow_mut()
                 .insert(child.0.name.clone(), Rc::clone(&child.0));
-            root.dependencies.borrow_mut().insert(child.clone());
+            ctx.root.dependencies.borrow_mut().insert(child.clone());
             root_index.insert(child.0.name.clone(), child.clone());
-            // Child is now a direct dep of root; its ancestor path collapses
-            // to `[root]`.
-            ChildStep::Descend { path: vec![Rc::clone(root)], moved: true }
+            ChildStep::Hoisted
         }
         AbsorbDecision::SameNode => {
             // A copy of this package is already at root;
@@ -214,18 +206,15 @@ pub(super) fn apply_decision(
                 .insert(child.0.name.clone(), Rc::clone(&child.0));
             ChildStep::Dropped
         }
-        // Stays at the current parent, so the child's ancestor path is the
-        // path through `node`. A later round may revisit it with a different
-        // peer / conflict / preference context; only `Border` is terminal,
-        // since the limit boundary never moves.
+        // A later round may revisit the child with a different peer /
+        // conflict / preference context; only `Border` is terminal, since
+        // the limit boundary never moves.
         AbsorbDecision::Conflict
         | AbsorbDecision::PeerShadow
         | AbsorbDecision::PathShadow
         | AbsorbDecision::UsedShadow
         | AbsorbDecision::Border
-        | AbsorbDecision::Defer => {
-            ChildStep::Descend { path: path_for_children.to_vec(), moved: false }
-        }
+        | AbsorbDecision::Defer => ChildStep::Stayed,
     }
 }
 
