@@ -1451,6 +1451,34 @@ jobs:
           --features backend-libsql,backend-postgres,backend-mysql
           --target="$TARGET"
 
+      - name: Verify database.url schemes on native target
+        if: >-
+          matrix.target == 'x86_64-pc-windows-msvc'
+          || matrix.target == 'x86_64-unknown-linux-gnu'
+          || matrix.target == 'x86_64-unknown-linux-musl'
+          || matrix.target == 'aarch64-apple-darwin'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          RUNNER_OS: ${{ runner.os }}
+        run: |
+          bin="target/$TARGET/release/pnpr"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            bin="${bin}.exe"
+          fi
+          check_dir=$(mktemp -d)
+          for url in \
+            'sqlite:./metadata.sqlite' \
+            'libsql://database.example.test' \
+            'http://127.0.0.1:8080' \
+            'https://database.example.test' \
+            'postgres://example:secret@database.example.test/registry' \
+            'postgresql://example:secret@database.example.test/registry' \
+            'mysql://example:secret@database.example.test/registry'; do
+            printf 'storage: ./storage\ndatabase:\n  url: %s\n' "$url" > "$check_dir/db-check.yaml"
+            "$bin" --config "$check_dir/db-check.yaml" config check > /dev/null
+          done
+
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive
       # that generate-packages.mjs picks up is already named
@@ -1642,7 +1670,7 @@ jobs:
           node "$smoke_dir/node_modules/@pnpm/pnpr/install.js"
           "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --version
 
-          # Every packaged release binary and the static musl binary staged
+          # The packaged Linux x64 binary and the static musl binary staged
           # into ghcr.io/pnpm/pnpr must accept every documented database.url
           # scheme.
           chmod +x ./pnpr-linux-x64-musl

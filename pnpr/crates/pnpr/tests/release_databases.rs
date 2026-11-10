@@ -2,7 +2,12 @@
 //! scheme.
 
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
+mod db_guard;
+
+#[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
 use crate::npm::publish_doc;
+#[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
+use db_guard::{create_mysql_database, create_postgres_database};
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
 use pnpm_testing_utils::trusted_tls_server::TrustedTlsServer;
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
@@ -11,19 +16,20 @@ use pnpr_libsql::testing::{serve_primary, serve_tls_proxy};
 use reqwest::{Client, StatusCode};
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
-use std::{net::SocketAddr, process::Stdio, time::Duration};
+use std::{net::SocketAddr, process::Stdio};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tempfile::TempDir;
-use tokio::process::Command;
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Child,
-    time::timeout,
 };
+use tokio::{process::Command, time::timeout};
 
-#[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
 const STARTUP_DEADLINE: Duration = Duration::from_secs(30);
 
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
@@ -105,9 +111,9 @@ async fn release_binary_supports_every_database_scheme() {
     let (https_addr, _https_proxy) = serve_tls_proxy(https_upstream, &cert_pem, &key_pem).await;
     let (libsql_addr, _libsql_proxy) = serve_tls_proxy(libsql_upstream, &cert_pem, &key_pem).await;
 
-    let pg_url = create_postgres_database(&pg_admin, "postgres").await;
-    let postgresql_url = create_postgres_database(&pg_admin, "postgresql").await;
-    let mysql_url = create_mysql_database(&mysql_admin).await;
+    let pg_db = create_postgres_database(&pg_admin, "postgres").await;
+    let postgresql_db = create_postgres_database(&pg_admin, "postgresql").await;
+    let mysql_db = create_mysql_database(&mysql_admin).await;
 
     let cases = [
         SchemeCase {
@@ -134,9 +140,14 @@ async fn release_binary_supports_every_database_scheme() {
             auth_token: Some("test-libsql-token"),
             tls_ca: Some(ca_path),
         },
-        SchemeCase { label: "postgres", url: pg_url, auth_token: None, tls_ca: None },
-        SchemeCase { label: "postgresql", url: postgresql_url, auth_token: None, tls_ca: None },
-        SchemeCase { label: "mysql", url: mysql_url, auth_token: None, tls_ca: None },
+        SchemeCase { label: "postgres", url: pg_db.url.clone(), auth_token: None, tls_ca: None },
+        SchemeCase {
+            label: "postgresql",
+            url: postgresql_db.url.clone(),
+            auth_token: None,
+            tls_ca: None,
+        },
+        SchemeCase { label: "mysql", url: mysql_db.url.clone(), auth_token: None, tls_ca: None },
     ];
 
     let client = Client::builder()
@@ -234,11 +245,16 @@ fn write_config(dir: &Path, database_url: &str, auth_token: Option<&str>) -> Pat
 }
 
 async fn run_cli(bin: &Path, args: &[&str]) -> (Option<i32>, String, String) {
-    let output = Command::new(bin)
-        .args(args)
-        .output()
-        .await
-        .expect("spawn pnpr CLI");
+    let output = timeout(
+        STARTUP_DEADLINE,
+        Command::new(bin)
+            .args(args)
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .expect("pnpr CLI did not exit before deadline")
+    .expect("spawn pnpr CLI");
     (
         output.status.code(),
         String::from_utf8_lossy(&output.stdout).into_owned(),
@@ -303,42 +319,4 @@ async fn spawn_server(
             );
         }
     }
-}
-
-#[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
-async fn create_postgres_database(admin_url: &str, scheme: &str) -> String {
-    let tmp = TempDir::new().unwrap();
-    let db_name = unique_db_name("release_pg", &tmp);
-    let pool = sqlx::PgPool::connect(admin_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&pool).await.unwrap();
-    pool.close().await;
-
-    let base = admin_url.rsplit_once('/').expect("postgres admin URL has database path").0;
-    let rest = base.split_once("://").expect("postgres admin URL has scheme").1;
-    format!("{scheme}://{rest}/{db_name}")
-}
-
-#[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
-async fn create_mysql_database(admin_url: &str) -> String {
-    let tmp = TempDir::new().unwrap();
-    let db_name = unique_db_name("release_my", &tmp);
-    let pool = sqlx::MySqlPool::connect(admin_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&pool).await.unwrap();
-    pool.close().await;
-
-    let base = admin_url.rsplit_once('/').expect("mysql admin URL has database path").0;
-    format!("{base}/{db_name}")
-}
-
-#[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
-fn unique_db_name(prefix: &str, tmp: &TempDir) -> String {
-    let suffix = tmp
-        .path()
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .replace(['.', '-'], "")
-        .to_ascii_lowercase();
-    format!("{prefix}_{suffix}")
 }
