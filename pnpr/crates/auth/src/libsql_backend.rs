@@ -467,6 +467,7 @@ impl LibsqlAuth {
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            let (new_hash, stored) = (new_hash.as_str(), stored.as_str());
             self.pool.write(|conn| async move {
                 conn.execute(
                     "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3",

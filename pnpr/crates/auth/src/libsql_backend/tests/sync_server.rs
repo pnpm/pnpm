@@ -1,5 +1,5 @@
-//! An embedded replica of the auth database against a local primary that
-//! serves libsql's newer sync protocol, as Turso Cloud does.
+//! The auth database on a local primary that serves libsql's newer sync
+//! protocol, as Turso Cloud does, read directly or through an embedded replica.
 
 use super::{Builder, LibsqlAuth, MaxUsers, TokenBackend, UpsertOutcome, UserBackend, UserRemoval};
 use pnpr_config::LibsqlSettings;
@@ -160,6 +160,39 @@ async fn bulk_revocation_refreshes_a_replica_whose_tokens_went_elsewhere() {
     assert_eq!(revoked, 0, "the primary had nothing left to revoke");
     assert_eq!(replica.lookup(&stale).await.unwrap(), None, "the replica caught up");
     server.abort();
+}
+
+/// A primary that restarted rejects the streams pooled connections still
+/// hold. Readiness, a token lookup, and a login all run again on new
+/// connections.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_primary_without_a_replica_serves_after_it_forgets_its_streams() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let settings =
+        LibsqlSettings { replica_path: None, ..replica_settings(address, PathBuf::new(), None) };
+    let backend = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
+    let alice_id = backend
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = backend.issue(&alice_id).await.unwrap();
+    TokenBackend::check_readiness(&backend).await.unwrap();
+
+    primary.restart();
+    let ready = TokenBackend::check_readiness(&backend).await;
+    primary.restart();
+    let owner = backend.lookup(&token).await;
+    primary.restart();
+    let login = backend.add_or_login("alice", "secret123").await;
+    let rejections = primary.stale_stream_rejections();
+    server.abort();
+    ready.unwrap();
+    assert_eq!(owner.unwrap().as_deref(), Some(alice_id.as_str()));
+    assert_eq!(login.unwrap().0, UpsertOutcome::LoggedIn);
+    assert!(rejections > 0, "the pooled connections held streams");
 }
 
 /// Poll `replica` for `token` until it is visible or the wait runs out.

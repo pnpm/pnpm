@@ -165,6 +165,19 @@ pub fn is_transaction_conflict(error: &LibsqlError) -> bool {
     }
 }
 
+/// Whether the server rejected a request because it no longer holds the
+/// connection's stream: the stream expired, or the server restarted and
+/// does not know its baton. The server ran nothing of that request, and the
+/// connection cannot send another. libsql does not expose Hrana's error type,
+/// so the response is read from the message.
+pub(crate) fn is_stale_stream(error: &RegistryError) -> bool {
+    let RegistryError::Libsql(LibsqlError::Hrana(error)) = error else {
+        return false;
+    };
+    let message = error.to_string();
+    message.contains("STREAM_EXPIRED") || message.contains("Received an invalid baton")
+}
+
 /// Whether `error` is a violated uniqueness constraint.
 #[must_use]
 pub fn is_unique_violation(error: &LibsqlError) -> bool {

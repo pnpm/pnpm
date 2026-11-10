@@ -15,6 +15,7 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use libsql::{Builder, Connection, Database};
@@ -27,7 +28,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 /// The layout of a `SQLite` WAL file, whose frames the sync protocol serves.
@@ -61,23 +62,79 @@ pub struct Primary {
 /// hold transactions of their own, as on a real primary.
 struct Streams {
     db: Database,
-    open: std::sync::Mutex<HashMap<String, Connection>>,
+    open: std::sync::Mutex<HashMap<String, OpenStream>>,
     batons: AtomicUsize,
+    /// How long a stream may idle before it expires. `None` keeps it open.
+    expiry: std::sync::Mutex<Option<Duration>>,
+    /// See [`Primary::stale_stream_rejections`].
+    rejected: AtomicUsize,
+}
+
+struct OpenStream {
+    conn: Connection,
+    since: Instant,
+}
+
+/// How `sqld` refuses a request on a stream it no longer holds. It runs
+/// nothing of the request.
+enum StaleStream {
+    Expired,
+    Unknown,
+}
+
+impl IntoResponse for StaleStream {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Expired => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "message": "The stream has expired due to inactivity",
+                    "code": "STREAM_EXPIRED",
+                })),
+            )
+                .into_response(),
+            Self::Unknown => (StatusCode::BAD_REQUEST, "Received an invalid baton").into_response(),
+        }
+    }
 }
 
 impl Streams {
-    /// The connection of the stream `baton` names, or of a new stream.
-    async fn take(&self, baton: Option<&str>) -> Connection {
-        let open = baton.and_then(|baton| self.open.lock().unwrap().remove(baton));
-        if let Some(conn) = open {
-            return conn;
+    /// No open streams on `db`, which never expire.
+    fn new(db: Database) -> Self {
+        Self {
+            db,
+            open: std::sync::Mutex::new(HashMap::new()),
+            batons: AtomicUsize::new(0),
+            expiry: std::sync::Mutex::new(None),
+            rejected: AtomicUsize::new(0),
+        }
+    }
+
+    /// The connection of the stream `baton` names, or of a new stream. A
+    /// refused request that only `closes` its stream is not counted: libsql
+    /// sends one for every connection it drops.
+    async fn take(&self, baton: Option<&str>, closes: bool) -> Result<Connection, StaleStream> {
+        if let Some(baton) = baton {
+            let stream = self.open.lock().unwrap().remove(baton);
+            let expiry = *self.expiry.lock().unwrap();
+            let stale = match stream {
+                Some(stream) if expiry.is_none_or(|expiry| stream.since.elapsed() < expiry) => {
+                    return Ok(stream.conn);
+                }
+                Some(_) => StaleStream::Expired,
+                None => StaleStream::Unknown,
+            };
+            if !closes {
+                self.rejected.fetch_add(1, Ordering::SeqCst);
+            }
+            return Err(stale);
         }
         let conn = self.db.connect().unwrap();
         // A writer that finds another's transaction open waits for it a
         // while, then fails busy.
         conn.query("PRAGMA busy_timeout = 2000", ()).await
             .unwrap();
-        conn
+        Ok(conn)
     }
 
     /// Keep `conn` open as a stream, and return the baton that names it.
@@ -86,7 +143,7 @@ impl Streams {
         self.open
             .lock()
             .unwrap()
-            .insert(baton.clone(), conn);
+            .insert(baton.clone(), OpenStream { conn, since: Instant::now() });
         baton
     }
 }
@@ -127,11 +184,7 @@ pub async fn serve_primary(
     {}
     let snapshot = pin_frames(&db).await;
     let primary = Arc::new(Primary {
-        streams: Streams {
-            db,
-            open: std::sync::Mutex::new(HashMap::new()),
-            batons: AtomicUsize::new(0),
-        },
+        streams: Streams::new(db),
         conn,
         path,
         exports: AtomicUsize::new(0),
@@ -206,7 +259,10 @@ async fn sync(
     frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": GENERATION }))))
 }
 
-async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<JsonValue> {
+async fn pipeline(
+    State(primary): State<Arc<Primary>>,
+    body: String,
+) -> Result<Json<JsonValue>, StaleStream> {
     let body: JsonValue = serde_json::from_str(&body).unwrap();
     let steps = body["requests"]
         .as_array()
@@ -219,21 +275,25 @@ async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<Jso
                 .unwrap_or_default()
         });
     primary.round_trips.record(steps);
-    let conn = primary.streams.take(body["baton"].as_str()).await;
+    let requests = body["requests"].as_array().unwrap();
+    let closes = requests
+        .iter()
+        .all(|request| request["type"].as_str() == Some("close"));
+    let conn = primary.streams.take(body["baton"].as_str(), closes).await?;
     let mut results = Vec::new();
     let mut closed = false;
-    for request in body["requests"].as_array().unwrap() {
+    for request in requests {
         closed |= request["type"].as_str() == Some("close");
         results.push(hrana::answer(&conn, request).await);
     }
     let baton =
         if closed { JsonValue::Null } else { JsonValue::String(primary.streams.keep(conn)) };
-    Json(json!({ "baton": baton, "base_url": null, "results": results }))
+    Ok(Json(json!({ "baton": baton, "base_url": null, "results": results })))
 }
 
 /// Run a batch and stream its results as Hrana cursor entries, one JSON
 /// object per line.
-async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
+async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> Result<String, StaleStream> {
     let body: JsonValue = serde_json::from_str(&body).unwrap();
     primary.round_trips.record(
         body["batch"]["steps"]
@@ -241,7 +301,7 @@ async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
             .cloned()
             .unwrap_or_default(),
     );
-    let conn = primary.streams.take(body["baton"].as_str()).await;
+    let conn = primary.streams.take(body["baton"].as_str(), false).await?;
     let entries = hrana::cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
     let baton = primary.streams.keep(conn);
     let mut lines = String::new();
@@ -249,7 +309,7 @@ async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
         lines.push_str(&line.to_string());
         lines.push('\n');
     }
-    lines
+    Ok(lines)
 }
 
 /// Frames `[start, end)` of `wal`, clipped to the frames it holds; `None`
@@ -265,6 +325,27 @@ fn wal_frames(wal: &[u8], start: usize, end: usize) -> Option<Vec<u8>> {
 }
 
 impl Primary {
+    /// Expire a stream once it has idled for `expiry`, as `sqld` does after
+    /// 10 seconds.
+    pub fn expire_streams_after(&self, expiry: Duration) {
+        *self.streams.expiry.lock().unwrap() = Some(expiry);
+    }
+
+    /// Forget every open stream, rolling back its transaction, as a
+    /// restarted `sqld` does.
+    pub fn restart(&self) {
+        self.streams.open
+            .lock()
+            .unwrap()
+            .clear();
+    }
+
+    /// The requests carrying statements refused so far for naming a stream
+    /// the primary no longer holds.
+    pub fn stale_stream_rejections(&self) -> usize {
+        self.streams.rejected.load(Ordering::SeqCst)
+    }
+
     /// The WAL, holding every frame since the database file's state.
     fn wal(&self) -> Vec<u8> {
         let mut wal_path = self.path.clone().into_os_string();

@@ -69,6 +69,7 @@ impl TokenBackend for LibsqlAuth {
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
+        let token_hash = token_hash.as_str();
         let now = unix_seconds();
         self.pool.read(|conn| async move {
             let rows = conn
@@ -85,13 +86,15 @@ impl TokenBackend for LibsqlAuth {
 
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
         let token_hash = sha256_hex(raw.as_bytes());
+        let token_hash = token_hash.as_str();
         let query = format!(
             "SELECT {OWNED_TOKEN_COLUMNS}, u.username FROM tokens t JOIN users u ON u.id = t.user_id AND u.bcrypt_hash <> '!'
              WHERE t.token_hash = ?1",
         );
+        let query = query.as_str();
         let now = unix_seconds();
         self.pool.read(|conn| async move {
-            let rows = conn.query(&query, params![token_hash]).await?;
+            let rows = conn.query(query, params![token_hash]).await?;
             let record = first_row(rows, |row| {
                 Ok(row_to_keyed_record(row)?.1.with_owner_name(row.get::<String>(10)?))
             })
@@ -103,8 +106,9 @@ impl TokenBackend for LibsqlAuth {
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
+        let query = query.as_str();
         self.pool.read(|conn| async move {
-            let rows = conn.query(&query, params![key]).await?;
+            let rows = conn.query(query, params![key]).await?;
             first_row(rows, |row| Ok(row_to_keyed_record(row)?.1)).await
         })
         .await
@@ -112,8 +116,9 @@ impl TokenBackend for LibsqlAuth {
 
     async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE user_id = ?1");
+        let query = query.as_str();
         self.pool.read(|conn| async move {
-            let mut rows = conn.query(&query, params![user_id]).await?;
+            let mut rows = conn.query(query, params![user_id]).await?;
             let mut out = Vec::new();
             while let Some(row) = rows.next().await? {
                 out.push(row_to_keyed_record(&row)?);
@@ -159,6 +164,8 @@ impl LibsqlAuth {
         let cidr_json = serde_json::to_string(&record.cidr_whitelist)
             .expect("Vec<String> always serializes to JSON");
         let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
+        let (token_hash, cidr_json, scopes_json) =
+            (token_hash.as_str(), cidr_json.as_str(), scopes_json.as_deref());
         self.pool.write(|conn| async move {
             conn.execute(
                 "INSERT INTO tokens
@@ -173,7 +180,7 @@ impl LibsqlAuth {
                     cidr_json,
                     record.name.as_deref(),
                     record.expires_at.map(token_timestamp_to_sql),
-                    scopes_json.as_deref(),
+                    scopes_json,
                     record.kind.as_deref(),
                 ],
             )

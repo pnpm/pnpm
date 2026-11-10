@@ -69,6 +69,12 @@ pub(super) async fn answer(conn: &Connection, request: &JsonValue) -> JsonValue 
                 "result": { "params": [], "cols": [], "is_explain": false, "is_readonly": false },
             },
         }),
+        Some("execute") => match run(conn, &request["stmt"]).await {
+            Ok(result) => {
+                json!({ "type": "ok", "response": { "type": "execute", "result": result } })
+            }
+            Err(error) => json!({ "type": "error", "error": hrana_error(&error) }),
+        },
         Some("close") => json!({ "type": "ok", "response": { "type": "close" } }),
         other => json!({
             "type": "error",
