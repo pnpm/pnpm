@@ -25,7 +25,7 @@ use pnpr_error::{RegistryError, Result};
 use std::{future::Future, path::Path, time::Duration};
 
 /// The connector for the database `settings` name, the settings of the
-/// config block `section`, such as `backend.libsql`. An auth token must not
+/// config block `section`, such as `database`. An auth token must not
 /// cross a cleartext link to a host other than loopback.
 ///
 /// # Errors
@@ -33,6 +33,16 @@ use std::{future::Future, path::Path, time::Duration};
 /// The settings send a token over plain HTTP, or the platform trust store
 /// cannot be loaded.
 pub fn connector(settings: &LibsqlSettings, section: &str) -> Result<LibsqlConnector> {
+    validate_settings(settings, section)?;
+    Ok(LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?)
+}
+
+/// Validate token transport without opening a connection or loading TLS roots.
+///
+/// # Errors
+///
+/// A token would cross an insecure connection.
+pub fn validate_settings(settings: &LibsqlSettings, section: &str) -> Result<()> {
     if settings.auth_token.is_some()
         && is_plain_http(&settings.url)
         && !is_url_secure_for_credentials(&settings.url)
@@ -44,7 +54,21 @@ pub fn connector(settings: &LibsqlSettings, section: &str) -> Result<LibsqlConne
             ),
         });
     }
-    Ok(LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?)
+    Ok(())
+}
+
+/// Add a redacted database target to a startup failure, preserving config errors.
+#[must_use]
+pub fn startup_error(settings: &LibsqlSettings, error: RegistryError) -> RegistryError {
+    match error {
+        RegistryError::InvalidConfig { .. } => error,
+        _ => RegistryError::StorageUnavailable {
+            reason: pnpr_error::redact_url_credentials(&format!(
+                "database {}: {error}",
+                pnpr_config::redact_connection_url(&settings.url),
+            )),
+        },
+    }
 }
 
 /// Open the database `settings` name, dialed with `connector`: an embedded

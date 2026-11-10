@@ -114,7 +114,14 @@ macro_rules! driver {
                     &self,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
-                    self.run(self.settings.startup_timeout, operation)
+                    let started = std::time::Instant::now();
+                    if !self.settings.url.is_empty() && self.pool.num_idle() == 0 {
+                        tokio::runtime::Handle::current().block_on(crate::check_connection(
+                            &self.pool, &self.settings.url, self.settings.startup_timeout,
+                        ))?;
+                    }
+                    let remaining = self.settings.startup_timeout.saturating_sub(started.elapsed());
+                    self.run(remaining, operation)
                 }
 
                 fn write(

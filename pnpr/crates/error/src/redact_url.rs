@@ -1,3 +1,18 @@
+/// Redact credentials in a database target, hiding malformed URLs entirely.
+#[must_use]
+pub fn redact_connection_url(raw: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return "[redacted]".to_string();
+    };
+    redact_url_userinfo(&mut parsed);
+    redact_url_query(&mut parsed, |key| {
+        is_sensitive_query_key(key)
+            || matches!(key.to_ascii_lowercase().as_str(), "user" | "username" | "sslpassword")
+    });
+    redact_url_fragment(&mut parsed);
+    parsed.to_string()
+}
+
 /// Rewrite every URL in `message` so its `user:pass@` userinfo and any
 /// sensitive query parameter render as `<redacted>`. Shared with the config
 /// layer, whose operator-supplied endpoints can carry either.
@@ -116,7 +131,7 @@ pub(super) fn find_last_at_outside_segment_start(
 
 pub(super) fn redact_parsed_url(mut url: url::Url) -> Option<String> {
     let mut changed = redact_url_userinfo(&mut url);
-    changed |= redact_url_query(&mut url);
+    changed |= redact_url_query(&mut url, is_sensitive_query_key);
     changed |= redact_url_fragment(&mut url);
     changed.then(|| url.to_string())
 }
@@ -130,7 +145,7 @@ pub(super) fn redact_url_userinfo(url: &mut url::Url) -> bool {
     username_redacted || password_dropped
 }
 
-pub(super) fn redact_url_query(url: &mut url::Url) -> bool {
+pub(super) fn redact_url_query(url: &mut url::Url, is_sensitive: impl Fn(&str) -> bool) -> bool {
     if url.query().is_none() {
         return false;
     }
@@ -138,7 +153,7 @@ pub(super) fn redact_url_query(url: &mut url::Url) -> bool {
     let pairs = url
         .query_pairs()
         .map(|(key, value)| {
-            if is_sensitive_query_key(&key) {
+            if is_sensitive(&key) {
                 changed = true;
                 (key.into_owned(), "redacted".to_string())
             } else {

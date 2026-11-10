@@ -27,10 +27,8 @@ impl SqlAuth<PostgresDatabase> {
             settings.startup_timeout,
             settings.startup_timeout,
         )?;
-        let startup_pool =
-            with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
-                .await?;
-        let startup_pool = std::sync::Arc::new(startup_pool);
+        let startup_pool = std::sync::Arc::new(startup_options.connect_lazy(&settings.url)?);
+        pnpr_sql::check_connection(&startup_pool, &settings.url, settings.startup_timeout).await?;
         let startup_db = PostgresDatabase {
             pool: RequestPool::new(std::sync::Arc::clone(&startup_pool), settings.startup_timeout),
         };

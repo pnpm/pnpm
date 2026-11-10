@@ -3,6 +3,7 @@ use super::{
     RegistryError, ScimConfig, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
     parse_interval, resolve_relative,
 };
+use pnpr_error::redact_connection_url;
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
 /// [`crate::HostedStoreConfig`], this only carries the parsed settings — the
@@ -97,36 +98,6 @@ impl std::fmt::Debug for SqlBackendSettings {
             .field("startup_timeout", &self.startup_timeout)
             .finish()
     }
-}
-
-fn redact_connection_url(raw: &str) -> String {
-    let Ok(mut parsed) = url::Url::parse(raw) else {
-        return "[redacted]".to_string();
-    };
-    if parsed.password().is_some() {
-        let _ = parsed.set_password(Some("[redacted]"));
-    }
-    if !parsed.username().is_empty() {
-        let _ = parsed.set_username("[redacted]");
-    }
-    let query_pairs: Vec<(String, String)> = parsed
-        .query_pairs()
-        .map(|(k, v)| {
-            let k_lower = k.to_ascii_lowercase();
-            if matches!(k_lower.as_str(), "password" | "token" | "authtoken" | "auth_token") {
-                (k.into_owned(), "[redacted]".to_string())
-            } else {
-                (k.into_owned(), v.into_owned())
-            }
-        })
-        .collect();
-    if !query_pairs.is_empty() {
-        parsed
-            .query_pairs_mut()
-            .clear()
-            .extend_pairs(query_pairs);
-    }
-    parsed.to_string()
 }
 
 impl SqlBackendSettings {

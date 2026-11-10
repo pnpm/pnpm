@@ -335,3 +335,15 @@ fn circuit_open_response_names_upstream_and_rounds_retry_after_up() {
     assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(response.headers()["retry-after"], "2");
 }
+
+#[test]
+fn database_targets_redact_driver_credentials_in_query_parameters() {
+    let target = crate::redact_connection_url(
+        "postgres://database.example.test/registry?user=example-user&sslpassword=example-secret&token=example-token&password=punctuated)secret&other=value",
+    );
+    for secret in ["example-user", "example-secret", "example-token", "punctuated", "secret"] {
+        assert!(!target.contains(secret), "{target}");
+    }
+    assert!(target.contains("database.example.test/registry"), "{target}");
+    assert!(target.contains("other=value"), "{target}");
+}

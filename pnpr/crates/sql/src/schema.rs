@@ -130,7 +130,10 @@ pub fn ensure(connection: &dyn Connection, name: &str) -> Result<()> {
 #[must_use]
 pub fn refused_error(name: &str, stored: &Stored) -> RegistryError {
     let reason = match stored {
-        Stored::FutureVersion(_) | Stored::Unreadable | Stored::Incomplete(_) => format!(
+        Stored::FutureVersion(_) => format!(
+            "the database {name} holds {stored}, which is newer than this pnpr (expects schema version {SCHEMA_VERSION}). Upgrade pnpr to read this database",
+        ),
+        Stored::Unreadable | Stored::Incomplete(_) => format!(
             "the database {name} holds {stored}, which is incompatible with this pnpr \
              (expects schema version {SCHEMA_VERSION}).",
         ),
@@ -144,7 +147,7 @@ pub fn refused_error(name: &str, stored: &Stored) -> RegistryError {
              are not migrated; wipe pnpr's tables, and pnpr creates them afresh",
         ),
     };
-    RegistryError::Internal { reason }
+    RegistryError::InvalidConfig { reason }
 }
 
 /// Apply all pending [`STEPS`] on `connection`, and report what a database
@@ -398,3 +401,6 @@ pub fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
         .collect::<Vec<_>>()
         .into_iter()
 }
+
+#[cfg(test)]
+mod diagnostic_tests;

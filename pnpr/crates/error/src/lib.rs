@@ -1,4 +1,4 @@
-pub use redact_url::redact_url_credentials;
+pub use redact_url::{redact_connection_url, redact_url_credentials};
 
 mod redact_url;
 #[cfg(feature = "server")]

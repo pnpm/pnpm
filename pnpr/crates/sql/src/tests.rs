@@ -38,3 +38,20 @@ async fn mysql_callers_share_the_pool_and_its_limit() {
     config.max_connections = Some(0);
     assert!(mysql_pool(&config).is_err());
 }
+
+#[cfg(feature = "backend-postgres")]
+#[tokio::test]
+async fn startup_connection_failure_names_the_target_and_cause_without_credentials() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let config = settings(&format!("postgres://example:example-secret@{address}/registry"));
+    let pool = postgres_pool(&config).unwrap();
+    let error = super::check_connection(&pool, &config.url, Duration::from_millis(50))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains(&address.to_string()), "{error}");
+    assert!(error.to_lowercase().contains("refused"), "{error}");
+    assert!(!error.contains("example-secret"), "{error}");
+}

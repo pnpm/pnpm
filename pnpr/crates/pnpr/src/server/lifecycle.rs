@@ -134,9 +134,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
-    config.features.ensure_a_feature_is_enabled()?;
-    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
-    config.http.ensure_valid_metrics()?;
+    crate::config_validation::validate_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -230,9 +228,7 @@ pub async fn serve_listener_with(
     wrap: impl FnOnce(Router) -> Router,
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
-    config.features.ensure_a_feature_is_enabled()?;
-    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
-    config.http.ensure_valid_metrics()?;
+    crate::config_validation::validate_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
