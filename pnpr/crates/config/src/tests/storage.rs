@@ -412,3 +412,18 @@ fn libsql_settings_need_a_libsql_url_and_a_replica_needs_a_sync_interval() {
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
     }
 }
+
+#[test]
+fn network_sql_urls_require_double_slash_authority() {
+    for raw in [
+        "postgres:user:secret@db.example.test/pnpr",
+        "postgresql:user:secret@db.example.test/pnpr",
+        "mysql:user:secret@db.example.test/pnpr",
+    ] {
+        let yaml = format!("storage: /s\ndatabase:\n  url: {raw}\n");
+        let err = Config::from_yaml_str(&yaml, Path::new("/"), listen(), None).unwrap_err();
+        let rendered = err.to_string();
+        assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{raw}: {rendered}");
+        assert!(!rendered.contains("secret"), "{raw}: {rendered}");
+    }
+}

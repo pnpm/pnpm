@@ -292,7 +292,7 @@ fn network_metadata(file: &DatabaseFile, url: &str) -> Result<MetadataBackend, R
 }
 
 fn is_network_sql_url(url: &str) -> bool {
-    ["postgres:", "postgresql:", "mysql:"]
+    ["postgres://", "postgresql://", "mysql://"]
         .iter()
         .any(|prefix| {
             url.get(..prefix.len())

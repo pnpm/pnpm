@@ -173,7 +173,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     let (state, app) = state_and_router(config, auth, osv_index)?;
     let metrics = bind_metrics_listener(state).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
-    tracing::info!(%listen, "pnpr listening");
+    tracing::info!(listen = %listener.local_addr()?, "pnpr listening");
     serve_until_shutdown(listener, app, metrics).await
 }
 

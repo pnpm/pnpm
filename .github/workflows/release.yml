@@ -1446,7 +1446,10 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-        run: .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release --target="$TARGET"
+        run: >-
+          .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release
+          --features backend-libsql,backend-postgres,backend-mysql
+          --target="$TARGET"
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive
@@ -1638,6 +1641,23 @@ jobs:
           tar -xzf "$wrapper_tarball" -C "$smoke_dir/node_modules/@pnpm/pnpr" --strip-components=1
           node "$smoke_dir/node_modules/@pnpm/pnpr/install.js"
           "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --version
+
+          # Every packaged release binary and the static musl binary staged
+          # into ghcr.io/pnpm/pnpr must accept every documented database.url
+          # scheme.
+          chmod +x ./pnpr-linux-x64-musl
+          for url in \
+            'sqlite:./metadata.sqlite' \
+            'libsql://database.example.test' \
+            'http://127.0.0.1:8080' \
+            'https://database.example.test' \
+            'postgres://example:secret@database.example.test/registry' \
+            'postgresql://example:secret@database.example.test/registry' \
+            'mysql://example:secret@database.example.test/registry'; do
+            printf 'storage: ./storage\ndatabase:\n  url: %s\n' "$url" > "$smoke_dir/db-check.yaml"
+            "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --config "$smoke_dir/db-check.yaml" config check > /dev/null
+            ./pnpr-linux-x64-musl --config "$smoke_dir/db-check.yaml" config check > /dev/null
+          done
 
           # pnpr finds the web UI installed next to it and serves it.
           ui_tarball=$(find "$release_tarballs/pnpr_npm_pnpr-ui" -type f -name '*.tgz' -print -quit)

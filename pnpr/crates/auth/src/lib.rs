@@ -194,7 +194,7 @@ impl AuthState {
         #[cfg(not(feature = "backend-libsql"))]
         {
             let _ = (auth, settings);
-            Err(backend_not_enabled("libsql", "backend-libsql"))
+            Err(backend_not_enabled())
         }
     }
 
@@ -212,7 +212,7 @@ impl AuthState {
         #[cfg(not(feature = "backend-postgres"))]
         {
             let _ = (auth, settings);
-            Err(backend_not_enabled("postgres", "backend-postgres"))
+            Err(backend_not_enabled())
         }
     }
 
@@ -230,7 +230,7 @@ impl AuthState {
         #[cfg(not(feature = "backend-mysql"))]
         {
             let _ = (auth, settings);
-            Err(backend_not_enabled("mysql", "backend-mysql"))
+            Err(backend_not_enabled())
         }
     }
 
@@ -253,9 +253,9 @@ impl AuthState {
     not(feature = "backend-postgres"),
     not(feature = "backend-mysql")
 ))]
-fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
+fn backend_not_enabled() -> RegistryError {
     RegistryError::InvalidConfig {
-        reason: format!("backend.{name} is configured but pnpr was built without `{feature}`"),
+        reason: "this build does not include the configured database driver".to_string(),
     }
 }
 

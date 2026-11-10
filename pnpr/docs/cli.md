@@ -64,7 +64,7 @@ Validates the YAML configuration file and prints diagnostic details, including c
 pnpr config check
 ```
 
-Database validation checks token transport security and whether this build supports the configured database driver. It does not connect to the database.
+Database validation checks the connection URL and options, token transport security, and whether this build supports the configured database driver. It does not connect to the database.
 
 ### verify
 

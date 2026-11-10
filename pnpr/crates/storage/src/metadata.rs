@@ -164,8 +164,7 @@ fn open_libsql(settings: &pnpr_config::LibsqlSettings) -> Result<Arc<SqlMetadata
 #[cfg(not(feature = "backend-libsql"))]
 fn open_libsql(_settings: &pnpr_config::LibsqlSettings) -> Result<Arc<SqlMetadata>> {
     Err(pnpr_error::RegistryError::InvalidConfig {
-        reason: "this pnpr was built without libSQL, so it cannot use a libSQL metadata URL"
-            .to_string(),
+        reason: "this build does not include the configured database driver".to_string(),
     })
 }
 
@@ -237,7 +236,7 @@ fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Arc<SqlMet
     {
         let _ = settings;
         Err(RegistryError::InvalidConfig {
-            reason: "this build does not include network SQL metadata support".to_string(),
+            reason: "this build does not include the configured database driver".to_string(),
         })
     }
 }
