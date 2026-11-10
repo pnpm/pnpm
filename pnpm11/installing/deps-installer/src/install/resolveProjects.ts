@@ -188,7 +188,7 @@ function createGraphResolver (
       hooks: {
         readPackage: readPackageHook,
       },
-      overrideBareSpecifier: createDependencyOverrider(parsedOverrides, opts.lockfileDir),
+      overrideBareSpecifier: createDependencyOverrider(parsedOverrides, opts.lockfileDir, catalogs),
       preferredVersions,
       handleResolutionPolicyViolations,
     }
@@ -306,7 +306,7 @@ async function resolveGraphWithUpdatedCatalogs (
   const resolutionWithUpdatedCatalogs = await resolveGraph(
     updatedCatalogsConfig,
     parsedOverrides,
-    createInstallReadPackageHook(opts, parsedOverrides),
+    createInstallReadPackageHook({ ...opts, catalogs: updatedCatalogsConfig }, parsedOverrides),
     opts.handleResolutionPolicyViolations && (async (violations) => {
       const unhandled = violations.filter((violation) => !handledViolations.has(policyViolationKey(violation)))
       if (unhandled.length > 0) await opts.handleResolutionPolicyViolations!(unhandled)

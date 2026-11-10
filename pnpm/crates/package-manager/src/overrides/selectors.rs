@@ -1,9 +1,38 @@
 use super::{DependencyGroup, PackageSelector, ResolvedOverride, VersionsOverrider};
 use node_semver::{Range, Version};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::OverrideDependencyType;
 use pnpm_matcher::WildcardMatcher;
+use serde_json::Value;
 
 impl VersionsOverrider {
+    pub(super) fn applicable_parent_scoped<'b>(
+        &'b self,
+        manifest: &Value,
+    ) -> Vec<&'b ResolvedOverride> {
+        let Some(manifest_name) = manifest.get("name").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let manifest_version = manifest.get("version").and_then(Value::as_str);
+
+        self.parent_scoped
+            .iter()
+            .filter(|entry| {
+                let Some(parent) = entry.inner.parent_pkg.as_ref() else { return false };
+                let name_matches = entry.parent_name_matcher
+                    .as_ref()
+                    .is_some_and(|matcher| matcher.matches(manifest_name));
+                let range_matches = match (parent.bare_specifier.as_deref(), manifest_version) {
+                    (None, _) => true,
+                    (Some(_), None) => false,
+                    (Some(range), Some(version)) => semver_satisfies(version, range),
+                };
+                name_matches && range_matches
+            })
+            .collect()
+    }
+
     pub(super) fn choose_override<'b>(
         &'b self,
         group: Option<DependencyGroup>,
@@ -11,8 +40,9 @@ impl VersionsOverrider {
         dep_name: &str,
         dep_spec: &str,
     ) -> Option<&'b ResolvedOverride> {
-        Self::pick_most_specific(group, applicable_parent_scoped, dep_name, dep_spec)
-            .or_else(|| self.pick_most_specific_generic(group, dep_name, dep_spec))
+        let effective_spec = resolve_catalog_spec(&self.catalogs, dep_name, dep_spec);
+        Self::pick_most_specific(group, applicable_parent_scoped, dep_name, effective_spec)
+            .or_else(|| self.pick_most_specific_generic(group, dep_name, effective_spec))
     }
 
     fn pick_most_specific<'b>(
@@ -59,16 +89,35 @@ pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
 
 /// A target matches when its dependency-type filter (if any) matches
 /// `group`, its name pattern matches `dep_name`, and its range
-/// intersects `dep_spec`.
+/// intersects `dep_spec` (dereferenced through `catalogs` when `dep_spec`
+/// uses the `catalog:` protocol).
 pub(crate) fn matches_target(
     target: &PackageSelector,
     group: Option<DependencyGroup>,
     dep_name: &str,
     dep_spec: &str,
+    catalogs: &Catalogs,
 ) -> bool {
     matches_dep_type(target.dep_type, group)
         && WildcardMatcher::new(&target.name).matches(dep_name)
-        && is_intersecting_range(target.bare_specifier.as_deref(), dep_spec)
+        && is_intersecting_range(
+            target.bare_specifier.as_deref(),
+            resolve_catalog_spec(catalogs, dep_name, dep_spec),
+        )
+}
+
+/// The specifier a `catalog:` reference resolves to in `catalogs`, or
+/// `dep_spec` when it is not a `catalog:` reference or has no valid entry.
+fn resolve_catalog_spec<'a>(catalogs: &'a Catalogs, dep_name: &str, dep_spec: &'a str) -> &'a str {
+    let Some(catalog_name) = parse_catalog_protocol(dep_spec) else {
+        return dep_spec;
+    };
+    catalogs
+        .get(catalog_name)
+        .and_then(|catalog| catalog.get(dep_name))
+        .map(String::as_str)
+        .filter(|entry| parse_catalog_protocol(entry).is_none())
+        .unwrap_or(dep_spec)
 }
 
 pub(super) fn matches_resolved_target(

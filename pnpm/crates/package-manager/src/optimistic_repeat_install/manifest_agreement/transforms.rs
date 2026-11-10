@@ -27,6 +27,7 @@ impl<'a> ManifestTransforms<'a> {
                 parsed,
                 check.config.root_project_manifest_dir(check.workspace_root),
             )
+            .with_catalogs(check.catalogs)
         });
         Ok(Self { extender, hook: read_package_hook(check)?, parsed_overrides, overrider })
     }

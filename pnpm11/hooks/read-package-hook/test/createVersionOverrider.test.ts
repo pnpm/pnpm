@@ -1400,3 +1400,63 @@ test.each([
     },
   })
 })
+
+test('createVersionsOverrider() matches version-selector overrides against catalog: dependencies', () => {
+  const catalogs = {
+    default: {
+      ms: '~2.1.0',
+      foo: '^1.1.0',
+    },
+    legacy: {
+      ms: '^1.0.0',
+    },
+  }
+  const overrides = parseOverrides({
+    'ms@^2.0.0': '2.1.1',
+    'app>foo@^1.0.0': '1.2.3',
+  }, catalogs)
+  const overrider = createVersionsOverrider(overrides, process.cwd(), { catalogs })
+
+  expect(overrider({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:',
+      foo: 'catalog:',
+    },
+  })).toStrictEqual({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: '2.1.1',
+      foo: '1.2.3',
+    },
+  })
+
+  expect(overrider({
+    name: 'other',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:legacy',
+      foo: 'catalog:',
+    },
+  })).toStrictEqual({
+    name: 'other',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:legacy',
+      foo: 'catalog:',
+    },
+  })
+
+  const matcher = createOverriddenDependencyMatcher(overrides, process.cwd(), catalogs)!
+  expect(matcher({ name: 'app', version: '1.0.0' })('ms', 'catalog:')).toBe(true)
+  expect(matcher({ name: 'app', version: '1.0.0' })('ms', 'catalog:legacy')).toBe(false)
+  expect(matcher({ name: 'app', version: '1.0.0' })('foo', 'catalog:')).toBe(true)
+  expect(matcher({ name: 'other', version: '1.0.0' })('foo', 'catalog:')).toBe(false)
+
+  const depOverrider = createDependencyOverrider(overrides, process.cwd(), catalogs)!
+  expect(depOverrider('ms', 'catalog:', process.cwd())).toBe('2.1.1')
+  expect(depOverrider('ms', 'catalog:legacy', process.cwd())).toBeUndefined()
+})
+

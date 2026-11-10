@@ -739,3 +739,65 @@ fn an_override_on_a_cataloged_package_keeps_the_lockfile_reusable() {
         "catalog:\n  '@pnpm.e2e/bar': 100.0.0\noverrides:\n  '@pnpm.e2e/bar': 100.0.0\n",
     );
 }
+
+#[test]
+fn a_version_selector_override_applies_to_a_catalog_dependency() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let manifest_path = fixture.workspace.join("package.json");
+    let workspace_yaml_path = fixture.workspace.join("pnpm-workspace.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/foo": "catalog:",
+                "@pnpm.e2e/bar": "catalog:legacy"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}catalog:\n  '@pnpm.e2e/foo': ^100.0.0\ncatalogs:\n  legacy:\n    '@pnpm.e2e/bar': ^100.0.0\noverrides:\n  '@pnpm.e2e/foo@^100.0.0': 100.0.0\n  '@pnpm.e2e/bar@^200.0.0': 100.0.0\n",
+        ),
+    )
+    .expect("write catalog and version-selector overrides");
+    pacquet_at(&fixture.workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let foo_name = "@pnpm.e2e/foo".parse().expect("foo package name");
+    let bar_name = "@pnpm.e2e/bar".parse().expect("bar package name");
+    let dependencies = wanted.importers["."].dependencies.as_ref().expect("dependencies");
+    assert_eq!(dependencies[&foo_name].specifier, "100.0.0");
+    assert_eq!(dependencies[&foo_name].version.to_string(), "100.0.0");
+    assert_eq!(dependencies[&bar_name].specifier, "catalog:legacy");
+    assert_eq!(dependencies[&bar_name].version.to_string(), "100.1.0");
+
+    // Frozen lockfile and update both respect the version-selector override on
+    // the catalog dependency while preserving `catalog:` in package.json.
+    pacquet_at(&fixture.workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    pacquet_at(&fixture.workspace)
+        .with_arg("update")
+        .assert()
+        .success();
+    let updated_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read package.json"))
+            .expect("parse package.json");
+    assert_eq!(updated_manifest["dependencies"]["@pnpm.e2e/foo"], "catalog:");
+    assert_eq!(updated_manifest["dependencies"]["@pnpm.e2e/bar"], "catalog:legacy");
+
+    drop(fixture);
+}

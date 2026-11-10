@@ -3525,3 +3525,72 @@ test('catalogs work in overrides', async () => {
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
 })
+
+test('version-selector overrides apply to catalog: dependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  const overrides: Record<string, string> = {
+    '@pnpm.e2e/foo@^100.0.0': '100.0.0',
+    '@pnpm.e2e/bar@^200.0.0': '100.0.0',
+  }
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:legacy',
+      },
+    },
+    {
+      name: 'project2',
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+    legacy: {
+      '@pnpm.e2e/bar': '^100.0.0',
+    },
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides,
+  })
+
+  const lockfile = readLockfile()
+  expect(lockfile.importers['project1' as ProjectId].dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': {
+      specifier: '100.0.0',
+      version: '100.0.0',
+    },
+    '@pnpm.e2e/bar': {
+      specifier: 'catalog:legacy',
+      version: '100.1.0',
+    },
+  })
+
+  const { updatedProjects } = await mutateModules(
+    installProjects(projects).map((project) => ({
+      ...project,
+      update: true,
+      updatePackageManifest: true,
+    })),
+    {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      overrides,
+    }
+  )
+  expect(updatedProjects[0]?.manifest?.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': 'catalog:',
+    '@pnpm.e2e/bar': 'catalog:legacy',
+  })
+})
+
