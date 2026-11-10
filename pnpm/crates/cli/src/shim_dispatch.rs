@@ -142,10 +142,6 @@ impl ShimLaunch {
 
     /// Set [`PREPARING_ENV`] for a shim launch that no enclosing dispatch
     /// has marked.
-    ///
-    /// `single_threaded` is what permits the environment change, and so
-    /// what pins this call to the stretch of `main` before any thread
-    /// starts.
     pub(crate) fn mark_preparation(&self, single_threaded: &pnpm_ffi_process::SingleThreaded) {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
             return;
