@@ -64,11 +64,22 @@ pub(super) fn check_recorded_local_targets(
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
+    let catalog_child_aliases = if dep.declared_by_path {
+        HashSet::new()
+    } else {
+        pnpm_resolving_deps_resolver::manifest_child_specs(local_manifest.value(), dep.name)
+            .map_err(|_| dep.outdated())?
+            .into_iter()
+            .filter(|child| parse_catalog_protocol(&child.bare_specifier).is_some())
+            .map(|child| child.alias)
+            .collect()
+    };
     for child in &children {
         if child.optional && !check.config.optional {
             continue;
         }
-        if !child_is_fresh(check, dep, snapshot, child)
+        if (catalog_child_aliases.contains(&child.alias)
+            && !child_is_fresh(check, dep, snapshot, child))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
         {
             return Err(dep.outdated());
