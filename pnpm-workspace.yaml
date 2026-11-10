@@ -146,6 +146,7 @@ hoistPattern:
   - jest-runner
 
 lockfile:
+  format: v13
   includeResolutionSettings: true
 
 nodeVersion: 22.13.0
