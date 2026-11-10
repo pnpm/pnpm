@@ -441,7 +441,11 @@ fn max_tarball_size_accepts_a_byte_size_or_a_byte_count() {
 
 #[test]
 fn max_tarball_size_rejects_an_invalid_size_and_zero() {
-    for yaml in ["storage: ./s\nmaxTarballSize: huge\n", "storage: ./s\nmaxTarballSize: 0\n"] {
+    for yaml in [
+        "storage: ./s\nmaxTarballSize: huge\n",
+        "storage: ./s\nmaxTarballSize: 0\n",
+        "storage: ./s\nmaxTarballSize: \"18446744073709551616\"\n",
+    ] {
         let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
         assert!(
             matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("maxTarballSize")),
