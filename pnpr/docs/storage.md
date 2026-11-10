@@ -160,8 +160,9 @@ metadata, accounts, and tokens in the same shared database. Both work with a
 filesystem hosted store or S3. See [Shared database](auth-backends.md) for
 connection settings and the MySQL key-size limit.
 
-Publication writes commit atomically. Concurrent writers retry transaction
-conflicts, and each metadata read sees a committed snapshot.
+Publication writes commit atomically. Metadata writes from every pnpr instance
+on the database wait their turn on a database lock, and each metadata read sees
+a committed snapshot.
 
 ## Metadata in libSQL {#libsql-metadata}
 

@@ -415,9 +415,10 @@ pub enum RegistryError {
     #[display("libSQL database error: {_0}")]
     Libsql(libsql::Error),
 
-    /// SQL auth backend failure.
+    /// A failure of a `PostgreSQL` or `MySQL` database: the auth backend or
+    /// the metadata.
     #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-    #[display("Auth database error: {_0}")]
+    #[display("SQL database error: {_0}")]
     Sqlx(sqlx::Error),
 
     /// SQL auth backend operation timed out.

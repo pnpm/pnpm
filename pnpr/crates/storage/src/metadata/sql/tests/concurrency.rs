@@ -1,7 +1,8 @@
 //! Concurrent writers, restarts, and lost commits.
 
-use super::{Db, config, npm, packument, read, storage, try_write, write};
+use super::{Db, blobs, config, npm, packument, read, storage, try_write, write};
 use crate::{DocumentWrite, Storage, metadata::SqlMetadata};
+use futures_util::future::join_all;
 use pnpr_error::RegistryError;
 use serde_json::json;
 use std::{
@@ -273,7 +274,86 @@ async fn a_panicked_write_does_not_leak_a_transaction(db: Db) {
     );
 }
 
+/// Concurrent writers each instance of [`concurrent_instances`] runs.
+const WRITERS_PER_INSTANCE: usize = 8;
+
+/// Instances on one database, each with its own connection pool, as a
+/// fleet of registry servers runs.
+fn concurrent_instances(db: &Db) -> Vec<Storage> {
+    (0..4).map(|_| storage(db)).collect()
+}
+
+async fn concurrent_publishes_of_distinct_packages_all_commit(db: Db) {
+    let instances = concurrent_instances(&db);
+    let names: Vec<String> = (0..instances.len() * WRITERS_PER_INSTANCE)
+        .map(|index| format!("pkg-{index}"))
+        .collect();
+    let writes = names
+        .iter()
+        .zip(instances.iter().cycle())
+        .map(|(name, storage)| async move {
+            try_write(storage, name, &packument(name, &["1.0.0"])).await
+        });
+    for (name, written) in names.iter().zip(join_all(writes).await) {
+        assert!(matches!(written, Ok(DocumentWrite::Written)), "{name}: {written:?}");
+    }
+    let generation = instances[0]
+        .sql_metadata()
+        .catalog_generation("")
+        .await
+        .unwrap();
+    assert_eq!(generation, u64::try_from(names.len()).unwrap());
+}
+
+async fn concurrent_blob_mappings_of_distinct_files_all_commit(db: Db) {
+    let instances = concurrent_instances(&db);
+    let files: Vec<String> = (0..instances.len() * WRITERS_PER_INSTANCE)
+        .map(|index| format!("layer-{index}"))
+        .collect();
+    let mappings = files
+        .iter()
+        .zip(instances.iter().cycle())
+        .map(|(file, storage)| async move {
+            let mut artifact = blobs::tgz("image", "", &blobs::id(file.as_bytes()), 1);
+            artifact.artifact.clone_from(file);
+            storage.sql_metadata().map_artifact("", artifact).await
+        });
+    for (file, mapped) in files
+        .iter()
+        .zip(join_all(mappings).await)
+    {
+        assert!(mapped.is_ok(), "{file}: {mapped:?}");
+    }
+}
+
+async fn a_failed_write_does_not_keep_others_waiting(db: Db) {
+    // The other instance checks the schema before the timed write.
+    let other = storage(&db);
+    write(&other, "first", &packument("first", &["1.0.0"])).await;
+    let adapter = db.instance_adapter();
+    let failed = tokio::task::spawn_blocking(move || {
+        adapter.write(&mut |connection| {
+            connection.begin_write()?;
+            Err(RegistryError::Internal { reason: "cut off".to_string() })
+        })
+    })
+    .await
+    .unwrap();
+    assert!(matches!(failed, Err(RegistryError::Internal { .. })), "{failed:?}");
+    // Within the 30 s a leaked lock would hold it waiting.
+    let written = tokio::time::timeout(
+        Duration::from_secs(15),
+        try_write(&other, "pkg", &packument("pkg", &["1.0.0"])),
+    )
+    .await
+    .expect("the failed write released the write lock");
+    assert!(matches!(written, Ok(DocumentWrite::Written)), "{written:?}");
+}
+
 conformance! {
+    concurrent_publishes_of_distinct_packages_all_commit,
+    a_failed_write_does_not_keep_others_waiting,
+    concurrent_blob_mappings_of_distinct_files_all_commit,
     a_panicked_write_does_not_leak_a_transaction,
     a_read_completes_while_a_write_transaction_is_open,
     a_first_write_waits_out_another_instances_write,

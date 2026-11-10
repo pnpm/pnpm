@@ -67,6 +67,7 @@ macro_rules! driver {
                         runtime,
                         timeout,
                         schema_locked: Cell::new(false),
+                        writes_locked: Cell::new(false),
                         transaction_open: Cell::new(false),
                     };
                     if timeout != self.settings.timeout {
@@ -81,12 +82,17 @@ macro_rules! driver {
                     } else {
                         Ok(())
                     };
+                    let unlock_writes = if connection.writes_locked.get() {
+                        connection.execute_batch(connection.dialect.unlock_writes())
+                    } else {
+                        Ok(())
+                    };
                     let unlock = if connection.schema_locked.get() {
                         connection.execute_batch(connection.dialect.unlock_schema())
                     } else {
                         Ok(())
                     };
-                    if rollback.is_err() || unlock.is_err() {
+                    if rollback.is_err() || unlock_writes.is_err() || unlock.is_err() {
                         connection.connection.borrow_mut().close_on_drop();
                     }
                     result
@@ -130,6 +136,8 @@ macro_rules! driver {
                 runtime: tokio::runtime::Handle,
                 timeout: Duration,
                 schema_locked: Cell<bool>,
+                /// Whether the session holds [`Dialect::lock_writes`].
+                writes_locked: Cell<bool>,
                 transaction_open: Cell<bool>,
             }
 
@@ -180,9 +188,35 @@ macro_rules! driver {
                     connection.close_on_drop();
                     self.transaction_open.set(false);
                     self.schema_locked.set(false);
+                    self.writes_locked.set(false);
                     RegistryError::Internal {
                         reason: "metadata database operation timed out".to_string(),
                     }
+                }
+
+                /// Take the session lock `sql` selects `1` for once held.
+                /// `lock` names it in the error when its wait timed out.
+                fn take_session_lock(&self, sql: &str, lock: &str) -> Result<()> {
+                    let mut row = self.query_one(sql, &[]).inspect_err(|_| {
+                        // A lost response may still have acquired the session lock.
+                        self.connection.borrow_mut().close_on_drop();
+                    })?;
+                    if row.get::<i64>(0)? != 1 {
+                        return Err(RegistryError::Internal {
+                            reason: format!("metadata {lock} lock timed out"),
+                        });
+                    }
+                    Ok(())
+                }
+
+                /// End the transaction with `end`, or with `end_write` when
+                /// the session holds the write lock, which it releases.
+                fn end_transaction(&self, end: &str, end_write: &str) -> Result<()> {
+                    let writes_locked = self.writes_locked.get();
+                    self.execute_batch(if writes_locked { end_write } else { end })?;
+                    self.transaction_open.set(false);
+                    self.writes_locked.set(false);
+                    Ok(())
                 }
             }
 
@@ -199,17 +233,7 @@ macro_rules! driver {
                 }
 
                 fn lock_schema(&self) -> Result<()> {
-                    let mut row = self
-                        .query_one(&self.dialect.lock_schema(self.timeout), &[])
-                        .inspect_err(|_| {
-                            // A lost response may still have acquired the session lock.
-                            self.connection.borrow_mut().close_on_drop();
-                        })?;
-                    if row.get::<i64>(0)? != 1 {
-                        return Err(RegistryError::Internal {
-                            reason: "metadata schema lock timed out".to_string(),
-                        });
-                    }
+                    self.take_session_lock(&self.dialect.lock_schema(self.timeout), "schema")?;
                     self.schema_locked.set(true);
                     Ok(())
                 }
@@ -268,6 +292,10 @@ macro_rules! driver {
                 }
 
                 fn begin_write(&self) -> Result<()> {
+                    if !self.writes_locked.get() {
+                        self.take_session_lock(&self.dialect.lock_writes(self.timeout), "write")?;
+                        self.writes_locked.set(true);
+                    }
                     self.transaction_open.set(true);
                     self.execute_batch(self.dialect.begin_write())
                 }
@@ -278,15 +306,11 @@ macro_rules! driver {
                 }
 
                 fn commit(&self) -> Result<()> {
-                    self.execute_batch("COMMIT")?;
-                    self.transaction_open.set(false);
-                    Ok(())
+                    self.end_transaction("COMMIT", self.dialect.commit_write())
                 }
 
                 fn rollback(&self) -> Result<()> {
-                    self.execute_batch("ROLLBACK")?;
-                    self.transaction_open.set(false);
-                    Ok(())
+                    self.end_transaction("ROLLBACK", self.dialect.rollback_write())
                 }
 
                 fn schema_tables(&self) -> Option<String> {
