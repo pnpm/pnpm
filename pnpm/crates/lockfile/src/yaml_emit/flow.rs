@@ -5,17 +5,14 @@
 //! readers, while a JSON reader that allows the trailing comma parses it
 //! several times faster. A tab is a tenth of the file's bytes smaller than
 //! two spaces and is separation whitespace inside a flow collection, where
-//! YAML allows it. Entries follow each other without blank lines: a map
-//! written over several lines closes with its own `},` line, which gives a
-//! diff or a merge the context the block emitter's blank lines provide. The
-//! maps
-//! [`one_line_values`] names sit on their keys' lines, and a map that
-//! [names a snapshot](names_snapshot) is written one binding per line.
+//! YAML allows it. The layout follows the block emitter's: a blank line
+//! between the entries of the top-level map and of `projects` and `packages`,
+//! and the keys [`is_single_line_map`] and [`is_single_line_key`] name on one
+//! line. Every other map is written one entry per line and closes with its own
+//! `},` line, so two branches that change adjacent entries or different fields
+//! of the same entry merge without a conflict.
 
-use super::{
-    Format, Nesting, PARALLEL_ENTRY_THRESHOLD, ValueStyle, is_single_line_key, is_single_line_map,
-    names_snapshot, one_line_values,
-};
+use super::{PARALLEL_ENTRY_THRESHOLD, is_single_line_key, is_single_line_map};
 use rayon::prelude::*;
 use serde_json::{Map, Value};
 
@@ -30,25 +27,17 @@ enum Layout {
 /// Render a sorted next-format document.
 pub(super) fn to_string(value: &Value) -> String {
     let mut out = String::new();
-    let nesting = Nesting { format: Format::Next, values: ValueStyle::Block };
-    write_value(&mut out, value, 0, Layout::Lines, None, nesting);
+    write_value(&mut out, value, 0, Layout::Lines, None);
     out.push('\n');
     out
 }
 
 /// `key` is the map key the value is bound to, which drives the one-line
-/// decisions as it does in the block emitter.
-fn write_value(
-    out: &mut String,
-    value: &Value,
-    level: usize,
-    layout: Layout,
-    key: Option<&str>,
-    nesting: Nesting,
-) {
+/// and blank-line decisions as it does in the block emitter.
+fn write_value(out: &mut String, value: &Value, level: usize, layout: Layout, key: Option<&str>) {
     match value {
-        Value::Object(map) => write_map(out, map, level, layout, key, nesting),
-        Value::Array(items) => write_list(out, items, level, layout, key, nesting.format),
+        Value::Object(map) => write_map(out, map, level, layout, key),
+        Value::Array(items) => write_list(out, items, level, layout, key),
         Value::String(text) => push_string(out, text),
         scalar => out.push_str(&scalar.to_string()),
     }
@@ -60,66 +49,70 @@ fn write_map(
     level: usize,
     layout: Layout,
     key: Option<&str>,
-    nesting: Nesting,
 ) {
     if map.is_empty() {
         out.push_str("{}");
         return;
     }
-    if layout == Layout::OneLine || is_single_line_map(key, map) {
-        write_one_line_map(out, map, level, nesting.format);
+    if layout == Layout::OneLine || level == 3 && is_single_line_map(key, map) {
+        write_one_line_map(out, map, level);
         return;
     }
-    let nesting = Nesting { values: one_line_values(key, nesting), ..nesting };
+    let blank_lines = separates_with_blank_lines(level, key);
     out.push('{');
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        for entry in map {
-            write_entry(out, entry, level, nesting);
+        for (index, entry) in map.iter().enumerate() {
+            separate(out, index, blank_lines);
+            write_entry(out, entry, level);
         }
     } else {
-        for text in render_entries(map, level, nesting) {
-            out.push_str(&text);
+        for (index, text) in render_entries(map, level).iter().enumerate() {
+            separate(out, index, blank_lines);
+            out.push_str(text);
         }
     }
     next_line(out, level);
     out.push('}');
 }
 
+/// The top-level map and the `projects` and `packages` sections keep a
+/// blank line between their entries; a project or package with a section's
+/// name does not.
+fn separates_with_blank_lines(level: usize, key: Option<&str>) -> bool {
+    level == 0 || level == 1 && matches!(key, Some("projects" | "packages"))
+}
+
 /// The entries of a workspace-scale map, each rendered into its own buffer
 /// on the pool; a small map appends straight into the one buffer instead.
-fn render_entries(map: &Map<String, Value>, level: usize, nesting: Nesting) -> Vec<String> {
+fn render_entries(map: &Map<String, Value>, level: usize) -> Vec<String> {
     map.iter()
         .collect::<Vec<_>>()
         .par_iter()
         .map(|entry| {
             let mut text = String::new();
-            write_entry(&mut text, *entry, level, nesting);
+            write_entry(&mut text, *entry, level);
             text
         })
         .collect()
 }
 
+fn separate(out: &mut String, index: usize, blank_lines: bool) {
+    if index > 0 && blank_lines {
+        out.push('\n');
+    }
+}
+
 /// One entry of a multi-line map, from its leading newline to its trailing
 /// comma.
-fn write_entry(
-    out: &mut String,
-    (entry_key, entry): (&String, &Value),
-    level: usize,
-    nesting: Nesting,
-) {
+fn write_entry(out: &mut String, (entry_key, entry): (&String, &Value), level: usize) {
     next_line(out, level + 1);
     push_string(out, entry_key);
     out.push_str(": ");
-    let layout = match nesting.values {
-        ValueStyle::Block | ValueStyle::FlowBelow => Layout::Lines,
-        ValueStyle::Flow if names_snapshot(entry) => Layout::Lines,
-        ValueStyle::Flow => Layout::OneLine,
-    };
-    write_value(out, entry, level + 1, layout, Some(entry_key), nesting);
+    write_value(out, entry, level + 1, Layout::Lines, Some(entry_key));
     out.push(',');
 }
 
-fn write_one_line_map(out: &mut String, map: &Map<String, Value>, level: usize, format: Format) {
+fn write_one_line_map(out: &mut String, map: &Map<String, Value>, level: usize) {
     out.push('{');
     for (index, (entry_key, entry)) in map.iter().enumerate() {
         if index > 0 {
@@ -127,35 +120,27 @@ fn write_one_line_map(out: &mut String, map: &Map<String, Value>, level: usize, 
         }
         push_string(out, entry_key);
         out.push_str(": ");
-        let nesting = Nesting { format, values: ValueStyle::Block };
-        write_value(out, entry, level, Layout::OneLine, None, nesting);
+        write_value(out, entry, level, Layout::OneLine, None);
     }
     out.push('}');
 }
 
 /// A list is one entry per line, except an empty one, one inside a one-line
 /// map, and one under a key the block emitter writes on one line.
-fn write_list(
-    out: &mut String,
-    items: &[Value],
-    level: usize,
-    layout: Layout,
-    key: Option<&str>,
-    format: Format,
-) {
-    let one_line =
-        items.is_empty() || layout == Layout::OneLine || key.is_some_and(is_single_line_key);
-    let nesting = Nesting { format, values: ValueStyle::Block };
+fn write_list(out: &mut String, items: &[Value], level: usize, layout: Layout, key: Option<&str>) {
+    let one_line = items.is_empty()
+        || layout == Layout::OneLine
+        || level == 3 && key.is_some_and(is_single_line_key);
     out.push('[');
     for (index, item) in items.iter().enumerate() {
         if one_line {
             if index > 0 {
                 out.push_str(", ");
             }
-            write_value(out, item, level, Layout::OneLine, None, nesting);
+            write_value(out, item, level, Layout::OneLine, None);
         } else {
             next_line(out, level + 1);
-            write_value(out, item, level + 1, Layout::Lines, None, nesting);
+            write_value(out, item, level + 1, Layout::Lines, None);
             out.push(',');
         }
     }
