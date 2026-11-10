@@ -61,26 +61,53 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
 }
 
 /// Remove the archive staging files a process left behind when it stopped
-/// between writing an archive and storing it, in every hosted namespace.
-/// One older than a day belongs to no publish still running.
+/// between writing an archive and storing it, in every hosted namespace, now
+/// and periodically while the server runs.
 async fn sweep_abandoned_archive_temps(config: &Config) -> pnpr_error::Result<()> {
-    let storage = Storage::from_config(&config.storage)?;
-    let mut namespaces: Vec<(&str, Ecosystem)> = config.routing.hosted
+    let max_age = crate::cache_maintenance::archive_staging_max_age(config);
+    let namespaces = hosted_archive_namespaces(config);
+    let bases = pnpr_storage::archive_temp_bases(&config.storage, &namespaces);
+    sweep_archive_temp_bases(&bases, max_age).await?;
+    let period =
+        max_age.clamp(std::time::Duration::from_secs(30), std::time::Duration::from_mins(5));
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(period);
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            if let Err(err) = sweep_archive_temp_bases(&bases, max_age).await {
+                tracing::warn!(error = %err, "sweeping abandoned archive staging files failed");
+            }
+        }
+    });
+    Ok(())
+}
+
+fn hosted_archive_namespaces(config: &Config) -> Vec<(String, Ecosystem)> {
+    let mut namespaces: Vec<(String, Ecosystem)> = config.routing.hosted
         .iter()
         .filter_map(|(name, hosted)| {
-            Some((hosted.org.as_str(), config.routing.registries.ecosystem(name)?))
+            Some((hosted.org.clone(), config.routing.registries.ecosystem(name)?))
         })
         .collect();
-    namespaces.push(("", Ecosystem::Npm));
+    namespaces.push((String::new(), Ecosystem::Npm));
     namespaces.sort_unstable();
     namespaces.dedup();
-    for (org, ecosystem) in namespaces {
-        let swept = storage
-            .for_hosted(org, ecosystem)
-            .sweep_archive_temps(pnpr_storage::upload::UPLOAD_MAX_AGE)
-            .await?;
-        if swept > 0 {
-            tracing::info!(swept, org, %ecosystem, "removed abandoned archive staging files");
+    namespaces
+}
+
+async fn sweep_archive_temp_bases(
+    bases: &[std::path::PathBuf],
+    max_age: std::time::Duration,
+) -> pnpr_error::Result<()> {
+    for base in bases {
+        let swept = pnpr_storage::sweep_stale_temps(base, max_age).await?;
+        if swept.files > 0 {
+            tracing::info!(
+                swept = swept.files,
+                bytes = swept.bytes,
+                "removed abandoned archive staging files",
+            );
         }
     }
     Ok(())
@@ -240,3 +267,6 @@ pub async fn serve_listener_with(
     tracing::info!(%listen, "pnpr listening");
     serve_until_shutdown(listener, wrap(app), metrics).await
 }
+
+#[cfg(test)]
+mod tests;

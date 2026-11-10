@@ -98,44 +98,99 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Files and bytes matched by a stale-temporary scan.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct TempSweep {
+    pub files: usize,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum StaleTempAction {
+    Remove,
+    CountOnly,
+}
+
 /// Remove the temporary siblings of `base` (see [`unique_tmp_path`]) last
-/// modified more than `max_age` ago: files a process wrote and never moved
+/// modified at least `max_age` ago: files a process wrote and never moved
+/// into place because it stopped.
+pub async fn sweep_stale_temps(base: &Path, max_age: std::time::Duration) -> Result<TempSweep> {
+    scan_stale_temps(base, max_age, StaleTempAction::Remove).await
+}
+
+/// Count the temporary siblings of `base` (see [`unique_tmp_path`]) last
+/// modified at least `max_age` ago without removing them.
+pub async fn count_stale_temps(base: &Path, max_age: std::time::Duration) -> Result<TempSweep> {
+    scan_stale_temps(base, max_age, StaleTempAction::CountOnly).await
+}
+
+/// Remove the temporary siblings of `base` (see [`unique_tmp_path`]) last
+/// modified at least `max_age` ago: files a process wrote and never moved
 /// into place because it stopped. Returns how many went.
 pub async fn remove_stale_temps(base: &Path, max_age: std::time::Duration) -> Result<usize> {
+    Ok(sweep_stale_temps(base, max_age).await?.files)
+}
+
+async fn scan_stale_temps(
+    base: &Path,
+    max_age: std::time::Duration,
+    action: StaleTempAction,
+) -> Result<TempSweep> {
     let (Some(parent), Some(file_name)) = (base.parent(), base.file_name()) else {
-        return Ok(0);
+        return Ok(TempSweep::default());
     };
     let mut prefix = file_name.to_os_string();
     prefix.push(TMP_MARKER);
     let Some(mut entries) = read_dir_if_present(parent).await? else {
-        return Ok(0);
+        return Ok(TempSweep::default());
     };
-    let mut removed = 0;
+    let mut sweep = TempSweep::default();
     while let Some(entry) = entries.next_entry().await? {
-        let name = entry.file_name();
-        let is_temp = name
-            .as_encoded_bytes()
-            .strip_prefix(prefix.as_encoded_bytes())
-            .is_some_and(is_atomic_write_temp_suffix);
-        let stale = entry
-            .metadata()
-            .await
-            .ok()
-            .and_then(|metadata| metadata.modified().ok())
-            .and_then(|modified| modified.elapsed().ok())
-            .is_some_and(|age| age >= max_age);
-        if is_temp && stale && remove_if_present(&entry.path()).await? {
-            removed += 1;
+        if let Some(size) = inspect_stale_temp(&entry, prefix.as_encoded_bytes(), max_age).await
+            && apply_stale_temp_action(action, &entry.path()).await
+        {
+            sweep.files += 1;
+            sweep.bytes += size;
         }
     }
-    Ok(removed)
+    Ok(sweep)
 }
 
-async fn remove_if_present(path: &Path) -> Result<bool> {
+async fn inspect_stale_temp(
+    entry: &fs::DirEntry,
+    prefix: &[u8],
+    max_age: std::time::Duration,
+) -> Option<u64> {
+    let name = entry.file_name();
+    let suffix = name.as_encoded_bytes().strip_prefix(prefix)?;
+    if !is_atomic_write_temp_suffix(suffix) {
+        return None;
+    }
+    let metadata = entry.metadata().await.ok()?;
+    if !metadata.is_file() {
+        return None;
+    }
+    let modified = metadata.modified().ok()?;
+    let age =
+        std::time::SystemTime::now().duration_since(modified).unwrap_or(std::time::Duration::ZERO);
+    (age >= max_age).then_some(metadata.len())
+}
+
+async fn apply_stale_temp_action(action: StaleTempAction, path: &Path) -> bool {
+    match action {
+        StaleTempAction::Remove => remove_if_present(path).await,
+        StaleTempAction::CountOnly => true,
+    }
+}
+
+async fn remove_if_present(path: &Path) -> bool {
     match fs::remove_file(path).await {
-        Ok(()) => Ok(true),
-        Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
-        Err(err) => Err(err.into()),
+        Ok(()) => true,
+        Err(err) if err.kind() == ErrorKind::NotFound => false,
+        Err(err) => {
+            tracing::warn!(?err, path = %path.display(), "stale temporary file cleanup failed");
+            false
+        }
     }
 }
 

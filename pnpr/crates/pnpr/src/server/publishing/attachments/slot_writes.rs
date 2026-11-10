@@ -6,10 +6,20 @@ use super::{
         stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
         verification::read_archive, verify_and_write, write_sigstore_bundle,
     },
-    AttachmentKind, PendingAttachment, RegistryError, TarDerivation, Value,
+    AttachmentKind, PendingAttachment, RegistryError, TarDerivation, TarballStorage, Value,
 };
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
+struct ExtraTempFile(Option<std::path::PathBuf>);
+
+impl Drop for ExtraTempFile {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
 
 /// Where an attachment is written, and where its tar is encoded to when the
 /// registry stores tars.
@@ -19,30 +29,50 @@ pub(super) struct AttachmentPaths {
 }
 
 impl AttachmentPaths {
-    /// The paths for the blob slot at `slot`. With `stores_tar`, the verified
-    /// `.tgz` waits beside the slot until its tar is encoded into it.
-    pub(super) fn for_slot(slot: &std::path::Path, stores_tar: bool) -> Self {
-        if !stores_tar {
-            return Self { attachment: slot.to_path_buf(), tar: None };
+    /// The paths for the blob slot at `slot`. For [`TarballStorage::Tar`], the
+    /// verified `.tgz` waits beside the slot until its tar is encoded into it.
+    pub(super) fn for_slot(slot: &std::path::Path, storage: TarballStorage) -> Self {
+        match storage {
+            TarballStorage::Tgz => Self { attachment: slot.to_path_buf(), tar: None },
+            TarballStorage::Tar => Self {
+                attachment: pnpr_storage::unique_tmp_path(&slot.with_file_name("archive")),
+                tar: Some(slot.to_path_buf()),
+            },
         }
-        let mut tgz = slot.as_os_str().to_os_string();
-        tgz.push(".tgz");
-        Self { attachment: tgz.into(), tar: Some(slot.to_path_buf()) }
     }
 }
 
-/// Run [`write_and_derive_tar`] on a blocking thread. A tarball waits for a
-/// permit from `decodes` first, unless the caller `held` one already.
-/// `staged` holds the bytes of the staged archive the attachment
-/// references, when it references one.
+/// Run [`write_and_derive_tar`] on a blocking thread. Moving `slot` into the
+/// blocking task ensures its temporary file is removed after all writes close,
+/// even if the caller drops the future on timeout or disconnect.
 pub(super) async fn write_under_permit(
+    slot: pnpr_storage::BlobSlot,
+    storage: TarballStorage,
     (attachment, staged): (PendingAttachment, Option<Vec<u8>>),
     kind: AttachmentKind,
     dist: Value,
-    paths: AttachmentPaths,
     (decodes, held): (&Arc<Semaphore>, Option<OwnedSemaphorePermit>),
-) -> Result<Result<Option<TarDerivation>, RegistryError>, tokio::task::JoinError> {
-    let permit = match (kind, held) {
+) -> Result<(pnpr_storage::BlobSlot, Option<TarDerivation>), RegistryError> {
+    let permit = acquire_decode_permit(kind, decodes, held).await;
+    tokio::task::spawn_blocking(move || {
+        let paths = AttachmentPaths::for_slot(&slot.tmp_path, storage);
+        let extra = paths.tar
+            .is_some()
+            .then(|| ExtraTempFile(Some(paths.attachment.clone())));
+        let derived = run_slot_write((attachment, staged), kind, &dist, &paths, permit.as_ref())?;
+        drop(extra);
+        Ok((slot, derived))
+    })
+    .await
+    .map_err(|join_err| RegistryError::Io(std::io::Error::other(join_err.to_string())))?
+}
+
+async fn acquire_decode_permit(
+    kind: AttachmentKind,
+    decodes: &Arc<Semaphore>,
+    held: Option<OwnedSemaphorePermit>,
+) -> Option<OwnedSemaphorePermit> {
+    match (kind, held) {
         (AttachmentKind::Tarball | AttachmentKind::Variant, Some(permit)) => Some(permit),
         (AttachmentKind::Tarball | AttachmentKind::Variant, None) => Some(
             Arc::clone(decodes)
@@ -51,30 +81,27 @@ pub(super) async fn write_under_permit(
                 .expect("the decode semaphore is never closed"),
         ),
         (AttachmentKind::Sigstore, _) => None,
-    };
-    tokio::task::spawn_blocking(move || {
-        // The permit covers the encode too: it decodes the `.tgz` again.
-        let derived = write_and_derive_tar(
-            (&attachment, staged),
-            kind,
-            &dist,
-            &paths.attachment,
-            permit.as_ref(),
-        );
-        let Some(tar_path) = &paths.tar else { return derived };
-        let stored = derived.and_then(|derived| {
-            let derived = derived
-                .filter(|derived| derived.tgz_integrity.is_some())
-                .ok_or_else(|| RegistryError::BadRequest {
-                    reason: format!("{} does not decode to a tar", attachment.filename),
-                })?;
-            encode_stored_tar(&paths.attachment, tar_path)?;
-            Ok(Some(derived))
-        });
-        let _ = std::fs::remove_file(&paths.attachment);
-        stored
-    })
-    .await
+    }
+}
+
+fn run_slot_write(
+    (attachment, staged): (PendingAttachment, Option<Vec<u8>>),
+    kind: AttachmentKind,
+    dist: &Value,
+    paths: &AttachmentPaths,
+    permit: Option<&OwnedSemaphorePermit>,
+) -> Result<Option<TarDerivation>, RegistryError> {
+    // The permit covers the encode too: it decodes the `.tgz` again.
+    let derived =
+        write_and_derive_tar((&attachment, staged), kind, dist, &paths.attachment, permit)?;
+    let Some(tar_path) = &paths.tar else { return Ok(derived) };
+    let derived = derived
+        .filter(|derived| derived.tgz_integrity.is_some())
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: format!("{} does not decode to a tar", attachment.filename),
+        })?;
+    encode_stored_tar(&paths.attachment, tar_path)?;
+    Ok(Some(derived))
 }
 
 /// Write the attachment to `tmp_path`, and for a `.tgz` derive what it
@@ -147,3 +174,6 @@ fn decode_and_write_attachment(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

@@ -232,14 +232,16 @@ Added in: v0.1.0-alpha.16
 
 Reclaims cached upstream tarballs and packuments, prunes orphaned namespaces
 left behind by per-process secrets or changed configurations, and enforces
-cache size and age limits.
+cache size and age limits. It also sweeps abandoned publish staging files under
+`<cache>/.staging/` older than [`requestTimeout`](configuration.md#requesttimeout)
+(or `1h` when request timeouts are disabled).
 
 | Flag | Description |
 | --- | --- |
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
 | `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. |
-| `--orphans-only` | Only prune orphaned upstream namespaces without evicting active cache entries. |
+| `--orphans-only` | Only prune orphaned upstream namespaces without sweeping publish staging files or evicting active cache entries. |
 
 ## Logging
 

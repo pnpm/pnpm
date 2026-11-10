@@ -17,7 +17,7 @@ use pnpr_storage::{
     metadata::{ArtifactBlob, BlobLookup, BlobRow},
     publish::{now_iso, sigstore_bundle_bytes},
 };
-use slot_writes::{AttachmentPaths, write_under_permit};
+use slot_writes::write_under_permit;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -425,38 +425,29 @@ pub(super) async fn write_attachment_slot(
     // A staged archive is read before a slot is reserved: one that is missing
     // or expired fails the publish with nothing to clean up.
     let (staged, permit) = staged_bytes((storage, claimant), &prepared.attachment, decodes).await?;
-    let stores_tar = tarballs == TarballStorage::Tar && prepared.kind == AttachmentKind::Tarball;
-    let blob = if stores_tar {
-        name.tar_name_for_version(&prepared.version)
-    } else {
-        prepared.canonical.clone()
+    let slot_storage = match (tarballs, prepared.kind) {
+        (TarballStorage::Tar, AttachmentKind::Tarball) => TarballStorage::Tar,
+        _ => TarballStorage::Tgz,
+    };
+    let blob = match slot_storage {
+        TarballStorage::Tar => name.tar_name_for_version(&prepared.version),
+        TarballStorage::Tgz => prepared.canonical.clone(),
     };
     let slot = storage.reserve_hosted_blob(name, &blob).await?.for_version(&prepared.version);
-    let paths = AttachmentPaths::for_slot(&slot.tmp_path, stores_tar);
-    let result = write_under_permit(
+    let (slot, derived) = write_under_permit(
+        slot,
+        slot_storage,
         (prepared.attachment, staged),
         prepared.kind,
         prepared.dist,
-        paths,
         (decodes, permit),
     )
-    .await;
-    let derived = match result {
-        Ok(Ok(derived)) => derived,
-        Ok(Err(err)) => {
-            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-            return Err(err);
-        }
-        Err(join_err) => {
-            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-            return Err(RegistryError::Io(std::io::Error::other(join_err.to_string())));
-        }
-    };
+    .await?;
     let Some(derived) = derived else { return Ok((slot, None)) };
     if let Some(tgz_integrity) = &derived.tgz_integrity {
-        let recorded = record_published_tar(storage, name, tgz_integrity, &derived, stores_tar);
+        let recorded = record_published_tar(storage, name, tgz_integrity, &derived, slot_storage);
         if let Err(err) = recorded.await {
-            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+            slot.abandon().await;
             return Err(err);
         }
     }
@@ -508,14 +499,14 @@ impl PublishedTar {
 
 /// Record the tar a published `.tgz` decodes to. A failure only warns: a tar
 /// registry's first tar response records it later. A stored tar is served
-/// without its `.tgz`, so with `stores_tar` nothing would, and the failure
-/// fails the publish.
+/// without its `.tgz`, so for [`TarballStorage::Tar`] nothing would, and the
+/// failure fails the publish.
 async fn record_published_tar(
     storage: &Storage,
     name: &CanonicalPackageName,
     tgz_integrity: &str,
     derived: &TarDerivation,
-    stores_tar: bool,
+    slot_storage: TarballStorage,
 ) -> Result<(), RegistryError> {
     let inspection = &derived.inspection;
     let derived = pnpr_storage::DerivedTar::new(
@@ -529,5 +520,8 @@ async fn record_published_tar(
         return Ok(());
     };
     tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
-    if stores_tar { Err(err) } else { Ok(()) }
+    match slot_storage {
+        TarballStorage::Tar => Err(err),
+        TarballStorage::Tgz => Ok(()),
+    }
 }

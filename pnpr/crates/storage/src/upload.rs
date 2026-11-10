@@ -220,7 +220,6 @@ impl Storage {
     ) -> Result<()> {
         let remote = upload.remote.clone();
         let slot = self.stage_uploaded_blob(upload, name, filename).await?;
-        let _temp = tempfile::TempPath::try_from_path(slot.tmp_path.clone())?;
         if let Some(remote) = &remote {
             remote.prepare_completion(filename).await?;
         }
@@ -262,6 +261,7 @@ impl Storage {
         if let Some(parent) = slot.tmp_path.parent() {
             fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
         }
+        refresh_modified(&upload.path).await?;
         // Both paths are under the backend's local scratch root, so this is a
         // rename rather than a copy through memory. A cross-device staging
         // root is the one case that needs the copy.
@@ -335,6 +335,22 @@ fn generate_upload_id() -> String {
             write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
             hex
         })
+}
+
+/// Reset `path`'s modification time before moving it into an archive staging
+/// slot, so a chunked upload whose last `PATCH` predates the request timeout
+/// is not swept as an abandoned staging file while promotion runs.
+async fn refresh_modified(path: &Path) -> Result<()> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        std::fs::File::options()
+            .write(true)
+            .open(&path)?
+            .set_times(std::fs::FileTimes::new().set_modified(std::time::SystemTime::now()))
+    })
+    .await
+    .map_err(|err| RegistryError::Io(std::io::Error::other(err.to_string())))?
+    .map_err(RegistryError::Io)
 }
 
 #[cfg(test)]

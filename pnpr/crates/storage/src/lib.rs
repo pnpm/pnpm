@@ -17,8 +17,11 @@ pub mod upload;
 pub use bounded_cache::BoundedCache;
 
 pub use atomic_write::{
-    remove_atomic_write_temps, unique_tmp_path, write_atomic, write_atomic_new,
+    TempSweep, count_stale_temps, remove_atomic_write_temps, sweep_stale_temps, unique_tmp_path,
+    write_atomic, write_atomic_new,
 };
+
+pub use s3::cache_staging_tmp_base;
 
 pub use blob_write::{BlobSlot, BlobWrite, SealedBlob};
 
@@ -30,7 +33,7 @@ pub(crate) use self::backend::HostedBackend;
 
 pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
 
-pub use archives::PromotedArchive;
+pub use archives::{PromotedArchive, archive_temp_bases};
 pub use blob_id::{BlobId, parse_blob_key};
 
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};

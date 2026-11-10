@@ -15,7 +15,8 @@ pub struct BlobWrite {
 /// the decoded + verified bytes to `tmp_path` (a local file) inside a
 /// blocking task, then promotes it under the identity of those bytes — a
 /// rename on the fs backend, an upload on the S3 backend — via
-/// [`crate::Storage::promote_blob_slot`].
+/// [`crate::Storage::promote_blob_slot`]. Dropping an unpromoted slot
+/// removes `tmp_path`.
 #[derive(Debug)]
 pub struct BlobSlot {
     pub tmp_path: PathBuf,
@@ -24,6 +25,7 @@ pub struct BlobSlot {
     pub(super) filename: String,
     /// The version the file belongs to, empty when none.
     pub(super) version: String,
+    pub(super) should_remove_on_drop: bool,
 }
 
 impl BlobSlot {
@@ -40,8 +42,33 @@ impl BlobSlot {
 
     /// The slot of a file of `version`, whose mapping goes with the version.
     #[must_use]
-    pub fn for_version(self, version: &str) -> Self {
-        Self { version: version.to_string(), ..self }
+    pub fn for_version(mut self, version: &str) -> Self {
+        self.version = version.to_string();
+        self
+    }
+
+    pub async fn abandon(mut self) {
+        self.should_remove_on_drop = false;
+        let _ = fs::remove_file(&self.tmp_path).await;
+    }
+}
+
+impl Drop for BlobSlot {
+    fn drop(&mut self) {
+        if !self.should_remove_on_drop {
+            return;
+        }
+        match std::fs::remove_file(&self.tmp_path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    path = %self.tmp_path.display(),
+                    "archive staging temp cleanup failed",
+                );
+            }
+        }
     }
 }
 

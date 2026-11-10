@@ -413,3 +413,90 @@ async fn empty_records_can_be_created_read_replaced_and_listed() {
         Some(&b"non-empty"[..]),
     );
 }
+
+fn s3_storage_in(tmp: &tempfile::TempDir) -> crate::Storage {
+    crate::Storage::new(
+        &pnpr_config::HostedStoreConfig::ObjectStore {
+            store: Arc::new(InMemory::new()),
+            prefix: String::new(),
+        },
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+}
+
+fn backdate_file(path: &std::path::Path, age: std::time::Duration) {
+    let modified =
+        std::time::SystemTime::now().checked_sub(age).unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    let file = std::fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(modified))
+        .unwrap();
+}
+
+#[tokio::test]
+async fn s3_staging_temps_sweep_once_past_max_age_and_count_bytes() {
+    let tmp = tempdir().unwrap();
+    let storage = s3_storage_in(&tmp);
+    let name = pkg("large-pkg");
+    let slot = std::mem::ManuallyDrop::new(
+        storage.reserve_hosted_blob(&name, "large-pkg-1.0.0.tgz").await.unwrap(),
+    );
+    let staged_path = slot.tmp_path.clone();
+
+    let payload = vec![b'x'; 4096];
+    tokio::fs::write(&staged_path, &payload).await.unwrap();
+    let unrelated = staged_path.with_file_name("keep-me.dat");
+    tokio::fs::write(&unrelated, b"keep").await.unwrap();
+
+    let timeout = std::time::Duration::from_mins(1);
+    let base = super::cache_staging_tmp_base(&tmp.path().join("cache"));
+    assert_eq!(
+        crate::count_stale_temps(&base, timeout).await.unwrap(),
+        crate::TempSweep::default(),
+    );
+    assert_eq!(storage.sweep_archive_temps(timeout).await.unwrap(), 0);
+    assert!(staged_path.exists());
+
+    backdate_file(&staged_path, std::time::Duration::from_mins(2));
+    let expected = crate::TempSweep { files: 1, bytes: payload.len() as u64 };
+    assert_eq!(crate::count_stale_temps(&base, timeout).await.unwrap(), expected);
+    assert!(staged_path.exists());
+
+    assert_eq!(crate::sweep_stale_temps(&base, timeout).await.unwrap(), expected);
+    assert!(!staged_path.exists());
+    assert!(unrelated.exists());
+}
+
+#[tokio::test]
+async fn dropping_unpromoted_s3_blob_slot_removes_staging_file() {
+    let tmp = tempdir().unwrap();
+    let storage = s3_storage_in(&tmp);
+    let name = pkg("cancelled-pkg");
+
+    let cancelled_slot =
+        storage.reserve_hosted_blob(&name, "cancelled-pkg-1.0.0.tgz").await.unwrap();
+    let cancelled_path = cancelled_slot.tmp_path.clone();
+    tokio::fs::write(&cancelled_path, b"partial-publish").await.unwrap();
+    assert!(cancelled_path.exists());
+    drop(cancelled_slot);
+    assert!(!cancelled_path.exists());
+
+    let promoted_slot =
+        storage.reserve_hosted_blob(&name, "cancelled-pkg-1.0.1.tgz").await.unwrap();
+    let promoted_path = promoted_slot.tmp_path.clone();
+    tokio::fs::write(&promoted_path, b"complete-publish").await.unwrap();
+    let identified = storage.identify_blob_slot(&promoted_slot).await.unwrap();
+    let promoted = storage.promote_blob_slot(promoted_slot, identified, None).await.unwrap();
+    assert!(promoted.stored);
+    assert!(!promoted_path.exists());
+    let served = storage.hosted
+        .open_archive(&promoted.artifact.blob.key())
+        .await
+        .unwrap();
+    assert!(served.is_some());
+}
