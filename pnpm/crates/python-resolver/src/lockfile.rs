@@ -8,7 +8,7 @@ mod inputs;
 
 use crate::packages::{Candidate, IndexCandidate, Packages};
 use environments::{check_environment_decides, referenced_marker_keys};
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{IntoDiagnostic, Result, WrapErr, bail, miette};
 use pep440_rs::Version;
 use pep508_rs::{MarkerEnvironment, MarkerTree, PackageName, Requirement};
 use serde::{Deserialize, Serialize};
@@ -134,11 +134,11 @@ impl LockedPackage {
                 sdist.check_published(&self.name, &self.version)?;
                 Ok(Candidate::Sdist(sdist.clone()))
             }
-            (None, None) => bail!(
+            (None, None) => Err(miette!(
                 "the Python lockfile pins no wheel of {}=={} this interpreter can install",
                 self.name,
                 self.version,
-            ),
+            )),
         }
     }
 

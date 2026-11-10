@@ -42,7 +42,7 @@ impl LockedWheel {
         version: &Version,
     ) -> Result<()> {
         let Some((wheel_name, wheel_version, _)) = wheel_identity(&self.name, tags)? else {
-            bail!("Python wheel is incompatible with this interpreter: {}", self.name)
+            bail!("Python wheel is incompatible with this interpreter: {}", self.name);
         };
         if wheel_name != *name || wheel_version != *version {
             bail!("Python lockfile wheel identity mismatch: {}", self.name);

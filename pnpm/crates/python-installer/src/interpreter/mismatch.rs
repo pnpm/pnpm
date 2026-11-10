@@ -74,5 +74,5 @@ pub(super) fn check_requires_python<Reporter: self::Reporter + 'static>(
     if accepted::<Reporter>(root, version, specifiers, mismatch) {
         return Ok(());
     }
-    bail!("{} requires Python {specifiers}, but {version} was selected", root.display())
+    bail!("{} requires Python {specifiers}, but {version} was selected", root.display());
 }

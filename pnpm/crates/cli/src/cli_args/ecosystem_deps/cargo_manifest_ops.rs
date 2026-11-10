@@ -84,9 +84,7 @@ fn has_workspace_section(dir: &Path) -> bool {
     let Ok(contents) = fs::read_to_string(dir.join("Cargo.toml")) else {
         return false;
     };
-    toml::from_str::<toml::Table>(&contents)
-        .ok()
-        .is_some_and(|table| table.contains_key("workspace"))
+    toml::from_str::<toml::Table>(&contents).is_ok_and(|table| table.contains_key("workspace"))
 }
 
 pub(crate) fn declared_cargo_deps(

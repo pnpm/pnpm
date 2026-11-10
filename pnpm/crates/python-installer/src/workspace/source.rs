@@ -32,7 +32,7 @@ pub(super) fn sole_source<'a>(
             bail!(
                 "pnpm resolves a Python requirement from one source, but {manifest} declares \
                  {count} of them for `{name}`",
-            )
+            );
         }
     }
 }
@@ -58,7 +58,7 @@ pub(super) fn reject_unresolvable(
         return Ok(());
     };
     let manifest = manifest_path.display();
-    bail!("pnpm does not support the {kind} Python source {manifest} declares for `{name}`")
+    bail!("pnpm does not support the {kind} Python source {manifest} declares for `{name}`");
 }
 
 /// Where a path source points, refusing a path whose `..` the platform
@@ -83,19 +83,24 @@ pub(super) fn path_target(
             std::path::Component::ParentDir => {
                 let found = std::fs::symlink_metadata(&walked);
                 match found {
-                    Ok(metadata) if metadata.is_symlink() => bail!(
-                        "{} declares `{name}` at {path}, whose `..` follows the link {}. Write \
-                         the path the link leads to, which means the same directory everywhere.",
-                        manifest_path.display(),
-                        walked.display(),
-                    ),
+                    Ok(metadata) if metadata.is_symlink() => {
+                        bail!(
+                            "{} declares `{name}` at {path}, whose `..` follows the link {}. Write \
+                             the path the link leads to, which means the same directory \
+                             everywhere.",
+                            manifest_path.display(),
+                            walked.display(),
+                        );
+                    }
                     Ok(_) => {}
-                    Err(_) => bail!(
-                        "{} declares `{name}` at {path}, whose `..` follows {}, which is not \
-                         there",
-                        manifest_path.display(),
-                        walked.display(),
-                    ),
+                    Err(_) => {
+                        bail!(
+                            "{} declares `{name}` at {path}, whose `..` follows {}, which is not \
+                             there",
+                            manifest_path.display(),
+                            walked.display(),
+                        );
+                    }
                 }
                 walked.pop();
             }

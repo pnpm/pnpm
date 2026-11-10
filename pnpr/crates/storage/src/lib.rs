@@ -277,7 +277,6 @@ impl Storage {
 
     /// Every name stored where this namespace keeps its archives, for
     /// maintenance that compares the store with its metadata.
-    #[must_use]
     pub fn hosted_archives(&self) -> BoxStream<'_, Result<StoredArchive>> {
         self.hosted.list_archives()
     }

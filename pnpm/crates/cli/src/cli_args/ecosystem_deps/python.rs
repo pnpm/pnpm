@@ -302,9 +302,7 @@ fn find_python_request<'a>(
     requests
         .iter()
         .find(|req| {
-            PackageName::from_str(&req.name)
-                .ok()
-                .is_some_and(|request_name| request_name == *name)
+            PackageName::from_str(&req.name).is_ok_and(|request_name| request_name == *name)
         })
 }
 

@@ -37,11 +37,11 @@ pub fn pretty_ms(ms: u128) -> String {
     }
     let mut secs = ms as f64 / 1000.0;
     let days = (secs / 86_400.0).floor();
-    secs -= days * 86_400.0;
+    secs = days.mul_add(-86_400.0, secs);
     let hours = (secs / 3_600.0).floor();
-    secs -= hours * 3_600.0;
+    secs = hours.mul_add(-3_600.0, secs);
     let mins = (secs / 60.0).floor();
-    secs -= mins * 60.0;
+    secs = mins.mul_add(-60.0, secs);
 
     let mut parts = Vec::new();
     if days > 0.0 {

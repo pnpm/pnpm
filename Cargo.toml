@@ -365,11 +365,13 @@ struct_excessive_bools = "allow" # option structs mirror pnpm's
 fn_params_excessive_bools = "allow" # mirrors pnpm's option parameters
 match_same_arms = "allow" # arms kept explicit to mirror pnpm's switch cases
 unnecessary_wraps = "allow"
+unused_async_trait_impl = "allow" # fires on inherent methods, and its `future::ready` fix runs the body before the first poll
 unused_async = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
 similar_names = "allow" # names ported verbatim from pnpm
 items_after_statements = "allow"
 needless_continue = "allow"
 many_single_char_names = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
+assert_is_empty = "allow" # tests log the value before a bare `assert!`, as pnpm/CODE_STYLE_GUIDE.md asks
 map_unwrap_or = "allow" # its map_or/map_or_else suggestion puts the fallback before the value; the map/unwrap_or_else chain reads in evaluation order
 
 # nursery-group opt-outs (the group is experimental; these lints are either

@@ -468,17 +468,12 @@ fn encode_os(value: &OsStr) -> Vec<u8> {
 #[cfg(windows)]
 fn decode_os(bytes: &[u8]) -> Option<OsString> {
     use std::os::windows::ffi::OsStringExt as _;
-    let mut chunks = bytes.chunks_exact(2);
-    let value = OsString::from_wide(
-        &chunks
-            .by_ref()
-            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
-            .collect::<Vec<_>>(),
-    );
-    chunks
-        .remainder()
-        .is_empty()
-        .then_some(value)
+    let (units, remainder) = bytes.as_chunks::<2>();
+    let wide = units
+        .iter()
+        .map(|&unit| u16::from_le_bytes(unit))
+        .collect::<Vec<_>>();
+    remainder.is_empty().then(|| OsString::from_wide(&wide))
 }
 
 #[cfg(target_os = "wasi")]

@@ -244,7 +244,6 @@ impl Releases {
     }
 
     /// The newest releases first, which is the end a project reaches for.
-    #[must_use]
     pub fn newest(&self) -> impl DoubleEndedIterator<Item = &Version> {
         self.newest.iter().rev()
     }
