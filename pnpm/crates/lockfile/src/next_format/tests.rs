@@ -994,17 +994,17 @@ fn directory_specifiers_survive_next_format_round_trip() {
         }),
     ] {
         let lockfile = parse(&format!(
-            "lockfileVersion: '9.0'\nimporters: {{}}\npackages:\n  local@file:../local:\n    resolution: {{type: directory, directory: ../local}}\n    specifiers: {specifiers}\nsnapshots:\n  local@file:../local: {{}}\n"
+            "lockfileVersion: '9.0'\nimporters: {{}}\npackages:\n  local@file:../local:\n    resolution: {{type: directory, directory: ../local}}\n    specifiers: {specifiers}\nsnapshots:\n  local@file:../local: {{}}\n",
         ));
         let (written, restored) = written_and_read(&lockfile);
-        assert!(written.contains("\"specifiers\""), "{written}");
+        assert!(written.contains(r#""specifiers""#), "{written}");
         let metadata = restored.packages
             .expect("package entries")
             .remove(&"local@file:../local".parse().expect("package key"))
             .expect("directory entry");
         assert_eq!(
             serde_json::to_value(metadata.specifiers).expect("serialize specifiers"),
-            specifiers
+            specifiers,
         );
     }
 }
@@ -1023,7 +1023,7 @@ fn a_directory_without_recorded_inputs_keeps_the_legacy_fallback() {
             .next()
             .expect("directory metadata")
             .specifiers,
-        None
+        None,
     );
 }
 

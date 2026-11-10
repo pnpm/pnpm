@@ -530,6 +530,7 @@ fn directory_input_matrix() {
 }
 
 fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool) {
+    eprintln!("hook={hook} location={location} shared={shared} filtered={filtered}");
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
     let directory = match location {
         "workspace" | "publish" => "packages/local",
@@ -552,7 +553,7 @@ fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool
     fs::write(workspace.join("pnpm-workspace.yaml"), config).expect("write workspace config");
     if hook == "pnpmfile" {
         fs::write(workspace.join(".pnpmfile.cjs"),
-            "module.exports = { hooks: { readPackage(pkg, context) { if (pkg.name === 'local' && context.dir) pkg.dependencies['@pnpm.e2e/bar'] = '100.0.0'; return pkg } } }\n")
+            "module.exports = { hooks: { readPackage(pkg) { if (pkg.name === 'local') pkg.dependencies['@pnpm.e2e/bar'] = '100.0.0'; return pkg } } }\n")
             .expect("write package hook");
     }
     fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
@@ -645,10 +646,10 @@ fn recorded_directory_inputs_still_check_workspace_target_versions() {
 }
 
 fn recorded_directory_target_case(spec: &str) {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nlinkWorkspacePackages: true\n",
+        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nlinkWorkspacePackages: deep\n",
     )
     .expect("write workspace config");
     for (directory, manifest) in [

@@ -269,7 +269,7 @@ fn directory_specifiers_record_the_resolvers_effective_groups() {
             "dependencies": { "regular": "catalog:" },
             "optionalDependencies": { "both": "^1", "optional": "file:../optional" },
             "dependenciesMeta": { "regular": { "injected": true } }
-        })
+        }),
     );
 }
 
@@ -279,7 +279,7 @@ fn directory_specifiers_distinguish_empty_records_and_manifest_changes() {
         .expect("read empty specifiers");
     assert_eq!(
         serde_json::to_value(&empty).expect("serialize empty specifiers"),
-        serde_json::json!({})
+        serde_json::json!({}),
     );
     for field in ["dependencies", "optionalDependencies", "dependenciesMeta"] {
         let value = if field == "dependenciesMeta" {
@@ -290,7 +290,7 @@ fn directory_specifiers_distinguish_empty_records_and_manifest_changes() {
         let manifest = serde_json::json!({ field: value });
         assert_ne!(
             super::declared_specifiers(&manifest, "directory").expect("read changed specifiers"),
-            empty
+            empty,
         );
     }
 }
@@ -329,6 +329,6 @@ fn directory_specifiers_include_runtime_dependencies() {
         serde_json::to_value(record).expect("serialize inputs"),
         serde_json::json!({
             "dependencies": { "node": "runtime:22.19.0" }
-        })
+        }),
     );
 }
