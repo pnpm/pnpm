@@ -11,7 +11,14 @@ use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::{Primary, serve_primary};
 use pnpr_package_name::Ecosystem;
 use serde_json::Value;
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{
+    net::SocketAddr,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 use tempfile::TempDir;
 
 /// A primary on a loopback port, and the directory its files live in.
@@ -446,6 +453,19 @@ async fn an_unsynced_replica_reads_exact_versions_and_blobs_from_the_primary() {
             .is_some(),
     );
     assert!(round_trips(&server).is_empty(), "hits stay on the replica");
+
+    let selects = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&selects);
+    let missing = reader
+        .lookup_in_view(&npm("pkg"), move |bytes| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let doc: Value = serde_json::from_slice(bytes)?;
+            Ok(doc["versions"].get("9.9.9").map(|_| ()))
+        })
+        .await
+        .unwrap();
+    assert_eq!(missing, HostedLookup::Missing);
+    assert_eq!(selects.load(Ordering::SeqCst), 1);
 
     commit_version(
         &writer,

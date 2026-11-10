@@ -307,10 +307,10 @@ impl Adapter for LibsqlAdapter {
                 .is_ok();
             (synced && replica.is_fresh()).then_some((replica, Snapshot::Current))
         });
-        let (pool, local, snapshot) =
-            replica.map_or((&opened.primary, false, Snapshot::Current), |(replica, snapshot)| {
-                (&replica.pool, true, snapshot)
-            });
+        let (pool, local, snapshot) = match replica {
+            Some((replica, snapshot)) => (&replica.pool, true, snapshot),
+            None => (&opened.primary, false, Snapshot::Current),
+        };
         let checkout = runtime.block_on(pool.checkout())?;
         let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
         run(&runtime, checkout, Session::Read { local, deadline }, operation)?;

@@ -266,10 +266,6 @@ async fn unrelated_publishes_finish_while_a_libsql_publish_upload_is_paused() {
     server.abort();
 }
 
-/// Publishing on instance A and immediately fetching tarballs or exact version
-/// manifests from instance B within `syncInterval` reads the primary on a
-/// replica miss instead of answering 404, while B's packument view stays on
-/// its embedded replica.
 #[cfg(feature = "backend-libsql")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_unsynced_libsql_replica_serves_tarballs_and_exact_versions_from_the_primary() {

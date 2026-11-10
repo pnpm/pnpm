@@ -84,14 +84,19 @@ impl PackageMetadata {
     {
         let key = self.key(name);
         let is_found = |lookup: &HostedLookup<Found>| matches!(lookup, HostedLookup::Found(_));
+        let mut checked = None;
         self.database.read_if(is_found, move |connection, cache| {
             let Some(view) = render::read_view(connection, cache, &key)? else {
                 return Ok(HostedLookup::Absent);
             };
-            Ok(match select(&view.bytes)? {
-                Some(found) => HostedLookup::Found(found),
-                None => HostedLookup::Missing,
-            })
+            if checked.as_ref() == Some(&view.generation) {
+                return Ok(HostedLookup::Missing);
+            }
+            if let Some(found) = select(&view.bytes)? {
+                return Ok(HostedLookup::Found(found));
+            }
+            checked = Some(view.generation);
+            Ok(HostedLookup::Missing)
         })
         .await
     }
