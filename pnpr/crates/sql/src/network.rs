@@ -9,7 +9,7 @@ use pnpr_error::{RegistryError, Result};
 use sqlx::{TypeInfo, ValueRef, pool::PoolConnection};
 use std::{
     cell::{Cell, RefCell},
-    sync::Arc,
+    sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
 
@@ -21,9 +21,9 @@ macro_rules! driver {
     ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty, $dialect:expr, $timeout_sql:path) => {
         pub(super) mod $module {
             use super::{
-                Adapter, Arc, Cell, Connection, Dialect, Duration, Param, PoolConnection, Query,
-                ReadSource, RefCell, RegistryError, Result, Row, SqlBackendSettings, TypeInfo,
-                Value, ValueRef,
+                Adapter, Arc, Cell, Connection, Dialect, Duration, Mutex, Param, PoisonError,
+                PoolConnection, Query, ReadSource, RefCell, RegistryError, Result, Row,
+                SqlBackendSettings, TypeInfo, Value, ValueRef,
             };
             use sqlx::Row as _;
 
@@ -32,13 +32,17 @@ macro_rules! driver {
                 pool: Arc<$pool>,
                 dialect: Dialect,
                 settings: SqlBackendSettings,
+                /// Held by a write of this instance, so one connection at a
+                /// time waits for the database's write lock and the others
+                /// stay free for reads.
+                writer: Mutex<()>,
             }
 
             impl NetworkAdapter {
                 pub(in super::super) fn new(settings: &SqlBackendSettings) -> Result<Self> {
                     let dialect = Dialect::from_url(&settings.url)?;
                     let pool = $pool_fn(settings)?;
-                    Ok(Self { pool, dialect, settings: settings.clone() })
+                    Ok(Self { pool, dialect, settings: settings.clone(), writer: Mutex::new(()) })
                 }
 
                 pub(super) fn from_pool(pool: Arc<$pool>, timeout: Duration) -> Self {
@@ -51,6 +55,7 @@ macro_rules! driver {
                             timeout,
                             startup_timeout: timeout,
                         },
+                        writer: Mutex::new(()),
                     }
                 }
 
@@ -111,6 +116,7 @@ macro_rules! driver {
                     &self,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
+                    let _writer = self.writer.lock().unwrap_or_else(PoisonError::into_inner);
                     self.run(self.settings.timeout, operation)
                 }
 
