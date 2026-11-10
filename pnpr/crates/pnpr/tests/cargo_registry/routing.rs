@@ -357,7 +357,7 @@ async fn an_uncached_upstream_streams_verified_downloads_without_caching() {
                 "features": {},
                 "yanked": false,
                 "v": 1,
-            })
+            }),
         ))
         .create_async()
         .await;
