@@ -132,7 +132,7 @@ pub(super) fn insert_package_metadata(
         },
     )
     .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
-    metadata.specifiers = directory::specifiers(node, entry.key(), sources.lockfile_format);
+    metadata.specifiers = directory::specifiers(node, entry.key(), sources.lockfile_format)?;
     carry_previous_deprecation(&mut metadata, entry.key(), sources);
     entry.insert(metadata);
     Ok(())

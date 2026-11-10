@@ -200,10 +200,10 @@ pub fn declared_specifiers(
     parent: &str,
 ) -> Result<pnpm_lockfile::DeclaredSpecifiers, ResolveDependencyTreeError> {
     let children = manifest_child_specs(manifest, parent)?;
-    let group = |optional: bool| {
+    let group = |group: DependencyGroup| {
         let specifiers: std::collections::HashMap<String, String> = children
             .iter()
-            .filter(|child| child.optional == optional)
+            .filter(|child| child.optional == matches!(group, DependencyGroup::Optional))
             .map(|child| (child.alias.clone(), child.bare_specifier.clone()))
             .collect();
         (!specifiers.is_empty()).then_some(specifiers)
@@ -219,8 +219,8 @@ pub fn declared_specifiers(
         });
     Ok(pnpm_lockfile::DeclaredSpecifiers {
         manifest_source: None,
-        dependencies: group(false),
-        optional_dependencies: group(true),
+        dependencies: group(DependencyGroup::Prod),
+        optional_dependencies: group(DependencyGroup::Optional),
         dependencies_meta,
     })
 }

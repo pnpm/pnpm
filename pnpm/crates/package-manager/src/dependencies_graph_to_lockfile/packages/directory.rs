@@ -5,15 +5,20 @@ pub(super) fn specifiers(
     node: &DependenciesGraphNode,
     key: &PackageKey,
     format: pnpm_lockfile::LockfileFormat,
-) -> Option<pnpm_lockfile::DeclaredSpecifiers> {
+) -> Result<Option<pnpm_lockfile::DeclaredSpecifiers>, super::super::DependenciesGraphToLockfileError>
+{
     if format != pnpm_lockfile::LockfileFormat::V13
         || !matches!(node.resolve_result.resolution, LockfileResolution::Directory(_))
     {
-        return None;
+        return Ok(None);
     }
     let manifest = node.resolve_result.package.manifest
         .as_deref()
-        .expect("a resolved directory carries its manifest");
+        .ok_or_else(|| {
+            super::super::DependenciesGraphToLockfileError::DirectoryManifestMissing {
+                dep_path: node.dep_path.to_string(),
+            }
+        })?;
     let mut specifiers =
         pnpm_resolving_deps_resolver::declared_specifiers(manifest, &key.name.to_string())
             .expect("the resolver validated these directory dependency specifiers");
@@ -22,5 +27,5 @@ pub(super) fn specifiers(
     } else {
         pnpm_lockfile::DirectoryManifestSource::Workspace
     });
-    Some(specifiers)
+    Ok(Some(specifiers))
 }

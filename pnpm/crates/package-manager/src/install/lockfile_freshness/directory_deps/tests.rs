@@ -1318,6 +1318,23 @@ fn recorded_inputs_reject_changes_that_a_locked_version_still_satisfies() {
 }
 
 #[test]
+fn recorded_workspace_catalog_children_reject_catalog_range_changes() {
+    let manifest = serde_json::json!({
+        "name": "lib",
+        "dependencies": { "child": "catalog:" },
+    });
+    let mut case =
+        recorded_case(manifest, serde_json::json!({ "dependencies": { "child": "catalog:" } }));
+    case.catalogs = Catalogs::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([("child".to_string(), "2.0.0".to_string())]),
+    )]);
+    case.declaration = Declaration { by_path: false, assumed: true };
+    let result = check_directory_dep(&case);
+    assert!(result.is_err(), "the changed catalog range must invalidate the snapshot: {result:?}");
+}
+
+#[test]
 fn recorded_inputs_accept_unchanged_sources_without_interpreting_registry_resolutions() {
     for specifier in [
         "^1.0.0",
