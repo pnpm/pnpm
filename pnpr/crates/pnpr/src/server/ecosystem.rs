@@ -9,10 +9,9 @@
 //! The documents themselves live in [`super::documents`].
 
 use super::{
-    Action, AppState, MAX_TARBALL_BYTES, RegistrySource, authorize, authorized_upstream,
-    cached_upstream_tarball, default_registry_target, hosted_read_namespace, not_found,
-    private_no_cache, resolves_to_private_source, tarball_response, tarball_stream_error,
-    upstream_cache_namespace,
+    Action, AppState, RegistrySource, authorize, authorized_upstream, cached_upstream_tarball,
+    default_registry_target, hosted_read_namespace, not_found, private_no_cache,
+    resolves_to_private_source, tarball_response, tarball_stream_error, upstream_cache_namespace,
 };
 use axum::response::{IntoResponse, Response};
 use pnpr_error::RegistryError;
@@ -266,14 +265,10 @@ pub(super) async fn serve_upstream_artifact(
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };
+    let max_bytes = state.max_tarball_bytes();
     if !upstream.caches() {
-        return match streaming::download_verified_to_temp(
-            response,
-            write,
-            integrity,
-            MAX_TARBALL_BYTES,
-        )
-        .await
+        return match streaming::download_verified_to_temp(response, write, integrity, max_bytes)
+            .await
         {
             Ok((file, len, tmp_path)) => {
                 tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
@@ -281,7 +276,7 @@ pub(super) async fn serve_upstream_artifact(
             Err(err) => tarball_stream_error(err, name, filename).into_response(),
         };
     }
-    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
+    match streaming::stream_verified_to_cache(response, write, integrity, max_bytes) {
         Ok(body) => tarball_response(body, None),
         Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }

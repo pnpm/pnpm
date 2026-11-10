@@ -28,6 +28,14 @@ fn parse_byte_size_rejects_invalid_values() {
 }
 
 #[test]
+fn parse_byte_size_rejects_sizes_that_overflow_u64() {
+    assert_eq!(parse_byte_size("18446744073709551615"), Some(u64::MAX));
+    assert_eq!(parse_byte_size("18446744073709551616"), None);
+    assert_eq!(parse_byte_size("16777216TiB"), None);
+    assert_eq!(parse_byte_size("16384PiB"), None);
+}
+
+#[test]
 fn byte_size_deserializes_from_yaml_types() {
     #[derive(serde::Deserialize)]
     struct Wrapper {

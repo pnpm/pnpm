@@ -218,17 +218,14 @@ const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 /// sends it.
 const GENERATION_HEADER: &str = "pnpr-generation";
 
-/// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
-/// verification. This bounds per-request temporary disk usage for
-/// chunked or malicious upstream bodies.
-const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
-
 /// Cap publish bodies at 100 MiB. The default axum body limit is
 /// 2 MiB, far too small for a real package — npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
-/// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
+/// route, so future write endpoints inherit the same ceiling. The cap on a
+/// tarball fetched from an upstream is the configured
+/// [`pnpr_config::HttpConfig::max_tarball_bytes`] instead.
+const MAX_PUBLISH_BODY_BYTES: usize = 100 * 1024 * 1024;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
@@ -255,6 +252,14 @@ use state::AppInner;
 #[derive(Clone)]
 pub(super) struct AppState {
     pub(super) inner: Arc<AppInner>,
+}
+
+impl AppState {
+    /// The most bytes one tarball fetched from an upstream may hold. See
+    /// [`pnpr_config::HttpConfig::max_tarball_bytes`].
+    fn max_tarball_bytes(&self) -> u64 {
+        self.inner.config.http.max_tarball_bytes
+    }
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient

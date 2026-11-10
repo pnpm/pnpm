@@ -293,25 +293,53 @@ fn build_http_config(
         }
         None => Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
     };
+    let packument_ttl = build_packument_ttl(file.packument_ttl.take())?;
+    let max_tarball_bytes = build_max_tarball_bytes(file.max_tarball_size.take())?;
     Ok(super::HttpConfig {
         listen,
         public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
         cors,
         ui,
         oci: std::mem::take(&mut file.oci),
-        packument_ttl: match &file.packument_ttl {
-            Some(interval) => super::parse_interval(&interval.0)
-                .ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("packumentTtl {:?} is not a valid interval", interval.0),
-                })?,
-            None => Config::DEFAULT_PACKUMENT_TTL,
-        },
+        packument_ttl,
+        max_tarball_bytes,
         trusted_proxies,
         trusted_proxy_header,
         request_timeout,
         metrics: build_metrics_config(file, listen)?,
         package_documents: super::build_package_documents_config(file.package_documents.take())?,
     })
+}
+
+/// The `packumentTtl:` key as a duration, defaulting to
+/// [`Config::DEFAULT_PACKUMENT_TTL`].
+fn build_packument_ttl(raw: Option<super::Interval>) -> Result<std::time::Duration, RegistryError> {
+    let Some(super::Interval(raw)) = raw else {
+        return Ok(Config::DEFAULT_PACKUMENT_TTL);
+    };
+    super::parse_interval(&raw)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("packumentTtl {raw:?} is not a valid interval"),
+        })
+}
+
+/// The `maxTarballSize:` key as bytes, defaulting to
+/// [`super::HttpConfig::DEFAULT_MAX_TARBALL_BYTES`]. Zero is refused: it would
+/// turn every upstream tarball away.
+fn build_max_tarball_bytes(raw: Option<super::ByteSize>) -> Result<u64, RegistryError> {
+    let Some(super::ByteSize(raw)) = raw else {
+        return Ok(super::HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
+    };
+    let bytes = super::parse_byte_size(&raw)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("maxTarballSize {raw:?} is not a valid byte size"),
+        })?;
+    if bytes == 0 {
+        return Err(RegistryError::InvalidConfig {
+            reason: "maxTarballSize must be greater than zero".to_string(),
+        });
+    }
+    Ok(bytes)
 }
 
 fn build_metrics_config(

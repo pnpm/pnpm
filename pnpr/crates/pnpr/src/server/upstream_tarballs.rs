@@ -3,8 +3,8 @@ use self::background_scan::{
     PromotedTarballScan, schedule_cached_tarball_scan, schedule_deferred_cached_tarball_scan,
 };
 use super::{
-    AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, MAX_TARBALL_BYTES,
-    RegistryError, Response, TarballDist, Upstream, authorized_upstream, ensure_osv_allowed,
+    AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, RegistryError,
+    Response, TarballDist, Upstream, authorized_upstream, ensure_osv_allowed,
     expected_tarball_dist, load_upstream_packument, not_found, streaming, tarball_response,
     tarball_stream_error, timed, upstream_cache_namespace,
 };
@@ -248,7 +248,7 @@ pub(super) async fn fetch_upstream_tarball(
         name,
         filename,
         version_route,
-        integrity,
+        integrity: _,
         unpacked_size: _,
     } = tarball;
     let fetched = timed(
@@ -267,7 +267,13 @@ pub(super) async fn fetch_upstream_tarball(
         Err(err) => return err.into_response(),
     };
     if !upstream.caches() {
-        return stream_verified_without_caching(response, write, integrity, name, filename).await;
+        return stream_verified_without_caching(
+            response,
+            write,
+            tarball,
+            state.max_tarball_bytes(),
+        )
+        .await;
     }
     stream_and_record_upstream_tarball(state, response, write, tarball)
 }
@@ -287,7 +293,7 @@ fn stream_and_record_upstream_tarball(
         response,
         write,
         tarball.integrity,
-        MAX_TARBALL_BYTES,
+        state.max_tarball_bytes(),
         move |cached_path| scan.spawn(cached_path),
     );
     match streamed {
@@ -297,21 +303,21 @@ fn stream_and_record_upstream_tarball(
 }
 
 /// Fetch-through: verify and stream from the temp file, then remove it, so a
-/// `cache: false` upstream's tarball is never persisted.
+/// `cache: false` upstream's tarball is never persisted. `max_bytes` is the
+/// most the download may hold.
 pub(super) async fn stream_verified_without_caching(
     response: pnpm_network::ThrottledResponse,
     write: pnpr_storage::BlobWrite,
-    integrity: &ssri::Integrity,
-    name: &CanonicalPackageName,
-    filename: &str,
+    tarball: UpstreamTarball<'_>,
+    max_bytes: u64,
 ) -> Response {
     let downloaded =
-        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await;
+        streaming::download_verified_to_temp(response, write, tarball.integrity, max_bytes).await;
     match downloaded {
         Ok((file, len, tmp_path)) => {
             tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
         }
-        Err(err) => tarball_stream_error(err, name, filename).into_response(),
+        Err(err) => tarball_stream_error(err, tarball.name, tarball.filename).into_response(),
     }
 }
 

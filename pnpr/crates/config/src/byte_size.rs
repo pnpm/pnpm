@@ -77,7 +77,8 @@ pub fn parse_byte_size(raw: &str) -> Option<u64> {
         _ => return None,
     };
     let total = num * multiplier;
-    if total < 0.0 || total > (u64::MAX as f64) {
+    // `u64::MAX as f64` rounds up to 2^64, so a total equal to it overflows.
+    if total < 0.0 || total >= (u64::MAX as f64) {
         return None;
     }
     Some(total as u64)

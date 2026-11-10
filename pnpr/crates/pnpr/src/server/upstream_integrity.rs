@@ -1,6 +1,6 @@
 use super::{
-    AppState, CanonicalPackageName, FetchOutcome, Integrity, MAX_TARBALL_BYTES, RegistryError,
-    Upstream, is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
+    AppState, CanonicalPackageName, FetchOutcome, Integrity, RegistryError, Upstream,
+    is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
     tarball_stream_error_for_package, timed, upstream_packuments::lock_upstream_package,
     upstream_tarballs::tarball_cache_name,
 };
@@ -221,7 +221,7 @@ impl PackumentIntegrityResolver<'_> {
             response,
             write,
             candidate.expected_shasum.as_ref(),
-            MAX_TARBALL_BYTES,
+            self.state.max_tarball_bytes(),
         )
         .await;
         download.map_err(|err| {

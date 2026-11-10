@@ -604,6 +604,35 @@ Can be specified as an integer number of seconds (e.g. `10`) or with a duration 
 packumentTtl: 30s
 ```
 
+## `maxTarballSize`
+
+The largest tarball pnpr fetches from an upstream registry. The same limit
+applies to Cargo crates and Python distributions fetched from an upstream. pnpr writes each
+proxied tarball to a temporary file while it verifies the integrity, so this
+bounds the disk each tarball can take. An upstream tarball that declares a size
+over the limit is refused with `502 Bad Gateway`. pnpm then fails the install
+with `ERR_PNPM_TARBALL_HTTP_STATUS`. When a cached upstream does not declare
+the size, pnpr is already streaming the tarball when it crosses the limit, so
+pnpr cuts the download off and the client reports a download error instead.
+pnpr verifies the tarball before it responds for an upstream with
+`cache: false` and for a [registry revision](https://pnpm.io/registry-revisions).
+There an over-limit tarball always gets `502 Bad Gateway`, whether the upstream
+declared the size or pnpr found it during the download.
+
+Defaults to `100MiB`. Takes an integer number of bytes or a size suffix such
+as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
+Must be greater than zero. The limit applies to downloads: a tarball pnpr
+cached under a higher limit is still served from the cache.
+
+A published package is still at most 100 MiB, the limit npm applies to a
+publish. The setting only affects tarballs proxied from upstream registries,
+where packages with large native binaries, such as `onnxruntime-node`, exceed
+100 MiB.
+
+```yaml title="pnpr.yaml"
+maxTarballSize: 256MiB
+```
+
 ## `packageDocuments`
 
 How pnpr serves its own package document, which pnpm asks for from a registry
