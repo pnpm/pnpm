@@ -3592,5 +3592,65 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
     '@pnpm.e2e/foo': 'catalog:',
     '@pnpm.e2e/bar': 'catalog:legacy',
   })
+
+  // Updating `@pnpm.e2e/bar` with `updateToLatest` bumps `catalogs.legacy['@pnpm.e2e/bar']`
+  // from `^100.0.0` to `^100.1.0`; when a range-scoped override matches the bumped
+  // catalog range, the second resolution pass applies the override immediately.
+  const overridesMatchingBumpedBar: Record<string, string> = {
+    '@pnpm.e2e/foo@^100.0.0': '100.0.0',
+    '@pnpm.e2e/bar@^100.1.0': '100.0.0',
+  }
+  catalogs.legacy['@pnpm.e2e/bar'] = '100.0.0'
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides: overridesMatchingBumpedBar,
+  })
+  expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: 'catalog:legacy',
+    version: '100.0.0',
+  })
+
+  const { updatedCatalogs } = await mutateModules(
+    [
+      {
+        ...projects['project1' as ProjectId],
+        rootDir: path.resolve('project1') as ProjectRootDir,
+        mutation: 'installSome' as const,
+        dependencySelectors: ['@pnpm.e2e/bar'],
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      },
+    ],
+    {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      overrides: overridesMatchingBumpedBar,
+    }
+  )
+  expect(updatedCatalogs).toEqual({
+    legacy: {
+      '@pnpm.e2e/bar': '100.1.0',
+    },
+  })
+  expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+
+  catalogs.legacy['@pnpm.e2e/bar'] = '100.1.0'
+  await expect(
+    mutateModules(installProjects(projects), {
+      ...options,
+      frozenLockfile: true,
+      lockfileOnly: true,
+      catalogs,
+      overrides: overridesMatchingBumpedBar,
+    })
+  ).resolves.toBeDefined()
 })
 

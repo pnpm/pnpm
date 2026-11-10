@@ -164,7 +164,13 @@ impl VersionsOverrider {
     /// when matching range-scoped overrides.
     #[must_use]
     pub fn with_catalogs(mut self, catalogs: &Catalogs) -> Self {
-        self.catalogs.clone_from(catalogs);
+        if self.parent_scoped
+            .iter()
+            .chain(&self.generic)
+            .any(|entry| entry.inner.target_pkg.bare_specifier.is_some())
+        {
+            self.catalogs.clone_from(catalogs);
+        }
         self
     }
 

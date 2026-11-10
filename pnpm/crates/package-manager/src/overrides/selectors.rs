@@ -1,10 +1,13 @@
 use super::{DependencyGroup, PackageSelector, ResolvedOverride, VersionsOverrider};
 use node_semver::{Range, Version};
-use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::OverrideDependencyType;
 use pnpm_matcher::WildcardMatcher;
 use serde_json::Value;
+use std::borrow::Cow;
 
 impl VersionsOverrider {
     pub(super) fn applicable_parent_scoped<'b>(
@@ -41,8 +44,8 @@ impl VersionsOverrider {
         dep_spec: &str,
     ) -> Option<&'b ResolvedOverride> {
         let effective_spec = resolve_catalog_spec(&self.catalogs, dep_name, dep_spec);
-        Self::pick_most_specific(group, applicable_parent_scoped, dep_name, effective_spec)
-            .or_else(|| self.pick_most_specific_generic(group, dep_name, effective_spec))
+        Self::pick_most_specific(group, applicable_parent_scoped, dep_name, &effective_spec)
+            .or_else(|| self.pick_most_specific_generic(group, dep_name, &effective_spec))
     }
 
     fn pick_most_specific<'b>(
@@ -102,22 +105,30 @@ pub(crate) fn matches_target(
         && WildcardMatcher::new(&target.name).matches(dep_name)
         && is_intersecting_range(
             target.bare_specifier.as_deref(),
-            resolve_catalog_spec(catalogs, dep_name, dep_spec),
+            &resolve_catalog_spec(catalogs, dep_name, dep_spec),
         )
 }
 
 /// The specifier a `catalog:` reference resolves to in `catalogs`, or
 /// `dep_spec` when it is not a `catalog:` reference or has no valid entry.
-fn resolve_catalog_spec<'a>(catalogs: &'a Catalogs, dep_name: &str, dep_spec: &'a str) -> &'a str {
-    let Some(catalog_name) = parse_catalog_protocol(dep_spec) else {
-        return dep_spec;
-    };
-    catalogs
-        .get(catalog_name)
-        .and_then(|catalog| catalog.get(dep_name))
-        .map(String::as_str)
-        .filter(|entry| parse_catalog_protocol(entry).is_none())
-        .unwrap_or(dep_spec)
+fn resolve_catalog_spec<'a>(
+    catalogs: &'a Catalogs,
+    dep_name: &str,
+    dep_spec: &'a str,
+) -> Cow<'a, str> {
+    if catalogs.is_empty() || !dep_spec.starts_with("catalog:") {
+        return Cow::Borrowed(dep_spec);
+    }
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: dep_name.to_string(), bare_specifier: dep_spec.to_string() },
+        CatalogAnchor::AsWritten,
+    ) {
+        CatalogResolutionResult::Found(found) => Cow::Owned(found.resolution.specifier),
+        CatalogResolutionResult::Misconfiguration(_) | CatalogResolutionResult::Unused => {
+            Cow::Borrowed(dep_spec)
+        }
+    }
 }
 
 pub(super) fn matches_resolved_target(

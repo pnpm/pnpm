@@ -799,5 +799,35 @@ fn a_version_selector_override_applies_to_a_catalog_dependency() {
     assert_eq!(updated_manifest["dependencies"]["@pnpm.e2e/foo"], "catalog:");
     assert_eq!(updated_manifest["dependencies"]["@pnpm.e2e/bar"], "catalog:legacy");
 
+    // When `pnpm update --latest` bumps a catalog entry into a range matched by a
+    // version-selector override, the override applies immediately and a subsequent
+    // frozen-lockfile install succeeds.
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}catalog:\n  '@pnpm.e2e/foo': ^100.0.0\ncatalogs:\n  legacy:\n    '@pnpm.e2e/bar': 100.0.0\noverrides:\n  '@pnpm.e2e/foo@^100.0.0': 100.0.0\n  '@pnpm.e2e/bar@^100.1.0': 100.0.0\n",
+        ),
+    )
+    .expect("write catalog before latest update");
+    pacquet_at(&fixture.workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_at(&fixture.workspace)
+        .with_args(["update", "--latest", "@pnpm.e2e/bar"])
+        .assert()
+        .success();
+    let wanted_after_latest = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let deps_after_latest =
+        wanted_after_latest.importers["."].dependencies.as_ref().expect("dependencies");
+    assert_eq!(deps_after_latest[&bar_name].specifier, "100.0.0");
+    assert_eq!(deps_after_latest[&bar_name].version.to_string(), "100.0.0");
+    pacquet_at(&fixture.workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
     drop(fixture);
 }
