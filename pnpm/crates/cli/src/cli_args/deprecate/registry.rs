@@ -64,13 +64,7 @@ async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
             // Read the current revision before mutating the package document.
-            apply_auth_and_otp(
-                client
-                    .get(url)
-                    .query(&[("write", "true")]),
-                auth_header,
-                None,
-            )
+            apply_auth_and_otp(client.get(format!("{url}?write=true")), auth_header, None)
         })
         .await
         .map_err(FetchError::Request)?;
