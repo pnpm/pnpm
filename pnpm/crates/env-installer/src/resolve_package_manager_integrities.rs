@@ -81,7 +81,7 @@ pub async fn resolve_package_manager_integrities(
     if repair_in_memory {
         verify_env_lockfile(&env_lockfile)?;
     } else {
-        write_verified_env_lockfile(&env_lockfile, opts.root_dir, opts.lockfile.symlinked)?;
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir, &opts.lockfile)?;
     }
     Ok(env_lockfile)
 }
@@ -145,10 +145,14 @@ async fn record_package(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<Vec<EnvPackage>, ConfigDepError> {
-    let registry = opts.verification.pick_registry(&package.name);
-    let mut metadata =
-        package_metadata(&package.name, &package.version, &package.result, registry, false)
-            .map_err(ConfigDepError::LockfileForm)?;
+    let mut metadata = package_metadata(
+        &package.name,
+        &package.version,
+        &package.result,
+        opts.verification.tarball_url_options(&package.name),
+        false,
+    )
+    .map_err(ConfigDepError::LockfileForm)?;
     metadata.resolution = strip_registry_tarball_url(metadata.resolution);
     env_lockfile.packages.insert(package.key.clone(), metadata);
 

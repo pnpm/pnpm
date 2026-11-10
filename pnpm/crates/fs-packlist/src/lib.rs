@@ -173,11 +173,10 @@ pub fn is_lockfile_staging_file(file_name: &str) -> bool {
     let mut parts = suffix.split('.');
     matches!(
         (parts.next(), parts.next(), parts.next(), parts.next()),
-        (Some(pid), Some(counter), Some("tmp"), None)
+        (Some(pid), Some(id), Some("tmp"), None)
             if !pid.is_empty()
                 && pid.bytes().all(|byte| byte.is_ascii_digit())
-                && !counter.is_empty()
-                && counter.bytes().all(|byte| byte.is_ascii_digit()),
+                && !id.is_empty(),
     )
 }
 

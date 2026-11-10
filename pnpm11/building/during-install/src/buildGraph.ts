@@ -25,6 +25,13 @@ export interface DependenciesGraphNode<NodeId extends string> {
   requiresBuild?: boolean | any // this is a dirty workaround added in https://github.com/pnpm/pnpm/pull/4898
   patch?: PatchInfo
   resolution?: LockfileResolution
+  /**
+   * The global virtual store staging directory the link phase imported the
+   * package into, for this install to build it there and place it in `dir`.
+   */
+  stagingDir?: string
+  /** See `ImportTarget.buildsForOutsideEffects`. */
+  buildsForOutsideEffects?: boolean
 }
 
 export type DependenciesGraph<NodeId extends string> = Record<NodeId, DependenciesGraphNode<NodeId>>

@@ -8,6 +8,9 @@
   "main": "lib/index.js",
   "type": "module",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib/"
   ],

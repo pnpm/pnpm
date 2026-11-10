@@ -7,9 +7,9 @@ import { partition, pick } from 'ramda'
 import { filterProjectsBySelectorObjectsFromDir } from './filterProjectsFromDir.js'
 import { getChangedProjects } from './getChangedProjects.js'
 import { matchProjects, matchProjectsByExactPath, matchProjectsByGlob } from './matchProjects.js'
-import { parseProjectSelector, type ProjectSelector } from './parseProjectSelector.js'
+import { parseProjectSelector, type ProjectSelector, rebaseProjectSelector } from './parseProjectSelector.js'
 
-export { filterProjectsBySelectorObjectsFromDir, parseProjectSelector, type ProjectSelector }
+export { filterProjectsBySelectorObjectsFromDir, parseProjectSelector, type ProjectSelector, rebaseProjectSelector }
 export { getChangedProjects } from './getChangedProjects.js'
 
 export interface WorkspaceFilter {

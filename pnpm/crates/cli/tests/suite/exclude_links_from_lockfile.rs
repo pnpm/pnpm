@@ -4,7 +4,7 @@ use crate::_utils;
 use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName, SnapshotDepRef};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, PackageKey, PkgName, SnapshotDepRef};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
@@ -30,6 +30,79 @@ fn catalog_workspace_link_is_materialized_when_excluded_from_lockfile() {
         "catalog:",
         Some("{ workspace-dep: ^1.0.0 }"),
     );
+}
+
+#[test]
+fn catalog_workspace_protocol_links_survive_frozen_reinstall() {
+    for (name, reference, alias, specifier) in [
+        ("default", "catalog:", "workspace-dep", "workspace:*"),
+        ("named", "catalog:named", "workspace-dep", "workspace:*"),
+        ("named", "catalog:named", "aliased-dep", "workspace:workspace-dep@*"),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        write_project(&workspace, ".", &serde_json::json!({ "private": true }));
+        append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+        append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", true);
+        let entries = serde_json::json!({ alias: specifier });
+        if name == "default" {
+            append_workspace_yaml_key(&workspace, "catalog", entries.to_string());
+        } else {
+            append_workspace_yaml_key(
+                &workspace,
+                "catalogs",
+                serde_json::json!({ name: entries }).to_string(),
+            );
+        }
+        write_project(
+            &workspace,
+            "packages/app",
+            &serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { alias: reference },
+            }),
+        );
+        write_project(
+            &workspace,
+            "packages/workspace-dep",
+            &serde_json::json!({ "name": "workspace-dep", "version": "1.0.0" }),
+        );
+
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let lockfile_path = workspace.join("pnpm-lock.yaml");
+        let before = fs::read_to_string(&lockfile_path).expect("read lockfile");
+        let lockfile: Lockfile = serde_saphyr::from_str(&before).expect("parse lockfile");
+        let dependency = &lockfile.importers["packages/app"].dependencies
+            .as_ref()
+            .expect("app dependencies")[&PkgName::parse(alias).unwrap()];
+        assert_eq!(dependency.specifier, reference);
+        assert_eq!(dependency.version, ImporterDepVersion::Link("../workspace-dep".to_string()));
+
+        for modules in [workspace.join("node_modules"), workspace.join("packages/app/node_modules")]
+        {
+            fs::remove_dir_all(modules).expect("remove node_modules");
+        }
+        pacquet_at(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+        let link = workspace.join("packages/app/node_modules").join(alias);
+        assert!(is_symlink_or_junction(&link).unwrap(), "missing link: {}", link.display());
+        assert_eq!(
+            link.canonicalize().unwrap(),
+            workspace
+                .join("packages/workspace-dep")
+                .canonicalize()
+                .unwrap(),
+        );
+        assert_eq!(fs::read_to_string(lockfile_path).unwrap(), before);
+        drop((root, mock_instance));
+    }
 }
 
 /// `app` depends on the `workspace-dep` project through `spec`. The link stays

@@ -12,6 +12,8 @@ export interface StrictStoreStatusOptions {
   installStateDir?: string
   allowBuilds?: Record<string, boolean | string>
   dangerouslyAllowAllBuilds?: boolean
+  /** Whether the install that placed the packages ran with `ignoreScripts`. It keys their global virtual store slots. */
+  ignoreScripts?: boolean
   supportedArchitectures?: SupportedArchitectures
   autoInstallPeers: boolean
   excludeLinksFromLockfile: boolean

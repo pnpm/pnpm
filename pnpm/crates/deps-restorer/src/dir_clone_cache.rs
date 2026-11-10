@@ -10,12 +10,12 @@
 //! is one syscall for the entire tree, ~20x cheaper than per-file
 //! clones of its contents and immune to the convoy.
 //!
-//! The cache materializes each package once into the global-virtual-
-//! store slot layout under `<store_dir>/links` — the same paths, marker
-//! protocol, and concurrent-writer healing that `enableGlobalVirtualStore`
-//! installs use (see [`fn@crate::import_indexed_dir`]) — and then
-//! projects it into the project-local virtual store with one
-//! `clonefile`. A hot install whose canonical slots already exist pays
+//! The cache materializes each package once under
+//! [`pnpm_store_dir::StoreDir::dir_clone_cache`], using the global virtual
+//! store's slot layout, marker protocol, and concurrent-writer healing
+//! (see [`fn@crate::import_indexed_dir`]). It projects the cached package
+//! into the project-local virtual store with one `clonefile`.
+//! A hot install whose canonical slots already exist pays
 //! one `stat` plus one `clonefile` per package instead of one syscall
 //! per file.
 //!
@@ -30,8 +30,8 @@
 //! caller — see `create_virtual_store::dir_clone_cacheable` for the
 //! exclusions and their reasons. Excluded slots take the per-file
 //! import, so cached slots are always plain pre-build CAS content,
-//! indistinguishable from what a GVS-enabled install materializes
-//! before its build phase.
+//! stored separately from installed global virtual store packages, so
+//! pruning can discard the cache without project reachability information.
 //!
 //! The cache is strictly best-effort: a per-install capability probe
 //! (`dir_clone_supported`) declines the whole cache up front when the
@@ -64,8 +64,7 @@ use std::{
 
 /// The engine name that keys the cache's canonical slots — the same
 /// value a GVS-enabled install computes (see
-/// [`crate::materialization_plan::resolve_engine_name`]), so the slot
-/// hashes agree between the two modes.
+/// [`crate::materialization_plan::resolve_engine_name`]).
 pub enum EngineNameSource {
     /// Known when the cache is built: the root project's `node@runtime:` pin or
     /// an already-detected host.
@@ -82,11 +81,8 @@ pub enum EngineNameSource {
 /// it applies.
 pub struct DirCloneCache<'install> {
     layout_inputs: CanonicalLayoutInputs<'install>,
-    /// GVS-shaped layout rooted at `Config::global_virtual_store_dir`
-    /// (`<store_dir>/links` unless pinned), built via
-    /// [`VirtualStoreLayout::global`] so canonical slots coincide with
-    /// the slots a GVS-enabled install materializes. Built on first
-    /// use — see [`Self::layout`].
+    /// Layout rooted at [`pnpm_store_dir::StoreDir::dir_clone_cache`].
+    /// Built on first use — see [`Self::layout`].
     layout: OnceLock<VirtualStoreLayout>,
     /// Under `frozenStore` the store is read-only: the cache may serve
     /// canonical slots that already exist but must not populate new
@@ -104,8 +100,7 @@ impl<'install> DirCloneCache<'install> {
         cfg!(target_os = "macos")
             && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
             && !config.enable_global_virtual_store
-            // A canonical root inside the virtual store, as under `pnpm deploy`,
-            // would leave a second copy of every package in the project.
+            // Deploy installs do not populate the shared materialization cache.
             && config.global_virtual_store_dir != config.virtual_store_dir()
             && matches!(
                 config.package_import_method,
@@ -143,19 +138,21 @@ impl<'install> DirCloneCache<'install> {
             NodeLinker::Hoisted => &config.modules_dir,
             _ => config.virtual_store_dir(),
         };
-        if !config.frozen_store
-            && !dir_clone_supported(&config.global_virtual_store_dir, destination)
-        {
+        let cache_dir = config.store_dir.dir_clone_cache();
+        if !config.frozen_store && !dir_clone_supported(&cache_dir, destination) {
             return None;
         }
         Some(DirCloneCache {
             layout_inputs: CanonicalLayoutInputs {
-                global_virtual_store_dir: config.global_virtual_store_dir.clone(),
+                cache_dir,
                 virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
                 engine,
                 snapshots,
                 packages,
-                allow_build_policy,
+                gating: crate::BuildGating {
+                    policy: allow_build_policy,
+                    runs_builds: !config.ignore_scripts,
+                },
                 lockfile_dir,
                 platform: crate::virtual_store_layout::selected_platform(config),
             },
@@ -365,12 +362,12 @@ fn deepest_existing_ancestor(path: &Path) -> &Path {
 mod tests;
 
 struct CanonicalLayoutInputs<'install> {
-    global_virtual_store_dir: PathBuf,
+    cache_dir: PathBuf,
     virtual_store_dir_max_length: usize,
     engine: EngineNameSource,
     snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
-    allow_build_policy: Option<&'install AllowBuildPolicy>,
+    gating: crate::BuildGating<'install>,
     lockfile_dir: Option<&'install Path>,
     platform: VariantPlatforms,
 }
@@ -382,12 +379,12 @@ impl CanonicalLayoutInputs<'_> {
             EngineNameSource::Pending(slot) => slot.wait().clone(),
         };
         VirtualStoreLayout::global(
-            self.global_virtual_store_dir.clone(),
+            self.cache_dir.clone(),
             self.virtual_store_dir_max_length,
             engine.as_deref(),
             self.snapshots,
             self.packages,
-            self.allow_build_policy,
+            self.gating,
             self.lockfile_dir,
             &self.platform,
         )

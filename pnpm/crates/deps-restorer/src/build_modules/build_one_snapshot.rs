@@ -1,6 +1,7 @@
 //! Running one package's build scripts.
 
 mod dependency_bins;
+mod global_slot;
 mod lifecycle_scripts;
 mod linked_copies;
 mod patched_engines;
@@ -15,11 +16,10 @@ use side_effects::{
 use slot_to_build::slot_to_build;
 
 use super::{
-    AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
-    PathBuf, PkgRoots, RebuildOptions, Reporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
-    apply_patch_to_dir, discard_skipped_optional_dependency, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, slot_carries_overlay,
+    AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, PackageKey, Path, PathBuf, PkgRoots,
+    RebuildOptions, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalReason, allow_build_key_from_ignored_build, apply_patch_to_dir,
+    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -53,6 +53,14 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // scripts / apply patches when they themselves are candidates.
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
+    if global_slot::applies(context) {
+        return global_slot::build::<Reporter>(
+            context,
+            snapshot_key,
+            &candidate,
+            cache_key.as_deref(),
+        );
+    }
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
         skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
         return dependency_bins::refresh_private_hoisted_for(context, snapshot_key);
@@ -83,9 +91,7 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some((pkg_dir, slot_lock)) =
-        slot_to_build(slot_to_build::SlotToBuild { context, snapshot_key, candidate, cache_key })?
-    else {
+    let Some(pkg_dir) = slot_to_build(context, snapshot_key)? else {
         return Ok(());
     };
 
@@ -103,7 +109,6 @@ fn build_candidate<Reporter: self::Reporter>(
         context,
         snapshot_key,
         &pkg_dir,
-        slot_lock.as_ref(),
         &candidate.script_run(optional),
     )?
     else {
@@ -113,12 +118,6 @@ fn build_candidate<Reporter: self::Reporter>(
     if is_patched || candidate.should_run_scripts {
         dependency_bins::refresh_private_hoisted_for(context, snapshot_key)?;
     }
-
-    clear_global_virtual_store_build_markers(
-        context,
-        snapshot_key,
-        (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
-    );
 
     upload_side_effects_cache(
         context,
@@ -155,9 +154,6 @@ struct BuildCandidate<'c> {
     /// past the gate too.
     force_rebuild: bool,
     should_run_scripts: bool,
-    /// `--ignore-scripts` left the build scripts for a later install to run
-    /// in the same global-virtual-store slot, so its marker has to stay.
-    build_pending: bool,
 }
 
 impl<'c> BuildCandidate<'c> {
@@ -192,16 +188,7 @@ impl<'c> BuildCandidate<'c> {
             &dep_path,
             (requires_build, force_rebuild),
         );
-        let build_pending = requires_build && context.scripts.ignore;
-        Some(Self {
-            metadata_key,
-            patch,
-            name,
-            version,
-            force_rebuild,
-            should_run_scripts,
-            build_pending,
-        })
+        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
     }
 }
 
@@ -318,46 +305,6 @@ fn apply_configured_patch<Reporter: self::Reporter>(
         return Ok(None);
     }
     Ok(Some(true))
-}
-
-// A removed GVS slot may have been imported pristine while its cached build row survived.
-fn global_slot_carries_overlay(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    overlay: &pnpm_store_dir::SideEffectsOverlay,
-) -> bool {
-    context.directories.layout.enable_global_virtual_store()
-        && context
-            .pkg_roots()
-            .canonical(snapshot_key)
-            .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay))
-}
-
-/// A slot the isolated global virtual store just built no longer needs its
-/// `.pnpm-needs-build` marker.
-fn clear_global_virtual_store_build_markers(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    built: bool,
-) {
-    if !built
-        || !context.directories.layout.enable_global_virtual_store()
-        || context.directories.pkg_roots_by_key.is_some()
-    {
-        return;
-    }
-    for built_dir in context.pkg_roots().all(snapshot_key) {
-        if let Err(error) = std::fs::remove_file(built_dir.join(NEEDS_BUILD_MARKER))
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!(
-                target: "pacquet::build",
-                ?error,
-                dep_path = %snapshot_key,
-                "failed to remove the global virtual store build marker",
-            );
-        }
-    }
 }
 
 fn is_build_candidate(requires_build: bool, has_patch: bool) -> bool {

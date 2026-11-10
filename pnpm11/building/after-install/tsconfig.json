@@ -91,6 +91,9 @@
       "path": "../../workspace/task-scheduler"
     },
     {
+      "path": "../during-install"
+    },
+    {
       "path": "../pkg-requires-build"
     },
     {

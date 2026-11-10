@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 mod empty_builds;
 
 /// One warm entry: the snapshot, its prefetched CAS paths, the cache key
-/// that found them, and whether its slot needs a build marker.
+/// that found them, and whether a build or a patch writes the package.
 pub(super) type WarmEntry<'a> =
     (&'a PackageKey, &'a SnapshotEntry, &'a std::sync::Arc<pnpm_fs::CasPaths>, &'a str, bool);
 
@@ -224,9 +224,6 @@ pub(super) fn partition_snapshots<'a>(
 
 /// The snapshots whose cached build output the partition withholds.
 pub(super) struct Rebuilds<'a> {
-    /// The slots whose global-virtual-store build marker says they must
-    /// be rebuilt.
-    pub markers: &'a HashSet<PackageKey>,
     /// Consulted for the packages `sideEffectsCache.exclude` names.
     pub allow_build_policy: &'a AllowBuildPolicy,
     /// Pre-verified `requiresBuild` answers from resolution metadata.
@@ -251,7 +248,7 @@ pub enum EmptyBuilds {
 
 impl Rebuilds<'_> {
     fn requires(&self, snapshot_key: &PackageKey) -> bool {
-        self.markers.contains(snapshot_key) || !self.allow_build_policy.caches_build(snapshot_key)
+        !self.allow_build_policy.caches_build(snapshot_key)
     }
 }
 

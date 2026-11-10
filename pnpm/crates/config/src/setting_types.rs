@@ -1,6 +1,7 @@
 pub use workspace::{CatalogMode, PackageImportMethod, ResolutionMode};
 
 pub use pnpm_resolving_resolver_base::{LinkWorkspacePackages, SaveWorkspaceProtocol, TrustPolicy};
+pub use pnpm_workspace_state::RuntimeOnFail;
 
 use super::{Deserialize, Serialize};
 
@@ -215,33 +216,6 @@ pub enum InitType {
     #[default]
     Module,
     Commonjs,
-}
-
-/// What to do when a runtime declared through `devEngines.runtime` or
-/// `engines.runtime` does not match the current process.
-///
-/// The `runtimeOnFail` setting overrides the manifest-level `onFail` value.
-/// `download` reifies the runtime as a dependency; the other modes leave it
-/// as an engine constraint only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RuntimeOnFail {
-    Download,
-    Error,
-    Warn,
-    Ignore,
-}
-
-impl RuntimeOnFail {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Download => "download",
-            Self::Error => "error",
-            Self::Warn => "warn",
-            Self::Ignore => "ignore",
-        }
-    }
 }
 
 /// What `pnpm run` / `pnpm exec` do when `node_modules` is out of sync

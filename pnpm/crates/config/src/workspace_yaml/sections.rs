@@ -236,6 +236,7 @@ pub enum LockfileSetting {
 pub struct LockfileSettings {
     pub include_resolution_settings: Option<bool>,
     pub integrity_target: Option<pnpm_lockfile::IntegrityTarget>,
+    pub format: Option<pnpm_lockfile::LockfileFormat>,
 }
 
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration

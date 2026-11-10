@@ -863,6 +863,39 @@ fn runtime_on_fail_ignore_removes_the_synthesized_runtime_dependency() {
 }
 
 #[test]
+fn repeat_install_acts_on_a_runtime_on_fail_change() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let mirrors = format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url());
+    let workspace = prepare_workspace(&root, &format!("{mirrors}runtimeOnFail: ignore\n"));
+    write_devengines_manifest(&workspace, version, None);
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&workspace_manifest).unwrap();
+    fs::write(
+        &workspace_manifest,
+        settings.replace("runtimeOnFail: ignore", "runtimeOnFail: download"),
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains(format!("node@runtime:{version}").as_str()),
+        "lockfile was:\n{lockfile}",
+    );
+    assert!(workspace.join("node_modules/node/package.json").exists());
+}
+
+#[test]
 fn explicit_node_version_takes_priority_over_the_manifest_runtime() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");

@@ -279,24 +279,11 @@ fn resolved_config_views(
         set("registriesByPrefix", serde_json::to_value(&config.registries_by_prefix)?);
     }
 
-    // The raw auth keys, plus the registry rows resolved across every
-    // source, so `authConfig.registry` and `authConfig['@scope:registry']`
-    // answer the URL the install fetches from rather than whichever
-    // `.npmrc` line happened to name one. `pnpm config list` merges them
-    // the same way.
-    let mut auth_config: serde_json::Map<String, Value> = config.raw_auth_config
-        .iter()
-        .map(|(k, v)| (k.clone(), Value::String(v.clone())))
-        .collect();
-    for (scope, url) in &registries_by_scope {
-        let key =
-            if scope == "default" { "registry".to_string() } else { format!("{scope}:registry") };
-        auth_config.insert(key, Value::String(url.clone()));
-    }
-    set("authConfig", Value::Object(auth_config));
+    set("authConfig", resolved_auth_config(config, &registries_by_scope));
     set("configByUri", serde_json::to_value(&config.registry_creds_by_uri)?);
 
-    set("dir", Value::String(root_dir.to_string_lossy().into_owned()));
+    let dir = if config.dir.as_os_str().is_empty() { root_dir } else { &config.dir };
+    set("dir", Value::String(dir.to_string_lossy().into_owned()));
     set("workspaceDir", serde_json::to_value(&config.workspace_dir)?);
     set("configDir", serde_json::to_value(&config.config_dir)?);
     set("globalPkgDir", serde_json::to_value(&config.global_pkg_dir)?);
@@ -318,6 +305,23 @@ fn resolved_config_views(
     );
 
     Ok(views)
+}
+
+/// The raw auth keys, plus the registry rows resolved across every source,
+/// so `authConfig.registry` and `authConfig['@scope:registry']` answer the
+/// URL the install fetches from rather than whichever `.npmrc` line happened
+/// to name one. `pnpm config list` merges them the same way.
+fn resolved_auth_config(config: &Config, registries_by_scope: &BTreeMap<String, String>) -> Value {
+    let mut auth_config: serde_json::Map<String, Value> = config.raw_auth_config
+        .iter()
+        .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+        .collect();
+    for (scope, url) in registries_by_scope {
+        let key =
+            if scope == "default" { "registry".to_string() } else { format!("{scope}:registry") };
+        auth_config.insert(key, Value::String(url.clone()));
+    }
+    Value::Object(auth_config)
 }
 
 /// The keys whose value the hooks changed between the serialized input

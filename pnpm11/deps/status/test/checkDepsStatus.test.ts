@@ -402,6 +402,7 @@ describe('checkDepsStatus - settings change detection', () => {
     ['dangerouslyAllowAllBuilds', undefined, true],
     ['extendNodePath', false, undefined],
     ['runtime', false, undefined],
+    ['runtimeOnFail', 'ignore', 'download'],
     ['trustLockfile', true, undefined],
     ['virtualStoreDirMaxLength', 120, 10],
   ] as const)('returns upToDate: false when %s has changed', async (setting, recorded, current) => {

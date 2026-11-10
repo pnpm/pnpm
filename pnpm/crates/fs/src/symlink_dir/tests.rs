@@ -815,3 +815,19 @@ fn windows_other_link_failures_are_not_blamed_on_a_share() {
     );
     assert!(!error.to_string().contains("nodeLinker"), "a missing parent is not a refusal");
 }
+
+#[test]
+fn distinguishes_non_links_from_ownership_read_failures() {
+    assert!(super::is_non_link_read_error(&std::io::Error::from(std::io::ErrorKind::InvalidInput)));
+    assert!(!super::is_non_link_read_error(&std::io::Error::from(
+        std::io::ErrorKind::PermissionDenied,
+    )));
+}
+
+#[test]
+fn recognizes_the_windows_non_reparse_point_error_only_on_windows() {
+    assert_eq!(
+        super::is_non_link_read_error(&std::io::Error::from_raw_os_error(4390)),
+        cfg!(windows),
+    );
+}

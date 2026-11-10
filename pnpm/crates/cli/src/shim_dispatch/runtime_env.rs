@@ -155,7 +155,7 @@ pub(crate) async fn materialize_runtime(
     }
 
     let Some(_lock) = runtime_slot_lock(&environments_dir, &key) else {
-        return install_runtime_privately(config, &name, &version_spec).await;
+        return Box::pin(install_runtime_privately(config, &name, &version_spec)).await;
     };
     if let Some(bin) = managed_runtime_bin(&environment_dir, &name, &global_virtual_store_dir) {
         return Ok(MaterializedRuntime::shared(bin));

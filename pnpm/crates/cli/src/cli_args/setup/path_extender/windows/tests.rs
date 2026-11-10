@@ -6,7 +6,7 @@
 use super::{
     AddDirToEnvPathOpts, AddingPosition, EnvVariableChange, PathExtenderError,
     add_dir_to_windows_env_path_inner, first_number, get_env_value_from_registry,
-    run_capture_chcp_with, update_env_variable_with,
+    run_capture_mode_with, update_env_variable_with,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;
@@ -113,7 +113,10 @@ fn refuses_to_replace_a_different_value_and_names_the_current_one() {
 
 #[test]
 fn first_number_extracts_the_code_page() {
-    assert_eq!(first_number("Active code page: 437"), Some(437));
+    let mode_con_cp =
+        "\r\nStatus for device CON:\r\n----------------------\r\n    Code page:      437\r\n\r\n";
+    assert_eq!(first_number(mode_con_cp), Some(437));
+    assert_eq!(first_number("Active code page: 65001"), Some(65001));
     assert_eq!(first_number("no digits"), None);
 }
 
@@ -154,52 +157,53 @@ fn render_report_lists_changed_variables() {
 }
 
 #[test]
-fn chcp_prefers_chcp_com_when_available() {
+fn mode_prefers_mode_com_when_available() {
     let mut calls = Vec::new();
-    let res = run_capture_chcp_with(&["65001"], |prog, args| {
+    let res = run_capture_mode_with(&["con", "cp", "select=65001"], |prog, args| {
         calls.push((
             prog.to_string(),
             args.iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
         ));
-        Ok("Active code page: 65001\n".to_string())
+        Ok("Status for device CON:\n".to_string())
     });
     assert!(res.is_ok());
     assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].0, "chcp.com");
-    assert_eq!(calls[0].1, vec!["65001"]);
+    assert_eq!(calls[0].0, "mode.com");
+    assert_eq!(calls[0].1, vec!["con", "cp", "select=65001"]);
 }
 
 #[test]
-fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
+fn mode_falls_back_to_mode_when_mode_com_not_found() {
     let mut calls = Vec::new();
-    let res = run_capture_chcp_with(&["65001"], |prog, args| {
+    let res = run_capture_mode_with(&["con", "cp"], |prog, args| {
         calls.push((
             prog.to_string(),
             args.iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
         ));
-        if prog == "chcp.com" {
+        if prog == "mode.com" {
             Err(PathExtenderError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                "chcp.com not found",
+                "mode.com not found",
             )))
         } else {
-            Ok("Active code page: 65001\n".to_string())
+            Ok("Status for device CON:\n".to_string())
         }
     });
     assert!(res.is_ok());
     assert_eq!(calls.len(), 2);
-    assert_eq!(calls[0].0, "chcp.com");
-    assert_eq!(calls[1].0, "chcp");
+    assert_eq!(calls[0].0, "mode.com");
+    assert_eq!(calls[1].0, "mode");
+    assert_eq!(calls[1].1, vec!["con", "cp"]);
 }
 
 #[test]
-fn chcp_propagates_non_not_found_errors_without_fallback() {
+fn mode_propagates_non_not_found_errors_without_fallback() {
     let mut calls = Vec::new();
-    let res = run_capture_chcp_with(&["65001"], |prog, args| {
+    let res = run_capture_mode_with(&["con", "cp", "select=99999"], |prog, args| {
         calls.push((
             prog.to_string(),
             args.iter()
@@ -208,10 +212,10 @@ fn chcp_propagates_non_not_found_errors_without_fallback() {
         ));
         Err(PathExtenderError::CommandFailed {
             command: prog.to_string(),
-            stderr: "Access denied".to_string(),
+            message: "The code page specified is not valid.".to_string(),
         })
     });
     assert!(matches!(res, Err(PathExtenderError::CommandFailed { .. })));
     assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].0, "chcp.com");
+    assert_eq!(calls[0].0, "mode.com");
 }

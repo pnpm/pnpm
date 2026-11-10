@@ -8,27 +8,50 @@ use std::{
 
 /// The directories of a skipped package, resolved once so each candidate
 /// link is compared by its own resolved target, the way pnpm's `linksTo`
-/// compares `realpath`s. Resolving needs the directories to exist, so
-/// these are built before the package is removed.
+/// compares `realpath`s. A directory that does not exist, such as the
+/// package directory of a global virtual store slot whose build never
+/// placed its package, is resolved through its parent.
 pub(super) struct LinkTargets(Vec<PathBuf>);
 
 impl LinkTargets {
     pub(super) fn resolve(dirs: &[PathBuf]) -> Self {
         LinkTargets(
             dirs.iter()
-                .filter_map(|dir| std::fs::canonicalize(dir).ok())
+                .filter_map(|dir| resolve_location(dir))
                 .collect(),
         )
     }
 
     /// Whether `entry` is a symlink or junction resolving to one of the
     /// targets. `canonicalize` follows junctions as well as symlinks, which
-    /// `std::fs::read_link` does not. A link that resolves to nothing points
-    /// at none of them.
+    /// `std::fs::read_link` does not, so a link whose target exists is
+    /// resolved by it, and only a dangling one by its recorded target.
     fn is_linked_from(&self, entry: &Path) -> bool {
-        pnpm_fs::is_symlink_or_junction(entry).unwrap_or(false)
-            && std::fs::canonicalize(entry).is_ok_and(|resolved| self.0.contains(&resolved))
+        if !pnpm_fs::is_symlink_or_junction(entry).unwrap_or(false) {
+            return false;
+        }
+        let resolved = std::fs::canonicalize(entry)
+            .ok()
+            .or_else(|| {
+                let target = pnpm_fs::read_symlink_dir(entry).ok()?;
+                resolve_location(&entry.parent()?.join(target))
+            });
+        resolved.is_some_and(|resolved| self.0.contains(&resolved))
     }
+}
+
+/// `path` with every link resolved: the path itself when it exists,
+/// otherwise its resolved parent joined with its name.
+fn resolve_location(path: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path)
+        .ok()
+        .or_else(|| {
+            Some(
+                std::fs::canonicalize(path.parent()?)
+                    .ok()?
+                    .join(path.file_name()?),
+            )
+        })
 }
 
 /// A link that could not be removed, with the path it sits at.

@@ -90,7 +90,7 @@ fn engine_strict_unlinks_a_skipped_optional_patch_from_a_workspace_project() {
 }
 
 #[test]
-fn engine_strict_keeps_the_global_virtual_store_slot_of_a_skipped_optional_patch() {
+fn engine_strict_leaves_a_skipped_optional_patch_out_of_its_global_virtual_store_slot() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, store_dir, .. } = npmrc_info;
@@ -111,8 +111,18 @@ fn engine_strict_keeps_the_global_virtual_store_slot_of_a_skipped_optional_patch
         .map(|entry| entry.expect("read slot entry").path())
         .collect();
     assert_eq!(slots.len(), 1, "expected one slot under {}", version_dir.display());
-    let manifest = slots[0].join("node_modules/@pnpm.e2e/for-legacy-node/package.json");
-    assert!(manifest.exists(), "the shared slot must keep its package at {}", manifest.display());
+    let scope = slots[0].join("node_modules/@pnpm.e2e");
+    let entries: Vec<_> = fs::read_dir(&scope)
+        .map(|entries| {
+            entries
+                .map(|entry| entry.expect("read entry").file_name())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        entries.is_empty(),
+        "a package this install skipped must not reach its slot, nor leave its staging: {entries:?}",
+    );
 
     drop((root, mock_instance));
 }

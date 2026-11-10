@@ -160,6 +160,44 @@ fn stamps_the_configured_user_agent_on_install_scripts_run_and_exec() {
     drop((root, mock_instance));
 }
 
+/// An auth token in pnpm's own environment must not reach a lifecycle
+/// script, which is what `env_clear` on the script's command is for.
+/// A child pnpm carries the token because the test seeds it through
+/// `Command::env`: the unit test for the same stripping hands
+/// `run_lifecycle_hook` a `parent_env` map instead, so it says nothing
+/// about what the spawn inherits.
+#[test]
+fn an_inherited_auth_token_does_not_reach_a_lifecycle_script() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({
+        "name": "project-reading-an-auth-token",
+        "version": "1.0.0",
+        "scripts": {
+            "preinstall": r#"node -e "require('fs').writeFileSync('auth.txt',process.env.npm_config__authtoken||'<unset>')""#,
+        },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .with_env("npm_config__authtoken", "should-not-leak")
+        .assert()
+        .success();
+
+    let seen = fs::read_to_string(workspace.join("auth.txt")).expect("read auth.txt");
+    assert_eq!(seen, "<unset>", "the script saw an inherited auth token");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn runs_project_lifecycle_scripts_on_frozen_install() {
     let CommandTempCwd {

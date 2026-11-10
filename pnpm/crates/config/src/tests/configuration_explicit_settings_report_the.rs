@@ -61,10 +61,10 @@ pub fn explicit_settings_mirror_audit_level_from_the_audit_section() {
 /// fires even with no `.npmrc` present.
 #[test]
 pub fn proxy_env_fallback_applies_through_current() {
-    // Every proxy var the cascade might read is snapshotted, so peer tests
-    // cannot observe these mutations and the env restores cleanly, and then
-    // cleared, so a host-set value cannot leak in and skew the assertion.
-    const PROXY_VARS: [&str; 12] = [
+    // Every proxy var the cascade might read is cleared, so a host-set
+    // value cannot leak in and skew the assertion, and restored on drop
+    // so peer tests cannot observe the mutation.
+    let guard = EnvGuard::scrubbed([
         "HTTPS_PROXY",
         "https_proxy",
         "HTTP_PROXY",
@@ -77,10 +77,8 @@ pub fn proxy_env_fallback_applies_through_current() {
         "pnpm_config_workspace_dir",
         "NPM_CONFIG_WORKSPACE_DIR",
         "npm_config_workspace_dir",
-    ];
-    let guard = EnvGuard::snapshot(PROXY_VARS);
+    ]);
     let tmp = tempdir().unwrap();
-    guard.remove_all(PROXY_VARS);
     guard.set("HTTPS_PROXY", "http://env.example:8080");
     let config =
         Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");

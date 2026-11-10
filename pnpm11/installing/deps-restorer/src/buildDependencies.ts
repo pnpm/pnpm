@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { buildModules } from '@pnpm/building.during-install'
+import { buildModules, buildsDependenciesDuringInstall } from '@pnpm/building.during-install'
 import { isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { makeNodeRequireOption } from '@pnpm/exec.lifecycle'
@@ -30,7 +30,7 @@ export async function buildDependencies (
   ignoredBuilds?: IgnoredBuilds
 }> {
   const { opts } = ctx
-  const buildsOrPatchesApply = !opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0
+  const buildsOrPatchesApply = buildsDependenciesDuringInstall(opts) || Object.keys(opts.patchedDependencies ?? {}).length > 0
   if (!buildsOrPatchesApply || opts.enableModulesDir === false) return {}
   const directNodes = collectDirectNodes(depGraph)
   const extraBinPaths = [...opts.extraBinPaths ?? []]
@@ -145,7 +145,7 @@ async function runBuildModules (
     extraNodePaths: opts.extraNodePaths,
     extraEnv,
     depsStateCache: ctx.depsStateCache,
-    ignoreScripts: opts.ignoreScripts,
+    ignoreScripts: !buildsDependenciesDuringInstall(opts),
     hoistedDependencies: hoistedDependencies ?? opts.hoistedDependencies,
     hoistedLocations: depGraph.hoistedLocations,
     hoistedModulesDir: ctx.hoistedModulesDir,

@@ -51,6 +51,11 @@ impl SingleThreaded {
     /// Set `name` to `value` in the process environment, where every later
     /// read of it sees the new value, this process's children included.
     pub fn set_var(&self, name: &str, value: &str) {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the one place the workspace writes the environment, which is what the \
+                      witness this takes is for"
+        )]
         // SAFETY: the race `setenv` has is a concurrent read from another
         // thread. One witness exists and it is not `Sync`, so the thread
         // running this is the only one holding it, and every thread the
@@ -58,7 +63,9 @@ impl SingleThreaded {
         // thread waits in `join`, where it reads no environment, which
         // leaves this the only thread able to run. That nothing unscoped
         // was spawned first is the obligation `SingleThreaded` documents.
-        unsafe { std::env::set_var(name, value) };
+        unsafe {
+            std::env::set_var(name, value);
+        }
     }
 }
 

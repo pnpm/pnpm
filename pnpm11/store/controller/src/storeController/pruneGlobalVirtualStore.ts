@@ -1,8 +1,9 @@
 import crypto from 'node:crypto'
-import { type Dirent, promises as fs } from 'node:fs'
+import { type Dirent, promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
-import { isError } from '@pnpm/error'
+import { isStagingDirName } from '@pnpm/deps.graph-hasher'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
@@ -10,13 +11,18 @@ import { isSubdir } from 'is-subdir'
 import { getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'
+// An install may still be building in a staging directory, or wait long for
+// the build of the package staged there, so leftovers of crashed installs are
+// left for a day.
+const ABANDONED_STAGING_DIR_AGE_MS = 24 * 60 * 60 * 1000
 
 /**
  * Prune unused packages from the global virtual store using mark-and-sweep:
  * 1. Get all registered projects
  * 2. Find all node_modules directories in each project (including workspace packages)
  * 3. Walk symlinks from each node_modules and from each of `modulesDirs` to mark reachable packages
- * 4. Remove any package directories that weren't marked as reachable
+ * 4. Remove any package directories that weren't marked as reachable, and the
+ *    abandoned staging directories of the reachable ones
  */
 export async function pruneGlobalVirtualStore (storeDir: string, modulesDirs: string[] = []): Promise<void> {
   const linksDir = path.join(storeDir, LINKS_DIR)
@@ -133,11 +139,7 @@ async function processDirEntry (
 ): Promise<void> {
   const entryPath = path.join(dir, entry.name)
   if (entry.isSymbolicLink()) {
-    try {
-      await markSymlinkTargetReachable({ dir, entryPath, linksDir, reachable, visited })
-    } catch {
-      // Ignore broken symlinks
-    }
+    await markSymlinkTargetReachable({ dir, entryPath, linksDir, reachable, visited })
   } else if (entry.isDirectory() && entry.name !== '.pnpm') {
     await walkSymlinksToStore(entryPath, linksDir, reachable, visited)
   }
@@ -152,7 +154,14 @@ interface MarkSymlinkTargetReachableOptions {
 }
 
 async function markSymlinkTargetReachable ({ dir, entryPath, linksDir, reachable, visited }: MarkSymlinkTargetReachableOptions): Promise<void> {
-  const target = await fs.readlink(entryPath)
+  let target: string
+  try {
+    target = await fs.readlink(entryPath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EINVAL')) return
+    const message = isError(err) ? err.message : String(err)
+    throw new PnpmError('STORE_DIR_PRUNE_READ_MARK_LINK', `Failed to read project link during mark phase ${JSON.stringify(entryPath)}: ${message}`, { cause: err })
+  }
   const absoluteTarget = path.isAbsolute(target)
     ? target
     : path.resolve(dir, target)
@@ -262,6 +271,8 @@ async function removeUnreachableVersions (
             await rimraf(path.join(versionDir, hash))
             removedHashes++
             count++
+          } else {
+            await removeAbandonedStagingDirs(path.join(versionDir, hash), pkgPath)
           }
         })
       )
@@ -277,6 +288,53 @@ async function removeUnreachableVersions (
     count,
     allRemoved: removedVersions === versions.length && versions.length > 0,
   }
+}
+
+/**
+ * Removes the staging directories beside a slot's package directory that no
+ * install has written to for {@link ABANDONED_STAGING_DIR_AGE_MS}. The package
+ * directory is `node_modules/<name>` in the slot for an unscoped package (store
+ * scope `@`) and `node_modules/<scope>/<name>` for a scoped one.
+ */
+async function removeAbandonedStagingDirs (slotDir: string, pkgPath: string): Promise<void> {
+  const [scope] = pkgPath.split(path.sep)
+  const parentDir = scope === '@'
+    ? path.join(slotDir, 'node_modules')
+    : path.join(slotDir, 'node_modules', scope)
+  const entries = await readDirEntriesSafely(parentDir)
+  if (!entries) return
+  const abandonedBefore = Date.now() - ABANDONED_STAGING_DIR_AGE_MS
+  await Promise.all(entries
+    .filter((entry) => entry.isDirectory() && isStagingDirName(entry.name))
+    .map(async (entry) => {
+      const stagingDir = path.join(parentDir, entry.name)
+      const changed = await changedSince(stagingDir, abandonedBefore)
+      if (changed === false) await rimraf(stagingDir)
+    }))
+}
+
+/**
+ * Whether anything in the tree at `entryPath` changed after `cutoffMs`. A
+ * build writes deep into its staging directory without touching the directory
+ * itself, so every entry counts. Links are not followed. `undefined` when the
+ * entry is gone, as when an install renamed its staging directory into place.
+ */
+async function changedSince (entryPath: string, cutoffMs: number): Promise<boolean | undefined> {
+  let stats: Stats
+  try {
+    stats = await fs.lstat(entryPath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  }
+  if (stats.mtimeMs > cutoffMs) return true
+  if (!stats.isDirectory()) return false
+  const entries = await readDirEntriesSafely(entryPath)
+  for (const entry of entries ?? []) {
+    // eslint-disable-next-line no-await-in-loop -- stops at the first entry that changed
+    if (await changedSince(path.join(entryPath, entry.name), cutoffMs) !== false) return true
+  }
+  return false
 }
 
 async function pathExists (checkedPath: string): Promise<boolean> {

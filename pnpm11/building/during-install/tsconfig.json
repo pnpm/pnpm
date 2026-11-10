@@ -43,7 +43,7 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fs/dir-lock"
+      "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../fs/hard-link-dir"

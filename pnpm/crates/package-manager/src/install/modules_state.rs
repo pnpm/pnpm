@@ -2,13 +2,10 @@ pub(crate) use integrity::{
     frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
 };
 
-pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
 pub(super) use merge_metadata::{
     current_contains_ignored_build, merge_filtered_modules_metadata, merge_pending_builds,
 };
 pub(super) use settings_diff::{refuse_drifted_modules_dir, same_path};
-
-mod build_markers;
 
 mod merge_metadata;
 

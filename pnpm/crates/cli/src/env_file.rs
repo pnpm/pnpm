@@ -18,14 +18,12 @@
 //! key. A missing file fails the command loudly rather than running with a
 //! partial environment.
 //!
-//! The load runs on the main thread before the startup thread exists,
-//! which is where the environment may still change (see
-//! [`load_from_argv`]). `--env-file` is this binary's own option:
-//! [`strip_flags`] removes its tokens from the argv a dispatched pnpm
-//! receives (an older pnpm would reject the unknown flag), and the loaded
-//! variables travel by environment inheritance instead. Tokens past the
-//! passthrough point are left alone (see `crate::parse_boundary`). Those are
-//! the script arguments after `--`, or after a `run`/`exec` script name.
+//! `--env-file` is this binary's own option: [`strip_flags`] removes its
+//! tokens from the argv a dispatched pnpm receives (an older pnpm would
+//! reject the unknown flag), and the loaded variables travel by
+//! environment inheritance instead. Tokens past the passthrough point —
+//! script arguments after `--`, or after a `run`/`exec` script name — are
+//! left alone (see `crate::parse_boundary`).
 
 mod parse;
 

@@ -18,9 +18,11 @@ export interface ProjectSelector {
   useGlobDirFiltering?: boolean
 }
 
+const SELECTOR_REGEX = /^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/
+
 export function parseProjectSelector (rawSelector: string, prefix: string): ProjectSelector {
   const { exclude, excludeSelf, includeDependencies, includeDependents, selector } = parseSelectorModifiers(rawSelector)
-  const matches = selector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
+  const matches = selector.match(SELECTOR_REGEX)
   if (matches === null) {
     if (isSelectorByLocation(selector)) {
       return {
@@ -46,35 +48,75 @@ export function parseProjectSelector (rawSelector: string, prefix: string): Proj
   }
 }
 
+export function rebaseProjectSelector (rawSelector: string, fromPrefix: string, toPrefix: string): string {
+  if (path.resolve(fromPrefix) === path.resolve(toPrefix)) {
+    return rawSelector
+  }
+  const { leading, selector, trailing } = parseSelectorModifiers(rawSelector)
+  const matches = selector.match(SELECTOR_REGEX)
+  if (matches === null) {
+    if (isSelectorByLocation(selector)) {
+      const rebased = rebaseDir(selector, fromPrefix, toPrefix)
+      const location = isSelectorByLocation(rebased) ? rebased : `./${rebased}`
+      return `${leading}${location}${trailing}`
+    }
+    return rawSelector
+  }
+  if (!matches[2]) {
+    return rawSelector
+  }
+  const rebased = rebaseDir(matches[2].slice(1, -1), fromPrefix, toPrefix)
+  return `${leading}${matches[1] ?? ''}{${rebased}}${matches[3] ?? ''}${trailing}`
+}
+
+function rebaseDir (rawDir: string, fromPrefix: string, toPrefix: string): string {
+  const target = path.join(fromPrefix, rawDir)
+  return path.relative(toPrefix, target).replace(/\\/g, '/') || '.'
+}
+
 interface SelectorModifiers {
   exclude: boolean
   excludeSelf: boolean
   includeDependencies: boolean
   includeDependents: boolean
+  leading: string
   selector: string
+  trailing: string
 }
 
 function parseSelectorModifiers (rawSelector: string): SelectorModifiers {
+  let start = 0
+  let end = rawSelector.length
   const exclude = rawSelector[0] === '!'
-  let selector = exclude ? rawSelector.substring(1) : rawSelector
+  if (exclude) {
+    start += 1
+  }
   let excludeSelf = false
-  const includeDependencies = selector.endsWith('...')
+  const includeDependencies = rawSelector.slice(start, end).endsWith('...')
   if (includeDependencies) {
-    selector = selector.slice(0, -3)
-    if (selector.endsWith('^')) {
+    end -= 3
+    if (rawSelector.slice(start, end).endsWith('^')) {
       excludeSelf = true
-      selector = selector.slice(0, -1)
+      end -= 1
     }
   }
-  const includeDependents = selector.startsWith('...')
+  const includeDependents = rawSelector.slice(start, end).startsWith('...')
   if (includeDependents) {
-    selector = selector.substring(3)
-    if (selector[0] === '^') {
+    start += 3
+    if (rawSelector.slice(start, end)[0] === '^') {
       excludeSelf = true
-      selector = selector.slice(1)
+      start += 1
     }
   }
-  return { exclude, excludeSelf, includeDependencies, includeDependents, selector }
+  return {
+    exclude,
+    excludeSelf,
+    includeDependencies,
+    includeDependents,
+    leading: rawSelector.slice(0, start),
+    selector: rawSelector.slice(start, end),
+    trailing: rawSelector.slice(end),
+  }
 }
 
 function isSelectorByLocation (rawSelector: string): boolean {

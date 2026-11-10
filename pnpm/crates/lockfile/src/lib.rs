@@ -12,6 +12,7 @@ pub use lazy_lockfile::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;
 pub use merge_lockfile_changes::*;
+pub use next_format::*;
 pub use package_metadata::*;
 pub use patched_dep_paths::*;
 pub use peer_bindings::*;
@@ -41,13 +42,17 @@ mod filter_by_importers;
 mod freshness;
 mod git_branch_lockfile;
 mod git_merge_file;
+mod implied_version;
 mod injected_deps;
 mod integrity_target;
+mod json_document;
 mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;
 mod merge_lockfile_changes;
+mod next_format;
 mod package_metadata;
+mod parallel_parse;
 mod patched_dep_paths;
 mod peer_bindings;
 mod peer_edges;
@@ -157,9 +162,20 @@ impl Lockfile {
 /// were read. See [`Lockfile::extra`].
 pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 
-/// A pnpm lockfile using a supported wire format.
+/// A pnpm lockfile, with peer-suffixed keys.
+pub type Lockfile = LockfileDocument;
+
+/// A lockfile document. `Importer`, `Snapshot` and `Settings` are the shapes
+/// of the parts the formats differ in. [`Lockfile`] holds the peer-suffixed ones,
+/// and [`NextLockfile`] those of [the next format](crate::NEXT_LOCKFILE_MAJOR).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(bound(
+    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync, Package: Serialize + Sync, \
+                 Settings: Serialize",
+    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>, Package: Deserialize<'de>, \
+                   Settings: Deserialize<'de>",
+))]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -167,11 +183,16 @@ pub type LockfileExtra = IndexMap<String, serde_json::Value>;
         reason = "The fields mirror the pnpm-lock.yaml format."
     )
 )]
-pub struct Lockfile {
+pub struct LockfileDocument<
+    Importer = ProjectSnapshot,
+    Snapshot = SnapshotEntry,
+    Package = PackageMetadata,
+    Settings = LockfileSettings,
+> {
     pub lockfile_version: LockfileVersion<9>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<LockfileSettings>,
+    pub settings: Option<Settings>,
 
     /// `catalogs:` snapshot — the resolved specifier + version for every
     /// catalog-referenced direct dependency. Sits between `settings` and
@@ -235,19 +256,21 @@ pub struct Lockfile {
         skip_serializing_if = "HashMap::is_empty",
         serialize_with = "crate::serialize_yaml::sorted_map"
     )]
-    pub importers: HashMap<String, ProjectSnapshot>,
+    /// `importers` in today's format and `projects` in the next.
+    #[serde(alias = "projects")]
+    pub importers: HashMap<String, Importer>,
 
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub packages: Option<HashMap<PackageKey, PackageMetadata>>,
+    pub packages: Option<HashMap<PackageKey, Package>>,
 
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
+    pub snapshots: Option<HashMap<PackageKey, Snapshot>>,
 
     /// `time:` — the publish date of every direct dependency, recorded
     /// by a `resolutionMode: time-based` install. It is the fallback
@@ -451,7 +474,7 @@ impl Lockfile {
 /// hash — the path is redundant, since patch paths come from the
 /// project's `patchedDependencies` config — so a lockfile committed by
 /// pnpm 10 installs unchanged and normalizes the next time it is saved.
-fn deserialize_patched_dependencies<'de, Deser>(
+pub(crate) fn deserialize_patched_dependencies<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<BTreeMap<String, String>>, Deser::Error>
 where

@@ -22,6 +22,7 @@ const RUN_IGNORED_SETTINGS: &[&str] = &[
     "production",
     "registryPrefixes",
     "runtime",
+    "runtimeOnFail",
     "storeDir",
     "virtualStoreDir",
     "virtualStoreDirMaxLength",

@@ -41,7 +41,7 @@ function createExecaError ({ stderr }: { stderr: string}) {
 test('win32 registry environment values could not be retrieved', async () => {
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -54,7 +54,7 @@ test('win32 registry environment values could not be retrieved', async () => {
 test('environment Path is not configured correctly', async () => {
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: 'SOME KIND OF ERROR OR UNSUPPORTED RESPONSE FORMAT',
@@ -73,7 +73,7 @@ test('environment Path is not configured correctly', async () => {
 test('environment Path is empty', async () => {
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -100,7 +100,7 @@ test('successful first time installation', async () => {
 
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -142,14 +142,14 @@ HKEY_CURRENT_USER\\Environment
       newValue: `%PNPM_HOME%;${currentPathInRegistry}`,
     },
   ])
-  expect(execaMock).toHaveBeenNthCalledWith(1, 'chcp', [], { windowsHide: false })
-  expect(execaMock).toHaveBeenNthCalledWith(2, 'chcp', ['65001'], { windowsHide: false })
+  expect(execaMock).toHaveBeenNthCalledWith(1, 'mode', ['con', 'cp'], { windowsHide: false })
+  expect(execaMock).toHaveBeenNthCalledWith(2, 'mode', ['con', 'cp', 'select=65001'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(6, 'setx', ['REFRESH_ENV_VARS', '1'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(7, 'reg', ['delete', regKey, '/v', 'REFRESH_ENV_VARS', '/f'], { windowsHide: false })
-  expect(execaMock).toHaveBeenNthCalledWith(8, 'chcp', ['936'], { windowsHide: false })
+  expect(execaMock).toHaveBeenNthCalledWith(8, 'mode', ['con', 'cp', 'select=936'], { windowsHide: false })
 })
 
 test('successful first time installation with proxyVarSubDir', async () => {
@@ -157,7 +157,7 @@ test('successful first time installation with proxyVarSubDir', async () => {
 
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -207,7 +207,7 @@ test('successful first time installation when no additional env variable is used
 
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -254,7 +254,7 @@ test('adding the directory to the end of Path', async () => {
 
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -302,7 +302,7 @@ test('PNPM_HOME is already set, but Path is updated', async () => {
   const pnpmHomeDirNormalized = path.normalize(pnpmHomeDir)
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -353,7 +353,7 @@ test('PNPM_HOME with the correct registry type is left unchanged', async () => {
   const currentPathInRegistry = '%PNPM_HOME%;C:\\Windows'
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: 'Active code page: 437',
+    stdout: '\r\nStatus for device CON:\r\n----------------------\r\n    Code page:      437\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -393,7 +393,7 @@ test('PNPM_HOME with the correct registry type is left unchanged', async () => {
 test('setup throws an error if PNPM_HOME is already set to a different directory', async () => {
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -419,7 +419,7 @@ test('setup overwrites PNPM_HOME, when setup is forced', async () => {
   execaMock.mockReset()
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',
@@ -478,7 +478,7 @@ test('failure to install', async () => {
 
   execaMock.mockResolvedValueOnce({
     failed: false,
-    stdout: '活动代码页: 936',
+    stdout: '\r\n设备 CON 的状态:\r\n----------------------\r\n    代码页:         936\r\n\r\n',
   }).mockResolvedValueOnce({
     failed: false,
     stdout: '',

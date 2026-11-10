@@ -48,6 +48,7 @@ fn walk_all_files_recurses_and_returns_relative_paths() {
     touch(root, "package.json");
     touch(root, "index.js");
     touch(root, ".pnpm-lock.yaml.123.0.tmp");
+    touch(root, ".pnpm-lock.yaml.123.5f0e2c1a-7a3b-4c8d-9e0f-1a2b3c4d5e6f.tmp");
     touch(root, "lib/inner.js");
     touch(root, "lib/nested/deep.js");
 
@@ -305,6 +306,7 @@ fn walk_package_files_skips_lockfile_staging_files() {
     fs::write(root.join("package.json"), "{}").unwrap();
     touch(root, "index.js");
     touch(root, ".pnpm-lock.yaml.123.0.tmp");
+    touch(root, ".pnpm-lock.yaml.123.5f0e2c1a-7a3b-4c8d-9e0f-1a2b3c4d5e6f.tmp");
 
     let out = walk_package_files(root).unwrap();
     let mut rels: Vec<_> = out.keys().cloned().collect();

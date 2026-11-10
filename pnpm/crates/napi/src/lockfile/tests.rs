@@ -3,7 +3,10 @@ use std::path::Path;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-use super::{FilterLockfileOptions, LockfileKind, filter_lockfile_by_importers, lockfile_path};
+use super::{
+    FilterLockfileOptions, LockfileKind, ReadLockfileOptions, WriteLockfileOptions,
+    filter_lockfile_by_importers, lockfile_path, read_lockfile, write_lockfile,
+};
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'
 
@@ -166,4 +169,42 @@ fn filtering_rejects_a_value_that_is_not_a_lockfile() {
         .expect_err("not a lockfile");
 
     assert!(error.reason.contains("is not a lockfile"), "{}", error.reason);
+}
+
+/// The current lockfile records the wanted lockfile's version but keeps
+/// today's peer-suffixed shape, whatever that version names.
+#[tokio::test]
+async fn the_current_lockfile_keeps_its_shape_whatever_version_it_records() {
+    let dir = tempfile::tempdir().expect("create a temporary directory");
+    let state_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&state_dir).expect("create the install state directory");
+    let recorded = LOCKFILE.replacen("'9.0'", "'13.0'", 1);
+    std::fs::write(state_dir.join("lock.yaml"), &recorded).expect("write the current lockfile");
+    let dir = dir
+        .path()
+        .to_string_lossy()
+        .into_owned();
+
+    let read = read_lockfile(ReadLockfileOptions {
+        dir: dir.clone(),
+        kind: Some("current".to_string()),
+        modules_dir: None,
+    })
+    .await
+    .expect("read the current lockfile")
+    .expect("the current lockfile has content");
+    assert_eq!(read["lockfileVersion"], json!("13.0"));
+    assert_eq!(read["importers"]["."]["dependencies"]["is-odd"]["version"], json!("3.0.1"));
+
+    write_lockfile(WriteLockfileOptions {
+        dir,
+        lockfile: read,
+        kind: Some("current".to_string()),
+        modules_dir: None,
+    })
+    .await
+    .expect("write the current lockfile");
+    let written = std::fs::read_to_string(state_dir.join("lock.yaml")).expect("read it back");
+    assert!(written.starts_with("lockfileVersion: '13.0'\n"), "{written}");
+    assert!(written.contains("\nsnapshots:\n\n  is-number@6.0.0: {}\n"), "{written}");
 }

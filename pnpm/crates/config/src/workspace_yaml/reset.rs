@@ -56,6 +56,7 @@ fn derive_lockfile(config: &mut Config) {
 fn reset_lockfile(config: &mut Config, defaults: &Config) {
     config.lockfile_include_resolution_settings = defaults.lockfile_include_resolution_settings;
     config.lockfile_integrity_target = defaults.lockfile_integrity_target;
+    config.lockfile_format = defaults.lockfile_format;
     derive_lockfile(config);
 }
 

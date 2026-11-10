@@ -108,6 +108,7 @@ mod local_directory_without_manifest;
 mod local_override_metadata_cache;
 mod local_tarball_dependency;
 mod lockfile_dir;
+mod lockfile_format_v13;
 mod lockfile_integrity_target;
 mod lockfile_only;
 mod lockfile_resolution_reuse;

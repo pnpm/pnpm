@@ -95,7 +95,7 @@ impl<'a> CreateVirtualStore<'a> {
                 cold: &partition.cold,
                 installer: self.cold_installer(&inputs, &variant_platforms),
                 reuse: self.slot_reuse(inputs.wanted.packages),
-                marker_source: inputs.marker_source,
+                slot_builds: inputs.slot_builds,
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
                 link_template: &inputs.links.template,
                 shared_packages: inputs.links.shared_packages.as_ref(),

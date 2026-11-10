@@ -100,12 +100,12 @@ function withUtf8Codepage (cmd: string): string {
   const header = '@SETLOCAL\r\n'
   return `${header}\
 @SET "_PNPM_CODEPAGE="\r
-@FOR /F "tokens=2 delims=:" %%a IN ('"%SystemRoot%\\System32\\chcp.com"') DO @SET "_PNPM_CODEPAGE=%%a"\r
-@"%SystemRoot%\\System32\\chcp.com" 65001 >NUL\r
+@FOR /F "tokens=2 delims=:" %%a IN ('"%SystemRoot%\\System32\\mode.com" con cp') DO @SET "_PNPM_CODEPAGE=%%a"\r
+@"%SystemRoot%\\System32\\mode.com" con cp select=65001 >NUL\r
 @SET "ERRORLEVEL="\r
 ${cmd.slice(header.length)}\
 @SET "_PNPM_EXIT_CODE=%ERRORLEVEL%"\r
-@IF DEFINED _PNPM_CODEPAGE @"%SystemRoot%\\System32\\chcp.com" %_PNPM_CODEPAGE% >NUL\r
+@IF DEFINED _PNPM_CODEPAGE @"%SystemRoot%\\System32\\mode.com" con cp select=%_PNPM_CODEPAGE: =% >NUL\r
 @EXIT /B %_PNPM_EXIT_CODE%\r
 `
 }

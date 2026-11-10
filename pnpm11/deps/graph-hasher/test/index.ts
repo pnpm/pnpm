@@ -1,6 +1,13 @@
 import { describe, expect, test } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, calcDepStateInputKey, calcGraphNodeHash, computeBuildRequiredDepPaths, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
+import {
+  buildsDependenciesDuringInstall,
+  calcDepState,
+  calcDepStateInputKey,
+  calcGraphNodeHash,
+  computeBuildRequiredDepPaths,
+  readSnapshotRuntimePin,
+} from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
@@ -182,10 +189,24 @@ describe('calcGraphNodeHash', () => {
     expect(hash).toBe(`@/foo/1.0.0/${expectedDigest}`)
   })
 
-  test('includes ENGINE_NAME for packages that require a build', () => {
+  test('includes ENGINE_NAME and built for packages that require a build', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
+      { depPath: 'native@1.0.0' as DepPath, name: 'native', version: '1.0.0' }
+    )
+    const depsHash = hashObject({ id: 'native@1.0.0:002', deps: {} })
+    const expectedDigest = hashObjectWithoutSorting(
+      { engine: ENGINE_NAME, deps: depsHash, built: true },
+      { encoding: 'hex' }
+    )
+    expect(hash).toBe(`@/native/1.0.0/${expectedDigest}`)
+  })
+
+  test('includes ENGINE_NAME but not built for packages that require a build when the install runs no builds', () => {
+    const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
+    const hash = calcGraphNodeHash(
+      { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths), buildsRun: false },
       { depPath: 'native@1.0.0' as DepPath, name: 'native', version: '1.0.0' }
     )
     const depsHash = hashObject({ id: 'native@1.0.0:002', deps: {} })
@@ -196,7 +217,7 @@ describe('calcGraphNodeHash', () => {
     expect(hash).toBe(`@/native/1.0.0/${expectedDigest}`)
   })
 
-  test('includes ENGINE_NAME for packages that transitively depend on a built package', () => {
+  test('includes ENGINE_NAME and built for packages that transitively depend on a built package', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
@@ -209,7 +230,7 @@ describe('calcGraphNodeHash', () => {
       },
     })
     const expectedDigest = hashObjectWithoutSorting(
-      { engine: ENGINE_NAME, deps: depsHash },
+      { engine: ENGINE_NAME, deps: depsHash, built: true },
       { encoding: 'hex' }
     )
     expect(hash).toBe(`@/depends-on-native/1.0.0/${expectedDigest}`)
@@ -233,4 +254,12 @@ describe('calcGraphNodeHash', () => {
     )
     expect(hash).toBe(`@/foo/1.0.0/${expectedDigest}`)
   })
+})
+
+test('buildsDependenciesDuringInstall()', () => {
+  expect(buildsDependenciesDuringInstall({})).toBe(true)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true })).toBe(false)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true, enableGlobalVirtualStore: true })).toBe(false)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true, deferDependencyBuilds: true })).toBe(false)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true, deferDependencyBuilds: true, enableGlobalVirtualStore: true })).toBe(true)
 })

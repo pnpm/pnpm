@@ -12,6 +12,7 @@ import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { ConfigDependencies } from '@pnpm/types'
+import { rebaseProjectSelector } from '@pnpm/workspace.projects-filter'
 import camelcase from 'camelcase'
 import { equals } from 'ramda'
 
@@ -175,17 +176,37 @@ async function applyUpdateConfigHooks (config: Config, context: ConfigContext): 
     registry: config.registry,
     registriesByScope: { ...config.registriesByScope },
   }
+  const filtersBeforeHooks = {
+    filter: cloneCliSetting(config.filter),
+    filterProd: cloneCliSetting(config.filterProd),
+  }
   const cliSettings = pickCliSettings(config, context.cliOptions)
   for (const updateConfig of context.hooks?.updateConfig ?? []) {
     const updateConfigResult = updateConfig(config)
     config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
   }
   applyRegistryRoutingChanges(config, routingBeforeHooks)
+  rebaseHookFilters(config, context, filtersBeforeHooks)
   restoreCliSettings(config, cliSettings)
   if (DERIVED_CONFIG_INPUTS.some((setting) => cliSettings.settings.has(setting))) {
     applyDerivedConfig(config)
   }
   return config
+}
+
+function rebaseHookFilters (
+  config: Config,
+  context: ConfigContext,
+  beforeHooks: { filter: string[] | undefined, filterProd: string[] | undefined }
+): void {
+  const baseDir = config.workspaceDir ?? config.lockfileDir ?? context.rootProjectManifestDir ?? config.dir
+  if (!baseDir || !config.dir) return
+  if (!equals(config.filter, beforeHooks.filter) && Array.isArray(config.filter)) {
+    config.filter = config.filter.map((selector) => rebaseProjectSelector(selector, baseDir, config.dir))
+  }
+  if (!equals(config.filterProd, beforeHooks.filterProd) && Array.isArray(config.filterProd)) {
+    config.filterProd = config.filterProd.map((selector) => rebaseProjectSelector(selector, baseDir, config.dir))
+  }
 }
 
 /**

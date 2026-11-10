@@ -71,6 +71,7 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
       depGraph: depGraph.graph,
       depsStateCache: ctx.depsStateCache,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      enableModulesDir: opts.enableModulesDir,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       nodeVersion: ctx.rootRuntimeNodeVersion,
@@ -78,7 +79,6 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
       remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
       configByUri: opts.configByUri,
-      storeDir: opts.storeDir,
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])

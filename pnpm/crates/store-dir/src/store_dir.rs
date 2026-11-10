@@ -166,6 +166,11 @@ impl StoreDir {
         self.root.join("links")
     }
 
+    /// Disposable materialized packages used for directory-clone imports.
+    pub fn dir_clone_cache(&self) -> PathBuf {
+        self.root.join("dir-clone-cache")
+    }
+
     /// Path to the per-store projects registry — a flat directory of
     /// symlinks (`<store>/projects/<short-hash>` → project dir) the
     /// global-virtual-store prune sweep walks when deciding which

@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { checkPackage } from '@pnpm/config.package-is-installable'
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { installingConfigDepsLogger, skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -11,17 +10,19 @@ import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { StoreController } from '@pnpm/store.controller'
-import type { ConfigDependencies, RegistriesByScope } from '@pnpm/types'
+import type { ConfigDependencies, RegistriesByScope, RegistryContext } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { symlinkDir } from 'symlink-dir'
 
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep, NormalizedSubdep } from './parseIntegrity.js'
+import { type ConfigDepRegistryOpts, pickTarballUrlOptions } from './pickTarballUrlOptions.js'
 import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 export interface InstallConfigDepsOpts {
   frozenLockfile?: boolean
   registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: RegistryContext['registryOptionsByUrl']
   rootDir: string
   store: StoreController
   storeDir: string
@@ -70,9 +71,9 @@ export async function installConfigDeps (
  */
 export async function areConfigDepsInstalled (
   envLockfile: EnvLockfile,
-  opts: Pick<InstallConfigDepsOpts, 'registriesByScope' | 'rootDir' | 'storeDir'>
+  opts: Pick<InstallConfigDepsOpts, 'registriesByScope' | 'registryOptionsByUrl' | 'rootDir' | 'storeDir'>
 ): Promise<boolean> {
-  const normalizedDeps = normalizeFromLockfile(envLockfile, opts.registriesByScope)
+  const normalizedDeps = normalizeFromLockfile(envLockfile, opts)
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
   const installed = await Promise.all(Object.entries(normalizedDeps).map(async ([pkgName, pkg]) => {
@@ -198,13 +199,13 @@ async function normalizeForInstall (
 ): Promise<Record<string, NormalizedConfigDep>> {
   if (isEnvLockfile(configDepsOrLockfile)) {
     verifyEnvLockfile(configDepsOrLockfile)
-    return normalizeFromLockfile(configDepsOrLockfile, opts.registriesByScope)
+    return normalizeFromLockfile(configDepsOrLockfile, opts)
   }
 
   const envLockfile = await readEnvLockfile(opts.rootDir)
   if (envLockfile) {
     verifyEnvLockfile(envLockfile)
-    return normalizeFromLockfile(envLockfile, opts.registriesByScope)
+    return normalizeFromLockfile(envLockfile, opts)
   }
 
   // No env lockfile yet — migrate from old inline integrity format
@@ -229,7 +230,7 @@ function isEnvLockfile (obj: ConfigDependencies | EnvLockfile): obj is EnvLockfi
 
 function normalizeFromLockfile (
   lockfile: EnvLockfile,
-  registriesByScope: RegistriesByScope
+  registryOpts: ConfigDepRegistryOpts
 ): Record<string, NormalizedConfigDep> {
   const deps: Record<string, NormalizedConfigDep> = {}
   const configDeps = lockfile.importers['.']?.configDependencies ?? {}
@@ -250,16 +251,15 @@ function normalizeFromLockfile (
         `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
       )
     }
-    const registry = pickRegistryForPackage(registriesByScope, pkgName)
     const snapshot = lockfile.snapshots[pkgKey]
     const optionalSubdeps = snapshot?.optionalDependencies
-      ? readOptionalSubdepsFromLockfile(pkgName, snapshot.optionalDependencies, lockfile, registriesByScope)
+      ? readOptionalSubdepsFromLockfile(pkgName, snapshot.optionalDependencies, { lockfile, registryOpts })
       : undefined
     deps[pkgName] = {
       version,
       resolution: {
         integrity: resolution.integrity,
-        tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, { registry }),
+        tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, pickTarballUrlOptions(registryOpts, pkgName)),
       },
       optionalSubdeps,
     }
@@ -270,8 +270,7 @@ function normalizeFromLockfile (
 function readOptionalSubdepsFromLockfile (
   parentName: string,
   optionalDeps: Record<string, string>,
-  lockfile: EnvLockfile,
-  registriesByScope: RegistriesByScope
+  { lockfile, registryOpts }: { lockfile: EnvLockfile, registryOpts: ConfigDepRegistryOpts }
 ): NormalizedSubdep[] {
   const subdeps: NormalizedSubdep[] = []
   for (const [subdepName, subdepVersion] of Object.entries(optionalDeps)) {
@@ -291,13 +290,12 @@ function readOptionalSubdepsFromLockfile (
         `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${subdepKey}"`
       )
     }
-    const registry = pickRegistryForPackage(registriesByScope, subdepName)
     subdeps.push({
       name: subdepName,
       version: subdepVersion,
       resolution: {
         integrity: subdepResolution.integrity,
-        tarball: subdepResolution.tarball ?? getNpmTarballUrl(subdepName, subdepVersion, { registry }),
+        tarball: subdepResolution.tarball ?? getNpmTarballUrl(subdepName, subdepVersion, pickTarballUrlOptions(registryOpts, subdepName)),
       },
       os: subdepInfo.os,
       cpu: subdepInfo.cpu,

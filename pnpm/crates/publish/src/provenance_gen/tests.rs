@@ -572,10 +572,10 @@ fn signing_services_keep_rekor_v1_when_the_config_lists_rekor_v2() {
         .expect("valid signing config");
     let unpinned = sigstore_sign::SigningServices::from_signing_config(&config)
         .expect("services from the config");
-    assert_eq!(unpinned.rekor_url(), "https://rekor-v2.example");
+    assert_eq!(unpinned.rekor_url(), Some("https://rekor-v2.example"));
 
     let services = signing_services(&config).expect("services from the config");
 
-    assert_eq!(services.rekor_url(), "https://rekor-v1.example");
-    assert_eq!(services.rekor_api_version(), sigstore_sign::rekor::RekorApiVersion::V1);
+    assert_eq!(services.rekor_url(), Some("https://rekor-v1.example"));
+    assert_eq!(services.rekor_api_version(), Some(sigstore_sign::rekor::RekorApiVersion::V1));
 }

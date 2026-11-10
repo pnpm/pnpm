@@ -14,6 +14,7 @@ import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-schedul
 
 import { getPkgModulesDir, runBuild } from './buildSinglePackage.js'
 import type { StrictBuildOptions } from './extendBuildOptions.js'
+import { REBUILD_BUILDS_RUN } from './getRebuildContext.js'
 import { getGraphToBuild, relinkBins } from './rebuildGraph.js'
 import type {
   RebuildPackagesContext,
@@ -110,6 +111,7 @@ function getGvsDirByDepPath (
     iteratePkgMeta(ctx.currentLockfile, depGraph),
     {
       allowBuild,
+      buildsRun: REBUILD_BUILDS_RUN,
       supportedArchitectures: opts.supportedArchitectures,
       nodeVersion,
       lockfileDir: opts.lockfileDir,

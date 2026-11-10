@@ -416,34 +416,45 @@ fn missing_manifest_returns_false() {
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
-    // The guard holds the process-wide env lock and restores both
-    // variables on drop, so an assertion failure cannot leak the seed into
-    // a sibling test nor clobber a value the environment already had.
-    let env = pnpm_testing_utils::env_guard::EnvGuard::snapshot([
-        "npm_config_platform_arch",
-        "npm_config__authtoken",
-    ]);
-    env.set("npm_config_platform_arch", "x64");
-    env.set("npm_config__authtoken", "should-not-leak");
+    use super::run_lifecycle_hook;
+    use std::fmt::Write as _;
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
 
+    const DUMP_LINES: &[(&str, &str)] = &[
+        ("stage", "$npm_lifecycle_event"),
+        ("script", "$npm_lifecycle_script"),
+        ("name", "$npm_package_name"),
+        ("ver", "$npm_package_version"),
+        ("config", "$npm_package_config_myKey"),
+        ("init_cwd", "$INIT_CWD"),
+        ("user", "$npm_config_platform_arch"),
+        ("auth", "$npm_config__authtoken"),
+    ];
+    // `printf`, not `echo`, so the line endings are consistent across shells.
+    let mut template = String::new();
+    let mut arguments = String::new();
+    for (label, expression) in DUMP_LINES {
+        write!(template, r"{label}=%s\n").expect("write to a String");
+        write!(arguments, r#" "{expression}""#).expect("write to a String");
+    }
+    let script = format!("printf '{template}'{arguments} > '{}'", dump_path.display());
     let manifest = serde_json::json!({
         "name": "stamp-target",
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
-        "scripts": {
-            // printf, not echo, so the line endings are deterministic
-            // across shells.
-            "postinstall": format!(
-                r#"printf 'stage=%s\nscript=%s\nname=%s\nver=%s\nconfig=%s\ninit_cwd=%s\nuser=%s\nauth=%s\n' "$npm_lifecycle_event" "$npm_lifecycle_script" "$npm_package_name" "$npm_package_version" "$npm_package_config_myKey" "$INIT_CWD" "$npm_config_platform_arch" "$npm_config__authtoken" > {}"#,
-                dump_path.display(),
-            ),
-        },
     });
-    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+    let mut parent_env: HashMap<String, String> =
+        [("npm_config_platform_arch", "x64"), ("npm_config__authtoken", "should-not-leak")]
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect();
+    // The hook finds its shell along `PATH`.
+    if let Ok(path) = std::env::var("PATH") {
+        parent_env.insert("PATH".to_string(), path);
+    }
 
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
@@ -472,8 +483,8 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("postinstall");
-    assert!(ran, "run_postinstall_hooks must report at least one script ran: ran={ran}");
+    run_lifecycle_hook::<SilentReporter>("postinstall", &script, &opts, &manifest, &parent_env)
+        .expect("postinstall");
 
     let dump = fs::read_to_string(&dump_path).expect("read env dump");
 

@@ -364,7 +364,7 @@ pub(super) fn build_fresh_lockfile(
         .into_iter()
         .collect();
     let config = inputs.config;
-    dependencies_graph_to_lockfile(GraphToLockfileOptions {
+    let mut lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
         graph: inputs.resolution.graph,
         catalogs: inputs.catalogs,
@@ -384,7 +384,9 @@ pub(super) fn build_fresh_lockfile(
             inputs.resolution.overrides,
             inputs.resolution.include_peer_dependencies,
         ),
-    })
+    })?;
+    lockfile.lockfile_version = config.lockfile_format.version();
+    Ok(lockfile)
 }
 /// The `time:` section the rewritten lockfile carries: what the prior
 /// lockfile recorded, with this run's freshly resolved publish dates

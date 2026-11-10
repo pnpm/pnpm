@@ -334,7 +334,7 @@ where
     }
 
     let modules_dir = context.layout.slot_dir(slot_key).join("node_modules");
-    let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
+    let self_pkg_dir = staged_or_own_pkg_dir(context.layout, &modules_dir, slot_key);
     let bins_dir = self_pkg_dir.join("node_modules/.bin");
 
     let mut bin_sources: Vec<PackageBinSource> =
@@ -485,6 +485,26 @@ where
 /// `<modules>/<name>`.
 fn slot_own_pkg_dir(modules_dir: &Path, slot_key: &PackageKey) -> PathBuf {
     pkg_dir_under(modules_dir, &slot_key.name)
+}
+
+/// The directory holding the slot's own package for this install: the
+/// staging directory of a package this install builds, so the build's
+/// scripts find the bins of their dependencies there and the bins reach the
+/// slot with the package, and the slot's package directory otherwise. A
+/// staged package that replaces a placed one, as a rebuild does, is built
+/// in staging too, so staging wins whenever it exists.
+fn staged_or_own_pkg_dir(
+    layout: &crate::VirtualStoreLayout,
+    modules_dir: &Path,
+    slot_key: &PackageKey,
+) -> PathBuf {
+    if layout.enable_global_virtual_store() {
+        let staging = layout.staging_package_dir(slot_key);
+        if staging.is_dir() {
+            return staging;
+        }
+    }
+    slot_own_pkg_dir(modules_dir, slot_key)
 }
 
 /// Join a package name onto a `node_modules` directory, handling the

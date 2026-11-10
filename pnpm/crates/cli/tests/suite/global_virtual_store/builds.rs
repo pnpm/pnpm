@@ -1,18 +1,12 @@
 //! The global-virtual-store tests that exercise the build policy.
 
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml,
-    corrupt_pristine_file, fs, hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot,
-    pkg_version_dir, read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir, write_manifest,
+    AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml, fs,
+    hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot, pkg_version_dir,
+    read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir, write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
-use pnpm_fs::DirLock;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
-use std::{
-    process::{Child, Stdio},
-    thread,
-    time::Duration,
-};
 
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
@@ -379,7 +373,7 @@ fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
 /// hashes to it, so a failed build must not remove a slot other projects
 /// may already link: <https://github.com/pnpm/pnpm/issues/15568>.
 #[test]
-fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
+fn gvs_build_failure_leaves_no_package_in_the_slot() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
@@ -397,12 +391,17 @@ fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
         .failure();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
-    let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
-    assert!(pkg.join("package.json").exists(), "the failed build's slot must stay in place");
-    assert_eq!(
-        fs::read_to_string(pkg.join(".pnpm-needs-build")).expect("read the marker"),
-        "started",
-        "the failed build's slot must be marked for a rebuild",
+    let scope_dir = sole_hash_dir(&version_dir).join("node_modules/@pnpm.e2e");
+    let entries = fs::read_dir(&scope_dir)
+        .map(|entries| {
+            entries
+                .map(|entry| entry.expect("read entry").file_name())
+                .collect()
+        })
+        .unwrap_or_else(|_| Vec::new());
+    assert!(
+        entries.is_empty(),
+        "a failed build must leave neither its package nor its staging directory: {entries:?}",
     );
 
     drop((root, mock_instance));
@@ -411,8 +410,8 @@ fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
 /// TS: `GVS removes an optional dependency whose build failed from its slot`
 /// (`globalVirtualStore.ts`).
 ///
-/// The package directory goes, so the parent's link inside its own shared
-/// slot finds nothing, while the failed slot keeps its lock and links.
+/// The package never reaches its slot, so the parent's link inside its own
+/// shared slot finds nothing.
 #[test]
 fn gvs_removes_an_optional_dependency_whose_build_failed_from_its_slot() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -464,8 +463,9 @@ fn gvs_removes_an_optional_dependency_whose_build_failed_from_its_slot() {
 /// TS: `rebuild keeps a global virtual store slot whose optional build failed`
 /// (`building/commands/test/build/index.ts`).
 ///
-/// A rebuild may re-run the scripts of a slot other projects use with a
-/// working build, so its failure keeps the slot.
+/// An `--ignore-scripts` install places the pristine package in a slot of
+/// its own. A rebuild builds into the slot of the built package, so its
+/// failure leaves the pristine slot to the projects that link it.
 #[test]
 fn gvs_rebuild_keeps_the_slot_whose_optional_build_failed() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -485,22 +485,23 @@ fn gvs_rebuild_keeps_the_slot_whose_optional_build_failed() {
         .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
+    let pristine = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
     pacquet(&workspace)
         .with_arg("rebuild")
         .assert()
         .success();
 
-    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
-    let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
-    assert!(pkg.join("package.json").exists(), "a failed rebuild must keep the slot");
+    assert!(pristine.join("package.json").exists(), "a failed rebuild must keep the pristine slot");
 
     drop((root, mock_instance));
 }
 
-/// <https://github.com/pnpm/pnpm/issues/15568>: installs sharing a GVS slot
-/// must not write into it while another install builds it.
+/// <https://github.com/pnpm/pnpm/issues/15568>: an install that does not
+/// build a package must not share a slot with the built package, or a later
+/// install would have to build over files other projects link.
 #[test]
-fn gvs_install_waits_for_another_install_building_the_same_slot() {
+fn gvs_ignore_scripts_and_building_installs_use_different_slots() {
     const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -513,50 +514,23 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
         .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
+    let version_dir = pkg_version_dir(&store_dir, PKG, "1.0.0");
+    let pristine = pkg_in_slot(&sole_hash_dir(&version_dir), PKG);
+    assert!(pristine.join("package.json").exists());
+    assert!(!pristine.join("generated-by-postinstall.js").exists());
 
-    let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
-    let pkg = pkg_in_slot(&hash_dir, PKG);
-    assert!(pkg.join(".pnpm-needs-build").is_file(), "the deferred build must leave its marker");
-    // As a build that died mid-way leaves the slot, which only a re-import
-    // makes safe to build again.
-    fs::write(pkg.join(".pnpm-needs-build"), "started").expect("mark the slot mid-build");
-    fs::remove_file(pkg.join("README.md")).expect("remove a pristine file");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
-    let lock = DirLock::acquire(
-        hash_dir.join(".pnpm-build.lock"),
-        Duration::ZERO,
-        Duration::from_mins(30),
-    )
-    .expect("take the slot lock")
-    .expect("the slot lock is free");
-    let mut install = ReapOnDrop(
-        pacquet(&workspace)
-            .with_arg("install")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("spawn the install"),
-    );
-
-    thread::sleep(Duration::from_secs(3));
-    let exited = install.0.try_wait().expect("poll the install");
-    eprintln!("install exit status while the slot lock was held: {exited:?}");
-    assert!(exited.is_none(), "the install must wait for the slot lock");
+    assert_eq!(hash_dirs(&version_dir).len(), 2, "the built package must take a slot of its own");
     assert!(
-        !pkg.join("generated-by-postinstall.js").exists(),
-        "the install must not build the slot while another install holds its lock",
+        !pristine.join("generated-by-postinstall.js").exists(),
+        "the build must not write into the pristine slot",
     );
-    assert!(
-        !pkg.join("README.md").exists(),
-        "the install must not re-import the slot while another install holds its lock",
-    );
-
-    drop(lock);
-    let status = install.0.wait().expect("wait for the install");
-    assert!(status.success(), "the install must finish once the slot lock is released");
-    assert!(pkg.join("generated-by-postinstall.js").exists());
-    assert!(pkg.join("README.md").exists());
-    assert!(!pkg.join(".pnpm-needs-build").exists());
+    let linked = fs::canonicalize(workspace.join("node_modules").join(PKG)).expect("resolve link");
+    assert!(linked.join("generated-by-postinstall.js").exists(), "the project links the build");
 
     drop((root, mock_instance));
 }
@@ -616,154 +590,39 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
     drop((root, mock_instance));
 }
 
-/// TS: `GVS .pnpm-needs-build marker triggers re-import on next install`
-/// (`globalVirtualStore.ts:411`).
+/// A build that died before its package was renamed into the slot leaves
+/// the slot without its package and, at worst, a staging directory. The
+/// next install builds the package and places it.
 #[test]
-fn needs_build_marker_triggers_reimport_on_next_install() {
-    for with_installability_constraint in [false, true] {
-        let CommandTempCwd { root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+fn an_unplaced_build_is_placed_by_the_next_install() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
 
-        let dependencies = if with_installability_constraint {
-            let constraint = workspace.join("constraint");
-            fs::create_dir(&constraint).expect("create constrained dependency");
-            fs::write(
-                constraint.join("package.json"),
-                serde_json::json!({
-                    "name": "constraint",
-                    "version": "1.0.0",
-                    "engines": { "node": ">=18" },
-                })
-                .to_string(),
-            )
-            .expect("write constrained dependency manifest");
-            serde_json::json!({
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
-                "constraint": "file:./constraint",
-            })
-        } else {
-            serde_json::json!({
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
-            })
-        };
-        write_manifest(&workspace, &dependencies);
-        let workspace_settings = format!(
-            "{}nodeVersion: 20.0.0\nsideEffectsCache: false\n",
-            allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
-        );
-        set_gvs_workspace_yaml(&workspace, &workspace_settings);
-
-        eprintln!("First install, with the build approved...");
-        pacquet(&workspace)
-            .with_arg("install")
-            .assert()
-            .success();
-
-        let version_dir =
-            pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
-        let pkg = pkg_in_slot(
-            &sole_hash_dir(&version_dir),
-            "@pnpm.e2e/pre-and-postinstall-scripts-example",
-        );
-        let marker = pkg.join(".pnpm-needs-build");
-        let postinstall_artifact = pkg.join("generated-by-postinstall.js");
-        let package_manifest = pkg.join("package.json");
-        let pristine_manifest =
-            fs::read_to_string(&package_manifest).expect("read package manifest");
-        assert!(postinstall_artifact.exists());
-        assert!(!marker.exists());
-
-        eprintln!("Simulating a crash after import but before the build...");
-        fs::write(&marker, "").expect("write the incomplete-build marker");
-        fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
-        corrupt_pristine_file(&package_manifest);
-
-        eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
-        pacquet(&workspace)
-            .with_args(["install", "--frozen-lockfile"])
-            .assert()
-            .success();
-
-        assert!(!marker.exists(), "the successful retry must remove the marker");
-        assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
-        assert_eq!(
-            fs::read_to_string(&package_manifest).expect("read the restored manifest"),
-            pristine_manifest,
-            "the retry must re-import pristine package files before rebuilding",
-        );
-
-        eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
-        fs::write(&marker, "").expect("write the second incomplete-build marker");
-        fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
-        fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
-        pacquet(&workspace)
-            .with_arg("install")
-            .assert()
-            .success();
-
-        assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
-        assert!(
-            postinstall_artifact.exists(),
-            "the ordinary reinstall must not report up to date before rebuilding",
-        );
-        assert_eq!(
-            fs::read_to_string(&package_manifest).expect("read the twice-restored manifest"),
-            pristine_manifest,
-            "the ordinary reinstall must re-import the package before rebuilding",
-        );
-
-        drop((root, mock_instance));
-    }
-}
-
-#[test]
-fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
-            },
-            "scripts": {
-                "postinstall": r#"node -e "require('fs').appendFileSync('root-postinstall.txt', 'run\n')""#,
-            },
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
-    set_gvs_workspace_yaml(
-        &workspace,
-        &allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
-    );
-
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    let workspace_settings =
+        format!("{}sideEffectsCache: false\n", allow_builds_yaml(&[(PKG, true)]));
+    set_gvs_workspace_yaml(&workspace, &workspace_settings);
     pacquet(&workspace)
         .with_arg("install")
         .assert()
         .success();
 
-    let version_dir =
-        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
-    let orphan_pkg = pkg_in_slot(
-        &version_dir.join("0000000000000000000000000000000000000000000000000000000000000000"),
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-    );
-    fs::create_dir_all(&orphan_pkg).expect("create orphan GVS slot");
-    fs::write(orphan_pkg.join(".pnpm-needs-build"), "").expect("write orphan build marker");
+    let pkg = pkg_in_slot(&sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0")), PKG);
+    let staging = pkg.with_file_name(".pre-and-postinstall-scripts-example-dead");
+    fs::rename(&pkg, &staging).expect("leave the package in a dead install's staging directory");
+    fs::remove_file(staging.join("generated-by-postinstall.js")).expect("remove build output");
 
     pacquet(&workspace)
-        .with_arg("install")
+        .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
 
-    assert_eq!(
-        fs::read_to_string(workspace.join("root-postinstall.txt")).expect("read script output"),
-        "run\n",
-        "an unrelated GVS slot must not cause the root lifecycle scripts to run again",
+    assert!(
+        pkg.join("generated-by-postinstall.js").exists(),
+        "the package must be built and placed",
     );
 
     drop((root, mock_instance));
@@ -966,13 +825,159 @@ fn gvs_builds_each_slot_of_a_git_dependency() {
     drop((root, mock_instance));
 }
 
-/// Kills and reaps a spawned install when a failed assertion unwinds past it,
-/// so it cannot keep writing into the store while later tests run.
-struct ReapOnDrop(Child);
+/// A package is built in a staging directory, so its build scripts must find
+/// the bins of its own dependencies there. With hoisting off, nothing else
+/// puts `hello-world-js-bin`, which the scripts call, on their `PATH`.
+#[test]
+fn a_staged_build_runs_the_bins_of_its_dependencies() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
 
-impl Drop for ReapOnDrop {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    let workspace_settings = format!("{}hoist: false\n", allow_builds_yaml(&[(PKG, true)]));
+    set_gvs_workspace_yaml(&workspace, &workspace_settings);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let pkg = pkg_in_slot(&sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0")), PKG);
+    assert!(pkg.join("generated-by-postinstall.js").exists(), "the build must have run");
+    assert!(
+        pkg.join("node_modules/.bin/hello-world-js-bin").exists(),
+        "the dependency's bin must be placed with the package",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// <https://github.com/pnpm/pnpm/issues/15568>: installs that share a store
+/// and build the same package at the same time all succeed, and every
+/// project links the one built package, with no staging directory left
+/// behind.
+#[test]
+fn concurrent_installs_build_one_shared_slot() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[(PKG, true)]));
+    let projects: Vec<_> = std::iter::once(workspace.clone())
+        .chain((1..4).map(|index| {
+            let project = root
+                .path()
+                .join(format!("project-{index}"));
+            fs::create_dir(&project).expect("create project");
+            for entry in fs::read_dir(&workspace).expect("read workspace") {
+                let entry = entry.expect("read workspace entry");
+                if entry
+                    .file_type()
+                    .expect("stat workspace entry")
+                    .is_file()
+                {
+                    fs::copy(entry.path(), project.join(entry.file_name())).expect("copy file");
+                }
+            }
+            project
+        }))
+        .collect();
+
+    let installs: Vec<_> = projects
+        .iter()
+        .map(|project| {
+            pacquet(project)
+                .with_arg("install")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("spawn an install")
+        })
+        .collect();
+    for install in installs {
+        let output = install.wait_with_output().expect("wait for an install");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     }
+
+    let slot = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
+    for project in &projects {
+        let linked =
+            fs::canonicalize(project.join("node_modules").join(PKG)).expect("resolve the link");
+        assert_eq!(linked, fs::canonicalize(pkg_in_slot(&slot, PKG)).expect("resolve the slot"));
+        assert!(linked.join("generated-by-postinstall.js").exists(), "the package must be built");
+    }
+    let leftovers: Vec<_> = fs::read_dir(slot.join("node_modules/@pnpm.e2e"))
+        .expect("read the slot's scope")
+        .map(|entry| entry.expect("read entry").file_name())
+        .filter(|name| name.to_string_lossy().starts_with('.'))
+        .collect();
+    assert!(leftovers.is_empty(), "staging directories left behind: {leftovers:?}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_failed_optional_build_leaves_no_project_link() {
+    const PKG: &str = "@pnpm.e2e/failing-postinstall";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "optionalDependencies": { PKG: "1.0.0" } });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[(PKG, true)]));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules").join(PKG)).is_err(),
+        "the project must not link a package that never reached its slot",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_rebuilt_local_directory_package_runs_the_bins_of_its_dependencies() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let local = root.path().join("local");
+    fs::create_dir(&local).expect("create the local package");
+    let write_local = |version: &str| {
+        let manifest = serde_json::json!({
+            "name": "local",
+            "version": version,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+            "scripts": {
+                "postinstall": r#"hello-world-js-bin && node -e "require('fs').writeFileSync('built.txt', '')""#,
+            },
+        });
+        fs::write(local.join("package.json"), manifest.to_string()).expect("write local manifest");
+    };
+    write_local("1.0.0");
+    write_manifest(&workspace, &serde_json::json!({ "local": "file:../local" }));
+    set_gvs_workspace_yaml(&workspace, "dangerouslyAllowAllBuilds: true\nhoist: false\n");
+
+    for install in ["first", "second"] {
+        fs::write(local.join("data.txt"), install).expect("change the local package");
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let linked = fs::canonicalize(workspace.join("node_modules/local")).expect("resolve link");
+        assert!(linked.join("built.txt").exists(), "the {install} install must build the package");
+        assert_eq!(fs::read_to_string(linked.join("data.txt")).expect("read data"), install);
+    }
+
+    drop((root, mock_instance));
 }
