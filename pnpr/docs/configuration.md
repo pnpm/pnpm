@@ -610,12 +610,13 @@ The largest tarball pnpr fetches from an upstream registry. The same limit
 applies to Cargo crates and Python distributions fetched from an upstream. pnpr writes each
 proxied tarball to a temporary file while it verifies the integrity, so this
 bounds the disk each tarball can take. An upstream tarball that declares a size
-over the limit is refused with `502 Bad Gateway`, and the install fails with
-`ERR_PNPM_TARBALL_HTTP_STATUS`. When a cached upstream does not declare the
-size, pnpr is already streaming the tarball when it crosses the limit, so pnpr
-cuts the download off and the install fails with a download error instead. An
-upstream with `cache: false` downloads the whole tarball before it responds, so
-it always answers with `502 Bad Gateway`.
+over the limit is refused with `502 Bad Gateway`. pnpm then fails the install
+with `ERR_PNPM_TARBALL_HTTP_STATUS`. When a cached upstream does not declare
+the size, pnpr is already streaming the tarball when it crosses the limit, so
+pnpr cuts the download off and the client reports a download error instead. An
+upstream with `cache: false` verifies the tarball before it responds, so an
+over-limit tarball always gets `502 Bad Gateway`, whether the upstream declared
+the size or pnpr found it during the download.
 
 Defaults to `100MiB`. Takes an integer number of bytes or a size suffix such
 as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
