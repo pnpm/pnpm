@@ -55,7 +55,7 @@ fn is_retryable(error: &sqlx::Error) -> bool {
     match error {
         sqlx::Error::Io(error) => matches!(
             error.kind(),
-            std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::TimedOut
+            std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::TimedOut,
         ),
         sqlx::Error::Database(error) => error.is_transient_in_connect_phase(),
         _ => false,

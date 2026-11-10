@@ -58,8 +58,10 @@ async fn postgres_startup_retries_report_the_redacted_target_and_cause() {
         startup_timeout: std::time::Duration::from_millis(400),
     };
     let backend = pnpr_config::BackendConfig::Postgres(settings);
-    let error =
-        pnpr_auth::AuthState::load(&Default::default(), &backend).await.unwrap_err().to_string();
+    let error = pnpr_auth::AuthState::load(&pnpr_config::AuthConfig::default(), &backend)
+        .await
+        .unwrap_err()
+        .to_string();
     let output = std::fs::read_to_string(log.path()).unwrap();
     assert!(output.contains("database connection failed, retrying"), "{output}");
     for message in [&output, &error] {
