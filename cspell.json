@@ -196,6 +196,7 @@
     "imagetools",
     "imurmurhash",
     "inodes",
+    "innodb",
     "invalidformat",
     "ionicons",
     "isexe",
