@@ -17,12 +17,28 @@ pub async fn connect_startup<Database: sqlx::Database>(
     target: &str,
     timeout: Duration,
 ) -> Result<Database::Connection> {
-    let target = pnpr_config::redact_connection_url(target);
     let deadline = tokio::time::Instant::now() + timeout;
+    connect_with_retry(target, deadline, || {
+        let options = pool.connect_options();
+        async move { options.connect().await }
+    })
+    .await
+}
+
+async fn connect_with_retry<Connection, Connect, Connecting>(
+    target: &str,
+    deadline: tokio::time::Instant,
+    mut connect: Connect,
+) -> Result<Connection>
+where
+    Connect: FnMut() -> Connecting,
+    Connecting: std::future::Future<Output = std::result::Result<Connection, sqlx::Error>>,
+{
+    let target = pnpr_config::redact_connection_url(target);
     let mut delay = Duration::from_millis(100);
     let mut previous_failure = None;
     loop {
-        let error = match connect_once(pool, deadline).await {
+        let error = match connect_once(connect(), deadline).await {
             Ok(connection) => return Ok(connection),
             Err(error) => error.into_driver_error(deadline, previous_failure.take())?,
         };
@@ -44,13 +60,13 @@ pub async fn connect_startup<Database: sqlx::Database>(
     }
 }
 
-async fn connect_once<Database: sqlx::Database>(
-    pool: &sqlx::Pool<Database>,
+async fn connect_once<Connection>(
+    connecting: impl std::future::Future<Output = std::result::Result<Connection, sqlx::Error>>,
     deadline: tokio::time::Instant,
-) -> std::result::Result<Database::Connection, ConnectError> {
+) -> std::result::Result<Connection, ConnectError> {
     tokio::time::timeout_at(
         deadline.min(tokio::time::Instant::now() + Duration::from_secs(10)),
-        pool.connect_options().connect(),
+        connecting,
     )
     .await
     .map_err(|_| ConnectError::TimedOut)?
@@ -163,3 +179,6 @@ impl<Database: sqlx::Database> Drop for Checkout<Database> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
