@@ -297,6 +297,12 @@ impl Storage {
         self.metadata.package_names().await
     }
 
+    /// The names of every hosted package that has at least one published
+    /// version, sorted.
+    pub async fn hosted_published_package_names(&self) -> Result<Vec<String>> {
+        self.metadata.published_package_names().await
+    }
+
     // --- Authoritative (hosted) store -----------------------------------
 
     /// Read the authoritative document for `name`, fresh or stale.

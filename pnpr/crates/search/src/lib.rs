@@ -111,7 +111,7 @@ pub async fn local_search_names(
         SearchText::Package(query) | SearchText::Maintainer(query) => query.to_lowercase(),
     };
     let mut matches = Vec::new();
-    let mut names = storage.hosted_package_names().await?;
+    let mut names = storage.hosted_published_package_names().await?;
     names.sort();
 
     for name in names {
@@ -171,7 +171,8 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     let maintainers = obj
         .get("maintainers")
         .or_else(|| version_obj.and_then(|version| version.get("maintainers")))
-        .map_or_else(|| Value::Array(Vec::new()), search_maintainers);
+        .map(search_maintainers)
+        .unwrap_or_else(|| Value::Array(Vec::new()));
     pkg.insert("maintainers".to_string(), maintainers);
     if let Some(time) = obj.get("time").and_then(Value::as_object) {
         let date = time
