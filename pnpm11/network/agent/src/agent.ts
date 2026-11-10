@@ -1,6 +1,6 @@
 import type { Agent } from 'node:http'
 
-import { pickSettingByUrl } from '@pnpm/network.config'
+import { isNoProxy, pickSettingByUrl } from '@pnpm/network.config'
 import { getProxyAgent, type ProxyAgentOptions } from '@pnpm/network.proxy-agent'
 import HttpAgent from 'agentkeepalive'
 import { LRUCache } from 'lru-cache'
@@ -16,7 +16,7 @@ export type AgentOptions = ProxyAgentOptions & {
 }
 
 export function getAgent (uri: string, opts: AgentOptions): Agent | undefined {
-  if ((opts.httpProxy || opts.httpsProxy) && !checkNoProxy(uri, opts)) {
+  if ((opts.httpProxy || opts.httpsProxy) && !isNoProxy(uri, opts.noProxy)) {
     const proxyAgent = getProxyAgent(uri, opts)
     if (proxyAgent) return proxyAgent
   }
@@ -122,27 +122,4 @@ function createAgent (params: AgentParams): Agent {
       maxSockets,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- localAddress is an undocumented agent option missing from the typings
-}
-
-function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }): boolean | string | undefined {
-  if (typeof opts.noProxy !== 'string') {
-    return opts.noProxy
-  }
-  const hostLabels = new URL(uri).hostname
-    .split('.')
-    .filter(Boolean)
-    .reverse()
-  const noproxyEntries = opts.noProxy.split(',').map((entry) => entry.trim())
-  return noproxyEntries.some((entry) => matchesNoProxyEntry(hostLabels, entry))
-}
-
-function matchesNoProxyEntry (hostLabels: string[], entry: string): boolean {
-  const entryParts = entry
-    .split('.')
-    .filter(Boolean)
-    .reverse()
-  if (entryParts.length === 0) {
-    return false
-  }
-  return entryParts.every((part, index) => hostLabels[index] === part)
 }

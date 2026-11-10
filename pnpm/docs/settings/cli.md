@@ -199,6 +199,17 @@ tools:
 
 `mirror` supplies the base URL for the tool's own download layout. Only `node`, `bun`, `python`, and `rust` are accepted. A Rust mirror serves the layout of `https://static.rust-lang.org`, as `RUSTUP_DIST_SERVER` does for rustup. Only Node.js supports `channels`: a channel entry overrides the mirror for that release channel, and other channels use `mirror`.
 
+For Node.js, `mirror` has the release channel appended to it. For example, `mirror: https://mirror.example.com/node/download` uses `https://mirror.example.com/node/download/release/` for stable releases. A `channels` entry is the complete base URL for that channel. To use a mirror whose stable releases are under `/node/`, configure `channels.release`:
+
+```yaml title="config.yaml"
+tools:
+  node:
+    channels:
+      release: https://npmmirror.com/mirrors/node/
+      rc: https://npmmirror.com/mirrors/node-rc/
+      nightly: https://npmmirror.com/mirrors/node-nightly/
+```
+
 `pnpm pack-app` downloads its embedded Node.js through `tools.node`. The legacy `node-mirror:<channel>` setting continues to work as a channel mirror.
 
 ### nodeDownloadMirrors
@@ -212,7 +223,11 @@ Since v12.5.0, prefer [`tools.node`](#tools) for machine-level mirrors. `nodeDow
 
 :::
 
-Configure custom Node.js download mirrors in `pnpm-workspace.yaml`. The keys are release channels (`release`, `rc`, `nightly`, `v8-canary`, etc.) and the values are base URLs.
+Configure custom Node.js download mirrors in `pnpm-workspace.yaml`. The keys are release channels (`release`, `rc`, `nightly`, `v8-canary`, etc.) and each value is the complete base URL for its channel. For example, the `release` URL below downloads checksums from `https://npmmirror.com/mirrors/node/v<version>/SHASUMS256.txt`.
+
+The project-aware global `node` command does not automatically load workspace mirror settings. Configure its mirror in the global configuration file or the environment. See [Runtime download mirrors](../global-packages.md#runtime-download-mirrors) for workspace-directory environment overrides and failures with `pnpm: failed to prepare node@runtime:...`.
+
+When multiple mirror settings are configured, `tools.node.channels.<channel>` takes precedence over `nodeDownloadMirrors.<channel>`, which takes precedence over `tools.node.mirror`.
 
 Here is how pnpm may be configured to download Node.js from a mirror in China:
 
