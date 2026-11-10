@@ -108,6 +108,7 @@ describe.each([
 
     const filtered = filter(lockfile, ALL)
 
+    expect(Object.keys(filtered.packages!).sort()).toStrictEqual(Object.keys(lockfile.packages!).sort())
     for (const [depPath, snapshot] of Object.entries(filtered.packages!)) {
       expect(snapshot).toBe(lockfile.packages![depPath as DepPath])
     }
