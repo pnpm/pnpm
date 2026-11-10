@@ -25,7 +25,7 @@ use publication::post_upload;
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
+    documents::read_hosted_document,
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
@@ -316,10 +316,8 @@ async fn get_file(
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
             match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
-                Ok(Some(document)) if document.file(filename).is_some() => {
-                    serve_hosted_blob(&state, &identity, &source, &key, filename)
-                        .await
-                        .unwrap_or_else(IntoResponse::into_response)
+                Ok(Some(document)) => {
+                    hosted_file(&state, &identity, &source, &key, &document, filename).await
                 }
                 Ok(_) => not_found(),
                 Err(err) => err.into_response(),
@@ -375,4 +373,31 @@ async fn file_via_upstream(
     };
     serve_upstream_artifact(state, upstream, &namespace, key, filename, url.as_str(), &integrity)
         .await
+}
+
+async fn hosted_file(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &CanonicalPackageName,
+    document: &ProjectDocument,
+    filename: &str,
+) -> Response {
+    let distribution = filename.strip_suffix(".metadata").unwrap_or(filename);
+    let Some(entry) = document.file(distribution) else { return not_found() };
+    if filename.ends_with(".metadata") && entry.metadata().is_none() {
+        return not_found();
+    }
+    let mut response = serve_hosted_blob(state, identity, source, key, filename)
+        .await
+        .unwrap_or_else(IntoResponse::into_response);
+    if filename.ends_with(".metadata") && response.status() == StatusCode::OK {
+        response
+            .headers_mut()
+            .insert(
+                header::CONTENT_TYPE,
+                "text/plain; charset=utf-8".parse().expect("static content type"),
+            );
+    }
+    response
 }

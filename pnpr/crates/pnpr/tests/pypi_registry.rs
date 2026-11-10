@@ -156,14 +156,19 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    let metadata =
+        pnpr_pypi::archive::metadata_from_zip(&wheel, filename, pnpr_pypi::DistributionKind::Wheel)
+            .unwrap();
     let expected_anchor = format!(
         concat!(
             r#"<a href="{PUBLIC_URL}/pypi/files/demo-pkg/{filename}#sha256={digest}""#,
-            r#" data-requires-python="&gt;=3.9">{filename}</a>"#,
+            r#" data-requires-python="&gt;=3.9" data-core-metadata="sha256={metadata_digest}""#,
+            r#" data-dist-info-metadata="sha256={metadata_digest}">{filename}</a>"#,
         ),
         PUBLIC_URL = PUBLIC_URL,
         filename = filename,
         digest = sha256_hex(&wheel),
+        metadata_digest = sha256_hex(&metadata),
     );
     assert!(html.contains(&expected_anchor), "{html}");
 

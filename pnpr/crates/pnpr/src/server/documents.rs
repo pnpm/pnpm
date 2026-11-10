@@ -11,7 +11,7 @@
 
 use super::{
     AppState, hosted_read_namespace,
-    publishing::{StagedBase, StagedPublish, Verification, commit_publishes},
+    publishing::{StagedBase, StagedPublish, Verification, cleanup_tmp_slots, commit_publishes},
 };
 use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
 use pnpr_error::RegistryError;
@@ -21,7 +21,7 @@ use pnpr_policy::Identity;
 use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobId,
+    BlobId, BlobSlot, Storage,
     metadata::{ArtifactBlob, BlobLookup},
 };
 
@@ -197,14 +197,41 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
+    stage_hosted_artifacts(state, org, key, &[(filename, bytes)], refuse, addition).await
+}
+
+/// Stage a distribution and its sidecars in the same publication.
+pub(super) async fn stage_hosted_artifacts<Document: HostedDocument + Send>(
+    state: &AppState,
+    org: &str,
+    key: &CanonicalPackageName,
+    files: &[(&str, &[u8])],
+    refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
+    addition: Document,
+) -> Result<StagedPublish, RegistryError> {
+    let ((filename, bytes), sidecars) = files.split_first().expect("publication has an artifact");
     let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
     let lookup = BlobLookup {
-        ids: vec![BlobId::of_bytes(Document::ECOSYSTEM, bytes)],
+        ids: files
+            .iter()
+            .map(|(_, bytes)| BlobId::of_bytes(Document::ECOSYSTEM, bytes))
+            .collect(),
         artifacts: Vec::new(),
     };
     let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
     let artifact = HostedArtifact { filename, bytes, references: Vec::new() };
-    stage_hosted_artifact_on(state, org, key, artifact, base, refuse, addition).await
+    let mut staged =
+        stage_hosted_artifact_on(state, org, key, artifact, base, refuse, addition).await?;
+    for (filename, bytes) in sidecars {
+        match write_hosted_blob(&storage, key, filename, bytes).await {
+            Ok(slot) => staged.slots.push(slot),
+            Err(err) => {
+                cleanup_tmp_slots(staged.slots).await;
+                return Err(err);
+            }
+        }
+    }
+    Ok(staged)
 }
 
 /// The archive a hosted publish stages, and the files of the package already
@@ -242,13 +269,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     refuse(&document)?;
     document.merge(addition);
 
-    let slot = storage.reserve_hosted_blob(key, artifact.filename).await?;
-    if let Err(err) = tokio::fs::write(&slot.tmp_path, artifact.bytes).await {
-        // Nothing owns this slot yet: not a `StagedPublish` the caller could
-        // clean up.
-        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-        return Err(err.into());
-    }
+    let slot = write_hosted_blob(&storage, key, artifact.filename, artifact.bytes).await?;
     Ok(StagedPublish {
         name: key.clone(),
         ecosystem: Document::ECOSYSTEM,
@@ -266,4 +287,18 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         publisher: None,
         verification: Verification::default(),
     })
+}
+
+async fn write_hosted_blob(
+    storage: &Storage,
+    key: &CanonicalPackageName,
+    filename: &str,
+    bytes: &[u8],
+) -> Result<BlobSlot, RegistryError> {
+    let slot = storage.reserve_hosted_blob(key, filename).await?;
+    if let Err(err) = tokio::fs::write(&slot.tmp_path, bytes).await {
+        cleanup_tmp_slots(vec![slot]).await;
+        return Err(err.into());
+    }
+    Ok(slot)
 }

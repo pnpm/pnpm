@@ -290,6 +290,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     assert_eq!(page.status(), StatusCode::OK);
     assert_eq!(body_json(page.into_body()).await["files"][0]["filename"], WHEEL);
     let file = app
+        .clone()
         .oneshot(
             Request::get(format!("/pypi/files/demo-pkg/{WHEEL}"))
                 .body(Body::empty())
@@ -298,6 +299,19 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .await
         .unwrap();
     assert_eq!(body_bytes(file.into_body()).await, wheel.as_slice());
+    let metadata =
+        pnpr_pypi::archive::metadata_from_zip(wheel, WHEEL, pnpr_pypi::DistributionKind::Wheel)
+            .unwrap();
+    let sidecar = app
+        .oneshot(
+            Request::get(format!("/pypi/files/demo-pkg/{WHEEL}.metadata"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(sidecar.status(), StatusCode::OK);
+    assert_eq!(body_bytes(sidecar.into_body()).await, metadata);
 
     // One transaction, and it left nothing behind.
 }
