@@ -68,7 +68,9 @@ pub(super) fn check_recorded_local_targets(
         if child.optional && !check.config.optional {
             continue;
         }
-        if !recorded_local_target_is_fresh(check, dep, snapshot, child) {
+        if !child_is_fresh(check, dep, snapshot, child)
+            || !recorded_local_target_is_fresh(check, dep, snapshot, child)
+        {
             return Err(dep.outdated());
         }
         check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
