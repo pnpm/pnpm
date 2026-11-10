@@ -33,13 +33,17 @@ pub(super) enum AbsorbDecision {
     /// Root's name slot is taken by a different locator — a version
     /// conflict. The child stays under its current parent.
     Conflict,
-    /// Hoisting would shadow a peer dependency one of the
-    /// candidate's ancestors satisfies with a different ident than
-    /// what the root provides. The child stays under its parent so
-    /// the ancestor's peer resolution still finds the intended
-    /// version. Mirrors upstream's `getNodeHoistInfo` peer checks
-    /// at [hoist.ts:414][peer-shadow-root] and
-    /// [hoist.ts:454-479][peer-path].
+    /// Hoisting, or dedup-removing in favour of the root's copy,
+    /// would shadow a peer dependency one of the candidate's
+    /// ancestors satisfies with a different ident than what the root
+    /// provides. The child stays under its parent so the ancestor's
+    /// peer resolution still finds the intended version. Mirrors
+    /// upstream's `getNodeHoistInfo` peer checks at
+    /// [hoist.ts:414][peer-shadow-root] and
+    /// [hoist.ts:454-479][peer-path], which upstream runs before its
+    /// same-locator merge, so a copy whose peer comes from its parent
+    /// is never merged into a root copy that resolves the peer
+    /// elsewhere.
     ///
     /// [peer-shadow-root]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L414
     /// [peer-path]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L454-L479
@@ -150,10 +154,12 @@ fn refuse_shadowed(
 
     // Peer-aware refusal layered on top of the basic
     // free / dedup / conflict decision. `Conflict` already
-    // leaves the candidate in place and `SameNode` dedups
-    // an already-hoisted package, so the peer check
-    // only matters when we'd otherwise hoist.
-    if matches!(decision, AbsorbDecision::Free) && would_shadow_peer(child, path, root, root_index)
+    // leaves the candidate in place. A dedup removes this
+    // position's copy like a hoist does, so it is refused on
+    // the same grounds: the root copy may share the locator
+    // and still resolve its peer from a different provider.
+    if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
+        && would_shadow_peer(child, path, root, root_index)
     {
         decision = AbsorbDecision::PeerShadow;
     }

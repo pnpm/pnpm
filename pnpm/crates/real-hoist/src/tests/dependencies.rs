@@ -1,8 +1,8 @@
 use super::{
     HashMap, HoistOpts, HoisterResult, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, assert_eq, dep_key, empty_lockfile,
-    hoist, lockfile_version, percent_encode_path, pkg_metadata_with_peer, pkg_name, resolved_dep,
-    ver_peer,
+    hoist, lockfile_version, nm_hoist, percent_encode_path, pkg_metadata_with_peer, pkg_name,
+    resolved_dep, tree_node, tree_root, ver_peer,
 };
 
 #[test]
@@ -307,6 +307,68 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
         "widget nested under app to keep ancestor peer resolution: {app_names:?}",
     );
     assert!(app_names.contains(&"react"), "app keeps its own react@17: {app_names:?}");
+}
+
+/// Two `md` nodes share one reference (the TypeScript wrapper stamps
+/// every peer variant with the first depPath it sees) but resolve their
+/// peer `core` from different parents. Once the variant under `nds@2`
+/// is at the root with `core@2.0.0`, the copy under `nds@1.0.0` must not
+/// dedup against it: `nds@1.0.0` provides `core@1.0.0`, so removing the
+/// nested `md` would re-resolve its peer to the root's `core@2.0.0`.
+/// Upstream's `getNodeHoistInfo` runs the peer check before the
+/// same-locator merge, so the node stays, with its `core@1.0.0` beside
+/// it under `nds`.
+#[test]
+fn same_locator_node_is_not_deduped_when_its_parent_provides_a_different_peer() {
+    let core1 = || tree_node("core", "core@1.0.0", &[], vec![]);
+    let core2 = || tree_node("core", "core@2.0.0", &[], vec![]);
+    let nds1 = tree_node(
+        "nds",
+        "nds@1.0.0",
+        &[],
+        vec![core1(), tree_node("md", "md@1.0.0", &["core"], vec![core1()])],
+    );
+    let nds2 = tree_node(
+        "nds",
+        "nds@2.0.0",
+        &[],
+        vec![core2(), tree_node("md", "md@1.0.0", &["core"], vec![core2()])],
+    );
+    let widget = tree_node("widget", "widget@1.0.0", &[], vec![core2(), nds2]);
+    let apps = tree_node("apps", "apps@1.0.0", &[], vec![widget]);
+    let root = tree_root(vec![apps, nds1]);
+
+    let result = nm_hoist(&root, &HoistOpts::default());
+    let child_of = |parent: &HoisterResult, name: &str| -> Rc<HoisterResult> {
+        let children = parent.dependencies.borrow();
+        let names: Vec<&str> = children
+            .iter()
+            .map(|dep| dep.0.name.as_str())
+            .collect();
+        let child = children
+            .iter()
+            .find(|dep| dep.0.name == name)
+            .unwrap_or_else(|| panic!("{} has no child {name}, only {names:?}", parent.name));
+        Rc::clone(&child.0)
+    };
+    assert!(
+        child_of(&result, "core").references.borrow().contains("core@2.0.0"),
+        "the more-used core@2.0.0 takes the root slot",
+    );
+    assert!(
+        child_of(&result, "md").dependencies.borrow().is_empty(),
+        "the root md dedups its core",
+    );
+    let nds = child_of(&result, "nds");
+    assert!(
+        child_of(&nds, "core").references.borrow().contains("core@1.0.0"),
+        "nds@1.0.0 keeps its conflicting core@1.0.0",
+    );
+    let md_under_nds = child_of(&nds, "md");
+    assert!(
+        md_under_nds.dependencies.borrow().is_empty(),
+        "the nested md resolves core from nds, not from its own copy: {md_under_nds:#?}",
+    );
 }
 
 /// Peer variants of an injected directory dependency are exempt from
