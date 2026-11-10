@@ -163,6 +163,9 @@ publishing new versions.
 crates it hosts. Each result reports the crate's newest release that is not
 yanked; a crate whose releases are all yanked reports its newest release.
 
+`cargo owner` is not supported. Listing, adding, or removing owners returns
+HTTP `501 Not Implemented` with a Cargo error message.
+
 ## Python
 
 A Python registry serves the Simple Repository API at `/pypi/simple/` (PEP 503
