@@ -296,3 +296,38 @@ async fn legacy_audits_return_empty_report_when_no_upstream() {
     let body = body_json(response.into_body()).await;
     assert_eq!(body["metadata"]["vulnerabilities"]["total"], 0);
 }
+
+#[tokio::test]
+async fn audit_endpoints_reject_malformed_json_with_bad_request_before_upstream() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("POST", mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let app = router(config);
+
+    for path in [
+        "/npm/-/npm/v1/security/advisories/bulk",
+        "/npm/-/npm/v1/security/audits",
+        "/npm/-/npm/v1/security/audits/quick",
+    ] {
+        let request = Request::post(path)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{not-json"))
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+        let body = body_json(response.into_body()).await;
+        assert_eq!(body["error"], "invalid json payload", "{path}");
+    }
+
+    mock.assert_async().await;
+}

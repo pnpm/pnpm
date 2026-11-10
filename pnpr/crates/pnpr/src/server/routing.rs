@@ -1,10 +1,10 @@
 pub(super) mod npm_errors;
 
 pub(super) use super::{
-    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
-    MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate, authorize_package, batch,
-    caller_scoped, cargo, check_publish_tombstone, delete_package, delete_tarball, get_dist_tags,
-    get_org_teams, get_team_members,
+    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_LOGIN_BODY_BYTES,
+    MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate,
+    authorize_package, batch, caller_scoped, cargo, check_publish_tombstone, delete_package,
+    delete_tarball, get_dist_tags, get_org_teams, get_team_members,
     health::{serve_live, serve_ping, serve_ready},
     hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
     pypi, remove_dist_tag, resolve_write_target, serve_metrics, serve_org_packages,
@@ -429,6 +429,9 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage"), get(staged::list_staged))
         .route(&path("/-/stage/package/{name}"), post(staged::post_staged_publish))
         .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
-        .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
+        .route(
+            &path("/-/stage/{id}/approve"),
+            post(staged::approve_staged).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
 }

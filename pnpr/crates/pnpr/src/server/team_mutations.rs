@@ -1,6 +1,6 @@
 use super::{
     AppState, Identity, RegistryError, Response, StatusCode, json, organizations::team_registry,
-    require_admin, team_rosters::update_team_roster,
+    parse_json_body, require_admin, team_rosters::update_team_roster,
 };
 use axum::{body::Bytes, response::IntoResponse};
 use pnpr_config::{Management, Team, Teams, validate_member_name, validate_team_name};
@@ -46,7 +46,7 @@ pub(super) async fn create_team(
 ) -> Response {
     let result = async {
         let registry = admin_roster(state, identity, &target, "create a team")?;
-        let team = parse_body::<NewTeam>(body)?.name;
+        let team = parse_json_body::<NewTeam>(body)?.name;
         validate_team_name(&team).map_err(|reason| RegistryError::BadRequest { reason })?;
         let id = pnpr_auth::new_principal_id();
         update_team_roster(state, registry, |teams| insert_team(teams, &id, &team)).await?;
@@ -116,7 +116,7 @@ pub(super) async fn add_team_member(
 ) -> Response {
     let result = async {
         let registry = admin_roster(state, identity, &target, "add a team member")?;
-        let user = parse_body::<TeamMember>(body)?.user;
+        let user = parse_json_body::<TeamMember>(body)?.user;
         validate_member_name(&user).map_err(|reason| RegistryError::BadRequest { reason })?;
         let user_id = state.inner.identity.auth.users
             .account_id(&user)
@@ -220,13 +220,6 @@ fn team_members<'a>(
         .ok_or(RegistryError::NotFound)
 }
 
-pub(super) fn parse_body<'a, Body: Deserialize<'a>>(
-    body: &'a Bytes,
-) -> Result<Body, RegistryError> {
-    serde_json::from_slice(body)
-        .map_err(|err| RegistryError::BadRequest { reason: format!("invalid request body: {err}") })
-}
-
 pub(super) fn respond(result: Result<impl IntoResponse, RegistryError>) -> Response {
     match result {
         Ok(response) => response.into_response(),
@@ -249,7 +242,7 @@ pub(super) fn team_id(
 
 async fn member_removal(state: &AppState, body: &Bytes) -> Result<(String, String), RegistryError> {
     let users = &state.inner.identity.auth.users;
-    match parse_body::<MemberRemoval>(body)? {
+    match parse_json_body::<MemberRemoval>(body)? {
         MemberRemoval::Id { user_id } => {
             let name = users
                 .account_name(&user_id)

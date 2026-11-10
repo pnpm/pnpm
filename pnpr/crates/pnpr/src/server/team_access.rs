@@ -11,9 +11,9 @@
 use super::{
     AppState, Identity, RegistryError, Response, StatusCode, json,
     organizations::team_registry,
-    require_admin,
+    parse_json_body, require_admin,
     rule_overrides::{RuleChanges, update_rules},
-    team_mutations::{TeamScope, parse_body, respond},
+    team_mutations::{TeamScope, respond},
 };
 use axum::body::Bytes;
 use pnpr_config::{HostedConfig, Management};
@@ -51,7 +51,7 @@ pub(super) async fn grant_team_access(
 ) -> Response {
     let result = async {
         let registry = managed_team(state, identity, &target, team, "grant access to")?;
-        let grant: Grant = parse_body(body)?;
+        let grant: Grant = parse_json_body(body)?;
         let id = super::team_mutations::team_id(state, registry, team)?;
         let token = format!("team:{id}");
         update_rules(state, registry, |changes, base| {
@@ -91,7 +91,7 @@ pub(super) async fn revoke_team_access(
 ) -> Response {
     let result = async {
         let registry = managed_team(state, identity, &target, team, "revoke access from")?;
-        let revoke: Revoke = parse_body(body)?;
+        let revoke: Revoke = parse_json_body(body)?;
         let id = super::team_mutations::team_id(state, registry, team)?;
         let token = format!("team:{id}");
         update_rules(state, registry, |changes, base| {

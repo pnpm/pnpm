@@ -1,7 +1,8 @@
 use super::{
-    APPROVAL_CLAIM_LEASE, AppState, ApprovalClaim, CanonicalPackageName, Identity, RegistryError,
-    Response, StatusCode, StoredStagedRecord, Value, cleanup_tmp_slots, commit_publishes, json,
-    json_response, load_authorized_record, stage_publish, validate_publish_doc,
+    APPROVAL_CLAIM_LEASE, AppState, ApprovalClaim, CanonicalPackageName, Identity, JsonObject,
+    RegistryError, Response, StatusCode, StoredStagedRecord, Value, cleanup_tmp_slots,
+    commit_publishes, json, json_response, load_authorized_record, parse_json_body, stage_publish,
+    validate_publish_doc,
 };
 use crate::server::publishing::add_npm_notices;
 use axum::response::IntoResponse;
@@ -14,11 +15,17 @@ pub(super) async fn serve_staged_approve(
     identity: &Identity,
     registry: Option<&str>,
     stage_id: &str,
+    body: &[u8],
 ) -> Response {
     let stored = match load_authorized_record(state, identity, registry, stage_id).await {
         Ok(stored) => stored,
         Err(err) => return err.into_response(),
     };
+    if !body.iter().all(u8::is_ascii_whitespace)
+        && let Err(err) = parse_json_body::<JsonObject>(body)
+    {
+        return err.into_response();
+    }
     let claim = match claim_for_approval(state, stage_id, stored).await {
         Ok(claim) => claim,
         Err(err) => return err.into_response(),
@@ -126,12 +133,12 @@ pub(super) async fn approve_claimed(
     claim: &ApprovalClaim,
 ) -> Result<Response, RegistryError> {
     let record = &claim.record;
-    let Some(body) = state.inner.storage.read_staged_body(stage_id).await? else {
+    let Some(stored_body) = state.inner.storage.read_staged_body(stage_id).await? else {
         return Err(RegistryError::Io(std::io::Error::other(format!(
             "staged publish {stage_id} has no stored body",
         ))));
     };
-    let incoming: Value = serde_json::from_slice(&body).map_err(RegistryError::Json)?;
+    let incoming: Value = serde_json::from_slice(&stored_body).map_err(RegistryError::Json)?;
     let name =
         CanonicalPackageName::parse(&record.package_name, pnpr_package_name::Ecosystem::Npm)?;
     // Re-validate against the registry state of *now*: rules may have
