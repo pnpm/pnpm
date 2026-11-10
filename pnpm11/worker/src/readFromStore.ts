@@ -1,16 +1,13 @@
-import fs from 'node:fs'
-
 import { pkgRequiresBuild, storedRequiresBuildNeedsManifestCheck } from '@pnpm/building.pkg-requires-build'
-import { isError, PnpmError } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   buildFileMapsFromIndex,
   checkPkgFilesIntegrity,
   type PackageFilesIndex,
-  parseJsonBufferSync,
+  readManifestFromCafs,
   takeVerifiedFileIntegrity,
   type VerifyResult,
 } from '@pnpm/store.cafs'
-import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
@@ -107,17 +104,4 @@ function resolveRequiresBuild (
   if (!stored || !storedRequiresBuildNeedsManifestCheck(bundledManifest, filesMap)) return stored
   const manifest = readManifest()
   return manifest == null ? stored : pkgRequiresBuild(manifest, filesMap)
-}
-
-function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefined {
-  const manifestPath = filesMap.get('package.json')
-  if (manifestPath == null) return undefined
-  try {
-    return parseJsonBufferSync(fs.readFileSync(manifestPath)) as DependencyManifest
-  } catch (err: unknown) {
-    if (err instanceof SyntaxError || (isError(err) && 'code' in err && err.code === 'ENOENT')) {
-      return undefined
-    }
-    throw err
-  }
 }
