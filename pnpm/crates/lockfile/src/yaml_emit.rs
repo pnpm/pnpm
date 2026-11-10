@@ -8,8 +8,7 @@
 //!   and of the `packages:` / `importers:` / `snapshots:` maps.
 //! - **single-line keys** — `cpu`, `engines`, `os`, `libc`, and `resolution`
 //!   (unless its `type` is `variations`/`binary`) render in flow style on one
-//!   line, as does a `peerDependencies` entry that is a map; everything else
-//!   renders in block style.
+//!   line; everything else renders in block style.
 //! - **single-quote scalar style** — ambiguous scalars (`'9.0'`, `'>=10'`,
 //!   `'@scope/name@1.0.0'`) are single-quoted, matching `js-yaml`'s default
 //!   `quotingType`, not double-quoted.
@@ -42,10 +41,7 @@ const INDENT: usize = 2;
 mod flow;
 mod nesting;
 mod next_order;
-use nesting::{
-    Format, Nesting, ValueStyle, is_single_line_key, is_single_line_map, names_snapshot,
-    one_line_values,
-};
+use nesting::{is_single_line_key, is_single_line_map};
 use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
@@ -92,22 +88,20 @@ const ROOT_KEYS: [&str; 11] = [
 /// matching pnpm's lockfile formatting: today's block style, or the next
 /// format's [JSON](flow).
 pub(crate) fn to_string(value: Value) -> String {
-    let (value, format) = sort_lockfile_keys(value);
-    let dump = match format {
-        Format::Next => flow::to_string(&value),
-        Format::V9 => {
-            let mut dump = render(
-                &value,
-                0,
-                CollectionStyle::Block,
-                FirstEntry::OnKeyLine,
-                None,
-                ScalarLines::Multiline,
-                Nesting { format, values: ValueStyle::Block },
-            );
-            dump.push('\n');
-            dump
-        }
+    let (value, next) = sort_lockfile_keys(value);
+    let dump = if next {
+        flow::to_string(&value)
+    } else {
+        let mut dump = render(
+            &value,
+            0,
+            CollectionStyle::Block,
+            FirstEntry::OnKeyLine,
+            None,
+            ScalarLines::Multiline,
+        );
+        dump.push('\n');
+        dump
     };
     pnpm_fs::background_drop(value);
     dump
@@ -119,8 +113,8 @@ pub(crate) fn to_string(value: Value) -> String {
 /// entries are deep-sorted (by the priority map for packages/snapshots, by the
 /// root priority for importers, lexically for catalogs), and finally the root
 /// keys are ordered by priority.
-fn sort_lockfile_keys(value: Value) -> (Value, Format) {
-    let Value::Object(mut root) = value else { return (value, Format::V9) };
+fn sort_lockfile_keys(value: Value) -> (Value, bool) {
+    let Value::Object(mut root) = value else { return (value, false) };
 
     let next = sort_next_sections(&mut root);
     for (section, priority) in [
@@ -136,8 +130,7 @@ fn sort_lockfile_keys(value: Value) -> (Value, Format) {
     if !next {
         sort_plain_sections(&mut root);
     }
-    let format = if next { Format::Next } else { Format::V9 };
-    (Value::Object(sort_by_priority(root, &ROOT_KEYS, false)), format)
+    (Value::Object(sort_by_priority(root, &ROOT_KEYS, false)), next)
 }
 
 /// Sorts `catalogs` by catalog and entry, deep, and `time`,
@@ -258,19 +251,16 @@ fn render(
     first_entry: FirstEntry,
     object_key: Option<&str>,
     lines: ScalarLines,
-    nesting: Nesting,
 ) -> String {
     match value {
-        Value::Object(map) => render_map(map, level, style, first_entry, object_key, nesting),
+        Value::Object(map) => render_map(map, level, style, first_entry, object_key),
         Value::Array(seq) => {
             let single_line = object_key.is_some_and(is_single_line_key);
             match style {
                 CollectionStyle::Block if !seq.is_empty() && !single_line => {
-                    write_block_sequence(seq, level, first_entry, nesting.format)
+                    write_block_sequence(seq, level, first_entry)
                 }
-                CollectionStyle::Block | CollectionStyle::Flow => {
-                    write_flow_sequence(seq, level, nesting.format)
-                }
+                CollectionStyle::Block | CollectionStyle::Flow => write_flow_sequence(seq, level),
             }
         }
         Value::String(string) => write_scalar(string, level, lines, style),
@@ -288,7 +278,6 @@ fn render_map(
     style: CollectionStyle,
     first_entry: FirstEntry,
     object_key: Option<&str>,
-    nesting: Nesting,
 ) -> String {
     let single_line = is_single_line_map(object_key, map);
     let renders_as_block = match style {
@@ -297,7 +286,7 @@ fn render_map(
     };
     if !renders_as_block {
         let lines = if single_line { ScalarLines::OneLine } else { ScalarLines::Multiline };
-        return write_flow_mapping(map, level, lines, nesting.format);
+        return write_flow_mapping(map, level, lines);
     }
     let spacing =
         if level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots")) {
@@ -305,8 +294,7 @@ fn render_map(
         } else {
             EntrySpacing::Tight
         };
-    let values = one_line_values(object_key, nesting);
-    write_block_mapping(map, level, first_entry, spacing, Nesting { values, ..nesting })
+    write_block_mapping(map, level, first_entry, spacing)
 }
 
 /// `generateNextLine`: a newline (doubled for [`EntrySpacing::BlankLine`])
@@ -332,10 +320,9 @@ fn write_block_mapping(
     level: usize,
     first_entry: FirstEntry,
     spacing: EntrySpacing,
-    nesting: Nesting,
 ) -> String {
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        return write_block_mapping_serial(map, level, first_entry, spacing, nesting);
+        return write_block_mapping_serial(map, level, first_entry, spacing);
     }
     // Each entry's rendering depends only on its own key and value, so a
     // large map fans its entries out across the rayon pool, and the serial
@@ -347,7 +334,7 @@ fn write_block_mapping(
         .par_iter()
         .map(|(key, value)| {
             let mut entry = String::new();
-            render_entry_into(&mut entry, key, value, level, nesting);
+            render_entry_into(&mut entry, key, value, level);
             entry
         })
         .collect();
@@ -368,25 +355,18 @@ fn write_block_mapping_serial(
     level: usize,
     first_entry: FirstEntry,
     spacing: EntrySpacing,
-    nesting: Nesting,
 ) -> String {
     let mut result = String::new();
     for (key, value) in map {
         if !result.is_empty() || !first_entry.omits_leading_newline() {
             result.push_str(&next_line(level, spacing));
         }
-        render_entry_into(&mut result, key, value, level, nesting);
+        render_entry_into(&mut result, key, value, level);
     }
     if result.is_empty() { "{}".to_string() } else { result }
 }
 
-fn render_entry_into(
-    result: &mut String,
-    key: &str,
-    value: &Value,
-    level: usize,
-    nesting: Nesting,
-) {
+fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize) {
     let rendered_key = write_scalar(key, level + 1, ScalarLines::OneLine, CollectionStyle::Block);
     let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
     // An explicit `? key` pair puts the value right after its own `:`, so the
@@ -399,13 +379,14 @@ fn render_entry_into(
     } else {
         result.push_str(&rendered_key);
     }
-    let style = match nesting.values {
-        ValueStyle::Block | ValueStyle::FlowBelow => CollectionStyle::Block,
-        ValueStyle::Flow if names_snapshot(value) => CollectionStyle::Block,
-        ValueStyle::Flow => CollectionStyle::Flow,
-    };
-    let rendered =
-        render(value, level + 1, style, first_entry, Some(key), ScalarLines::Multiline, nesting);
+    let rendered = render(
+        value,
+        level + 1,
+        CollectionStyle::Block,
+        first_entry,
+        Some(key),
+        ScalarLines::Multiline,
+    );
     result.push(':');
     if !rendered.starts_with('\n') {
         result.push(' ');
@@ -413,12 +394,7 @@ fn render_entry_into(
     result.push_str(&rendered);
 }
 
-fn write_block_sequence(
-    seq: &[Value],
-    level: usize,
-    first_entry: FirstEntry,
-    format: Format,
-) -> String {
+fn write_block_sequence(seq: &[Value], level: usize, first_entry: FirstEntry) -> String {
     let mut result = String::new();
     for value in seq {
         let rendered = render(
@@ -428,7 +404,6 @@ fn write_block_sequence(
             FirstEntry::OnKeyLine,
             None,
             ScalarLines::Multiline,
-            Nesting { format, values: ValueStyle::Block },
         );
         if !result.is_empty() || !first_entry.omits_leading_newline() {
             result.push_str(&next_line(level, EntrySpacing::Tight));
@@ -446,7 +421,6 @@ fn write_flow_mapping(
     map: &serde_json::Map<String, Value>,
     level: usize,
     lines: ScalarLines,
-    format: Format,
 ) -> String {
     let mut result = String::new();
     for (key, value) in map {
@@ -462,13 +436,12 @@ fn write_flow_mapping(
             FirstEntry::OnOwnLine,
             None,
             lines,
-            Nesting { format, values: ValueStyle::Block },
         ));
     }
     format!("{{{result}}}")
 }
 
-fn write_flow_sequence(seq: &[Value], level: usize, format: Format) -> String {
+fn write_flow_sequence(seq: &[Value], level: usize) -> String {
     let mut result = String::new();
     for value in seq {
         if !result.is_empty() {
@@ -481,7 +454,6 @@ fn write_flow_sequence(seq: &[Value], level: usize, format: Format) -> String {
             FirstEntry::OnOwnLine,
             None,
             ScalarLines::Multiline,
-            Nesting { format, values: ValueStyle::Block },
         ));
     }
     format!("[{result}]")

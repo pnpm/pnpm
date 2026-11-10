@@ -97,6 +97,7 @@ fn write_then_read_round_trips_in_the_next_format() {
     let head = text_block_fnl! {
         "{"
         r#"	"lockfileVersion": "13.0","#
+        ""
         r#"	"projects": {"#
         r#"		".": {"#
         r#"			"configDependencies": {"#
@@ -104,6 +105,7 @@ fn write_then_read_round_trips_in_the_next_format() {
         "			},"
         "		},"
         "	},"
+        ""
         r#"	"packages": {"#
         r#"		"@pnpm.e2e/foo@100.0.0": {"#
         r#"			"integrity": "sha"#

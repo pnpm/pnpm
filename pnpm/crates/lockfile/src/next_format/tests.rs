@@ -74,25 +74,35 @@ fn optional_peer_bound_from_the_root_round_trips() {
             r#"		"buffer-impl@3.7.1": {"#
             r#"			"integrity": "sha512-AAAA","#
             "		},"
+            ""
             r#"		"container@3.2.2": {"#
             r#"			"integrity": "sha512-BBBB","#
             r#"			"peerDependencies": {"#
-            r#"				"buffer-impl": {"version": "3.7.1", "below": true},"#
+            r#"				"buffer-impl": {"#
+            r#"					"version": "3.7.1","#
+            r#"					"below": true,"#
+            "				},"
             "			},"
             r#"			"dependencies": {"#
             r#"				"fs-impl": "4.8.4","#
             "			},"
             "		},"
+            ""
             r#"		"fs-impl@4.8.4": {"#
             r#"			"integrity": "sha512-CCCC","#
             r#"			"peerDependencies": {"#
             r#"				"abort-impl": "*","#
-            r#"				"buffer-impl": {"specifier": "*", "version": "3.7.1", "optional": true},"#
+            r#"				"buffer-impl": {"#
+            r#"					"specifier": "*","#
+            r#"					"version": "3.7.1","#
+            r#"					"optional": true,"#
+            "				},"
             "			},"
             r#"			"dependencies": {"#
             r#"				"path-impl": "3.1.2","#
             "			},"
             "		},"
+            ""
             r#"		"path-impl@3.1.2": {"#
             r#"			"integrity": "sha512-DDDD","#
             "		},"
@@ -303,7 +313,7 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
     let end = yaml.find("\n\t\"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
-        text_block_macros::text_block! {
+        text_block_macros::text_block_fnl! {
             ""
             r#"	"projects": {"#
             r#"		".": {"#
@@ -316,6 +326,7 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
             "				},"
             "			},"
             "		},"
+            ""
             r#"		"packages/a": {"#
             r#"			"dependencies": {"#
             r#"				"child": {"#
@@ -327,6 +338,7 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
             "				},"
             "			},"
             "		},"
+            ""
             r#"		"packages/b": {"#
             r#"			"dependencies": {"#
             r#"				"parent": "1.0.0","#
@@ -366,7 +378,12 @@ fn patched_packages_carry_no_hash() {
     });
     let (yaml, _) = written_and_read(&lockfile);
     assert!(
-        yaml.contains("\t\t\t\t\"foo\": {\"specifier\": \"^2.0.0\", \"version\": \"2.1.0\"},\n"),
+        yaml.contains(concat!(
+            "\t\t\t\t\"foo\": {\n",
+            "\t\t\t\t\t\"specifier\": \"^2.0.0\",\n",
+            "\t\t\t\t\t\"version\": \"2.1.0\",\n",
+            "\t\t\t\t},\n",
+        )),
         "{yaml}",
     );
     assert!(
@@ -485,17 +502,21 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
     let end = yaml.find("\n\t\"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
-        text_block_macros::text_block! {
+        text_block_macros::text_block_fnl! {
             ""
             r#"	"settings": {"#
             r#"		"catalogs": {"#
             r#"			"default": {"#
             r#"				"@scope/renamed": "npm:@scope/real@1.0.0","#
             r#"				"pinned": "3.0.0","#
-            r#"				"tool": {"specifier": "^2.0.0", "version": "2.1.0"},"#
+            r#"				"tool": {"#
+            r#"					"specifier": "^2.0.0","#
+            r#"					"version": "2.1.0","#
+            "				},"
             "			},"
             "		},"
             "	},"
+            ""
             r#"	"projects": {"#
             r#"		".": {"#
             r#"			"dependencies": {"#
@@ -504,15 +525,28 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             r#"				"injected": "workspace:*","#
             r#"				"injected-alias": "workspace:injected@*","#
             r#"				"pinned": "catalog:","#
-            r#"				"ranged": {"specifier": "^1.0.0", "version": "1.2.3"},"#
-            r#"				"shared": {"specifier": "workspace:*", "version": "link:../shared"},"#
+            r#"				"ranged": {"#
+            r#"					"specifier": "^1.0.0","#
+            r#"					"version": "1.2.3","#
+            "				},"
+            r#"				"shared": {"#
+            r#"					"specifier": "workspace:*","#
+            r#"					"version": "link:../shared","#
+            "				},"
             r#"				"tool": "catalog:","#
             "			},"
             "		},"
+            ""
             r#"		"packages/app": {"#
             r#"			"dependencies": {"#
-            r#"				"lib": {"specifier": "file:../lib", "version": "file:packages/lib"},"#
-            r#"				"pinned-link": {"specifier": "1.0.0", "version": "link:../pinned-link"},"#
+            r#"				"lib": {"#
+            r#"					"specifier": "file:../lib","#
+            r#"					"version": "file:packages/lib","#
+            "				},"
+            r#"				"pinned-link": {"#
+            r#"					"specifier": "1.0.0","#
+            r#"					"version": "link:../pinned-link","#
+            "				},"
             "			},"
             "		},"
             "	},"
@@ -592,14 +626,19 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
             r#"				"@scope/a": "workspace:*","#
             "			},"
             "		},"
+            ""
             r#"		"packages/a": {"#
             r#"			"name": "@scope/a","#
             "		},"
+            ""
             r#"		"packages/b": {"#
             r#"			"dependencies": {"#
             r#"				"@scope/a": "workspace:^","#
             r#"				"a-alias": "workspace:@scope/a@*","#
-            r#"				"tool": {"specifier": "workspace:*", "version": "link:../tool"},"#
+            r#"				"tool": {"#
+            r#"					"specifier": "workspace:*","#
+            r#"					"version": "link:../tool","#
+            "				},"
             "			},"
             "		},"
             "	},"
