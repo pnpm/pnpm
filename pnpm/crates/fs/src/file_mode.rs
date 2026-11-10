@@ -36,15 +36,39 @@ pub const EXEC_MODE: FileMode = FileMode::from_mode(0b111_101_101);
 /// non-executable entries.
 pub const BASE_FILE_MODE: FileMode = FileMode::from_mode(0b110_110_110);
 
+/// The permissions a file creation takes away.
+///
+/// Its own type rather than a [`FileMode`], because the bits mean the
+/// opposite of each other: a mode says which permissions a file has, a
+/// mask which ones its creation removes. Handing one to the other's
+/// caller inverts the result, which no test of a single mode would
+/// notice, so the two do not convert.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Umask(u32);
+
+impl Umask {
+    /// The mask `mask` names, as the platform reports it.
+    #[must_use]
+    pub const fn from_mask(mask: u32) -> Self {
+        Self(mask)
+    }
+
+    /// The bits, as the number a foreign call takes.
+    #[must_use]
+    pub const fn mask(self) -> u32 {
+        self.0
+    }
+}
+
 /// The mode a fresh store write gives an entry of `executable`'s class
 /// under `umask`. The store creates every file this way
 /// (`StoreDir::write_cas_file`), so materializing a store file at this
 /// mode is what a store write would have produced, whatever umask
 /// populated the store (pnpm/pnpm#3807).
 #[must_use]
-pub fn store_entry_mode(executable: bool, umask: u32) -> FileMode {
+pub fn store_entry_mode(executable: bool, umask: Umask) -> FileMode {
     let base = if executable { EXEC_MODE } else { BASE_FILE_MODE };
-    FileMode::from_mode(base.mode() & !umask & 0o777)
+    FileMode::from_mode(base.mode() & !umask.mask() & 0o777)
 }
 
 /// Whether a store inode of `mode` can be linked where [`store_entry_mode`]
@@ -66,26 +90,26 @@ pub fn store_inode_mode_is_linkable(mode: FileMode, desired: FileMode) -> bool {
 /// the import hot path would otherwise pay a syscall per file.
 #[cfg(unix)]
 #[must_use]
-pub fn current_umask() -> u32 {
+pub fn current_umask() -> Umask {
     static UMASK: std::sync::LazyLock<u32> =
         std::sync::LazyLock::new(pnpm_ffi_process::current_umask);
-    *UMASK
+    Umask::from_mask(*UMASK)
 }
 
 /// Cache the host process mask for WASI permission calculations.
 #[cfg(target_os = "wasi")]
 #[must_use]
-pub fn current_umask() -> u32 {
+pub fn current_umask() -> Umask {
     static UMASK: std::sync::LazyLock<u32> =
         std::sync::LazyLock::new(crate::wasi_fs::current_umask);
-    *UMASK
+    Umask::from_mask(*UMASK)
 }
 
 /// Platforms without permission bits have no mode bits to mask.
 #[cfg(not(any(unix, target_os = "wasi")))]
 #[must_use]
-pub fn current_umask() -> u32 {
-    0
+pub fn current_umask() -> Umask {
+    Umask::from_mask(0)
 }
 
 /// Whether a file mode has *any* executable bit set (`u+x`, `g+x`, or

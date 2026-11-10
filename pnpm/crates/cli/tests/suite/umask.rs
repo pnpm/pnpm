@@ -11,6 +11,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
+    spawn::Umask,
 };
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
@@ -34,7 +35,7 @@ const PLAIN_FILE_REL: &str = concat!(
     "node_modules/@pnpm.e2e/bravo-dep/package.json",
 );
 
-fn pnpm_with_umask(dir: &Path, umask: u32, args: &[&str]) {
+fn pnpm_with_umask(dir: &Path, umask: Umask, args: &[&str]) {
     let mut command = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(dir)
@@ -44,9 +45,10 @@ fn pnpm_with_umask(dir: &Path, umask: u32, args: &[&str]) {
         .args(args)
         .output()
         .expect("run pnpm");
+    let mask = umask.mask();
     assert!(
         output.status.success(),
-        "{args:?} under umask {umask:#o} failed\nstdout:\n{}\nstderr:\n{}",
+        "{args:?} under umask {mask:#o} failed\nstdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
@@ -95,8 +97,12 @@ fn installs_materialize_files_at_the_current_umask_even_from_a_stale_store() {
 
     // On APFS `auto` clones before it hardlinks, so the control project
     // pins the method that the inode assertion below can then check.
-    pnpm_with_umask(&workspace, 0o022, &["install", "--package-import-method=hardlink"]);
-    pnpm_with_umask(&other, 0o077, &["install"]);
+    pnpm_with_umask(
+        &workspace,
+        Umask::from_mask(0o022),
+        &["install", "--package-import-method=hardlink"],
+    );
+    pnpm_with_umask(&other, Umask::from_mask(0o077), &["install"]);
 
     assert_eq!(
         file_mode(&workspace.join(EXEC_FILE_REL)),
@@ -195,7 +201,7 @@ fn local_directory_dependency_files_keep_their_project_modes() {
     )
     .expect("write package.json");
 
-    pnpm_with_umask(&workspace, 0o077, &["install"]);
+    pnpm_with_umask(&workspace, Umask::from_mask(0o077), &["install"]);
 
     assert_eq!(
         file_mode(&workspace.join("node_modules/local-dep/run")),
@@ -225,7 +231,11 @@ fn installs_hardlink_from_a_world_writable_store_under_umask_000() {
     fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o777))
         .expect("make the store directory world-writable");
 
-    pnpm_with_umask(&workspace, 0o000, &["install", "--package-import-method=hardlink"]);
+    pnpm_with_umask(
+        &workspace,
+        Umask::from_mask(0o000),
+        &["install", "--package-import-method=hardlink"],
+    );
 
     let files_dir = store_dir.join(pnpm_store_dir::STORE_VERSION).join("files");
     let store_inodes: Vec<u64> = walkdir::WalkDir::new(&files_dir)
@@ -271,12 +281,12 @@ fn files_pnpm_writes_into_a_project_follow_the_umask() {
     }
     let edit_dir = workspace.join("node_modules/.pnpm_patches/@pnpm.e2e/bravo-dep@1.0.0");
 
-    pnpm_with_umask(&workspace, 0o022, &["install"]);
-    pnpm_with_umask(&workspace, 0o022, &["patch", "@pnpm.e2e/bravo-dep@1.0.0"]);
+    pnpm_with_umask(&workspace, Umask::from_mask(0o022), &["install"]);
+    pnpm_with_umask(&workspace, Umask::from_mask(0o022), &["patch", "@pnpm.e2e/bravo-dep@1.0.0"]);
     fs::write(edit_dir.join("index.js"), "module.exports = 'patched'\n").expect("edit the package");
     pnpm_with_umask(
         &workspace,
-        0o022,
+        Umask::from_mask(0o022),
         &["patch-commit", edit_dir.to_str().expect("a UTF-8 edit dir")],
     );
 
