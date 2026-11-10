@@ -222,7 +222,7 @@ pub struct HttpConfig {
     pub packument_ttl: Duration,
     /// The largest tarball pnpr fetches from an upstream registry, in bytes.
     /// pnpr spools each proxied tarball to disk while it verifies the
-    /// integrity, so this bounds the temporary disk use of one request. An
+    /// integrity, so this bounds the temporary disk each tarball takes. An
     /// upstream tarball over it is refused. Sourced from the YAML
     /// `maxTarballSize:` key; defaults to [`Self::DEFAULT_MAX_TARBALL_BYTES`].
     pub max_tarball_bytes: u64,

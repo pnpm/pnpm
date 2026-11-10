@@ -606,7 +606,8 @@ packumentTtl: 30s
 
 ## `maxTarballSize`
 
-The largest tarball pnpr fetches from an upstream registry. pnpr writes each
+The largest tarball pnpr fetches from an upstream registry. The same limit
+applies to Cargo crates and Python distributions fetched from an upstream. pnpr writes each
 proxied tarball to a temporary file while it verifies the integrity, so this
 bounds the disk each tarball can take. An upstream tarball that declares a size
 over the limit is refused with `502 Bad Gateway`, and the install fails with
