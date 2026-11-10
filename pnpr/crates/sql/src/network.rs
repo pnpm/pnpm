@@ -9,7 +9,7 @@ use pnpr_error::{RegistryError, Result};
 use sqlx::{TypeInfo, ValueRef, pool::PoolConnection};
 use std::{
     cell::{Cell, RefCell},
-    sync::{Arc, Mutex, PoisonError},
+    sync::Arc,
     time::Duration,
 };
 
@@ -21,10 +21,11 @@ macro_rules! driver {
     ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty, $dialect:expr, $timeout_sql:path) => {
         pub(super) mod $module {
             use super::{
-                Adapter, Arc, Cell, Connection, Dialect, Duration, Mutex, Param, PoisonError,
-                PoolConnection, Query, ReadSource, RefCell, RegistryError, Result, Row,
-                SqlBackendSettings, TypeInfo, Value, ValueRef,
+                Adapter, Arc, Cell, Connection, Dialect, Duration, Param, PoolConnection, Query,
+                ReadSource, RefCell, RegistryError, Result, Row, SqlBackendSettings, TypeInfo,
+                Value, ValueRef,
             };
+            use tokio::sync::Mutex;
             use sqlx::Row as _;
 
             #[derive(Debug)]
@@ -34,7 +35,8 @@ macro_rules! driver {
                 settings: SqlBackendSettings,
                 /// Held by a write of this instance, so one connection at a
                 /// time waits for the database's write lock and the others
-                /// stay free for reads.
+                /// stay free for reads. A write waits for it as long as for a
+                /// pool connection.
                 writer: Mutex<()>,
             }
 
@@ -116,8 +118,11 @@ macro_rules! driver {
                     &self,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
-                    let _writer = self.writer.lock().unwrap_or_else(PoisonError::into_inner);
-                    self.run(self.settings.timeout, operation)
+                    let timeout = self.settings.timeout;
+                    let _writer = tokio::runtime::Handle::current()
+                        .block_on(tokio::time::timeout(timeout, self.writer.lock()))
+                        .map_err(|_| sqlx::Error::PoolTimedOut)?;
+                    self.run(timeout, operation)
                 }
 
                 fn read(
