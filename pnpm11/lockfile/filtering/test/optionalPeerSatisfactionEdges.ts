@@ -8,6 +8,12 @@ import { getPeerSatisfactionEdges } from '@pnpm/lockfile.peer-edges'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
 
+/**
+ * This repository's lockfile as pnpm 11 last wrote it. The live one is in a
+ * format pnpm 11 reads only in the boot document.
+ */
+const LARGE_LOCKFILE_DIR = path.join(import.meta.dirname, '__fixtures__/large-workspace')
+
 type Include = { [dependenciesField in DependenciesField]: boolean }
 
 const ALL: Include = { dependencies: true, devDependencies: true, optionalDependencies: true }
@@ -96,12 +102,13 @@ describe.each([
   })
 
   test('keeps every snapshot of a large lockfile unchanged when every dependency group is included', async () => {
-    const lockfile = (await readWantedLockfile(path.join(import.meta.dirname, '../../../..'), { ignoreIncompatible: false }))!
-    // The repository's own lockfile has optional peers that its devDependencies satisfy.
+    const lockfile = (await readWantedLockfile(LARGE_LOCKFILE_DIR, { ignoreIncompatible: false }))!
+    // The fixture has optional peers that its devDependencies satisfy.
     expect(getPeerSatisfactionEdges(lockfile, { resolvePeersFromWorkspaceRoot: true }).size).toBeGreaterThan(0)
 
     const filtered = filter(lockfile, ALL)
 
+    expect(Object.keys(filtered.packages!).sort()).toStrictEqual(Object.keys(lockfile.packages!).sort())
     for (const [depPath, snapshot] of Object.entries(filtered.packages!)) {
       expect(snapshot).toBe(lockfile.packages![depPath as DepPath])
     }
