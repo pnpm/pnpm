@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { type LockfileObject, type ProjectSnapshot, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createFormat, createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
-import type { ProjectId, ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
@@ -57,12 +57,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
   const nextTag = `next-${pnpmMajorNumber}`
   const utilsDir = path.join(workspaceDir, 'pnpm11/__utils__')
-  const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
-  if (lockfile == null) {
-    throw new Error('no lockfile found')
-  }
   const workspacePackages = await findWorkspaceProjectsNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
   const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
+  const workspacePackageDirs = new Map(workspacePackages.flatMap(pkg => pkg.manifest.name ? [[pkg.manifest.name, pkg.rootDir] as const] : []))
   const nodeRuntimeVersion = readNodeRuntimeVersion(workspaceDir)
   return createUpdateOptions({
     formats: { '.yml': textFormat, '.rs': textFormat, '.toml': textFormat, '.lock': textFormat, '.ts': textFormat },
@@ -164,7 +161,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return updateManifest(workspaceDir, manifest, dir, nextTag)
       },
       'tsconfig.json': updateTSConfig.bind(null, {
-        lockfile,
+        workspacePackageDirs,
         workspaceDir,
       }),
     'cspell.json': (cspell: any) => { // eslint-disable-line
@@ -203,7 +200,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
 
 async function updateTSConfig (
   context: {
-    lockfile: LockfileObject
+    workspacePackageDirs: Map<string, string>
     workspaceDir: string
   },
   tsConfig: object | null,
@@ -214,14 +211,11 @@ async function updateTSConfig (
 ): Promise<object | null> {
   if (tsConfig == null) return tsConfig
   if (shouldKeepTSConfig(manifest.name)) return tsConfig
-  const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
-  const importer = context.lockfile.importers[relative]
-  if (!importer) return tsConfig
   const linkValues = findTypeScriptReferences({
     workspaceDir: context.workspaceDir,
+    workspacePackageDirs: context.workspacePackageDirs,
     dir,
-    importer,
-    projectName: manifest.name,
+    manifest,
   })
   const configContext = { workspaceDir: context.workspaceDir, dir, tsConfig, linkValues }
   await writeTsConfigFiles(configContext)
@@ -247,26 +241,37 @@ function getCompilerOptions (tsConfig: object): (Record<string, unknown> & { com
 
 function findTypeScriptReferences ({
   workspaceDir,
+  workspacePackageDirs,
   dir,
-  importer,
-  projectName,
+  manifest,
 }: {
   workspaceDir: string
+  workspacePackageDirs: Map<string, string>
   dir: string
-  importer: ProjectSnapshot
-  projectName: string | undefined
+  manifest: Pick<ProjectManifest, 'name' | 'dependencies' | 'devDependencies' | 'peerDependencies'>
 }): string[] {
-  const deps = { ...importer.dependencies, ...importer.devDependencies }
+  const deps = { ...manifest.peerDependencies, ...manifest.dependencies, ...manifest.devDependencies }
   return Object.entries(deps)
-    .filter(([depName, spec]) => {
-      if (!spec.startsWith('link:') || spec.length === 5) return false
-      const linkedPkgDir = path.join(dir, spec.slice(5))
-      return fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) &&
-        isSubdir(workspaceDir, linkedPkgDir) &&
-        !isExcludedTypeScriptReference(depName, projectName)
+    .flatMap(([depName, spec]) => {
+      const linkedPkgDir = resolveLinkedPackageDir({ depName, spec, dir, workspacePackageDirs })
+      if (linkedPkgDir == null || linkedPkgDir === dir || !fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) ||
+        !isSubdir(workspaceDir, linkedPkgDir) || isExcludedTypeScriptReference(depName, manifest.name)) return []
+      return [normalizePath(path.relative(dir, linkedPkgDir))]
     })
-    .map(([, spec]) => spec.slice(5))
     .sort()
+}
+
+function resolveLinkedPackageDir ({ depName, spec, dir, workspacePackageDirs }: {
+  depName: string
+  spec: string
+  dir: string
+  workspacePackageDirs: Map<string, string>
+}): string | undefined {
+  if (spec.startsWith('link:') && spec.length > 5) return path.resolve(dir, spec.slice(5))
+  const workspaceSpec = WorkspaceSpec.parse(spec)
+  if (workspaceSpec == null) return undefined
+  if (workspaceSpec.version.startsWith('.')) return path.resolve(dir, workspaceSpec.version)
+  return workspacePackageDirs.get(workspaceSpec.alias ?? depName)
 }
 
 function isExcludedTypeScriptReference (dependencyName: string, projectName: string | undefined): boolean {
