@@ -5,11 +5,10 @@
 //! readers, while a JSON reader that allows the trailing comma parses it
 //! several times faster. A tab is a tenth of the file's bytes smaller than
 //! two spaces and is separation whitespace inside a flow collection, where
-//! YAML allows it. Entries follow each other without blank lines: the
-//! entries of the top-level map and of `projects` and `packages` are maps
-//! written over several lines, so each closes with its own `},` line, which
-//! gives a diff or a merge the context the block emitter's blank lines
-//! provide. The maps
+//! YAML allows it. Entries follow each other without blank lines: a map
+//! written over several lines closes with its own `},` line, which gives a
+//! diff or a merge the context the block emitter's blank lines provide. The
+//! maps
 //! [`one_line_values`] names sit on their keys' lines, and a map that
 //! [names a snapshot](names_snapshot) is written one binding per line.
 

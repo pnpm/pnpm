@@ -813,7 +813,6 @@ fn compare_timings() {
     }
 }
 
-/// Whether `lockfile`, parsed section by section, equals `text` parsed whole.
 /// A corpus lockfile in today's format, parsed. `None` for a file that
 /// cannot be read or parsed, or that is already in the next format.
 fn corpus_input(path: &Path) -> Option<(String, Lockfile)> {
@@ -825,6 +824,7 @@ fn corpus_input(path: &Path) -> Option<(String, Lockfile)> {
     Some((text, lockfile))
 }
 
+/// Whether `lockfile`, parsed section by section, equals `text` parsed whole.
 fn parallel_parse_matches_whole(text: &str, lockfile: &Lockfile) -> bool {
     let whole: Lockfile = serde_saphyr::from_str(&crate::extract_main_document(text))
         .expect("parse the document whole");
