@@ -124,7 +124,8 @@ impl RegistryError {
     fn storage_status_code(&self) -> StatusCode {
         match self {
             RegistryError::StorageUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
-            RegistryError::Internal { .. }
+            RegistryError::InvalidConfig { .. }
+            | RegistryError::Internal { .. }
             | RegistryError::InvalidUsersFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
@@ -218,7 +219,6 @@ impl RegistryError {
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidEcosystemPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::EmptyMaintainers { .. }
             | RegistryError::ManifestMismatch { .. }

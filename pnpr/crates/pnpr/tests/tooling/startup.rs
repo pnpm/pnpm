@@ -16,6 +16,11 @@ async fn config_check_rejects_insecure_database_tokens() {
     #[cfg(not(feature = "backend-libsql"))]
     assert!(check.contains("database driver"), "{check}");
     let config = Config::from_yaml(&config_file, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let router_error = pnpr::try_router_with_auth(config.clone(), pnpr::AuthState::in_memory())
+        .err()
+        .unwrap()
+        .to_string();
+    assert_eq!(router_error, check);
     let error = pnpr::serve(config).await.unwrap_err().to_string();
     assert_eq!(error, check);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);

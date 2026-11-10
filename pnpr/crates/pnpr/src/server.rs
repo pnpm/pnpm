@@ -299,12 +299,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 
 /// Fallible counterpart to [`router_with_auth`].
 pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::Result<Router> {
-    // Enforce the "at least one surface enabled" invariant for embedders
-    // that build and serve the router themselves rather than going through
-    // `serve`/`serve_listener`.
-    config.features.ensure_a_feature_is_enabled()?;
-    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
-    config.http.ensure_valid_metrics()?;
+    crate::config_validation::validate_startup_config(&mut config)?;
     let osv_index = load_active_osv_index(&config)?;
     router_with_auth_and_osv(config, auth, osv_index)
 }

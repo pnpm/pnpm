@@ -305,6 +305,27 @@ async fn not_found_renders_as_a_bare_404() {
     assert_eq!(body.as_ref(), b"Not Found");
 }
 
+#[tokio::test]
+async fn configuration_failures_hide_operator_details_from_clients() {
+    let error = RegistryError::InvalidConfig {
+        reason: "database libsql://database.example.test has a newer schema. Upgrade pnpr".into(),
+    };
+    assert_eq!(error.log_kind(), "invalid_config");
+    assert!(error.log_message().contains("Upgrade pnpr"));
+    let response = error.into_response();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        response
+            .extensions()
+            .get::<super::PublicErrorMessage>()
+            .unwrap()
+            .0,
+        "Internal Server Error",
+    );
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.as_ref(), b"Internal Server Error");
+}
+
 #[test]
 fn upstream_body_errors_preserve_gateway_status_and_log_kind() {
     for (kind, status) in [
