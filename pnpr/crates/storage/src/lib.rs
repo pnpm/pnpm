@@ -17,8 +17,8 @@ pub mod upload;
 pub use bounded_cache::BoundedCache;
 
 pub use atomic_write::{
-    TempSweep, count_stale_temps, remove_atomic_write_temps, sweep_stale_temps, unique_tmp_path,
-    write_atomic, write_atomic_new,
+    TempFileGuard, TempSweep, count_stale_temps, remove_atomic_write_temps, sweep_stale_temps,
+    unique_tmp_path, write_atomic, write_atomic_new,
 };
 
 pub use s3::cache_staging_tmp_base;

@@ -49,23 +49,25 @@ async fn startup_and_periodic_sweeps_reclaim_s3_staging_files_past_request_timeo
     let config = s3_config(&tmp);
     let storage = Storage::from_config(&config.storage).unwrap();
     let name = CanonicalPackageName::parse("large-pkg", Ecosystem::Npm).unwrap();
+    let staging_base = pnpr_storage::cache_staging_tmp_base(&config.storage.cache_dir);
+    tokio::fs::create_dir_all(staging_base.parent().unwrap()).await.unwrap();
 
-    let stale_slot = std::mem::ManuallyDrop::new(
-        storage.reserve_hosted_blob(&name, "large-pkg-1.0.0.tgz").await.unwrap(),
-    );
-    let stale_path = stale_slot.tmp_path.clone();
+    let stale_path = pnpr_storage::unique_tmp_path(&staging_base);
     tokio::fs::write(&stale_path, b"stale-staging-payload").await.unwrap();
     set_age(&stale_path, Duration::from_mins(2));
 
-    let fresh_slot = std::mem::ManuallyDrop::new(
-        storage.reserve_hosted_blob(&name, "large-pkg-1.0.1.tgz").await.unwrap(),
-    );
-    let fresh_path = fresh_slot.tmp_path.clone();
+    let fresh_path = pnpr_storage::unique_tmp_path(&staging_base);
     tokio::fs::write(&fresh_path, b"just-crashed-payload").await.unwrap();
+
+    let active_slot = storage.reserve_hosted_blob(&name, "large-pkg-1.0.2.tgz").await.unwrap();
+    let active_path = active_slot.tmp_path.clone();
+    tokio::fs::write(&active_path, b"in-flight-publish-payload").await.unwrap();
+    set_age(&active_path, Duration::from_mins(2));
 
     sweep_abandoned_archive_temps(&config).await.unwrap();
     assert!(!stale_path.exists(), "startup sweep must remove staging files past request_timeout");
     assert!(fresh_path.exists(), "startup sweep must keep staging files within request_timeout");
+    assert!(active_path.exists(), "startup sweep must keep active in-process slots");
 
     tokio::task::yield_now().await;
     set_age(&fresh_path, Duration::from_mins(2));
@@ -81,6 +83,9 @@ async fn startup_and_periodic_sweeps_reclaim_s3_staging_files_past_request_timeo
         !fresh_path.exists(),
         "periodic sweep must remove staging files once request_timeout elapses",
     );
+    assert!(active_path.exists(), "periodic sweep must keep active in-process slots");
+    drop(active_slot);
+    assert!(!active_path.exists());
 }
 
 #[tokio::test(start_paused = true)]
@@ -106,10 +111,9 @@ registries:
     let storage = Storage::from_config(&config.storage).unwrap().for_hosted("acme", Ecosystem::Npm);
     let name = CanonicalPackageName::parse("@acme/pkg", Ecosystem::Npm).unwrap();
 
-    let stale_slot = std::mem::ManuallyDrop::new(
-        storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap(),
-    );
-    let stale_path = stale_slot.tmp_path.clone();
+    let probe = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
+    let stale_path = pnpr_storage::unique_tmp_path(&probe.tmp_path.with_file_name("archive"));
+    drop(probe);
     tokio::fs::write(&stale_path, b"stale-local-payload").await.unwrap();
     set_age(&stale_path, Duration::from_mins(2));
 

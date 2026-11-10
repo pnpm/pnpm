@@ -2,6 +2,66 @@ use super::{
     AsyncWriteExt, AtomicU64, ErrorKind, Ordering, Path, PathBuf, Result, fs, read_dir_if_present,
 };
 use crate::tmp_suffix::{RANDOM_HEX_DIGITS, TMP_MARKER, tmp_suffix};
+use std::{
+    collections::HashSet,
+    sync::{LazyLock, Mutex, PoisonError},
+};
+
+static ACTIVE_TEMPS: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Registers an in-flight temporary file path against [`sweep_stale_temps`] and
+/// removes the file if dropped before [`Self::disarm`].
+#[derive(Debug)]
+pub struct TempFileGuard(Option<PathBuf>);
+
+impl TempFileGuard {
+    #[must_use]
+    pub fn new(path: PathBuf) -> Self {
+        ACTIVE_TEMPS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(path.clone());
+        Self(Some(path))
+    }
+
+    pub fn disarm(&mut self) {
+        if let Some(path) = self.0.take() {
+            ACTIVE_TEMPS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&path);
+        }
+    }
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let Some(path) = self.0.take() else { return };
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    path = %path.display(),
+                    "archive staging temp cleanup failed",
+                );
+            }
+        }
+        ACTIVE_TEMPS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&path);
+    }
+}
+
+fn is_active_temp(path: &Path) -> bool {
+    ACTIVE_TEMPS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(path)
+}
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -163,7 +223,7 @@ async fn inspect_stale_temp(
 ) -> Option<u64> {
     let name = entry.file_name();
     let suffix = name.as_encoded_bytes().strip_prefix(prefix)?;
-    if !is_atomic_write_temp_suffix(suffix) {
+    if !is_atomic_write_temp_suffix(suffix) || is_active_temp(&entry.path()) {
         return None;
     }
     let metadata = entry.metadata().await.ok()?;

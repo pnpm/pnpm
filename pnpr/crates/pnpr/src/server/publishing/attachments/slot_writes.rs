@@ -11,16 +11,6 @@ use super::{
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-struct ExtraTempFile(Option<std::path::PathBuf>);
-
-impl Drop for ExtraTempFile {
-    fn drop(&mut self) {
-        if let Some(path) = self.0.take() {
-            let _ = std::fs::remove_file(path);
-        }
-    }
-}
-
 /// Where an attachment is written, and where its tar is encoded to when the
 /// registry stores tars.
 pub(super) struct AttachmentPaths {
@@ -56,9 +46,8 @@ pub(super) async fn write_under_permit(
     let permit = acquire_decode_permit(kind, decodes, held).await;
     tokio::task::spawn_blocking(move || {
         let paths = AttachmentPaths::for_slot(&slot.tmp_path, storage);
-        let extra = paths.tar
-            .is_some()
-            .then(|| ExtraTempFile(Some(paths.attachment.clone())));
+        let extra =
+            paths.tar.is_some().then(|| pnpr_storage::TempFileGuard::new(paths.attachment.clone()));
         let derived = run_slot_write((attachment, staged), kind, &dist, &paths, permit.as_ref())?;
         drop(extra);
         Ok((slot, derived))

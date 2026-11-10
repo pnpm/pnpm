@@ -98,12 +98,13 @@ impl Storage {
         filename: &str,
     ) -> Result<BlobSlot> {
         let tmp_path = self.hosted.reserve_archive_tmp().await?;
+        let guard = crate::TempFileGuard::new(tmp_path.clone());
         Ok(BlobSlot {
             tmp_path,
             name: name.clone(),
             filename: filename.to_string(),
             version: String::new(),
-            should_remove_on_drop: true,
+            guard,
         })
     }
 
@@ -139,7 +140,7 @@ impl Storage {
         } else {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
         }
-        slot.should_remove_on_drop = false;
+        slot.guard.disarm();
         let artifact = ArtifactBlob {
             ecosystem: self.metadata.ecosystem(),
             name: slot.name.as_str().to_string(),

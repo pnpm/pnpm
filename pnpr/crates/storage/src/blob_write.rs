@@ -25,7 +25,7 @@ pub struct BlobSlot {
     pub(super) filename: String,
     /// The version the file belongs to, empty when none.
     pub(super) version: String,
-    pub(super) should_remove_on_drop: bool,
+    pub(super) guard: crate::TempFileGuard,
 }
 
 impl BlobSlot {
@@ -47,28 +47,30 @@ impl BlobSlot {
         self
     }
 
-    pub async fn abandon(mut self) {
-        self.should_remove_on_drop = false;
-        let _ = fs::remove_file(&self.tmp_path).await;
+    /// Write `bytes` to `tmp_path` on a blocking thread while keeping slot
+    /// ownership inside the blocking task, so cancelling the caller's future
+    /// removes `tmp_path` after the write finishes rather than before it
+    /// creates the file.
+    pub async fn write_bytes(self, bytes: &[u8]) -> super::Result<Self> {
+        let bytes = bytes.to_vec();
+        self.run_blocking_write(move |path| std::fs::write(path, bytes)).await
     }
-}
 
-impl Drop for BlobSlot {
-    fn drop(&mut self) {
-        if !self.should_remove_on_drop {
-            return;
-        }
-        match std::fs::remove_file(&self.tmp_path) {
-            Ok(()) => {}
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => {
-                tracing::warn!(
-                    ?err,
-                    path = %self.tmp_path.display(),
-                    "archive staging temp cleanup failed",
-                );
-            }
-        }
+    pub(crate) async fn run_blocking_write(
+        self,
+        write: impl FnOnce(&super::Path) -> std::io::Result<()> + Send + 'static,
+    ) -> super::Result<Self> {
+        tokio::task::spawn_blocking(move || {
+            write(&self.tmp_path)?;
+            Ok(self)
+        })
+        .await
+        .map_err(|err| pnpr_error::RegistryError::Io(std::io::Error::other(err.to_string())))?
+    }
+
+    pub async fn abandon(mut self) {
+        let _ = fs::remove_file(&self.tmp_path).await;
+        self.guard.disarm();
     }
 }
 

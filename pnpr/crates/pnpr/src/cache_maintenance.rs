@@ -90,11 +90,18 @@ async fn sweep_staging_cache(
     cache_dir: &Path,
     max_age: Duration,
     effect: CacheGcEffect,
-) -> Result<pnpr_storage::TempSweep> {
+) -> pnpr_storage::TempSweep {
     let base = pnpr_storage::cache_staging_tmp_base(cache_dir);
-    match effect {
+    let result = match effect {
         CacheGcEffect::Apply => pnpr_storage::sweep_stale_temps(&base, max_age).await,
         CacheGcEffect::DryRun => pnpr_storage::count_stale_temps(&base, max_age).await,
+    };
+    match result {
+        Ok(sweep) => sweep,
+        Err(err) => {
+            tracing::warn!(error = %err, "sweeping publish staging files failed");
+            pnpr_storage::TempSweep::default()
+        }
     }
 }
 
@@ -117,7 +124,7 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
         archive_staging_max_age(config),
         options.effect,
     )
-    .await?;
+    .await;
     report.files_evicted += staging.files;
     report.bytes_reclaimed += staging.bytes;
     let max_age = options.max_age.or(config.storage.cache.max_age);
