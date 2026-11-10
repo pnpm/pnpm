@@ -125,10 +125,11 @@ impl LibsqlAuth {
         max_connections: u32,
         is_replica: bool,
     ) -> Result<Self> {
+        let pool = ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
+            RegistryError::AuthDatabaseTimeout
+        });
         let auth = Self {
-            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
-                RegistryError::AuthDatabaseTimeout
-            }),
+            pool: if is_replica { pool.replica() } else { pool },
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
@@ -467,6 +468,7 @@ impl LibsqlAuth {
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            let (new_hash, stored) = (new_hash.as_str(), stored.as_str());
             self.pool.write(|conn| async move {
                 conn.execute(
                     "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3",

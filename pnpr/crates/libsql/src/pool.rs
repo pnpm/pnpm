@@ -1,12 +1,12 @@
 //! The connections a libSQL database's operations run on.
 
-use crate::with_deadline;
+use crate::{is_stale_stream, with_deadline};
 use libsql::{Connection, Database, Error as LibsqlError, Row};
 use pnpr_error::{RegistryError, Result};
 use std::{
     future::Future,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{
     runtime::Handle,
@@ -29,6 +29,13 @@ pub async fn first_row<Output>(
     Ok(first)
 }
 
+/// How long a connection may sit in the pool before the pool closes it
+/// instead of handing it out. `sqld`, which Turso runs, expires a stream 10
+/// seconds after it last answered on it, and rejects the stream's next request.
+/// Opening a remote connection costs no round trip: its first request opens
+/// a new stream.
+const IDLE_EXPIRY: Duration = Duration::from_secs(5);
+
 /// Connections to one database, each running one operation at a time.
 ///
 /// A remote connection is a stream on the server, and each response hands the
@@ -39,7 +46,14 @@ pub async fn first_row<Output>(
 /// still inside a transaction would pull the next operation into it. A
 /// connection therefore returns to the pool only after its operation succeeded
 /// outside a transaction; any other is closed, and a later checkout opens a
-/// fresh one.
+/// fresh one. A connection idle for `IDLE_EXPIRY` is closed as well.
+///
+/// A stream can still be gone when its connection is checked out, such as
+/// after the server restarted. The server rejects the stream's request
+/// without running it, and discards the stream with any transaction it held.
+/// [`Self::read`] and [`Self::write`] then run the operation once more on a
+/// new connection, and every idle connection is closed, since they share the
+/// server's fate.
 ///
 /// Reads and writes are bounded differently, because cancelling a write after
 /// it reached the database leaves its outcome unknown. [`Self::read`] runs under the deadline end to end.
@@ -49,7 +63,9 @@ pub async fn first_row<Output>(
 /// blocking thread pool, where the deadline can still give up on it.
 pub struct ConnectionPool {
     db: Arc<Database>,
-    idle: Arc<Mutex<Vec<Connection>>>,
+    idle: Arc<Mutex<Vec<Idle>>>,
+    /// `None` for an embedded replica; see [`Self::replica`].
+    idle_expiry: Option<Duration>,
     slots: Arc<Semaphore>,
     /// Connection opens in flight. An open the deadline gave up on keeps its
     /// permit until it returns, so a stalled database cannot pile up blocked
@@ -74,6 +90,7 @@ impl ConnectionPool {
         Self {
             db: Arc::new(db),
             idle: Arc::new(Mutex::new(Vec::new())),
+            idle_expiry: Some(IDLE_EXPIRY),
             slots: Arc::new(Semaphore::new(max_connections)),
             opens: Arc::new(Semaphore::new(max_connections)),
             timeout,
@@ -81,35 +98,55 @@ impl ConnectionPool {
         }
     }
 
-    /// Run the read `operation` on a pooled connection. Past the deadline,
+    /// Run the read `operation` on a pooled connection, and once more on a
+    /// new one if the server rejected the stream as stale. Past the deadline,
     /// waiting for a connection included, it fails with the pool's timeout
     /// error.
     ///
     /// `operation` must not use the pool itself: with every connection held
     /// by an operation waiting for another, the pool deadlocks.
-    pub async fn read<Loaded, Operation, Pending>(&self, operation: Operation) -> Result<Loaded>
+    pub async fn read<Loaded, Operation, Pending>(&self, mut operation: Operation) -> Result<Loaded>
     where
-        Operation: FnOnce(Connection) -> Pending,
+        Operation: FnMut(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
         with_deadline::<_, RegistryError>(self.timeout, self.timed_out, async {
-            let checkout = self.take().await?;
-            checkout.run(operation).await
+            match self.take().await?.run(&mut operation).await {
+                Err(error) if is_stale_stream(&error) => {
+                    self.open().await?.run(&mut operation).await
+                }
+                result => result,
+            }
         })
         .await
     }
 
-    /// Run the write `operation` on a pooled connection. It fails with the
+    /// Run the write `operation` on a pooled connection, and once more on a
+    /// new one if the server rejected the stream as stale. It fails with the
     /// pool's timeout error if no connection frees up within the deadline,
     /// and otherwise runs to completion.
     ///
-    /// `operation` must not use the pool itself; see [`Self::read`].
-    pub async fn write<Loaded, Operation, Pending>(&self, operation: Operation) -> Result<Loaded>
+    /// `operation` must send one statement, or run its statements in one
+    /// transaction: a rejected stream takes its transaction with it, but a
+    /// statement that committed on its own before the rejection would run
+    /// twice. It must not use the pool itself; see [`Self::read`].
+    pub async fn write<Loaded, Operation, Pending>(
+        &self,
+        mut operation: Operation,
+    ) -> Result<Loaded>
     where
-        Operation: FnOnce(Connection) -> Pending,
+        Operation: FnMut(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
-        self.checkout().await?.run(operation).await
+        match self.checkout().await?.run(&mut operation).await {
+            Err(error) if is_stale_stream(&error) => {
+                with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.open())
+                    .await?
+                    .run(&mut operation)
+                    .await
+            }
+            result => result,
+        }
     }
 
     /// A connection to run statements on outside an async operation, such as
@@ -122,17 +159,44 @@ impl ConnectionPool {
 
     /// A slot and a connection to run one operation on.
     async fn take(&self) -> Result<Checkout> {
-        let slot = Arc::clone(&self.slots)
-            .acquire_owned()
-            .await
-            .expect("the pool never closes its semaphore");
-        let pooled = self.idle
-            .lock()
-            .expect("idle connections lock")
-            .pop();
-        if let Some(conn) = pooled {
-            return Ok(Checkout { idle: Arc::clone(&self.idle), _slot: slot, conn });
+        let slot = self.acquire_slot().await;
+        match self.pop_idle() {
+            Some(conn) => Ok(self.checkout_of(slot, conn)),
+            None => self.connect_in(slot).await,
         }
+    }
+
+    /// A slot and a new connection, closing every idle one.
+    async fn open(&self) -> Result<Checkout> {
+        let slot = self.acquire_slot().await;
+        let idle = std::mem::take(&mut *self.idle.lock().expect("idle connections lock"));
+        drop(idle);
+        self.connect_in(slot).await
+    }
+
+    async fn acquire_slot(&self) -> OwnedSemaphorePermit {
+        Arc::clone(&self.slots).acquire_owned().await.expect("the pool never closes its semaphore")
+    }
+
+    /// The connection idle the shortest, unless it idled past the expiry:
+    /// then it and every connection idle longer are closed.
+    fn pop_idle(&self) -> Option<Connection> {
+        let mut idle = self.idle.lock().expect("idle connections lock");
+        let newest = idle.pop()?;
+        if self.idle_expiry.is_none_or(|expiry| newest.since.elapsed() < expiry) {
+            return Some(newest.conn);
+        }
+        let expired = std::mem::take(&mut *idle);
+        drop(idle);
+        drop((newest, expired));
+        None
+    }
+
+    fn checkout_of(&self, slot: OwnedSemaphorePermit, conn: Connection) -> Checkout {
+        Checkout { idle: Arc::clone(&self.idle), _slot: slot, conn }
+    }
+
+    async fn connect_in(&self, slot: OwnedSemaphorePermit) -> Result<Checkout> {
         let open = Arc::clone(&self.opens)
             .acquire_owned()
             .await
@@ -144,7 +208,23 @@ impl ConnectionPool {
         })
         .await
         .expect("opening a libsql connection panicked")?;
-        Ok(Checkout { idle: Arc::clone(&self.idle), _slot: slot, conn })
+        Ok(self.checkout_of(slot, conn))
+    }
+
+    /// Keep idle connections however long they idle. An embedded replica's
+    /// connection reads a local file and holds no stream that could expire,
+    /// and opening one can wait for a background sync.
+    #[must_use]
+    pub fn replica(mut self) -> Self {
+        self.idle_expiry = None;
+        self
+    }
+
+    /// Close connections idle for `expiry` rather than [`IDLE_EXPIRY`].
+    #[cfg(test)]
+    pub(crate) fn with_idle_expiry(mut self, expiry: Duration) -> Self {
+        self.idle_expiry = Some(expiry);
+        self
     }
 
     /// How many connection opens are still running.
@@ -172,10 +252,15 @@ impl ConnectionPool {
     }
 }
 
+struct Idle {
+    conn: Connection,
+    since: Instant,
+}
+
 /// A connection checked out of a [`ConnectionPool`], holding one of its
 /// slots until it is released or dropped.
 pub struct Checkout {
-    idle: Arc<Mutex<Vec<Connection>>>,
+    idle: Arc<Mutex<Vec<Idle>>>,
     /// Declared before the slot, so a dropped checkout closes its connection
     /// before the slot lets another operation open one.
     conn: Connection,
@@ -195,7 +280,7 @@ impl Checkout {
             self.idle
                 .lock()
                 .expect("idle connections lock")
-                .push(self.conn);
+                .push(Idle { conn: self.conn, since: Instant::now() });
         }
     }
 
@@ -213,9 +298,9 @@ impl Checkout {
         });
     }
 
-    async fn run<Loaded, Operation, Pending>(self, operation: Operation) -> Result<Loaded>
+    async fn run<Loaded, Operation, Pending>(self, operation: &mut Operation) -> Result<Loaded>
     where
-        Operation: FnOnce(Connection) -> Pending,
+        Operation: FnMut(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
         let result = operation(self.conn.clone()).await;

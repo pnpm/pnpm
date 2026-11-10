@@ -1,7 +1,7 @@
 use crate::{
-    LibsqlConnector,
+    LibsqlConnector, first_row,
     pool::ConnectionPool,
-    testing::{SYNC_STALL, serve_primary},
+    testing::{Primary, SYNC_STALL, serve_primary},
 };
 use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use libsql::{Builder, Database};
@@ -10,7 +10,10 @@ use serde_json::{Value, json};
 use std::{
     collections::HashSet,
     fmt::Write as _,
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -220,4 +223,163 @@ async fn a_stalled_replica_sync_does_not_hold_operations_past_their_deadline() {
     }
     assert!(elapsed < SYNC_STALL / 2, "{elapsed:?}");
     assert_eq!(in_flight, max_connections, "opens still blocked once every read timed out");
+}
+
+/// A pooled connection idle past its expiry is closed rather than handed out,
+/// so the server never sees a request on a stream it expired.
+#[tokio::test]
+async fn a_connection_idle_past_its_expiry_is_not_handed_out() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, db, server) = remote_primary(directory.path()).await;
+    primary.expire_streams_after(Duration::from_millis(400));
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out)
+        .with_idle_expiry(Duration::from_millis(200));
+    pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let after = pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await;
+    let rejections = primary.stale_stream_rejections();
+    server.abort();
+    after.unwrap();
+    assert_eq!(rejections, 0);
+}
+
+/// A server can expire a stream sooner than the pool expects. The read on it
+/// runs again on a new connection.
+#[tokio::test]
+async fn a_read_on_a_stream_the_server_expired_runs_again() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, db, server) = remote_primary(directory.path()).await;
+    primary.expire_streams_after(Duration::from_millis(100));
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out);
+    pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let after = pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await;
+    let rejections = primary.stale_stream_rejections();
+    server.abort();
+    after.unwrap();
+    assert_eq!(rejections, 1);
+}
+
+/// After the server forgets its streams, as a restart does, a write or a read
+/// on a pooled connection runs again on a new one. The write is applied once,
+/// and its rejection closes the other idle connection too. A connection keeps
+/// its stream open after a query, and closes it after a statement that
+/// commits on its own.
+#[tokio::test]
+async fn operations_on_streams_the_server_forgot_run_again_on_new_connections() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, db, server) = remote_primary(directory.path()).await;
+    primary.conn
+        .execute("CREATE TABLE items (id INTEGER)", ())
+        .await
+        .unwrap();
+    let pool = ConnectionPool::new(db, 2, Duration::from_secs(30), timed_out);
+    let (first, second) = (count_items(&pool), count_items(&pool));
+    let (first, second) = tokio::join!(first, second);
+    first.unwrap();
+    second.unwrap();
+
+    primary.restart();
+    let written =
+        pool.write(
+            |conn| async move { Ok(conn.execute("INSERT INTO items VALUES (1)", ()).await?) },
+        )
+        .await;
+    let rejected_by_write = primary.stale_stream_rejections();
+    let (first_count, second_count) = (count_items(&pool), count_items(&pool));
+    let (first_count, second_count) = tokio::join!(first_count, second_count);
+    let rejected_by_concurrent_reads = primary.stale_stream_rejections() - rejected_by_write;
+    primary.restart();
+    let count_after_restart = count_items(&pool).await;
+    let rejected_by_read = primary.stale_stream_rejections() - rejected_by_write;
+    server.abort();
+    written.unwrap();
+    for counted in [first_count, second_count, count_after_restart] {
+        assert_eq!(counted.unwrap(), Some(1));
+    }
+    assert_eq!((rejected_by_write, rejected_by_concurrent_reads, rejected_by_read), (1, 0, 1));
+}
+
+/// A server that restarts while a write's transaction is open discards the
+/// transaction, so the write runs again from its start and applies once.
+#[tokio::test]
+async fn a_transaction_the_server_dropped_runs_again_and_applies_once() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, db, server) = remote_primary(directory.path()).await;
+    primary.conn
+        .execute("CREATE TABLE items (id INTEGER)", ())
+        .await
+        .unwrap();
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out);
+    let runs = AtomicUsize::new(0);
+    let written = pool.write(|conn| {
+        let restart = runs.fetch_add(1, Ordering::SeqCst) == 0;
+        let primary = Arc::clone(&primary);
+        async move {
+            let tx = conn.transaction().await?;
+            tx.execute("INSERT INTO items VALUES (1)", ()).await?;
+            if restart {
+                primary.restart();
+            }
+            tx.commit().await?;
+            Ok(())
+        }
+    })
+    .await;
+    let counted = count_items(&pool).await;
+    server.abort();
+    written.unwrap();
+    assert_eq!(runs.load(Ordering::SeqCst), 2);
+    assert_eq!(counted.unwrap(), Some(1));
+}
+
+/// A replica's pool keeps a connection however long it idled: the second
+/// read sees the temporary table only its connection holds.
+#[tokio::test]
+async fn a_replica_pool_keeps_idle_connections() {
+    let directory = tempfile::tempdir().unwrap();
+    let db = Builder::new_local(directory.path().join("local.db")).build().await.unwrap();
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out)
+        .with_idle_expiry(Duration::from_millis(10))
+        .replica();
+    pool.write(
+        |conn| async move { Ok(conn.execute("CREATE TEMP TABLE held (id INTEGER)", ()).await?) },
+    )
+    .await
+    .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    pool.read(|conn| async move { Ok(conn.query("SELECT * FROM held", ()).await?) })
+        .await
+        .unwrap();
+}
+
+async fn count_items(pool: &ConnectionPool) -> pnpr_error::Result<Option<i64>> {
+    pool.read(|conn| async move {
+        let rows = conn.query("SELECT count(*) FROM items", ()).await?;
+        first_row(rows, read_count).await
+    })
+    .await
+}
+
+fn read_count(row: &libsql::Row) -> pnpr_error::Result<i64> {
+    Ok(row.get::<i64>(0)?)
+}
+
+/// The mock primary at `directory`, and a remote database on it.
+async fn remote_primary(
+    directory: &std::path::Path,
+) -> (Arc<Primary>, Database, tokio::task::JoinHandle<()>) {
+    let (primary, address, server) = serve_primary(directory.join("primary.db")).await;
+    let url = format!("http://{address}");
+    let db = Builder::new_remote(url.clone(), String::new())
+        .connector(LibsqlConnector::for_url(&url, false).unwrap())
+        .build()
+        .await
+        .unwrap();
+    (primary, db, server)
 }
