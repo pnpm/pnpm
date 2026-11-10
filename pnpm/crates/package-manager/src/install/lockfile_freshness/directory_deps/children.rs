@@ -83,22 +83,10 @@ fn recorded_local_target_is_fresh(
     child: &DependencySpec,
 ) -> bool {
     let recorded = recorded_child(snapshot, &child.alias, RecordedDeps::of(child));
-    if let Some(recorded) = recorded
-        && recorded
-            .ver_peer()
-            .is_some_and(|version| matches!(version.version(), pnpm_lockfile::VersionPart::File(_)))
-        && !child.bare_specifier.starts_with("workspace:")
-        && !super::is_declared_by_path(&child.bare_specifier)
+    if let Some(satisfied) =
+        recorded.and_then(|recorded| implicit_workspace_target_satisfies(dep, child, recorded))
     {
-        let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
-        return super::spec::spec_satisfies_snapshot_dep(
-            &dep.dirs,
-            dep.dir,
-            &child.alias,
-            &format!("workspace:{spec}"),
-            recorded,
-        )
-        .unwrap_or(false);
+        return satisfied;
     }
     let local = child.bare_specifier.starts_with("workspace:")
         || child.bare_specifier.starts_with("link:")
@@ -119,6 +107,32 @@ fn recorded_local_target_is_fresh(
                     target,
                 )
             })
+}
+
+fn implicit_workspace_target_satisfies(
+    dep: &LocalDepContext<'_>,
+    child: &DependencySpec,
+    recorded: &pnpm_lockfile::SnapshotDepRef,
+) -> Option<bool> {
+    if recorded
+        .ver_peer()
+        .is_some_and(|version| matches!(version.version(), pnpm_lockfile::VersionPart::File(_)))
+        && !child.bare_specifier.starts_with("workspace:")
+        && !super::is_declared_by_path(&child.bare_specifier)
+    {
+        let spec = child.bare_specifier.strip_prefix("npm:").unwrap_or(&child.bare_specifier);
+        return Some(
+            super::spec::spec_satisfies_snapshot_dep(
+                &dep.dirs,
+                dep.dir,
+                &child.alias,
+                &format!("workspace:{spec}"),
+                recorded,
+            )
+            .unwrap_or(false),
+        );
+    }
+    None
 }
 
 fn check_child_directory_dep_freshness(

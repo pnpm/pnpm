@@ -4,8 +4,10 @@ use crate::install::lockfile_freshness::directory_deps::{
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::directory_package_dir;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 impl DirectoryWalk<'_, '_> {
     pub(super) async fn read_all(
@@ -15,16 +17,7 @@ impl DirectoryWalk<'_, '_> {
         let mut walked: HashSet<(pnpm_lockfile::PackageKey, DirectoryDep)> = HashSet::new();
         let mut read: HashMap<DirectoryDep, Option<(PackageManifest, bool)>> = HashMap::new();
         while !level.is_empty() {
-            for visit in &mut level {
-                if let Some(source) = self.lockfile.packages
-                    .as_ref()
-                    .and_then(|packages| packages.get(&visit.key.without_peer()))
-                    .and_then(|metadata| metadata.specifiers.as_ref())
-                    .and_then(|recorded| recorded.manifest_source)
-                {
-                    visit.dep.1 = matches!(source, pnpm_lockfile::DirectoryManifestSource::Path);
-                }
-            }
+            self.normalize_sources(&mut level);
             level.retain(|visit| walked.insert((visit.key.clone(), visit.dep.clone())));
             self.read_level(&level, &mut read).await?;
             level = level
@@ -45,6 +38,19 @@ impl DirectoryWalk<'_, '_> {
             .collect();
         Ok(DirectoryManifests(manifests))
     }
+    fn normalize_sources(&self, level: &mut [Visit]) {
+        for visit in level {
+            if let Some(source) = self.lockfile.packages
+                .as_ref()
+                .and_then(|packages| packages.get(&visit.key.without_peer()))
+                .and_then(|metadata| metadata.specifiers.as_ref())
+                .and_then(|recorded| recorded.manifest_source)
+            {
+                visit.dep.1 = matches!(source, pnpm_lockfile::DirectoryManifestSource::Path);
+            }
+        }
+    }
+
     pub(super) async fn read(
         &self,
         visit: &Visit,
@@ -80,14 +86,23 @@ impl DirectoryWalk<'_, '_> {
             );
             return Ok(manifest.map(|manifest| (manifest, false)));
         }
-        let Some(mut manifest) = unhooked_manifest(&injected) else { return Ok(None) };
+        let Some(manifest) = unhooked_manifest(&injected) else { return Ok(None) };
+        let manifest = self.hook_manifest(manifest, directory).await?;
+        Ok(Some((manifest, true)))
+    }
+
+    async fn hook_manifest(
+        &self,
+        mut manifest: PackageManifest,
+        directory: &str,
+    ) -> Result<PackageManifest, FreshnessCheckError> {
         let hook_ctx =
-            || pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: Some(directory.clone()) };
+            || pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: Some(directory.to_string()) };
         let value = self.hooks
             .apply(Arc::new(manifest.value().clone()), hook_ctx)
             .await
             .map_err(FreshnessCheckError::ReadPackageHook)?;
         *manifest.value_mut() = (*value).clone();
-        Ok(Some((manifest, true)))
+        Ok(manifest)
     }
 }

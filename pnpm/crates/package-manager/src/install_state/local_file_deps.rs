@@ -103,42 +103,51 @@ pub(crate) fn local_tarball_file(
     pnpm_tarball::local_file_tarball_path(&url)
 }
 
-/// Whether any project declares a mutable local directory dependency or a
-/// local tarball whose current bytes do not match the integrity recorded by
-/// the previous install, or has an injected dependency the fast path cannot
-/// vouch for (see [`has_unvouched_injected_dep`]). Groups excluded from
-/// the current install are skipped. `catalog:` specs are dereferenced through
-/// the workspace catalogs.
-pub(crate) fn has_local_file_dep_requiring_install(
+pub(crate) enum LocalFileDependencyStatus {
+    Current,
+    Changed,
+    UnvouchedInjected,
+}
+
+pub(crate) fn local_file_dependency_status(
     check: &OptimisticRepeatInstallCheck<'_>,
     overrides: &[VersionOverride],
-) -> Result<bool, &'static str> {
+) -> Result<LocalFileDependencyStatus, &'static str> {
     let LocalDependencyCandidates { tarballs, declares_directory } =
         match scan_local_tarball_deps(check, overrides) {
-            LocalTarballScan::RequiresInstall => return Ok(true),
+            LocalTarballScan::RequiresInstall => return Ok(LocalFileDependencyStatus::Changed),
             LocalTarballScan::Candidates(candidates) => candidates,
         };
     let check_injected_deps = !check.config.shared_workspace_lockfile
         || declares_directory
         || settings_add_workspace_path(check, overrides);
     if tarballs.is_empty() && !check_injected_deps {
-        return Ok(false);
+        return Ok(LocalFileDependencyStatus::Current);
     }
-
-    let Some(lockfile) = recorded_lockfile(check)? else { return Ok(!tarballs.is_empty()) };
-    if check_injected_deps && has_unvouched_injected_dep(check, &lockfile) {
-        return Ok(true);
-    }
-    Ok(tarballs
+    let Some(lockfile) = recorded_lockfile(check)? else {
+        return Ok(if tarballs.is_empty() {
+            LocalFileDependencyStatus::Current
+        } else {
+            LocalFileDependencyStatus::Changed
+        });
+    };
+    if tarballs
         .iter()
         .any(|dependency| {
             local_tarball_requires_install(check.workspace_root, &lockfile, dependency)
-        }))
+        })
+    {
+        return Ok(LocalFileDependencyStatus::Changed);
+    }
+    if check_injected_deps && has_unvouched_injected_dep(check, &lockfile) {
+        return Ok(LocalFileDependencyStatus::UnvouchedInjected);
+    }
+    Ok(LocalFileDependencyStatus::Current)
 }
 
 /// The wanted lockfile, or the current lockfile when no wanted lockfile
 /// exists.
-fn recorded_lockfile<'a>(
+pub(crate) fn recorded_lockfile<'a>(
     check: &'a OptimisticRepeatInstallCheck<'_>,
 ) -> Result<Option<Cow<'a, Lockfile>>, &'static str> {
     if let Some(lockfile) = check.lockfile

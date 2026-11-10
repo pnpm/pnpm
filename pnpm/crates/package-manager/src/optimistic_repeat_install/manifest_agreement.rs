@@ -157,7 +157,7 @@ fn require_recorded_in_current(
 
 /// The full content check of the modified projects against the wanted
 /// lockfile, once its settings are known not to have drifted.
-pub(crate) fn check_projects_content(
+pub(super) fn check_projects_content(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
@@ -436,4 +436,28 @@ pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
 /// pick-the-highest tokens.
 fn workspace_version_satisfies(version: String, range: &str) -> bool {
     pnpm_workspace_range_resolver::resolve_workspace_range(range, &[version]).is_some()
+}
+
+pub(super) fn recorded_directories_are_current(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    if check.config.lockfile_format != pnpm_lockfile::LockfileFormat::V13 {
+        return false;
+    }
+    let Ok(Some(lockfile)) = crate::install_state::local_file_deps::recorded_lockfile(check) else {
+        return false;
+    };
+    if !lockfile.packages
+        .as_ref()
+        .is_some_and(|packages| {
+            packages
+                .values()
+                .all(|metadata| {
+                    !matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+                        || metadata.specifiers.is_some()
+                })
+        })
+    {
+        return false;
+    }
+    let projects = manifest_stats(check.project_manifests, |_, _, _| ProjectStatus::Proven);
+    check_projects_content(check, &lockfile, &projects.iter().collect::<Vec<_>>()).is_ok()
 }

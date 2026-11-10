@@ -10,7 +10,8 @@ use super::{
     spec_dirs,
 };
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry,
+    DirectoryManifestSource, Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use std::collections::{HashMap, HashSet};
@@ -220,10 +221,10 @@ pub(crate) fn check_nested_directory_package(
             .flat_map(importer_aliases),
     );
     let visited = Visited::new(check.lockfile);
-    let check_declared = |declared_by_path| {
+    let check_declared = |source| {
         let dep = LocalDepContext {
             name: &nested.alias,
-            declared_by_path,
+            declared_by_path: matches!(source, DirectoryManifestSource::Path),
             declaration_assumed: true,
             rel_path: &nested.directory,
             dir: &dir,
@@ -238,13 +239,21 @@ pub(crate) fn check_nested_directory_package(
             &mut visited.clone(),
         )
     };
-    if let Some(source) = pkg_meta.specifiers.as_ref().and_then(|recorded| recorded.manifest_source)
-    {
-        return check_declared(matches!(source, pnpm_lockfile::DirectoryManifestSource::Path));
+    check_directory_declarations(
+        pkg_meta.specifiers.as_ref().and_then(|recorded| recorded.manifest_source),
+        check_declared,
+    )
+}
+
+fn check_directory_declarations(
+    source: Option<DirectoryManifestSource>,
+    check: impl Fn(DirectoryManifestSource) -> Result<(), FreshnessCheckError>,
+) -> Result<(), FreshnessCheckError> {
+    match source {
+        Some(source) => check(source),
+        None => check(DirectoryManifestSource::Workspace)
+            .and_then(|()| check(DirectoryManifestSource::Path)),
     }
-    let declared_as_workspace = false;
-    let declared_by_path = true;
-    check_declared(declared_as_workspace).and_then(|()| check_declared(declared_by_path))
 }
 
 fn snapshot_dependencies(
