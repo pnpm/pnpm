@@ -110,6 +110,34 @@ fn v13_directory_without_a_manifest_returns_a_conversion_error() {
         super::super::DependenciesGraphToLockfileError::DirectoryManifestMissing { .. }
     ));
 }
+
+#[test]
+fn v13_directory_with_an_invalid_dependency_alias_returns_a_conversion_error() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "local": "file:../local" },
+    }));
+    let mut node = make_file_node("local", "../local");
+    Arc::get_mut(&mut node.resolve_result).expect("unique resolve result")
+        .package
+        .manifest = Some(Arc::new(json!({
+        "name": "local",
+        "dependencies": { "not a package name": "1.0.0" },
+    })));
+    let direct = BTreeMap::from([("local".to_string(), node.dep_path.clone())]);
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+    let mut opts = single_importer_opts(&manifest, &graph, direct, false, false, None, None);
+    opts.metadata_sources.lockfile_format = pnpm_lockfile::LockfileFormat::V13;
+
+    let error = super::super::dependencies_graph_to_lockfile(opts)
+        .expect_err("invalid directory dependency names cannot be serialized");
+    assert!(matches!(
+        error,
+        super::super::DependenciesGraphToLockfileError::DirectorySpecifiers { .. }
+    ));
+}
 #[test]
 fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
     let (_tmp, manifest) = write_manifest(json!({

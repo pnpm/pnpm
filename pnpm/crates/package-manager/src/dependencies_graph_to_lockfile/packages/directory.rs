@@ -21,7 +21,12 @@ pub(super) fn specifiers(
         })?;
     let mut specifiers =
         pnpm_resolving_deps_resolver::declared_specifiers(manifest, &key.name.to_string())
-            .expect("the resolver validated these directory dependency specifiers");
+            .map_err(|source| {
+                super::super::DependenciesGraphToLockfileError::DirectorySpecifiers {
+                    dep_path: node.dep_path.to_string(),
+                    source: Box::new(source),
+                }
+            })?;
     specifiers.manifest_source = Some(if node.resolve_result.resolved_via == "local-filesystem" {
         pnpm_lockfile::DirectoryManifestSource::Path
     } else {
