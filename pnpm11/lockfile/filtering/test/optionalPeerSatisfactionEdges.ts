@@ -1,9 +1,6 @@
-import path from 'node:path'
-
 import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImporters, filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
-import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getPeerSatisfactionEdges } from '@pnpm/lockfile.peer-edges'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
@@ -37,6 +34,35 @@ function optionalPeerLockfile (): LockfileObject {
       ['peer-c@1.0.0' as DepPath]: { resolution: { integrity: 'peer-c' } },
     },
   }
+}
+
+function largeOptionalPeerLockfile (size: number): LockfileObject {
+  const lockfile: LockfileObject = {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: { dependencies: {}, devDependencies: {}, specifiers: {} },
+    },
+    packages: {},
+  }
+  const importer = lockfile.importers['.' as ProjectId]
+  for (let index = 0; index < size; index++) {
+    const name = `pkg-${index}`
+    const peer = `peer-${index}`
+    const version = `1.0.0(${peer}@1.0.0)`
+    importer.dependencies![name] = version
+    importer.devDependencies![peer] = '1.0.0'
+    importer.specifiers[name] = '1.0.0'
+    importer.specifiers[peer] = '1.0.0'
+    lockfile.packages![`${name}@${version}` as DepPath] = {
+      resolution: { integrity: name },
+      peerDependencies: { [peer]: '^1.0.0' },
+      peerDependenciesMeta: { [peer]: { optional: true } },
+      optionalDependencies: { [peer]: '1.0.0' },
+      ...(index > 0 && { dependencies: { [`pkg-${index - 1}`]: `1.0.0(peer-${index - 1}@1.0.0)` } }),
+    }
+    lockfile.packages![`${peer}@1.0.0` as DepPath] = { resolution: { integrity: peer } }
+  }
+  return lockfile
 }
 
 function filterByImporters (lockfile: LockfileObject, include: Include): LockfileObject {
@@ -95,9 +121,8 @@ describe.each([
     expect(filtered.packages![ABC]).toBe(lockfile.packages![ABC])
   })
 
-  test('keeps every snapshot of a large lockfile unchanged when every dependency group is included', async () => {
-    const lockfile = (await readWantedLockfile(path.join(import.meta.dirname, '../../../..'), { ignoreIncompatible: false }))!
-    // The repository's own lockfile has optional peers that its devDependencies satisfy.
+  test('keeps every snapshot of a large lockfile unchanged when every dependency group is included', () => {
+    const lockfile = largeOptionalPeerLockfile(500)
     expect(getPeerSatisfactionEdges(lockfile, { resolvePeersFromWorkspaceRoot: true }).size).toBeGreaterThan(0)
 
     const filtered = filter(lockfile, ALL)
