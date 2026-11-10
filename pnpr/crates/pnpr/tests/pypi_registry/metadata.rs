@@ -181,7 +181,7 @@ async fn hosted_wheel_metadata_is_persisted_advertised_and_served_verbatim() {
             .await
             .unwrap();
         let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-        assert!(html.contains(&format!("data-core-metadata=\"sha256={digest}\"")), "{html}");
+        assert!(html.contains(&format!(r#"data-core-metadata="sha256={digest}""#)), "{html}");
         let response = app
             .clone()
             .oneshot(get(&format!("{base}/files/demo-pkg/{filename}.metadata"), None))
