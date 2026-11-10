@@ -468,6 +468,7 @@ snapshots:
 			"lodash@>=4.0.0 <=4.17.22": "^4.17.23",
 			"lodash@>=4.0.0 <=4.17.23": ">=4.18.0",
 			"minimatch@>=7.0.0 <7.4.7": "^7.4.7",
+			"node-gyp@12>undici": "^7.30.1",
 			"minimatch@>=9.0.0 <10.0.0": "^10.2.4",
 			"nopt@5": "npm:@pnpm/nopt@^0.2.1",
 			"on-headers@<1.1.0": ">=1.1.0",
@@ -16095,7 +16096,7 @@ snapshots:
 				"semver": "7.8.6",
 				"tar": "7.5.22",
 				"tinyglobby": "0.2.17",
-				"undici": "6.29.1",
+				"undici": "7.30.1",
 				"which": "6.0.1",
 			},
 		},
@@ -18964,11 +18965,6 @@ snapshots:
 
 		"undici-types@6.21.0": {
 			"integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
-		},
-
-		"undici@6.29.1": {
-			"integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
-			"engines": {"node": ">=18.17"},
 		},
 
 		"undici@7.30.1": {
