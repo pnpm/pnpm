@@ -96,7 +96,9 @@ pub trait Connection {
     /// every statement held so far.
     fn execute_batch(&self, sql: &str) -> Result<()>;
 
-    /// Begin a serializable write transaction. A conflict may abort it for retry.
+    /// Take the database's write lock, held until [`Self::commit`] or
+    /// [`Self::rollback`], and begin a serializable write transaction. A
+    /// conflict may abort it for retry.
     fn begin_write(&self) -> Result<()>;
 
     /// Begin a transaction that reads one committed snapshot.

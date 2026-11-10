@@ -14,12 +14,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// How many times a write runs before a conflict it keeps meeting fails it.
-const WRITE_ATTEMPTS: u32 = 4;
+/// How long after its first run a write that keeps meeting conflicts still
+/// runs again.
+const WRITE_RETRY_DEADLINE: Duration = Duration::from_secs(10);
 
-/// The wait before the first rerun of a write that met a conflict, doubled
-/// per rerun.
+/// The longest wait before the first rerun of a write that met a conflict,
+/// doubled per rerun up to [`LAST_RETRY_DELAY`].
 const FIRST_RETRY_DELAY: Duration = Duration::from_millis(10);
+
+const LAST_RETRY_DELAY: Duration = Duration::from_millis(500);
 
 /// How current a read must be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,20 +88,25 @@ impl SqlMetadata {
     }
 
     /// Run `write`, again from its start while the adapter reports a conflict
-    /// it may clear, up to [`WRITE_ATTEMPTS`] runs spaced from
-    /// [`FIRST_RETRY_DELAY`]. `write` must be safe to run again.
+    /// it may clear and [`WRITE_RETRY_DEADLINE`] has not passed. Each rerun
+    /// waits a random part of a delay that doubles from
+    /// [`FIRST_RETRY_DELAY`], so writers that met each other do not meet
+    /// again. `write` must be safe to run again.
     pub(super) fn retry_conflicts<Output>(
         &self,
         mut write: impl FnMut() -> Result<Output>,
     ) -> Result<Output> {
+        let deadline = Instant::now() + WRITE_RETRY_DEADLINE;
         let mut delay = FIRST_RETRY_DELAY;
-        let mut attempt = 1;
         loop {
             match write() {
-                Err(error) if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) => {
-                    std::thread::sleep(delay);
-                    delay *= 2;
-                    attempt += 1;
+                Err(error) if self.adapter.is_retryable(&error) => {
+                    let wait = jittered(delay);
+                    if Instant::now() + wait > deadline {
+                        return Err(error);
+                    }
+                    std::thread::sleep(wait);
+                    delay = (delay * 2).min(LAST_RETRY_DELAY);
                 }
                 result => return result,
             }
@@ -215,4 +223,12 @@ impl SqlMetadata {
         }
         operation(connection, &self.cache).map(Some)
     }
+}
+
+/// A random wait between half of `delay` and all of it.
+fn jittered(delay: Duration) -> Duration {
+    let half = delay / 2;
+    let random = getrandom::u64().unwrap_or_default();
+    let spread = u64::try_from(half.as_micros()).unwrap_or(u64::MAX).max(1);
+    half + Duration::from_micros(random % spread)
 }

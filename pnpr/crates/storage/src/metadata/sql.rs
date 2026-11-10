@@ -13,7 +13,8 @@
 //! optional embedded replica.
 //!
 //! Every operation runs on the blocking pool. A write runs in one
-//! serializable transaction. A compare-and-set reads the generation it
+//! serializable transaction, after taking the database's write lock, so
+//! writers queue rather than conflict. A compare-and-set reads the generation it
 //! replaces inside its own transaction. A write reads everything it compares
 //! with in one [`adapter::Connection::query_all`] as it begins, and decides
 //! in Rust, so a remote database answers it in one round trip and takes the
