@@ -36,35 +36,6 @@ function optionalPeerLockfile (): LockfileObject {
   }
 }
 
-function largeOptionalPeerLockfile (size: number): LockfileObject {
-  const lockfile: LockfileObject = {
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: {
-      ['.' as ProjectId]: { dependencies: {}, devDependencies: {}, specifiers: {} },
-    },
-    packages: {},
-  }
-  const importer = lockfile.importers['.' as ProjectId]
-  for (let index = 0; index < size; index++) {
-    const name = `pkg-${index}`
-    const peer = `peer-${index}`
-    const version = `1.0.0(${peer}@1.0.0)`
-    importer.dependencies![name] = version
-    importer.devDependencies![peer] = '1.0.0'
-    importer.specifiers[name] = '1.0.0'
-    importer.specifiers[peer] = '1.0.0'
-    lockfile.packages![`${name}@${version}` as DepPath] = {
-      resolution: { integrity: name },
-      peerDependencies: { [peer]: '^1.0.0' },
-      peerDependenciesMeta: { [peer]: { optional: true } },
-      optionalDependencies: { [peer]: '1.0.0' },
-      ...(index > 0 && { dependencies: { [`pkg-${index - 1}`]: `1.0.0(peer-${index - 1}@1.0.0)` } }),
-    }
-    lockfile.packages![`${peer}@1.0.0` as DepPath] = { resolution: { integrity: peer } }
-  }
-  return lockfile
-}
-
 function filterByImporters (lockfile: LockfileObject, include: Include): LockfileObject {
   return filterLockfileByImporters(lockfile, Object.keys(lockfile.importers) as ProjectId[], {
     failOnMissingDependencies: true,
@@ -122,13 +93,43 @@ describe.each([
   })
 
   test('keeps every snapshot of a large lockfile unchanged when every dependency group is included', () => {
-    const lockfile = largeOptionalPeerLockfile(500)
+    const lockfile = createLargeOptionalPeerLockfile(500)
     expect(getPeerSatisfactionEdges(lockfile, { resolvePeersFromWorkspaceRoot: true }).size).toBeGreaterThan(0)
 
     const filtered = filter(lockfile, ALL)
 
+    expect(Object.keys(filtered.packages!).sort()).toStrictEqual(Object.keys(lockfile.packages!).sort())
     for (const [depPath, snapshot] of Object.entries(filtered.packages!)) {
       expect(snapshot).toBe(lockfile.packages![depPath as DepPath])
     }
   })
 })
+
+function createLargeOptionalPeerLockfile (size: number): LockfileObject {
+  const lockfile: LockfileObject = {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['.' as ProjectId]: { dependencies: {}, devDependencies: {}, specifiers: {} },
+    },
+    packages: {},
+  }
+  const importer = lockfile.importers['.' as ProjectId]
+  for (let index = 0; index < size; index++) {
+    const name = `pkg-${index}`
+    const peer = `peer-${index}`
+    const version = `1.0.0(${peer}@1.0.0)`
+    importer.dependencies![name] = version
+    importer.devDependencies![peer] = '1.0.0'
+    importer.specifiers[name] = '1.0.0'
+    importer.specifiers[peer] = '1.0.0'
+    lockfile.packages![`${name}@${version}` as DepPath] = {
+      resolution: { integrity: name },
+      peerDependencies: { [peer]: '^1.0.0' },
+      peerDependenciesMeta: { [peer]: { optional: true } },
+      optionalDependencies: { [peer]: '1.0.0' },
+      ...(index > 0 && { dependencies: { [`pkg-${index - 1}`]: `1.0.0(peer-${index - 1}@1.0.0)` } }),
+    }
+    lockfile.packages![`${peer}@1.0.0` as DepPath] = { resolution: { integrity: peer } }
+  }
+  return lockfile
+}

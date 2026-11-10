@@ -50,7 +50,6 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.filtering": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:",
     "detect-libc": "catalog:",
