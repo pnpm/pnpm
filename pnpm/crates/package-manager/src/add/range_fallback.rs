@@ -108,7 +108,8 @@ fn override_specifier(
     let overrider = crate::overrides::VersionsOverrider::new(
         &parsed,
         inputs.add.config.root_project_manifest_dir(&lockfile_root),
-    );
+    )
+    .with_catalogs(inputs.catalogs);
     Ok(overridden_specifier(package_name, project_dir, &overrider, inputs, manifest))
 }
 

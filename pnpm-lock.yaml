@@ -2765,6 +2765,8 @@ snapshots:
 		"pnpm11/hooks/read-package-hook": {
 			"name": "@pnpm/hooks.read-package-hook",
 			"dependencies": {
+				"@pnpm/catalogs.resolver": "workspace:*",
+				"@pnpm/catalogs.types": "workspace:*",
 				"@pnpm/config.matcher": "workspace:*",
 				"@pnpm/config.parse-overrides": "workspace:*",
 				"@pnpm/deps.peer-range": "workspace:*",

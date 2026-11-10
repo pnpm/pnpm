@@ -5,10 +5,11 @@ import type { ReadPackageHook } from '@pnpm/types'
 import type { ProcessedInstallOptions } from './extendInstallOptions.js'
 
 export function createInstallReadPackageHook (
-  opts: Pick<ProcessedInstallOptions, 'convergeDeclaredRanges' | 'hooks' | 'ignoreCompatibilityDb' | 'ignoredOptionalDependencies' | 'lockfileDir' | 'overridesRootDir' | 'packageExtensions'>,
+  opts: Pick<ProcessedInstallOptions, 'catalogs' | 'convergeDeclaredRanges' | 'hooks' | 'ignoreCompatibilityDb' | 'ignoredOptionalDependencies' | 'lockfileDir' | 'overridesRootDir' | 'packageExtensions'>,
   parsedOverrides: VersionOverride[]
 ): ReadPackageHook | undefined {
   return createReadPackageHook({
+    catalogs: opts.catalogs,
     ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
     readPackageHook: opts.hooks?.readPackage,
     overrides: parsedOverrides,

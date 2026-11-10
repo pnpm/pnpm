@@ -31,7 +31,7 @@ export function findLocalFileDepsIssue (opts: CheckDepsStatusOptions): string | 
     // An empty manifest is the parent of no `parent>dep` override, so only
     // overrides without a parent selector apply. Whether a parent-scoped one
     // applies depends on which package declares the dependency.
-    isOverridden: createOverriddenDependencyMatcher(overrides, opts.workspaceDir ?? opts.rootProjectManifestDir)?.({}),
+    isOverridden: createOverriddenDependencyMatcher(overrides, opts.workspaceDir ?? opts.rootProjectManifestDir, opts.catalogs)?.({}),
   }
   const localFileDep = findLocalFileDep(manifests, localFileDepContext)
   if (localFileDep != null) {

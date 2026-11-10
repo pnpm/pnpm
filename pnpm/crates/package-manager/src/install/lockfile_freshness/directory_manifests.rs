@@ -132,10 +132,13 @@ fn resolver_hooks(
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<ManifestTransformHooks, FreshnessCheckError> {
     let versions_overrider = parsed_overrides.map(|parsed| {
-        Arc::new(crate::VersionsOverrider::new(
-            parsed,
-            inputs.config.root_project_manifest_dir(inputs.lockfile_dir),
-        ))
+        Arc::new(
+            crate::VersionsOverrider::new(
+                parsed,
+                inputs.config.root_project_manifest_dir(inputs.lockfile_dir),
+            )
+            .with_catalogs(inputs.catalogs),
+        )
     });
     Ok(crate::install_with_fresh_lockfile::resolver_manifest_hooks(
         inputs.config,
@@ -279,6 +282,7 @@ impl DirectoryWalk<'_, '_> {
                 &injected,
                 self.parsed_overrides,
                 self.inputs.config.root_project_manifest_dir(self.inputs.lockfile_dir),
+                self.inputs.catalogs,
             );
             return Ok(manifest.map(|manifest| (manifest, false)));
         }
