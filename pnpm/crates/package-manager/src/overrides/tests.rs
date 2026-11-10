@@ -637,7 +637,10 @@ fn workspace_path_override_is_anchored_without_a_pkg_dir() {
     }));
     overrider.apply(&mut manifest, None);
 
-    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("file:/workspace/packages/foo"));
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("workspace:/workspace/packages/foo"),
+    );
 }
 
 /// The shapes the resolver chain claims before the local resolver keep

@@ -125,6 +125,47 @@ fn root_relative_overrides_resolve_from_workspace_config_with_both_lockfile_mode
     assert!(failures.is_empty(), "{failures:#?}");
 }
 
+#[test]
+fn injected_override_target_resolves_catalog_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_fixture(
+        &workspace,
+        &FixtureOptions {
+            inject_workspace_packages: true,
+            shared_workspace_lockfile: true,
+            override_specifier: "workspace:./packages/target",
+        },
+    );
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read workspace config");
+    workspace_yaml.push_str("\ncatalog:\n  is-positive: 3.1.0\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write workspace config");
+    let target = workspace.join("packages/target/package.json");
+    let mut target_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&target).expect("read target manifest"))
+            .expect("parse target manifest");
+    target_manifest["dependencies"] = serde_json::json!({ "is-positive": "catalog:" });
+    fs::write(&target, target_manifest.to_string()).expect("write target manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let installed =
+        workspace.join("packages/deep/consumer/node_modules/target/node_modules/is-positive");
+    assert!(installed.exists(), "catalog dependency was not installed");
+
+    drop((root, npmrc_info));
+}
+
 struct FixtureOptions<'a> {
     inject_workspace_packages: bool,
     shared_workspace_lockfile: bool,

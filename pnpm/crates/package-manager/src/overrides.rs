@@ -103,7 +103,7 @@ impl ResolvedOverride {
             Some(target) => target
                 .render(None)
                 .strip_prefix("workspace:./")
-                .map(|path| format!("file:{path}"))
+                .map(|path| format!("workspace:{path}"))
                 .unwrap_or_else(|| self.inner.new_bare_specifier.clone()),
             _ => self.inner.new_bare_specifier.clone(),
         }

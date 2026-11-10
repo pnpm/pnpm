@@ -393,7 +393,7 @@ function resolveOverriddenBareSpecifier (versionOverride: VersionOverride, dir: 
     return versionOverride.newBareSpecifier
   }
   if (localTarget.protocol === 'workspace:' && dir == null) {
-    return `file:${normalizePath(localTarget.absolutePath)}`
+    return `workspace:${normalizePath(localTarget.absolutePath)}`
   }
   return `${localTarget.protocol}${resolveLocalOverride(localTarget, dir)}`
 }

@@ -63,12 +63,18 @@ impl fmt::Display for WorkspaceSpec {
     }
 }
 
-/// Whether a `workspace:` specifier names a directory, such as
-/// `workspace:../foo`, which the local resolver reads. Every other
-/// `workspace:` specifier names a workspace project and a range.
+/// Whether a `workspace:` specifier names a directory path that the
+/// local resolver reads.
 #[must_use]
 pub fn is_workspace_path_specifier(bare_specifier: &str) -> bool {
-    bare_specifier.starts_with("workspace:.")
+    let Some(path) = bare_specifier.strip_prefix("workspace:") else {
+        return false;
+    };
+    path.starts_with('.')
+        || path.starts_with('/')
+        || (path.len() >= 3
+            && path.as_bytes()[1] == b':'
+            && matches!(path.as_bytes()[2], b'/' | b'\\'))
 }
 
 /// Split the post-`workspace:` portion into `(alias?, version)` per the

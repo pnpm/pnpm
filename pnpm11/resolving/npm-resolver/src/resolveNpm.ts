@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { isSameRegistry, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import * as dp from '@pnpm/deps.path'
 import { globalWarn } from '@pnpm/logger'
@@ -64,7 +66,8 @@ export async function resolveNpm (
     ? pickRegistryForPackage(ctx.registriesByScope, wantedDependency.alias, wantedDependency.bareSpecifier)
     : ctx.registriesByScope.default
   if (wantedDependency.bareSpecifier?.startsWith('workspace:')) {
-    if (wantedDependency.bareSpecifier.startsWith('workspace:.')) return null
+    const workspacePath = wantedDependency.bareSpecifier.slice('workspace:'.length)
+    if (workspacePath.startsWith('.') || path.isAbsolute(workspacePath)) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
       lockfileDir: opts.lockfileDir,

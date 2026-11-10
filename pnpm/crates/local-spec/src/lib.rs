@@ -95,9 +95,8 @@ impl LocalSpec {
     }
 
     /// Parse a `workspace:` specifier naming a path, such as
-    /// `workspace:./packages/foo`, whose path is written from `base_dir`.
-    /// Only the `workspace:.` shape is claimed: it is the only one the
-    /// resolver reads as a path rather than as a version range.
+    /// `workspace:./packages/foo` or an absolute path, whose relative path
+    /// is written from `base_dir`.
     #[must_use]
     pub fn parse_workspace_path(specifier: &str, base_dir: &Path) -> Option<Self> {
         pnpm_workspace_spec::is_workspace_path_specifier(specifier)

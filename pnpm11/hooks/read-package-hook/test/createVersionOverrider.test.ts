@@ -521,7 +521,7 @@ test('createVersionsOverrider() anchors a workspace relative path for a package 
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `file:${path.join(process.cwd(), 'packages/qar').replaceAll(path.sep, '/')}`,
+      qar: `workspace:${path.join(process.cwd(), 'packages/qar').replaceAll(path.sep, '/')}`,
     },
   })
 })
