@@ -61,7 +61,7 @@ impl Registry<'_> {
             build::Build::NotApproved(names) => {
                 bail!(
                     "building the Python source distribution of {name} needs approved build \
-                 requirements: {}. Add them under allowBuilds in pnpm-workspace.yaml.",
+                     requirements: {}. Add them under allowBuilds in pnpm-workspace.yaml.",
                     names.join(", "),
                 );
             }

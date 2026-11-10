@@ -86,7 +86,8 @@ pub(super) fn path_target(
                     Ok(metadata) if metadata.is_symlink() => {
                         bail!(
                             "{} declares `{name}` at {path}, whose `..` follows the link {}. Write \
-                         the path the link leads to, which means the same directory everywhere.",
+                             the path the link leads to, which means the same directory \
+                             everywhere.",
                             manifest_path.display(),
                             walked.display(),
                         );
@@ -95,7 +96,7 @@ pub(super) fn path_target(
                     Err(_) => {
                         bail!(
                             "{} declares `{name}` at {path}, whose `..` follows {}, which is not \
-                         there",
+                             there",
                             manifest_path.display(),
                             walked.display(),
                         );
