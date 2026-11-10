@@ -6,13 +6,11 @@
 use super::{ConfigOverrides, block_on_runtime, cli_args};
 use std::ffi::OsString;
 
-/// Whether the pinned pnpm answered `--version` for this one. Installing
-/// that pnpm, and recording the pin, both write, and a sandbox with a
-/// read-only home has nowhere to write — printing a version has to work
-/// there too, so the failure is reported and the running version answers.
-/// The checks themselves still fail the command: a project pinned to
-/// another package manager is not something a version string can stand in
-/// for.
+/// Whether the pinned pnpm answered `--version` for this one.
+///
+/// Unlike the other pre-command checks, a pinned pnpm this process cannot
+/// install only warns. Printing a version has to work under a read-only
+/// home, where installing it and recording the pin have nowhere to write.
 pub(super) fn pinned_pnpm_printed_the_version(
     argv: &[OsString],
     child_argv: &[OsString],

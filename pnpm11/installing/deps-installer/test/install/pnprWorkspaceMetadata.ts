@@ -369,6 +369,32 @@ test.each(pnprResolutionSettings)('a mutation forwards %s to pnpr', async (_sett
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining(expected))
 })
 
+test('a mutation without allProjects resolves locally', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    version: '1.2.3',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('is-positive@1.0.0')
+})
+
+test('a mutation without allProjects rejects a project that has no manifest', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await expect(mutateModules([{ mutation: 'install', rootDir }], options)).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND',
+  })
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,

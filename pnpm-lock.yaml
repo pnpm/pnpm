@@ -3864,10 +3864,10 @@ snapshots:
 		"pnpm11/network/fetch": {
 			"name": "@pnpm/network.fetch",
 			"dependencies": {
-				"@pnpm/config.registry-auth-key": "workspace:*",
 				"@pnpm/core-loggers": "workspace:*",
 				"@pnpm/error": "workspace:*",
 				"@pnpm/fetching.types": "workspace:*",
+				"@pnpm/network.config": "workspace:*",
 				"@pnpm/types": "workspace:*",
 				"@zkochan/retry": "catalog:",
 				"lru-cache": "catalog:",

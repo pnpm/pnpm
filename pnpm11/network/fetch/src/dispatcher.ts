@@ -1,7 +1,7 @@
 import { URL } from 'node:url'
 
-import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
+import { isNoProxy, pickSettingByUrl } from '@pnpm/network.config'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
@@ -161,7 +161,7 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
 
   const parsedUri = new URL(uri)
 
-  if ((opts.httpProxy || opts.httpsProxy) && !checkNoProxy(parsedUri, opts)) {
+  if ((opts.httpProxy || opts.httpsProxy) && !isNoProxy(uri, opts.noProxy)) {
     const proxyDispatcher = getProxyDispatcher(parsedUri, opts)
     if (proxyDispatcher) return proxyDispatcher
   }
@@ -174,7 +174,7 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
  */
 export function getConnectionOrigin (uri: URL, opts: DispatcherOptions): string {
   const proxy = uri.protocol === 'https:' ? opts.httpsProxy : opts.httpProxy
-  if (!proxy || checkNoProxy(uri, opts)) return uri.origin
+  if (!proxy || isNoProxy(uri.href, opts.noProxy)) return uri.origin
   const proxyUrl = parseProxyUrl(proxy, uri.protocol)
   // `URL.origin` is "null" for non-special schemes such as socks5:.
   return `${proxyUrl.protocol}//${proxyUrl.host}`
@@ -248,7 +248,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
 }
 
 function pickTlsConfig (parsedUri: URL, opts: DispatcherOptions): TlsOptions {
-  const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
+  const sslConfig = pickTlsSettingByUrl(opts.clientCertificates, parsedUri.href)
   const { ca, cert, key } = { ...opts, ...sslConfig }
   return { ca, cert, key }
 }
@@ -367,82 +367,5 @@ function createDirectAgent (isHttps: boolean, opts: DispatcherOptions, tlsConfig
   })
 }
 
-function checkNoProxy (parsedUri: URL, opts: { noProxy?: boolean | string }): boolean {
-  const host = toReversedLabels(parsedUri.hostname)
-  if (typeof opts.noProxy === 'string') {
-    const noproxyArr = opts.noProxy.split(',').map(entry => entry.trim())
-    return noproxyArr.some(entry => isHostCoveredByNoProxyEntry(host, entry))
-  }
-  return opts.noProxy === true
-}
-
-function toReversedLabels (hostname: string): string[] {
-  return hostname
-    .split('.')
-    .filter(label => label)
-    .reverse()
-}
-
-function isHostCoveredByNoProxyEntry (hostLabels: string[], noProxyEntry: string): boolean {
-  const noParts = toReversedLabels(noProxyEntry)
-  if (noParts.length === 0) {
-    return false
-  }
-  return noParts.every((label, labelIndex) => hostLabels[labelIndex] === label)
-}
-
-/**
- * Pick SSL/TLS configuration by URL using nerf-dart matching.
- * This matches the behavior of @pnpm/network.config's pickSettingByUrl.
- */
-function pickSettingByUrl<Setting> (
-  settings: Record<string, Setting> | undefined,
-  uri: string
-): Setting | undefined {
-  if (!settings) return undefined
-
-  if (settings[uri]) return settings[uri]
-
-  // Use nerf-dart format for matching (e.g., //registry.npmjs.org/)
-  const nerf = nerfDart(uri)
-  if (settings[nerf]) return settings[nerf]
-
-  const parsedUrl = new URL(uri)
-  const withoutPort = removePort(parsedUrl)
-  if (settings[withoutPort]) return settings[withoutPort]
-
-  const byParentPath = pickSettingByNerfDartParentPath(settings, nerf)
-  if (byParentPath) return byParentPath
-
-  if (withoutPort !== uri) {
-    return pickSettingByUrl(settings, withoutPort)
-  }
-
-  return undefined
-}
-
-function pickSettingByNerfDartParentPath<Setting> (
-  settings: Record<string, Setting>,
-  nerf: string
-): Setting | undefined {
-  const maxParts = Object.keys(settings).reduce((max, key) => {
-    const parts = key.split('/').length
-    return parts > max ? parts : max
-  }, 0)
-  const parts = nerf.split('/')
-  for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
-    const key = `${parts.slice(0, partCount).join('/')}/`
-    if (settings[key]) {
-      return settings[key]
-    }
-  }
-  return undefined
-}
-
-function removePort (parsedUrl: URL): string {
-  if (parsedUrl.port === '') return parsedUrl.href
-  const copy = new URL(parsedUrl.href)
-  copy.port = ''
-  const res = copy.toString()
-  return res.endsWith('/') ? res : `${res}/`
-}
+const pickTlsSettingByUrl = <Setting>(settings: Record<string, Setting> | undefined, uri: string): Setting | undefined =>
+  pickSettingByUrl(settings, uri, { skipFalsyValues: true })

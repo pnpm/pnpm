@@ -142,10 +142,6 @@ impl ShimLaunch {
 
     /// Set [`PREPARING_ENV`] for a shim launch that no enclosing dispatch
     /// has marked.
-    ///
-    /// `single_threaded` is what permits the environment change, and so
-    /// what pins this call to the stretch of `main` before any thread
-    /// starts.
     pub(crate) fn mark_preparation(&self, single_threaded: &pnpm_ffi_process::SingleThreaded) {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
             return;
@@ -481,6 +477,14 @@ fn run_runtime_from_store(
             pnpm_diagnostics::eprintln!(
                 "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
             );
+            pnpm_diagnostics::eprintln!(
+                "pnpm: global runtime downloads use global configuration and environment settings. pnpm-workspace.yaml is ignored unless PNPM_CONFIG_WORKSPACE_DIR or NPM_CONFIG_WORKSPACE_DIR selects a workspace.",
+            );
+            if name == "node" {
+                pnpm_diagnostics::eprintln!(
+                    "pnpm: for Node.js mirrors, check tools.node, nodeDownloadMirrors, PNPM_CONFIG_TOOLS, and PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS.",
+                );
+            }
             1
         }
     }
