@@ -160,7 +160,9 @@ impl LocalSpec {
         let path = if path.is_empty() { ".".to_string() } else { path };
         match self.protocol {
             None => without_protocol(path),
-            Some(LocalSpecProtocol::Workspace) if !path.starts_with('.') => {
+            Some(LocalSpecProtocol::Workspace)
+                if !path.starts_with('.') && !names_its_own_location(&path) =>
+            {
                 format!("{}./{path}", LocalSpecProtocol::Workspace.as_str())
             }
             Some(protocol) => format!("{}{path}", protocol.as_str()),
