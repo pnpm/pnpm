@@ -1,9 +1,10 @@
 //! Network SQL connections used from the blocking pool.
 
-use super::{
-    adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value},
-    schema,
-};
+use super::adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value};
+#[cfg(feature = "backend-mysql")]
+pub use migration::ensure_mysql_schema;
+#[cfg(feature = "backend-postgres")]
+pub use migration::ensure_postgres_schema;
 use pnpr_config::SqlBackendSettings;
 use pnpr_error::{RegistryError, Result};
 use sqlx::{TypeInfo, ValueRef, pool::PoolConnection};
@@ -14,6 +15,8 @@ use std::{
 };
 
 mod dialect;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod migration;
 mod mysql_schema;
 use dialect::Dialect;
 
@@ -413,46 +416,4 @@ pub fn adapter(settings: &SqlBackendSettings) -> Result<Box<dyn Adapter>> {
             reason: "this build does not include the configured database driver".to_string(),
         }),
     }
-}
-
-/// Migrate a `PostgreSQL` pool to [`schema::SCHEMA_VERSION`].
-#[cfg(feature = "backend-postgres")]
-pub async fn ensure_postgres_schema(
-    pool: Arc<sqlx::PgPool>,
-    timeout: Duration,
-    name: &str,
-) -> Result<()> {
-    let adapter = postgres::NetworkAdapter::from_pool(pool, timeout);
-    let name = name.to_string();
-    tokio::task::spawn_blocking(move || {
-        if let Some(stored) = schema::prepare_adapter_with_steps(&adapter, schema::STEPS)? {
-            return Err(schema::refused_error(&name, &stored));
-        }
-        Ok(())
-    })
-    .await
-    .map_err(|error| RegistryError::Internal {
-        reason: format!("PostgreSQL schema migration task panicked: {error}"),
-    })?
-}
-
-/// Migrate a `MySQL` pool to [`schema::SCHEMA_VERSION`].
-#[cfg(feature = "backend-mysql")]
-pub async fn ensure_mysql_schema(
-    pool: Arc<sqlx::MySqlPool>,
-    timeout: Duration,
-    name: &str,
-) -> Result<()> {
-    let adapter = mysql::NetworkAdapter::from_pool(pool, timeout);
-    let name = name.to_string();
-    tokio::task::spawn_blocking(move || {
-        if let Some(stored) = schema::prepare_adapter_with_steps(&adapter, schema::STEPS)? {
-            return Err(schema::refused_error(&name, &stored));
-        }
-        Ok(())
-    })
-    .await
-    .map_err(|error| RegistryError::Internal {
-        reason: format!("MySQL schema migration task panicked: {error}"),
-    })?
 }

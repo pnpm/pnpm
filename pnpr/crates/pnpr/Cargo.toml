@@ -27,7 +27,7 @@ name = "suite"
 path = "tests/suite.rs"
 
 [features]
-default = ["backend-libsql"]
+default = ["backend-libsql", "backend-mysql", "backend-postgres"]
 backend-libsql = ["dep:libsql", "pnpr-error/backend-libsql", "pnpr-auth/backend-libsql", "pnpr-storage/backend-libsql"]
 backend-mysql = [
   "dep:sqlx",

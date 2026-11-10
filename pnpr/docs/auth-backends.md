@@ -13,16 +13,13 @@ tokens, and package metadata across instances. Archives stay in the configured
 filesystem or S3 store. PostgreSQL and MySQL share one connection pool for auth
 and metadata, limited by `database.maxConnections`.
 
-Database drivers are Cargo-feature gated:
+pnpr supports these databases:
 
-| Backend | Config key | Cargo feature |
-| --- | --- | --- |
-| libsql / Turso | `database.url: libsql://…` | `backend-libsql` (enabled by default) |
-| PostgreSQL | `database.url: postgres://…` | `backend-postgres` |
-| MySQL | `database.url: mysql://…` | `backend-mysql` |
-
-For PostgreSQL or MySQL support, build pnpr with the matching Cargo feature, for
-example `cargo build -p pnpr --features backend-postgres`.
+| Backend | Config key |
+| --- | --- |
+| libsql / Turso | `database.url: libsql://…` |
+| PostgreSQL | `database.url: postgres://…` |
+| MySQL 8.0.19 or later | `database.url: mysql://…` |
 
 :::tip
 
