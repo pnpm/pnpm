@@ -71,7 +71,7 @@ struct Streams {
 }
 
 /// What a Hrana request carries.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Request {
     Statements,
     /// Only a close, which libsql sends for every connection it drops. A
@@ -131,8 +131,11 @@ impl Streams {
                 Some(_) => StaleStream::Expired,
                 None => StaleStream::Unknown,
             };
-            if request == Request::Statements {
-                self.rejected.fetch_add(1, Ordering::SeqCst);
+            match request {
+                Request::Statements => {
+                    self.rejected.fetch_add(1, Ordering::SeqCst);
+                }
+                Request::Close => {}
             }
             return Err(stale);
         }
