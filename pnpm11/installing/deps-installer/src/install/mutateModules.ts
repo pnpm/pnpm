@@ -12,7 +12,7 @@ import { cleanGitBranchLockfiles, getWantedLockfileName } from '@pnpm/lockfile.f
 import { streamParser } from '@pnpm/logger'
 import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import { extendOptions, type ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
@@ -68,7 +68,12 @@ export async function mutateModules (
   }
 
   if (!allProjectsWereProvided) {
-    opts.allProjects = await getMutationProjectOptions(projects)
+    try {
+      opts.allProjects = await readMutationProjectOptions(projects, opts.ignorePackageManifest)
+    } catch (err) {
+      detachReporter()
+      throw err
+    }
   }
 
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
@@ -79,10 +84,15 @@ export async function mutateModules (
   return finishMutation(run, result)
 }
 
-async function getMutationProjectOptions (projects: MutatedProject[]): Promise<ProjectOptions[]> {
+async function readMutationProjectOptions (
+  projects: MutatedProject[],
+  ignorePackageManifest: boolean
+): Promise<ProjectOptions[]> {
   return Promise.all(projects.map(async (project, buildIndex) => ({
     buildIndex,
-    manifest: await safeReadProjectManifestOnly(project.rootDir) ?? {},
+    manifest: ignorePackageManifest
+      ? await safeReadProjectManifestOnly(project.rootDir) ?? {}
+      : await readProjectManifestOnly(project.rootDir),
     rootDir: project.rootDir,
   })))
 }

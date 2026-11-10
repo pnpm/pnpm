@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../config/registry-auth-key"
-    },
-    {
       "path": "../../core/core-loggers"
     },
     {
