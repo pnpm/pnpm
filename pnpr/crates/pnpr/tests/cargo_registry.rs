@@ -7,6 +7,9 @@ mod caching;
 #[path = "cargo_registry/behavior.rs"]
 mod behavior;
 
+#[path = "cargo_registry/owners.rs"]
+mod owners;
+
 #[path = "cargo_registry/publishing.rs"]
 mod publishing;
 
