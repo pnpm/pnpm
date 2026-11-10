@@ -30,6 +30,11 @@ struct Replica {
     _clock: ManualClock,
 }
 
+enum ManagedRecords {
+    Registry,
+    RegistryAndScim,
+}
+
 struct ManualClock(tokio::task::JoinHandle<()>);
 
 impl ManualClock {
@@ -50,7 +55,7 @@ impl Drop for ManualClock {
 }
 
 impl Replica {
-    async fn new(include_scim: bool) -> Self {
+    async fn new(records: ManagedRecords) -> Self {
         let clock = ManualClock::new();
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("config.yaml");
@@ -73,10 +78,11 @@ registries:
         access: [team:readers]
 defaultRegistry: local
 ",
-                scim = if include_scim {
-                    "auth:\n  scim:\n    token: test-scim-secret-0123456789abcdef0123456789"
-                } else {
-                    ""
+                scim = match records {
+                    ManagedRecords::Registry => "",
+                    ManagedRecords::RegistryAndScim => {
+                        "auth:\n  scim:\n    token: test-scim-secret-0123456789abcdef0123456789"
+                    }
                 },
                 storage = directory
                     .path()
@@ -184,7 +190,7 @@ defaultRegistry: local
 
 #[tokio::test(start_paused = true)]
 async fn stalled_roster_denies_stale_membership_and_retries() {
-    let replica = Replica::new(false).await;
+    let replica = Replica::new(ManagedRecords::Registry).await;
     replica.start_stalled_refresh(&["team-roster"]).await;
     replica.expect_status("/npm/example", StatusCode::FORBIDDEN).await;
     tokio::time::advance(Duration::from_secs(1)).await;
@@ -199,7 +205,7 @@ async fn stalled_roster_denies_stale_membership_and_retries() {
 
 #[tokio::test(start_paused = true)]
 async fn stalled_rules_deny_stale_access_and_recover() {
-    let replica = Replica::new(false).await;
+    let replica = Replica::new(ManagedRecords::Registry).await;
     replica.start_stalled_refresh(&["rule-overrides"]).await;
     replica.expect_status("/npm/example", StatusCode::NOT_FOUND).await;
     tokio::time::advance(Duration::from_secs(1)).await;
@@ -208,7 +214,7 @@ async fn stalled_rules_deny_stale_access_and_recover() {
 
 #[tokio::test(start_paused = true)]
 async fn stalled_scim_refuses_credentials_and_recovers() {
-    let replica = Replica::new(true).await;
+    let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
     replica.start_stalled_refresh(&["scim-users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
@@ -217,7 +223,7 @@ async fn stalled_scim_refuses_credentials_and_recovers() {
 
 #[tokio::test(start_paused = true)]
 async fn stalled_roster_does_not_delay_the_scim_deadline() {
-    let replica = Replica::new(true).await;
+    let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
     replica.start_stalled_refresh(&["team-roster", "scim-users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
@@ -226,7 +232,7 @@ async fn stalled_roster_does_not_delay_the_scim_deadline() {
 
 #[tokio::test(start_paused = true)]
 async fn stalled_rules_do_not_delay_the_scim_deadline() {
-    let replica = Replica::new(true).await;
+    let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
     replica.start_stalled_refresh(&["rule-overrides", "scim-users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
@@ -235,7 +241,7 @@ async fn stalled_rules_do_not_delay_the_scim_deadline() {
 
 #[tokio::test(start_paused = true)]
 async fn the_initial_read_has_a_deadline_and_retries() {
-    let replica = Replica::new(true).await;
+    let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
     replica.database.pause("scim-users".to_string());
     let request = replica.get("/-/whoami");
     tokio::pin!(request);
