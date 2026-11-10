@@ -138,7 +138,9 @@ pub(super) fn digest_integrity(digest: &str) -> Result<String, String> {
     }
     let bytes = digest
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let pair = std::str::from_utf8(pair).map_err(|error| error.to_string())?;
             u8::from_str_radix(pair, 16).map_err(|error| error.to_string())

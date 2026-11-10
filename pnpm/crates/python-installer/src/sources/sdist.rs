@@ -58,11 +58,13 @@ impl Registry<'_> {
         .await?;
         let mut built = match built {
             build::Build::Made(built) => built,
-            build::Build::NotApproved(names) => bail!(
-                "building the Python source distribution of {name} needs approved build \
+            build::Build::NotApproved(names) => {
+                bail!(
+                    "building the Python source distribution of {name} needs approved build \
                  requirements: {}. Add them under allowBuilds in pnpm-workspace.yaml.",
-                names.join(", "),
-            ),
+                    names.join(", "),
+                );
+            }
         };
         self.check_source_wheel(&built.wheel, name, version)?;
         check_identity(&built.wheel.metadata, name, version, &sdist)?;

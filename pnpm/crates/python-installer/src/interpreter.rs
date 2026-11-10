@@ -157,7 +157,9 @@ impl<'a> Interpreters<'a> {
                 return Ok(interpreter);
             }
             Search::Unaccepted(interpreter) => interpreter,
-            Search::None => bail!("{}", self.no_interpreter(root, requires_python, request)),
+            Search::None => {
+                bail!("{}", self.no_interpreter(root, requires_python, request));
+            }
         };
         let accepted = mismatch::accepted::<Reporter>(
             root,
@@ -168,7 +170,7 @@ impl<'a> Interpreters<'a> {
         if accepted {
             return Ok(interpreter);
         }
-        bail!("{}", self.no_interpreter(root, requires_python, request))
+        bail!("{}", self.no_interpreter(root, requires_python, request));
     }
 
     /// Install an interpreter the project accepts, when this machine has
@@ -209,7 +211,9 @@ impl<'a> Interpreters<'a> {
         let command = build.install(self.config, self.client).await?;
         match self.probe(&command).await {
             Probe::Usable(interpreter) => Ok(Some(Arc::clone(interpreter))),
-            Probe::Unusable(reason) => bail!("{reason}"),
+            Probe::Unusable(reason) => {
+                bail!("{reason}");
+            }
         }
     }
 
@@ -225,7 +229,9 @@ impl<'a> Interpreters<'a> {
         let command = InterpreterCommand::program(executable);
         let interpreter = match self.probe(&command).await {
             Probe::Usable(interpreter) => Arc::clone(interpreter),
-            Probe::Unusable(reason) => bail!("{reason}"),
+            Probe::Unusable(reason) => {
+                bail!("{reason}");
+            }
         };
         check_requires_python::<Reporter>(
             root,

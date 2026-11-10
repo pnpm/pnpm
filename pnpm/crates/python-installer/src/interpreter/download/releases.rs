@@ -270,7 +270,7 @@ async fn download_release_tags(
     bail!(
         "the Python interpreter release list holds more than {} tags",
         TAGS_PER_PAGE * MAX_TAG_PAGES,
-    )
+    );
 }
 
 fn release_tags_cache_path(config: &Config, tags_url: &str) -> PathBuf {

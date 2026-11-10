@@ -145,7 +145,9 @@ async fn preparation_failure_settles_writers_before_restoring_metadata() {
     let visible = projection.visible.clone();
     let error = InstallPlan::new(root.path().to_path_buf())
         .with_task(InstallTask::new(Vec::new(), async { Ok(vec![projection]) }))
-        .with_task(InstallTask::in_place(vec![metadata.clone()], async { bail!("prepare failed") }))
+        .with_task(InstallTask::in_place(vec![metadata.clone()], async {
+            bail!("prepare failed");
+        }))
         .with_task(InstallTask::in_place(vec![metadata.clone()], pending))
         .run()
         .await

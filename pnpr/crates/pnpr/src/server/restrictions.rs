@@ -99,7 +99,5 @@ pub(super) fn cidr_whitelist_allows(whitelist: &[String], client_ip: IpAddr) -> 
 /// address, or a non-numeric / out-of-range prefix) matches nothing, so
 /// the restriction fails closed rather than open.
 pub(super) fn cidr_contains(entry: &str, client_ip: IpAddr) -> bool {
-    pnpr_config::IpNetwork::parse(entry.trim())
-        .ok()
-        .is_some_and(|net| net.contains(client_ip))
+    pnpr_config::IpNetwork::parse(entry.trim()).is_ok_and(|net| net.contains(client_ip))
 }

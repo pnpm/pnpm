@@ -252,7 +252,7 @@ async fn fetch_metadata_outcome(
     match outcome {
         FetchFullMetadataOutcome::Modified(meta) => Ok(*meta),
         FetchFullMetadataOutcome::NotModified => {
-            miette::bail!("registry returned 304 Not Modified unexpectedly for {package_name}")
+            miette::bail!("registry returned 304 Not Modified unexpectedly for {package_name}");
         }
     }
 }

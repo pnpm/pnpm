@@ -295,10 +295,7 @@ fn phase_summary_reports_partition_and_means() {
     assert_eq!(partition.cold, 9);
     assert_eq!(summary.create_virtual_store_mean_ms, Some(150.0));
     assert_eq!(summary.link_slots[0].batch, "cold");
-    #[expect(clippy::float_cmp, reason = "deterministic mean of fixed fixture inputs is exact")]
-    {
-        assert_eq!(summary.link_slots[0].mean_ms, 30.0);
-    }
+    assert_eq!(summary.link_slots[0].mean_ms, 30.0);
 }
 
 fn peer_heavy_diagnostics(pacquet: (f64, f64), pnpm: (f64, f64)) -> super::BenchmarkDiagnostics {
@@ -381,10 +378,7 @@ fn pnpr_direct_ratios_pair_matching_revisions() {
 
     assert_eq!(ratios.len(), 1);
     assert_eq!(ratios[0].revision, "HEAD");
-    #[expect(clippy::float_cmp, reason = "deterministic ratio of fixed fixture inputs is exact")]
-    {
-        assert_eq!(ratios[0].ratio, 0.8);
-    }
+    assert_eq!(ratios[0].ratio, 0.8);
 }
 
 #[test]

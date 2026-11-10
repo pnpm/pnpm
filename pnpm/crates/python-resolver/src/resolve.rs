@@ -10,7 +10,7 @@ use crate::{
     packages::Packages,
     requires_python::declared_range,
 };
-use miette::{Result, bail};
+use miette::{Result, bail, miette};
 use pep440_rs::Version;
 use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
 use pubgrub::{
@@ -322,7 +322,7 @@ pub fn step(
             Needed::Candidates(name) => Ok(Step::NeedCandidates(name)),
             Needed::Url(name, url) => Ok(Step::NeedUrl(name, url)),
             Needed::Metadata(name, version) => Ok(Step::NeedMetadata(name, version)),
-            Needed::Invalid(message) | Needed::RejectedSource(message) => bail!("{message}"),
+            Needed::Invalid(message) | Needed::RejectedSource(message) => Err(miette!("{message}")),
         },
         Err(PubGrubError::NoSolution(tree)) => {
             let message = format!(
@@ -359,7 +359,7 @@ pub fn locked_solution(
                 report_no_solution(tree, packages),
             );
         }
-        Err(error) => bail!("Python lockfile does not satisfy the project: {error:?}"),
+        Err(error) => Err(miette!("Python lockfile does not satisfy the project: {error:?}")),
     }
 }
 
