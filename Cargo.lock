@@ -7165,6 +7165,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "getrandom 0.4.3",
+ "icu_normalizer",
  "libsql",
  "openidconnect",
  "p256 0.14.0",

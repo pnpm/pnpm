@@ -29,6 +29,7 @@ base64 = { workspace = true }
 bcrypt = { workspace = true }
 chrono = { workspace = true }
 getrandom = { workspace = true }
+icu_normalizer = { workspace = true }
 libsql = { workspace = true, optional = true }
 openidconnect = { workspace = true }
 reqwest = { workspace = true }

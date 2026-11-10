@@ -31,23 +31,37 @@ impl StoredAccount {
 fn parse_accounts(raw: &str) -> std::result::Result<Users, String> {
     let accounts: Users = serde_json::from_str(raw).map_err(|err| err.to_string())?;
     let mut ids = std::collections::HashSet::new();
+    let mut skeletons = std::collections::HashSet::new();
     for (name, account) in &accounts {
-        if account.password_hash != crate::DELETED_USER_HASH {
-            crate::validation::validate_username(name).map_err(|err| err.to_string())?;
-        } else if name != &format!("deleted:{}", account.id) {
-            return Err("deleted accounts must use their generated names".to_string());
-        }
+        validate_stored_account(name, account, &mut skeletons)?;
         if account.id.is_empty() || !ids.insert(account.id.as_str()) {
             return Err("account IDs must be nonempty and unique".to_string());
         }
-        if account.password_hash != crate::DELETED_USER_HASH
-            && account.password_hash != crate::NO_PASSWORD_HASH
-            && !crate::htpasswd::is_supported_hash(&account.password_hash)
-        {
-            return Err(format!("unsupported password hash for {name:?}"));
-        }
     }
     Ok(accounts)
+}
+
+fn validate_stored_account(
+    name: &str,
+    account: &StoredAccount,
+    skeletons: &mut std::collections::HashSet<String>,
+) -> std::result::Result<(), String> {
+    if account.password_hash == crate::DELETED_USER_HASH {
+        if name != format!("deleted:{}", account.id) {
+            return Err("deleted accounts must use their generated names".to_string());
+        }
+        return Ok(());
+    }
+    crate::validation::validate_username(name).map_err(|err| err.to_string())?;
+    if !skeletons.insert(crate::validation::username_skeleton_hash(name)) {
+        return Err(crate::validation::confusable_username().to_string());
+    }
+    if account.password_hash != crate::NO_PASSWORD_HASH
+        && !crate::htpasswd::is_supported_hash(&account.password_hash)
+    {
+        return Err(format!("unsupported password hash for {name:?}"));
+    }
+    Ok(())
 }
 
 mod backend;

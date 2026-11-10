@@ -117,10 +117,11 @@ non-negative cap to let new users register.
 Passwords must contain at least 8 characters and at most 71 bytes.
 This applies to registration, login, administrator-created accounts, and password changes.
 
-Account creation and renaming reject usernames with the same Unicode confusable
-skeleton as another account. Recreate pre-1.0 SQL auth databases that lack a
-`schema_migrations` table; databases at schema version `1` or later migrate
-automatically at startup (see
+Account creation and renaming reject usernames that mix Unicode scripts, contain
+restricted Unicode characters, or share a case- and accent-folded Unicode
+confusable skeleton with another account. Recreate pre-1.0 SQL auth databases
+that lack a `schema_migrations` table; databases at schema version `1` or later
+migrate automatically at startup (see
 [Schema migrations](storage.md#metadata-schema-changes)).
 
 ## Extensibility model

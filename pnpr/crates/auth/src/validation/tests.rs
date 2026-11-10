@@ -28,45 +28,120 @@ pub(crate) async fn assert_password_policy(users: &dyn crate::UserBackend) {
 }
 
 pub(crate) async fn assert_username_skeletons(users: &dyn crate::UserBackend) {
-    users.add_or_login("scope", "password").await.unwrap();
-    let err = users.provision_user("scope").await.unwrap_err();
+    assert_rejected_unicode_usernames(users).await;
+    assert_cltest_lookalikes_rejected(users).await;
+    assert_deleted_accounts_release_skeletons(users).await;
+}
+
+async fn assert_rejected_unicode_usernames(users: &dyn crate::UserBackend) {
+    for invalid_name in [
+        "cl\u{0442}est",
+        "sc\u{043e}pe",
+        "sc\u{03bf}pe",
+        "distin\u{0441}t",
+        "cl\u{1d1b}est",
+        "cl\u{200b}test",
+        "cl\u{00ad}test",
+        "\u{ff43}\u{ff4c}\u{ff54}\u{ff45}\u{ff53}\u{ff54}",
+        "\u{202e}tsetlc",
+        "\u{0301}cltest",
+    ] {
+        let err = users.add_or_login(invalid_name, "password").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{invalid_name:?}");
+        let err = users.create_user(invalid_name, "password").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{invalid_name:?}");
+        let err = users.provision_user(invalid_name).await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{invalid_name:?}");
+    }
+}
+
+async fn assert_cltest_lookalikes_rejected(users: &dyn crate::UserBackend) {
+    let (_, cltest_id) = users.add_or_login("cltest", "password").await.unwrap();
+    let err = users.provision_user("cltest").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
     assert!(matches!(err, crate::RegistryError::AdminConflict { .. }));
-    for name in ["scоpe", "scοpe"] {
-        let err = users.add_or_login(name, "password").await.unwrap_err();
-        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-        let err = users.create_user(name, "password").await.unwrap_err();
-        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-        let err = users.provision_user(name).await.unwrap_err();
-        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+
+    for lookalike in [
+        "CLTEST",
+        "Cltest",
+        "cLtest",
+        "clTest",
+        "clt\u{00e9}st",
+        "clte\u{0301}st",
+        "cl\u{0167}est",
+        "c1test",
+    ] {
+        let err = users.add_or_login(lookalike, "password").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
+        assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
+        let err = users.create_user(lookalike, "password").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
+        assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
+        let err = users.provision_user(lookalike).await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
         assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
         assert!(
             users
-                .account_id(name)
+                .account_id(lookalike)
                 .await
                 .unwrap()
                 .is_none(),
         );
     }
-    users.create_user("modern", "password").await.unwrap();
-    assert!(users.add_or_login("rnodern", "password").await.is_err());
-    let id = users.provision_user("other").await.unwrap();
-    let err = users.rename_user(&id, "scоpe").await.unwrap_err();
+
+    let other_id = users.provision_user("other").await.unwrap();
+    for lookalike in ["CLTEST", "Cltest", "clt\u{00e9}st", "clte\u{0301}st"] {
+        let err = users.rename_user(&other_id, lookalike).await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
+        assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
+    }
+    let err = users.rename_user(&other_id, "cl\u{0442}est").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-    assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
-    let err = users.rename_user(&id, "scope").await.unwrap_err();
+    let err = users.rename_user(&other_id, "cltest").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
     assert!(matches!(err, crate::RegistryError::AdminConflict { .. }));
-    users.rename_user(&id, "distinct").await.unwrap();
-    assert!(users.provision_user("distinсt").await.is_err());
-    let scope_id = users
-        .account_id("scope")
-        .await
-        .unwrap()
-        .unwrap();
+
+    // Renaming an account to a case variant of its own name keeps the single account.
+    users.rename_user(&cltest_id, "Cltest").await.unwrap();
+    assert_eq!(users.account_id("cltest").await.unwrap(), None);
+    assert_eq!(
+        users
+            .account_id("Cltest")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(cltest_id.as_str()),
+    );
+    let err = users.add_or_login("cltest", "password").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+
+    users.rename_user(&other_id, "distinct").await.unwrap();
+    assert!(users.provision_user("DISTINCT").await.is_err());
+    assert!(users.provision_user("distin\u{0441}t").await.is_err());
+
+    users.create_user("modern", "password").await.unwrap();
+    assert!(users.add_or_login("rnodern", "password").await.is_err());
+    users.create_user("alice", "password").await.unwrap();
+    assert!(users.add_or_login("ALICE", "password").await.is_err());
+}
+
+async fn assert_deleted_accounts_release_skeletons(users: &dyn crate::UserBackend) {
+    let (_, scope_id) = users.add_or_login("scope", "password").await.unwrap();
+    for lookalike in ["Scope", "SCOPE", "sc0pe", "sc\u{00f8}pe"] {
+        let err = users.add_or_login(lookalike, "password").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
+        assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
+    }
     users.delete_user(&scope_id).await.unwrap();
-    users.add_or_login("scоpe", "password").await.unwrap();
-    users.add_or_login("scоpe", "password").await.unwrap();
+    users.add_or_login("sc0pe", "password").await.unwrap();
+    users.add_or_login("sc0pe", "password").await.unwrap();
+
+    let (_, ace_id) = users.add_or_login("ace", "password").await.unwrap();
+    let err = users.add_or_login("\u{0430}\u{0441}\u{0435}", "password").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
+    users.delete_user(&ace_id).await.unwrap();
+    users.add_or_login("\u{0430}\u{0441}\u{0435}", "password").await.unwrap();
 }
 
 #[tokio::test]
@@ -88,11 +163,15 @@ async fn concurrent_confusable_registrations_create_only_one_account() {
 #[tokio::test]
 async fn imports_reject_names_confusable_with_saved_accounts() {
     assert_import_rejects_confusable_names("modern", &["rnodern"]).await;
+    assert_import_rejects_confusable_names("cltest", &["CLTEST"]).await;
+    assert_import_rejects_confusable_names("cltest", &["clt\u{00e9}st"]).await;
 }
 
 #[tokio::test]
 async fn imports_reject_confusable_names_in_the_same_batch() {
     assert_import_rejects_confusable_names("anchor", &["modern", "rnodern"]).await;
+    assert_import_rejects_confusable_names("anchor", &["cltest", "Cltest"]).await;
+    assert_import_rejects_confusable_names("anchor", &["cltest", "clte\u{0301}st"]).await;
 }
 
 async fn assert_import_rejects_confusable_names(existing_name: &str, imported_names: &[&str]) {
@@ -174,4 +253,64 @@ async fn file_password_policy_applies_to_registration_and_login() {
     users.insert_user_for_test("imported".to_string(), bcrypt::hash("short", 4).unwrap());
     let error = users.add_or_login("imported", "short").await.unwrap_err();
     assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[test]
+fn skeleton_hash_equates_case_diacritics_and_homoglyphs() {
+    use crate::validation::username_skeleton_hash;
+
+    for (canonical, variants) in [
+        (
+            "cltest",
+            &[
+                "CLTEST",
+                "Cltest",
+                "cLtest",
+                "clTest",
+                "clt\u{00e9}st",
+                "clte\u{0301}st",
+                "cl\u{0167}est",
+                "c1test",
+            ][..],
+        ),
+        ("alice", &["ALICE", "al\u{0131}ce", "al\u{0130}ce"]),
+        ("scope", &["Scope", "SCOPE", "sc0pe", "SC0PE", "sc\u{00f8}pe"]),
+        ("stra\u{00df}e", &["STRASSE", "STRA\u{1e9e}E"]),
+        ("\u{03c3}\u{03bf}\u{03c6}\u{03cc}\u{03c2}", &["\u{03a3}\u{039f}\u{03a6}\u{039f}\u{03a3}"]),
+    ] {
+        let expected = username_skeleton_hash(canonical);
+        for variant in variants {
+            assert_eq!(username_skeleton_hash(variant), expected, "{canonical:?} vs {variant:?}");
+        }
+    }
+
+    assert_ne!(username_skeleton_hash("alice"), username_skeleton_hash("allce"));
+    assert_ne!(
+        username_skeleton_hash("\u{d55c}\u{ae00}"),
+        username_skeleton_hash("\u{d63c}\u{ae00}"),
+    );
+}
+
+#[test]
+fn opening_accounts_file_rejects_confusable_active_accounts() {
+    let directory = tempfile::TempDir::new().unwrap();
+    let path = directory.path().join("accounts.json");
+    let hash = bcrypt::hash("password", 4).unwrap();
+    let conflicting = serde_json::json!({
+        "cltest": { "id": "u_01", "password_hash": hash },
+        "CLTEST": { "id": "u_02", "password_hash": hash },
+    });
+    std::fs::write(&path, conflicting.to_string()).unwrap();
+    let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
+        .unwrap_err();
+    assert!(matches!(error, crate::RegistryError::InvalidUsersFile { .. }), "{error:?}");
+
+    let with_deleted = serde_json::json!({
+        "cltest": { "id": "u_01", "password_hash": hash },
+        "deleted:u_02": { "id": "u_02", "password_hash": crate::DELETED_USER_HASH },
+    });
+    std::fs::write(&path, with_deleted.to_string()).unwrap();
+    let reopened =
+        crate::UserStore::open_with_cost(path, pnpr_config::MaxUsers::Unlimited, 4).unwrap();
+    assert!(!reopened.is_empty_for_test());
 }
