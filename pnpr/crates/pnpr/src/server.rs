@@ -199,10 +199,13 @@ use pnpr_upstream::{
     extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
     tarball_basename_for_package, version_route_tarball_version,
 };
-use serde::Deserialize;
+use serde::{
+    Deserialize, Deserializer,
+    de::{IgnoredAny, MapAccess, Visitor},
+};
 use serde_json::{Map, Value, json};
 use ssri::Integrity;
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, fmt, net::SocketAddr, sync::Arc, time::Duration};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
@@ -427,6 +430,40 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Deserialize a client JSON request body, returning [`RegistryError::BadRequest`]
+/// on malformed input. [`RegistryError::Json`] answers `502 Bad Gateway` and is
+/// reserved for upstream and stored documents.
+fn parse_json_body<'a, Payload: Deserialize<'a>>(body: &'a [u8]) -> Result<Payload, RegistryError> {
+    serde_json::from_slice(body)
+        .map_err(|err| RegistryError::BadRequest { reason: format!("invalid request body: {err}") })
+}
+
+struct JsonObject;
+
+impl<'de> Deserialize<'de> for JsonObject {
+    fn deserialize<Input: Deserializer<'de>>(deserializer: Input) -> Result<Self, Input::Error> {
+        struct ObjectVisitor;
+
+        impl<'de> Visitor<'de> for ObjectVisitor {
+            type Value = JsonObject;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a JSON object")
+            }
+
+            fn visit_map<Access: MapAccess<'de>>(
+                self,
+                mut map: Access,
+            ) -> Result<Self::Value, Access::Error> {
+                while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+                Ok(JsonObject)
+            }
+        }
+
+        deserializer.deserialize_map(ObjectVisitor)
+    }
 }
 
 /// Mark a response as caller-scoped and uncacheable. Authenticated endpoints

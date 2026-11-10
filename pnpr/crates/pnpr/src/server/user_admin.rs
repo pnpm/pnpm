@@ -3,7 +3,7 @@
 
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, json,
-    json_response, private_no_cache, require_admin, team_mutations::respond,
+    json_response, parse_json_body, private_no_cache, require_admin, team_mutations::respond,
     tokens::token_response_object,
 };
 use crate::UserRemoval;
@@ -186,10 +186,7 @@ async fn revoke_user_token(
 }
 
 fn parse_password(body: &Bytes) -> Result<String, RegistryError> {
-    let NewPassword { password } = serde_json::from_slice(body)
-        .map_err(|err| RegistryError::BadRequest {
-            reason: format!("invalid request body: {err}"),
-        })?;
+    let NewPassword { password } = parse_json_body(body)?;
     if password.is_empty() {
         return Err(RegistryError::BadRequest { reason: "password must not be empty".to_string() });
     }
@@ -215,10 +212,7 @@ async fn rename_user(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "rename", format!("account {:?}", path.user))?;
-        let RenameUser { name } = serde_json::from_slice(&body)
-            .map_err(|err| RegistryError::BadRequest {
-                reason: format!("invalid request body: {err}"),
-            })?;
+        let RenameUser { name } = parse_json_body(&body)?;
         state.inner.identity.auth.users.rename_user(&path.user, &name).await?;
         tracing::info!(
             target: "pnpr::audit",

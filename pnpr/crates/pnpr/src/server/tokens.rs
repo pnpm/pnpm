@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use super::{
     AppState, AuthedCaller, StatusCode, TargetRegistry, iso_from_unix_millis, json_response,
-    not_found, private_no_cache, require_caller,
+    not_found, parse_json_body, private_no_cache, require_caller,
 };
 
 #[derive(Default, Deserialize)]
@@ -140,7 +140,7 @@ fn parse_create_token_payload(body: &[u8]) -> Result<CreateTokenPayload, Registr
     if body.is_empty() {
         return Ok(CreateTokenPayload::default());
     }
-    serde_json::from_slice(body).map_err(RegistryError::Json)
+    parse_json_body(body)
 }
 
 fn validate_cidr_whitelist(whitelist: &[String]) -> Result<(), RegistryError> {

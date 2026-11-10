@@ -15,7 +15,7 @@ mod tests;
 
 use super::{
     AppState, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode,
-    authentication::carries_bearer_secret,
+    authentication::carries_bearer_secret, parse_json_body,
 };
 use axum::{
     Router,
@@ -315,8 +315,7 @@ fn location(state: &AppState, username: &str) -> String {
 }
 
 fn parse_json(body: &Bytes) -> Result<Value, RegistryError> {
-    serde_json::from_slice(body)
-        .map_err(|err| RegistryError::BadRequest { reason: format!("invalid request body: {err}") })
+    parse_json_body(body)
 }
 
 fn scim_json(status: StatusCode, body: &Value) -> Response {

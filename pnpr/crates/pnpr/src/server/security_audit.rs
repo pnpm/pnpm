@@ -14,8 +14,8 @@ use pnpr_policy::Identity;
 use pnpr_upstream::FetchOutcome;
 
 use super::{
-    AppState, AuthedCaller, RegistryError, TargetRegistry, addressed_registry, authorized_upstream,
-    ecosystem::upstream_sources, not_found,
+    AppState, AuthedCaller, JsonObject, RegistryError, TargetRegistry, addressed_registry,
+    authorized_upstream, ecosystem::upstream_sources, not_found,
 };
 
 const MAX_AUDIT_BODY_BYTES: usize = 16 * 1024 * 1024;
@@ -122,6 +122,9 @@ async fn forward_legacy_audit(
     let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
         return not_found();
     };
+    if !body.is_empty() && serde_json::from_slice::<JsonObject>(body).is_err() {
+        return bad_request_json();
+    }
 
     let upstreams = upstream_sources(state, &target, Ecosystem::Npm);
     let Some(upstream_name) = upstreams.first() else {

@@ -1,6 +1,6 @@
 use super::{
     AppState, AuthedCaller, Body, Deserialize, Identity, Path, RegistryError, Response, State,
-    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response,
+    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response, parse_json_body,
     private_no_cache, require_caller,
 };
 use axum::response::IntoResponse;
@@ -114,7 +114,7 @@ pub(super) struct UserPath {
 /// * existing user, password matches → return 201 with `{ ok, token }`.
 /// * existing user, password wrong → 401.
 fn parse_registration_password(name: &str, body: &[u8]) -> Result<String, RegistryError> {
-    let body: Value = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+    let body: Value = parse_json_body(body)?;
     let body_name = body
         .get("name")
         .and_then(Value::as_str)
