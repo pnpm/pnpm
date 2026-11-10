@@ -5,10 +5,11 @@
 //! readers, while a JSON reader that allows the trailing comma parses it
 //! several times faster. A tab is a tenth of the file's bytes smaller than
 //! two spaces and is separation whitespace inside a flow collection, where
-//! YAML allows it. The layout follows the block emitter's: a blank line between the entries of the
-//! top-level map and of `projects` and `packages`, the maps
-//! [`one_line_values`] names on their keys' lines, and a map that
-//! [names a snapshot](names_snapshot) one binding per line.
+//! YAML allows it. Entries follow each other without blank lines: every
+//! entry closes with its own `},` line, which gives a diff or a merge the
+//! context the block emitter's blank lines provide. The maps
+//! [`one_line_values`] names sit on their keys' lines, and a map that
+//! [names a snapshot](names_snapshot) is written one binding per line.
 
 use super::{
     Format, Nesting, PARALLEL_ENTRY_THRESHOLD, ValueStyle, is_single_line_key, is_single_line_map,
@@ -35,7 +36,7 @@ pub(super) fn to_string(value: &Value) -> String {
 }
 
 /// `key` is the map key the value is bound to, which drives the one-line
-/// and blank-line decisions as it does in the block emitter.
+/// decisions as it does in the block emitter.
 fn write_value(
     out: &mut String,
     value: &Value,
@@ -68,29 +69,19 @@ fn write_map(
         write_one_line_map(out, map, level, nesting.format);
         return;
     }
-    let blank_lines = separates_with_blank_lines(level, key);
     let nesting = Nesting { values: one_line_values(key, nesting), ..nesting };
     out.push('{');
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        for (index, entry) in map.iter().enumerate() {
-            separate(out, index, blank_lines);
+        for entry in map {
             write_entry(out, entry, level, nesting);
         }
     } else {
-        for (index, text) in render_entries(map, level, nesting).iter().enumerate() {
-            separate(out, index, blank_lines);
-            out.push_str(text);
+        for text in render_entries(map, level, nesting) {
+            out.push_str(&text);
         }
     }
     next_line(out, level);
     out.push('}');
-}
-
-/// The top-level map and the `projects` and `packages` sections keep a
-/// blank line between their entries; a project or package with a section's
-/// name does not.
-fn separates_with_blank_lines(level: usize, key: Option<&str>) -> bool {
-    level == 0 || level == 1 && matches!(key, Some("projects" | "packages"))
 }
 
 /// The entries of a workspace-scale map, each rendered into its own buffer
@@ -105,12 +96,6 @@ fn render_entries(map: &Map<String, Value>, level: usize, nesting: Nesting) -> V
             text
         })
         .collect()
-}
-
-fn separate(out: &mut String, index: usize, blank_lines: bool) {
-    if index > 0 && blank_lines {
-        out.push('\n');
-    }
 }
 
 /// One entry of a multi-line map, from its leading newline to its trailing
