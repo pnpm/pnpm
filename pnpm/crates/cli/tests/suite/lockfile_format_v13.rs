@@ -452,7 +452,7 @@ fn directory_input_record_rejects_a_range_edit_that_keeps_the_locked_version() {
             .success();
         let lockfile_path = workspace.join("pnpm-lock.yaml");
         let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
-        assert_eq!(original.contains("\"specifiers\""), format == "v13", "{original}");
+        assert_eq!(original.contains(r#""specifiers""#), format == "v13", "{original}");
         fs::write(
             &local,
             json!({ "name": "local", "dependencies": {
@@ -499,7 +499,7 @@ fn directory_input_record_rejects_a_range_edit_that_keeps_the_locked_version() {
                 .success();
             assert_eq!(
                 fs::read_to_string(&lockfile_path).expect("read fallback lockfile"),
-                legacy_text
+                legacy_text,
             );
             fs::write(
                 &local,
@@ -544,7 +544,7 @@ fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool
         _ => unreachable!(),
     };
     let mut config = format!(
-        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {shared}\ninjectWorkspacePackages: true\n"
+        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {shared}\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
     );
     if hook == "extensions" {
         config.push_str("packageExtensions:\n  'local@*':\n    dependencies:\n      '@pnpm.e2e/bar': '100.0.0'\n");
@@ -586,7 +586,7 @@ fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool
     let lockfile_path =
         if shared { workspace.join("pnpm-lock.yaml") } else { app.join("pnpm-lock.yaml") };
     let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
-    assert!(original.contains("\"specifiers\""), "{original}");
+    assert!(original.contains(r#""specifiers""#), "{original}");
     if hook != "none" {
         let lockfile = pnpm_lockfile::Lockfile::parse(&original, &lockfile_path)
             .expect("parse lockfile")
@@ -608,7 +608,7 @@ fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool
                 .expect("dependencies")
                 .get("@pnpm.e2e/bar")
                 .map(String::as_str),
-            Some("100.0.0")
+            Some("100.0.0"),
         );
     }
     pacquet_in(&workspace)
@@ -648,7 +648,7 @@ fn recorded_directory_target_case(spec: &str) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\ninjectWorkspacePackages: true\nlinkWorkspacePackages: true\n",
+        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nlinkWorkspacePackages: true\n",
     )
     .expect("write workspace config");
     for (directory, manifest) in [
@@ -682,7 +682,7 @@ fn recorded_directory_target_case(spec: &str) {
 #[test]
 fn recorded_inputs_cover_a_directory_beneath_a_registry_package() {
     let fixture = crate::_utils::WorkspaceFixture::new();
-    fixture.append_workspace_yaml("lockfile:\n  format: v13\ninjectWorkspacePackages: true\npackageExtensions:\n  '@pnpm.e2e/pkg-with-1-dep':\n    dependencies:\n      local: workspace:./local\n");
+    fixture.append_workspace_yaml("lockfile:\n  format: v13\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\npackageExtensions:\n  '@pnpm.e2e/pkg-with-1-dep':\n    dependencies:\n      local: workspace:./local\n");
     fixture.write_root_manifest(
         "root",
         crate::_utils::ManifestDeps {

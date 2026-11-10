@@ -208,7 +208,7 @@ fn recorded_injected_inputs_allow_a_dedicated_lockfile_repeat_install() {
             "resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace}");
     assert_eq!(
         injected_sibling_decision_with_lockfile(false, Some(&unchanged_sibling()), &lockfile),
-        Decision::UpToDate
+        Decision::UpToDate,
     );
     let changed = serde_json::json!({ "name": "pkg-a", "version": "1.0.0", "dependencies": { "is-positive": "1.0.0" } });
     let decision = injected_sibling_decision_with_lockfile(false, Some(&changed), &lockfile);
