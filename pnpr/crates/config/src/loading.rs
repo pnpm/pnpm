@@ -293,6 +293,7 @@ fn build_http_config(
         }
         None => Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
     };
+    let packument_ttl = build_packument_ttl(file.packument_ttl.take())?;
     let max_tarball_bytes = build_max_tarball_bytes(file.max_tarball_size.take())?;
     Ok(super::HttpConfig {
         listen,
@@ -300,13 +301,7 @@ fn build_http_config(
         cors,
         ui,
         oci: std::mem::take(&mut file.oci),
-        packument_ttl: match &file.packument_ttl {
-            Some(interval) => super::parse_interval(&interval.0)
-                .ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("packumentTtl {:?} is not a valid interval", interval.0),
-                })?,
-            None => Config::DEFAULT_PACKUMENT_TTL,
-        },
+        packument_ttl,
         max_tarball_bytes,
         trusted_proxies,
         trusted_proxy_header,
@@ -314,6 +309,18 @@ fn build_http_config(
         metrics: build_metrics_config(file, listen)?,
         package_documents: super::build_package_documents_config(file.package_documents.take())?,
     })
+}
+
+/// The `packumentTtl:` key as a duration, defaulting to
+/// [`Config::DEFAULT_PACKUMENT_TTL`].
+fn build_packument_ttl(raw: Option<super::Interval>) -> Result<std::time::Duration, RegistryError> {
+    let Some(super::Interval(raw)) = raw else {
+        return Ok(Config::DEFAULT_PACKUMENT_TTL);
+    };
+    super::parse_interval(&raw)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("packumentTtl {raw:?} is not a valid interval"),
+        })
 }
 
 /// The `maxTarballSize:` key as bytes, defaulting to
