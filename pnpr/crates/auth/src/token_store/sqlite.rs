@@ -1,7 +1,8 @@
-use super::{Connection, HashMap, RegistryError, Result, TokenRecord};
+use super::{Connection, HashMap, Result, TokenRecord};
 use crate::validation::{
     token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
 };
+use pnpr_error::RegistryError;
 
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
     pnpr_sql::sqlite::ensure_schema(conn, "SQLite auth database")
