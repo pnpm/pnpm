@@ -52,7 +52,13 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://notion.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/notion.svg" width="80" alt="Notion"></a>
+        <a href="https://notion.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/notion.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/notion_light.svg" />
+            <img src="https://pnpm.io/img/users/notion.svg" width="80" alt="Notion" />
+          </picture>
+        </a>
       </td>
     </tr>
     <tr>
@@ -145,7 +151,13 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
+        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/latitude.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/latitude_light.svg" />
+            <img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude" />
+          </picture>
+        </a>
       </td>
       <td align="center" valign="middle">
         <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
@@ -198,7 +210,13 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io"></a>
+        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/devowlio_light.svg" />
+            <img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io" />
+          </picture>
+        </a>
       </td>
       <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
