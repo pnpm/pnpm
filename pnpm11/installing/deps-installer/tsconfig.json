@@ -103,9 +103,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fs/dir-lock"
-    },
-    {
       "path": "../../fs/is-empty-dir-or-nothing"
     },
     {

@@ -9,7 +9,7 @@
 use super::{super::config_blocks_fast_path, current_settings, isolated_included};
 use crate::install_state::first_setting_drift;
 use indexmap::IndexMap;
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
+use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, RuntimeOnFail, TrustPolicy};
 use pnpm_workspace_state::WorkspaceState;
 use std::{collections::BTreeSet, path::Path};
 
@@ -98,6 +98,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("dedupe_peers", Recorded { key: "dedupePeers", change: |config| config.dedupe_peers = !config.dedupe_peers }),
     ("deploy_all_files", NotAnInput(OTHER_COMMAND)),
     ("disallow_workspace_cycles", NotAnInput("whether a cycle fails the install")),
+    ("dir", Through("the modules directory and project selection the checks run in")),
     ("dlx_cache_max_age", NotAnInput(OTHER_COMMAND)),
     ("embed_readme", NotAnInput(OTHER_COMMAND)),
     ("enable_global_virtual_store", Recorded { key: "enableGlobalVirtualStore", change: |config| config.enable_global_virtual_store = !config.enable_global_virtual_store }),
@@ -166,6 +167,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("link_workspace_packages", Recorded { key: "linkWorkspacePackages", change: |config| config.link_workspace_packages = LinkWorkspacePackages::Deep }),
     ("lockfile", NotAnInput("whether `pnpm-lock.yaml` is written, not what is installed")),
     ("lockfile_dir", Through(LOCKFILE_LOCATION)),
+    ("lockfile_format", NotAnInput("how the lockfile is written, not what it records")),
     ("lockfile_include_resolution_settings", Recorded { key: "lockfile.includeResolutionSettings", change: |config| config.lockfile_include_resolution_settings = !config.lockfile_include_resolution_settings }),
     ("lockfile_include_tarball_url", NotAnInput(RESOLUTION_ONLY)),
     ("lockfile_integrity_target", Recorded { key: "lockfile.integrityTarget", change: |config| config.lockfile_integrity_target = pnpm_lockfile::IntegrityTarget::Tar }),
@@ -244,7 +246,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("resolution_mode", NotAnInput(RESOLUTION_ONLY)),
     ("resolve_peers_from_workspace_root", NotAnInput(RESOLUTION_ONLY)),
     ("reverse", NotAnInput(CLI_ONLY)),
-    ("runtime_on_fail", NotAnInput("whether a missing runtime fails the command")),
+    ("runtime_on_fail", Recorded { key: "runtimeOnFail", change: |config| config.runtime_on_fail = Some(RuntimeOnFail::Download) }),
     ("save_catalog_name", NotAnInput(OTHER_COMMAND)),
     ("save_exact", NotAnInput(OTHER_COMMAND)),
     ("save_peer", NotAnInput(OTHER_COMMAND)),

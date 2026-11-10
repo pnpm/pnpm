@@ -75,7 +75,6 @@ fn record_optional_subdep(
     subdep_version: &str,
     result: &ResolveResult,
 ) -> Result<(), ConfigDepError> {
-    let registry = opts.verification.pick_registry(subdep_name);
     let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}")
         .parse()
         .map_err(|_| ConfigDepError::BadConfigDep {
@@ -86,8 +85,14 @@ fn record_optional_subdep(
 
     env_lockfile.packages.insert(
         pkg_key.clone(),
-        package_metadata(subdep_name, subdep_version, result, registry, false)
-            .map_err(ConfigDepError::LockfileForm)?,
+        package_metadata(
+            subdep_name,
+            subdep_version,
+            result,
+            opts.verification.tarball_url_options(subdep_name),
+            false,
+        )
+        .map_err(ConfigDepError::LockfileForm)?,
     );
     env_lockfile.snapshots
         .entry(pkg_key)

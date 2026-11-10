@@ -1,18 +1,17 @@
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { createEnvLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
-import type { ConfigDependencies, ConfigDependencySpecifiers, RegistriesByScope } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
 
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
+import { type ConfigDepRegistryOpts, type ConfigDepTarballUrlOptions, pickTarballUrlOptions } from './pickTarballUrlOptions.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
-interface MigrateOpts {
-  registriesByScope: RegistriesByScope
+interface MigrateOpts extends ConfigDepRegistryOpts {
   rootDir: string
 }
 
@@ -35,7 +34,7 @@ export async function migrateConfigDepsToLockfile (
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
-    const migrated = migrateConfigDep(pkgName, pkgSpec, pickRegistryForPackage(opts.registriesByScope, pkgName))
+    const migrated = migrateConfigDep(pkgName, pkgSpec, pickTarballUrlOptions(opts, pkgName))
     if (!migrated) continue
     const { version, lockfileResolution, resolution } = migrated
     cleanSpecifiers[pkgName] = version
@@ -75,17 +74,17 @@ interface MigratedConfigDep {
 function migrateConfigDep (
   pkgName: string,
   pkgSpec: ConfigDependencies[string],
-  registry: string
+  tarballUrlOptions: ConfigDepTarballUrlOptions
 ): MigratedConfigDep | undefined {
   if (typeof pkgSpec === 'object') {
     const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
-    const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
+    const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, tarballUrlOptions)
     return {
       version,
       lockfileResolution: toLockfileResolution(
         { name: pkgName, version },
         { integrity, tarball },
-        { registry }
+        tarballUrlOptions
       ),
       resolution: { integrity, tarball },
     }
@@ -107,6 +106,6 @@ function migrateConfigDep (
   return {
     version,
     lockfileResolution: { integrity },
-    resolution: { integrity, tarball: getNpmTarballUrl(pkgName, version, { registry }) },
+    resolution: { integrity, tarball: getNpmTarballUrl(pkgName, version, tarballUrlOptions) },
   }
 }

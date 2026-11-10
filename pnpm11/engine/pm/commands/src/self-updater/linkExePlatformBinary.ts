@@ -1,7 +1,7 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { isError } from '@pnpm/error'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
 
@@ -147,7 +147,7 @@ function linkWindowsAliases (src: string, wrapperDir: string): void {
 // Temp file + rename, not in-place: package.json is hard-linked from the
 // content-addressable store, so writing in place would mutate the shared blob.
 function writePkgJsonWithoutMutatingStore (pkgJsonPath: string, pkgJson: unknown): void {
-  const tempPkgJsonPath = `${pkgJsonPath}.pnpm-tmp`
+  const tempPkgJsonPath = uniqueTempPath(pkgJsonPath)
   try {
     fs.writeFileSync(tempPkgJsonPath, JSON.stringify(pkgJson, null, 2))
     fs.renameSync(tempPkgJsonPath, pkgJsonPath)
@@ -159,14 +159,22 @@ function writePkgJsonWithoutMutatingStore (pkgJsonPath: string, pkgJson: unknown
   }
 }
 
+// Linked under a temporary name and renamed into place, so concurrent
+// commands linking the same slot never see `dest` missing or fail on it.
 function forceLink (src: string, dest: string): void {
+  const tempDest = uniqueTempPath(dest)
   try {
-    fs.unlinkSync(dest)
+    fs.linkSync(src, tempDest)
+    fs.chmodSync(tempDest, 0o755)
+    fs.renameSync(tempDest, dest)
   } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
-      throw err
-    }
+    try {
+      fs.rmSync(tempDest, { force: true })
+    } catch {}
+    throw err
   }
-  fs.linkSync(src, dest)
-  fs.chmodSync(dest, 0o755)
+}
+
+function uniqueTempPath (target: string): string {
+  return `${target}.pnpm-tmp-${process.pid.toString(16)}-${randomBytes(4).toString('hex')}`
 }

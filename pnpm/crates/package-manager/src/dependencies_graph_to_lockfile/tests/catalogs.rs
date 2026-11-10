@@ -1,13 +1,66 @@
 use super::{
     super::{GraphToLockfileOptions, ImporterLockfileInput},
     EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, NPM_REGISTRIES, dependencies_graph_to_lockfile,
-    make_node, write_manifest,
+    make_node, single_importer_opts, write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_deps_resolver::DependenciesGraph;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
 use std::collections::BTreeMap;
+
+#[test]
+fn excluded_catalog_links_keep_workspace_specifiers() {
+    let should_auto_install_peers = false;
+    let should_exclude_links_from_lockfile = true;
+    for (name, reference, specifier, retained) in [
+        ("default", "catalog:", "workspace:*", true),
+        ("named", "catalog:named", "workspace:shared@*", true),
+        ("default", "catalog:", "link:../shared", false),
+        ("named", "catalog:named", "^1.0.0", false),
+    ] {
+        let (_tmp, manifest) = write_manifest(json!({
+            "dependencies": { "shared": reference },
+        }));
+        let graph = DependenciesGraph::default();
+        let direct =
+            BTreeMap::from([("shared".to_string(), DepPath::from("link:../shared".to_string()))]);
+        let catalogs = BTreeMap::from([(
+            name.to_string(),
+            BTreeMap::from([("shared".to_string(), specifier.to_string())]),
+        )]);
+        let mut opts = single_importer_opts(
+            &manifest,
+            &graph,
+            direct,
+            should_auto_install_peers,
+            should_exclude_links_from_lockfile,
+            None,
+            None,
+        );
+        opts.catalogs = &catalogs;
+
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let dependency = lockfile
+            .root_project()
+            .unwrap()
+            .dependencies
+            .as_ref()
+            .and_then(|dependencies| {
+                dependencies.get(&pnpm_lockfile::PkgName::parse("shared").unwrap())
+            });
+        if retained {
+            let dependency = dependency.expect("catalog workspace dependency is recorded");
+            assert_eq!(dependency.specifier, reference);
+            assert_eq!(
+                dependency.version,
+                pnpm_lockfile::ImporterDepVersion::Link("../shared".to_string()),
+            );
+        } else {
+            assert!(dependency.is_none(), "non-workspace catalog links remain excluded");
+        }
+    }
+}
 
 #[test]
 fn aliased_catalog_dependency_records_catalog_snapshot() {

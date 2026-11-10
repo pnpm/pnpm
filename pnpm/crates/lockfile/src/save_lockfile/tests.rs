@@ -1030,3 +1030,25 @@ fn has_staged_temp_file(dir: &Path) -> bool {
                     .is_ok_and(|metadata| metadata.len() > 0)
         })
 }
+
+/// A lockfile an `afterAllResolved` hook returns is a document in today's
+/// shape; under the next format's version it is written in the next
+/// format, and under today's as it is.
+#[test]
+fn a_hook_lockfile_is_written_in_the_format_its_version_names() {
+    let document = serde_json::json!({
+        "lockfileVersion": "13.0",
+        "importers": { ".": { "dependencies": { "foo": { "specifier": "1.0.0", "version": "1.0.0" } } } },
+        "packages": { "foo@1.0.0": { "resolution": { "integrity": "sha512-AAAA" } } },
+        "snapshots": { "foo@1.0.0": {} },
+    });
+    let next = crate::render_hook_lockfile(&document).expect("render the next format");
+    assert!(next.starts_with("{\n\t\"lockfileVersion\": \"13.0\",\n"), "{next}");
+    assert!(!next.contains("snapshots"), "{next}");
+
+    let mut today = document;
+    today["lockfileVersion"] = serde_json::json!("9.0");
+    let yaml = crate::render_hook_lockfile(&today).expect("render today's format");
+    assert!(yaml.starts_with("lockfileVersion: '9.0'\n"), "{yaml}");
+    assert!(yaml.contains("\nsnapshots:\n"), "{yaml}");
+}

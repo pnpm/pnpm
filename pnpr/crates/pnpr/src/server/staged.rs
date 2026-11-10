@@ -481,21 +481,9 @@ fn parse_staged_record(
     Ok(StoredStagedRecord { stored, record })
 }
 
-/// A fresh random (version 4) UUID from the OS CSPRNG — the stage id
-/// clients quote back on view/approve/reject/download.
+/// The stage id clients quote back on view/approve/reject/download.
 fn generate_stage_id() -> String {
-    let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    let hex = bytes
-        .iter()
-        .fold(String::with_capacity(32), |mut hex, byte| {
-            use std::fmt::Write;
-            write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
-            hex
-        });
-    format!("{}-{}-{}-{}-{}", &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
+    super::uuid_v4::generate()
 }
 
 #[cfg(test)]

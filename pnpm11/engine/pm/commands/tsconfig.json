@@ -59,6 +59,9 @@
       "path": "../../../exec/npm-lifecycle"
     },
     {
+      "path": "../../../fs/graceful-fs"
+    },
+    {
       "path": "../../../global/commands"
     },
     {

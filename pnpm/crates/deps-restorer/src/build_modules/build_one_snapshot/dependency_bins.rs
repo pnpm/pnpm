@@ -36,6 +36,29 @@ pub(super) fn refresh(
     .map_err(BuildModulesError::BinLink)
 }
 
+/// Link the bins of every dependency of `snapshot_key` into its package,
+/// which this install staged, before its scripts run. See
+/// [`crate::link_bins`].
+pub(super) fn link_staged(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    let mut options = context.directories.link_options.clone();
+    options.force = true;
+    crate::LinkVirtualStoreBins {
+        layout: context.directories.layout,
+        snapshots: Some(context.graph.snapshots),
+        selected_snapshots: Some(std::slice::from_ref(snapshot_key)),
+        packages: context.graph.packages,
+        package_manifests: &crate::PackageManifests::default(),
+        package_bins: None,
+        skipped: context.graph.skipped,
+        link_options: &options,
+    }
+    .run()
+    .map_err(BuildModulesError::BinLink)
+}
+
 pub(super) fn refresh_private_hoisted_for(
     context: &BuildOneSnapshot<'_>,
     key: &PackageKey,

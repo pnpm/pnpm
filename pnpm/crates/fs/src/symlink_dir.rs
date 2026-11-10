@@ -163,6 +163,14 @@ pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
     retry_transient_file_locks(|| std::fs::read_link(link))
 }
 
+/// Whether reading a link failed because the entry is not a link.
+#[must_use]
+pub fn is_non_link_read_error(error: &io::Error) -> bool {
+    const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
+    error.kind() == io::ErrorKind::InvalidInput
+        || (cfg!(windows) && error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT))
+}
+
 /// Outcome of a [`force_symlink_dir`] call.
 ///
 /// `reused` is `true` when the symlink at `link` already pointed at

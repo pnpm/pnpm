@@ -128,19 +128,32 @@ pub(super) struct GvsHasher<'h> {
     /// directory snapshot does, and so does a dependent, whose slot links
     /// to it.
     uncached_builds: HashSet<String>,
+    /// See [`BuildGating::runs_builds`].
+    runs_builds: bool,
     engine: Option<&'h str>,
     packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
 }
+/// Which snapshots an install builds, for the slot hash.
+#[derive(Clone, Copy)]
+pub struct BuildGating<'p> {
+    /// `None` gates nothing: every snapshot hashes with the engine.
+    pub policy: Option<&'p AllowBuildPolicy>,
+    /// `false` under `ignoreScripts`, whose install builds nothing, so
+    /// every snapshot takes the slot of its unbuilt package.
+    pub runs_builds: bool,
+}
+
 impl<'h> GvsHasher<'h> {
     pub(super) fn new(
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
         engine: Option<&'h str>,
-        allow_build_policy: Option<&AllowBuildPolicy>,
+        gating: BuildGating<'_>,
         lockfile_dir: Option<&'h Path>,
         platform: &VariantPlatforms,
     ) -> Self {
         let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir, platform);
+        let allow_build_policy = gating.policy;
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
         let uncached_builds = allow_build_policy
@@ -152,6 +165,7 @@ impl<'h> GvsHasher<'h> {
             cache: HashMap::new(),
             project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
             uncached_builds,
+            runs_builds: gating.runs_builds,
             engine,
             packages,
         }
@@ -203,6 +217,7 @@ impl<'h> GvsHasher<'h> {
         }
         write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
         self.write_gating_set(&mut hasher);
+        hasher.update([u8::from(self.runs_builds)]);
         write_sorted(&mut hasher, &self.uncached_builds);
         self.write_graph(&mut hasher);
         self.write_snapshot_extras(&mut hasher, snapshots);
@@ -281,7 +296,10 @@ impl<'h> GvsHasher<'h> {
             &mut self.cache,
             &dep_path,
             own_engine.as_deref().or(self.engine),
-            self.build_required_dep_paths.as_ref(),
+            pnpm_graph_hasher::BuildRequired {
+                dep_paths: self.build_required_dep_paths.as_ref(),
+                builds_run: self.runs_builds,
+            },
             project_scope,
         );
         format_global_virtual_store_path(

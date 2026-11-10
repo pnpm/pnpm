@@ -622,6 +622,9 @@ pub struct Config {
     /// lockfile's `settings` when it is `tar`.
     pub lockfile_integrity_target: pnpm_lockfile::IntegrityTarget,
 
+    /// The format pnpm writes the lockfile in. The `lockfile.format` setting.
+    pub lockfile_format: pnpm_lockfile::LockfileFormat,
+
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
@@ -1086,6 +1089,10 @@ pub struct Config {
     /// / `PNPM_CONFIG_USERCONFIG` / `npm_config_userconfig` env vars.
     /// `None` falls back to `~/.npmrc`.
     pub npmrc_auth_file: Option<PathBuf>,
+
+    /// The working directory [`Config::current`] loaded for (`--dir`, or the
+    /// process working directory).
+    pub dir: PathBuf,
 
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`](crate::WorkspaceSettings::apply_to) when yaml was found, so

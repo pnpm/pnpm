@@ -210,7 +210,7 @@ fn generate_batchless_cmd_shim(quoted_target: &str, args: &str) -> String {
     let restore_codepage = if target_command.is_ascii() {
         ""
     } else {
-        r#"(IF NOT "%_PNPM_CODEPAGE%"=="" "%SystemRoot%\System32\chcp.com" %_PNPM_CODEPAGE% >NUL) & "#
+        r#"(IF NOT "%_PNPM_CODEPAGE%"=="" "%SystemRoot%\System32\mode.com" con cp select=%_PNPM_CODEPAGE: =% >NUL) & "#
     };
     let mut cmd = format!(
         "@SETLOCAL\r\n\
@@ -233,7 +233,7 @@ const BATCH_END: &str = "@GOTO #_undefined_# 2>NUL || ";
 /// What a [`CmdShimBatch::Kept`] shim runs after its target when it switched
 /// the code page: the restore, with the target's exit code carried past it.
 const CODEPAGE_RESTORE_TRAILER: &str = "@SET \"_PNPM_EXIT_CODE=%ERRORLEVEL%\"\r\n\
-    @IF DEFINED _PNPM_CODEPAGE @\"%SystemRoot%\\System32\\chcp.com\" %_PNPM_CODEPAGE% >NUL\r\n\
+    @IF DEFINED _PNPM_CODEPAGE @\"%SystemRoot%\\System32\\mode.com\" con cp select=%_PNPM_CODEPAGE: =% >NUL\r\n\
     @EXIT /B %_PNPM_EXIT_CODE%\r\n";
 
 fn with_utf8_codepage(mut cmd: String) -> String {
@@ -251,8 +251,8 @@ fn insert_utf8_codepage_switch(cmd: &mut String) {
     cmd.insert_str(
         "@SETLOCAL\r\n".len(),
         "@SET \"_PNPM_CODEPAGE=\"\r\n\
-         @FOR /F \"tokens=2 delims=:\" %%a IN ('\"%SystemRoot%\\System32\\chcp.com\"') DO @SET \"_PNPM_CODEPAGE=%%a\"\r\n\
-         @\"%SystemRoot%\\System32\\chcp.com\" 65001 >NUL\r\n\
+         @FOR /F \"tokens=2 delims=:\" %%a IN ('\"%SystemRoot%\\System32\\mode.com\" con cp') DO @SET \"_PNPM_CODEPAGE=%%a\"\r\n\
+         @\"%SystemRoot%\\System32\\mode.com\" con cp select=65001 >NUL\r\n\
          @SET \"ERRORLEVEL=\"\r\n",
     );
 }

@@ -92,6 +92,14 @@ pub enum PruneError {
         error: io::Error,
     },
 
+    #[display("Failed to read project link during mark phase {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_MARK_LINK))]
+    ReadMarkLink {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[display("Failed to read cache directory {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_CACHE_DIR))]
     ReadCacheDir {
@@ -113,9 +121,9 @@ pub enum PruneError {
 }
 
 impl StoreDir {
-    /// Remove unreferenced packages from the global virtual store, the
-    /// registry metadata cached under `cache_dir`, and content-addressable
-    /// files that have no hard links outside the store. A metadata directory
+    /// Remove the directory-clone cache, unreferenced packages from the
+    /// global virtual store, registry metadata under `cache_dir`, and
+    /// content-addressable files that have no hard links outside the store. A metadata directory
     /// that is or holds one of `protected_dirs` is kept.
     ///
     /// Pacquet doesn't yet thread the install-time reporter into
@@ -142,6 +150,7 @@ impl StoreDir {
         let in_use = in_use()?;
         references.files.extend(in_use.files);
         self.prune_global_virtual_store(&references.package_roots, &in_use.modules_dirs)?;
+        remove_slot_dir(&self.dir_clone_cache())?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
             .map_err(PruneError::PruneCas)?;
@@ -186,11 +195,14 @@ impl StoreDir {
             projects.len(),
         );
 
-        let reachable =
-            mark::mark_reachable_slots(&links_dir, &projects, loader_roots, modules_dirs)?;
-        // Projects without the global virtual store register too, so no link
-        // from any registered project leaves the slots' users as unknown as
-        // an empty registry does.
+        let reachable = mark::mark_reachable_slots::<mark::Host>(
+            &links_dir,
+            &projects,
+            loader_roots,
+            modules_dirs,
+        )?;
+        // Registration is best-effort, so no reachable slots does not prove
+        // that the global virtual store is unused.
         if reachable.is_empty() {
             pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
             return Ok(());
@@ -271,12 +283,37 @@ fn remove_unreachable_slots(
     let mut removed = 0usize;
     for hash in &hashes {
         if reachable.contains(&version_rel.join(hash)) {
+            remove_abandoned_staging(&slot_package_dir(&version_dir.join(hash), version_rel))?;
             continue;
         }
         remove_slot_dir(&version_dir.join(hash))?;
         removed += 1;
     }
     Ok((removed, removed == hashes.len() && !hashes.is_empty()))
+}
+
+/// The package directory of the slot at `slot_dir`, whose
+/// `<scope>/<name>/<version>` path is `version_rel`. An unscoped package
+/// sits under the `@` scope.
+fn slot_package_dir(slot_dir: &Path, version_rel: &Path) -> PathBuf {
+    let mut components = version_rel.components();
+    let (Some(scope), Some(name)) = (components.next(), components.next()) else {
+        return slot_dir.join("node_modules");
+    };
+    let modules_dir = slot_dir.join("node_modules");
+    if scope.as_os_str() == "@" {
+        modules_dir.join(name)
+    } else {
+        modules_dir.join(scope).join(name)
+    }
+}
+
+/// Remove what installs that died left in a reachable slot: the staging
+/// directories beside its package directory.
+fn remove_abandoned_staging(package_dir: &Path) -> Result<(), PruneError> {
+    crate::staging::remove_abandoned_staging_dirs(package_dir)
+        .map(drop)
+        .map_err(|error| PruneError::RemoveSlot { path: package_dir.to_path_buf(), error })
 }
 
 /// Returns the names of every directory entry under `dir`, swallowing

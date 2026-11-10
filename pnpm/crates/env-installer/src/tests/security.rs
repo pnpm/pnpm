@@ -139,7 +139,12 @@ async fn rejects_config_lockfile_redirect_before_installing() {
             git_hosted: None,
             path: None,
         });
-    env.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
+    env.write(
+        root.path(),
+        pnpm_lockfile::SymlinkedLockfile::Refuse,
+        pnpm_lockfile::EnvDocumentFormat::V9,
+    )
+    .unwrap();
     let error = resolve_and_install_config_deps::<SilentReporter>(
         &config_deps,
         &resolver,
@@ -175,7 +180,12 @@ async fn rejects_config_lockfile_replacing_declared_integrity_pin() {
             git_hosted: None,
             path: None,
         });
-    env.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
+    env.write(
+        root.path(),
+        pnpm_lockfile::SymlinkedLockfile::Refuse,
+        pnpm_lockfile::EnvDocumentFormat::V9,
+    )
+    .unwrap();
     let pinned = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0+sha512-YWJj"))]);
     let error = resolve_and_install_config_deps::<SilentReporter>(
         &pinned,
@@ -211,7 +221,12 @@ async fn rejects_replacing_integrity_pinned_config_version() {
     let new_key: PackageKey = "@pnpm.e2e/foo@200.0.0".parse().unwrap();
     let metadata = env.packages.remove(&old_key).unwrap();
     env.packages.insert(new_key, metadata);
-    env.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
+    env.write(
+        root.path(),
+        pnpm_lockfile::SymlinkedLockfile::Refuse,
+        pnpm_lockfile::EnvDocumentFormat::V9,
+    )
+    .unwrap();
     let pinned = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0+sha512-YWJj"))]);
     let error = resolve_and_install_config_deps::<SilentReporter>(
         &pinned,
@@ -248,7 +263,12 @@ async fn rejects_git_hosted_config_lockfile_entry_before_installing() {
             git_hosted: None,
             path: None,
         });
-    env.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
+    env.write(
+        root.path(),
+        pnpm_lockfile::SymlinkedLockfile::Refuse,
+        pnpm_lockfile::EnvDocumentFormat::V9,
+    )
+    .unwrap();
     let error = resolve_and_install_config_deps::<SilentReporter>(
         &config_deps,
         &resolver,
@@ -289,7 +309,12 @@ async fn skips_registry_verification_when_config_deps_are_installed() {
             integrity: "sha512-ZGVm".parse().unwrap(),
             revision: None,
         });
-    env.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
+    env.write(
+        root.path(),
+        pnpm_lockfile::SymlinkedLockfile::Refuse,
+        pnpm_lockfile::EnvDocumentFormat::V9,
+    )
+    .unwrap();
     let error =
         resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &rejecting)
             .await

@@ -15,6 +15,7 @@ pub(super) fn finish_cas_bin_links(
     if build_output.mutated_slots {
         crate::cas::refresh_bins(&crate::cas::BinInstall {
             config,
+            layout: inputs.directories.layout,
             root: inputs.directories.workspace_root,
             importers: inputs.graph.importers,
             trusted_importer_ids: inputs.graph.trusted_importer_ids,

@@ -12,7 +12,7 @@ use tempfile::tempdir;
 
 const ENGINE: &str = "darwin;arm64;node20";
 
-fn registry_package() -> PackageMetadata {
+pub(super) fn registry_package() -> PackageMetadata {
     PackageMetadata {
         resolution: pnpm_lockfile::LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -38,10 +38,7 @@ fn registry_package() -> PackageMetadata {
 /// with 1, while the side-effects cache holds an empty row for it: a build
 /// that ran before and changed nothing inside the package. The script
 /// running is observable as an error.
-fn build_with_an_empty_row(
-    rebuild: Option<&RebuildOptions>,
-    needs_build_marker: bool,
-) -> Result<(), String> {
+fn build_with_an_empty_row(rebuild: Option<&RebuildOptions>) -> Result<(), String> {
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
     let packages: HashMap<PackageKey, PackageMetadata> =
@@ -52,10 +49,7 @@ fn build_with_an_empty_row(
     let virtual_store_dir = tempdir().expect("create temp dir");
     let modules_dir = tempdir().expect("create temp dir");
     let lockfile_dir = tempdir().expect("create temp dir");
-    let pkg_dir = create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
-    if needs_build_marker {
-        std::fs::write(pkg_dir.join(crate::NEEDS_BUILD_MARKER), "").expect("write the marker");
-    }
+    create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
     let cache_key = pnpm_graph_hasher::calc_dep_state(
@@ -151,13 +145,13 @@ fn rebuild_options(skip_if_has_side_effects_cache: bool) -> RebuildOptions {
 /// skips cached builds does not run it again, as pnpm v11's does.
 #[test]
 fn rebuild_skipping_cached_builds_skips_a_build_with_an_empty_row() {
-    build_with_an_empty_row(Some(&rebuild_options(true)), false)
+    build_with_an_empty_row(Some(&rebuild_options(true)))
         .expect("the rebuild must not run the script of a cached build");
 }
 
 #[test]
 fn plain_rebuild_runs_a_build_with_an_empty_row() {
-    build_with_an_empty_row(Some(&rebuild_options(false)), false)
+    build_with_an_empty_row(Some(&rebuild_options(false)))
         .expect_err("a plain rebuild runs every selected script");
 }
 
@@ -165,14 +159,5 @@ fn plain_rebuild_runs_a_build_with_an_empty_row() {
 /// directory, where the empty row cannot restore it (pnpm/pnpm#14717).
 #[test]
 fn install_runs_a_build_with_an_empty_row() {
-    build_with_an_empty_row(None, false)
-        .expect_err("an install runs a build the cache cannot restore");
-}
-
-/// A slot that carries the build marker has not been built, so even a
-/// rebuild that skips cached builds runs it.
-#[test]
-fn rebuild_skipping_cached_builds_runs_a_slot_that_needs_a_build() {
-    build_with_an_empty_row(Some(&rebuild_options(true)), true)
-        .expect_err("a slot with the build marker must be built");
+    build_with_an_empty_row(None).expect_err("an install runs a build the cache cannot restore");
 }

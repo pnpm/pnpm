@@ -85,26 +85,13 @@ fn same_file_structure() {
     });
     fs::write(manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    // Filter out pnpm-only artifacts whose presence is orthogonal to whether
-    // the two tools agree on the CAFS layout:
-    //   * `v11/projects/<hash>` — pnpm-11-only per-project metadata tracking
-    //     which packages in the store are linked from which project. Sharing
-    //     the store doesn't require it.
-    //   * `v11/index.db-wal` / `v11/index.db-shm` — SQLite WAL sidecars that
-    //     only exist while a connection is open; their presence at comparison
-    //     time depends on whether the checkpoint ran before we measured.
+    // Materialized packages and project registrations are outside the shared CAFS format.
     let normalize = |files: Vec<String>| -> Vec<String> {
         files
             .into_iter()
-            // Per-project metadata that pnpm 11 populates and pacquet doesn't.
-            // Doesn't affect the shared-cafs story.
             .filter(|path| !path.starts_with("v11/projects/"))
-            // Hoisted-symlinks layout introduced in pnpm 11 — pnpm stores
-            // one `node_modules` tree per `<name>/<version>/<hash>/` under
-            // `v11/links/` and links the project's `node_modules/X` into there.
-            // Pacquet still uses the older per-project `.pnpm/` virtual store,
-            // so these paths exist only on the pnpm side.
             .filter(|path| !path.starts_with("v11/links/"))
+            .filter(|path| !path.starts_with("v11/dir-clone-cache/"))
             // SQLite WAL sidecars exist only while a connection holds the
             // journal open. Their presence at compare-time depends on timing.
             .filter(|path| path != "v11/index.db-wal" && path != "v11/index.db-shm")
@@ -378,11 +365,15 @@ fn same_global_virtual_store_layout_pure_js() {
 /// would split the same approved-build package across two slot
 /// directories.
 ///
+/// The in-repo pnpm v11 is required: a built package's slot hashes the
+/// `built` field, which released versions leave out.
+///
 /// Scripts run on both sides (neither install uses `--ignore-scripts`) —
 /// if pnpm skipped scripts while pacquet ran them the slot trees would
 /// diverge on the script-generated `generated-by-*.js` files even
 /// though the hash itself agreed.
 #[test]
+#[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
 fn same_global_virtual_store_layout_with_approved_postinstall() {
     let CommandTempCwd {
         pacquet,

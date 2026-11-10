@@ -103,12 +103,14 @@ pub use version_policy::*;
 pub use virtual_store_layout::*;
 
 mod custom_fetcher;
-mod gvs_slot_lock;
 mod installed_hoisted_state;
 mod link_pool;
 mod prune_extraneous_deps;
 mod shared_side_effects;
 
+/// The file older pnpm versions put in a global virtual store package
+/// directory that awaited its build. Imports leave it out when they compare
+/// a directory with the files it should hold.
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
 
 /// Cargo's checksum manifest of a vendored package directory. The Cargo

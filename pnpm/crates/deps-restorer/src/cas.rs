@@ -35,6 +35,7 @@ pub(crate) fn write_installation(
         &bins::BinInstall {
             trusted_importer_ids: inputs.projects.trusted_importer_ids,
             config: inputs.ctx.config,
+            layout: inputs.ctx.linker.layout,
             root,
             importers: &inputs.graph.lockfile.importers,
         },

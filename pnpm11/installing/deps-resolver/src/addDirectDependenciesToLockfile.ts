@@ -49,7 +49,7 @@ export function addDirectDependenciesToLockfile (opts: AddDirectDependenciesToLo
     const spec = dep && getSpecFromPackageManifest(newManifest, dep.alias)
     if (dep && shouldLockDirectDependency(dep, { excludeLinksFromLockfile: opts.excludeLinksFromLockfile, spec: spec! })) {
       addResolvedDirectDependency(newProjectSnapshot, { dep, spec: spec! })
-    } else if (opts.projectSnapshot.specifiers[alias]) {
+    } else if (!dep && opts.projectSnapshot.specifiers[alias]) {
       copyLockedDirectDependency(newProjectSnapshot, { alias, projectSnapshot: opts.projectSnapshot })
     }
   }
@@ -73,7 +73,7 @@ function shouldLockDirectDependency (
 ): boolean {
   return !excludeLinksFromLockfile ||
     !(dep as LinkedDependency).isLinkedDependency ||
-    spec.startsWith('workspace:')
+    (dep.catalogLookup?.specifier ?? spec).startsWith('workspace:')
 }
 
 function addResolvedDirectDependency (

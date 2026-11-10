@@ -1,8 +1,8 @@
 //! Locating and repairing the virtual-store slot a build runs in.
 
 use super::{
-    BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageKey, Path,
-    PathBuf, Reporter, import_indexed_dir,
+    BuildModulesError, HashMap, ImportIndexedDirOpts, PackageKey, Path, PathBuf, Reporter,
+    import_indexed_dir,
 };
 use pnpm_store_dir::SideEffectsOverlay;
 use std::{fs, io};
@@ -38,93 +38,14 @@ pub(crate) fn virtual_store_dir_for_key(
         .join(name)
 }
 
-/// Whether `pkg_dir` already holds every file of a side-effects-cache
-/// overlay — i.e. the cached build is on disk rather than merely recorded
-/// in the store index.
-///
-/// The overlay is the resolved post-build file set, so a slot still
-/// carrying only the pristine tarball is missing whatever the build
-/// added and fails the check. The file set alone cannot see a build
-/// that *only deleted* files, which is why [`NEEDS_BUILD_MARKER`] is
-/// checked first: a pristine re-import of a package that needs building
-/// carries the marker, so it reports unseeded no matter what the overlay
-/// looks like.
-///
-/// Only reached for packages that both pass the build-allow policy and
-/// have a cache entry — a handful per install, not the whole tree.
-pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &SideEffectsOverlay) -> bool {
-    !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
-        && pkg_dir.is_dir()
-        && overlay.files
-            .keys()
-            .all(|relative| pkg_dir.join(relative).exists())
-        && overlay.symlinks
-            .iter()
-            .all(|(relative, target)| symlink_points_to(&pkg_dir.join(relative), target))
-}
-
-fn symlink_points_to(link: &Path, target: &str) -> bool {
-    fs::read_link(link).is_ok_and(|actual| actual == Path::new(target))
-}
-
-/// The `.pnpm-needs-build` content of a slot whose build has started and
-/// not finished.
-const STARTED_BUILD_MARKER: &str = "started";
-
-/// Whether the slot's build started and then failed, or its process died,
-/// leaving files the build may have changed. Only a re-import of the
-/// pristine files, which rewrites the marker empty, makes it safe to build.
-/// A missing marker is `false`; any other read failure is an error, since
-/// the slot's state is then unknown.
-pub(crate) fn is_started_build_marker(marker: &Path) -> std::io::Result<bool> {
-    match std::fs::read(marker) {
-        Ok(content) => Ok(content == STARTED_BUILD_MARKER.as_bytes()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
-    }
-}
-
-/// Mark a snapshot's global-virtual-store slot as mid-build, before its
-/// patch or build script writes into it.
-///
-/// A successful build removes the marker. A failed patch or build script,
-/// or a process that dies mid-build, leaves it in place instead of the
-/// slot being removed: other projects whose dependency graph hashes to it
-/// may already link it. The next install that reaches the slot then
-/// re-imports its pristine files and builds it again.
-///
-/// No-op outside the isolated global virtual store: the next install
-/// rebuilds a project-local slot from scratch anyway. A failed write is
-/// logged and swallowed; the build itself is what the install reports.
-pub(crate) fn mark_global_virtual_store_build_started(pkg_roots: PkgRoots<'_>, key: &PackageKey) {
-    if !pkg_roots.layout.enable_global_virtual_store() || pkg_roots.by_key.is_some() {
-        return;
-    }
-    let marker = virtual_store_dir_for_key(pkg_roots.layout, key).join(NEEDS_BUILD_MARKER);
-    if let Err(error) = std::fs::write(&marker, STARTED_BUILD_MARKER)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(
-            target: "pacquet::build",
-            ?error,
-            dep_path = %key,
-            marker = %marker.display(),
-            "failed to mark the global virtual store slot as mid-build",
-        );
-    }
-}
-
 /// Remove every installed copy of an optional dependency whose build
 /// failed, so a consumer that probes for it finds it absent rather than
 /// half-built. The next install finds the directory missing and retries
 /// the build.
 ///
-/// Under the global virtual store this removes the package directory of
-/// the shared slot, and the caller must hold the slot's lock. The slot
-/// keeps its lock and its dependency links, and every project that links
-/// it finds the package absent. A directory that is not a plain descendant
-/// of the virtual store or the lockfile directory is left alone, since its
-/// path comes from a lockfile-controlled package name.
+/// A directory that is not a plain descendant of the virtual store or the
+/// lockfile directory is left alone, since its path comes from a
+/// lockfile-controlled package name.
 pub(crate) fn discard_skipped_optional_dependency(
     pkg_roots: PkgRoots<'_>,
     lockfile_dir: &Path,
@@ -323,6 +244,28 @@ pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
     Ok(())
 }
 
+/// Import a side-effects cache overlay into a global virtual store slot as
+/// the link phase imports any package: in place, with `package.json` last,
+/// repairing an import that did not finish. The overlay holds no symlinks.
+pub(crate) fn import_side_effects_into_slot<Reporter: self::Reporter>(
+    directories: &crate::BuildLayout<'_>,
+    pkg_dir: &Path,
+    overlay: &SideEffectsOverlay,
+) -> Result<(), BuildModulesError> {
+    import_indexed_dir::<Reporter>(
+        directories.logged_methods,
+        directories.import_method,
+        pkg_dir,
+        &overlay.files,
+        ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
+    )
+    .map_err(BuildModulesError::MaterializeSideEffects)
+}
+
+fn symlink_points_to(link: &Path, target: &str) -> bool {
+    fs::read_link(link).is_ok_and(|actual| actual == Path::new(target))
+}
+
 /// Replace whatever is at `link` with a symlink to `target`. The overlay
 /// holds no symlinks off Unix (see [`pnpm_store_dir::SideEffectsOverlay`]).
 fn create_overlay_symlink(link: &Path, target: &str) -> io::Result<()> {
@@ -394,14 +337,9 @@ pub fn parse_name_version_from_key(key: &str) -> (String, String) {
     }
 }
 
-pub(crate) fn built_slot_is_complete(directory: &Path) -> Result<bool, BuildModulesError> {
-    let marker = directory.join(NEEDS_BUILD_MARKER);
-    let exists = |path: &Path| {
-        path.try_exists()
-            .map_err(|source| BuildModulesError::ReadBuildMarker {
-                path: path.to_path_buf(),
-                source,
-            })
-    };
-    Ok(exists(&marker.with_file_name("package.json"))? && !exists(&marker)?)
+/// Whether a global virtual store slot holds its package. The package
+/// directory is final once its `package.json` exists: an import writes it
+/// last, and a build is renamed into place whole.
+pub(crate) fn package_is_placed(package_dir: &Path) -> io::Result<bool> {
+    package_dir.join("package.json").try_exists()
 }

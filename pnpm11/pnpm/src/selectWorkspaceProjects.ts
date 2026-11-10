@@ -56,7 +56,7 @@ export async function selectWorkspaceProjects (
 ): Promise<boolean> {
   const { config, context, printLogs } = opts
   config.recursive = true
-  const wsDir = invocation.workspaceDir ?? process.cwd()
+  const wsDir = invocation.workspaceDir ?? config.dir
 
   config.filter = config.filter ?? []
   config.filterProd = config.filterProd ?? []
@@ -103,7 +103,7 @@ function buildWorkspaceFilters (
     ...scope.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
     ...scope.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
   ]
-  const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
+  const relativeWSDirPath = () => path.relative(config.dir, wsDir) || '.'
   // Both of the selectors below are pnpm's own; the user did not write
   // them. Each has to mean "the project whose directory is the workspace
   // root", which only glob matching says. Left to follow the pass,
@@ -138,7 +138,7 @@ function createProjectsFilterOptions (config: Config, context: ConfigContext, op
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,
     linkWorkspacePackages: !!config.linkWorkspacePackages,
-    prefix: process.cwd(),
+    prefix: config.dir,
     workspaceDir: options.wsDir,
     testPattern: config.testPattern,
     changedFilesIgnorePattern: config.changedFilesIgnorePattern,

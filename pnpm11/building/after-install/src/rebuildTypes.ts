@@ -26,6 +26,8 @@ export type RebuildPackagesContext = {
   projects: Record<string, { id: ProjectId, rootDir: ProjectRootDir }>
   extraBinPaths: string[]
   extraNodePaths: string[]
+  /** See `RebuildContext.placedPackageDirs`. */
+  placedPackageDirs?: ReadonlySet<string>
 } & Pick<PnpmContext, 'modulesFile'>
 
 export interface RebuildPackagesResult {

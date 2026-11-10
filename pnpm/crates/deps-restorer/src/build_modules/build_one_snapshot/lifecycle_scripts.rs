@@ -25,7 +25,6 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
-    slot_lock: Option<&pnpm_fs::DirLock>,
     run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
     if !run.should_run_scripts {
@@ -41,14 +40,8 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
     let mut has_side_effects = false;
     for dir in std::iter::once(pkg_dir.to_path_buf()).chain(other_copies) {
         let extra_bin_paths = snapshot_extra_bin_paths(context, &dir);
-        let Some(ran) = run_snapshot_scripts::<Reporter>(
-            context,
-            snapshot_key,
-            &dir,
-            &extra_bin_paths,
-            slot_lock,
-            run,
-        )?
+        let Some(ran) =
+            run_snapshot_scripts::<Reporter>(context, snapshot_key, &dir, &extra_bin_paths, run)?
         else {
             return Ok(None);
         };
@@ -64,7 +57,6 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
-    slot_lock: Option<&pnpm_fs::DirLock>,
     run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
     let result = run_candidate_hooks::<Reporter>(
@@ -80,16 +72,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !run.optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
-            // A global virtual store slot is removed only by an install that
-            // holds its lock. A rebuild may re-run the scripts of a slot other
-            // projects use with a working build, and without the lock another
-            // install may be writing into the slot. A kept slot stays marked
-            // for the next install to rebuild.
-            if !context.directories.layout.enable_global_virtual_store()
-                || (context.rebuild.is_none() && slot_lock.is_some())
-            {
-                linked_copies::discard_failed_optional(context, snapshot_key)?;
-            }
+            linked_copies::discard_failed_optional(context, snapshot_key)?;
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
                 details: Some(err.to_string()),
@@ -107,7 +90,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     }
 }
 
-fn run_candidate_hooks<Reporter: self::Reporter>(
+pub(super) fn run_candidate_hooks<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
@@ -145,7 +128,10 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
 /// `node_modules/.bin` up to `lockfile_dir`, so a script at a nested hoisted
 /// location can resolve bins added by parents. Both linkers then add the
 /// pinned runtime's `node`.
-fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> Vec<PathBuf> {
+pub(super) fn snapshot_extra_bin_paths(
+    context: &BuildOneSnapshot<'_>,
+    pkg_dir: &Path,
+) -> Vec<PathBuf> {
     let mut extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
         bin_dirs_in_all_parent_dirs(pkg_dir, context.directories.lockfile_dir)
     } else {

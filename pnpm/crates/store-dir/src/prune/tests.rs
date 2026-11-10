@@ -1,6 +1,9 @@
 use crate::{InUse, StoreDir, register_project};
 use pnpm_fs::symlink_dir;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
 
 /// Helper: lay out a slot under
@@ -63,6 +66,58 @@ fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
         .expect("prune");
 
     assert!(slot.exists());
+}
+
+#[test]
+fn prune_removes_clone_cache_without_registered_projects() {
+    let root = tempdir().unwrap();
+    let store = StoreDir::new(root.path());
+    let cached = make_slot(&store.dir_clone_cache(), "@", "cached", "1", "hash");
+    let installed = make_slot(&store.links(), "@", "installed", "1", "hash");
+
+    store
+        .prune(&root.path().join("cache"), &[])
+        .unwrap();
+
+    assert!(!cached.exists());
+    assert!(installed.exists());
+}
+
+#[test]
+fn prune_removes_clone_cache_without_sweeping_untracked_installed_packages() {
+    for (scenario, store_path, modules_name) in [
+        ("unregistered", "store", "node_modules"),
+        ("in-project-store", "project/store", "node_modules"),
+        ("custom-modules", "store", "custom_modules"),
+    ] {
+        let root = tempdir().unwrap();
+        let project = root.path().join("project");
+        fs::create_dir_all(&project).unwrap();
+        let store = StoreDir::new(root.path().join(store_path));
+        let installed = make_slot(&store.links(), "@", "installed", "1", "hash");
+        let cached = make_slot(&store.dir_clone_cache(), "@", "cached", "1", "hash");
+        let modules = project.join(modules_name);
+        fs::create_dir_all(&modules).unwrap();
+        let link = modules.join("installed");
+        symlink_dir(&installed.join("node_modules/installed"), &link).unwrap();
+        if scenario != "unregistered" {
+            register_project(&store, &project).unwrap();
+        }
+        if scenario == "in-project-store" {
+            assert!(!store.projects().exists());
+        }
+        let other = root.path().join("other");
+        fs::create_dir_all(other.join("node_modules")).unwrap();
+        register_project(&store, &other).unwrap();
+
+        store
+            .prune(&root.path().join("cache"), &[])
+            .unwrap();
+
+        assert!(installed.exists(), "{scenario}: the installed slot must survive");
+        assert!(link.join("package.json").exists(), "{scenario}: the link must stay valid");
+        assert!(!cached.exists(), "{scenario}: disposable clones must be removed");
+    }
 }
 
 #[test]
@@ -324,4 +379,76 @@ fn prune_keeping_keeps_in_use_files_and_their_rows() {
         .keys()
         .unwrap();
     assert_eq!(keys, ["in-use"]);
+}
+
+#[test]
+fn a_slot_package_dir_sits_under_its_scope() {
+    let slot = Path::new("/links/@scope/pkg/1.0.0/hash");
+    assert_eq!(
+        super::slot_package_dir(slot, Path::new("@scope/pkg/1.0.0")),
+        slot.join("node_modules/@scope/pkg"),
+    );
+    assert_eq!(
+        super::slot_package_dir(slot, Path::new("@/pkg/1.0.0")),
+        slot.join("node_modules/pkg"),
+        "the `@` scope of an unscoped package is a store directory, not a slot one",
+    );
+}
+
+#[test]
+fn mark_fails_when_a_dependency_link_cannot_be_read() {
+    struct DeniedReadLink;
+    impl super::mark::FsReadLink for DeniedReadLink {
+        fn read_link(_: &std::path::Path) -> std::io::Result<PathBuf> {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        }
+    }
+    let root = tempdir().unwrap();
+    let actual = root.path().join("actual");
+    fs::create_dir(&actual).unwrap();
+    let alias = root.path().join("alias");
+    symlink_dir(&actual, &alias).unwrap();
+    let store = StoreDir::new(alias.join("store"));
+    let slot = make_slot(&store.links(), "@scope", "installed", "1", "hash");
+    let project = alias.join("project");
+    let scope = project.join("node_modules/@scope");
+    fs::create_dir_all(&scope).unwrap();
+    let link = dunce::canonicalize(&scope).unwrap().join("installed");
+    symlink_dir(&slot.join("node_modules/installed"), &link).unwrap();
+
+    let error =
+        super::mark::mark_reachable_slots::<DeniedReadLink>(&store.links(), &[project], &[], &[])
+            .unwrap_err();
+
+    let walked_link = dunce::canonicalize(&scope).unwrap().join("installed");
+    assert!(matches!(
+        error,
+        super::PruneError::ReadMarkLink { path, error }
+            if path == walked_link && error.kind() == std::io::ErrorKind::PermissionDenied
+    ));
+}
+
+#[test]
+fn prune_keeps_live_packages_and_ignores_a_real_dangling_directory_link() {
+    let root = tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let live = make_slot(&store.links(), "@", "live", "1", "hash");
+    let orphan = make_slot(&store.links(), "@", "orphan", "1", "hash");
+    let project = root.path().join("project");
+    let modules = project.join("node_modules");
+    fs::create_dir_all(modules.join("ordinary-directory")).unwrap();
+    symlink_dir(&live.join("node_modules/live"), &modules.join("live")).unwrap();
+    let missing = root.path().join("removed-package");
+    fs::create_dir(&missing).unwrap();
+    symlink_dir(&missing, &modules.join("dangling")).unwrap();
+    fs::remove_dir(&missing).unwrap();
+    register_project(&store, &project).unwrap();
+
+    store
+        .prune(&root.path().join("cache"), &[])
+        .unwrap();
+
+    assert!(modules.join("live/package.json").is_file());
+    assert!(live.exists());
+    assert!(!orphan.exists());
 }

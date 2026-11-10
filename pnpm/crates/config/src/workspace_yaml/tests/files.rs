@@ -186,14 +186,14 @@ fn load_at_collects_issues_from_a_tab_indented_file() {
 
 #[test]
 fn load_at_expands_env_placeholders_in_typed_fields() {
-    const PLACEHOLDERS: [&str; 4] = [
+    // The placeholders must read as unset for the `:-` defaults to
+    // apply, so the variables are scrubbed rather than only snapshotted.
+    let _guard = EnvGuard::scrubbed([
         "PNPM_TEST_14914_COLOR",
         "PNPM_TEST_14914_GLOBAL_SHIMS",
         "PNPM_TEST_14914_LINKER",
         "PNPM_TEST_14914_SIDE_EFFECTS_CACHE",
-    ];
-    let guard = EnvGuard::snapshot(PLACEHOLDERS);
-    guard.remove_all(PLACEHOLDERS);
+    ]);
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),

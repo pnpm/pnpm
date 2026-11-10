@@ -54,14 +54,37 @@ async function removeAll (paths: string[]): Promise<void> {
   await Promise.all(paths.map(async (target) => fs.rm(target, { recursive: true, force: true })))
 }
 
+/**
+ * The links in `modulesDirs` that point to `target`. A target that does not
+ * exist, such as a global virtual store package that was never placed, is
+ * matched by the path its links name.
+ */
 async function linksTo (target: string, modulesDirs: string[]): Promise<string[]> {
-  const realTarget = await realpathOrUndefined(target)
-  if (realTarget == null) return []
+  const realTarget = await realpathOrUndefined(target) ?? await realpathOfMissing(target)
   const candidates = (await Promise.all(modulesDirs.map(listModulesDirEntries))).flat()
   const matches = await Promise.all(candidates.map(async (candidate) =>
-    await realpathOrUndefined(candidate) === realTarget ? candidate : undefined
+    await resolveLink(candidate) === realTarget ? candidate : undefined
   ))
   return matches.filter((match): match is string => match != null)
+}
+
+async function resolveLink (link: string): Promise<string | undefined> {
+  const realLink = await realpathOrUndefined(link)
+  if (realLink != null) return realLink
+  let linkTarget: string
+  try {
+    linkTarget = path.resolve(path.dirname(link), await fs.readlink(link))
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EINVAL')) return undefined
+    throw err
+  }
+  return realpathOfMissing(linkTarget)
+}
+
+/** The real path of a missing directory entry, resolved through its parent directory. */
+async function realpathOfMissing (target: string): Promise<string> {
+  const realParent = await realpathOrUndefined(path.dirname(target))
+  return path.join(realParent ?? path.resolve(path.dirname(target)), path.basename(target))
 }
 
 /**
@@ -116,14 +139,23 @@ function containedNodeModulesLink (modulesDir: string, alias: string): string | 
 }
 
 /**
+ * Removes the links in `linkedModulesDirs` to an optional dependency whose
+ * build failed in its global virtual store staging directory, so the package
+ * is absent rather than linked to a slot that does not hold it.
+ */
+export async function removeLinksToSkippedOptionalDependency<NodeId extends string> (
+  depNode: DependenciesGraphNode<NodeId>,
+  opts: { linkedModulesDirs?: string[] }
+): Promise<void> {
+  await removeAll(await linksTo(depNode.dir, opts.linkedModulesDirs ?? []))
+}
+
+/**
  * Remove every installed copy of an optional dependency whose build failed,
  * so a consumer that probes for it finds it absent rather than half-built.
  * The links to it in `linkedModulesDirs` are removed too, so the package is
  * absent rather than linked to nothing. The next install that has work to do
  * retries the build.
- * Under the global virtual store this removes the package directory of the
- * shared slot, whose lock the caller holds. The slot keeps its lock and its
- * dependency links, and every project that links it finds the package absent.
  * A hoisted location outside the lockfile directory is never removed.
  * Rejects if a removal fails, so the package is not reported as skipped.
  */

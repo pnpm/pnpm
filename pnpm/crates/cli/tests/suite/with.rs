@@ -319,9 +319,7 @@ fn a_held_engine_lock_installs_the_engine_privately() {
     assert_success(&output);
     assert!(stdout(&output).contains("Version 9.3.0"), "stdout:\n{}", stdout(&output));
     // Entering the slot links the engine's bins into it, at
-    // `links/<scope>/<name>/<version>/<hash>/bin`. (`links` itself is no
-    // evidence on macOS, where every install stages packages under it
-    // through the directory clone cache.)
+    // `links/<scope>/<name>/<version>/<hash>/bin`.
     let linked_slots: Vec<_> = walkdir::WalkDir::new(engine_store.join("links"))
         .into_iter()
         .flatten()

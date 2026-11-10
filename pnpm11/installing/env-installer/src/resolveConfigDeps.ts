@@ -1,4 +1,3 @@
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -12,6 +11,7 @@ import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types
 
 import { type ConfigDepResolverOpts, createConfigDepResolvers, type ResolveConfigDep } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
+import { pickTarballUrlOptions } from './pickTarballUrlOptions.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
 import { createConfigDepsVerifier } from './verifyConfigDepResolutions.js'
@@ -74,7 +74,6 @@ async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: stri
   }
   const pkgName = wantedDep.alias
   const version = resolution.manifest.version
-  const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
 
   configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
 
@@ -87,13 +86,14 @@ async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: stri
     resolution: toLockfileResolution(
       { name: pkgName, version },
       resolution.resolution,
-      { registry }
+      pickTarballUrlOptions(opts, pkgName)
     ),
   }
   const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
     envLockfile,
     lockfileDir: opts.rootDir,
     registriesByScope: opts.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     resolveFromNpm: ctx.resolveFromNpm,
   })
   envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}

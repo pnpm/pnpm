@@ -185,19 +185,25 @@ fn format_token_list(tokens: &[TokenItem]) -> String {
 fn format_token_list_parseable(tokens: &[TokenItem]) -> String {
     let mut lines = Vec::new();
     lines.push("key\ttoken\tid\tname\tcreated\treadonly\tCIDR whitelist".to_string());
-    for token in tokens {
-        let id = token.id.as_deref().unwrap_or(&token.key);
-        let name = token.name.as_deref().unwrap_or("");
-        let created = token.created.as_deref().unwrap_or("");
-        let readonly = if token.readonly { "true" } else { "false" };
-        let cidrs = token.cidr_whitelist
+    for TokenItem {
+        key,
+        token,
+        id,
+        name,
+        created,
+        readonly,
+        cidr_whitelist,
+    } in tokens
+    {
+        let id = id.as_deref().unwrap_or(key);
+        let name = name.as_deref().unwrap_or("");
+        let created = created.as_deref().unwrap_or("");
+        let readonly = if *readonly { "true" } else { "false" };
+        let cidrs = cidr_whitelist
             .as_ref()
             .map(|whitelist| whitelist.join(","))
             .unwrap_or_default();
-        lines.push(format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            token.key, token.token, id, name, created, readonly, cidrs,
-        ));
+        lines.push(format!("{key}\t{token}\t{id}\t{name}\t{created}\t{readonly}\t{cidrs}"));
     }
     lines.join("\n")
 }

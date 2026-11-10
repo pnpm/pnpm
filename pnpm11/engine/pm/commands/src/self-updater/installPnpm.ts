@@ -4,6 +4,7 @@ import path from 'node:path'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { getCurrentPackageName } from '@pnpm/cli.meta'
 import {
+  buildsDependenciesDuringInstall,
   iterateHashedGraphNodes,
   iteratePkgMeta,
   lockfileToDepGraph,
@@ -222,10 +223,12 @@ function findPnpmGvsPath (
   const graph = lockfileToDepGraph(lockfile)
   const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
   const allowBuild = createAllowBuildFunction({ allowBuilds })
+  // The same options as the install that places the slot. See installFromLockfile.
+  const buildsRun = buildsDependenciesDuringInstall({ enableGlobalVirtualStore: true, ignoreScripts: true })
   // No `lockfileDir`: this lockfile only ever holds the pnpm package and its
   // registry dependencies, and the install that materializes the slot runs from
   // a throwaway directory that differs on every self-update.
-  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, { allowBuild })) {
+  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, { allowBuild, buildsRun })) {
     if (pkgMeta.name === pkgName) {
       return path.join(globalVirtualStoreDir, hash)
     }

@@ -48,6 +48,7 @@ fn stored_directories_bin_creates_commands_from_virtual_files() {
         &BinInstall {
             trusted_importer_ids: &std::collections::HashSet::new(),
             config: &config,
+            layout: legacy_layout(),
             root,
             importers: &importers,
         },
@@ -73,6 +74,7 @@ fn loaded_bins_reject_untrusted_importer_paths_before_writing() {
             HashMap::from([(importer.to_string(), pnpm_lockfile::ProjectSnapshot::default())]);
         let inputs = BinInstall {
             config: &config,
+            layout: legacy_layout(),
             root,
             importers: &importers,
             trusted_importer_ids: &trusted,
@@ -85,6 +87,7 @@ fn loaded_bins_reject_untrusted_importer_paths_before_writing() {
     write_bins(
         &BinInstall {
             config: &config,
+            layout: legacy_layout(),
             root,
             importers: &importers,
             trusted_importer_ids: &trusted,
@@ -93,4 +96,9 @@ fn loaded_bins_reject_untrusted_importer_paths_before_writing() {
     )
     .unwrap();
     assert_eq!(std::fs::read_dir(root).unwrap().count(), 0);
+}
+
+/// A layout without the global virtual store, so no package is staged.
+fn legacy_layout() -> &'static crate::VirtualStoreLayout {
+    Box::leak(Box::new(crate::VirtualStoreLayout::legacy(std::path::PathBuf::new(), 120)))
 }

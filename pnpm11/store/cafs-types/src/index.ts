@@ -66,6 +66,8 @@ export interface PackageFilesResponse {
   // Pre-calculated file location maps for side effects, avoiding recalculation during import
   sideEffectsMaps?: Map<string, SideEffectsFilesMap>
   sideEffectsDiffs?: SideEffects
+  /** The side-effects cache keys whose builds changed nothing in the package. */
+  emptySideEffects?: string[]
   remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
   requiresBuild: boolean
   /** Whether preparing a git package required lifecycle scripts before these files were stored. */

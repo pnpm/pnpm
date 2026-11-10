@@ -1,64 +1,23 @@
+pub use error::LoadLockfileError;
+
 use crate::{
-    ComVer, EnvLockfile, Lockfile, LockfileVersion, ProjectSnapshot, extract_env_document,
-    extract_main_document,
+    ComVer, EnvLockfile, Lockfile, LockfileVersion, NextLockfile, ProjectSnapshot, Shape,
+    declares_next_format, extract_env_document, extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
-    load_lockfile::repair_document::prepare_value_for_fix,
+    json_document::{from_json_str, is_json_document},
+    load_lockfile::repair_document::{prepare_next_value_for_fix, prepare_value_for_fix},
     merge_lockfile_changes,
 };
-use derive_more::{Display, Error};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
 use serde::Deserialize;
-use serde_saphyr::MessageFormatter;
-use std::{
-    collections::HashMap,
-    env, fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, env, fs, io::ErrorKind, path::Path, sync::Arc};
+
+mod error;
 
 const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
 const DEFAULT_YAML_MAX_NODES: usize = 250_000;
 const DEFAULT_YAML_MAX_SCALAR_BYTES: usize = 64 * 1024 * 1024;
 const DEFAULT_YAML_MAX_READER_INPUT_BYTES: usize = 256 * 1024 * 1024;
-
-/// Error when reading lockfile the filesystem.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum LoadLockfileError {
-    #[display("Failed to get current_dir: {_0}")]
-    #[diagnostic(code(ERR_PNPM_LOCKFILE_CURRENT_DIR))]
-    CurrentDir(io::Error),
-
-    #[display("Failed to read lockfile content: {_0}")]
-    #[diagnostic(code(ERR_PNPM_LOCKFILE_READ_FILE))]
-    ReadFile(io::Error),
-
-    #[display(
-        "The lockfile at \"{}\" is broken: {}",
-        path.display(),
-        reason
-    )]
-    #[diagnostic(code(ERR_PNPM_BROKEN_LOCKFILE))]
-    ParseYaml { path: PathBuf, reason: String },
-}
-
-impl LoadLockfileError {
-    pub(super) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
-        Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
-    }
-}
-
-fn format_yaml_error(error: &serde_saphyr::Error) -> String {
-    let error = error.without_snippet();
-    let reason = serde_saphyr::DefaultMessageFormatter.format_message(error);
-    if let Some(location) = error.location() {
-        format!("{reason} ({}:{})", location.line(), location.column())
-    } else {
-        reason.into_owned()
-    }
-}
 
 /// The parsing budgets for a lockfile document of `document_len` bytes.
 ///
@@ -133,7 +92,8 @@ impl Lockfile {
         install_state_dir: &Path,
     ) -> Result<Option<Self>, LoadLockfileError> {
         let file_path = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
-        Self::load_from_path(&file_path)
+        let Some(content) = read_lockfile_text(&file_path)? else { return Ok(None) };
+        Self::parse_as(&content, &file_path, Shape::Suffixed)
     }
 
     /// The `lockfileVersion` of the lockfile at `file_path` when
@@ -277,16 +237,32 @@ impl Lockfile {
     /// [`Self::load_wanted_from_dir`], so a caller holding an in-memory
     /// snapshot of the file gets the same value the loader would.
     pub fn parse(content: &str, file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        Self::parse_as(content, file_path, Shape::OfVersion)
+    }
+
+    fn parse_as(
+        content: &str,
+        file_path: &Path,
+        shape: Shape,
+    ) -> Result<Option<Self>, LoadLockfileError> {
         let main = extract_main_document(content);
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str_with_options::<Self>(&main, yaml_parse_options(main.len()))
-            .map(|mut lockfile| {
-                lockfile.reconstruct_missing_directory_resolutions();
-                Some(lockfile)
-            })
+        let parsed = if shape == Shape::OfVersion && declares_next_format(&main) {
+            parse_next(&main, file_path)
+        } else {
+            let options = yaml_parse_options(main.len());
+            match crate::parallel_parse::parse_sections_in_parallel(&main, yaml_parse_options) {
+                Some(lockfile) => Ok(lockfile),
+                None => serde_saphyr::from_str_with_options::<Self>(&main, options),
+            }
             .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+        };
+        parsed.map(|mut lockfile| {
+            lockfile.reconstruct_missing_directory_resolutions();
+            Some(lockfile)
+        })
     }
 
     fn parse_repair_views(
@@ -297,23 +273,41 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        let mut value = serde_saphyr::from_str_with_options::<serde_json::Value>(
-            &main,
-            yaml_parse_options(main.len()),
-        )
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
-        prepare_value_for_fix(&mut value);
-        serde_json::from_value::<Self>(value)
-            .map(|mut merge| {
-                merge.reconstruct_missing_directory_resolutions();
-                let mut seed = merge.clone();
-                seed.prepare_for_fix();
-                Some(RepairLockfileViews { seed, merge })
-            })
-            .map_err(|source| LoadLockfileError::ParseYaml {
-                path: file_path.to_path_buf(),
-                reason: source.to_string(),
-            })
+        let parse_error = |source: serde_json::Error| LoadLockfileError::ParseYaml {
+            path: file_path.to_path_buf(),
+            reason: source.to_string(),
+        };
+        let mut value = if is_json_document(&main) {
+            from_json_str::<serde_json::Value>(&main).map_err(parse_error)?
+        } else {
+            serde_saphyr::from_str_with_options::<serde_json::Value>(
+                &main,
+                yaml_parse_options(main.len()),
+            )
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?
+        };
+        let next = declares_next_format(&main);
+        if next {
+            prepare_next_value_for_fix(&mut value);
+        } else {
+            prepare_value_for_fix(&mut value);
+        }
+        let parsed = if next {
+            serde_json::from_value::<NextLockfile>(value)
+                .map_err(parse_error)
+                .and_then(|next| {
+                    Lockfile::from_next(next)
+                        .map_err(|source| LoadLockfileError::next_format(file_path, &source))
+                })
+        } else {
+            serde_json::from_value::<Self>(value).map_err(parse_error)
+        };
+        parsed.map(|mut merge| {
+            merge.reconstruct_missing_directory_resolutions();
+            let mut seed = merge.clone();
+            seed.prepare_for_fix();
+            Some(RepairLockfileViews { seed, merge })
+        })
     }
 
     /// Load a lockfile from an explicit path. Returns `Ok(None)` when the
@@ -550,4 +544,30 @@ fn merge_git_branch_lockfile_repairs(
         }
     }
     Ok((base, merged_conflict_files))
+}
+
+/// A next-format document, written as JSON or, by an earlier pnpm, as YAML,
+/// as the lockfile it describes.
+fn parse_next(main: &str, file_path: &Path) -> Result<Lockfile, LoadLockfileError> {
+    let next = if is_json_document(main) {
+        match crate::parallel_parse::parse_json_in_parallel(main) {
+            Some(next) => Ok(next),
+            None => from_json_str::<NextLockfile>(main),
+        }
+        .map_err(|source| LoadLockfileError::ParseYaml {
+            path: file_path.to_path_buf(),
+            reason: source.to_string(),
+        })
+    } else {
+        let options = yaml_parse_options(main.len());
+        match crate::parallel_parse::parse_sections_in_parallel(main, yaml_parse_options) {
+            Some(next) => Ok(next),
+            None => serde_saphyr::from_str_with_options::<NextLockfile>(main, options),
+        }
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+    };
+    next.and_then(|next| {
+        Lockfile::from_next(next)
+            .map_err(|source| LoadLockfileError::next_format(file_path, &source))
+    })
 }

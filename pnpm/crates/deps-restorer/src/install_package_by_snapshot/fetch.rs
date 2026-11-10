@@ -438,7 +438,7 @@ impl InstallPackageBySnapshot<'_> {
                 is_mutable: slot.source_is_mutable,
                 source_exists: slot.source_exists,
                 force: false,
-                build_marker: None,
+                awaits_build: false,
                 needs_build: slot.requires_build.unwrap_or_else(|| {
                     requires_build_from_cas_paths(cas_paths)
                 }) || crate::snapshot_has_patch(slot.package_key),

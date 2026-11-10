@@ -461,17 +461,15 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
 
         let project_local_slot =
             workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0");
-        // On macOS a project-local install still materializes the
-        // canonical slots as the directory-clone cache
-        // (`pnpm-deps-restorer/src/dir_clone_cache.rs`), so the links
-        // root exists in every row there; where the *install* lives is
-        // pinned by the project-local-slot assertion below.
-        let expect_links_root = expect_shared || cfg!(target_os = "macos");
         assert_eq!(
             gvs_root(&store_dir).is_dir(),
-            expect_links_root,
-            "the shared store is populated only when asked for (or as the macOS \
-             directory-clone cache); yaml: {yaml}",
+            expect_shared,
+            "the shared store is populated only when asked for; yaml: {yaml}",
+        );
+        assert_eq!(
+            pnpm_store_dir::StoreDir::new(&store_dir).dir_clone_cache().is_dir(),
+            cfg!(target_os = "macos") && !expect_shared,
+            "only macOS project-local installs populate the clone cache; yaml: {yaml}",
         );
         assert_eq!(
             project_local_slot.is_dir(),

@@ -120,7 +120,11 @@ export type ResolveDependenciesOpts = ResolveDependenciesOptions & {
   lockfileIncludeTarballUrl?: boolean
   allowUnusedPatches?: boolean
   verifyPatches?: boolean
+  /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
+  deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
+  enableModulesDir?: boolean
   allProjectIds: string[]
   /**
    * Generic checkpoint invoked between `resolveDependencyTree` and

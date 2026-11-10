@@ -231,6 +231,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [symlinkedLockfileTargetDirs](./settings/store.md#symlinkedlockfiletargetdirs)
 * [lockfile.includeResolutionSettings](./settings/store.md#lockfileincluderesolutionsettings)
 * [lockfile.integrityTarget](./settings/store.md#lockfileintegritytarget)
+* [lockfile.format](./settings/store.md#lockfileformat)
 * [gitBranchLockfile](./settings/store.md#gitbranchlockfile)
 * [mergeGitBranchLockfilesBranchPattern](./settings/store.md#mergegitbranchlockfilesbranchpattern)
 * [peersSuffixMaxLength](./settings/store.md#peerssuffixmaxlength)

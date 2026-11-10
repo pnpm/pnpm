@@ -1,7 +1,6 @@
 use super::super::{
     Host, InstallError, LogEvent, LogLevel, OptimisticRepeatInstallCheck,
     OptimisticRepeatInstallDecision, PnpmLog, Reporter, SummaryLog, UpdateSeedPolicy,
-    gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     unapproved_recorded_ignored_builds,
 };
 use crate::install_state::RepeatInstallCheck;
@@ -34,7 +33,6 @@ pub(super) struct UpToDateCheck<'a> {
     /// not registered in the store.
     pub(super) resolve_only: bool,
     pub(super) disable_optimistic_repeat_install: bool,
-    pub(super) effective_node_version: Option<&'a str>,
 }
 /// Whether nothing has changed since the previous successful install
 /// (settings, workspace structure, manifest mtimes), so the whole pipeline can
@@ -110,8 +108,7 @@ pub(super) enum RepeatInstallVerdict {
 }
 /// Whether the recorded build state lets the fast path stand.
 ///
-/// A build marker lives in the shared slot, outside every project-state input
-/// the repeat check reads. And `strictDepBuilds` stays enforced across reruns:
+/// `strictDepBuilds` stays enforced across reruns:
 /// an install that already recorded unapproved ignored builds must keep
 /// failing until they are approved, not exit 0 via the fast path. An
 /// `allowBuilds` change that newly permits one is already caught by
@@ -124,49 +121,25 @@ pub(super) enum RepeatInstallVerdict {
 pub(super) fn build_state_allows_short_circuit(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
-    if gvs_build_markers_complete(
-        check.workspace.config,
-        check.workspace.lockfile,
-        check.workspace.workspace_root,
-        check.effective_node_version,
-    )
-    .is_err()
-    {
-        return Ok(false);
-    }
     check_strict_dep_builds_for_fast_path(check.workspace.config)
 }
 
-/// `Err` names what stops the fast path: a build marker the full install has
-/// to recover, or a wanted lockfile it cannot read to look for one.
-pub(crate) fn gvs_build_markers_complete(
-    config: &Config,
-    lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
-    lockfile_root: &Path,
-    effective_node_version: Option<&str>,
-) -> Result<(), &'static str> {
-    if !gvs_build_markers_may_require_recovery(config) {
-        return Ok(());
-    }
-    let wanted = lockfile
-        .get()
-        .ok()
-        .flatten()
-        .ok_or(
-            "the wanted lockfile cannot be read to look for global virtual store build markers",
-        )?;
-    if gvs_build_marker_present(wanted, config, lockfile_root, effective_node_version) {
-        return Err("a global virtual store build marker needs recovery");
-    }
-    Ok(())
-}
-
-/// Whether `strictDepBuilds` allows the fast path to stand.
+/// Whether the builds `.modules.yaml` records allow the fast path to stand:
+/// `strictDepBuilds` finds no unapproved build, and no build an
+/// `--ignore-scripts` install withheld is waiting in a global virtual store.
+/// A global virtual store keeps a withheld build's package in the slot of
+/// the unbuilt package, so only the full install moves the project to the
+/// slot of the built one.
 pub(crate) fn check_strict_dep_builds_for_fast_path(config: &Config) -> Result<bool, InstallError> {
-    if !config.strict_dep_builds {
+    let runs_withheld_builds = config.enable_global_virtual_store && !config.ignore_scripts;
+    if !config.strict_dep_builds && !runs_withheld_builds {
         return Ok(true);
     }
     match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+        Ok(Some(modules)) if runs_withheld_builds && !modules.pending_builds.is_empty() => {
+            Ok(false)
+        }
+        Ok(Some(_)) if !config.strict_dep_builds => Ok(true),
         Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
             Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds { package_names }),
             Ok(None) => Ok(true),

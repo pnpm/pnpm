@@ -242,6 +242,41 @@ The store remembers the tar hash of every `.tgz` it extracts, whatever this sett
 
 pnpm versions before v12.15.0 cannot install from a lockfile that pins tars. Turn this setting on when everyone working on the project uses v12.15.0 or later. A resolution by `pnprServer` cannot pin tars, so an install that is not frozen fails when `pnprServer` is set.
 
+### lockfile.format
+
+* Default: **v9**
+* Type: **v9**, **v13**
+
+The format pnpm writes `pnpm-lock.yaml` in. `v13` is the format planned for pnpm 13. It is experimental and may change before pnpm 13 is released.
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  format: v13
+```
+
+A lockfile in the `v13` format is JSON, indented with tabs, with a trailing comma after every entry. That is valid YAML, so `pnpm-lock.yaml` keeps its name and tools that read it as YAML still can. Its `lockfileVersion` is `13.0`, the pnpm major planned to write the format by default.
+
+The format differs from today's in these ways:
+
+- The workspace projects are listed under `projects`.
+- There is one `packages` entry per package version and no `snapshots` section. The entry holds the package's metadata, its resolved dependencies, and under `peerDependencies` each peer's declared range beside the version it resolved to.
+- A peer that a dependency below the package needs, rather than the package itself, is recorded as `{version: 1.2.3, below: true}`. A peer the package marks optional is written as `{specifier: '*', optional: true}`. There is no `peerDependenciesMeta` field.
+- The tarball's `integrity` is a field of the entry. A registry package and an injected workspace package have no `resolution` field.
+- A package installed with different peer dependencies lists what differs under `snapshots` in its entry.
+- A reference between packages is a version, with no peer or patch suffix. Where that version alone does not say which copy of a package is meant, the reference names the copy by the peer dependencies it was resolved with, under `with`, one per line.
+- A project's dependency is its specifier alone when the version follows from it: an exact version, a `catalog:` entry, or a `workspace:` dependency on another workspace project. Otherwise it is `{specifier: ^1.0.0, version: 1.2.3}` on one line. A dependency with a `with` map leaves out a version that follows from its specifier too.
+- A project that a `workspace:` dependency links to records its `name`.
+- The hash of a patched package is recorded once, under `patchedDependencies`. A package's deprecation message is not recorded.
+- The `settings` section holds everything the lockfile records from `pnpm-workspace.yaml`: the resolution settings, `catalogs`, `overrides`, `patchedDependencies`, `ignoredOptionalDependencies` and the two checksums. A catalog entry is its specifier alone when the version follows from it.
+
+When a peer dependency is updated, only the lines that record it change.
+
+#### Reading and writing the format
+
+pnpm reads lockfiles in both formats whatever this setting is. It writes the format this setting names whenever it resolves dependencies, and when you run `pnpm install --lockfile-only`. Versions of pnpm without this setting cannot read a lockfile in the `v13` format. The format is still changing, so a lockfile written with this setting may need regenerating with a later pnpm.
+
+The boot document that records config dependencies and the pinned pnpm version follows the pinned pnpm, not this setting. While the project pins pnpm 13 or earlier, it keeps today's format, so that a pnpm from before this format can read the pinned version and switch to it. A project that pins pnpm 14 or later gets a boot document in the `v13` format.
+
 ### gitBranchLockfile
 
 * Default: **false**

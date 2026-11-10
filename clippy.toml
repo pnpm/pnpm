@@ -8,4 +8,8 @@ disallowed-methods = [
     { path = "tempfile::Builder::tempfile_in", reason = "use pnpm_fs::umask_named_tempfile_in or pnpm_fs::private_named_tempfile_in to choose the file's mode" },
     # Exiting without releasing the Windows Job Object kills whatever the command left running (pnpm/crates/executor/PROCESS_LIFETIME.md).
     { path = "std::process::exit", reason = "use pnpm_executor::exit, which releases the process-tree cleanup first" },
+    # `setenv` may reallocate `environ`. A concurrent `getenv` can then read freed memory.
+    # The readers of `environ` include glibc and this workspace's C dependencies. None take a Rust lock.
+    { path = "std::env::set_var", reason = "pass the variable to a child through Command::env, or carry it as config" },
+    { path = "std::env::remove_var", reason = "build the child's environment with Command::env_clear/envs instead; tests use pnpm_testing_utils::env_guard::EnvGuard" },
 ]

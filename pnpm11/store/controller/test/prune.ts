@@ -299,6 +299,73 @@ test('prune fails when modulesDir has an unresolved environment placeholder', as
   await expect(prune(options)).rejects.toThrow('Failed to replace env in config')
 })
 
+test('prune removes abandoned staging directories beside the package directories of reachable slots', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  await writeInstalledLockfile(modulesDir, ['.'])
+  const unscopedSlot = await linkGlobalVirtualStorePackage(options.storeDir, 'foo', modulesDir)
+  const scopedSlot = path.join(options.storeDir, 'links', '@scope', 'bar', '1.0.0', 'hash')
+  await fs.mkdir(path.join(scopedSlot, 'node_modules', '@scope', 'bar'), { recursive: true })
+  await fs.mkdir(path.join(modulesDir, '@scope'), { recursive: true })
+  await fs.symlink(path.join(scopedSlot, 'node_modules', '@scope', 'bar'), path.join(modulesDir, '@scope', 'bar'), 'junction')
+  await registerProject(options.storeDir, projectDir)
+
+  const oldDate = new Date(Date.now() - 48 * 60 * 60_000)
+  const createStagingDir = async (dir: string, old: boolean) => {
+    await fs.mkdir(dir, { recursive: true })
+    if (old) await fs.utimes(dir, oldDate, oldDate)
+    return dir
+  }
+  const unscopedModules = path.join(unscopedSlot, 'node_modules')
+  const scopedModules = path.join(scopedSlot, 'node_modules', '@scope')
+  const oldStaging = await createStagingDir(path.join(unscopedModules, '.pnpm-1a2b3c4d'), true)
+  const oldReplaced = await createStagingDir(path.join(unscopedModules, '.pnpm-2a2b3c4d-replaced'), true)
+  const freshStaging = await createStagingDir(path.join(unscopedModules, '.pnpm-3a2b3c4d'), false)
+  const unrelatedDir = await createStagingDir(path.join(unscopedModules, '.cache'), true)
+  const oldScopedStaging = await createStagingDir(path.join(scopedModules, '.pnpm-5a2b3c4d'), true)
+  const freshScopedStaging = await createStagingDir(path.join(scopedModules, '.pnpm-6a2b3c4d'), false)
+  const buildingStaging = path.join(unscopedModules, '.pnpm-7a2b3c4d')
+  await fs.mkdir(path.join(buildingStaging, 'build'), { recursive: true })
+  await fs.writeFile(path.join(buildingStaging, 'build', 'out.o'), '')
+  await fs.utimes(path.join(buildingStaging, 'build'), oldDate, oldDate)
+  await fs.utimes(buildingStaging, oldDate, oldDate)
+
+  await prune(options)
+
+  expect(existsSync(oldStaging)).toBe(false)
+  expect(existsSync(oldReplaced)).toBe(false)
+  expect(existsSync(oldScopedStaging)).toBe(false)
+  expect(existsSync(freshStaging)).toBe(true)
+  expect(existsSync(freshScopedStaging)).toBe(true)
+  expect(existsSync(buildingStaging)).toBe(true)
+  expect(existsSync(unrelatedDir)).toBe(true)
+  expect(existsSync(path.join(unscopedModules, 'foo'))).toBe(true)
+  expect(existsSync(path.join(scopedModules, 'bar'))).toBe(true)
+})
+
+test('prune skips a staging directory that disappears while it scans the slot', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  await writeInstalledLockfile(modulesDir, ['.'])
+  const slotDir = await linkGlobalVirtualStorePackage(options.storeDir, 'foo', modulesDir)
+  await registerProject(options.storeDir, projectDir)
+  const stagingDir = path.join(slotDir, 'node_modules', '.pnpm-1a2b3c4d')
+  await fs.mkdir(stagingDir)
+  const lstat = fs.lstat.bind(fs)
+  jest.spyOn(fs, 'lstat').mockImplementation(async (target, ...args) => {
+    if (target === stagingDir) {
+      throw Object.assign(new Error(`ENOENT: no such file or directory, lstat '${stagingDir}'`), { code: 'ENOENT' })
+    }
+    return lstat(target, ...args as [])
+  })
+
+  await prune(options)
+
+  expect(existsSync(path.join(slotDir, 'node_modules', 'foo'))).toBe(true)
+})
+
 async function writeInstalledLockfile (modulesDir: string, importerIds: string[]): Promise<void> {
   await fs.mkdir(path.join(modulesDir, '.pnpm'), { recursive: true })
   await fs.writeFile(path.join(modulesDir, '.pnpm', 'lock.yaml'), JSON.stringify({

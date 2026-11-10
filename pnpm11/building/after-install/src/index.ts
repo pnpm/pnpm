@@ -37,13 +37,15 @@ export async function buildSelectedPkgs (
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   streamToReporter(maybeOpts)
   const opts = await extendBuildOptions(maybeOpts)
-  const ctx = await getRebuildContext(projects, opts)
+  const selectPkgs = ({ currentLockfile }: PnpmContext): DepPath[] => {
+    const packages = currentLockfile?.packages ?? {}
+    const searched = parsePackageSelectors(packages, pkgSpecs)
+    return projects.flatMap(({ rootDir }) => findPackages(packages, searched, { prefix: rootDir })) as DepPath[]
+  }
+  const ctx = await getRebuildContext(projects, opts, selectPkgs)
 
   if (ctx.currentLockfile?.packages == null) return {}
-  const packages = ctx.currentLockfile.packages
-
-  const searched = parsePackageSelectors(packages, pkgSpecs)
-  const pkgs = projects.flatMap(({ rootDir }) => findPackages(packages, searched, { prefix: rootDir }))
+  const pkgs = selectPkgs(ctx)
 
   const { ignoredPkgs } = await rebuildPackages(
     {

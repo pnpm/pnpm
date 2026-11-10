@@ -840,3 +840,24 @@ async fn update_config_hook_reads_only_command_line_filters() {
     assert_eq!(config.filter, ["cli"]);
     assert_eq!(config.filter_prod, ["false"]);
 }
+
+#[tokio::test]
+async fn update_config_rebases_relative_filters_and_reports_subdir_as_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let other_dir = root.path().join("packages/other");
+    fs::create_dir_all(&other_dir).expect("create packages/other");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.filter = [config.dir, './packages/app']; config.filterProd = ['{./packages/app}...']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&other_dir).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.filter, [other_dir.to_string_lossy().as_ref(), "../app"]);
+    assert_eq!(config.filter_prod, ["{../app}..."]);
+}

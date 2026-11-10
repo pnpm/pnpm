@@ -38,24 +38,32 @@ export interface EnvVariableChange {
 export type PathExtenderWindowsReport = EnvVariableChange[]
 
 export async function addDirToWindowsEnvPath (dir: string, opts?: AddDirToWindowsEnvPathOpts): Promise<PathExtenderWindowsReport> {
-  // Use `chcp` to make `reg` use utf8 encoding for output.
+  // Switch the console to the UTF-8 code page to make `reg` use utf8 encoding for output.
   // Otherwise, the non-ascii characters in the environment variables will become garbled characters.
-  const chcpResult = await execa('chcp', [], EXEC_OPTS)
-  const cpMatch = /\d+/.exec(chcpResult.stdout as string) ?? []
+  // `mode con cp select=` sets the same console code page as `chcp`,
+  // but `chcp` clears the visible terminal whenever it changes the code page.
+  //
+  // `mode con cp` prints a device status report whose first number is the code page:
+  //
+  //   Status for device CON:
+  //   ----------------------
+  //       Code page:      437
+  const modeResult = await execa('mode', ['con', 'cp'], EXEC_OPTS)
+  const cpMatch = /\d+/.exec(modeResult.stdout as string) ?? []
   if (cpMatch.length === 0) {
-    throw new PnpmError('CHCP', `exec chcp failed: ${chcpResult.stderr}`)
+    throw new PnpmError('CODE_PAGE', `could not read the console code page: ${modeResult.stderr}`)
   }
   const cpBak = parseInt(cpMatch[0] as string)
-  if (chcpResult.failed || !(cpBak > 0)) {
-    throw new PnpmError('CHCP', `exec chcp failed: ${cpBak}, ${chcpResult.stderr}`)
+  if (modeResult.failed || !(cpBak > 0)) {
+    throw new PnpmError('CODE_PAGE', `could not read the console code page: ${cpBak}, ${modeResult.stderr}`)
   }
-  await execa('chcp', ['65001'], EXEC_OPTS)
+  await execa('mode', ['con', 'cp', 'select=65001'], EXEC_OPTS)
   try {
     const report = await _addDirToWindowsEnvPath(dir, opts)
     await refreshEnvVars()
     return report
   } finally {
-    await execa('chcp', [cpBak.toString()], EXEC_OPTS)
+    await execa('mode', ['con', 'cp', `select=${cpBak}`], EXEC_OPTS)
   }
 }
 
@@ -121,7 +129,8 @@ async function addToPath (registryOutput: string, addedDir: string, position: Ad
   }
 }
 
-// `windowsHide` in `execa` is true by default, which will cause `chcp` to have no effect.
+// `windowsHide` in `execa` is true by default, which would give `mode` a console of its own,
+// so the code page switch would not reach the console that `reg` writes to.
 const EXEC_OPTS = { windowsHide: false }
 
 /**

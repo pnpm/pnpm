@@ -117,7 +117,8 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );
-        let supported_lockfile_major = matches!(scope.lockfile().lockfile_version.major, 9 | 12);
+        let supported_lockfile_major =
+            matches!(scope.lockfile().lockfile_version.major, 9 | 12 | 13);
         debug_assert!(supported_lockfile_major);
 
         let frozen_verification_override = settle_frozen_verification::<Reporter>(

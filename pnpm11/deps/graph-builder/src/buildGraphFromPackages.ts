@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
@@ -6,6 +5,7 @@ import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
+import { buildsDependenciesDuringInstall } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
@@ -54,7 +54,12 @@ interface PkgDirCheck {
   pkgSnapshot: PackageSnapshot
   isDirectoryDep: boolean
   isUnchanged: boolean
-  mightNeedBuild: boolean
+  /**
+   * Whether this install runs the package's build. Such a package is fetched
+   * even when placed, since a build with effects outside the package runs in
+   * every install.
+   */
+  buildsInThisInstall: boolean
 }
 
 type PkgDirReuse = 'up-to-date' | 'reusable' | 'needs-fetch'
@@ -152,11 +157,7 @@ async function addLocatedPkgToGraph (ctx: BuildGraphContext, pkg: LocatedPkg): P
       currentPkgSnapshot != null &&
       equals(currentPkgSnapshot.dependencies, pkgSnapshot.dependencies) &&
       depIntegrityIsUnchanged,
-    // In GVS mode, packages that are allowed to build may have a .pnpm-needs-build
-    // marker indicating a previous build failed or was interrupted. When the
-    // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
-    mightNeedBuild: opts.enableGlobalVirtualStore === true &&
-      opts.allowBuild?.(depPath) === true,
+    buildsInThisInstall: opts.allowBuild?.(depPath) === true && buildsDependenciesDuringInstall(opts),
   })
   if (dirReuse === 'up-to-date') return
 
@@ -170,14 +171,12 @@ async function checkPkgDirReuse (opts: LockfileToDepGraphOptions, check: PkgDirC
   const dirExists = isUnchangedWithoutOptionalDeps(opts, check)
     ? await pathExistsOrLogMissing(check.dir)
     : undefined
-  if (dirExists && !needsRebuild(check)) return 'up-to-date'
+  if (dirExists) return 'up-to-date'
 
   if (
     check.isUnchanged &&
     equals(check.currentPkgSnapshot!.optionalDependencies, check.pkgSnapshot.optionalDependencies) &&
-    await isPkgDirReusable(check, dirExists, () => {
-      brokenModulesLogger.debug({ missing: check.dir })
-    })
+    await isUnchangedPkgDirReusable(opts, check, dirExists)
   ) {
     return 'reusable'
   }
@@ -186,7 +185,8 @@ async function checkPkgDirReuse (opts: LockfileToDepGraphOptions, check: PkgDirC
     opts.enableGlobalVirtualStore &&
     !check.isDirectoryDep &&
     !opts.force &&
-    await isPkgDirReusable(check, dirExists)
+    !check.buildsInThisInstall &&
+    await isGlobalVirtualStorePackagePlaced(check.dir)
   ) {
     return 'reusable'
   }
@@ -213,16 +213,29 @@ async function pathExistsOrLogMissing (dir: string): Promise<boolean> {
   return dirExists
 }
 
-async function isPkgDirReusable (check: PkgDirCheck, dirExists: boolean | undefined, onMissingDir?: () => void): Promise<boolean> {
-  if (dirExists ?? await pathExists(check.dir)) {
-    return !needsRebuild(check)
+/**
+ * Whether the directory of a package the current lockfile already records can
+ * be reused. Under the global virtual store it must hold a placed package, and
+ * a package this install builds goes through the import, which decides whether
+ * its build runs again.
+ */
+async function isUnchangedPkgDirReusable (opts: LockfileToDepGraphOptions, check: PkgDirCheck, dirExists: boolean | undefined): Promise<boolean> {
+  if (opts.enableGlobalVirtualStore) {
+    if (check.buildsInThisInstall) return false
+    if (await isGlobalVirtualStorePackagePlaced(check.dir)) return true
+  } else if (dirExists ?? await pathExists(check.dir)) {
+    return true
   }
-  onMissingDir?.()
+  brokenModulesLogger.debug({ missing: check.dir })
   return false
 }
 
-function needsRebuild (check: PkgDirCheck): boolean {
-  return check.mightNeedBuild && fs.existsSync(path.join(check.dir, '.pnpm-needs-build'))
+/**
+ * A global virtual store package directory is final once its `package.json`
+ * exists. Without it, the directory is an import still in progress.
+ */
+async function isGlobalVirtualStorePackagePlaced (dir: string): Promise<boolean> {
+  return pathExists(path.join(dir, 'package.json'))
 }
 
 async function fetchPkg (opts: LockfileToDepGraphOptions, pkg: LocatedPkg): Promise<Partial<FetchResponse> | undefined> {

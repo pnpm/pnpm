@@ -131,17 +131,17 @@ pub(crate) enum PathExtenderError {
         current_value: String,
     },
 
-    #[display("exec chcp failed: {message}")]
-    #[diagnostic(code(ERR_PNPM_CHCP))]
-    Chcp {
+    #[display("could not read the console code page: {message}")]
+    #[diagnostic(code(ERR_PNPM_CODE_PAGE))]
+    CodePage {
         message: String,
     },
 
-    #[display("`{command}` failed: {stderr}")]
+    #[display("`{command}` failed: {message}")]
     #[diagnostic(code(ERR_PNPM_SETUP_COMMAND_FAILED))]
     CommandFailed {
         command: String,
-        stderr: String,
+        message: String,
     },
 
     #[display("win32 registry environment values could not be retrieved")]

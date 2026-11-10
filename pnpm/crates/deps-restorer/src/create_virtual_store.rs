@@ -9,10 +9,7 @@ mod output;
 mod pipeline;
 
 mod warm;
-use warm::{
-    gvs_slot_needs_rebuild, snapshot_needs_build_marker, warm_cas_paths_by_pkg_id,
-    warm_shared_base_cas_paths,
-};
+use warm::{snapshot_needs_build_marker, warm_cas_paths_by_pkg_id, warm_shared_base_cas_paths};
 
 mod cold;
 use cold::{ColdCapture, add_cold_cas_paths};
@@ -301,14 +298,6 @@ pub enum CreateVirtualStoreError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGES_SECTION))]
     MissingPackagesSection,
 
-    #[display("Failed to create the global virtual store build marker source at {path:?}: {error}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_BUILD_MARKER))]
-    CreateBuildMarker {
-        path: PathBuf,
-        #[error(source)]
-        error: std::io::Error,
-    },
-
     #[display("Failed to inspect optional dependency at {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_OPTIONAL_DEPENDENCY))]
     InspectOptionalDependency {
@@ -490,24 +479,6 @@ async fn init_store_dir_unless_frozen(
         return;
     }
     init_store_dir_best_effort(store_dir).await;
-}
-
-/// The file a slot's `.pnpm-needs-build` marker is imported from, when this
-/// run can write one.
-fn create_build_marker_source(
-    config: &Config,
-    layout: &crate::VirtualStoreLayout,
-    store_dir: &pnpm_store_dir::StoreDir,
-) -> Result<Option<tempfile::NamedTempFile>, CreateVirtualStoreError> {
-    if config.frozen_store || !layout.enable_global_virtual_store() {
-        return Ok(None);
-    }
-    pnpm_fs::private_named_tempfile_in(store_dir.root())
-        .map(Some)
-        .map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
-            path: store_dir.root().to_path_buf(),
-            error,
-        })
 }
 
 /// Publish the cold-batch fetch plan for the concurrent verification fan-out:
