@@ -131,20 +131,22 @@ impl LibsqlAdapter {
 
     /// The opened database, opening it on first use.
     fn opened(&self, runtime: &Handle) -> Result<Arc<Opened>> {
-        let opened = runtime.block_on(self.opened.get_or_try_init(|| async {
-            tokio::time::timeout(STARTUP_TIMEOUT, Opened::open(&self.settings))
-                .await
-                .map_err(|_| RegistryError::StorageUnavailable {
-                    reason: "the libSQL metadata database did not open in time".to_string(),
-                })?
-        }))?;
+        let opened = runtime
+            .block_on(self.opened.get_or_try_init(|| async {
+                tokio::time::timeout(STARTUP_TIMEOUT, Opened::open(&self.settings))
+                    .await
+                    .map_err(|_| RegistryError::StorageUnavailable {
+                        reason: "the libSQL metadata database did not open in time".to_string(),
+                    })?
+            }))
+            .map_err(|error| pnpr_libsql::startup_error(&self.settings, error))?;
         Ok(Arc::clone(opened))
     }
 }
 
 impl Opened {
     async fn open(settings: &LibsqlSettings) -> Result<Arc<Self>> {
-        let connector = pnpr_libsql::connector(settings, "metadata")?;
+        let connector = pnpr_libsql::connector(settings, "database")?;
         let _startup_dials = connector.retry_timed_out_dials();
         let max_connections =
             settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS) as usize;

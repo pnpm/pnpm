@@ -94,7 +94,7 @@ async fn refused(db: &Db) -> String {
     let before = tables(db).await;
     let error = open(db).await.unwrap_err();
     assert_eq!(tables(db).await, before, "a refused database gained tables");
-    let RegistryError::Internal { reason } = error else {
+    let RegistryError::InvalidConfig { reason } = error else {
         panic!("a schema refusal is not a transient failure: {error:?}");
     };
     assert!(reason.contains("the database the test database holds"), "{reason}");
@@ -808,7 +808,7 @@ mod mysql_recovery {
             .await
             .unwrap()
             .unwrap_err();
-        assert!(matches!(error, RegistryError::Internal { .. }));
+        assert!(matches!(error, RegistryError::InvalidConfig { .. }));
         let adapter = db.adapter();
         tokio::task::spawn_blocking(move || {
             adapter.read(ReadSource::Primary, &mut |connection| {

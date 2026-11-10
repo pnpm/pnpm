@@ -1,4 +1,4 @@
-pub use redact_url::redact_url_credentials;
+pub use redact_url::{redact_connection_url, redact_url_credentials};
 
 mod redact_url;
 #[cfg(feature = "server")]
@@ -102,8 +102,7 @@ pub enum RegistryError {
         filename: String,
     },
 
-    /// The YAML config could not be parsed. Startup-only — this never
-    /// surfaces over HTTP, but `Config` parsing shares this error type.
+    /// The server configuration or database schema is incompatible.
     #[display("Invalid config: {reason}")]
     #[from(skip)]
     InvalidConfig {

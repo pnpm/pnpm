@@ -141,7 +141,10 @@ impl Expected {
 impl SqlMetadata {
     #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
     pub(crate) fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Self> {
-        Ok(Self::with_adapter(network::adapter(settings)?, format!("{settings:?}")))
+        Ok(Self::with_adapter(
+            network::adapter(settings)?,
+            pnpr_config::redact_connection_url(&settings.url),
+        ))
     }
 
     /// The version of the schema this pnpr creates and reads. A database
@@ -169,7 +172,7 @@ impl SqlMetadata {
     #[cfg(feature = "backend-libsql")]
     #[must_use]
     pub fn open_libsql(settings: &pnpr_config::LibsqlSettings) -> Self {
-        let name = format!("{settings:?}");
+        let name = pnpr_config::redact_connection_url(&settings.url);
         Self::with_adapter(Box::new(libsql::LibsqlAdapter::new(settings.clone())), name)
     }
 

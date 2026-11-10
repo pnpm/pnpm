@@ -64,6 +64,8 @@ Validates the YAML configuration file and prints diagnostic details, including c
 pnpr config check
 ```
 
+Database validation checks token transport security and whether this build supports the configured database driver. It does not connect to the database.
+
 ### verify
 
 Audits hosted package documents (`package.json`) against stored blobs. Inspects declared versions, resolves referenced tarballs and attestation blobs, checks for missing or corrupted files, and discovers orphaned blobs not referenced by any version.

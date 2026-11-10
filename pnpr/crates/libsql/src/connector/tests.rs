@@ -7,7 +7,7 @@ use std::{
     net::TcpListener,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -161,4 +161,23 @@ async fn fails_a_refused_dial_without_retrying() {
     let _guard = connector.retry_timed_out_dials();
     let outcome = dial_failing(&connector, std::io::ErrorKind::ConnectionRefused, 1).await;
     assert_eq!(outcome, (false, 1));
+}
+
+#[tokio::test]
+async fn refused_startup_dial_names_the_target_once_without_credentials() {
+    let dialer = service_fn(|_: Uri| async {
+        Err::<(), _>(std::io::Error::from(std::io::ErrorKind::ConnectionRefused))
+    });
+    let target = "http://database.example.test:8080/?token=example-secret";
+    let uri = target.parse().unwrap();
+    let error = dial(dialer, &uri, &AtomicBool::new(false)).await.unwrap_err();
+    let error = crate::startup_error(
+        &settings(target.to_string()),
+        RegistryError::Libsql(libsql::Error::Hrana(error)),
+    )
+    .to_string();
+    assert_eq!(error.matches("database.example.test:8080").count(), 1, "{error}");
+    assert!(error.contains("database.example.test:8080"), "{error}");
+    assert!(error.contains("refused"), "{error}");
+    assert!(!error.contains("example-secret"), "{error}");
 }

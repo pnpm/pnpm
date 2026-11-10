@@ -8,10 +8,11 @@ use std::{sync::Arc, time::Duration};
 #[cfg(feature = "backend-postgres")]
 pub async fn ensure_postgres_schema(
     pool: Arc<sqlx::PgPool>,
+    startup: crate::StartupConnection<sqlx::Postgres>,
     timeout: Duration,
     name: &str,
 ) -> Result<()> {
-    let adapter = super::postgres::NetworkAdapter::from_pool(pool, timeout);
+    let adapter = super::postgres::NetworkAdapter::from_pool(pool, startup, timeout);
     migrate(adapter, name, "PostgreSQL").await
 }
 
@@ -19,10 +20,11 @@ pub async fn ensure_postgres_schema(
 #[cfg(feature = "backend-mysql")]
 pub async fn ensure_mysql_schema(
     pool: Arc<sqlx::MySqlPool>,
+    startup: crate::StartupConnection<sqlx::MySql>,
     timeout: Duration,
     name: &str,
 ) -> Result<()> {
-    let adapter = super::mysql::NetworkAdapter::from_pool(pool, timeout);
+    let adapter = super::mysql::NetworkAdapter::from_pool(pool, startup, timeout);
     migrate(adapter, name, "MySQL").await
 }
 

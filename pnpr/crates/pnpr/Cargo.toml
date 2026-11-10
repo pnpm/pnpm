@@ -28,7 +28,13 @@ path = "tests/suite.rs"
 
 [features]
 default = ["backend-libsql", "backend-mysql", "backend-postgres"]
-backend-libsql = ["dep:libsql", "pnpr-error/backend-libsql", "pnpr-auth/backend-libsql", "pnpr-storage/backend-libsql"]
+backend-libsql = [
+  "dep:pnpr-libsql",
+  "dep:libsql",
+  "pnpr-error/backend-libsql",
+  "pnpr-auth/backend-libsql",
+  "pnpr-storage/backend-libsql",
+]
 backend-mysql = [
   "dep:sqlx",
   "sqlx/mysql",
@@ -45,6 +51,7 @@ backend-postgres = [
 ]
 
 [dependencies]
+pnpr-libsql = { workspace = true, optional = true }
 pnpr-auth = { workspace = true }
 pnpr-cargo = { workspace = true }
 pnpr-config = { workspace = true }

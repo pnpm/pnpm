@@ -27,16 +27,22 @@ impl SqlAuth<PostgresDatabase> {
             settings.startup_timeout,
             settings.startup_timeout,
         )?;
-        let startup_pool =
-            with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
+        let startup_pool = std::sync::Arc::new(startup_options.connect_lazy(&settings.url)?);
+        let connection =
+            pnpr_sql::connect_startup(&startup_pool, &settings.url, settings.startup_timeout)
                 .await?;
-        let startup_pool = std::sync::Arc::new(startup_pool);
+        let startup = std::sync::Arc::new(tokio::sync::Mutex::new(Some(connection)));
         let startup_db = PostgresDatabase {
-            pool: RequestPool::new(std::sync::Arc::clone(&startup_pool), settings.startup_timeout),
+            pool: RequestPool::with_startup(
+                std::sync::Arc::clone(&startup_pool),
+                std::sync::Arc::clone(&startup),
+                settings.startup_timeout,
+            ),
         };
         with_auth_timeout(settings.startup_timeout, async {
             pnpr_sql::network::ensure_postgres_schema(
                 std::sync::Arc::clone(&startup_pool),
+                startup,
                 settings.startup_timeout,
                 "PostgreSQL auth database",
             )

@@ -18,6 +18,7 @@ pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;
+pub use pnpr_error::redact_connection_url;
 pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};

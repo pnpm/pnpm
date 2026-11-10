@@ -611,6 +611,7 @@ registries:
     assert!(output.contains("REDACTED"));
 }
 
+#[cfg(feature = "backend-libsql")]
 #[test]
 fn test_config_check_reports_the_auth_backend_and_every_default_registry() {
     let dir = TempDir::new().unwrap();
@@ -664,6 +665,7 @@ defaultRegistry:
 }
 
 #[test]
+#[cfg(feature = "backend-libsql")]
 fn test_config_check_reports_the_s3_key_prefix() {
     let dir = TempDir::new().unwrap();
     let report = |prefix: &str| {
@@ -724,12 +726,11 @@ registries:
     let config_file = dir.path().join("pnpr.yaml");
     std::fs::write(&config_file, yaml).unwrap();
 
-    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
-    let output = pnpr::config_check::format_report(&report);
-    assert!(output.contains("Auth: postgres (<unparsable URL>"), "{output}");
-    assert!(!output.contains("hunter2"), "{output}");
+    let error = pnpr::config_check::check_config(Some(&config_file)).unwrap_err().to_string();
+    assert!(!error.contains("hunter2"), "{error}");
 }
 
+#[cfg(feature = "backend-libsql")]
 #[test]
 fn test_config_check_redacts_the_database_user_query_parameter() {
     let dir = TempDir::new().unwrap();
@@ -738,7 +739,7 @@ fn test_config_check_redacts_the_database_user_query_parameter() {
 storage: '{}'
 cache: '{}'
 database:
-  url: 'postgres://db.example.com/pnpr?user=registry-admin'
+  url: 'libsql://db.example.com/pnpr?user=registry-admin'
 registries:
   local:
     type: hosted
@@ -859,3 +860,5 @@ async fn add_user_preserves_account_id_when_changing_password() {
     assert_eq!(id, logged_in_id);
     assert!(reloaded.users.add_or_login("example-user", "first-password").await.is_err());
 }
+
+mod startup;

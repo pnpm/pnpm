@@ -305,6 +305,27 @@ async fn not_found_renders_as_a_bare_404() {
     assert_eq!(body.as_ref(), b"Not Found");
 }
 
+#[tokio::test]
+async fn configuration_failures_hide_operator_details_from_clients() {
+    let error = RegistryError::InvalidConfig {
+        reason: "database libsql://database.example.test has a newer schema. Upgrade pnpr".into(),
+    };
+    assert_eq!(error.log_kind(), "invalid_config");
+    assert!(error.log_message().contains("Upgrade pnpr"));
+    let response = error.into_response();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        response
+            .extensions()
+            .get::<super::PublicErrorMessage>()
+            .unwrap()
+            .0,
+        "Internal Server Error",
+    );
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.as_ref(), b"Internal Server Error");
+}
+
 #[test]
 fn upstream_body_errors_preserve_gateway_status_and_log_kind() {
     for (kind, status) in [
@@ -334,4 +355,38 @@ fn circuit_open_response_names_upstream_and_rounds_retry_after_up() {
     let response = shared.into_response();
     assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(response.headers()["retry-after"], "2");
+}
+
+#[test]
+fn database_targets_redact_driver_credentials_in_query_parameters() {
+    let target = crate::redact_connection_url(
+        "postgres://database.example.test/registry?user=example-user&sslpassword=example-secret&token=example-token&password=punctuated)secret&other=value",
+    );
+    for secret in ["example-user", "example-secret", "example-token", "punctuated", "secret"] {
+        assert!(!target.contains(secret), "{target}");
+    }
+    assert!(target.contains("database.example.test/registry"), "{target}");
+    assert!(target.contains("other=value"), "{target}");
+}
+
+#[test]
+fn database_targets_hide_passwords_parsed_as_paths() {
+    for target in [
+        "postgres://localhost:1/example-secret@database.example.test/registry",
+        "postgres://example:12345/@database.example.test/registry",
+        "postgres://example:12345678/@database.example.test/registry",
+    ] {
+        assert_eq!(crate::redact_connection_url(target), "[redacted]", "{target}");
+    }
+}
+
+#[test]
+fn database_cause_urls_redact_driver_query_credentials() {
+    let error = RegistryError::StorageUnavailable {
+        reason: "connection failed for postgres://database.example.test/registry?sslpassword=example-secret&user=example-user".into(),
+    };
+    let message = error.log_message();
+    assert!(message.contains("database.example.test/registry"), "{message}");
+    assert!(!message.contains("example-secret"), "{message}");
+    assert!(!message.contains("example-user"), "{message}");
 }

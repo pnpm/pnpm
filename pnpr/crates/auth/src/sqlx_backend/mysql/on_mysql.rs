@@ -18,6 +18,10 @@ async fn user_and_token_writes_share_one_connection() {
     let database = super::super::tests::test_database_name(&directory);
     sqlx::query(&format!("CREATE DATABASE {database}")).execute(&*admin).await.unwrap();
     settings.url = format!("{}/{database}", settings.url.rsplit_once('/').unwrap().0);
+    super::super::tests::assert_startup_uses_one_connection(&settings, |settings| async move {
+        super::MysqlAuth::connect(&settings, pnpr_config::MaxUsers::Unlimited).await
+    })
+    .await;
     let pool = pnpr_sql::mysql_pool(&settings).unwrap();
     let auth = super::MysqlAuth::connect(&settings, pnpr_config::MaxUsers::Unlimited)
         .await
