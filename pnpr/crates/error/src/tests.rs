@@ -371,10 +371,22 @@ fn database_targets_redact_driver_credentials_in_query_parameters() {
 
 #[test]
 fn database_targets_hide_passwords_parsed_as_paths() {
-    assert_eq!(
-        crate::redact_connection_url(
-            "postgres://localhost:1/example-secret@database.example.test/registry"
-        ),
-        "[redacted]",
-    );
+    for target in [
+        "postgres://localhost:1/example-secret@database.example.test/registry",
+        "postgres://example:12345/@database.example.test/registry",
+        "postgres://example:12345678/@database.example.test/registry",
+    ] {
+        assert_eq!(crate::redact_connection_url(target), "[redacted]", "{target}");
+    }
+}
+
+#[test]
+fn database_cause_urls_redact_driver_query_credentials() {
+    let error = RegistryError::StorageUnavailable {
+        reason: "connection failed for postgres://database.example.test/registry?sslpassword=example-secret&user=example-user".into(),
+    };
+    let message = error.log_message();
+    assert!(message.contains("database.example.test/registry"), "{message}");
+    assert!(!message.contains("example-secret"), "{message}");
+    assert!(!message.contains("example-user"), "{message}");
 }
