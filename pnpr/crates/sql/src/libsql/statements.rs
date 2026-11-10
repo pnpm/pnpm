@@ -7,6 +7,17 @@ use pnpr_error::Result;
 use std::cell::{Cell, RefCell};
 use tokio::runtime::Handle;
 
+/// What happened to a primary connection's Hrana stream during an operation.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum StreamState {
+    Active,
+    /// A read of the primary finished; [`run`](super::run) sends its `COMMIT`.
+    CommitLater,
+    /// The primary rejected a batch as a stale stream and dropped any open
+    /// transaction.
+    Lost,
+}
+
 /// One libSQL connection, run from a blocking thread.
 ///
 /// A connection to the primary sends its statements in batches, one HTTP
@@ -28,20 +39,24 @@ pub(super) struct Statements<'conn> {
     pub(super) read: bool,
     /// The statements waiting for the next batch to the primary.
     pub(super) held: RefCell<Vec<(String, Vec<libsql::Value>)>>,
-    /// Set by the commit of a read of the primary, which [`run`](super::run) sends once
-    /// the read has its answer.
-    pub(super) end_later: Cell<bool>,
+    pub(super) state: Cell<StreamState>,
 }
 
 impl Statements<'_> {
     /// Wait for `statement`, failing with [`timed_out`] past the deadline.
     fn wait<Output>(&self, statement: impl Future<Output = Result<Output>>) -> Result<Output> {
-        match self.deadline {
+        let result = match self.deadline {
             Some(deadline) => self.runtime
                 .block_on(tokio::time::timeout_at(deadline, statement))
                 .unwrap_or_else(|_| Err(timed_out())),
             None => self.runtime.block_on(statement),
+        };
+        if let Err(ref error) = result
+            && pnpr_libsql::is_stale_stream(error)
+        {
+            self.state.set(StreamState::Lost);
         }
+        result
     }
 
     fn hold(&self, sql: &str, params: &[Param<'_>]) {
@@ -164,7 +179,7 @@ impl Connection for Statements<'_> {
         if self.read {
             let mut held = self.held.borrow_mut();
             if held.is_empty() {
-                self.end_later.set(true);
+                self.state.set(StreamState::CommitLater);
                 return Ok(());
             }
             if let [(begin, _)] = held.as_slice()
@@ -191,7 +206,7 @@ impl Connection for Statements<'_> {
         let unsent = held
             .first()
             .is_some_and(|(sql, _)| sql.starts_with("BEGIN"));
-        if unsent || self.conn.is_autocommit() {
+        if unsent || matches!(self.state.get(), StreamState::Lost) || self.conn.is_autocommit() {
             return Ok(());
         }
         self.execute_batch("ROLLBACK")

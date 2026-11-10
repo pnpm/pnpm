@@ -68,6 +68,9 @@ struct Streams {
     batons: AtomicUsize,
     /// How long a stream may idle before it expires. `None` keeps it open.
     expiry: std::sync::Mutex<Option<Duration>>,
+    /// One-shot stale-stream response for the next non-trivial continuation on
+    /// an open stream.
+    next_stale: std::sync::Mutex<Option<StaleStream>>,
     /// See [`Primary::stale_stream_rejections`].
     rejected: AtomicUsize,
 }
@@ -75,7 +78,10 @@ struct Streams {
 /// What a Hrana request carries.
 #[derive(Clone, Copy)]
 enum Request {
+    /// Statements other than the background `COMMIT` that ends a read.
     Statements,
+    /// The background `COMMIT` sent after a read already answered.
+    ReadEnd,
     /// Only a close, which libsql sends for every connection it drops. A
     /// refused one is not counted in [`Primary::stale_stream_rejections`].
     Close,
@@ -88,6 +94,7 @@ struct OpenStream {
 
 /// How `sqld` refuses a request on a stream it no longer holds. It runs
 /// nothing of the request.
+#[derive(Clone, Copy)]
 enum StaleStream {
     Expired,
     Unknown,
@@ -117,6 +124,7 @@ impl Streams {
             open: std::sync::Mutex::new(HashMap::new()),
             batons: AtomicUsize::new(0),
             expiry: std::sync::Mutex::new(None),
+            next_stale: std::sync::Mutex::new(None),
             rejected: AtomicUsize::new(0),
         }
     }
@@ -125,19 +133,23 @@ impl Streams {
     async fn take(&self, baton: Option<&str>, request: Request) -> Result<Connection, StaleStream> {
         if let Some(baton) = baton {
             let stream = self.open.lock().unwrap().remove(baton);
+            let forced = match request {
+                Request::Statements => self.next_stale.lock().unwrap().take(),
+                Request::ReadEnd | Request::Close => None,
+            };
             let expiry = *self.expiry.lock().unwrap();
-            let stale = match stream {
-                Some(stream) if expiry.is_none_or(|expiry| stream.since.elapsed() < expiry) => {
+            let stale = match (forced, stream) {
+                (Some(stale), _) => stale,
+                (None, Some(stream))
+                    if expiry.is_none_or(|expiry| stream.since.elapsed() < expiry) =>
+                {
                     return Ok(stream.conn);
                 }
-                Some(_) => StaleStream::Expired,
-                None => StaleStream::Unknown,
+                (None, Some(_)) => StaleStream::Expired,
+                (None, None) => StaleStream::Unknown,
             };
-            match request {
-                Request::Statements => {
-                    self.rejected.fetch_add(1, Ordering::SeqCst);
-                }
-                Request::Close => {}
+            if matches!(request, Request::Statements | Request::ReadEnd) {
+                self.rejected.fetch_add(1, Ordering::SeqCst);
             }
             return Err(stale);
         }
@@ -276,7 +288,7 @@ async fn pipeline(
     body: String,
 ) -> Result<Json<JsonValue>, StaleStream> {
     let body: JsonValue = serde_json::from_str(&body).unwrap();
-    let steps = body["requests"]
+    let steps: Vec<JsonValue> = body["requests"]
         .as_array()
         .unwrap()
         .iter()
@@ -285,7 +297,10 @@ async fn pipeline(
                 .as_array()
                 .cloned()
                 .unwrap_or_default()
-        });
+        })
+        .collect();
+    let is_read_end =
+        matches!(steps.as_slice(), [step] if step["stmt"]["sql"].as_str() == Some("COMMIT"));
     primary.round_trips.record(steps);
     let requests = body["requests"].as_array().unwrap();
     let kind = if requests
@@ -293,6 +308,8 @@ async fn pipeline(
         .all(|request| request["type"].as_str() == Some("close"))
     {
         Request::Close
+    } else if is_read_end {
+        Request::ReadEnd
     } else {
         Request::Statements
     };
@@ -355,6 +372,18 @@ impl Primary {
             .lock()
             .unwrap()
             .clear();
+    }
+
+    /// Refuse the next continuation batch on an open stream as expired,
+    /// dropping that stream and its transaction.
+    pub fn expire_next_stream(&self) {
+        *self.streams.next_stale.lock().unwrap() = Some(StaleStream::Expired);
+    }
+
+    /// Refuse the next continuation batch on an open stream as an unknown
+    /// baton, dropping that stream and its transaction.
+    pub fn drop_next_stream(&self) {
+        *self.streams.next_stale.lock().unwrap() = Some(StaleStream::Unknown);
     }
 
     /// The requests carrying statements refused so far for naming a stream

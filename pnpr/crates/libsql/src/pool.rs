@@ -140,10 +140,7 @@ impl ConnectionPool {
     {
         match self.checkout().await?.run(&mut operation).await {
             Err(error) if is_stale_stream(&error) => {
-                with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.open())
-                    .await?
-                    .run(&mut operation)
-                    .await
+                self.checkout_fresh().await?.run(&mut operation).await
             }
             result => result,
         }
@@ -155,6 +152,13 @@ impl ConnectionPool {
     /// the connection.
     pub async fn checkout(&self) -> Result<Checkout> {
         with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.take()).await
+    }
+
+    /// A new connection, closing every idle one, for retrying an operation
+    /// whose stream the server rejected as stale. It fails with the pool's
+    /// timeout error if no connection opens within the deadline.
+    pub async fn checkout_fresh(&self) -> Result<Checkout> {
+        with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.open()).await
     }
 
     /// A slot and a connection to run one operation on.

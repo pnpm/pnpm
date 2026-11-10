@@ -29,7 +29,7 @@ use crate::{
 use pnpr_config::LibsqlSettings;
 use pnpr_error::{RegistryError, Result};
 use pnpr_libsql::{Checkout, ConnectionPool};
-use statements::Statements;
+use statements::{Statements, StreamState};
 use std::{
     cell::{Cell, RefCell},
     fmt,
@@ -62,7 +62,7 @@ pub async fn ensure_schema(connection: &libsql::Connection, name: &str) -> Resul
                 deadline: None,
                 read: false,
                 held: RefCell::new(Vec::new()),
-                end_later: Cell::new(false),
+                state: Cell::new(StreamState::Active),
             };
             let result =
                 schema::ensure(&statements, &name).and_then(|()| statements.send().map(drop));
@@ -278,7 +278,13 @@ impl Adapter for LibsqlAdapter {
         let checkout = runtime.block_on(opened.primary.checkout())?;
         // A write cut off after it reached the primary leaves its commit
         // state unknown, so its statements run without a deadline.
-        let result = run(&runtime, checkout, Session::Write, operation);
+        let result = match run(&runtime, checkout, Session::Write, operation) {
+            Err(error) if pnpr_libsql::is_stale_stream(&error) => {
+                let fresh = runtime.block_on(opened.primary.checkout_fresh())?;
+                run(&runtime, fresh, Session::Write, operation)
+            }
+            result => result,
+        };
         if let Some(replica) = &opened.replica {
             replica.mark_stale();
         }
@@ -313,7 +319,14 @@ impl Adapter for LibsqlAdapter {
         };
         let checkout = runtime.block_on(pool.checkout())?;
         let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
-        run(&runtime, checkout, Session::Read { local, deadline }, operation)?;
+        let session = Session::Read { local, deadline };
+        match run(&runtime, checkout, session, operation) {
+            Err(error) if !local && pnpr_libsql::is_stale_stream(&error) => {
+                let fresh = checkout_fresh_before(&runtime, &opened.primary, deadline)?;
+                run(&runtime, fresh, session, operation)?;
+            }
+            result => result?,
+        }
         Ok(snapshot)
     }
 
@@ -369,7 +382,7 @@ fn run(
         Session::Write => (false, None, false),
         Session::Read { local, deadline } => (local, Some(deadline), true),
     };
-    let (result, end_later) = {
+    let (result, state) = {
         let statements = Statements {
             runtime,
             conn: checkout.connection(),
@@ -377,14 +390,14 @@ fn run(
             deadline,
             read,
             held: RefCell::new(Vec::new()),
-            end_later: Cell::new(false),
+            state: Cell::new(StreamState::Active),
         };
         // A statement still held reaches the primary before the connection
         // goes back to the pool.
         let result = operation(&statements).and_then(|()| statements.send().map(drop));
-        (result, statements.end_later.get())
+        (result, statements.state.get())
     };
-    if result.is_ok() && end_later {
+    if result.is_ok() && matches!(state, StreamState::CommitLater) {
         let conn = checkout.connection().clone();
         checkout.release_after(runtime, async move {
             let commit = conn.execute_batch_with_params([("COMMIT", ())]);
@@ -394,6 +407,17 @@ fn run(
     }
     checkout.release(result.is_ok());
     result
+}
+
+/// A fresh connection from `pool`, bounded by a read's remaining `deadline`.
+fn checkout_fresh_before(
+    runtime: &Handle,
+    pool: &ConnectionPool,
+    deadline: tokio::time::Instant,
+) -> Result<Checkout> {
+    runtime
+        .block_on(tokio::time::timeout_at(deadline, pool.checkout_fresh()))
+        .unwrap_or_else(|_| Err(timed_out()))
 }
 
 /// What a metadata operation past [`OPERATION_TIMEOUT`] fails with.

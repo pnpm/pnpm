@@ -587,3 +587,44 @@ async fn an_unsynced_replica_reads_exact_versions_and_blobs_from_the_primary() {
             .unwrap();
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn metadata_writes_and_reads_retry_when_the_primary_expires_or_drops_a_stream() {
+    let server = server().await;
+    let writer = server.instance(None, 60);
+    let writer_views = views(&writer);
+
+    // Schema initialization runs in a two-round-trip transaction on first use;
+    // expiring its open stream before the DDL commit retries cleanly.
+    server.primary.expire_next_stream();
+    publish(&writer_views, &["1.0.0"]).await;
+    assert_eq!(server.primary.stale_stream_rejections(), 1);
+    assert_eq!(writer.catalog_generation("").await.unwrap(), 1);
+
+    // Expiring (`STREAM_EXPIRED`) or dropping (`Received an invalid baton`)
+    // a write's stream between its read batch and its commit batch reruns the
+    // transaction once without sending a wasted `ROLLBACK` on the dead stream.
+    server.primary.expire_next_stream();
+    publish(&writer_views, &["1.0.0", "2.0.0"]).await;
+    assert_eq!(server.primary.stale_stream_rejections(), 2);
+    assert_eq!(writer.catalog_generation("").await.unwrap(), 2);
+
+    server.primary.drop_next_stream();
+    publish(&writer_views, &["1.0.0", "2.0.0", "3.0.0"]).await;
+    assert_eq!(server.primary.stale_stream_rejections(), 3);
+    assert_eq!(writer.catalog_generation("").await.unwrap(), 3);
+
+    // Without `replicaPath`, a cold-cache view read takes two round trips on
+    // the primary; losing the stream before the second batch retries cleanly.
+    let expired_reader = server.instance(None, 60);
+    assert_eq!(expired_reader.catalog_generation("").await.unwrap(), 3);
+    server.primary.expire_next_stream();
+    assert_eq!(latest(&views(&expired_reader)).await.as_deref(), Some("3.0.0"));
+    assert_eq!(server.primary.stale_stream_rejections(), 4);
+
+    let dropped_reader = server.instance(None, 60);
+    assert_eq!(dropped_reader.catalog_generation("").await.unwrap(), 3);
+    server.primary.drop_next_stream();
+    assert_eq!(latest(&views(&dropped_reader)).await.as_deref(), Some("3.0.0"));
+    assert_eq!(server.primary.stale_stream_rejections(), 5);
+}

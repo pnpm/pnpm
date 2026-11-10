@@ -337,6 +337,39 @@ async fn a_transaction_the_server_dropped_runs_again_and_applies_once() {
     assert_eq!(counted.unwrap(), Some(1));
 }
 
+/// [`ConnectionPool::checkout_fresh`] closes idle connections whose streams the
+/// server forgot, and returns a new working connection.
+#[tokio::test]
+async fn checkout_fresh_evicts_idle_connections_and_opens_a_new_one() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, db, server) = remote_primary(directory.path()).await;
+    primary.conn
+        .execute("CREATE TABLE items (id INTEGER)", ())
+        .await
+        .unwrap();
+    let pool = ConnectionPool::new(db, 2, Duration::from_secs(30), timed_out);
+    let (first, second) = (count_items(&pool), count_items(&pool));
+    let (first, second) = tokio::join!(first, second);
+    first.unwrap();
+    second.unwrap();
+
+    primary.restart();
+    let checkout = pool.checkout_fresh().await.unwrap();
+    checkout
+        .connection()
+        .execute("INSERT INTO items VALUES (1)", ())
+        .await
+        .unwrap();
+    checkout.release(true);
+    let (first_count, second_count) = (count_items(&pool), count_items(&pool));
+    let (first_count, second_count) = tokio::join!(first_count, second_count);
+    let rejections = primary.stale_stream_rejections();
+    server.abort();
+    assert_eq!(first_count.unwrap(), Some(1));
+    assert_eq!(second_count.unwrap(), Some(1));
+    assert_eq!(rejections, 0);
+}
+
 /// A replica's pool keeps a connection however long it idled: the second
 /// read sees the temporary table only its connection holds.
 #[tokio::test]
