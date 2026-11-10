@@ -97,14 +97,7 @@ impl ResolvedOverride {
     /// `manifest_dir`.
     fn render(&self, manifest_dir: Option<&Path>) -> String {
         match &self.local_target {
-            Some(target) if manifest_dir.is_some() || !target.needs_consumer_dir() => {
-                target.render(manifest_dir)
-            }
-            Some(target) => target
-                .render(None)
-                .strip_prefix("workspace:./")
-                .map(|path| format!("workspace:{path}"))
-                .unwrap_or_else(|| self.inner.new_bare_specifier.clone()),
+            Some(target) => target.render(manifest_dir),
             _ => self.inner.new_bare_specifier.clone(),
         }
     }

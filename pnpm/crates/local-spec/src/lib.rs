@@ -109,12 +109,11 @@ impl LocalSpec {
             })
     }
 
-    /// Whether [`Self::render`] needs a `consumer_dir` to produce a
-    /// specifier the resolver reads as a path. A `workspace:` path is read
-    /// as one only while it is relative.
+    /// Whether [`Self::render`] needs a `consumer_dir` to re-anchor a
+    /// relative `workspace:` path.
     #[must_use]
     pub fn needs_consumer_dir(&self) -> bool {
-        self.protocol == Some(LocalSpecProtocol::Workspace)
+        self.protocol == Some(LocalSpecProtocol::Workspace) && self.specified_via_relative_path
     }
 
     /// `pkg_path` has already been through [`normalize_specifier`], so
