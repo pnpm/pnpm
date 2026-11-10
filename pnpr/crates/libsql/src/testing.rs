@@ -70,6 +70,15 @@ struct Streams {
     rejected: AtomicUsize,
 }
 
+/// What a Hrana request carries.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Request {
+    Statements,
+    /// Only a close, which libsql sends for every connection it drops. A
+    /// refused one is not counted in [`Primary::stale_stream_rejections`].
+    Close,
+}
+
 struct OpenStream {
     conn: Connection,
     since: Instant,
@@ -110,10 +119,8 @@ impl Streams {
         }
     }
 
-    /// The connection of the stream `baton` names, or of a new stream. A
-    /// refused request that only `closes` its stream is not counted: libsql
-    /// sends one for every connection it drops.
-    async fn take(&self, baton: Option<&str>, closes: bool) -> Result<Connection, StaleStream> {
+    /// The connection of the stream `baton` names, or of a new stream.
+    async fn take(&self, baton: Option<&str>, request: Request) -> Result<Connection, StaleStream> {
         if let Some(baton) = baton {
             let stream = self.open.lock().unwrap().remove(baton);
             let expiry = *self.expiry.lock().unwrap();
@@ -124,7 +131,7 @@ impl Streams {
                 Some(_) => StaleStream::Expired,
                 None => StaleStream::Unknown,
             };
-            if !closes {
+            if request == Request::Statements {
                 self.rejected.fetch_add(1, Ordering::SeqCst);
             }
             return Err(stale);
@@ -276,10 +283,15 @@ async fn pipeline(
         });
     primary.round_trips.record(steps);
     let requests = body["requests"].as_array().unwrap();
-    let closes = requests
+    let kind = if requests
         .iter()
-        .all(|request| request["type"].as_str() == Some("close"));
-    let conn = primary.streams.take(body["baton"].as_str(), closes).await?;
+        .all(|request| request["type"].as_str() == Some("close"))
+    {
+        Request::Close
+    } else {
+        Request::Statements
+    };
+    let conn = primary.streams.take(body["baton"].as_str(), kind).await?;
     let mut results = Vec::new();
     let mut closed = false;
     for request in requests {
@@ -301,7 +313,7 @@ async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> Result<Str
             .cloned()
             .unwrap_or_default(),
     );
-    let conn = primary.streams.take(body["baton"].as_str(), false).await?;
+    let conn = primary.streams.take(body["baton"].as_str(), Request::Statements).await?;
     let entries = hrana::cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
     let baton = primary.streams.keep(conn);
     let mut lines = String::new();

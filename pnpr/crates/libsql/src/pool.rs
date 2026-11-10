@@ -64,7 +64,8 @@ const IDLE_EXPIRY: Duration = Duration::from_secs(5);
 pub struct ConnectionPool {
     db: Arc<Database>,
     idle: Arc<Mutex<Vec<Idle>>>,
-    idle_expiry: Duration,
+    /// `None` for an embedded replica; see [`Self::replica`].
+    idle_expiry: Option<Duration>,
     slots: Arc<Semaphore>,
     /// Connection opens in flight. An open the deadline gave up on keeps its
     /// permit until it returns, so a stalled database cannot pile up blocked
@@ -89,7 +90,7 @@ impl ConnectionPool {
         Self {
             db: Arc::new(db),
             idle: Arc::new(Mutex::new(Vec::new())),
-            idle_expiry: IDLE_EXPIRY,
+            idle_expiry: Some(IDLE_EXPIRY),
             slots: Arc::new(Semaphore::new(max_connections)),
             opens: Arc::new(Semaphore::new(max_connections)),
             timeout,
@@ -182,7 +183,7 @@ impl ConnectionPool {
     fn pop_idle(&self) -> Option<Connection> {
         let mut idle = self.idle.lock().expect("idle connections lock");
         let newest = idle.pop()?;
-        if newest.since.elapsed() < self.idle_expiry {
+        if self.idle_expiry.is_none_or(|expiry| newest.since.elapsed() < expiry) {
             return Some(newest.conn);
         }
         let expired = std::mem::take(&mut *idle);
@@ -195,7 +196,6 @@ impl ConnectionPool {
         Checkout { idle: Arc::clone(&self.idle), _slot: slot, conn }
     }
 
-    /// A new connection, run under `slot`.
     async fn connect_in(&self, slot: OwnedSemaphorePermit) -> Result<Checkout> {
         let open = Arc::clone(&self.opens)
             .acquire_owned()
@@ -211,10 +211,19 @@ impl ConnectionPool {
         Ok(self.checkout_of(slot, conn))
     }
 
+    /// Keep idle connections however long they idle. An embedded replica's
+    /// connection reads a local file and holds no stream that could expire,
+    /// and opening one can wait for a background sync.
+    #[must_use]
+    pub fn replica(mut self) -> Self {
+        self.idle_expiry = None;
+        self
+    }
+
     /// Close connections idle for `expiry` rather than [`IDLE_EXPIRY`].
     #[cfg(test)]
     pub(crate) fn with_idle_expiry(mut self, expiry: Duration) -> Self {
-        self.idle_expiry = expiry;
+        self.idle_expiry = Some(expiry);
         self
     }
 
@@ -243,7 +252,6 @@ impl ConnectionPool {
     }
 }
 
-/// A connection in the pool, and since when.
 struct Idle {
     conn: Connection,
     since: Instant,

@@ -125,10 +125,11 @@ impl LibsqlAuth {
         max_connections: u32,
         is_replica: bool,
     ) -> Result<Self> {
+        let pool = ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
+            RegistryError::AuthDatabaseTimeout
+        });
         let auth = Self {
-            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
-                RegistryError::AuthDatabaseTimeout
-            }),
+            pool: if is_replica { pool.replica() } else { pool },
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,

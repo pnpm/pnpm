@@ -162,7 +162,8 @@ impl Opened {
             let interval =
                 settings.sync_interval_secs.unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
             Some(Replica {
-                pool: ConnectionPool::new(db, max_connections, OPERATION_TIMEOUT, timed_out),
+                pool: ConnectionPool::new(db, max_connections, OPERATION_TIMEOUT, timed_out)
+                    .replica(),
                 bound: Duration::from_secs(interval),
                 synced: Mutex::new(SyncState { synced: Some(opening), writes: 0 }),
                 syncing: tokio::sync::Mutex::new(()),

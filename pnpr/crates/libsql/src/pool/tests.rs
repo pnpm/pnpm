@@ -10,7 +10,10 @@ use serde_json::{Value, json};
 use std::{
     collections::HashSet,
     fmt::Write as _,
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -299,6 +302,60 @@ async fn operations_on_streams_the_server_forgot_run_again_on_new_connections() 
         assert_eq!(counted.unwrap(), Some(1));
     }
     assert_eq!((rejected_by_write, rejected_by_concurrent_reads, rejected_by_read), (1, 0, 1));
+}
+
+/// A server that restarts while a write's transaction is open discards the
+/// transaction, so the write runs again from its start and applies once.
+#[tokio::test]
+async fn a_transaction_the_server_dropped_runs_again_and_applies_once() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, db, server) = remote_primary(directory.path()).await;
+    primary.conn
+        .execute("CREATE TABLE items (id INTEGER)", ())
+        .await
+        .unwrap();
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out);
+    let runs = AtomicUsize::new(0);
+    let written = pool.write(|conn| {
+        let restart = runs.fetch_add(1, Ordering::SeqCst) == 0;
+        let primary = Arc::clone(&primary);
+        async move {
+            let tx = conn.transaction().await?;
+            tx.execute("INSERT INTO items VALUES (1)", ()).await?;
+            if restart {
+                primary.restart();
+            }
+            tx.commit().await?;
+            Ok(())
+        }
+    })
+    .await;
+    let counted = count_items(&pool).await;
+    server.abort();
+    written.unwrap();
+    assert_eq!(runs.load(Ordering::SeqCst), 2);
+    assert_eq!(counted.unwrap(), Some(1));
+}
+
+/// A replica's pool keeps a connection however long it idled: the second
+/// read sees the temporary table only its connection holds.
+#[tokio::test]
+async fn a_replica_pool_keeps_idle_connections() {
+    let directory = tempfile::tempdir().unwrap();
+    let db = Builder::new_local(directory.path().join("local.db")).build().await.unwrap();
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out)
+        .with_idle_expiry(Duration::from_millis(10))
+        .replica();
+    pool.write(
+        |conn| async move { Ok(conn.execute("CREATE TEMP TABLE held (id INTEGER)", ()).await?) },
+    )
+    .await
+    .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    pool.read(|conn| async move { Ok(conn.query("SELECT * FROM held", ()).await?) })
+        .await
+        .unwrap();
 }
 
 async fn count_items(pool: &ConnectionPool) -> pnpr_error::Result<Option<i64>> {
