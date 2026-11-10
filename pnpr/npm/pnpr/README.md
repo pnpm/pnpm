@@ -314,6 +314,8 @@ database:
   maxConnections: 16
 ```
 
+MySQL needs InnoDB with its default 16 KiB page size.
+
 When the `database:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
 `auth.htpasswd.maxUsers` registration cap is honored either way.
