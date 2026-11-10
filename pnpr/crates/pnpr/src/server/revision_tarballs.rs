@@ -396,16 +396,11 @@ async fn hosted_original(
     package: &CanonicalPackageName,
     version: &str,
 ) -> Result<Option<HostedOriginal>, RegistryError> {
-    let Some(bytes) = storage.read_hosted_document(package).await? else {
+    let Some(manifest) = storage.read_hosted_version(package, version).await? else {
         return Ok(None);
     };
-    let packument = serde_json::from_slice::<Value>(&bytes)?;
-    let Some(dist) = packument
-        .get("versions")
-        .and_then(|versions| versions.get(version))
-        .and_then(|manifest| manifest.get("dist"))
-        .and_then(Value::as_object)
-    else {
+    let manifest = serde_json::from_str::<Value>(&manifest)?;
+    let Some(dist) = manifest.get("dist").and_then(Value::as_object) else {
         return Ok(None);
     };
     let Some(tgz_integrity) = tgz_integrity_key(dist) else { return Ok(None) };

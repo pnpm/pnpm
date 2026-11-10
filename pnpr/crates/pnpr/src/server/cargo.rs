@@ -26,7 +26,10 @@ use super::{
     authorize,
     conditional_requests::is_not_modified,
     discovery_sources,
-    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
+    documents::{
+        lookup_in_hosted_document, read_hosted_document, stage_hosted_artifact,
+        store_hosted_artifact,
+    },
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
         load_upstream_document, mount_bases, registry_endpoint, registry_requires_auth,
@@ -361,11 +364,14 @@ async fn download_hosted_crate(
     key: &CanonicalPackageName,
     version: &str,
 ) -> Result<Response, RegistryError> {
-    let document = read_hosted_document::<CrateDocument>(state, identity, source, key)
+    let requested = version.to_string();
+    let filename =
+        lookup_in_hosted_document(state, identity, source, key, move |document: &CrateDocument| {
+            document.version(&requested).map(|entry| crate_filename(&entry.name, &entry.vers))
+        })
         .await?
+        .found()
         .ok_or(RegistryError::NotFound)?;
-    let entry = document.version(version).ok_or(RegistryError::NotFound)?;
-    let filename = crate_filename(&entry.name, &entry.vers);
     serve_hosted_blob(state, identity, source, key, &filename).await
 }
 

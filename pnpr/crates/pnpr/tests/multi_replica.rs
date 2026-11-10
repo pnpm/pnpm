@@ -266,6 +266,93 @@ async fn unrelated_publishes_finish_while_a_libsql_publish_upload_is_paused() {
     server.abort();
 }
 
+/// Publishing on instance A and immediately fetching tarballs or exact version
+/// manifests from instance B within `syncInterval` reads the primary on a
+/// replica miss instead of answering 404, while B's packument view stays on
+/// its embedded replica.
+#[cfg(feature = "backend-libsql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unsynced_libsql_replica_serves_tarballs_and_exact_versions_from_the_primary() {
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metadata = SharedMetadata::new();
+    let (primary, address, server) =
+        pnpr_libsql::testing::serve_primary(metadata.0.path().join("primary.db")).await;
+    let libsql = |name: &str| {
+        MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+            url: format!("http://{address}"),
+            auth_token: None,
+            replica_path: Some(
+                metadata.0
+                    .path()
+                    .join(name)
+                    .join("replica.db"),
+            ),
+            sync_interval_secs: Some(3600),
+            max_connections: None,
+        })
+    };
+    let writer = Replica::start_with_metadata(&store, libsql("writer")).await;
+    assert_eq!(writer.publish("lag-pkg", "1.0.0", b"v1").await, StatusCode::CREATED);
+
+    let reader = Replica::start_with_metadata(&store, libsql("reader")).await;
+    assert_eq!(reader.packument("lag-pkg").await["dist-tags"]["latest"], "1.0.0");
+
+    let expected_v2 = npm::publishable_tgz("lag-pkg", "2.0.0", b"v2");
+    let expected_new = npm::publishable_tgz("fresh-pkg", "1.0.0", b"fresh");
+    assert_eq!(writer.publish("lag-pkg", "2.0.0", b"v2").await, StatusCode::CREATED);
+    assert_eq!(writer.publish("fresh-pkg", "1.0.0", b"fresh").await, StatusCode::CREATED);
+
+    assert!(
+        reader.packument("lag-pkg").await["versions"].get("2.0.0").is_none(),
+        "packuments still come from the unsynced replica",
+    );
+    assert_eq!(reader.send("GET", "/npm/fresh-pkg", Body::empty()).await.0, StatusCode::NOT_FOUND);
+
+    for path in ["/npm/lag-pkg/-/lag-pkg-2.0.0.tgz", "/npm/lag-pkg@2.0.0"] {
+        let response = reader.app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(body.as_ref(), expected_v2.as_slice(), "{path}");
+    }
+    let (status, manifest) = reader.send("GET", "/npm/lag-pkg/2.0.0", Body::empty()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(manifest["version"], "2.0.0");
+
+    let response = reader.app
+        .clone()
+        .oneshot(
+            Request::get("/npm/fresh-pkg/-/fresh-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.as_ref(), expected_new.as_slice());
+    let (status, manifest) = reader.send("GET", "/npm/fresh-pkg/1.0.0", Body::empty()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(manifest["version"], "1.0.0");
+
+    assert_eq!(
+        reader.send("GET", "/npm/lag-pkg/-/lag-pkg-9.9.9.tgz", Body::empty())
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+    );
+
+    drop(primary);
+    server.abort();
+}
+
 #[expect(clippy::print_stderr, reason = "Reports test timings, which nextest captures.")]
 async fn assert_parallel_uploads(objects: &PausingStore, replica: &Replica) {
     objects.pause_write(tarball_key("paused-pkg", "1.0.0", b"slow"));

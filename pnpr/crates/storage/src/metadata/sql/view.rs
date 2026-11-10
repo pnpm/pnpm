@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion,
-    metadata::{BlobLookup, PackageView, PublishBase, TagChange, TagUpdate},
+    metadata::{BlobLookup, HostedLookup, PackageView, PublishBase, TagChange, TagUpdate},
 };
 use pnpr_error::Result;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
@@ -71,6 +71,31 @@ impl PackageMetadata {
         self.read_view_with(name, Freshness::AtLeast(generation)).await
     }
 
+    /// Look up an entry in `name`'s view, reading the primary when a lagging
+    /// replica lacks the package or `select` finds nothing in its view.
+    pub(crate) async fn lookup_in_view<Found, Select>(
+        &self,
+        name: &CanonicalPackageName,
+        mut select: Select,
+    ) -> Result<HostedLookup<Found>>
+    where
+        Found: Send + 'static,
+        Select: FnMut(&[u8]) -> Result<Option<Found>> + Send + 'static,
+    {
+        let key = self.key(name);
+        let is_found = |lookup: &HostedLookup<Found>| matches!(lookup, HostedLookup::Found(_));
+        self.database.read_if(is_found, move |connection, cache| {
+            let Some(view) = render::read_view(connection, cache, &key)? else {
+                return Ok(HostedLookup::Absent);
+            };
+            Ok(match select(&view.bytes)? {
+                Some(found) => HostedLookup::Found(found),
+                None => HostedLookup::Missing,
+            })
+        })
+        .await
+    }
+
     /// One version's accepted manifest, with its `_archiveManifest`
     /// interpretation but without its README and deprecation: what the
     /// version's release record is made of. Only that version's rows are
@@ -85,7 +110,7 @@ impl PackageMetadata {
         }
         let key = self.key(name);
         let version = version.to_string();
-        self.database.read(self.catalog.clone(), Freshness::Bounded, move |connection, cache| {
+        self.database.read_present(move |connection, cache| {
             render::read_version(connection, cache, &key, &version)
         })
         .await
@@ -106,7 +131,7 @@ impl PackageMetadata {
         }
         let key = self.key(name);
         let version = version.to_string();
-        self.database.read(self.catalog.clone(), Freshness::Bounded, move |connection, _| {
+        self.database.read_present(move |connection, _| {
             super::versions::read_release_record(connection, &key, &version)
         })
         .await

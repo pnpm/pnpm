@@ -147,6 +147,9 @@ async fn read_version_packument(
         (RegistrySource::Hosted(source), Some(_)) => {
             read_hosted_record_packument(state, identity, source, &name, version_or_tag).await
         }
+        (RegistrySource::Hosted(source), None) => {
+            read_hosted_version_packument(state, identity, source, &name, version_or_tag).await
+        }
         _ => read_whole_packument(state, identity, &resolved_source, &name).await,
     };
     let packument = match packument {
@@ -170,6 +173,30 @@ async fn read_whole_packument(
         return Ok(None);
     };
     Ok(Some(serde_json::from_slice(&bytes)?))
+}
+
+async fn read_hosted_version_packument(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    name: &CanonicalPackageName,
+    version_or_tag: &str,
+) -> Result<Option<Value>, RegistryError> {
+    let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+    let requested = version_or_tag.to_string();
+    let lookup = state.inner.storage
+        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .lookup_in_hosted_document(name, move |bytes| {
+            let packument: Value = serde_json::from_slice(bytes)?;
+            let resolved = resolve_version_or_tag(&packument, &requested);
+            let present = packument
+                .get("versions")
+                .and_then(|versions| versions.get(resolved))
+                .is_some();
+            Ok(present.then_some(packument))
+        })
+        .await?;
+    Ok(lookup.found())
 }
 
 /// The packument of a hosted release record: only the addressed version,

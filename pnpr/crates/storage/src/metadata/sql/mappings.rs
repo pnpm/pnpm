@@ -226,7 +226,7 @@ impl super::PackageMetadata {
     ) -> Result<Option<crate::metadata::BlobRef>> {
         let key = self.key(name);
         let artifact = artifact.to_string();
-        self.database.read(self.catalog.clone(), Freshness::Bounded, move |connection, _| {
+        self.database.read_present(move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let row = connection.query_optional(
                 super::blobs::ARTIFACT,

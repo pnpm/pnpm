@@ -4,7 +4,7 @@
 
 use super::{
     SqlMetadata,
-    adapter::{Connection, ReadSource},
+    adapter::{Connection, ReadSource, Snapshot},
     cache::RenderCache,
     catalog_generation,
 };
@@ -39,7 +39,7 @@ pub(super) enum Freshness {
 
 /// How a read of the replica went.
 enum ReplicaRead<Output> {
-    Read(Output),
+    Read(Output, Snapshot),
     /// The replica has not reached the generation the read requires.
     Behind,
     /// The replica failed where the primary may not; a sync would not help.
@@ -75,6 +75,35 @@ impl SqlMetadata {
         let database = Arc::clone(self);
         tokio::task::spawn_blocking(move || database.run_read(&catalog, freshness, operation))
             .await?
+    }
+
+    /// [`Self::read`] at [`Freshness::Bounded`], reading the primary when a
+    /// lagging replica's answer does not satisfy `present`.
+    pub(super) async fn read_if<Output, Operation, Present>(
+        self: &Arc<Self>,
+        present: Present,
+        operation: Operation,
+    ) -> Result<Output>
+    where
+        Output: Send + 'static,
+        Present: Fn(&Output) -> bool + Send + 'static,
+        Operation: FnMut(&dyn Connection, &RenderCache) -> Result<Output> + Send + 'static,
+    {
+        let database = Arc::clone(self);
+        tokio::task::spawn_blocking(move || database.run_read_if(present, operation)).await?
+    }
+
+    /// [`Self::read`] at [`Freshness::Bounded`], reading the primary when a
+    /// lagging replica holds `None`.
+    pub(super) async fn read_present<Output, Operation>(
+        self: &Arc<Self>,
+        operation: Operation,
+    ) -> Result<Option<Output>>
+    where
+        Output: Send + 'static,
+        Operation: FnMut(&dyn Connection, &RenderCache) -> Result<Option<Output>> + Send + 'static,
+    {
+        self.read_if(Option::is_some, operation).await
     }
 
     /// Run the write `operation`, again from its start while the adapter
@@ -149,14 +178,35 @@ impl SqlMetadata {
         let started = Instant::now();
         let behind = Some((catalog, required));
         match self.read_replica(behind, &mut operation)? {
-            ReplicaRead::Read(output) => return Ok(output),
+            ReplicaRead::Read(output, _) => return Ok(output),
             // A sync the first read made already counts.
             ReplicaRead::Behind if self.adapter.sync_replica(started).is_ok() => {
-                if let ReplicaRead::Read(output) = self.read_replica(behind, &mut operation)? {
+                if let ReplicaRead::Read(output, _) = self.read_replica(behind, &mut operation)? {
                     return Ok(output);
                 }
             }
             ReplicaRead::Behind | ReplicaRead::Failed => {}
+        }
+        self.read_primary(&mut operation)
+    }
+
+    /// Run `operation` on the replica while it is within its freshness bound,
+    /// and on the primary when a lagging replica's answer does not satisfy
+    /// `present`.
+    fn run_read_if<Output>(
+        &self,
+        present: impl Fn(&Output) -> bool,
+        mut operation: impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Output> {
+        self.ensure_schema()?;
+        if !self.adapter.has_replica() {
+            return self.read_primary(&mut operation);
+        }
+        match self.read_replica(None, &mut operation)? {
+            ReplicaRead::Read(output, Snapshot::Current) => return Ok(output),
+            ReplicaRead::Read(output, Snapshot::Lagging) if present(&output) => return Ok(output),
+            ReplicaRead::Read(_, Snapshot::Lagging) | ReplicaRead::Behind | ReplicaRead::Failed => {
+            }
         }
         self.read_primary(&mut operation)
     }
@@ -168,8 +218,8 @@ impl SqlMetadata {
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
     ) -> Result<ReplicaRead<Output>> {
         match self.read_once(ReadSource::Replica, required, operation) {
-            Ok(Some(output)) => Ok(ReplicaRead::Read(output)),
-            Ok(None) => Ok(ReplicaRead::Behind),
+            Ok((Some(output), snapshot)) => Ok(ReplicaRead::Read(output, snapshot)),
+            Ok((None, _)) => Ok(ReplicaRead::Behind),
             Err(error) if self.adapter.is_database_failure(&error) => {
                 tracing::warn!(%error, "a metadata read of the replica failed; reading the primary");
                 Ok(ReplicaRead::Failed)
@@ -182,7 +232,7 @@ impl SqlMetadata {
         &self,
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
     ) -> Result<Output> {
-        self.read_once(ReadSource::Primary, None, operation)?
+        self.read_once(ReadSource::Primary, None, operation)?.0
             .ok_or_else(|| RegistryError::Internal {
                 reason: "a metadata read of the primary did not run".to_string(),
             })
@@ -196,16 +246,16 @@ impl SqlMetadata {
         source: ReadSource,
         required: Option<(&str, u64)>,
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
-    ) -> Result<Option<Output>> {
+    ) -> Result<(Option<Output>, Snapshot)> {
         let mut output = None;
-        self.adapter.read(source, &mut |connection| {
+        let snapshot = self.adapter.read(source, &mut |connection| {
             connection.begin_read()?;
             let result = self.read_if_reached(connection, required, operation);
             let ended = if result.is_ok() { connection.commit() } else { connection.rollback() };
             output = result?;
             ended
         })?;
-        Ok(output)
+        Ok((output, snapshot))
     }
 
     /// Run `operation` on `connection` when it has reached `required`.

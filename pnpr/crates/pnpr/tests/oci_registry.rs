@@ -482,3 +482,83 @@ fn repository_with_colliding_lock_keys() -> String {
         })
         .expect("a repository whose lock keys collide")
 }
+
+#[cfg(feature = "backend-libsql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unsynced_libsql_replica_serves_oci_manifests_and_blobs_from_the_primary() {
+    use object_store::{ObjectStore, memory::InMemory};
+    use pnpr::HostedStoreConfig;
+    use std::sync::Arc;
+
+    let tmp = TempDir::new().unwrap();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (primary, address, server) =
+        pnpr_libsql::testing::serve_primary(tmp.path().join("primary.db")).await;
+
+    let instance = |name: &str| {
+        let mut config = oci_config(tmp.path().join(name), "$all");
+        config.storage.hosted_backend =
+            HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
+        config.storage.metadata =
+            pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+                url: format!("http://{address}"),
+                auth_token: None,
+                replica_path: Some(tmp.path().join(name).join("replica.db")),
+                sync_interval_secs: Some(3600),
+                max_connections: None,
+            });
+        router_with_auth(config, AuthState::in_memory())
+    };
+    let writer = instance("writer");
+    let reader = instance("reader");
+    let auth = basic(&token(&writer).await);
+
+    push_image(&writer, &auth, "acme/app", "1.0").await;
+    assert_eq!(get(&reader, "/v2/acme/app/tags/list").await.status(), StatusCode::OK);
+
+    let layer_v2 = push_blob(&writer, &auth, "acme/app", b"layer-v2").await;
+    push_blob(&writer, &auth, "acme/app", b"cfg-v2").await;
+    let manifest_v2 = image_manifest("cfg-v2", &["layer-v2"]);
+    let digest_v2 = digest_of(&manifest_v2);
+    let put = Request::put("/v2/acme/app/manifests/2.0")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(manifest_v2.clone()))
+        .unwrap();
+    assert_eq!(
+        writer
+            .clone()
+            .oneshot(put)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let by_tag = get(&reader, "/v2/acme/app/manifests/2.0").await;
+    assert_eq!(by_tag.status(), StatusCode::OK);
+    assert_eq!(body_bytes(by_tag.into_body()).await, manifest_v2);
+    assert_eq!(
+        get(&reader, &format!("/v2/acme/app/manifests/{digest_v2}")).await.status(),
+        StatusCode::OK,
+    );
+
+    let blob = get(&reader, &format!("/v2/acme/app/blobs/{layer_v2}")).await;
+    assert_eq!(blob.status(), StatusCode::OK);
+    assert_eq!(body_bytes(blob.into_body()).await, b"layer-v2");
+
+    let missing = get(&reader, "/v2/acme/app/manifests/9.9").await;
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    let missing_body: Value =
+        serde_json::from_slice(&body_bytes(missing.into_body()).await).unwrap();
+    assert_eq!(missing_body["errors"][0]["code"], "MANIFEST_UNKNOWN");
+
+    let unknown = get(&reader, "/v2/acme/never/manifests/1.0").await;
+    assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+    let unknown_body: Value =
+        serde_json::from_slice(&body_bytes(unknown.into_body()).await).unwrap();
+    assert_eq!(unknown_body["errors"][0]["code"], "NAME_UNKNOWN");
+
+    drop(primary);
+    server.abort();
+}

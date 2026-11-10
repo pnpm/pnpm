@@ -23,7 +23,7 @@
 //! on the blocking pool and waits there for libsql's async client.
 
 use crate::{
-    adapter::{Adapter, Connection, ReadSource},
+    adapter::{Adapter, Connection, ReadSource, Snapshot},
     schema,
 };
 use pnpr_config::LibsqlSettings;
@@ -289,7 +289,7 @@ impl Adapter for LibsqlAdapter {
         &self,
         source: ReadSource,
         operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
-    ) -> Result<()> {
+    ) -> Result<Snapshot> {
         let runtime = Handle::current();
         let opened = self.opened(&runtime)?;
         let replica = match (source, &opened.replica) {
@@ -298,20 +298,23 @@ impl Adapter for LibsqlAdapter {
         };
         // A sync that a write of this process overtook leaves the replica
         // stale, and the read goes to the primary.
-        let replica = replica.filter(|replica| {
-            replica.is_fresh()
-                || (runtime
-                    .block_on(replica.sync(Instant::now()))
-                    .is_ok()
-                    && replica.is_fresh())
+        let replica = replica.and_then(|replica| {
+            if replica.is_fresh() {
+                return Some((replica, Snapshot::Lagging));
+            }
+            let synced = runtime
+                .block_on(replica.sync(Instant::now()))
+                .is_ok();
+            (synced && replica.is_fresh()).then_some((replica, Snapshot::Current))
         });
-        let (pool, local) = match replica {
-            Some(replica) => (&replica.pool, true),
-            None => (&opened.primary, false),
-        };
+        let (pool, local, snapshot) =
+            replica.map_or((&opened.primary, false, Snapshot::Current), |(replica, snapshot)| {
+                (&replica.pool, true, snapshot)
+            });
         let checkout = runtime.block_on(pool.checkout())?;
         let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
-        run(&runtime, checkout, Session::Read { local, deadline }, operation)
+        run(&runtime, checkout, Session::Read { local, deadline }, operation)?;
+        Ok(snapshot)
     }
 
     fn is_retryable(&self, error: &RegistryError) -> bool {
