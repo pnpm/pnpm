@@ -608,9 +608,11 @@ packumentTtl: 30s
 
 The largest tarball pnpr fetches from an upstream registry. pnpr writes each
 proxied tarball to a temporary file while it verifies the integrity, so this
-bounds the disk one request can take. An upstream tarball over the limit is
-refused with `502 Bad Gateway`, and the install fails with
-`ERR_PNPM_TARBALL_HTTP_STATUS`.
+bounds the disk one request can take. An upstream tarball that declares a size
+over the limit is refused with `502 Bad Gateway`, and the install fails with
+`ERR_PNPM_TARBALL_HTTP_STATUS`. When the upstream does not declare the size,
+pnpr cuts the download off once it crosses the limit, and the install fails
+with a download error instead.
 
 Defaults to `100MiB`. Takes an integer number of bytes or a size suffix such
 as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
