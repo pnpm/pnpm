@@ -1,8 +1,8 @@
 use super::{
-    AccessList, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, Value, access_rule,
-    body_bytes, body_json, config_for, enable_osv, foo_packument, header, json,
-    mock_packument_for_tarball, osv_database, public_cache_blob, public_cache_blobs, router,
-    router_with_auth, sha512_integrity, upstream_endpoint_config,
+    AccessList, Body, Duration, PackageRules, Request, ServiceExt, StatusCode, TempDir, Value,
+    access_rule, await_no_tgz, body_bytes, body_json, config_for, enable_osv, foo_packument,
+    header, json, mock_packument_for_tarball, osv_database, public_cache_blob, public_cache_blobs,
+    router, router_with_auth, sha512_integrity, upstream_endpoint_config,
 };
 use crate::tokens::issue_token;
 
@@ -1050,6 +1050,47 @@ async fn upstream_tarball_over_max_tarball_size_is_refused_until_the_cap_is_rais
     assert_eq!(served.status(), StatusCode::OK);
     assert_eq!(body_bytes(served.into_body()).await, bytes);
     tarball_mock.assert_async().await;
+}
+
+/// A cached upstream that declares no size is already streaming to the client
+/// when the tarball crosses `maxTarballSize`, so the cap can only cut the body
+/// off: the status is 200, reading the body fails, and nothing is cached.
+#[tokio::test]
+async fn cached_upstream_tarball_of_undeclared_size_is_cut_off_at_max_tarball_size() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = vec![0xAB_u8; 8 * 1024];
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes).await;
+    let chunked = bytes.clone();
+    let tarball_mock = upstream
+        .mock("GET", "/big/-/big-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_chunked_body(move |writer| writer.write_all(&chunked))
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.http.max_tarball_bytes = 4 * 1024;
+
+    let response = router(config)
+        .oneshot(
+            Request::get("/npm/big/-/big-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err(),
+        "crossing the cap mid-stream must surface as a body error",
+    );
+    tarball_mock.assert_async().await;
+    assert!(
+        await_no_tgz(&public_cache_blobs(tmp.path(), "big"), Duration::from_secs(1)).await,
+        "the cut-off tarball is never cached",
+    );
 }
 
 /// A `cache: false` upstream spools the tarball to a temporary file before it
