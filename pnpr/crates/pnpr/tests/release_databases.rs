@@ -85,7 +85,7 @@ async fn sqlite_only_binary_rejects_unbuilt_database_schemes() {
 }
 
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[tokio::test]
 #[ignore = "requires PNPR_TEST_RELEASE_BIN, PNPR_TEST_POSTGRES_URL, and PNPR_TEST_MYSQL_URL"]
 async fn release_binary_supports_every_database_scheme() {
     let bin = PathBuf::from(

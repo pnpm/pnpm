@@ -1,9 +1,15 @@
 use tempfile::TempDir;
 
+#[derive(Clone, Copy)]
+enum DatabaseBackend {
+    Postgres,
+    Mysql,
+}
+
 pub struct TestDatabase {
     admin_url: String,
     db_name: String,
-    is_postgres: bool,
+    backend: DatabaseBackend,
     pub url: String,
 }
 
@@ -11,28 +17,41 @@ impl Drop for TestDatabase {
     fn drop(&mut self) {
         let admin_url = self.admin_url.clone();
         let db_name = self.db_name.clone();
-        let is_postgres = self.is_postgres;
-        let runtime = tokio::runtime::Handle::current();
-        let result = tokio::task::block_in_place(|| {
-            runtime.block_on(drop_database(&admin_url, &db_name, is_postgres))
-        });
-        if let Err(err) = result
-            && !std::thread::panicking()
-        {
-            panic!("failed to drop test database {db_name}: {err}");
+        let backend = self.backend;
+        let joined = std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build cleanup runtime")
+                .block_on(drop_database(&admin_url, &db_name, backend))
+        })
+        .join();
+        if !std::thread::panicking() {
+            match joined {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => panic!("failed to drop test database {}: {err}", self.db_name),
+                Err(payload) => std::panic::resume_unwind(payload),
+            }
         }
     }
 }
 
-async fn drop_database(admin_url: &str, db_name: &str, is_postgres: bool) -> sqlx::Result<()> {
-    if is_postgres {
-        let pool = sqlx::PgPool::connect(admin_url).await?;
-        sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)")).execute(&pool).await?;
-        pool.close().await;
-    } else {
-        let pool = sqlx::MySqlPool::connect(admin_url).await?;
-        sqlx::query(&format!("DROP DATABASE {db_name}")).execute(&pool).await?;
-        pool.close().await;
+async fn drop_database(
+    admin_url: &str,
+    db_name: &str,
+    backend: DatabaseBackend,
+) -> sqlx::Result<()> {
+    match backend {
+        DatabaseBackend::Postgres => {
+            let pool = sqlx::PgPool::connect(admin_url).await?;
+            sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)")).execute(&pool).await?;
+            pool.close().await;
+        }
+        DatabaseBackend::Mysql => {
+            let pool = sqlx::MySqlPool::connect(admin_url).await?;
+            sqlx::query(&format!("DROP DATABASE {db_name}")).execute(&pool).await?;
+            pool.close().await;
+        }
     }
     Ok(())
 }
@@ -50,7 +69,7 @@ pub async fn create_postgres_database(admin_url: &str, scheme: &str) -> TestData
         admin_url: admin_url.to_string(),
         url: format!("{scheme}://{rest}/{db_name}"),
         db_name,
-        is_postgres: true,
+        backend: DatabaseBackend::Postgres,
     }
 }
 
@@ -66,7 +85,7 @@ pub async fn create_mysql_database(admin_url: &str) -> TestDatabase {
         admin_url: admin_url.to_string(),
         url: format!("{base}/{db_name}"),
         db_name,
-        is_postgres: false,
+        backend: DatabaseBackend::Mysql,
     }
 }
 
