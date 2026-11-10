@@ -3545,6 +3545,9 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
     },
     {
       name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/bar': 'catalog:legacy',
+      },
     },
   ])
 
@@ -3598,7 +3601,8 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
   // catalog range, the second resolution pass applies the override immediately.
   const overridesMatchingBumpedBar: Record<string, string> = {
     '@pnpm.e2e/foo@^100.0.0': '100.0.0',
-    '@pnpm.e2e/bar@^100.1.0': '100.0.0',
+    'project1>@pnpm.e2e/bar@^100.1.0': '100.0.0',
+    'project2>@pnpm.e2e/bar@100.0.0': '100.0.0',
   }
   catalogs.legacy['@pnpm.e2e/bar'] = '100.0.0'
   await mutateModules(installProjects(projects), {
@@ -3609,6 +3613,10 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
   })
   expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
     specifier: 'catalog:legacy',
+    version: '100.0.0',
+  })
+  expect(readLockfile().importers['project2' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
     version: '100.0.0',
   })
 
@@ -3623,6 +3631,11 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
         update: true,
         updateToLatest: true,
         updatePackageManifest: true,
+      },
+      {
+        ...projects['project2' as ProjectId],
+        rootDir: path.resolve('project2') as ProjectRootDir,
+        mutation: 'install' as const,
       },
     ],
     {
@@ -3640,6 +3653,10 @@ test('version-selector overrides apply to catalog: dependencies', async () => {
   expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
     specifier: '100.0.0',
     version: '100.0.0',
+  })
+  expect(readLockfile().importers['project2' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: 'catalog:legacy',
+    version: '100.1.0',
   })
 
   catalogs.legacy['@pnpm.e2e/bar'] = '100.1.0'

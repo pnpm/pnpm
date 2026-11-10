@@ -269,6 +269,7 @@ async function resolveGraphWithUpdatedCatalogOverrides (
   resolveGraph: ResolveGraph,
   { opts, projects }: { opts: InstallInContextOptions, projects: ImporterToUpdate[] }
 ): Promise<GraphResolution> {
+  const previousHookedManifests = projects.map((project) => clone(project.manifest))
   const resolution: GraphResolution = {
     ...await resolveGraph(opts.catalogs, opts.parsedOverrides, opts.readPackageHook),
     parsedOverrides: opts.parsedOverrides,
@@ -294,6 +295,7 @@ async function resolveGraphWithUpdatedCatalogOverrides (
   return resolveGraphWithUpdatedCatalogs(resolveGraph, {
     opts,
     parsedOverrides: overridesWithUpdatedCatalogs,
+    previousHookedManifests,
     projects,
     resolution,
     updatedCatalogsConfig,
@@ -318,6 +320,7 @@ function catalogUpdateAffectsOverrides (
 interface UpdatedCatalogsResolutionContext {
   opts: InstallInContextOptions
   parsedOverrides: VersionOverride[]
+  previousHookedManifests: Array<ImporterToUpdate['manifest']>
   projects: ImporterToUpdate[]
   resolution: GraphResolution
   updatedCatalogsConfig: Catalogs
@@ -325,12 +328,12 @@ interface UpdatedCatalogsResolutionContext {
 
 async function resolveGraphWithUpdatedCatalogs (
   resolveGraph: ResolveGraph,
-  { opts, parsedOverrides, projects, resolution, updatedCatalogsConfig }: UpdatedCatalogsResolutionContext
+  { opts, parsedOverrides, previousHookedManifests, projects, resolution, updatedCatalogsConfig }: UpdatedCatalogsResolutionContext
 ): Promise<GraphResolution> {
   const waitTillFirstResolutionFetchingsFinish = resolution.waitTillAllFetchingsFinish
   const handledViolations = new Set(resolution.resolutionPolicyViolations.map(policyViolationKey))
   const readPackageHook = createInstallReadPackageHook({ ...opts, catalogs: updatedCatalogsConfig }, parsedOverrides)
-  await reapplyReadPackageHookToProjects(projects, { opts, parsedOverrides, readPackageHook, updatedCatalogsConfig })
+  await reapplyReadPackageHookToProjects(projects, { opts, parsedOverrides, previousHookedManifests, readPackageHook, updatedCatalogsConfig })
   const resolutionWithUpdatedCatalogs = await resolveGraph(
     updatedCatalogsConfig,
     parsedOverrides,
@@ -353,18 +356,20 @@ async function resolveGraphWithUpdatedCatalogs (
 
 async function reapplyReadPackageHookToProjects (
   projects: ImporterToUpdate[],
-  { opts, parsedOverrides, readPackageHook, updatedCatalogsConfig }: Omit<UpdatedCatalogsResolutionContext, 'projects' | 'resolution'> & {
+  { opts, parsedOverrides, previousHookedManifests, readPackageHook, updatedCatalogsConfig }: Omit<UpdatedCatalogsResolutionContext, 'projects' | 'resolution'> & {
     readPackageHook: ReadPackageHook | undefined
   }
 ): Promise<void> {
   const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(parsedOverrides, opts.overridesRootDir, updatedCatalogsConfig)
-  await Promise.all(projects.map(async (project) => reapplyReadPackageHookToProject(project, { overriddenDependencyMatcherFor, readPackageHook })))
+  await Promise.all(projects.map(async (project, index) =>
+    reapplyReadPackageHookToProject(project, { overriddenDependencyMatcherFor, previousHookedManifest: previousHookedManifests[index], readPackageHook })))
 }
 
 async function reapplyReadPackageHookToProject (
   project: ImporterToUpdate,
-  { overriddenDependencyMatcherFor, readPackageHook }: {
+  { overriddenDependencyMatcherFor, previousHookedManifest, readPackageHook }: {
     overriddenDependencyMatcherFor: ReturnType<typeof createOverriddenDependencyMatcher>
+    previousHookedManifest: ImporterToUpdate['manifest']
     readPackageHook: ReadPackageHook | undefined
   }
 ): Promise<void> {
@@ -374,14 +379,15 @@ async function reapplyReadPackageHookToProject (
   const isOverriddenDependency = overriddenDependencyMatcherFor?.(project.manifest)
   if (project.updatePackageManifest) project.isOverriddenDependency = isOverriddenDependency
   project.wantedDependencies = project.wantedDependencies.flatMap((dep) =>
-    rewriteWantedDependencyForUpdatedCatalogs(project, dep, { isOverriddenDependency, unhookedManifest }))
+    rewriteWantedDependencyForUpdatedCatalogs(project, dep, { isOverriddenDependency, previousHookedManifest, unhookedManifest }))
 }
 
 function rewriteWantedDependencyForUpdatedCatalogs (
   project: ImporterToUpdate,
   dep: ImporterToUpdate['wantedDependencies'][number],
-  { isOverriddenDependency, unhookedManifest }: {
+  { isOverriddenDependency, previousHookedManifest, unhookedManifest }: {
     isOverriddenDependency: ImporterToUpdate['isOverriddenDependency']
+    previousHookedManifest: ImporterToUpdate['manifest']
     unhookedManifest: ImporterToUpdate['manifest']
   }
 ): Array<ImporterToUpdate['wantedDependencies'][number]> {
@@ -393,7 +399,9 @@ function rewriteWantedDependencyForUpdatedCatalogs (
     project.hookOwnedAliases?.add(dep.alias)
     return [{ ...dep, bareSpecifier: hookedSpec, saveSpec: false, updateToLatestAllowed: false }]
   }
-  return [project.hookOwnedAliases?.delete(dep.alias) ? { ...dep, bareSpecifier: hookedSpec } : dep]
+  const wasOwnedByHook = project.hookOwnedAliases?.delete(dep.alias) === true ||
+    (dep.bareSpecifier === getSpecFromPackageManifest(previousHookedManifest, dep.alias) && dep.bareSpecifier !== unhookedSpec)
+  return [wasOwnedByHook ? { ...dep, bareSpecifier: hookedSpec } : dep]
 }
 
 function excludeUnincludedDependencies (
