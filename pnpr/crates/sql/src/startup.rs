@@ -7,6 +7,7 @@ use std::{
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 /// Open the startup connection with visible retries.
+/// If the deadline cancels a retry, the error retains the preceding connection failure.
 ///
 /// # Errors
 ///
@@ -19,10 +20,11 @@ pub async fn connect_startup<Database: sqlx::Database>(
     let target = pnpr_config::redact_connection_url(target);
     let deadline = tokio::time::Instant::now() + timeout;
     let mut delay = Duration::from_millis(100);
+    let mut previous_failure = None;
     loop {
         let error = match connect_once(pool, deadline).await {
             Ok(connection) => return Ok(connection),
-            Err(error) => error,
+            Err(error) => error.into_driver_error(deadline, previous_failure.take())?,
         };
         let cause = pnpr_error::redact_url_credentials(&error.to_string());
         let failure =
@@ -37,6 +39,7 @@ pub async fn connect_startup<Database: sqlx::Database>(
         if tokio::time::Instant::now() >= deadline {
             return Err(failure);
         }
+        previous_failure = Some(failure);
         delay = (delay * 2).min(Duration::from_secs(5));
     }
 }
@@ -44,13 +47,39 @@ pub async fn connect_startup<Database: sqlx::Database>(
 async fn connect_once<Database: sqlx::Database>(
     pool: &sqlx::Pool<Database>,
     deadline: tokio::time::Instant,
-) -> std::result::Result<Database::Connection, sqlx::Error> {
+) -> std::result::Result<Database::Connection, ConnectError> {
     tokio::time::timeout_at(
         deadline.min(tokio::time::Instant::now() + Duration::from_secs(10)),
         pool.connect_options().connect(),
     )
     .await
-    .map_err(|_| sqlx::Error::Io(std::io::ErrorKind::TimedOut.into()))?
+    .map_err(|_| ConnectError::TimedOut)?
+    .map_err(ConnectError::Driver)
+}
+
+enum ConnectError {
+    Driver(sqlx::Error),
+    TimedOut,
+}
+
+impl ConnectError {
+    fn into_driver_error(
+        self,
+        deadline: tokio::time::Instant,
+        previous_failure: Option<RegistryError>,
+    ) -> Result<sqlx::Error> {
+        match self {
+            Self::Driver(error) => Ok(error),
+            Self::TimedOut => {
+                if tokio::time::Instant::now() >= deadline
+                    && let Some(failure) = previous_failure
+                {
+                    return Err(failure);
+                }
+                Ok(sqlx::Error::Io(std::io::ErrorKind::TimedOut.into()))
+            }
+        }
+    }
 }
 
 fn is_retryable(error: &sqlx::Error) -> bool {

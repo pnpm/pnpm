@@ -41,14 +41,33 @@ async fn config_check_rejects_a_database_driver_missing_from_the_build() {
 #[cfg(feature = "backend-postgres")]
 #[tokio::test]
 async fn postgres_startup_retries_report_the_redacted_target_and_cause() {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = listener.local_addr().unwrap();
-    drop(listener);
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket
+        .bind("127.0.0.1:0".parse().unwrap())
+        .unwrap();
+    let address = socket.local_addr().unwrap();
+    let (retrying, retry) = tokio::sync::oneshot::channel();
+    let server = tokio::spawn(async move {
+        retry.await.unwrap();
+        let listener = socket.listen(1).unwrap();
+        let (client, _) = listener.accept().await.unwrap();
+        std::future::pending::<()>().await;
+        drop(client);
+    });
     let log = tempfile::NamedTempFile::new().unwrap();
+    let output = std::sync::Arc::new(log.reopen().unwrap());
+    let retrying = std::sync::Mutex::new(Some(retrying));
     let subscriber = tracing_subscriber::fmt()
         .without_time()
         .with_ansi(false)
-        .with_writer(std::sync::Arc::new(log.reopen().unwrap()))
+        .with_env_filter("pnpr_sql::startup=warn")
+        .with_writer(move || {
+            let notification = retrying.lock().unwrap().take();
+            if let Some(retrying) = notification {
+                retrying.send(()).unwrap();
+            }
+            std::sync::Arc::clone(&output)
+        })
         .finish();
     let _guard = tracing::subscriber::set_default(subscriber);
     let settings = pnpr_config::SqlBackendSettings {
@@ -62,6 +81,7 @@ async fn postgres_startup_retries_report_the_redacted_target_and_cause() {
         .await
         .unwrap_err()
         .to_string();
+    server.abort();
     let output = std::fs::read_to_string(log.path()).unwrap();
     assert!(output.contains("database connection failed, retrying"), "{output}\n{error}");
     for message in [&output, &error] {
