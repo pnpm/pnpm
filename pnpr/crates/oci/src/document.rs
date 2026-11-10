@@ -9,9 +9,19 @@ pub struct ManifestEntry {
     pub digest: Digest,
     pub media_type: String,
     pub size: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<Digest>,
     /// Missing metadata is populated from the manifest during referrer discovery.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub referrer: Option<ReferrerMetadata>,
+}
+
+/// Outcome of [`ImageDocument::remove_manifest`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManifestRemoval {
+    Removed,
+    NotFound,
+    ReferencedByIndex,
 }
 
 /// Metadata used to discover artifacts attached to a subject manifest.
@@ -200,16 +210,22 @@ impl ImageDocument {
         }
     }
 
-    /// Every tag that named the manifest goes with it. `false` when the
-    /// repository held no such manifest.
-    pub fn remove_manifest(&mut self, digest: &Digest) -> bool {
+    /// Remove a manifest and every tag that named it, unless a retained index
+    /// in this repository still lists it as a child.
+    pub fn remove_manifest(&mut self, digest: &Digest) -> ManifestRemoval {
         let Ok(index) = self.manifests.binary_search_by(|held| held.digest.hex().cmp(digest.hex()))
         else {
-            return false;
+            return ManifestRemoval::NotFound;
         };
+        if self.manifests
+            .iter()
+            .any(|held| held.digest != *digest && held.children.contains(digest))
+        {
+            return ManifestRemoval::ReferencedByIndex;
+        }
         self.manifests.remove(index);
         self.tags.retain(|tag| &tag.digest != digest);
-        true
+        ManifestRemoval::Removed
     }
 
     /// The manifest the tag named stays, still reachable by digest. `false`

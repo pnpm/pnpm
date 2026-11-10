@@ -132,6 +132,7 @@ async fn retained_image_with_layers(
     let manifest = blob(storage, repository, &bytes).await;
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        children: Vec::new(),
         referrer: None,
         digest: manifest.clone(),
         size: bytes.len() as u64,
@@ -246,6 +247,7 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
     let index = blob(&storage, &repository, &bytes).await;
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        children: Vec::new(),
         referrer: None,
         digest: index.clone(),
         size: bytes.len() as u64,
@@ -289,6 +291,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
     let digest = blob(&storage, &repository, &bytes).await;
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        children: Vec::new(),
         referrer: None,
         digest: digest.clone(),
         size: bytes.len() as u64,
@@ -310,6 +313,7 @@ async fn a_corrupt_repository_without_blobs_leaves_other_repositories_collectabl
     let repository = name("empty");
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        children: Vec::new(),
         referrer: None,
         digest: Digest::of(b"missing"),
         size: 7,
