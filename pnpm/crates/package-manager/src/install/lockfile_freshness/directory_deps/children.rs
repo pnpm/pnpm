@@ -79,7 +79,7 @@ pub(super) fn check_recorded_local_targets(
             continue;
         }
         if (catalog_child_aliases.contains(&child.alias)
-            && !child_is_fresh(check, dep, snapshot, child))
+            && !catalog_child_is_fresh(check, dep, snapshot, child))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
         {
             return Err(dep.outdated());
@@ -87,6 +87,17 @@ pub(super) fn check_recorded_local_targets(
         check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
     }
     Ok(())
+}
+
+pub(super) fn catalog_child_is_fresh(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    child: &DependencySpec,
+) -> bool {
+    recorded_child(snapshot, &child.alias, RecordedDeps::of(child))
+        .and_then(|recorded| implicit_workspace_target_satisfies(dep, child, recorded))
+        .unwrap_or_else(|| child_is_fresh(check, dep, snapshot, child))
 }
 
 fn recorded_local_target_is_fresh(
