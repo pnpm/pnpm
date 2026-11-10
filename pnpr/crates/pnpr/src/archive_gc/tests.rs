@@ -101,11 +101,32 @@ async fn archive_path(
     local_archive_path(&temp.path().join("store"), "", Ecosystem::Oci, &blob.key())
 }
 
-async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) -> (Digest, Digest) {
-    let layer = blob(storage, repository, b"layer").await;
+struct RetainedImage {
+    manifest: Digest,
+    config: Digest,
+    layers: Vec<Digest>,
+    manifest_and_config_bytes: u64,
+}
+
+async fn retained_image_with_layers(
+    storage: &Storage,
+    repository: &CanonicalPackageName,
+    config_bytes: &[u8],
+    layers: &[&[u8]],
+) -> RetainedImage {
+    let config = blob(storage, repository, config_bytes).await;
+    let mut layer_digests = Vec::with_capacity(layers.len());
+    let mut descriptors = Vec::with_capacity(layers.len());
+    for layer_bytes in layers {
+        let digest = blob(storage, repository, layer_bytes).await;
+        descriptors.push(json!({"digest": digest, "size": layer_bytes.len()}));
+        layer_digests.push(digest);
+    }
     let bytes = serde_json::to_vec(&json!({
-        "schemaVersion": 2, "mediaType": media_type::OCI_IMAGE_MANIFEST,
-        "config": {"digest": layer, "size": 5}, "layers": [],
+        "schemaVersion": 2,
+        "mediaType": media_type::OCI_IMAGE_MANIFEST,
+        "config": {"digest": config, "size": config_bytes.len()},
+        "layers": descriptors,
     }))
     .unwrap();
     let manifest = blob(storage, repository, &bytes).await;
@@ -120,7 +141,17 @@ async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) ->
         .write_hosted_document_if_current(repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
-    (manifest, layer)
+    RetainedImage {
+        manifest,
+        config,
+        layers: layer_digests,
+        manifest_and_config_bytes: (config_bytes.len() + bytes.len()) as u64,
+    }
+}
+
+async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) -> (Digest, Digest) {
+    let image = retained_image_with_layers(storage, repository, b"layer", &[]).await;
+    (image.manifest, image.config)
 }
 
 #[tokio::test]
@@ -390,4 +421,80 @@ async fn collection_finishes_an_interrupted_reclaim_after_the_lease() {
         .unwrap()
         .unwrap();
     assert_eq!(blob.incarnation, 2);
+}
+
+#[tokio::test]
+async fn dry_run_keeps_layers_shared_with_another_repository() {
+    let (_temp, storage) = setup();
+    let app = name("acme/app");
+    let worker = name("acme/worker");
+    let shared_bytes = b"shared layer";
+    let app_image =
+        retained_image_with_layers(&storage, &app, b"app config", &[shared_bytes]).await;
+    let worker_image =
+        retained_image_with_layers(&storage, &worker, b"worker config", &[shared_bytes]).await;
+    let shared_layer = &app_image.layers[0];
+    assert_eq!(shared_layer, &worker_image.layers[0]);
+    storage
+        .update_hosted_document_with_retry(&app, 1, None, |_| Ok(Some(Vec::new())))
+        .await
+        .unwrap();
+    assert_eq!(
+        collect(&storage, Duration::ZERO, true, MANIFEST_LIMIT).await.unwrap(),
+        (2, app_image.manifest_and_config_bytes),
+    );
+    assert_eq!(
+        collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(),
+        (2, app_image.manifest_and_config_bytes),
+    );
+    assert!(
+        storage
+            .open_hosted_blob(&worker, &shared_layer.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        storage
+            .open_hosted_blob(&app, &app_image.manifest.blob_filename())
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn dry_run_matches_collection_for_shared_unreferenced_blobs() {
+    let (temp, storage) = setup();
+    let first = name("acme/first");
+    let second = name("acme/second");
+    let shared_bytes = b"shared in-flight layer";
+    blob(&storage, &first, shared_bytes).await;
+    let shared = blob(&storage, &second, shared_bytes).await;
+    let database = rusqlite::Connection::open(temp.path().join("metadata.sqlite")).unwrap();
+    database
+        .execute("UPDATE artifact_blobs SET mapped_at = 0 WHERE name = 'acme/first'", [])
+        .unwrap();
+    drop(database);
+    let day = Duration::from_hours(24);
+    assert_eq!(collect(&storage, day, true, MANIFEST_LIMIT).await.unwrap(), (0, 0));
+    assert_eq!(collect(&storage, day, false, MANIFEST_LIMIT).await.unwrap(), (0, 0));
+    assert!(
+        storage
+            .open_hosted_blob(&second, &shared.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
+    );
+
+    let third = name("acme/third");
+    blob(&storage, &third, shared_bytes).await;
+    assert_eq!(
+        collect(&storage, Duration::ZERO, true, MANIFEST_LIMIT).await.unwrap(),
+        (1, shared_bytes.len() as u64),
+    );
+    assert_eq!(
+        collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(),
+        (1, shared_bytes.len() as u64),
+    );
 }
