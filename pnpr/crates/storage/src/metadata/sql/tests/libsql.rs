@@ -628,3 +628,84 @@ async fn metadata_writes_and_reads_retry_when_the_primary_expires_or_drops_a_str
     assert_eq!(latest(&views(&dropped_reader)).await.as_deref(), Some("3.0.0"));
     assert_eq!(server.primary.stale_stream_rejections(), 5);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
+    use pnpr_sql::{
+        adapter::{Adapter, WriteTransaction},
+        libsql::LibsqlAdapter,
+    };
+
+    let server = server().await;
+    let instance = server.instance(None, 60);
+    publish(&views(&instance), &["1.0.0"]).await;
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 1);
+
+    let adapter = Arc::new(LibsqlAdapter::new(server.settings(None, 60)));
+
+    // A callback that already committed a transaction and then hits a stale
+    // stream in a second transaction must surface the error rather than
+    // replaying the first committed write.
+    let tx_calls = Arc::new(AtomicUsize::new(0));
+    let tx_calls_run = Arc::clone(&tx_calls);
+    let adapter_run = Arc::clone(&adapter);
+    let primary_run = Arc::clone(&server.primary);
+    let tx_err = tokio::task::spawn_blocking(move || {
+        adapter_run.write(&mut |connection| {
+            tx_calls_run.fetch_add(1, Ordering::SeqCst);
+            let first = WriteTransaction::begin(connection)?;
+            first.execute(
+                "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+                &[],
+            )?;
+            first.commit()?;
+
+            let second = WriteTransaction::begin(connection)?;
+            second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+            primary_run.expire_next_stream();
+            second.execute(
+                "UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''",
+                &[],
+            )?;
+            second.commit()
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&tx_err), "{tx_err:?}");
+    assert_eq!(tx_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 1);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 11);
+
+    // An autocommit write flushed in an earlier batch is equally irreversible.
+    let auto_calls = Arc::new(AtomicUsize::new(0));
+    let auto_calls_run = Arc::clone(&auto_calls);
+    let primary_auto = Arc::clone(&server.primary);
+    let auto_err = tokio::task::spawn_blocking(move || {
+        adapter.write(&mut |connection| {
+            auto_calls_run.fetch_add(1, Ordering::SeqCst);
+            connection.execute(
+                "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+                &[],
+            )?;
+            connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+
+            let second = WriteTransaction::begin(connection)?;
+            second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+            primary_auto.drop_next_stream();
+            second.execute(
+                "UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''",
+                &[],
+            )?;
+            second.commit()
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&auto_err), "{auto_err:?}");
+    assert_eq!(auto_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 2);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 21);
+}

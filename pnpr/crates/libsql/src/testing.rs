@@ -148,8 +148,11 @@ impl Streams {
                 (None, Some(_)) => StaleStream::Expired,
                 (None, None) => StaleStream::Unknown,
             };
-            if matches!(request, Request::Statements | Request::ReadEnd) {
-                self.rejected.fetch_add(1, Ordering::SeqCst);
+            match request {
+                Request::Statements | Request::ReadEnd => {
+                    self.rejected.fetch_add(1, Ordering::SeqCst);
+                }
+                Request::Close => {}
             }
             return Err(stale);
         }

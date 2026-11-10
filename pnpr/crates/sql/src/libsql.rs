@@ -179,6 +179,25 @@ impl Opened {
         }
         Ok(opened)
     }
+
+    /// Pool, whether it is the local replica, and [`Snapshot`] for `source`.
+    fn read_target(
+        &self,
+        runtime: &Handle,
+        source: ReadSource,
+    ) -> (&ConnectionPool, bool, Snapshot) {
+        match source {
+            ReadSource::Replica => {
+                if let Some(replica) = &self.replica
+                    && let Some(snapshot) = replica.snapshot(runtime)
+                {
+                    return (&replica.pool, true, snapshot);
+                }
+                (&self.primary, false, Snapshot::Current)
+            }
+            ReadSource::Primary => (&self.primary, false, Snapshot::Current),
+        }
+    }
 }
 
 /// Sync the replica every `interval` while the database is open.
@@ -268,6 +287,19 @@ impl Replica {
         lock(&self.synced).finish_sync(started);
         Ok(())
     }
+
+    /// Snapshot a read of the replica sees, syncing first when stale. `None`
+    /// when a sync fails or a write of this process overtakes it, sending the
+    /// read to the primary.
+    fn snapshot(&self, runtime: &Handle) -> Option<Snapshot> {
+        if self.is_fresh() {
+            return Some(Snapshot::Lagging);
+        }
+        let synced = runtime
+            .block_on(self.sync(Instant::now()))
+            .is_ok();
+        (synced && self.is_fresh()).then_some(Snapshot::Current)
+    }
 }
 
 impl Adapter for LibsqlAdapter {
@@ -278,10 +310,11 @@ impl Adapter for LibsqlAdapter {
         let checkout = runtime.block_on(opened.primary.checkout())?;
         // A write cut off after it reached the primary leaves its commit
         // state unknown, so its statements run without a deadline.
-        let result = match run(&runtime, checkout, Session::Write, operation) {
-            Err(error) if pnpr_libsql::is_stale_stream(&error) => {
+        let (first, state) = run(&runtime, checkout, Session::Write, operation);
+        let result = match first {
+            Err(error) if state.can_replay_write() && pnpr_libsql::is_stale_stream(&error) => {
                 let fresh = runtime.block_on(opened.primary.checkout_fresh())?;
-                run(&runtime, fresh, Session::Write, operation)
+                run(&runtime, fresh, Session::Write, operation).0
             }
             result => result,
         };
@@ -298,32 +331,14 @@ impl Adapter for LibsqlAdapter {
     ) -> Result<Snapshot> {
         let runtime = Handle::current();
         let opened = self.opened(&runtime)?;
-        let replica = match (source, &opened.replica) {
-            (ReadSource::Replica, Some(replica)) => Some(replica),
-            _ => None,
-        };
-        // A sync that a write of this process overtook leaves the replica
-        // stale, and the read goes to the primary.
-        let replica = replica.and_then(|replica| {
-            if replica.is_fresh() {
-                return Some((replica, Snapshot::Lagging));
-            }
-            let synced = runtime
-                .block_on(replica.sync(Instant::now()))
-                .is_ok();
-            (synced && replica.is_fresh()).then_some((replica, Snapshot::Current))
-        });
-        let (pool, local, snapshot) = match replica {
-            Some((replica, snapshot)) => (&replica.pool, true, snapshot),
-            None => (&opened.primary, false, Snapshot::Current),
-        };
+        let (pool, local, snapshot) = opened.read_target(&runtime, source);
         let checkout = runtime.block_on(pool.checkout())?;
         let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
         let session = Session::Read { local, deadline };
-        match run(&runtime, checkout, session, operation) {
+        match run(&runtime, checkout, session, operation).0 {
             Err(error) if !local && pnpr_libsql::is_stale_stream(&error) => {
                 let fresh = checkout_fresh_before(&runtime, &opened.primary, deadline)?;
-                run(&runtime, fresh, session, operation)?;
+                run(&runtime, fresh, session, operation).0?;
             }
             result => result?,
         }
@@ -377,7 +392,7 @@ fn run(
     checkout: Checkout,
     session: Session,
     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
-) -> Result<()> {
+) -> (Result<()>, StreamState) {
     let (local, deadline, read) = match session {
         Session::Write => (false, None, false),
         Session::Read { local, deadline } => (local, Some(deadline), true),
@@ -397,16 +412,28 @@ fn run(
         let result = operation(&statements).and_then(|()| statements.send().map(drop));
         (result, statements.state.get())
     };
-    if result.is_ok() && matches!(state, StreamState::CommitLater) {
-        let conn = checkout.connection().clone();
-        checkout.release_after(runtime, async move {
-            let commit = conn.execute_batch_with_params([("COMMIT", ())]);
-            matches!(tokio::time::timeout(OPERATION_TIMEOUT, commit).await, Ok(Ok(_)))
-        });
-        return result;
+    match (&result, state) {
+        (Ok(()), StreamState::CommitLater) => {
+            let conn = checkout.connection().clone();
+            checkout.release_after(runtime, async move {
+                let commit = conn.execute_batch_with_params([("COMMIT", ())]);
+                matches!(tokio::time::timeout(OPERATION_TIMEOUT, commit).await, Ok(Ok(_)))
+            });
+        }
+        (Ok(()), StreamState::Active | StreamState::Committed) => checkout.release(true),
+        (Ok(()), StreamState::LostBeforeCommit | StreamState::LostAfterCommit)
+        | (
+            Err(_),
+            StreamState::Active
+            | StreamState::Committed
+            | StreamState::CommitLater
+            | StreamState::LostBeforeCommit
+            | StreamState::LostAfterCommit,
+        ) => {
+            checkout.release(false);
+        }
     }
-    checkout.release(result.is_ok());
-    result
+    (result, state)
 }
 
 /// A fresh connection from `pool`, bounded by a read's remaining `deadline`.

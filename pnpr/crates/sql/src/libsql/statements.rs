@@ -11,11 +11,26 @@ use tokio::runtime::Handle;
 #[derive(Debug, Clone, Copy)]
 pub(super) enum StreamState {
     Active,
+    /// At least one batch completed in autocommit mode on a write connection,
+    /// so an autocommit statement or an earlier transaction committed.
+    Committed,
     /// A read of the primary finished; [`run`](super::run) sends its `COMMIT`.
     CommitLater,
-    /// The primary rejected a batch as a stale stream and dropped any open
-    /// transaction.
-    Lost,
+    /// The primary rejected a batch as a stale stream before any batch
+    /// committed on this connection.
+    LostBeforeCommit,
+    /// The primary rejected a batch as a stale stream after an earlier batch
+    /// already committed on this connection.
+    LostAfterCommit,
+}
+
+impl StreamState {
+    pub(super) fn can_replay_write(self) -> bool {
+        match self {
+            Self::LostBeforeCommit => true,
+            Self::Active | Self::Committed | Self::CommitLater | Self::LostAfterCommit => false,
+        }
+    }
 }
 
 /// One libSQL connection, run from a blocking thread.
@@ -54,9 +69,29 @@ impl Statements<'_> {
         if let Err(ref error) = result
             && pnpr_libsql::is_stale_stream(error)
         {
-            self.state.set(StreamState::Lost);
+            let lost = match self.state.get() {
+                StreamState::Active | StreamState::CommitLater | StreamState::LostBeforeCommit => {
+                    StreamState::LostBeforeCommit
+                }
+                StreamState::Committed | StreamState::LostAfterCommit => {
+                    StreamState::LostAfterCommit
+                }
+            };
+            self.state.set(lost);
         }
         result
+    }
+
+    fn note_completed_batch(&self) {
+        if !self.local && !self.read && self.conn.is_autocommit() {
+            let next = match self.state.get() {
+                StreamState::Active | StreamState::Committed => StreamState::Committed,
+                StreamState::CommitLater
+                | StreamState::LostBeforeCommit
+                | StreamState::LostAfterCommit => self.state.get(),
+            };
+            self.state.set(next);
+        }
     }
 
     fn hold(&self, sql: &str, params: &[Param<'_>]) {
@@ -75,6 +110,7 @@ impl Statements<'_> {
         let sent = statements.len();
         let results = self.wait(async {
             let mut batch = self.conn.execute_batch_with_params(statements).await?;
+            self.note_completed_batch();
             let mut results = Vec::new();
             while let Some(step) = batch.next_stmt_row() {
                 results.push(match step {
@@ -148,6 +184,9 @@ impl Connection for Statements<'_> {
         self.send()?;
         self.wait(async {
             self.conn.execute_batch(sql).await?;
+            if !sql.trim().eq_ignore_ascii_case("ROLLBACK") {
+                self.note_completed_batch();
+            }
             Ok(())
         })
     }
@@ -206,7 +245,11 @@ impl Connection for Statements<'_> {
         let unsent = held
             .first()
             .is_some_and(|(sql, _)| sql.starts_with("BEGIN"));
-        if unsent || matches!(self.state.get(), StreamState::Lost) || self.conn.is_autocommit() {
+        let stream_lost = match self.state.get() {
+            StreamState::LostBeforeCommit | StreamState::LostAfterCommit => true,
+            StreamState::Active | StreamState::Committed | StreamState::CommitLater => false,
+        };
+        if unsent || stream_lost || self.conn.is_autocommit() {
             return Ok(());
         }
         self.execute_batch("ROLLBACK")
