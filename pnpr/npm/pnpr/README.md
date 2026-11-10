@@ -258,7 +258,7 @@ pnpr supports these databases:
 | --- | --- |
 | libsql / Turso | `database.url: libsql://…` |
 | PostgreSQL | `database.url: postgres://…` |
-| MySQL-compatible | `database.url: mysql://…` |
+| MySQL 8.0.19 or later | `database.url: mysql://…` |
 
 Token lookups happen on the request hot path, so the database should be
 low-latency from the server.

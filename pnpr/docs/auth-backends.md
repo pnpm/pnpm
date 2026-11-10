@@ -19,7 +19,7 @@ pnpr supports these databases:
 | --- | --- |
 | libsql / Turso | `database.url: libsql://…` |
 | PostgreSQL | `database.url: postgres://…` |
-| MySQL | `database.url: mysql://…` |
+| MySQL 8.0.19 or later | `database.url: mysql://…` |
 
 :::tip
 
