@@ -65,25 +65,15 @@ export async function resolveNpm (
   const registry = wantedDependency.alias
     ? pickRegistryForPackage(ctx.registriesByScope, wantedDependency.alias, wantedDependency.bareSpecifier)
     : ctx.registriesByScope.default
-  if (wantedDependency.bareSpecifier?.startsWith('workspace:')) {
-    const workspacePath = wantedDependency.bareSpecifier.slice('workspace:'.length)
-    if (workspacePath.startsWith('.') || path.isAbsolute(workspacePath)) return null
-    const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
-      defaultTag,
-      lockfileDir: opts.lockfileDir,
-      projectDir: opts.projectDir,
-      registry,
-      workspacePackages: opts.workspacePackages,
-      injectWorkspacePackages: opts.injectWorkspacePackages,
-      update: Boolean(opts.update),
-      updateRequested: Boolean(opts.updateRequested),
-      saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
-      calcSpecifier: opts.calcSpecifier,
-      rangeSpecStyle: opts.rangeSpecStyle,
-    })
-    if (resolvedFromWorkspace != null) {
-      return resolvedFromWorkspace
-    }
+  const resolvedFromWorkspace = resolveWorkspaceDependency({
+    ctx,
+    wantedDependency,
+    opts,
+    registry,
+    defaultTag,
+  })
+  if (resolvedFromWorkspace != null) {
+    return resolvedFromWorkspace
   }
   const spec = wantedDependency.bareSpecifier
     ? parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag, registry)
@@ -96,6 +86,38 @@ export async function resolveNpm (
     spec,
     registry,
     workspacePackages: workspacePackagesToTry(opts),
+  })
+}
+
+function resolveWorkspaceDependency ({
+  ctx,
+  wantedDependency,
+  opts,
+  registry,
+  defaultTag,
+}: {
+  ctx: ResolveFromNpmContext
+  wantedDependency: WantedDependency & { optional?: boolean }
+  opts: ResolveFromNpmOptions
+  registry: string
+  defaultTag: string
+}): WorkspaceResolveResult | null {
+  const bareSpecifier = wantedDependency.bareSpecifier
+  if (!bareSpecifier?.startsWith('workspace:')) return null
+  const workspacePath = bareSpecifier.slice('workspace:'.length)
+  if (workspacePath.startsWith('.') || path.isAbsolute(workspacePath)) return null
+  return tryResolveFromWorkspace(wantedDependency, {
+    defaultTag,
+    lockfileDir: opts.lockfileDir,
+    projectDir: opts.projectDir,
+    registry,
+    workspacePackages: opts.workspacePackages,
+    injectWorkspacePackages: opts.injectWorkspacePackages,
+    update: Boolean(opts.update),
+    updateRequested: Boolean(opts.updateRequested),
+    saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
+    calcSpecifier: opts.calcSpecifier,
+    rangeSpecStyle: opts.rangeSpecStyle,
   })
 }
 
