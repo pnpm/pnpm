@@ -25,7 +25,7 @@ use publication::post_upload;
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
+    documents::read_hosted_document,
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
@@ -383,21 +383,21 @@ async fn hosted_file(
     document: &ProjectDocument,
     filename: &str,
 ) -> Response {
-    if let Some(distribution) = filename.strip_suffix(".metadata") {
-        return match document
-            .file(distribution)
-            .and_then(|entry| entry.hosted_metadata.as_ref())
-        {
-            Some(metadata) => {
-                ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], metadata.clone())
-                    .into_response()
-            }
-            None => not_found(),
-        };
-    }
-    if document.file(filename).is_none() {
+    let distribution = filename.strip_suffix(".metadata").unwrap_or(filename);
+    let Some(entry) = document.file(distribution) else { return not_found() };
+    if filename.ends_with(".metadata") && entry.metadata().is_none() {
         return not_found();
     }
-    serve_hosted_blob(state, identity, source, key, filename).await
-        .unwrap_or_else(IntoResponse::into_response)
+    let mut response = serve_hosted_blob(state, identity, source, key, filename)
+        .await
+        .unwrap_or_else(IntoResponse::into_response);
+    if filename.ends_with(".metadata") && response.status() == StatusCode::OK {
+        response
+            .headers_mut()
+            .insert(
+                header::CONTENT_TYPE,
+                "text/plain; charset=utf-8".parse().expect("static content type"),
+            );
+    }
+    response
 }

@@ -1,6 +1,6 @@
 use crate::{CoreMetadata, Yanked, escape_html, file_url};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, fmt::Write as _};
 
 /// One distribution file of a project, in the PEP 691 key spelling.
@@ -36,9 +36,6 @@ pub struct ProjectFile {
         deserialize_with = "crate::core_metadata::deserialize_optional_metadata"
     )]
     pub core_metadata: Option<CoreMetadata>,
-    /// Validated hosted distribution metadata, retained verbatim for sidecar requests.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hosted_metadata: Option<String>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -55,17 +52,18 @@ pub struct ProjectFile {
 
 impl ProjectFile {
     pub(super) fn render_json(&self, file_base: &str) -> Value {
-        serde_json::to_value(SimpleProjectFile {
-            filename: &self.filename,
-            url: file_url(file_base, &self.filename),
-            hashes: &self.hashes,
-            requires_python: self.requires_python.as_deref(),
-            yanked: &self.yanked,
-            size: self.size,
-            upload_time: self.upload_time.as_deref(),
-            core_metadata: self.metadata(),
-        })
-        .expect("project file serializes")
+        let mut entry = serde_json::to_value(self).expect("project file serializes");
+        entry["url"] = json!(file_url(file_base, &self.filename));
+        for metadata_key in ["core-metadata", "dist-info-metadata", "data-dist-info-metadata"] {
+            entry
+                .as_object_mut()
+                .expect("project file is an object")
+                .remove(metadata_key);
+        }
+        if let Some(metadata) = self.metadata() {
+            entry["core-metadata"] = json!(metadata);
+        }
+        entry
     }
 
     /// The file's lowercase hex SHA-256, when the index published one.
@@ -89,21 +87,4 @@ impl ProjectFile {
             let _ = write!(html, r#" {attribute}="{}""#, escape_html(&value));
         }
     }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "kebab-case")]
-struct SimpleProjectFile<'file> {
-    filename: &'file str,
-    url: String,
-    hashes: &'file BTreeMap<String, String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    requires_python: Option<&'file str>,
-    yanked: &'file Yanked,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    upload_time: Option<&'file str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    core_metadata: Option<&'file CoreMetadata>,
 }

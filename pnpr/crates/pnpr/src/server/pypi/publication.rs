@@ -1,10 +1,11 @@
 use super::{
+    super::{documents::stage_hosted_artifacts, publishing::commit_publishes},
     Action, AppState, AuthedCaller, BTreeMap, Bytes, CanonicalPackageName, DistributionKind,
     ECOSYSTEM, HeaderMap, Identity, ProjectDocument, ProjectFile, PublishTarget, RegistryError,
     RegistrySource, Request, Response, StagedPublish, State, StatusCode, TargetRegistry, Upload,
     Yanked, authorize, bad_request, header, multipart, normalize_version, now_iso,
     parse_distribution_filename, parse_upload, private_no_cache, resolve_publish_target_for,
-    sha256_hex, stage_hosted_artifact, store_hosted_artifact,
+    sha256_hex,
 };
 use axum::{extract::FromRequest as _, response::IntoResponse};
 use pnpr_pypi::CoreMetadata;
@@ -60,6 +61,7 @@ pub(in super::super) struct PypiPublication {
     pub(super) org: String,
     pub(super) entry: ProjectFile,
     pub(super) content: Vec<u8>,
+    metadata: Option<String>,
 }
 
 /// Every check a legacy-API upload must pass before anything is written.
@@ -164,12 +166,11 @@ fn verify_distribution(
                     sha256_hex(metadata.as_bytes()),
                 )]))
             }),
-        hosted_metadata: metadata,
         dist_info_metadata: None,
         data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
-    Ok(PypiPublication { key, org, entry, content: upload.content })
+    Ok(PypiPublication { key, org, entry, content: upload.content, metadata })
 }
 
 fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError> {
@@ -220,19 +221,9 @@ impl PypiPublication {
 
     /// Publish this file on its own, in a transaction of one.
     pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
-        store_hosted_artifact(
-            state,
-            &self.org,
-            &self.key,
-            &self.entry.filename.clone(),
-            &self.content,
-            refuse_existing_file(&self.entry.filename),
-            ProjectDocument {
-                files: vec![self.entry.clone()],
-                ..ProjectDocument::new(self.key.as_str())
-            },
-        )
-        .await
+        let _guard = state.inner.locks.packages.lock(self.key.as_str()).await;
+        let staged = self.stage(state).await?;
+        commit_publishes(state, vec![staged]).await
     }
 
     /// Stage this file as one package of a larger transaction. The caller
@@ -241,12 +232,16 @@ impl PypiPublication {
         self,
         state: &AppState,
     ) -> Result<StagedPublish, RegistryError> {
-        stage_hosted_artifact(
+        let sidecar = format!("{}.metadata", self.entry.filename);
+        let mut files = vec![(self.entry.filename.as_str(), self.content.as_slice())];
+        if let Some(metadata) = &self.metadata {
+            files.push((sidecar.as_str(), metadata.as_bytes()));
+        }
+        stage_hosted_artifacts(
             state,
             &self.org,
             &self.key,
-            &self.entry.filename.clone(),
-            &self.content,
+            &files,
             &refuse_existing_file(&self.entry.filename),
             ProjectDocument {
                 files: vec![self.entry.clone()],
