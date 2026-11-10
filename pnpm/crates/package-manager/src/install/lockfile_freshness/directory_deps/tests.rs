@@ -1345,6 +1345,8 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
     let workspace_dir = temp.path();
     let local_dir = workspace_dir.join("packages/lib");
     let target_dir = workspace_dir.join("packages/child");
+    std::fs::create_dir_all(&local_dir).expect("create directory dependency");
+    std::fs::create_dir_all(&target_dir).expect("create workspace target");
     let local_manifest = PackageManifest::from_value(
         local_dir.join("package.json"),
         serde_json::json!({ "name": "lib" }),
