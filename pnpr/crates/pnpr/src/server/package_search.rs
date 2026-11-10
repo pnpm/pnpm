@@ -199,8 +199,8 @@ pub(super) async fn append_hosted_search(
         return Ok(());
     };
     for name in names {
-        if page.push_name(&name) {
-            page.objects.push(pnpr_search::local_search_entry(&storage, &name).await);
+        if let Some(entry) = pnpr_search::local_search_entry(&storage, &name).await {
+            page.push(entry);
         }
     }
     Ok(())

@@ -141,23 +141,11 @@ async fn hosted_package_has_maintainer(storage: &Storage, name: &str, needle: &s
     packument_has_maintainer(&packument, needle)
 }
 
-pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
-    let entry = async {
-        let parsed = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).ok()?;
-        let bytes = storage.read_hosted_document(&parsed).await.ok()??;
-        let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
-        build_search_entry(name, &packument)
-    }
-    .await;
-    entry.unwrap_or_else(|| build_minimal_search_entry(name))
-}
-
-fn build_minimal_search_entry(name: &str) -> Value {
-    json!({
-        "package": { "name": name },
-        "score": { "final": 1.0 },
-        "searchScore": 1.0,
-    })
+pub async fn local_search_entry(storage: &Storage, name: &str) -> Option<Value> {
+    let parsed = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).ok()?;
+    let bytes = storage.read_hosted_document(&parsed).await.ok()??;
+    let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
+    build_search_entry(name, &packument)
 }
 
 /// Construct one entry for the `objects` array.
@@ -180,23 +168,30 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     pkg.insert("name".to_string(), Value::String(name.to_string()));
     pkg.insert("version".to_string(), Value::String(version_id.to_string()));
     insert_version_fields(&mut pkg, version_obj);
-    if let Some(maintainers) = obj
+    let maintainers = obj
         .get("maintainers")
         .or_else(|| version_obj.and_then(|version| version.get("maintainers")))
-    {
-        pkg.insert("maintainers".to_string(), search_maintainers(maintainers));
-    }
+        .map_or_else(|| Value::Array(Vec::new()), search_maintainers);
+    pkg.insert("maintainers".to_string(), maintainers);
     if let Some(time) = obj.get("time").and_then(Value::as_object) {
         let date = time
             .get(version_id)
-            .cloned()
-            .or_else(|| time.get("modified").cloned());
+            .or_else(|| time.get("modified"))
+            .filter(|value| value.is_string())
+            .cloned();
         if let Some(date) = date {
             pkg.insert("date".to_string(), date);
         }
     }
-    if let Some(npm_user) = version_obj.and_then(|v| v.get("_npmUser")) {
-        pkg.insert("publisher".to_string(), npm_user.clone());
+    if let Some(publisher) = version_obj
+        .and_then(|version| {
+            version
+                .get("_npmUser")
+                .or_else(|| version.get("publisher"))
+        })
+        .and_then(search_user)
+    {
+        pkg.insert("publisher".to_string(), publisher);
     }
     Some(Value::Object(pkg))
 }
@@ -225,18 +220,18 @@ fn search_maintainers(maintainers: &Value) -> Value {
             .as_array()
             .into_iter()
             .flatten()
-            .filter_map(search_maintainer)
+            .filter_map(search_user)
             .collect(),
     )
 }
 
-fn search_maintainer(maintainer: &Value) -> Option<Value> {
-    let username = maintainer
+fn search_user(user: &Value) -> Option<Value> {
+    let username = user
         .get("username")
         .and_then(Value::as_str)
-        .or_else(|| maintainer.get("name").and_then(Value::as_str))?;
+        .or_else(|| user.get("name").and_then(Value::as_str))?;
     let mut result = json!({ "username": username });
-    if let Some(email) = maintainer.get("email").and_then(Value::as_str) {
+    if let Some(email) = user.get("email").and_then(Value::as_str) {
         result["email"] = json!(email);
     }
     Some(result)
@@ -255,19 +250,23 @@ fn insert_version_fields(pkg: &mut Map<String, Value>, version_obj: Option<&Map<
 }
 
 fn packument_has_maintainer(packument: &Value, needle: &str) -> bool {
+    let Some(versions) = packument
+        .get("versions")
+        .and_then(Value::as_object)
+        .filter(|versions| !versions.is_empty())
+    else {
+        return false;
+    };
     if maintainer_value_matches(packument.get("maintainers"), needle) {
         return true;
     }
-    let versions = packument.get("versions").and_then(Value::as_object);
-    versions.is_some_and(|versions| {
-        versions
-            .values()
-            .any(|version| {
-                maintainer_value_matches(version.get("maintainers"), needle)
-                    || maintainer_value_matches(version.get("_npmUser"), needle)
-                    || maintainer_value_matches(version.get("publisher"), needle)
-            })
-    })
+    versions
+        .values()
+        .any(|version| {
+            maintainer_value_matches(version.get("maintainers"), needle)
+                || maintainer_value_matches(version.get("_npmUser"), needle)
+                || maintainer_value_matches(version.get("publisher"), needle)
+        })
 }
 
 fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {

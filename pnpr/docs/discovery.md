@@ -47,8 +47,8 @@ results and are exact across every participating source.
 
 Search includes locally hosted packages and upstreams with `search: true`. If
 no upstream opts in, a package available only upstream will not appear in search
-results. Hosted npm search results include maintainer usernames and omit the
-external package-page link.
+results. Hosted npm search results include maintainer and publisher usernames
+and omit the external package-page link.
 
 ## Browsing without a search term
 
