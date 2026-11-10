@@ -1,5 +1,5 @@
 use super::{Arc, Duration, Pools, Result, SqlBackendSettings, invalid_pool_size, timeout_millis};
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{PgConnection, PgPool, postgres::PgPoolOptions};
 
 /// Share a pool for these settings within the current runtime.
 ///
@@ -31,14 +31,7 @@ pub fn options(
         }
         options = options.max_connections(max_connections);
     }
-    let statement_timeout_sql = timeout_sql(session_timeout);
-    options = options.after_connect(move |conn, _meta| {
-        let statement_timeout_sql = statement_timeout_sql.clone();
-        Box::pin(async move {
-            sqlx::query(&statement_timeout_sql).execute(conn).await?;
-            Ok(())
-        })
-    });
+    options = options.after_connect(move |conn, _meta| Box::pin(configure(conn, session_timeout)));
     Ok(options.acquire_timeout(acquire_timeout))
 }
 
@@ -46,4 +39,12 @@ pub fn options(
 #[must_use]
 pub fn timeout_sql(timeout: Duration) -> String {
     format!("SET statement_timeout = {}", timeout_millis(timeout))
+}
+
+pub(crate) async fn configure(
+    conn: &mut PgConnection,
+    timeout: Duration,
+) -> std::result::Result<(), sqlx::Error> {
+    sqlx::query(&timeout_sql(timeout)).execute(conn).await?;
+    Ok(())
 }

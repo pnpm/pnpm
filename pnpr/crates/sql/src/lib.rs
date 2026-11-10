@@ -37,7 +37,7 @@ pub use mysql::{options as mysql_options, pool as mysql_pool, timeout_sql as mys
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod startup;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-pub use startup::check_connection;
+pub use startup::{Checkout, StartupConnection, connect_startup};
 
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 fn invalid_pool_size() -> RegistryError {
