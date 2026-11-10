@@ -1,4 +1,5 @@
 use super::{Duration, RegistryError, Result};
+use sqlx::{ConnectOptions as _, Connection as _};
 
 /// Check initial connectivity with visible retries before the pool takes over.
 ///
@@ -10,34 +11,44 @@ pub async fn check_connection<Database: sqlx::Database>(
     target: &str,
     timeout: Duration,
 ) -> Result<()> {
-    use sqlx::{ConnectOptions as _, Connection as _};
     let target = pnpr_config::redact_connection_url(target);
     let deadline = tokio::time::Instant::now() + timeout;
     let mut delay = Duration::from_millis(100);
     loop {
-        let error = match tokio::time::timeout_at(
-            deadline.min(tokio::time::Instant::now() + Duration::from_secs(10)),
-            pool.connect_options().connect(),
-        )
-        .await
-        {
-            Ok(Ok(connection)) => {
+        let error = match connect_once(pool, deadline).await {
+            Ok(connection) => {
                 connection.close().await?;
                 return Ok(());
             }
-            Ok(Err(error)) => error,
-            Err(_) => sqlx::Error::Io(std::io::ErrorKind::TimedOut.into()),
+            Err(error) => error,
         };
         let cause = pnpr_error::redact_url_credentials(&error.to_string());
-        if !is_retryable(&error) || tokio::time::Instant::now() + delay >= deadline {
-            return Err(RegistryError::StorageUnavailable {
-                reason: format!("database {target}: {cause}"),
-            });
+        let failure =
+            RegistryError::StorageUnavailable { reason: format!("database {target}: {cause}") };
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if !is_retryable(&error) || remaining.is_zero() {
+            return Err(failure);
         }
-        tracing::warn!(%target, error = %cause, ?delay, "database connection failed, retrying");
-        tokio::time::sleep(delay).await;
+        let wait = delay.min(remaining);
+        tracing::warn!(%target, error = %cause, delay = ?wait, "database connection failed, retrying");
+        tokio::time::sleep(wait).await;
+        if tokio::time::Instant::now() >= deadline {
+            return Err(failure);
+        }
         delay = (delay * 2).min(Duration::from_secs(5));
     }
+}
+
+async fn connect_once<Database: sqlx::Database>(
+    pool: &sqlx::Pool<Database>,
+    deadline: tokio::time::Instant,
+) -> std::result::Result<Database::Connection, sqlx::Error> {
+    tokio::time::timeout_at(
+        deadline.min(tokio::time::Instant::now() + Duration::from_secs(10)),
+        pool.connect_options().connect(),
+    )
+    .await
+    .map_err(|_| sqlx::Error::Io(std::io::ErrorKind::TimedOut.into()))?
 }
 
 fn is_retryable(error: &sqlx::Error) -> bool {

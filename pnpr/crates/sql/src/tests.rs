@@ -47,10 +47,10 @@ async fn startup_connection_failure_names_the_target_and_cause_without_credentia
     drop(listener);
     let config = settings(&format!("postgres://example:example-secret@{address}/registry"));
     let pool = postgres_pool(&config).unwrap();
-    let error = super::check_connection(&pool, &config.url, Duration::from_millis(50))
-        .await
-        .unwrap_err()
-        .to_string();
+    let timeout = Duration::from_millis(50);
+    let started = std::time::Instant::now();
+    let error = super::check_connection(&pool, &config.url, timeout).await.unwrap_err().to_string();
+    assert!(started.elapsed() >= timeout);
     assert!(error.contains(&address.to_string()), "{error}");
     assert!(error.to_lowercase().contains("refused"), "{error}");
     assert!(!error.contains("example-secret"), "{error}");
