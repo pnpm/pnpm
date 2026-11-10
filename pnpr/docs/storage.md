@@ -386,6 +386,7 @@ are in progress, another large publish returns `429 Too Many Requests`.
 ### Interruptions
 
 - **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no file maps, which are never served; [`pnpr gc`](cli.md#gc) removes them. A publish refused at its commit removes the incarnations it stored itself, unless another publish of the same bytes committed one of them in the meantime. It first records one a commit could still make live as gone, so that commit is refused rather than left pointing at nothing.
+- **Local staging files**: A publish that times out, disconnects, or fails removes its `<cache>/.staging/` file when it stops. Unclean exits leave files that startup, periodic background sweeps, and [`pnpr cache-gc`](cli.md#cache-gc) reclaim once older than [`requestTimeout`](configuration.md#requesttimeout) (`1h` when disabled).
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
 ### Operational recommendations

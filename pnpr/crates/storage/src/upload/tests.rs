@@ -651,3 +651,50 @@ async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
         .unwrap();
     assert_eq!(axum::body::to_bytes(body, 100).await.unwrap().as_ref(), b"accepted");
 }
+
+#[tokio::test]
+async fn staging_an_older_chunked_upload_refreshes_mtime_against_archive_sweep() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = image("acme/app");
+
+    let upload = storage.begin_blob_upload(&name).await.unwrap();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"chunked layer").await.unwrap();
+    writer.finish().await.unwrap();
+
+    let backdated = std::time::SystemTime::now()
+        .checked_sub(Duration::from_mins(5))
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    std::fs::File::options()
+        .write(true)
+        .open(&upload.path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(backdated))
+        .unwrap();
+
+    let (file, id) = layer(b"chunked layer");
+    let slot = storage.stage_uploaded_blob(upload, &name, &file).await.unwrap();
+    assert_eq!(
+        storage
+            .sweep_archive_temps(Duration::from_mins(1))
+            .await
+            .unwrap(),
+        0,
+    );
+    assert!(slot.tmp_path.exists());
+
+    let size = tokio::fs::metadata(&slot.tmp_path).await.unwrap().len();
+    let promoted = storage
+        .promote_blob_slot(slot, (id, size), None)
+        .await
+        .unwrap();
+    storage.map_hosted_artifact(promoted.artifact).await.unwrap();
+    assert!(
+        storage
+            .open_hosted_blob(&name, &file)
+            .await
+            .unwrap()
+            .is_some(),
+    );
+}

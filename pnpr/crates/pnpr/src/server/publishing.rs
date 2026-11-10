@@ -327,7 +327,7 @@ pub(super) async fn commit_publishes(
 /// harmless beyond a small amount of disk.
 pub(super) async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::BlobSlot>) {
     for slot in slots {
-        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+        slot.abandon().await;
     }
 }
 

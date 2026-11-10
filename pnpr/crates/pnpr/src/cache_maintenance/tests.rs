@@ -1,4 +1,4 @@
-use super::{count_dir_contents, is_abandoned_tmp};
+use super::{is_abandoned_tmp, orphans::count_dir_contents};
 use std::{path::Path, time::Duration};
 
 #[test]

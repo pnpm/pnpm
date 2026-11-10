@@ -82,6 +82,12 @@ pub(crate) struct S3DocumentForUpdate {
 /// files away from the cache's `<pkg>/` package directories.
 const STAGING_SUBDIR: &str = ".staging";
 
+/// The path S3 publish staging files under `cache_root` are named after.
+#[must_use]
+pub fn cache_staging_tmp_base(cache_root: &Path) -> PathBuf {
+    cache_root.join(STAGING_SUBDIR).join("archive")
+}
+
 /// Send `tmp_path` as parts and complete the upload.
 pub(crate) async fn send_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result<()> {
     let result = stream_parts(tmp_path, upload).await;
@@ -248,7 +254,7 @@ impl S3Store {
     /// The path the staging files are named after.
     #[must_use]
     pub fn staging_tmp_base(&self) -> PathBuf {
-        self.staging_dir.join("archive")
+        cache_staging_tmp_base(&self.cache_root)
     }
 
     /// Upload the staged file at `tmp_path` under `key`. A key only ever

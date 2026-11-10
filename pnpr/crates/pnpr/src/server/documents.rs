@@ -295,10 +295,5 @@ async fn write_hosted_blob(
     filename: &str,
     bytes: &[u8],
 ) -> Result<BlobSlot, RegistryError> {
-    let slot = storage.reserve_hosted_blob(key, filename).await?;
-    if let Err(err) = tokio::fs::write(&slot.tmp_path, bytes).await {
-        cleanup_tmp_slots(vec![slot]).await;
-        return Err(err.into());
-    }
-    Ok(slot)
+    storage.reserve_hosted_blob(key, filename).await?.write_bytes(bytes).await
 }
