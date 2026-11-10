@@ -125,11 +125,7 @@ pub(crate) fn local_file_dependency_status(
         return Ok(LocalFileDependencyStatus::Current);
     }
     let Some(lockfile) = recorded_lockfile(check)? else {
-        return Ok(if tarballs.is_empty() {
-            LocalFileDependencyStatus::Current
-        } else {
-            LocalFileDependencyStatus::Changed
-        });
+        return Ok(unrecorded_local_dependency_status(&tarballs));
     };
     if tarballs
         .iter()
@@ -143,6 +139,16 @@ pub(crate) fn local_file_dependency_status(
         return Ok(LocalFileDependencyStatus::UnvouchedInjected);
     }
     Ok(LocalFileDependencyStatus::Current)
+}
+
+fn unrecorded_local_dependency_status(
+    tarballs: &[LocalTarballDependency],
+) -> LocalFileDependencyStatus {
+    if tarballs.is_empty() {
+        LocalFileDependencyStatus::Current
+    } else {
+        LocalFileDependencyStatus::Changed
+    }
 }
 
 /// The wanted lockfile, or the current lockfile when no wanted lockfile

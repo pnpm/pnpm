@@ -213,13 +213,7 @@ pub(crate) fn check_nested_directory_package(
         .and_then(|snapshots| snapshots.get(&nested.key));
     let dir =
         pnpm_resolving_deps_resolver::directory_package_dir(check.lockfile_dir, &nested.directory);
-    let mut scope = nested.ancestor_aliases.clone();
-    scope.extend(
-        check.lockfile.importers
-            .get(check.importer_id)
-            .into_iter()
-            .flat_map(importer_aliases),
-    );
+    let scope = nested_scope(check, nested);
     let visited = Visited::new(check.lockfile);
     let check_declared = |source| {
         let dep = LocalDepContext {
@@ -243,6 +237,20 @@ pub(crate) fn check_nested_directory_package(
         pkg_meta.specifiers.as_ref().and_then(|recorded| recorded.manifest_source),
         check_declared,
     )
+}
+
+fn nested_scope(
+    check: &ImporterSatisfactionCheck<'_>,
+    nested: &NestedDirectoryPackage,
+) -> AliasScope {
+    let mut scope = nested.ancestor_aliases.clone();
+    scope.extend(
+        check.lockfile.importers
+            .get(check.importer_id)
+            .into_iter()
+            .flat_map(importer_aliases),
+    );
+    scope
 }
 
 fn check_directory_declarations(
