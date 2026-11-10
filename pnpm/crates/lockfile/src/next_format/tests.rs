@@ -747,8 +747,7 @@ fn corpus_round_trips() {
     let mut failures = Vec::new();
     let mut converted = 0;
     for path in corpus.lines().map(Path::new) {
-        let Ok(text) = std::fs::read_to_string(path) else { continue };
-        let Ok(Some(lockfile)) = Lockfile::parse(&text, path) else { continue };
+        let Some((text, lockfile)) = corpus_input(path) else { continue };
         if !parallel_parse_matches_whole(&text, &lockfile) {
             failures.push(format!("{}: the parallel parse differs", path.display()));
         }
@@ -815,6 +814,17 @@ fn compare_timings() {
 }
 
 /// Whether `lockfile`, parsed section by section, equals `text` parsed whole.
+/// A corpus lockfile in today's format, parsed. `None` for a file that
+/// cannot be read or parsed, or that is already in the next format.
+fn corpus_input(path: &Path) -> Option<(String, Lockfile)> {
+    let text = std::fs::read_to_string(path).ok()?;
+    if super::parse::declares_next_format(&crate::extract_main_document(&text)) {
+        return None;
+    }
+    let lockfile = Lockfile::parse(&text, path).ok()??;
+    Some((text, lockfile))
+}
+
 fn parallel_parse_matches_whole(text: &str, lockfile: &Lockfile) -> bool {
     let whole: Lockfile = serde_saphyr::from_str(&crate::extract_main_document(text))
         .expect("parse the document whole");
