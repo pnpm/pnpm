@@ -45,6 +45,7 @@ fn deprecates_a_package_version_successfully() {
 
     let get_mock = server
         .mock("GET", "/@scope%2ftest")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();
@@ -90,6 +91,7 @@ fn deprecates_a_package_whose_document_is_larger_than_10_mib() {
 
     let get_mock = server
         .mock("GET", "/large")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(
             serde_json::json!({
@@ -144,6 +146,7 @@ fn fails_with_no_matching_versions_for_an_invalid_range() {
 
     let get_mock = server
         .mock("GET", "/test")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();
@@ -166,6 +169,7 @@ fn fails_on_unauthorized() {
 
     let get_mock = server
         .mock("GET", "/test")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();

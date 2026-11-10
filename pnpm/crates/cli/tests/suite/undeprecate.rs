@@ -45,6 +45,7 @@ fn undeprecates_a_package_version_successfully() {
 
     let get_mock = server
         .mock("GET", "/test")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{"deprecated":"old"}}}"#)
         .create();
@@ -92,6 +93,7 @@ fn fails_when_not_deprecated() {
 
     let get_mock = server
         .mock("GET", "/test")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();
