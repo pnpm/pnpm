@@ -252,13 +252,13 @@ Without a shared database, users live in an htpasswd file and tokens in a local
 SQLite database (see `auth:` above). Replicas using the same shared database see
 the same accounts, tokens, and package metadata.
 
-Database drivers are Cargo-feature gated:
+pnpr supports these databases:
 
-| Backend | Config key | Cargo feature |
-| --- | --- | --- |
-| libsql / Turso | `database.url: libsql://…` | `backend-libsql` (enabled by default) |
-| PostgreSQL | `database.url: postgres://…` | `backend-postgres` |
-| MySQL-compatible | `database.url: mysql://…` | `backend-mysql` |
+| Backend | Config key |
+| --- | --- |
+| libsql / Turso | `database.url: libsql://…` |
+| PostgreSQL | `database.url: postgres://…` |
+| MySQL-compatible | `database.url: mysql://…` |
 
 Token lookups happen on the request hot path, so the database should be
 low-latency from the server.
@@ -313,9 +313,6 @@ database:
   url: ${PNPR_MYSQL_URL}
   maxConnections: 16
 ```
-
-For PostgreSQL or MySQL support, build pnpr with the matching Cargo
-feature, for example `cargo build -p pnpr --features backend-postgres`.
 
 When the `database:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
