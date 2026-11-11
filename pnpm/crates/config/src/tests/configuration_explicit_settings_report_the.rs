@@ -403,6 +403,31 @@ pub fn lockfile_dir_equal_to_a_dedicated_project_keeps_its_default_paths() {
     assert!(!config.shares_one_lockfile());
 }
 
+#[cfg(windows)]
+#[test]
+pub fn case_equivalent_lockfile_dir_keeps_dedicated_project_layout() {
+    let tmp = tempdir().unwrap();
+    let workspace = tmp.path().join("CaseRoot");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    let lockfile_dir = workspace
+        .to_string_lossy()
+        .replace("CaseRoot", "caseroot")
+        .replace('\\', "/");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: {lockfile_dir}\n",
+        ),
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(&project).expect("loads");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert!(!config.shares_one_lockfile());
+}
+
 #[test]
 pub fn lockfile_dir_equal_to_workspace_root_does_not_reanchor_env_paths() {
     static WORKSPACE_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();

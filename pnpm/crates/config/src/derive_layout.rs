@@ -125,10 +125,7 @@ impl Config {
 
         let lockfile_dir_is_default = self.lockfile_dir
             .as_ref()
-            .is_some_and(|lockfile_dir| {
-                pnpm_fs::lexical_normalize(lockfile_dir)
-                    == pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(start_dir))
-            });
+            .is_some_and(|lockfile_dir| self.lockfile_dir_is_default(lockfile_dir, start_dir));
         if lockfile_dir_is_default {
             self.lockfile_dir = None;
         }

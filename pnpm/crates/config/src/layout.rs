@@ -84,6 +84,24 @@ impl Config {
         }
     }
 
+    pub(crate) fn lockfile_dir_is_default(&self, dir: &Path, project_dir: &Path) -> bool {
+        let dir = pnpm_fs::lexical_normalize(dir);
+        let default = pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(project_dir));
+        if dir == default {
+            return true;
+        }
+        #[cfg(windows)]
+        {
+            dir.to_string_lossy()
+                .eq_ignore_ascii_case(&default.to_string_lossy())
+                && same_file::is_same_file(dir, default).unwrap_or(false)
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
     /// Whether one `pnpm-lock.yaml` covers every project the command
     /// touches. The `sharedWorkspaceLockfile` setting, which an explicit
     /// [`lockfile_dir`] overrides: pinning the lockfile to one directory
@@ -141,7 +159,7 @@ impl Config {
     /// [`lockfile_dir`]: Self::lockfile_dir
     pub fn pin_lockfile_dir(&mut self, dir: &Path, project_dir: &Path) {
         let dir = pnpm_fs::lexical_normalize(dir);
-        if dir == pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(project_dir)) {
+        if self.lockfile_dir_is_default(&dir, project_dir) {
             let had_pin = self.lockfile_dir.is_some();
             self.lockfile_dir = None;
             if had_pin {
