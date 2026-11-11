@@ -89,8 +89,8 @@ pub(super) fn write_pnpr_benchmark_config(
     fs::write(&path, yaml).expect("write pnpr benchmark config");
     path
 }
-/// A config for the cold mock: isolated `storage` and a single public upstream
-/// at the warm origin, so every request is a cache miss proxied through to it.
+/// A config for the cold mock: isolated storage and cache, with a public
+/// upstream at the warm origin. Only the cache is cleared between iterations.
 ///
 /// The routing is expressed with `registries:` + `defaultRegistry:`.
 pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
@@ -98,13 +98,17 @@ pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
         || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
+        cache: storage
+            .join("cache")
+            .display()
+            .to_string(),
         registries: ColdMockUpstreamTable { npmjs: upstream() },
         default_registry: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
-/// Use isolated storage, wiped between iterations, with the warm mock as origin.
+/// Use an isolated cache, cleared between iterations, with the warm mock as origin.
 pub(super) fn cold_revision_mock_command(
     revision: &str,
     binary: &Path,
@@ -139,6 +143,7 @@ pub(super) fn cold_revision_mock_command(
 #[derive(Serialize)]
 pub(super) struct ColdMockConfig {
     storage: String,
+    cache: String,
     registries: ColdMockUpstreamTable,
     #[serde(rename = "defaultRegistry")]
     default_registry: &'static str,
