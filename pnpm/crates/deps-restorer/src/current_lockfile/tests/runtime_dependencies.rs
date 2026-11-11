@@ -19,7 +19,7 @@ fn finds_runtime_dependencies_in_selected_snapshots() {
 
     assert_eq!(
         crate::runtime_dependency_alias(&lockfile, included(false), &SkippedSnapshots::new()),
-        Some("node".to_string())
+        Some("node".to_string()),
     );
 }
 
@@ -31,7 +31,7 @@ fn ignores_optional_runtime_dependencies_when_optionals_are_excluded() {
 
     assert_eq!(
         crate::runtime_dependency_alias(&lockfile, included(false), &SkippedSnapshots::new()),
-        None
+        None,
     );
 }
 
@@ -43,7 +43,7 @@ fn finds_optional_runtime_dependencies_when_optionals_are_included() {
 
     assert_eq!(
         crate::runtime_dependency_alias(&lockfile, included(true), &SkippedSnapshots::new()),
-        Some("node".to_string())
+        Some("node".to_string()),
     );
 }
 
