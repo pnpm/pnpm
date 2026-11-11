@@ -829,16 +829,33 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
 
 #[tokio::test]
 async fn fetch_full_metadata_returns_not_modified_on_304() {
-    conditional_metadata(false).await;
+    conditional_metadata(false, false).await;
 }
 
 #[tokio::test]
 async fn local_metadata_preserves_conditional_headers() {
-    conditional_metadata(true).await;
+    conditional_metadata(true, false).await;
 }
 
-async fn conditional_metadata(local: bool) {
+#[tokio::test]
+async fn local_metadata_retries_transient_statuses() {
+    conditional_metadata(true, true).await;
+}
+
+async fn conditional_metadata(local: bool, transient: bool) {
     let mut server = mockito::Server::new_async().await;
+    let failed = if transient {
+        Some(
+            server
+                .mock("GET", "/acme")
+                .with_status(503)
+                .expect(1)
+                .create_async()
+                .await,
+        )
+    } else {
+        None
+    };
     let mock = server
         .mock("GET", "/acme")
         .match_header("if-none-match", r#"W/"fresh""#)
@@ -866,7 +883,7 @@ async fn conditional_metadata(local: bool) {
         http: crate::MetadataHttpClient {
             http_client: &http_client,
             auth_headers: &auth_headers,
-            retry_opts: no_retry_opts(),
+            retry_opts: fast_retry_opts(),
         },
     };
 
@@ -876,6 +893,9 @@ async fn conditional_metadata(local: bool) {
         "expected NotModified, got: {outcome:?}",
     );
     mock.assert_async().await;
+    if let Some(failed) = failed {
+        failed.assert_async().await;
+    }
 }
 
 struct LocalMetadata {
