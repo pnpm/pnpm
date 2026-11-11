@@ -204,7 +204,7 @@ pub struct CrateDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// The account IDs that may publish to this crate, recorded by its first
-    /// publish. When empty, only admins may publish to it.
+    /// publish. When empty, `$owners` admits only admins.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub owners: Vec<String>,
 }

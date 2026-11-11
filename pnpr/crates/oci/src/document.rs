@@ -123,7 +123,7 @@ pub struct ImageDocument {
     #[serde(default)]
     tags: Vec<TagEntry>,
     /// The account IDs that may publish to this repository, recorded by its first
-    /// publish. When empty, only admins may publish to it.
+    /// publish. When empty, `$owners` admits only admins.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub owners: Vec<String>,
 }

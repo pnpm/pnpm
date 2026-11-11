@@ -366,7 +366,7 @@ enum OwnerRecord {
 
 /// Give a package being published again after its removal the owners its
 /// tombstone kept. Returns whether there was a tombstone: one with no owners
-/// still records them, so only admins may publish to the name.
+/// still records them, so `$owners` admits only admins.
 async fn restore_owners<Document: HostedDocument>(
     storage: &Storage,
     key: &CanonicalPackageName,
