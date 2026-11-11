@@ -66,24 +66,28 @@ fn a_stored_document_without_owners_admits_only_admins() {
 }
 
 #[tokio::test]
-async fn a_removed_package_without_owners_stays_recorded() {
-    let dir = tempfile::TempDir::new().unwrap();
-    let state = state(dir.path());
-    let storage = state.inner.storage.for_hosted("", Ecosystem::Cargo);
-    let key = CanonicalPackageName::parse("demo", Ecosystem::Cargo).unwrap();
-    let stored = CrateDocument::new("demo").to_bytes();
-    storage.write_hosted_document_if_current(&key, &stored, None, None).await.unwrap();
-    let current = storage
-        .read_hosted_document_for_update(&key)
-        .await
-        .unwrap()
-        .unwrap();
-    storage
-        .write_hosted_document_if_current(&key, b"", Some(&current.version), None)
-        .await
-        .unwrap();
+async fn a_removed_package_keeps_its_owner_record() {
+    for owners in [vec![], vec!["alice".to_string()]] {
+        let dir = tempfile::TempDir::new().unwrap();
+        let state = state(dir.path());
+        let storage = state.inner.storage.for_hosted("", Ecosystem::Cargo);
+        let key = CanonicalPackageName::parse("demo", Ecosystem::Cargo).unwrap();
+        let mut stored = CrateDocument::new("demo");
+        stored.owners.clone_from(&owners);
+        storage
+            .write_hosted_document_if_current(&key, &stored.to_bytes(), None, None)
+            .await
+            .unwrap();
+        let current = storage
+            .read_hosted_document_for_update(&key)
+            .await
+            .unwrap()
+            .unwrap();
+        let removal = Some(&current.version);
+        storage.write_hosted_document_if_current(&key, b"", removal, None).await.unwrap();
 
-    let mut document = CrateDocument::new("demo");
-    assert!(restore_owners(&storage, &key, &mut document).await.unwrap());
-    assert!(document.owners.is_empty());
+        let mut document = CrateDocument::new("demo");
+        assert!(restore_owners(&storage, &key, &mut document).await.unwrap(), "{owners:?}");
+        assert_eq!(document.owners, owners);
+    }
 }
