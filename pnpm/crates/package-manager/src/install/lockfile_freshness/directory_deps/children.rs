@@ -74,7 +74,7 @@ pub(super) fn check_recorded_local_targets(
             .is_some_and(|catalog| {
                 recorded_catalog_spec_matches(check, dep, &child.alias, catalog) == Some(false)
                     || !(catalog_child_is_fresh(check, dep, snapshot, child)
-                        || optional_peer_supplies_child(local_manifest, snapshot, child))
+                        || optional_peer_supplies_child(check, local_manifest, snapshot, child))
             }))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
         {
@@ -103,11 +103,15 @@ fn local_child_catalogs(
 }
 
 fn optional_peer_supplies_child(
+    check: &ImporterSatisfactionCheck<'_>,
     manifest: &PackageManifest,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     child: &DependencySpec,
 ) -> bool {
-    declared_peer_dependencies(manifest.value()).get(&child.alias).is_some_and(|peer| peer.optional)
+    check.config.optional
+        && declared_peer_dependencies(manifest.value())
+            .get(&child.alias)
+            .is_some_and(|peer| peer.optional)
         && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_some()
 }
 

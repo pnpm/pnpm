@@ -655,6 +655,11 @@ fn assert_v13_round_trip(
     let next = super::lockfile_with_settings(result, workspace, settings);
     assert_eq!(next.importers, legacy.importers);
     assert_eq!(next.snapshots, legacy.snapshots);
+    for (key, expected) in legacy.packages.as_ref().unwrap() {
+        let actual = &next.packages.as_ref().unwrap()[key];
+        assert_eq!(actual.peer_dependencies, expected.peer_dependencies, "{key}");
+        assert_eq!(actual.peer_dependencies_meta, expected.peer_dependencies_meta, "{key}");
+    }
 }
 
 #[test]
