@@ -1,7 +1,7 @@
 use super::{AppInner, AppState, AuthedCaller, routing::local_registry_router};
 use axum::{Router, body::Body, http::Request};
-use pnpm_network::LocalFetch;
 use pnpr_policy::Identity;
+use pnpr_route::LocalFetch;
 use reqwest::ResponseBuilderExt;
 use std::sync::{Arc, OnceLock, Weak};
 use tower::ServiceExt;

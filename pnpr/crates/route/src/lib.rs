@@ -26,6 +26,7 @@ pub use url_credentials::{
 };
 
 pub use local_routes::split_package_identifier;
+pub use pnpm_network::LocalFetch;
 pub use route_hook::RouteHook;
 
 pub use footprint::{

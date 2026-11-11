@@ -1,9 +1,9 @@
-use pnpm_network::{AddressGuard, LocalFetch, LocalResponse};
+use pnpm_network::{AddressGuard, LocalResponse};
 
 use super::{
-    AUTHORIZATION, Arc, Footprint, Identity, MetadataCacheScope, Mutex, PrivateAccessDescriptor,
-    ResolvedAlias, RouteClass, RouteContext, UpstreamConfig, UpstreamRouteHook, credential_digest,
-    fmt, nerf_prefix, scheme_of,
+    AUTHORIZATION, Arc, Footprint, Identity, LocalFetch, MetadataCacheScope, Mutex,
+    PrivateAccessDescriptor, ResolvedAlias, RouteClass, RouteContext, UpstreamConfig,
+    UpstreamRouteHook, credential_digest, fmt, nerf_prefix, scheme_of,
 };
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
