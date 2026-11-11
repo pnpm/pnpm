@@ -102,10 +102,14 @@ impl GroupWatch {
         if self.shell_missing {
             return Ok(false);
         }
-        if let Some(watchdog) = &mut self.watchdog
-            && matches!(watchdog.process.try_wait(), Ok(None))
-        {
-            return Ok(true);
+        if let Some(watchdog) = &mut self.watchdog {
+            match watchdog.process.try_wait() {
+                Ok(None) => return Ok(true),
+                Ok(Some(_)) => {}
+                // Reaped by someone else, so its pid may name another process
+                // by now: drop the handle rather than let the replacement kill it.
+                Err(_) => self.watchdog = None,
+            }
         }
         self.start_watchdog()
     }

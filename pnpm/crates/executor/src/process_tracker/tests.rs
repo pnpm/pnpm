@@ -89,10 +89,17 @@ fn starting_replaces_a_watchdog_that_died() {
     assert!(watch.start().expect("start the watchdog"), "`sh` is available");
     let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
     // SAFETY: `dead` is this process's own child, the watchdog started
-    // above; it is killed and reaped here before `start` replaces it.
+    // above. It is killed and waited for without being reaped, so `start`
+    // still owns its exit status.
     unsafe {
         libc::kill(dead, libc::SIGKILL);
-        libc::waitpid(dead, ptr::null_mut(), 0);
+        let mut info: libc::siginfo_t = std::mem::zeroed();
+        libc::waitid(
+            libc::P_PID,
+            libc::id_t::try_from(dead).expect("a pid is not negative"),
+            &raw mut info,
+            libc::WEXITED | libc::WNOWAIT,
+        );
     }
 
     assert!(watch.start().expect("restart the watchdog"), "`sh` is available");
