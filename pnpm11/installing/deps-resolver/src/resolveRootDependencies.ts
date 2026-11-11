@@ -8,7 +8,7 @@ import { getHoistableRootDeps } from './hoistableRootDeps.js'
 import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { getImporterLockedPeerVersions } from './lockedPeerVersions.js'
-import { filterMissingPeers, mergeMissingPeersOfImporter } from './missingPeers.js'
+import { filterMissingPeers, mergeMissingPeersOfImporter, mergePkgsDeps } from './missingPeers.js'
 import {
   acceptsOptionalPeerCandidate,
   type CandidatePeers,
