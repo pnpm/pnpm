@@ -178,13 +178,9 @@ impl<'a> Transitive<'a> {
         for (alias, name) in std::mem::take(&mut self.unnamed) {
             let found = finder
                 .provider_below(key, name)
-                .filter(|reference| {
-                    segments
-                        .as_deref()
-                        .map_or_else(
-                            || binds_reference(providers, &alias, reference),
-                            |segments| names_provider(segments, &alias, reference),
-                        )
+                .filter(|reference| match segments.as_deref() {
+                    Some(segments) => names_provider(segments, &alias, reference),
+                    None => binds_reference(providers, &alias, reference),
                 })
                 .cloned();
             if let Some(reference) = found {
