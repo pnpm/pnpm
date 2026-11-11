@@ -681,9 +681,10 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     // An autocommit write flushed in an earlier batch is equally irreversible.
     let auto_calls = Arc::new(AtomicUsize::new(0));
     let auto_calls_run = Arc::clone(&auto_calls);
+    let adapter_auto = Arc::clone(&adapter);
     let primary_auto = Arc::clone(&server.primary);
     let auto_err = tokio::task::spawn_blocking(move || {
-        adapter.write(&mut |connection| {
+        adapter_auto.write(&mut |connection| {
             auto_calls_run.fetch_add(1, Ordering::SeqCst);
             connection.execute(
                 "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
@@ -708,4 +709,40 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     assert_eq!(auto_calls.load(Ordering::SeqCst), 1);
     assert_eq!(server.primary.stale_stream_rejections(), 2);
     assert_eq!(instance.catalog_generation("").await.unwrap(), 21);
+
+    // A read-only `SELECT` in autocommit mode makes no durable change, so a
+    // stale stream in the transaction after it still replays the callback.
+    let read_then_write_calls = Arc::new(AtomicUsize::new(0));
+    let read_then_write_run = Arc::clone(&read_then_write_calls);
+    let primary_retry = Arc::clone(&server.primary);
+    tokio::task::spawn_blocking(move || {
+        read_then_write_with_first_attempt_expired(&adapter, &primary_retry, &read_then_write_run)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(read_then_write_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(server.primary.stale_stream_rejections(), 3);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 22);
+}
+
+fn read_then_write_with_first_attempt_expired(
+    adapter: &pnpr_sql::libsql::LibsqlAdapter,
+    primary: &pnpr_libsql::testing::Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    use pnpr_sql::adapter::{Adapter, WriteTransaction};
+
+    adapter.write(&mut |connection| {
+        let attempt = calls.fetch_add(1, Ordering::SeqCst);
+        connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+
+        let tx = WriteTransaction::begin(connection)?;
+        tx.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        if attempt == 0 {
+            primary.expire_next_stream();
+        }
+        tx.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        tx.commit()
+    })
 }

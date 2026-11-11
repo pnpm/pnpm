@@ -11,15 +11,17 @@ use tokio::runtime::Handle;
 #[derive(Debug, Clone, Copy)]
 pub(super) enum StreamState {
     Active,
-    /// At least one batch completed in autocommit mode on a write connection,
-    /// so an autocommit statement or an earlier transaction committed.
+    /// The current uncommitted transaction or unsent batch staged a write.
+    StagedWrite,
+    /// At least one write completed in autocommit mode on this connection, so
+    /// an autocommit write or an earlier write transaction committed.
     Committed,
     /// A read of the primary finished; [`run`](super::run) sends its `COMMIT`.
     CommitLater,
-    /// The primary rejected a batch as a stale stream before any batch
+    /// The primary rejected a batch as a stale stream before any write
     /// committed on this connection.
     LostBeforeCommit,
-    /// The primary rejected a batch as a stale stream after an earlier batch
+    /// The primary rejected a batch as a stale stream after an earlier write
     /// already committed on this connection.
     LostAfterCommit,
 }
@@ -28,7 +30,11 @@ impl StreamState {
     pub(super) fn can_replay_write(self) -> bool {
         match self {
             Self::LostBeforeCommit => true,
-            Self::Active | Self::Committed | Self::CommitLater | Self::LostAfterCommit => false,
+            Self::Active
+            | Self::StagedWrite
+            | Self::Committed
+            | Self::CommitLater
+            | Self::LostAfterCommit => false,
         }
     }
 }
@@ -70,9 +76,10 @@ impl Statements<'_> {
             && pnpr_libsql::is_stale_stream(error)
         {
             let lost = match self.state.get() {
-                StreamState::Active | StreamState::CommitLater | StreamState::LostBeforeCommit => {
-                    StreamState::LostBeforeCommit
-                }
+                StreamState::Active
+                | StreamState::StagedWrite
+                | StreamState::CommitLater
+                | StreamState::LostBeforeCommit => StreamState::LostBeforeCommit,
                 StreamState::Committed | StreamState::LostAfterCommit => {
                     StreamState::LostAfterCommit
                 }
@@ -82,11 +89,38 @@ impl Statements<'_> {
         result
     }
 
+    fn note_write(&self) {
+        if !self.local && !self.read {
+            let next = match self.state.get() {
+                StreamState::Active => StreamState::StagedWrite,
+                StreamState::StagedWrite
+                | StreamState::Committed
+                | StreamState::CommitLater
+                | StreamState::LostBeforeCommit
+                | StreamState::LostAfterCommit => self.state.get(),
+            };
+            self.state.set(next);
+        }
+    }
+
+    fn note_rollback(&self) {
+        let next = match self.state.get() {
+            StreamState::StagedWrite => StreamState::Active,
+            StreamState::Active
+            | StreamState::Committed
+            | StreamState::CommitLater
+            | StreamState::LostBeforeCommit
+            | StreamState::LostAfterCommit => self.state.get(),
+        };
+        self.state.set(next);
+    }
+
     fn note_completed_batch(&self) {
         if !self.local && !self.read && self.conn.is_autocommit() {
             let next = match self.state.get() {
-                StreamState::Active | StreamState::Committed => StreamState::Committed,
-                StreamState::CommitLater
+                StreamState::StagedWrite | StreamState::Committed => StreamState::Committed,
+                StreamState::Active
+                | StreamState::CommitLater
                 | StreamState::LostBeforeCommit
                 | StreamState::LostAfterCommit => self.state.get(),
             };
@@ -144,6 +178,7 @@ async fn collect_rows(mut rows: libsql::Rows) -> Result<Vec<Row>> {
 impl Connection for Statements<'_> {
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
         if !self.local {
+            self.note_write();
             self.hold(sql, params);
             return Ok(());
         }
@@ -170,6 +205,9 @@ impl Connection for Statements<'_> {
                 .collect();
         }
         for query in queries {
+            if !is_read_only_sql(query.sql) {
+                self.note_write();
+            }
             self.hold(query.sql, &query.params);
         }
         // `send` answers every statement it sent, the held ones before these.
@@ -182,9 +220,19 @@ impl Connection for Statements<'_> {
     /// script again, and its rendering can differ from them.
     fn execute_batch(&self, sql: &str) -> Result<()> {
         self.send()?;
+        let is_rollback = sql
+            .trim()
+            .trim_end_matches(';')
+            .trim()
+            .eq_ignore_ascii_case("ROLLBACK");
+        if batch_stages_write(sql) {
+            self.note_write();
+        }
         self.wait(async {
             self.conn.execute_batch(sql).await?;
-            if !sql.trim().eq_ignore_ascii_case("ROLLBACK") {
+            if is_rollback {
+                self.note_rollback();
+            } else {
                 self.note_completed_batch();
             }
             Ok(())
@@ -247,13 +295,40 @@ impl Connection for Statements<'_> {
             .is_some_and(|(sql, _)| sql.starts_with("BEGIN"));
         let stream_lost = match self.state.get() {
             StreamState::LostBeforeCommit | StreamState::LostAfterCommit => true,
-            StreamState::Active | StreamState::Committed | StreamState::CommitLater => false,
+            StreamState::Active
+            | StreamState::StagedWrite
+            | StreamState::Committed
+            | StreamState::CommitLater => false,
         };
         if unsent || stream_lost || self.conn.is_autocommit() {
+            if !stream_lost {
+                self.note_rollback();
+            }
             return Ok(());
         }
         self.execute_batch("ROLLBACK")
     }
+}
+
+/// Whether `sql` is a single `SELECT` query, which cannot mutate SQLite state.
+fn is_read_only_sql(sql: &str) -> bool {
+    let trimmed = sql.trim_start();
+    !trimmed.contains(';')
+        && trimmed
+            .get(..6)
+            .is_some_and(|keyword| keyword.eq_ignore_ascii_case("SELECT"))
+        && trimmed
+            .as_bytes()
+            .get(6)
+            .is_some_and(|&byte| !byte.is_ascii_alphanumeric() && byte != b'_')
+}
+
+fn batch_stages_write(sql: &str) -> bool {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    !matches!(
+        trimmed.to_ascii_uppercase().as_str(),
+        "" | "BEGIN" | "BEGIN IMMEDIATE" | "COMMIT" | "ROLLBACK",
+    )
 }
 
 fn to_params(params: &[Param<'_>]) -> Vec<libsql::Value> {
