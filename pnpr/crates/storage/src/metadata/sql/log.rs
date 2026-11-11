@@ -60,13 +60,13 @@ pub(super) fn head_and_size(connection: &dyn Connection, log: &LogId) -> Result<
     let ecosystem = log.ecosystem.as_str();
     let reads = [
         query!(
-            "SELECT size, root FROM log_heads WHERE catalog = ?1 AND ecosystem = ?2",
-            &log.catalog,
+            "SELECT size, root FROM log_heads WHERE namespace = ?1 AND ecosystem = ?2",
+            &log.namespace,
             ecosystem,
         ),
         query!(
-            "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2",
-            &log.catalog,
+            "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?2",
+            &log.namespace,
             ecosystem,
         ),
     ];
@@ -215,8 +215,8 @@ fn insert_imported_entries(
     for (offset, item) in imported.iter().enumerate() {
         let index = current + u64::try_from(offset).unwrap_or_default();
         transaction.execute(
-            "INSERT INTO log_entries (catalog, ecosystem, idx, entry) VALUES (?1, ?2, ?3, ?4)",
-            params![log.catalog, log.ecosystem.as_str(), to_column(index), item.bytes.as_slice()],
+            "INSERT INTO log_entries (namespace, ecosystem, idx, entry) VALUES (?1, ?2, ?3, ?4)",
+            params![log.namespace, log.ecosystem.as_str(), to_column(index), item.bytes.as_slice()],
         )?;
     }
     Ok(())
@@ -230,37 +230,37 @@ fn record_reimported_npm_versions(
     if log.ecosystem != Ecosystem::Npm {
         return Ok(());
     }
-    let generation = super::catalog_generation(transaction, &log.catalog)? + 1;
+    let generation = super::namespace_generation(transaction, &log.namespace)? + 1;
     let mut recorded_any = false;
     for (name, version) in imported.iter().filter_map(|item| item.npm_version.as_ref()) {
-        if version_is_live(transaction, &log.catalog, name, version)? {
+        if version_is_live(transaction, &log.namespace, name, version)? {
             continue;
         }
         transaction.execute(
-            "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
+            "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT DO NOTHING",
-            params![log.catalog, Ecosystem::Npm.as_str(), name, version, to_column(generation)],
+            params![log.namespace, Ecosystem::Npm.as_str(), name, version, to_column(generation)],
         )?;
         recorded_any = true;
     }
     if recorded_any {
-        super::advance_catalog(transaction, &log.catalog, generation)?;
+        super::advance_namespace(transaction, &log.namespace, generation)?;
     }
     Ok(())
 }
 
 fn version_is_live(
     connection: &dyn Connection,
-    catalog: &str,
+    namespace: &str,
     name: &str,
     version: &str,
 ) -> Result<bool> {
     Ok(connection
         .query_optional(
             "SELECT 1 FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            params![catalog, Ecosystem::Npm.as_str(), name, version],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+            params![namespace, Ecosystem::Npm.as_str(), name, version],
         )?
         .is_some())
 }

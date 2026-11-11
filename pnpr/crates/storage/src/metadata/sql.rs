@@ -387,7 +387,7 @@ impl SqlMetadata {
 
     pub(crate) async fn log_head_and_size(self: &Arc<Self>, log: &LogId) -> Result<RawLogState> {
         let log = log.clone();
-        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+        self.read(log.namespace.clone(), Freshness::Current, move |connection, _| {
             log::head_and_size(connection, &log)
         })
         .await

@@ -213,16 +213,16 @@ async fn candidate_logs(database: &Arc<SqlMetadata>, config: &Config) -> Result<
         .iter()
         .filter_map(|(name, hosted)| {
             let ecosystem = config.routing.registries.ecosystem(name)?;
-            Some(LogId { catalog: hosted.org.clone(), ecosystem })
+            Some(LogId { namespace: hosted.namespace.clone(), ecosystem })
         })
         .collect();
-    logs.push(LogId { catalog: String::new(), ecosystem: Ecosystem::Npm });
+    logs.push(LogId { namespace: String::new(), ecosystem: Ecosystem::Npm });
     for (log, _) in database.sequenced_logs().await? {
         logs.push(log);
     }
     logs.sort_by(|left, right| {
-        (left.catalog.as_str(), left.ecosystem.as_str()).cmp(&(
-            right.catalog.as_str(),
+        (left.namespace.as_str(), left.ecosystem.as_str()).cmp(&(
+            right.namespace.as_str(),
             right.ecosystem.as_str(),
         ))
     });
