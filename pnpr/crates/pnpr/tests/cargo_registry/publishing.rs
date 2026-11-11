@@ -491,3 +491,38 @@ async fn publishing_an_unclaimed_crate_names_the_packages_setting() {
             .contains("`packages:`"),
     );
 }
+
+#[tokio::test]
+async fn only_the_owner_publishes_or_yanks_a_claimed_crate() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    let publish = |token: String, version: &'static str| {
+        let app = app.clone();
+        async move {
+            let body = publish_body(&metadata("demo", version), &crate_archive("demo", version));
+            app.oneshot(publish_request(Some(&token), body)).await
+                .unwrap()
+                .status()
+        }
+    };
+    assert_eq!(publish(alice.clone(), "0.1.0").await, StatusCode::OK);
+    assert_eq!(publish(bob.clone(), "0.2.0").await, StatusCode::FORBIDDEN);
+    let yank = app
+        .clone()
+        .oneshot(
+            Request::delete("/cargo/api/v1/crates/demo/0.1.0/yank")
+                .header(header::AUTHORIZATION, &bob)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(yank.status(), StatusCode::FORBIDDEN);
+    assert_eq!(publish(alice, "0.2.0").await, StatusCode::OK);
+}

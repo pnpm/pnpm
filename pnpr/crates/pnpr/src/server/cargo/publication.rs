@@ -1,11 +1,11 @@
 use super::{
-    Action, AppState, AuthedCaller, Bytes, CanonicalPackageName, CrateDocument,
-    DOCUMENT_WRITE_RETRIES, DocumentUpdate, ECOSYSTEM, HashMap, Identity, IndexEntry, Path,
-    PublishMetadata, PublishTarget, RegistryError, RegistrySource, Response, StagedPublish, State,
-    StatusCode, TargetRegistry, authorize, bad_request, bounded_description, crate_filename,
-    error_response, json_response, not_found, ok_json, parse_publish_body, publish_ok_json,
-    resolve_publish_target_for, resolve_write_target_for, sha256_hex, stage_hosted_artifact,
-    store_hosted_artifact, validate_crate_archive,
+    super::documents::HostedTarget, Action, AppState, AuthedCaller, Bytes, CanonicalPackageName,
+    CrateDocument, DOCUMENT_WRITE_RETRIES, DocumentUpdate, ECOSYSTEM, HashMap, Identity,
+    IndexEntry, Path, PublishMetadata, PublishTarget, RegistryError, RegistrySource, Response,
+    StagedPublish, State, StatusCode, TargetRegistry, authorize_package, bad_request,
+    bounded_description, crate_filename, error_response, json_response, not_found, ok_json,
+    parse_publish_body, publish_ok_json, resolve_publish_target_for, resolve_write_target_for,
+    sha256_hex, stage_hosted_artifact, store_hosted_artifact, validate_crate_archive,
 };
 
 /// `PUT api/v1/crates/new` — `cargo publish`.
@@ -40,8 +40,7 @@ pub(super) async fn put_publish(
 /// will record it is built. Publishing it is [`Self::publish`] on its own, or
 /// [`Self::stage`] as one package of a cross-ecosystem batch.
 pub(in super::super) struct CratePublication {
-    pub(super) key: CanonicalPackageName,
-    pub(super) namespace: String,
+    pub(super) target: CrateTarget,
     pub(super) filename: String,
     pub(super) entry: IndexEntry,
     pub(super) description: Option<String>,
@@ -56,7 +55,7 @@ pub(in super::super) async fn validate_crate_publish(
     metadata: PublishMetadata,
     archive: Bytes,
 ) -> Result<CratePublication, RegistryError> {
-    let target = authorize_crate_publish(state, identity, registry, &metadata)?;
+    let target = authorize_crate_publish(state, identity, registry, &metadata).await?;
     verify_crate_archive(target, metadata, archive).await
 }
 
@@ -67,9 +66,12 @@ pub(in super::super) async fn validate_crate_publish(
 pub(in super::super) struct CrateTarget {
     pub(super) key: CanonicalPackageName,
     pub(super) namespace: String,
+    /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
+    pub(super) registry: String,
+    pub(super) publisher: Identity,
 }
 
-pub(in super::super) fn authorize_crate_publish(
+pub(in super::super) async fn authorize_crate_publish(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
@@ -86,8 +88,10 @@ pub(in super::super) fn authorize_crate_publish(
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
-    authorize(state, identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)?;
-    Ok(CrateTarget { key, namespace })
+    let hosted = RegistrySource::Hosted(source.clone());
+    authorize_package(state, identity, &hosted, key.as_str(), Action::Publish, Some(&namespace))
+        .await?;
+    Ok(CrateTarget { key, namespace, registry: source, publisher: identity.clone() })
 }
 
 /// Check the archive against the metadata it was published with, and build
@@ -97,7 +101,6 @@ pub(in super::super) async fn verify_crate_archive(
     metadata: PublishMetadata,
     archive: Bytes,
 ) -> Result<CratePublication, RegistryError> {
-    let CrateTarget { key, namespace } = target;
     let (name, version) = (metadata.name.clone(), metadata.vers.clone());
     let checked = tokio::task::spawn_blocking(move || {
         validate_crate_archive(&archive, &name, &version)
@@ -110,8 +113,7 @@ pub(in super::super) async fn verify_crate_archive(
     let filename = crate_filename(&metadata.name, &metadata.vers);
     let description = bounded_description(metadata.description.as_deref());
     Ok(CratePublication {
-        key,
-        namespace,
+        target,
         filename,
         entry: metadata.into_index_entry(cksum),
         description,
@@ -121,12 +123,20 @@ pub(in super::super) async fn verify_crate_archive(
 
 impl CratePublication {
     pub(in super::super) fn key(&self) -> &CanonicalPackageName {
-        &self.key
+        &self.target.key
     }
 
-    /// The hosted namespace the crate is published into.
+    /// The organization whose catalog the crate is published into.
     pub(in super::super) fn namespace(&self) -> &str {
-        &self.namespace
+        &self.target.namespace
+    }
+
+    fn hosted_target(&self) -> HostedTarget<'_> {
+        HostedTarget {
+            namespace: &self.target.namespace,
+            registry: &self.target.registry,
+            publisher: &self.target.publisher,
+        }
     }
 
     /// The one-version document this publish contributes, which merges into
@@ -137,6 +147,7 @@ impl CratePublication {
             name: self.entry.name.clone(),
             versions: vec![self.entry.clone()],
             description: self.description.clone(),
+            owners: Vec::new(),
         }
     }
 
@@ -144,8 +155,8 @@ impl CratePublication {
     pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
         store_hosted_artifact(
             state,
-            &self.namespace,
-            &self.key,
+            &self.hosted_target(),
+            &self.target.key,
             &self.filename,
             &self.archive,
             refuse_invalid_publication(&self.entry),
@@ -162,8 +173,8 @@ impl CratePublication {
     ) -> Result<StagedPublish, RegistryError> {
         stage_hosted_artifact(
             state,
-            &self.namespace,
-            &self.key,
+            &self.hosted_target(),
+            &self.target.key,
             &self.filename,
             &self.archive,
             &refuse_invalid_publication(&self.entry),
@@ -236,16 +247,20 @@ pub(super) async fn set_yanked(
         Ok(target) => target,
         Err(err) => return error_response(err),
     };
-    if let Err(err) = authorize(
+    let _guard = state.inner.locks.packages.lock(key.as_str()).await;
+    let hosted = RegistrySource::Hosted(target.source);
+    if let Err(err) = authorize_package(
         state,
         identity,
-        &RegistrySource::Hosted(target.source),
+        &hosted,
         key.as_str(),
         Action::Publish,
-    ) {
+        Some(&target.namespace),
+    )
+    .await
+    {
         return error_response(err);
     }
-    let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let outcome = state.inner.storage
         .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {

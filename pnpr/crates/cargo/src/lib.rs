@@ -203,6 +203,11 @@ pub struct CrateDocument {
     /// no description, so this is the only place a hosted crate has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// The account IDs that may publish to this crate. The first publish
+    /// claims it; empty for one stored before owners were recorded, which
+    /// only admins may publish to.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owners: Vec<String>,
 }
 
 impl CrateDocument {
@@ -213,6 +218,7 @@ impl CrateDocument {
             name: name.to_string(),
             versions: Vec::new(),
             description: None,
+            owners: Vec::new(),
         }
     }
 

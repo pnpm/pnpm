@@ -23,7 +23,7 @@ use publication::{delete_yank, put_publish, put_unyank};
 
 use super::{
     Action, AppState, AuthedCaller, DiscoverySource, RegistrySource, SearchPage, TargetRegistry,
-    authorize,
+    authorize_package,
     conditional_requests::is_not_modified,
     discovery_sources,
     documents::{

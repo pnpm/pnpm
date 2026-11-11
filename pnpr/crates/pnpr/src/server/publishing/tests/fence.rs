@@ -3,7 +3,10 @@
 //! publish discards the incarnation it stored.
 
 use crate::server::{
-    AppState, oci::OciPublication, publishing::commit_publishes, routing::state_and_router,
+    AppState,
+    oci::{OciPublication, OciTarget},
+    publishing::commit_publishes,
+    routing::state_and_router,
 };
 use axum::body::Bytes;
 use pnpr_auth::AuthState;
@@ -81,8 +84,14 @@ fn manifest(layer: &Digest) -> Bytes {
 }
 
 fn push(repository: &CanonicalPackageName, bytes: Bytes) -> OciPublication {
+    let target = OciTarget {
+        key: repository.clone(),
+        namespace: String::new(),
+        registry: "local".to_string(),
+        publisher: pnpr_policy::Identity::user("publisher"),
+    };
     OciPublication::new(
-        (repository.clone(), String::new()),
+        target,
         "latest".to_string(),
         bytes,
         Some(media_type::OCI_IMAGE_MANIFEST),

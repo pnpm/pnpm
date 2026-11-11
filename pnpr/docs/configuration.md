@@ -158,9 +158,8 @@ reordering the map (by a formatter, or a YAML round-trip) can never change
 which rule applies. A duplicate key is a config error.
 
 Each value can set `access`, `publish`, and `unpublish`. When a field is
-omitted, `access` falls back to the registry-level `access:` default, and
-`unpublish` defaults to nobody. `publish` defaults to `$owners` on npm
-registries and to `$authenticated` on Cargo, PyPI, and OCI registries.
+omitted, `access` falls back to the registry-level `access:` default,
+`publish` defaults to `$owners`, and `unpublish` defaults to nobody.
 Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
 not support package unpublishing.
 
@@ -172,7 +171,7 @@ them, and the grammar is deliberately small:
 | `$all` | Anyone, authenticated or not. |
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
-| `$owners` | The package's maintainers and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its maintainer. Valid only in `publish` and `unpublish` lists of npm registries. |
+| `$owners` | The package's owners and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its owner. An npm package's owners are its maintainers. Valid only in `publish` and `unpublish` lists. |
 | `team:<id>` | The members of a [team](#teams) declared on this registry. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 

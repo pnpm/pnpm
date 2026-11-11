@@ -387,7 +387,7 @@ async fn validate_entry(
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
             // Decide where this crate writes, and whether the caller may write
             // it, before spending anything on decoding its archive.
-            let target = authorize_crate_publish(state, identity, None, &entry.metadata)?;
+            let target = authorize_crate_publish(state, identity, None, &entry.metadata).await?;
             let archive = decode_base64(&entry.archive, "archive")?;
             Ok(ValidatedEntry::Cargo(
                 verify_crate_archive(target, entry.metadata, archive.into()).await?,
@@ -398,6 +398,7 @@ async fn validate_entry(
             let entry: OciEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
             let target = authorize_publication(state, identity, None, &entry.name)
+                .await
                 .map_err(RegistryError::from)?;
             let bytes = decode_base64(&entry.manifest, "manifest")?;
             OciPublication::new(
@@ -488,7 +489,7 @@ async fn validate_pypi_entry(
         sha256_digest: entry.sha256_digest,
         requires_python: entry.requires_python,
     };
-    let target = authorize_upload(state, identity, None, &upload)?;
+    let target = authorize_upload(state, identity, None, &upload).await?;
     upload.content = decode_base64(&entry.content, "content")?;
     Ok(ValidatedEntry::Pypi(verify_upload(target, upload).await?))
 }

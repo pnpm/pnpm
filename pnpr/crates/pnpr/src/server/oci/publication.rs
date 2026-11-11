@@ -3,8 +3,8 @@ use super::{
     now_millis,
 };
 use crate::server::{
-    Action, AppState, Identity, RegistrySource, authorize,
-    documents::{HostedArtifact, stage_hosted_artifact_on},
+    Action, AppState, Identity, RegistrySource, authorize_package,
+    documents::{HostedArtifact, HostedTarget, stage_hosted_artifact_on},
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
 };
 use axum::body::Bytes;
@@ -21,30 +21,46 @@ use std::collections::HashSet;
 pub(in crate::server) struct OciPublication {
     pub(super) key: CanonicalPackageName,
     namespace: String,
+    /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
+    registry: String,
+    publisher: Identity,
     bytes: Bytes,
     manifest: Manifest,
     pub(super) digest: Digest,
     reference: String,
 }
 
-pub(in crate::server) fn authorize_publication(
+/// The repository a push writes to, once the caller is allowed to publish it.
+pub(in crate::server) struct OciTarget {
+    pub(in crate::server) key: CanonicalPackageName,
+    pub(in crate::server) namespace: String,
+    /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
+    pub(in crate::server) registry: String,
+    pub(in crate::server) publisher: Identity,
+}
+
+pub(in crate::server) async fn authorize_publication(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     name: &str,
-) -> Result<(CanonicalPackageName, String), Refusal> {
+) -> Result<OciTarget, Refusal> {
     let key = CanonicalPackageName::parse(name, Ecosystem::Oci)
         .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "not a valid repository name"))?;
     match resolve_publish_target_for(state, identity, registry, Ecosystem::Oci, key.as_str()) {
         PublishTarget::Hosted { source, namespace } => {
-            authorize(
+            let hosted = RegistrySource::Hosted(source.clone());
+            let namespace_name = Some(namespace.as_str());
+            authorize_package(
                 state,
                 identity,
-                &RegistrySource::Hosted(source),
+                &hosted,
                 key.as_str(),
                 Action::Publish,
-            )?;
-            Ok((key, namespace))
+                namespace_name,
+            )
+            .await?;
+            Ok(OciTarget { key, namespace, registry: source, publisher: identity.clone() })
         }
         PublishTarget::Denied(err) => Err(err.into()),
         PublishTarget::Reject(reason) => Err(Refusal::new(ErrorCode::Denied, reason)),
@@ -54,7 +70,7 @@ pub(in crate::server) fn authorize_publication(
 
 impl OciPublication {
     pub(in crate::server) fn new(
-        target: (CanonicalPackageName, String),
+        target: OciTarget,
         reference: String,
         bytes: Bytes,
         content_type: Option<&str>,
@@ -78,7 +94,8 @@ impl OciPublication {
         }
         let manifest = Manifest::parse(&bytes, content_type)
             .map_err(|err| Refusal::new(ErrorCode::ManifestInvalid, err.to_string()))?;
-        Ok(Self { key: target.0, namespace: target.1, bytes, manifest, digest, reference })
+        let OciTarget { key, namespace, registry, publisher } = target;
+        Ok(Self { key, namespace, registry, publisher, bytes, manifest, digest, reference })
     }
 
     pub(in crate::server) fn key(&self) -> &CanonicalPackageName {
@@ -117,17 +134,14 @@ impl OciPublication {
         let addition = self.document_addition(children.clone());
         let filename = self.digest.blob_filename();
         let artifact = HostedArtifact { filename: &filename, bytes: &self.bytes, references };
-        stage_hosted_artifact_on(
-            state,
-            &self.namespace,
-            &self.key,
-            artifact,
-            base,
-            &refuse,
-            addition,
-        )
-        .await
-        .map_err(Into::into)
+        let target = HostedTarget {
+            namespace: &self.namespace,
+            registry: &self.registry,
+            publisher: &self.publisher,
+        };
+        stage_hosted_artifact_on(state, &target, &self.key, artifact, base, &refuse, addition)
+            .await
+            .map_err(Into::into)
     }
     fn document_addition(&self, children: Vec<Digest>) -> ImageDocument {
         let mut addition = ImageDocument::new(self.key.as_str());

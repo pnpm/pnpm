@@ -10,7 +10,7 @@
 //! the npm publish flow uses.
 
 use super::{
-    AppState, hosted_read_namespace,
+    Action, AppState, Ownership, RegistrySource, authorize_with_ownership, hosted_read_namespace,
     publishing::{StagedBase, StagedPublish, Verification, cleanup_tmp_slots, commit_publishes},
 };
 use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
@@ -44,6 +44,18 @@ pub(super) trait HostedDocument: Sized {
     /// what was published in the meantime stays, and only what is genuinely
     /// missing is added.
     fn merge(&mut self, addition: Self) -> bool;
+
+    /// The account IDs that may publish to this package.
+    fn owners(&self) -> &[String];
+    fn owners_mut(&mut self) -> &mut Vec<String>;
+}
+
+/// Where a hosted publish lands, and who publishes it.
+pub(super) struct HostedTarget<'target> {
+    pub(super) namespace: &'target str,
+    /// The hosted registry whose `publish` rule admits [`Self::publisher`].
+    pub(super) registry: &'target str,
+    pub(super) publisher: &'target Identity,
 }
 
 impl HostedDocument for CrateDocument {
@@ -64,6 +76,14 @@ impl HostedDocument for CrateDocument {
 
     fn to_bytes(&self) -> Vec<u8> {
         CrateDocument::to_bytes(self)
+    }
+
+    fn owners(&self) -> &[String] {
+        &self.owners
+    }
+
+    fn owners_mut(&mut self) -> &mut Vec<String> {
+        &mut self.owners
     }
 
     fn merge(&mut self, addition: Self) -> bool {
@@ -106,6 +126,14 @@ impl HostedDocument for ProjectDocument {
         ProjectDocument::to_bytes(self)
     }
 
+    fn owners(&self) -> &[String] {
+        &self.owners
+    }
+
+    fn owners_mut(&mut self) -> &mut Vec<String> {
+        &mut self.owners
+    }
+
     fn merge(&mut self, addition: Self) -> bool {
         let before = self.files.len();
         for file in addition.files {
@@ -136,6 +164,14 @@ impl HostedDocument for ImageDocument {
 
     fn to_bytes(&self) -> Vec<u8> {
         ImageDocument::to_bytes(self)
+    }
+
+    fn owners(&self) -> &[String] {
+        &self.owners
+    }
+
+    fn owners_mut(&mut self) -> &mut Vec<String> {
+        &mut self.owners
     }
 
     fn merge(&mut self, addition: Self) -> bool {
@@ -194,7 +230,7 @@ where
 /// either reports the conflict and commits nothing.
 pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
-    namespace: &str,
+    target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     filename: &str,
     bytes: &[u8],
@@ -203,7 +239,7 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
 ) -> Result<(), RegistryError> {
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let staged =
-        stage_hosted_artifact(state, namespace, key, filename, bytes, &refuse, addition).await?;
+        stage_hosted_artifact(state, target, key, filename, bytes, &refuse, addition).await?;
     commit_publishes(state, vec![staged]).await
 }
 
@@ -214,27 +250,27 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
 /// instance.
 pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
-    namespace: &str,
+    target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     filename: &str,
     bytes: &[u8],
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
-    stage_hosted_artifacts(state, namespace, key, &[(filename, bytes)], refuse, addition).await
+    stage_hosted_artifacts(state, target, key, &[(filename, bytes)], refuse, addition).await
 }
 
 /// Stage a distribution and its sidecars in the same publication.
 pub(super) async fn stage_hosted_artifacts<Document: HostedDocument + Send>(
     state: &AppState,
-    namespace: &str,
+    target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     files: &[(&str, &[u8])],
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
     let ((filename, bytes), sidecars) = files.split_first().expect("publication has an artifact");
-    let storage = state.inner.storage.for_hosted(namespace, Document::ECOSYSTEM);
+    let storage = state.inner.storage.for_hosted(target.namespace, Document::ECOSYSTEM);
     let lookup = BlobLookup {
         ids: files
             .iter()
@@ -245,7 +281,7 @@ pub(super) async fn stage_hosted_artifacts<Document: HostedDocument + Send>(
     let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
     let artifact = HostedArtifact { filename, bytes, references: Vec::new() };
     let mut staged =
-        stage_hosted_artifact_on(state, namespace, key, artifact, base, refuse, addition).await?;
+        stage_hosted_artifact_on(state, target, key, artifact, base, refuse, addition).await?;
     for (filename, bytes) in sidecars {
         match write_hosted_blob(&storage, key, filename, bytes).await {
             Ok(slot) => staged.slots.push(slot),
@@ -270,14 +306,14 @@ pub(super) struct HostedArtifact<'bytes> {
 /// before anything it references was checked.
 pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     state: &AppState,
-    namespace: &str,
+    target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     artifact: HostedArtifact<'_>,
     base: pnpr_storage::metadata::PublishBase,
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
-    let storage = state.inner.storage.for_hosted(namespace, Document::ECOSYSTEM);
+    let storage = state.inner.storage.for_hosted(target.namespace, Document::ECOSYSTEM);
     let stored = base.stored;
     let mut document = match &stored {
         Some(stored) => Document::parse(&stored.bytes).map_err(RegistryError::Json)?,
@@ -290,6 +326,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             supported_version: Document::FORMAT_VERSION,
         });
     }
+    claim_ownership(state, target, key, &mut document, stored.is_some())?;
     refuse(&document)?;
     document.merge(addition);
 
@@ -306,11 +343,31 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             ..StagedBase::default()
         },
         slots: vec![slot],
-        namespace: Some(namespace.to_string()),
+        namespace: Some(target.namespace.to_string()),
         // Only an npm document has dist-tags to record a publisher with.
         publisher: None,
         verification: Verification::default(),
     })
+}
+
+/// Admit the publisher against the owners `document` records, as read under
+/// the package lock, and record the publisher as the owner of a new package.
+fn claim_ownership<Document: HostedDocument>(
+    state: &AppState,
+    target: &HostedTarget<'_>,
+    key: &CanonicalPackageName,
+    document: &mut Document,
+    stored: bool,
+) -> Result<(), RegistryError> {
+    let ownership =
+        if stored { Ownership::Owners(document.owners()) } else { Ownership::Unclaimed };
+    let source = RegistrySource::Hosted(target.registry.to_string());
+    let package = (key.as_str(), &ownership);
+    authorize_with_ownership(state, target.publisher, &source, package, Action::Publish)?;
+    if !stored && let Some(owner) = target.publisher.user_id() {
+        document.owners_mut().push(owner.to_string());
+    }
+    Ok(())
 }
 
 async fn write_hosted_blob(
@@ -321,3 +378,6 @@ async fn write_hosted_blob(
 ) -> Result<BlobSlot, RegistryError> {
     storage.reserve_hosted_blob(key, filename).await?.write_bytes(bytes).await
 }
+
+#[cfg(test)]
+mod tests;
