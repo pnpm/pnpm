@@ -58,12 +58,9 @@ async fn update_password(
         return Err(RegistryError::Unauthenticated { resource: "a password account".to_string() });
     }
     let user_id = identity.user_id().expect("authenticated caller");
-    let changed = state.inner.identity.auth.change_password_if_current(
-        user_id,
-        &update.password.new,
-        &verified_hash,
-    )
-    .await;
+    let auth = &state.inner.identity.auth;
+    let changed =
+        auth.change_password_if_current(user_id, &update.password.new, &verified_hash).await;
     if let Err(error) = &changed {
         state.inner.identity.oidc.revoke_committed_password_sessions(error);
     }
@@ -73,6 +70,13 @@ async fn update_password(
         });
     }
     state.inner.identity.oidc.revoke_user_sessions(user_id);
-    tracing::info!(target: "pnpr::audit", action = "user.password_update", actor = %username, user = %username, "account password changed");
+    tracing::info!(
+        target: "pnpr::audit",
+        action = "user.password_update",
+        actor = %username,
+        user = %username,
+        user_id = %user_id,
+        "account password changed",
+    );
     Ok(json_response(StatusCode::OK, &json!({ "name": username })))
 }

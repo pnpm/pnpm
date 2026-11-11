@@ -333,11 +333,28 @@ async fn audit_log_user_admin_and_registration() {
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
     assert_request_span(&ev, "DELETE");
 
-    // 5. user.register
-    let _reg_token = login(&app, "aud_reg_user", "reg-password").await;
+    // 5. user.register and self-service user.password_update
+    let reg_token = login(&app, "aud_reg_user", "reg-password").await;
+    let reg_id = crate::tokens::account_id(&app, "aud_reg_user", Some(&root))
+        .await
+        .unwrap();
     let ev = find_event(&logs, "user.register", "user", "aud_reg_user");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_reg_user"));
     assert_request_span(&ev, "PUT");
+
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/-/npm/v1/user",
+        Some(&reg_token),
+        Some(json!({ "password": { "old": "reg-password", "new": "reg-password-2" } })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let ev = find_event(&logs, "user.password_update", "user", "aud_reg_user");
+    assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_reg_user"));
+    assert_eq!(ev.fields.get("user_id").map(String::as_str), Some(reg_id.as_str()));
+    assert_request_span(&ev, "POST");
 }
 
 #[tokio::test]

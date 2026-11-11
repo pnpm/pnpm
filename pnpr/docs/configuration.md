@@ -966,11 +966,11 @@ Administrative and destructive operations emit structured audit records under th
 Audit events record the `action`, the `actor` (the authenticated username, `"scim"` for SCIM actions, or `"-"` when unauthenticated), and operation-specific attributes:
 
 - **User management**:
-  - `user.create`: creating an account (`actor`, `user`).
-  - `user.password_update`: changing an account password (`actor`, `user`).
+  - `user.create`: creating an account (`actor`, `user`, `user_id`).
+  - `user.password_update`: changing an account password (`actor`, `user`, `user_id`).
   - `user.rename`: renaming an account (`actor`, `user`, `user_id`).
-  - `user.token_revoke`: revoking user tokens (`actor`, `user`, `token_key`).
-  - `user.delete`: deleting an account (`actor`, `user`, `tokens_revoked`).
+  - `user.token_revoke`: revoking user tokens (`actor`, `user`, `user_id`, `token_key`).
+  - `user.delete`: deleting an account (`actor`, `user`, `user_id`, `tokens_revoked`).
   - `user.register`: self-registering a new account (`actor`, `user`).
 - **Rule overrides**:
   - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`, `ecosystem`, `version`).
