@@ -83,8 +83,8 @@ resolution, pnpm resolves it locally instead of failing.
 `pnpm install --fix-lockfile` is forwarded as a
 repair request, including during filtered installs. The server regenerates
 broken lockfile metadata while retaining locked versions that remain
-compatible. The `fixLockfile` list in `GET /-/pnpr` tells the client which
-resolver protocol versions support that request.
+compatible. The `fixLockfile` feature in `pnpr.protocols.resolver.features` tells the client
+whether the advertised resolver versions support that request.
 
 ## What a configured server does not cost
 

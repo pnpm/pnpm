@@ -3,7 +3,7 @@ use crate::cargo_deps::lockfile::resolve_via_pnpr;
 
 fn handshake_body(ecosystems: &[&str]) -> String {
     serde_json::json!({
-        "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0], "ecosystems": ecosystems },
+        "pnpr": { "protocols": { "resolver": { "versions": [0], "features": ["fixLockfile", "projectTransforms"], "ecosystems": ecosystems } } },
     })
     .to_string()
 }

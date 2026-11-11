@@ -9,130 +9,80 @@ use axum::{
 use pnpm_shared_artifact_protocol::OwnerScope;
 use pnpr_error::RegistryError;
 
-/// `GET /-/pnpr` — capability handshake for the pnpr resolver
-/// protocol. A plain npm registry has no such route and 404s, so a
-/// client can fail fast against a misconfigured server. `versions`
-/// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks;
-/// `fixLockfile` narrows that list to versions that honor repair requests;
-/// `ecosystems` names the package ecosystems `/-/pnpr/v0/resolve` accepts
-/// in its request body, so a client meeting a server that does not serve
-/// one of them resolves it locally rather than failing; `publish` lists the
-/// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
-/// transaction. `records` lists the release record formats whose records
-/// hosted registries log, with the `manifestProfiles` they are derived
-/// under.
+/// Configuration-derived protocol capabilities.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
-    let config = &state.inner.config;
-    let resolver_enabled = config.features.resolver.enabled;
-    let versions = resolver_enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let fix_lockfile = versions.clone();
-    let ecosystems: Vec<&str> = if resolver_enabled {
-        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
-    } else {
-        Vec::new()
-    };
-    let artifacts = enabled_version(config.features.artifacts.enabled);
-    let publish = enabled_version(config.features.registry.enabled);
-    let pipeline = enabled_version(config.features.pipeline.enabled);
-
-    let protocols = build_protocols_payload(config);
-    let features = build_features_payload(config);
-    let (records, manifest_profiles) = records_payload(&state);
-
     (
         StatusCode::OK,
-        axum::Json(serde_json::json!({
-            "pnpr": {
-                "versions": versions,
-                "artifacts": artifacts,
-                "pipeline": pipeline,
-                "fixLockfile": fix_lockfile,
-                "ecosystems": ecosystems,
-                "publish": publish,
-                "protocols": protocols,
-                "features": features,
-                "records": records,
-                "manifestProfiles": manifest_profiles,
-            }
-        })),
+        axum::Json(serde_json::json!({ "pnpr": { "protocols": build_protocols_payload(&state.inner.config) } })),
     )
         .into_response()
 }
 
-/// The release record formats hosted registries log, and the profiles they
-/// derive them under. Records are logged by hosted registries with a log
-/// signing key.
-fn records_payload(state: &AppState) -> (Vec<u32>, Vec<&'static str>) {
-    let config = &state.inner.config;
-    let logs_records = config.features.registry.enabled
-        && config.release_records.log_signing_key.is_some();
-    let records = logs_records
-        .then_some(1)
-        .into_iter()
-        .collect();
-    let profiles = logs_records
-        .then_some(pnpm_package_manifest::INSTALL_MANIFEST_PROFILE)
-        .into_iter()
-        .collect();
-    (records, profiles)
+pub(super) async fn serve_npm_handshake(State(state): State<AppState>) -> Response {
+    let mut protocols = build_protocols_payload(&state.inner.config);
+    for name in ["resolver", "artifacts", "compilerCache", "pipeline"] {
+        protocols[name]["versions"] = serde_json::json!([]);
+        protocols[name]["features"] = serde_json::json!([]);
+    }
+    protocols["resolver"]["ecosystems"] = serde_json::json!([]);
+    axum::Json(serde_json::json!({ "pnpr": { "protocols": protocols } })).into_response()
 }
 
-fn enabled_version(enabled: bool) -> Vec<u32> {
-    enabled
-        .then_some(0)
+fn protocol(enabled: bool, version: u32) -> serde_json::Value {
+    let versions: Vec<u32> = enabled
+        .then_some(version)
         .into_iter()
-        .collect()
+        .collect();
+    serde_json::json!({ "versions": versions, "features": [], "experimental": false })
 }
 
 fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
     let resolver_enabled = config.features.resolver.enabled;
-    let versions = resolver_enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let ecosystems: Vec<&str> = if resolver_enabled {
-        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
+    let mut resolver = protocol(resolver_enabled, 0);
+    resolver["features"] = serde_json::json!(if resolver_enabled {
+        vec![
+            "fixLockfile",
+            "verifyLockfile",
+            "projectTransforms",
+            "policyEcho",
+            "errorCodes",
+            "acceptedLockfileFormats",
+        ]
     } else {
         Vec::new()
-    };
+    });
+    resolver["ecosystems"] = serde_json::json!(if resolver_enabled {
+        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    });
     serde_json::json!({
-        "resolver": {
-            "version": 0,
-            "versions": versions,
-            "features": [
-                "fixLockfile",
-                "verifyLockfile",
-                "projectTransforms",
-                "policyEcho",
-                "errorCodes",
-                "acceptedLockfileFormats"
-            ],
-            "ecosystems": ecosystems,
-        },
-        "artifacts": { "version": 0, "versions": enabled_version(config.features.artifacts.enabled) },
-        "compilerCache": {
-            "version": 0,
-            "versions": enabled_version(config.features.artifacts.enabled),
-        },
-        "pipeline": { "version": 0, "versions": enabled_version(config.features.pipeline.enabled) },
-        "publish": {
-            "version": 0,
-            "versions": enabled_version(config.features.registry.enabled),
-            "pnpmPublish": if config.features.registry.enabled { vec![1] } else { Vec::new() },
-        },
+        "resolver": resolver,
+        "artifacts": experimental_protocol(config.features.artifacts.enabled),
+        "compilerCache": experimental_protocol(config.features.artifacts.enabled),
+        "pipeline": experimental_protocol(config.features.pipeline.enabled),
+        "publish": protocol(config.features.registry.enabled, 0),
+        "pnpmPublish": protocol(config.features.registry.enabled, 1),
+        "records": records_protocol(config),
     })
 }
 
-fn build_features_payload(config: &crate::Config) -> serde_json::Value {
-    serde_json::json!({
-        "registries": true,
-        "admin": !config.identity.admins.is_empty(),
-        "scim": config.identity.auth.scim.is_some(),
-        "signIn": !config.identity.auth.oidc.is_empty(),
-    })
+fn experimental_protocol(enabled: bool) -> serde_json::Value {
+    let mut capability = protocol(enabled, 0);
+    capability["experimental"] = serde_json::json!(true);
+    capability
+}
+
+fn records_protocol(config: &crate::Config) -> serde_json::Value {
+    let records_enabled = config.features.registry.enabled
+        && config.release_records.log_signing_key.is_some();
+    let mut records = protocol(records_enabled, 1);
+    records["manifestProfiles"] = serde_json::json!(if records_enabled {
+        vec![pnpm_package_manifest::INSTALL_MANIFEST_PROFILE]
+    } else {
+        Vec::new()
+    });
+    records
 }
 
 /// 404 stub mounted on the capability handshake when neither pnpr protocol is

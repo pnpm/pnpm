@@ -249,7 +249,7 @@ impl PnprClient {
     /// Confirm that the server enabled the v0 signed-artifact `PoC`.
     pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
         let capability = self.fetch_handshake(Some(self.artifact_request_timeout)).await?;
-        if !capability.artifacts.contains(&ARTIFACTS_PROTOCOL_VERSION) {
+        if !capability.protocol("artifacts").versions.contains(&ARTIFACTS_PROTOCOL_VERSION) {
             return Err(PnprClientError::server(format!(
                 "pnpr server does not advertise shared artifact protocol v{ARTIFACTS_PROTOCOL_VERSION}",
             )));

@@ -10,27 +10,6 @@ use futures_util::StreamExt as _;
 
 mod applied_policies;
 
-/// Reject unsupported project transforms before consuming any package
-/// frame, so an older server cannot trigger downloads for this request.
-fn verify_transform_support(
-    response: &reqwest::Response,
-    requested: bool,
-) -> Result<(), PnprClientError> {
-    if requested
-        && response
-            .headers()
-            .get(PROJECT_TRANSFORMS_HEADER)
-            .and_then(|value| value.to_str().ok())
-            != Some(PROJECT_TRANSFORMS_VERSION)
-    {
-        return Err(PnprClientError::Protocol(
-            "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
-                .to_string(),
-        ));
-    }
-    Ok(())
-}
-
 /// Read the response body as NDJSON, handing each non-empty line to
 /// `on_line` until one of them settles the stream. `None` when the stream
 /// ended without a terminal frame.
@@ -162,10 +141,6 @@ fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {
             .as_ref()
             .is_some_and(|extensions| !extensions.is_empty())
 }
-
-pub(super) const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
-
-pub(super) const PROJECT_TRANSFORMS_VERSION: &str = "1";
 
 fn assert_transform_metadata(
     lockfile: &Lockfile,
@@ -313,6 +288,29 @@ impl PnprClient {
         self.resolve_projects_streaming(opts.into(), on_package).await
     }
 
+    async fn handshake_project_transforms(
+        &self,
+        opts: &ResolveProjectsOptions,
+    ) -> Result<(), PnprClientError> {
+        let project_transforms_requested = has_project_transforms(opts);
+        if project_transforms_requested {
+            let capability = self.ensure_handshake().await?;
+            Self::require_resolver_protocol(capability)?;
+            if !capability
+                .protocol("resolver")
+                .features
+                .iter()
+                .any(|feature| feature == "projectTransforms")
+            {
+                return Err(PnprClientError::Protocol(
+                    "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
+                        .to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Resolve workspace projects, invoking `on_package` once per resolved
     /// tarball before the terminal lockfile frame arrives.
     pub async fn resolve_projects_streaming(
@@ -330,7 +328,7 @@ impl PnprClient {
         // `{ specifiers: {} }`), and a genuinely missing importer is surfaced
         // downstream by the lockfile merge, not a way to inject dependencies.
         let permitted_importers = permitted_importers(&opts);
-        let project_transforms_requested = has_project_transforms(&opts);
+        self.handshake_project_transforms(&opts).await?;
         let mut post = self.http
             .post(format!("{}-/pnpr/v0/resolve", self.base_url))
             .json(&resolve_request_body(&opts));
@@ -345,8 +343,6 @@ impl PnprClient {
                 "/-/pnpr/v0/resolve returned {status}: {body}",
             )));
         }
-
-        verify_transform_support(&response, project_transforms_requested)?;
 
         let outcome = read_ndjson_frames(response, |line| {
             handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)

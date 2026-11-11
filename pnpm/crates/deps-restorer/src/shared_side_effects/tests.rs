@@ -580,7 +580,7 @@ mod restore {
         let handshake = server
             .mock("GET", "/-/pnpr")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
             .create_async()
             .await;
         let resolve = server
@@ -642,7 +642,7 @@ mod restore {
         let _handshake = server
             .mock("GET", "/-/pnpr")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
             .create_async()
             .await;
         let requested = std::sync::Arc::new(std::sync::Mutex::new(None));

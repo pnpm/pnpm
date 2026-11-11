@@ -833,7 +833,7 @@ artifacts:
 
   The CLI flag `--disable-artifacts` overrides this setting. With artifacts off,
   its routes are not mounted and the `GET /-/pnpr` handshake advertises an empty
-  artifact-version list. The handshake itself is served when any surface is
+  `protocols.artifacts.versions` list. The handshake itself is served when any surface is
   enabled, so an artifact-only tier is discoverable.
 
   `orgs` declares the organizations this server keeps build output for, and who

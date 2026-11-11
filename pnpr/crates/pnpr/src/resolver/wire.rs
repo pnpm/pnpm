@@ -31,8 +31,6 @@ use pnpr_upstream::{
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
-const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
-const PROJECT_TRANSFORMS_VERSION: &str = "1";
 
 /// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
@@ -463,7 +461,6 @@ pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frame.to_vec()))
         .expect("binary response is always valid")
 }
@@ -475,7 +472,6 @@ pub(super) fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frames.concat()))
         .expect("binary response is always valid")
 }
@@ -493,7 +489,6 @@ pub(super) fn ndjson_stream_response(
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from_stream(stream))
         .expect("streaming response is always valid")
 }

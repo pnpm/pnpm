@@ -603,7 +603,7 @@ fn mock_filtered_repair_response(
         .mock("GET", "/-/pnpr")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"pnpr":{"versions":[0],"fixLockfile":[0]}}"#)
+        .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms","fixLockfile"]}}}}"#)
         .expect(1)
         .create();
     let response = serde_json::json!({

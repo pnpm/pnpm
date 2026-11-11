@@ -785,7 +785,7 @@ function createBufferingServer (handle: (bufferedRequest: BufferedRequest) => vo
 
 function respondWithArtifactCapabilities (response: ServerResponse): void {
   response.writeHead(200, { 'content-type': 'application/json' })
-    .end(JSON.stringify({ pnpr: { versions: [0], artifacts: [0] } }))
+    .end(JSON.stringify({ pnpr: { protocols: { artifacts: { versions: [0] } } } }))
 }
 
 function createHydrationServer (state: HydrationServerState, signing: ArtifactSigning): Server {
