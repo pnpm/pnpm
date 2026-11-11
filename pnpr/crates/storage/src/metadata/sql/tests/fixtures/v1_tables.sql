@@ -455,7 +455,10 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT NOT NULL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
     username_skeleton_hash TEXT UNIQUE,
-    bcrypt_hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    credential_kind TEXT NOT NULL,
+    password_hash TEXT,
+    created_at INTEGER NOT NULL,
     name_revision INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
@@ -469,10 +472,11 @@ CREATE TABLE IF NOT EXISTS tokens (
     cidr_whitelist TEXT NOT NULL DEFAULT '[]',
     name TEXT,
     expires_at INTEGER,
-    scopes TEXT,
     kind TEXT
 ) STRICT;
 CREATE INDEX IF NOT EXISTS tokens_user_id ON tokens (user_id);
+CREATE INDEX IF NOT EXISTS tokens_expires_at ON tokens (expires_at)
+    WHERE expires_at IS NOT NULL;
 
 -- Monotonic and reconciled counters for SQL-backed auth.
 CREATE TABLE IF NOT EXISTS auth_counters (

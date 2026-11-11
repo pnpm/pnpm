@@ -56,8 +56,8 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
 
         let owner = replica.lookup(&token).await.unwrap();
         assert_eq!(owner.as_deref(), Some(alice_id.as_str()));
-        let hash = replica.stored_hash("alice").await.unwrap();
-        assert!(hash.is_some());
+        let stored = replica.stored_account("alice").await.unwrap();
+        assert!(stored.is_some());
         assert_eq!(
             primary.round_trips.count(),
             pipelines_after_connect,

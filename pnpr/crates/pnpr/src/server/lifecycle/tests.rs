@@ -1,5 +1,6 @@
-use super::{Config, Storage, sweep_abandoned_archive_temps};
+use super::{Config, Storage, load_startup_auth, sweep_abandoned_archive_temps};
 use object_store::memory::InMemory;
+use pnpr_auth::TokenBackend;
 use pnpr_config::HostedStoreConfig;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
@@ -171,7 +172,7 @@ async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store()
     proxy_config.routing.hosted.clear();
     proxy_config.storage.metadata =
         pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
-    super::load_startup_auth(&proxy_config).await.unwrap();
+    load_startup_auth(&proxy_config).await.unwrap();
     tokio::time::advance(Duration::from_hours(2)).await;
     tokio::task::yield_now().await;
 
@@ -555,4 +556,89 @@ async fn serving_startup_defers_pending_claim_while_rejecting_dirty_or_oversized
     oversized_cfg.storage.cache_dir = oversized_cache;
     assert!(crate::config_validation::validate_startup_config(&mut oversized_cfg).is_err());
     assert!(super::claim_ephemeral_cache_dir(&oversized_cfg).await.is_err());
+}
+
+#[tokio::test(start_paused = true)]
+async fn startup_and_periodic_sweeps_delete_expired_tokens() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = s3_config(&tmp);
+    config.features.registry.enabled = false;
+    config.features.resolver.enabled = true;
+    let tokens_path = tmp.path().join("tokens.db");
+    config.identity.auth.tokens.file = Some(tokens_path.clone());
+
+    let now = pnpr_auth::unix_millis();
+    let seeded = pnpr_auth::TokenStore::open(tokens_path).unwrap();
+    let (already_expired, _) = seeded
+        .issue_token(
+            "alice",
+            pnpr_auth::NewToken::new().with_expires_at(Some(now.saturating_sub(1_000))),
+        )
+        .await
+        .unwrap();
+    let (kept_token, _) = seeded
+        .issue_token("alice", pnpr_auth::NewToken::new())
+        .await
+        .unwrap();
+    drop(seeded);
+
+    let auth = load_startup_auth(&config).await.unwrap();
+    assert!(
+        auth.tokens
+            .find_by_key(&crate::server::ecosystem::sha256_hex(already_expired.as_bytes()))
+            .await
+            .unwrap()
+            .is_none(),
+        "startup sweep must delete tokens that already expired",
+    );
+    assert!(
+        auth.tokens
+            .find_by_key(&crate::server::ecosystem::sha256_hex(kept_token.as_bytes()))
+            .await
+            .unwrap()
+            .is_some(),
+    );
+
+    let (expires_during_run, _) = auth.tokens
+        .issue_token("alice", pnpr_auth::NewToken::new().with_expires_at(Some(1)))
+        .await
+        .unwrap();
+    let expires_key = crate::server::ecosystem::sha256_hex(expires_during_run.as_bytes());
+    assert!(
+        auth.tokens
+            .find_by_key(&expires_key)
+            .await
+            .unwrap()
+            .is_some(),
+    );
+
+    tokio::task::yield_now().await;
+    tokio::time::advance(super::EXPIRED_TOKEN_SWEEP_INTERVAL).await;
+    tokio::time::resume();
+    for _ in 0..100 {
+        if auth.tokens
+            .find_by_key(&expires_key)
+            .await
+            .unwrap()
+            .is_none()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert!(
+        auth.tokens
+            .find_by_key(&expires_key)
+            .await
+            .unwrap()
+            .is_none(),
+        "periodic sweep must delete newly expired tokens",
+    );
+    assert!(
+        auth.tokens
+            .find_by_key(&crate::server::ecosystem::sha256_hex(kept_token.as_bytes()))
+            .await
+            .unwrap()
+            .is_some(),
+    );
 }

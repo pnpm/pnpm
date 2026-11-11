@@ -147,6 +147,36 @@ fn report_staged_archive_sweep(swept: usize) {
     }
 }
 
+const EXPIRED_TOKEN_SWEEP_INTERVAL: std::time::Duration = std::time::Duration::from_hours(1);
+
+/// Delete expired personal tokens at startup and then every hour while the
+/// server runs.
+async fn sweep_expired_tokens(auth: &AuthState) -> pnpr_error::Result<()> {
+    report_expired_token_sweep(auth.tokens.delete_expired(pnpr_auth::unix_millis()).await?);
+    let tokens = Arc::downgrade(&auth.tokens);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(EXPIRED_TOKEN_SWEEP_INTERVAL);
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            let Some(tokens) = tokens.upgrade() else {
+                break;
+            };
+            match tokens.delete_expired(pnpr_auth::unix_millis()).await {
+                Ok(swept) => report_expired_token_sweep(swept),
+                Err(err) => tracing::warn!(error = %err, "sweeping expired tokens failed"),
+            }
+        }
+    });
+    Ok(())
+}
+
+fn report_expired_token_sweep(swept: usize) {
+    if swept > 0 {
+        tracing::info!(swept, "removed expired tokens");
+    }
+}
+
 /// Run startup side effects and load the auth backends. The registry
 /// prepares its storage; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
@@ -165,7 +195,9 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     } else {
         crate::cache_maintenance::sync_cache_secret_on_startup(config).await?;
     }
-    AuthState::load(&config.identity.auth, &config.identity.backend).await
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await?;
+    sweep_expired_tokens(&auth).await?;
+    Ok(auth)
 }
 
 /// Bind to `config.http.listen` and serve forever. Loads auth state before

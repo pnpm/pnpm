@@ -1,14 +1,20 @@
+pub(crate) mod format;
 pub(super) mod sqlite;
 
+pub(crate) use format::mint_token;
+pub use format::{PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, has_valid_personal_token_checksum};
 pub(super) use pnpm_crypto_hash::create_hex_hash_bytes as sha256_hex;
+pub use record::{NewToken, TokenKind, TokenRecord};
+
+mod record;
 
 use super::{
-    AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
-    Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
-    validation::token_timestamp_to_sql,
+    Connection, HashMap, HashSet, Mutex, PathBuf, RegistryError, Result, SystemTime, TokenBackend,
+    UNIX_EPOCH, async_trait, validation::token_timestamp_to_sql,
 };
-use sqlite::{delete_token, init_tokens_schema, insert_token, load_all_tokens};
-use std::fmt::Write as _;
+use sqlite::{
+    delete_expired_tokens, delete_token, init_tokens_schema, insert_token, load_all_tokens,
+};
 
 /// SHA-256-hashed (`token_hash` → `user_id`) map, optionally backed by
 /// a `SQLite` database for cross-restart durability.
@@ -20,8 +26,6 @@ use std::fmt::Write as _;
 pub struct TokenStore {
     pub(super) inner: Mutex<TokenInner>,
     pub(super) persist: Option<PathBuf>,
-    pub(super) secret: [u8; 32],
-    pub(super) counter: AtomicU64,
 }
 
 #[derive(Debug, Default)]
@@ -75,152 +79,18 @@ impl TokenInner {
             .filter_map(|key| Some((key.clone(), self.tokens.get(key)?.clone())))
             .collect()
     }
-}
 
-#[non_exhaustive]
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct NewToken {
-    pub readonly: bool,
-    pub cidr_whitelist: Vec<String>,
-    pub name: Option<String>,
-    /// Expiration timestamp in milliseconds since the Unix epoch.
-    pub expires_at: Option<u64>,
-    pub scopes: Option<Vec<String>>,
-    pub kind: Option<String>,
-}
-
-impl NewToken {
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    #[must_use]
-    pub fn with_readonly(mut self, readonly: bool) -> Self {
-        self.readonly = readonly;
-        self
-    }
-
-    #[must_use]
-    pub fn with_cidr_whitelist(mut self, cidr_whitelist: Vec<String>) -> Self {
-        self.cidr_whitelist = cidr_whitelist;
-        self
-    }
-
-    #[must_use]
-    pub fn with_name(mut self, name: Option<String>) -> Self {
-        self.name = name;
-        self
-    }
-
-    #[must_use]
-    pub fn with_expires_at(mut self, expires_at: Option<u64>) -> Self {
-        self.expires_at = expires_at;
-        self
-    }
-
-    #[must_use]
-    pub fn with_scopes(mut self, scopes: Option<Vec<String>>) -> Self {
-        self.scopes = scopes;
-        self
-    }
-
-    #[must_use]
-    pub fn with_kind(mut self, kind: Option<String>) -> Self {
-        self.kind = kind;
-        self
-    }
-}
-
-#[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::too_many_struct_fields,
-        reason = "The fields mirror the auth tokens table columns."
-    )
-)]
-pub struct TokenRecord {
-    /// Current owner name, resolved by an account join rather than stored with the token.
-    pub(crate) owner_name: Option<String>,
-    pub user_id: String,
-    /// Creation timestamp in milliseconds since the Unix epoch.
-    pub created_at: u64,
-    /// Last-used timestamp in milliseconds since the Unix epoch.
-    pub last_used_at: u64,
-    pub readonly: bool,
-    pub cidr_whitelist: Vec<String>,
-    pub name: Option<String>,
-    /// Expiration timestamp in milliseconds since the Unix epoch.
-    pub expires_at: Option<u64>,
-    pub scopes: Option<Vec<String>>,
-    pub kind: Option<String>,
-}
-
-impl TokenRecord {
-    /// The current owner name when the account backend resolved it with this token.
-    #[must_use]
-    pub fn owner_name(&self) -> Option<&str> {
-        self.owner_name.as_deref()
-    }
-
-    #[must_use]
-    pub(crate) fn with_owner_name(mut self, name: String) -> Self {
-        self.owner_name = Some(name);
-        self
-    }
-
-    #[must_use]
-    pub fn new(user_id: impl Into<String>, created_at: u64, last_used_at: u64) -> Self {
-        Self {
-            owner_name: None,
-            user_id: user_id.into(),
-            created_at,
-            last_used_at,
-            readonly: false,
-            cidr_whitelist: Vec::new(),
-            name: None,
-            expires_at: None,
-            scopes: None,
-            kind: None,
+    fn remove_expired(&mut self, now: u64) -> usize {
+        let expired_keys: Vec<String> = self.tokens
+            .iter()
+            .filter(|(_, record)| record.expires_at.is_some_and(|exp| exp <= now))
+            .map(|(key, _)| key.clone())
+            .collect();
+        let removed = expired_keys.len();
+        for key in &expired_keys {
+            self.remove(key);
         }
-    }
-
-    #[must_use]
-    pub fn with_readonly(mut self, readonly: bool) -> Self {
-        self.readonly = readonly;
-        self
-    }
-
-    #[must_use]
-    pub fn with_cidr_whitelist(mut self, cidr_whitelist: Vec<String>) -> Self {
-        self.cidr_whitelist = cidr_whitelist;
-        self
-    }
-
-    #[must_use]
-    pub fn with_name(mut self, name: Option<String>) -> Self {
-        self.name = name;
-        self
-    }
-
-    #[must_use]
-    pub fn with_expires_at(mut self, expires_at: Option<u64>) -> Self {
-        self.expires_at = expires_at;
-        self
-    }
-
-    #[must_use]
-    pub fn with_scopes(mut self, scopes: Option<Vec<String>>) -> Self {
-        self.scopes = scopes;
-        self
-    }
-
-    #[must_use]
-    pub fn with_kind(mut self, kind: Option<String>) -> Self {
-        self.kind = kind;
-        self
+        removed
     }
 }
 
@@ -228,12 +98,7 @@ impl TokenStore {
     /// Pure in-memory store. Tokens vanish on restart.
     #[must_use]
     pub fn in_memory() -> Self {
-        Self {
-            inner: Mutex::new(TokenInner::default()),
-            persist: None,
-            secret: fresh_secret(),
-            counter: AtomicU64::new(0),
-        }
+        Self { inner: Mutex::new(TokenInner::default()), persist: None }
     }
 
     /// SQLite-backed store. Creates the file (and the `tokens`
@@ -260,12 +125,7 @@ impl TokenStore {
         init_tokens_schema(&conn)?;
         let tokens = load_all_tokens(&conn)?;
         drop(conn);
-        Ok(Self {
-            inner: Mutex::new(TokenInner::from_tokens(tokens)),
-            persist: Some(path),
-            secret: fresh_secret(),
-            counter: AtomicU64::new(0),
-        })
+        Ok(Self { inner: Mutex::new(TokenInner::from_tokens(tokens)), persist: Some(path) })
     }
 
     async fn persist_issued(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
@@ -303,8 +163,7 @@ impl TokenBackend for TokenStore {
         user_id: &str,
         new_token: NewToken,
     ) -> Result<(String, TokenRecord)> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, user_id);
+        let raw = mint_token();
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_millis();
         let record = TokenRecord {
@@ -316,7 +175,6 @@ impl TokenBackend for TokenStore {
             cidr_whitelist: new_token.cidr_whitelist,
             name: new_token.name,
             expires_at: new_token.expires_at,
-            scopes: new_token.scopes,
             kind: new_token.kind,
         };
         {
@@ -412,6 +270,23 @@ impl TokenBackend for TokenStore {
         Ok(Some(record))
     }
 
+    async fn delete_expired(&self, now: u64) -> Result<usize> {
+        let db_removed = if let Some(path) = self.persist.clone() {
+            tokio::task::spawn_blocking(move || -> Result<usize> {
+                let conn = Connection::open(&path)?;
+                delete_expired_tokens(&conn, now)
+            })
+            .await??
+        } else {
+            0
+        };
+        let mem_removed = {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.remove_expired(now)
+        };
+        Ok(mem_removed.max(db_removed))
+    }
+
     async fn check_readiness(&self) -> Result<()> {
         let Some(path) = self.persist.clone() else {
             return Ok(());
@@ -447,25 +322,6 @@ pub(super) fn fresh_secret() -> [u8; 32] {
     let mut secret = [0u8; 32];
     getrandom::fill(&mut secret).expect("OS CSPRNG must be available");
     secret
-}
-
-pub(super) fn mint_token(secret: &[u8; 32], nonce: u64, user_id: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(secret);
-    hasher.update(nonce.to_le_bytes());
-    hasher.update(user_id.as_bytes());
-    let digest = hasher.finalize();
-    // 16 bytes of hash → 32 hex chars. Long enough to be
-    // unguessable, short enough to keep test logs readable.
-    hex_encode(&digest[..16])
-}
-
-pub(super) fn hex_encode(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(out, "{byte:02x}").unwrap();
-    }
-    out
 }
 
 /// Current application time in milliseconds since the Unix epoch.

@@ -69,7 +69,10 @@ pub(crate) fn seeded_auth(config: &pnpr::Config, accounts: &[(&str, &str)]) -> A
             .or_insert_with(|| {
                 serde_json::json!({
                     "id": name,
+                    "status": "active",
+                    "credential_kind": "bcrypt",
                     "password_hash": bcrypt::hash(password, 4).unwrap(),
+                    "created_at": 1000,
                 })
             });
     }

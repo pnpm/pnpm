@@ -172,6 +172,10 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     let token = token.unwrap();
     let path = format!("{USERS}/{id}");
     assert_eq!(scim(&app, "PATCH", &path, Some(deactivate())).await.0, StatusCode::OK);
+    assert_eq!(
+        auth.users.account_status(id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Deactivated),
+    );
     assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
     assert_eq!(
@@ -184,15 +188,15 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     );
     let (_, reactivated) = scim(&app, "PUT", &path, Some(new_user("alice"))).await;
     assert_eq!(reactivated["id"], id);
+    assert_eq!(
+        auth.users.account_status(id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Active),
+    );
     assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(
-        auth.users
-            .password_hash("alice")
-            .await
-            .unwrap()
-            .as_deref(),
-        Some(pnpr_auth::NO_PASSWORD_HASH),
+        auth.users.credential("alice").await.unwrap(),
+        Some(pnpr_auth::AccountCredential::None),
     );
     let signed_in = auth.tokens.issue(id).await.unwrap();
     let (status, created_token) =

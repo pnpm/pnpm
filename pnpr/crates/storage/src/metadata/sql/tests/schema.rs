@@ -294,8 +294,8 @@ fn insert_v1_fixture_rows(connection: &dyn Connection) -> Result<()> {
         params!["acme", 3_i64],
     )?;
     connection.execute(
-        "INSERT INTO users (id, username, username_skeleton_hash, bcrypt_hash) VALUES (?1, ?2, ?3, ?4)",
-        params!["u-1", "alice", "skel-alice", "$2b$12$hash"],
+        "INSERT INTO users (id, username, username_skeleton_hash, status, credential_kind, password_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params!["u-1", "alice", "skel-alice", "active", "bcrypt", "$2b$12$hash", 1000_i64],
     )?;
     connection.execute(
         "INSERT INTO tokens (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",

@@ -234,7 +234,13 @@ async fn finish_write(
         .account_name(user_id)
         .await?
         .ok_or(RegistryError::NotFound)?;
-    if !user.active {
+    if user.active {
+        state.inner.identity.auth.users.set_account_status(
+            user_id,
+            pnpr_auth::AccountStatus::Active,
+        )
+        .await?;
+    } else {
         deprovision(state, user_id).await?;
     }
     Ok(scim_json(status, &user_resource(user_id, &user, &location(state, user_id))))

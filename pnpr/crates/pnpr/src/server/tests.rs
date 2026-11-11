@@ -225,6 +225,10 @@ impl TokenBackend for OneToken {
     async fn revoke_by_key(&self, _key: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
+
+    async fn delete_expired(&self, _now: u64) -> Result<usize> {
+        Ok(0)
+    }
 }
 
 /// Print what the server logs at `warn` and above into the test's captured
@@ -897,8 +901,24 @@ impl pnpr_auth::UserBackend for OneToken {
     async fn list_users(&self) -> Result<Vec<String>> {
         Ok(vec![self.record.user_id.clone()])
     }
-    async fn password_hash(&self, _name: &str) -> Result<Option<String>> {
+    async fn credential(&self, _name: &str) -> Result<Option<pnpr_auth::AccountCredential>> {
         Ok(None)
+    }
+    async fn active_account_id(&self, name: &str) -> Result<Option<String>> {
+        self.account_id(name).await
+    }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        self.account_name(id).await
+    }
+    async fn account_status(&self, id: &str) -> Result<Option<pnpr_auth::AccountStatus>> {
+        Ok(self.accounts.contains(id).then_some(pnpr_auth::AccountStatus::Active))
+    }
+    async fn set_account_status(
+        &self,
+        _id: &str,
+        _status: pnpr_auth::AccountStatus,
+    ) -> Result<bool> {
+        unreachable!()
     }
     async fn add_or_login(
         &self,

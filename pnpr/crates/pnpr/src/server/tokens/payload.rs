@@ -12,7 +12,6 @@ const MILLIS_PER_DAY: u64 = 86_400_000;
 /// `9999-12-31T23:59:59.999Z`, the last Unix-millisecond timestamp that formats
 /// as a four-digit-year RFC 3339 string.
 const MAX_TOKEN_TIMESTAMP_MILLIS: u64 = 253_402_300_799_999;
-const MAX_TOKEN_KIND_CHARS: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TokenAccess {
@@ -64,7 +63,7 @@ pub(super) struct ValidatedTokenRequest {
     name: Option<String>,
     expiry: TokenExpiry,
     latest_expiry: Option<u64>,
-    kind: Option<String>,
+    kind: Option<pnpr_auth::TokenKind>,
 }
 
 impl ValidatedTokenRequest {
@@ -147,7 +146,7 @@ pub(super) fn parse_and_validate_token_request(
         resolve_token_access(payload.readonly, payload.packages_and_scopes_permission.as_deref())?;
     let cidr_whitelist = payload.cidr_whitelist.unwrap_or_default();
     validate_cidr_whitelist(&cidr_whitelist)?;
-    validate_kind(payload.kind.as_deref())?;
+    let kind = parse_token_kind(payload.kind.as_deref())?;
     let expiry = parse_token_expiry(payload.expires.as_ref(), payload.expires_in)?;
     expiry.resolve(now)?;
     Ok(ValidatedTokenRequest {
@@ -157,7 +156,7 @@ pub(super) fn parse_and_validate_token_request(
         name: payload.name,
         expiry,
         latest_expiry: None,
-        kind: payload.kind,
+        kind,
     })
 }
 
@@ -251,15 +250,15 @@ fn check_cidr_whitelist_within(
     Ok(())
 }
 
-fn validate_kind(kind: Option<&str>) -> Result<(), RegistryError> {
-    if let Some(kind) = kind
-        && kind.chars().count() > MAX_TOKEN_KIND_CHARS
-    {
-        return Err(RegistryError::BadRequest {
-            reason: format!("kind must be at most {MAX_TOKEN_KIND_CHARS} characters"),
-        });
-    }
-    Ok(())
+fn parse_token_kind(kind: Option<&str>) -> Result<Option<pnpr_auth::TokenKind>, RegistryError> {
+    let Some(raw) = kind else {
+        return Ok(None);
+    };
+    pnpr_auth::TokenKind::parse(raw)
+        .map(Some)
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: "kind must be 'classic' or 'granular'".to_string(),
+        })
 }
 
 fn parse_token_expiry(

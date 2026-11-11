@@ -247,8 +247,9 @@ Browser login also verifies a browser-bound state, a nonce, and S256 PKCE.
 Unmapped and ambiguous identities are rejected, and user subjects must be unique
 within a provider, its workload bindings included.
 
-The `pnpr_oidc_` and `pnpr_workload_` credential prefixes are reserved for OIDC,
-and workload credentials bypass the persistent token backend.
+Personal bearer tokens use the `pnpr_` prefix with a base62 payload and CRC-32
+checksum. The `pnpr_oidc_` and `pnpr_workload_` credential prefixes are reserved
+for OIDC, and workload credentials bypass the persistent token backend.
 
 Discovery and JWKS use HTTPS with redirects disabled and bounded response sizes
 and deadlines. Literal and DNS-resolved destinations must be public IP addresses,

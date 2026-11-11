@@ -1,96 +1,32 @@
 pub use import::{ImportMode, PasswordCollisions, PasswordImport};
 
 use super::{
-    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, hash_bcrypt, is_sha_hash, sha256_hex,
+    AccountCredential, AccountStatus, CredentialKind, DEFAULT_BCRYPT_COST, Result, UpsertOutcome,
+    account::deprovisioned_login_error, hash_bcrypt, sha256_hex, unix_millis,
     verify_returning_user, write_atomic,
 };
 use pnpr_config::MaxUsers;
 use pnpr_error::RegistryError;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, Mutex, PoisonError},
 };
 
-/// Account records indexed by their current login name.
-type Users = HashMap<String, StoredAccount>;
-
-#[expect(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "serde skip_serializing_if is called as f(&field)"
-)]
-const fn is_zero(value: &u64) -> bool {
-    *value == 0
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StoredAccount {
-    id: String,
-    password_hash: String,
-    #[serde(default, skip_serializing_if = "is_zero")]
-    name_revision: u64,
-}
-
-impl StoredAccount {
-    fn new(password_hash: String) -> Self {
-        Self { id: crate::new_principal_id(), password_hash, name_revision: 0 }
-    }
-}
-
-fn parse_accounts(raw: &str) -> std::result::Result<Users, String> {
-    let accounts: Users = serde_json::from_str(raw).map_err(|err| err.to_string())?;
-    let mut ids = std::collections::HashSet::new();
-    let mut skeletons = HashMap::new();
-    for (name, account) in &accounts {
-        validate_stored_account(name, account, &mut skeletons)?;
-        if account.id.is_empty() || !ids.insert(account.id.as_str()) {
-            return Err("account IDs must be nonempty and unique".to_string());
-        }
-    }
-    Ok(accounts)
-}
-
-fn validate_stored_account<'a>(
-    name: &'a str,
-    account: &StoredAccount,
-    skeletons: &mut HashMap<String, &'a str>,
-) -> std::result::Result<(), String> {
-    if account.password_hash == crate::DELETED_USER_HASH {
-        if name != format!("deleted:{}", account.id) {
-            return Err("deleted accounts must use their generated names".to_string());
-        }
-        return Ok(());
-    }
-    crate::validation::validate_username(name)
-        .map_err(|err| format!("invalid username {name:?}: {err}"))?;
-    let skeleton = crate::validation::username_skeleton_hash(name);
-    if let Some(existing) = skeletons.insert(skeleton, name) {
-        return Err(format!(
-            "username {:?} is too similar to username {:?}",
-            existing.max(name),
-            existing.min(name),
-        ));
-    }
-    if account.password_hash != crate::NO_PASSWORD_HASH
-        && !crate::htpasswd::is_supported_hash(&account.password_hash)
-    {
-        return Err(format!("unsupported password hash for {name:?}"));
-    }
-    Ok(())
-}
-
 mod backend;
 mod file_stamp;
 mod import;
+mod stored;
 
 use file_stamp::FileStamp;
+use stored::{StoredAccount, Users, parse_accounts};
 
 #[derive(Debug, Default)]
 struct UserStoreState {
     users: Users,
-    active_count: u64,
+    registered_count: u64,
     names_by_id: HashMap<String, String>,
+    active_ids: HashSet<String>,
     last_synced: Option<FileStamp>,
     last_digest: Option<String>,
     synced_at: Option<std::time::SystemTime>,
@@ -98,8 +34,9 @@ struct UserStoreState {
 
 impl UserStoreState {
     fn replace_users(&mut self, users: Users) {
-        self.active_count = active_user_count(&users);
-        self.names_by_id = active_names_by_id(&users);
+        self.registered_count = registered_user_count(&users);
+        self.names_by_id = non_deleted_names_by_id(&users);
+        self.active_ids = active_user_ids(&users);
         self.users = users;
     }
 }
@@ -173,8 +110,9 @@ impl UserStore {
         let synced_at = last_synced.as_ref().map(|_| now);
         Ok(Self {
             state: Arc::new(Mutex::new(UserStoreState {
-                active_count: active_user_count(&users),
-                names_by_id: active_names_by_id(&users),
+                registered_count: registered_user_count(&users),
+                names_by_id: non_deleted_names_by_id(&users),
+                active_ids: active_user_ids(&users),
                 users,
                 last_synced,
                 last_digest,
@@ -195,8 +133,9 @@ impl UserStore {
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(UserStoreState {
-                active_count: active_user_count(&users),
-                names_by_id: active_names_by_id(&users),
+                registered_count: registered_user_count(&users),
+                names_by_id: non_deleted_names_by_id(&users),
+                active_ids: active_user_ids(&users),
                 users,
                 last_synced: None,
                 last_digest: None,
@@ -212,9 +151,10 @@ impl UserStore {
     #[cfg(test)]
     pub(crate) fn insert_user_for_test(&self, username: String, hash: String) {
         let mut state = self.snapshot();
-        state.users.insert(username, StoredAccount::new(hash));
-        state.active_count = active_user_count(&state.users);
-        state.names_by_id = active_names_by_id(&state.users);
+        state.users.insert(username, StoredAccount::new_with_hash(hash));
+        state.registered_count = registered_user_count(&state.users);
+        state.names_by_id = non_deleted_names_by_id(&state.users);
+        state.active_ids = active_user_ids(&state.users);
     }
 
     #[cfg(test)]
@@ -264,10 +204,10 @@ impl UserStore {
         Ok(())
     }
 
-    /// Whether the account ID is active.
-    pub(crate) fn holds(&self, user_id: &str) -> Result<bool> {
+    /// Whether the account ID has `status = active`.
+    pub(crate) fn holds_active(&self, user_id: &str) -> Result<bool> {
         self.sync_from_disk_if_path()?;
-        Ok(self.snapshot().names_by_id.contains_key(user_id))
+        Ok(self.snapshot().active_ids.contains(user_id))
     }
 
     fn snapshot(&self) -> std::sync::MutexGuard<'_, UserStoreState> {
@@ -279,7 +219,7 @@ impl UserStore {
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
-                if self.snapshot().active_count >= max {
+                if self.snapshot().registered_count >= max {
                     return Err(RegistryError::TooManyUsers { max });
                 }
             }
@@ -380,23 +320,23 @@ impl UserStore {
         password: &str,
         stored: StoredAccount,
     ) -> Result<(UpsertOutcome, String)> {
-        let (outcome, _) = verify_returning_user(
-            username,
-            password,
-            stored.password_hash.clone(),
-            self.bcrypt_cost,
-        )
-        .await?;
+        if stored.status == AccountStatus::Deactivated {
+            return Err(deprovisioned_login_error(username));
+        }
+        let credential = stored.credential();
+        let (outcome, _) =
+            verify_returning_user(username, password, &credential, self.bcrypt_cost).await?;
         let user_id = stored.id.clone();
-        if is_sha_hash(&stored.password_hash) {
+        if stored.credential_kind == CredentialKind::Sha1 {
             let new_hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
             let name = username.to_string();
             self.update(move |users| {
                 if let Some(current) = users.get_mut(&name)
                     && current.id == stored.id
+                    && current.status == AccountStatus::Active
                     && current.password_hash == stored.password_hash
                 {
-                    current.password_hash = new_hash;
+                    current.set_hash(new_hash);
                     Ok(Change::Write(()))
                 } else {
                     Ok(Change::Keep(()))
@@ -421,18 +361,26 @@ impl Default for UserStore {
     }
 }
 
-fn active_user_count(users: &Users) -> u64 {
+fn registered_user_count(users: &Users) -> u64 {
     users
         .values()
-        .filter(|account| account.password_hash != super::DELETED_USER_HASH)
+        .filter(|account| !account.status.is_deleted())
         .count() as u64
 }
 
-fn active_names_by_id(users: &Users) -> HashMap<String, String> {
+fn non_deleted_names_by_id(users: &Users) -> HashMap<String, String> {
     users
         .iter()
-        .filter(|(_, account)| account.password_hash != crate::DELETED_USER_HASH)
+        .filter(|(_, account)| !account.status.is_deleted())
         .map(|(name, account)| (account.id.clone(), name.clone()))
+        .collect()
+}
+
+fn active_user_ids(users: &Users) -> HashSet<String> {
+    users
+        .values()
+        .filter(|account| account.status.is_active())
+        .map(|account| account.id.clone())
         .collect()
 }
 
@@ -441,7 +389,7 @@ fn check_username_skeleton(users: &Users, username: &str, own_id: Option<&str>) 
     if users
         .iter()
         .any(|(name, account)| {
-            account.password_hash != crate::DELETED_USER_HASH
+            !account.status.is_deleted()
                 && Some(account.id.as_str()) != own_id
                 && crate::validation::username_skeleton_hash(name) == skeleton
         })

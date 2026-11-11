@@ -37,6 +37,10 @@ impl TokenBackend for DelayedTokens {
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         self.tokens.revoke_by_key(key).await
     }
+
+    async fn delete_expired(&self, now: u64) -> Result<usize> {
+        self.tokens.delete_expired(now).await
+    }
 }
 
 #[tokio::test]
@@ -121,10 +125,12 @@ async fn password_login_accepts_a_credential_upgraded_during_verification() {
         Some(id.as_str()),
     );
     assert!(crate::is_bcrypt_hash(
-        &users
-            .password_hash("example-user")
+        users
+            .credential("example-user")
             .await
             .unwrap()
+            .unwrap()
+            .password_hash()
             .unwrap()
     ));
 }
@@ -133,8 +139,8 @@ async fn password_login_accepts_a_credential_upgraded_during_verification() {
 async fn token_creation_rejects_a_credential_reset_during_issuance() {
     let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
     let (_, id) = users.add_or_login("example-user", "old-password").await.unwrap();
-    let verified_hash = users
-        .password_hash("example-user")
+    let verified_credential = users
+        .credential("example-user")
         .await
         .unwrap()
         .unwrap();
@@ -151,7 +157,7 @@ async fn token_creation_rejects_a_credential_reset_during_issuance() {
             auth.issue_token_if_credential_current(
                 "example-user",
                 &id,
-                &verified_hash,
+                &verified_credential,
                 NewToken::default(),
             )
             .await
@@ -179,9 +185,11 @@ pub(crate) async fn assert_password_update_keeps_concurrent_resets(users: &dyn U
         .unwrap()
         .unwrap();
     let verified_hash = users
-        .password_hash("example-user")
+        .credential("example-user")
         .await
         .unwrap()
+        .unwrap()
+        .into_password_hash()
         .unwrap();
     users.set_password(&id, "admin-reset-password").await.unwrap();
     assert!(
@@ -190,9 +198,11 @@ pub(crate) async fn assert_password_update_keeps_concurrent_resets(users: &dyn U
     assert!(users.add_or_login("example-user", "admin-reset-password").await.is_ok());
     assert!(users.add_or_login("example-user", "attacker-password").await.is_err());
     let current = users
-        .password_hash("example-user")
+        .credential("example-user")
         .await
         .unwrap()
+        .unwrap()
+        .into_password_hash()
         .unwrap();
     assert!(users.set_password_if_current(&id, "changed-password", &current).await.unwrap());
     assert!(users.add_or_login("example-user", "changed-password").await.is_ok());

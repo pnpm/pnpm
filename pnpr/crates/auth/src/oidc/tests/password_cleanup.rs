@@ -27,6 +27,9 @@ impl TokenBackend for FailedRevocation {
     async fn revoke_all_for_user(&self, _id: &str) -> Result<usize> {
         Err(RegistryError::StorageUnavailable { reason: "token store unavailable".to_string() })
     }
+    async fn delete_expired(&self, now: u64) -> Result<usize> {
+        self.0.delete_expired(now).await
+    }
 }
 
 #[tokio::test]
@@ -39,9 +42,11 @@ async fn a_committed_password_error_revokes_browser_sessions_when_token_cleanup_
         .unwrap()
         .unwrap();
     let hash = users
-        .password_hash("example-user")
+        .credential("example-user")
         .await
         .unwrap()
+        .unwrap()
+        .into_password_hash()
         .unwrap();
     let auth = AuthState { users, tokens: Arc::new(FailedRevocation(TokenStore::in_memory())) };
     let oidc = OidcState::new(&[], "https://example.test").unwrap();

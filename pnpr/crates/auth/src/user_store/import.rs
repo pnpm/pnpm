@@ -57,7 +57,7 @@ fn merge_hashes(
 ) -> Result<(usize, Vec<String>)> {
     let mut skeletons: HashSet<_> = users
         .iter()
-        .filter(|(_, account)| account.password_hash != crate::DELETED_USER_HASH)
+        .filter(|(_, account)| !account.status.is_deleted())
         .map(|(name, _)| crate::validation::username_skeleton_hash(name))
         .collect();
     let mut merged = 0;
@@ -68,17 +68,17 @@ fn merge_hashes(
             if !skeletons.insert(crate::validation::username_skeleton_hash(&name)) {
                 return Err(crate::validation::confusable_username());
             }
-            users.insert(name, StoredAccount::new(hash));
+            users.insert(name, StoredAccount::new_with_hash(hash));
             merged += 1;
             continue;
         };
-        if account.password_hash == hash {
+        if account.password_hash.as_deref() == Some(hash.as_str()) {
             continue;
         }
         match policy {
             PasswordCollisions::Keep => collisions.push(name),
             PasswordCollisions::Overwrite => {
-                account.password_hash = hash;
+                account.set_hash(hash);
                 merged += 1;
             }
         }

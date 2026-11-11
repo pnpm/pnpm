@@ -45,7 +45,7 @@ impl TokenBackend for OwnedTokens {
         let Some(owner) = self.tokens.lookup(raw).await? else {
             return Ok(None);
         };
-        if self.users.holds(&owner)? { Ok(Some(owner)) } else { Ok(None) }
+        if self.users.holds_active(&owner)? { Ok(Some(owner)) } else { Ok(None) }
     }
 
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
@@ -53,7 +53,7 @@ impl TokenBackend for OwnedTokens {
             return Ok(None);
         };
         Ok(self.users
-            .account_name(&record.user_id)
+            .active_account_name(&record.user_id)
             .await?
             .map(|name| record.with_owner_name(name)))
     }
@@ -72,6 +72,10 @@ impl TokenBackend for OwnedTokens {
 
     async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
         self.tokens.revoke_all_for_user(user_id).await
+    }
+
+    async fn delete_expired(&self, now: u64) -> Result<usize> {
+        self.tokens.delete_expired(now).await
     }
 
     async fn check_readiness(&self) -> Result<()> {

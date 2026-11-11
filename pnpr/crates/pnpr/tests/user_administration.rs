@@ -304,7 +304,10 @@ impl UserBackend for RemovedDuringLogin {
         Ok(Vec::new())
     }
 
-    async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
+    async fn credential(
+        &self,
+        _username: &str,
+    ) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
         Ok(None)
     }
 
@@ -327,8 +330,24 @@ impl UserBackend for RemovedDuringLogin {
     async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
         Ok(None)
     }
+    async fn active_account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
     async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
         Ok(None)
+    }
+    async fn active_account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
+        Ok(None)
+    }
+    async fn set_account_status(
+        &self,
+        _id: &str,
+        _status: pnpr_auth::AccountStatus,
+    ) -> pnpr::Result<bool> {
+        Ok(false)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
         unreachable!()
@@ -387,6 +406,10 @@ impl TokenBackend for FailingRevocation {
     async fn revoke_by_key(&self, _key: &str) -> pnpr::Result<Option<TokenRecord>> {
         Err(RegistryError::Internal { reason: "revocation is down".to_string() })
     }
+
+    async fn delete_expired(&self, now: u64) -> pnpr::Result<usize> {
+        self.0.delete_expired(now).await
+    }
 }
 
 #[tokio::test]
@@ -411,7 +434,7 @@ async fn a_failed_revocation_still_disables_the_account() {
     assert!(status.is_server_error(), "{status}");
     assert!(
         users
-            .password_hash("bob")
+            .credential("bob")
             .await
             .unwrap()
             .is_none(),
@@ -419,13 +442,13 @@ async fn a_failed_revocation_still_disables_the_account() {
 }
 
 /// A user store whose one account is removed and created again between a
-/// login's password check and its token: the hash the login verified is
+/// login's password check and its token: the credential the login verified is
 /// followed by another.
 struct ReplacedDuringLogin {
     outcome: UpsertOutcome,
-    /// Popped by each `password_hash` call: the hash the login sees before
+    /// Popped by each `credential` call: the credential the login sees before
     /// verifying, then the one it sees once its token exists.
-    hashes: std::sync::Mutex<Vec<Option<String>>>,
+    credentials: std::sync::Mutex<Vec<Option<pnpr_auth::AccountCredential>>>,
 }
 
 #[async_trait::async_trait]
@@ -442,8 +465,11 @@ impl UserBackend for ReplacedDuringLogin {
         Ok(Vec::new())
     }
 
-    async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
-        Ok(self.hashes
+    async fn credential(
+        &self,
+        _username: &str,
+    ) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
+        Ok(self.credentials
             .lock()
             .unwrap()
             .pop()
@@ -469,8 +495,24 @@ impl UserBackend for ReplacedDuringLogin {
     async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
         Ok(None)
     }
+    async fn active_account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
     async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
         Ok(None)
+    }
+    async fn active_account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
+        Ok(None)
+    }
+    async fn set_account_status(
+        &self,
+        _id: &str,
+        _status: pnpr_auth::AccountStatus,
+    ) -> pnpr::Result<bool> {
+        Ok(false)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
         unreachable!()
@@ -484,12 +526,12 @@ impl UserBackend for ReplacedDuringLogin {
 async fn an_old_password_gets_no_token_for_a_recreated_account() {
     let dir = TempDir::new().unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
-    let old = bcrypt::hash("old-password", 4).unwrap();
-    let new = bcrypt::hash("new-password", 4).unwrap();
-    let hashes = vec![Some(new), Some(old)];
+    let old = pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("old-password", 4).unwrap());
+    let new = pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("new-password", 4).unwrap());
+    let credentials = vec![Some(new), Some(old)];
     let users = ReplacedDuringLogin {
         outcome: UpsertOutcome::LoggedIn,
-        hashes: std::sync::Mutex::new(hashes),
+        credentials: std::sync::Mutex::new(credentials),
     };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
@@ -508,10 +550,11 @@ async fn an_old_password_gets_no_token_for_a_recreated_account() {
 async fn a_registration_gets_no_token_for_an_account_recreated_with_another_password() {
     let dir = TempDir::new().unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
-    let replacement = bcrypt::hash("admin's password", 4).unwrap();
+    let replacement =
+        pnpr_auth::AccountCredential::PasswordHash(bcrypt::hash("admin's password", 4).unwrap());
     let users = ReplacedDuringLogin {
         outcome: UpsertOutcome::Created,
-        hashes: std::sync::Mutex::new(vec![Some(replacement), None]),
+        credentials: std::sync::Mutex::new(vec![Some(replacement), None]),
     };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
     let app = account_router(load_config(&dir), auth).await;
@@ -612,7 +655,7 @@ async fn deleting_orphan_tokens_does_not_reserve_a_login_name() {
     let root = login(&app, "root", "secret123").await.unwrap();
     assert!(
         users
-            .password_hash("oidc-member")
+            .credential("oidc-member")
             .await
             .unwrap()
             .is_none(),

@@ -63,10 +63,10 @@ Provisioning creates a passwordless account. An existing login name returns
 cannot establish a password for a provisioned account. Use OIDC to sign in,
 or have an administrator set its password.
 
-Setting `active` to `false` revokes tokens, clears password credentials, and
-ends browser sessions. The account retains its ID and login name. Setting
-`active` to `true` restores that identity after credential cleanup. Credentials
-issued before deactivation remain revoked.
+Setting `active` to `false` marks the account `deactivated`, revokes tokens,
+clears password credentials, and ends browser sessions. The account retains its
+ID and login name. Setting `active` to `true` marks the account `active` again
+after credential cleanup. Credentials issued before deactivation remain revoked.
 
 Deleting a SCIM resource also deletes the account and frees its login name.
 A later `POST` using that name creates a different account ID with no inherited

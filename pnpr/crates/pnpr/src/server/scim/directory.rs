@@ -353,18 +353,23 @@ pub(super) async fn clean_up_before_reactivating(
     state: &AppState,
     user_id: &str,
 ) -> Result<(), RegistryError> {
-    if state.inner.storage.read_scim_user(user_id).await?.is_some_and(|user| !user.active) {
+    let inactive_in_scim =
+        state.inner.storage.read_scim_user(user_id).await?.is_some_and(|user| !user.active);
+    let deactivated_in_auth = state.inner.identity.auth.users.account_status(user_id).await?
+        == Some(pnpr_auth::AccountStatus::Deactivated);
+    if inactive_in_scim || deactivated_in_auth {
         deprovision(state, user_id).await?;
     }
     Ok(())
 }
 
 /// Take away everything the account ID could sign in or authenticate with: its
-/// stored tokens, its password, and its browser sessions on this
+/// active status, stored tokens, password, and browser sessions on this
 /// replica. Other replicas refuse its sessions once they reload the
 /// directory. Safe to repeat.
 pub(super) async fn deprovision(state: &AppState, user_id: &str) -> Result<(), RegistryError> {
     let auth = &state.inner.identity.auth;
+    auth.users.set_account_status(user_id, pnpr_auth::AccountStatus::Deactivated).await?;
     auth.revoke_all_tokens(user_id).await?;
     auth.users.clear_password(user_id).await?;
     auth.revoke_all_tokens(user_id).await?;

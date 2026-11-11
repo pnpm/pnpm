@@ -108,9 +108,9 @@ async fn create_verified_token(
 ) -> Result<Response, RegistryError> {
     let username = caller.identity.username().expect("authenticated caller");
     let mut request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
-    let verified_hash =
+    let verified_credential =
         verify_caller_password(state, client_ip, username, request.password()).await?;
-    if verified_hash == pnpr_auth::NO_PASSWORD_HASH {
+    if matches!(verified_credential, pnpr_auth::AccountCredential::None) {
         request = request.within(credential_limits(state, caller.credential).await?)?;
     }
     let new_token = request.into_new_token(pnpr_auth::unix_millis())?;
@@ -118,7 +118,7 @@ async fn create_verified_token(
     let (raw, record) = state.inner.identity.auth.issue_token_if_credential_current(
         username,
         user_id,
-        &verified_hash,
+        &verified_credential,
         new_token,
     )
     .await?;
@@ -152,29 +152,29 @@ pub(super) async fn verify_caller_password(
     client_ip: Option<IpAddr>,
     username: &str,
     password: Option<&str>,
-) -> Result<String, RegistryError> {
-    let hash = state.inner.identity.auth.users
-        .password_hash(username)
+) -> Result<pnpr_auth::AccountCredential, RegistryError> {
+    let credential = state.inner.identity.auth.users
+        .credential(username)
         .await?
         .ok_or_else(|| RegistryError::Unauthenticated {
             resource: "password verification".to_string(),
         })?;
-    if let Err(error) = verify_password_hash(username, password, &hash).await {
+    if let Err(error) = verify_account_credential(username, password, &credential).await {
         if matches!(error, RegistryError::Unauthenticated { .. }) {
             state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
         }
         return Err(error);
     }
     state.inner.identity.login_rate_limiter.record_success(client_ip, username);
-    Ok(hash)
+    Ok(credential)
 }
 
-async fn verify_password_hash(
+async fn verify_account_credential(
     username: &str,
     password: Option<&str>,
-    hash: &str,
+    credential: &pnpr_auth::AccountCredential,
 ) -> Result<(), RegistryError> {
-    if hash == pnpr_auth::NO_PASSWORD_HASH {
+    if matches!(credential, pnpr_auth::AccountCredential::None) {
         return Ok(());
     }
     let password = password.ok_or_else(|| RegistryError::Unauthenticated {
@@ -183,7 +183,7 @@ async fn verify_password_hash(
     match pnpr_auth::verify_returning_user(
         username,
         password,
-        hash.to_string(),
+        credential,
         pnpr_auth::DEFAULT_BCRYPT_COST,
     )
     .await
@@ -213,11 +213,8 @@ fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
     if let Some(ref name) = record.name {
         obj["name"] = json!(name);
     }
-    if let Some(ref scopes) = record.scopes {
-        obj["scopes"] = json!(scopes);
-    }
-    if let Some(ref kind) = record.kind {
-        obj["kind"] = json!(kind);
+    if let Some(kind) = record.kind {
+        obj["kind"] = json!(kind.as_str());
     }
     obj
 }
@@ -344,11 +341,8 @@ pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) 
     if let Some(ref name) = record.name {
         obj["name"] = json!(name);
     }
-    if let Some(ref scopes) = record.scopes {
-        obj["scopes"] = json!(scopes);
-    }
-    if let Some(ref kind) = record.kind {
-        obj["kind"] = json!(kind);
+    if let Some(kind) = record.kind {
+        obj["kind"] = json!(kind.as_str());
     }
     obj
 }

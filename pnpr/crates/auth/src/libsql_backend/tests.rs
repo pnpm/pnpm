@@ -109,7 +109,8 @@ async fn add_or_login_rejects_existing_invalid_username() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
+            "INSERT INTO users (id, username, status, credential_kind, password_hash, created_at)
+             VALUES (?1, ?1, 'active', 'bcrypt', ?2, 1000)",
             params!["alice ", hash],
         )
         .await
@@ -127,7 +128,8 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
+            "INSERT INTO users (id, username, status, credential_kind, password_hash, created_at)
+             VALUES (?1, ?1, 'active', 'bcrypt', ?2, 1000)",
             params!["alice", "not-a-bcrypt-hash"],
         )
         .await
@@ -135,7 +137,7 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
 
     let err = backend.add_or_login("alice", "secret123").await.unwrap_err();
 
-    assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
+    assert_eq!(err.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR, "got {err:?}");
 }
 
 #[tokio::test]
@@ -238,8 +240,9 @@ async fn ensure_user_counter_reconciles_a_stale_counter() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
-            params!["alice", "not-used-by-this-test"],
+            "INSERT INTO users (id, username, status, credential_kind, password_hash, created_at)
+             VALUES (?1, ?1, 'active', 'none', NULL, 1000)",
+            params!["alice"],
         )
         .await
         .unwrap();
@@ -587,7 +590,8 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
+            "INSERT INTO users (id, username, status, credential_kind, password_hash, created_at)
+             VALUES (?1, ?1, 'active', 'sha1', ?2, 1000)",
             params!["alice", sha_hash],
         )
         .await
@@ -597,13 +601,29 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
 
     let updated = backend
-        .stored_hash("alice")
+        .stored_account("alice")
         .await
         .unwrap()
         .unwrap()
-        .0;
+        .credential
+        .into_password_hash()
+        .unwrap();
     assert!(updated.starts_with("$2y$") || updated.starts_with("$2b$"));
     assert_ne!(updated, sha_hash);
+    let mut rows = backend.pool
+        .connect()
+        .unwrap()
+        .query("SELECT credential_kind FROM users WHERE username = 'alice'", ())
+        .await
+        .unwrap();
+    let kind: String = rows
+        .next()
+        .await
+        .unwrap()
+        .unwrap()
+        .get(0)
+        .unwrap();
+    assert_eq!(kind, "bcrypt");
 }
 
 #[tokio::test]
@@ -625,29 +645,53 @@ async fn libsql_schema_migrations_runs_and_records_version() {
 }
 
 #[tokio::test]
-async fn libsql_tokens_persist_scopes_and_kind() {
+async fn libsql_tokens_persist_kind_and_delete_expired() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     backend.add_or_login("alice", "secret123").await.unwrap();
 
     let new_token = crate::NewToken::new()
-        .with_scopes(Some(vec!["scope:read".to_string(), "scope:write".to_string()]))
-        .with_kind(Some("granular".to_string()));
+        .with_kind(Some(crate::TokenKind::Granular))
+        .with_expires_at(Some(2_000_000_000_000));
     let alice_id = backend
         .account_id("alice")
         .await
         .unwrap()
         .unwrap();
     let (raw, record) = backend.issue_token(&alice_id, new_token).await.unwrap();
-    assert_eq!(record.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
-    assert_eq!(record.kind.as_deref(), Some("granular"));
+    assert_eq!(record.kind, Some(crate::TokenKind::Granular));
 
     let looked_up = backend
         .lookup_record(&raw)
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(looked_up.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
-    assert_eq!(looked_up.kind.as_deref(), Some("granular"));
+    assert_eq!(looked_up.kind, Some(crate::TokenKind::Granular));
+
+    let (_expired_raw, _) = backend
+        .issue_token(&alice_id, crate::NewToken::new().with_expires_at(Some(500)))
+        .await
+        .unwrap();
+    let (unexpiring_raw, _) = backend
+        .issue_token(&alice_id, crate::NewToken::new())
+        .await
+        .unwrap();
+    assert_eq!(backend.delete_expired(500).await.unwrap(), 1);
+    assert_eq!(backend.delete_expired(500).await.unwrap(), 0);
+    assert_eq!(
+        backend
+            .list_for_user(&alice_id)
+            .await
+            .unwrap()
+            .len(),
+        2,
+    );
+    assert!(
+        backend
+            .lookup_record(&unexpiring_raw)
+            .await
+            .unwrap()
+            .is_some(),
+    );
 }
 
 #[tokio::test]
@@ -792,9 +836,11 @@ async fn committed_password_changes_revoke_tokens_when_replica_refresh_fails() {
             .unwrap();
         let token = backend.issue(&id).await.unwrap();
         let hash = backend
-            .password_hash("example-user")
+            .credential("example-user")
             .await
             .unwrap()
+            .unwrap()
+            .into_password_hash()
             .unwrap();
         backend.backend.is_replica = true;
         let LocalBackend { backend, _dir } = backend;
@@ -812,9 +858,11 @@ async fn committed_password_changes_revoke_tokens_when_replica_refresh_fails() {
         };
         assert_eq!(error.committed_password_user(), Some(id.as_str()));
         let stored = backend
-            .password_hash("example-user")
+            .credential("example-user")
             .await
             .unwrap()
+            .unwrap()
+            .into_password_hash()
             .unwrap();
         assert!(crate::verify_bcrypt("new-password".to_string(), stored).await.unwrap());
         assert_eq!(backend.lookup(&token).await.unwrap(), None);

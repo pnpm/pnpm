@@ -30,17 +30,49 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(users.add_or_login("renamed-member", "new-password").await.unwrap().1, original);
     assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::Changed);
     assert_eq!(
+        users.credential("renamed-member").await.unwrap(),
+        Some(crate::AccountCredential::None),
+    );
+    assert!(users.add_or_login("renamed-member", "new-password").await.is_err());
+    assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Active));
+    assert!(users.set_account_status(&original, crate::AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(
+        users.account_status(&original).await.unwrap(),
+        Some(crate::AccountStatus::Deactivated),
+    );
+    assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
+    assert_eq!(users.active_account_id("renamed-member").await.unwrap(), None);
+    assert_eq!(users.active_account_name(&original).await.unwrap(), None);
+    assert_eq!(users.credential("renamed-member").await.unwrap(), None);
+    assert!(
         users
-            .password_hash("renamed-member")
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(
+        users
+            .add_or_login("renamed-member", "new-password")
+            .await
+            .unwrap_err()
+            .status_code(),
+        403,
+    );
+    assert!(users.set_account_status(&original, crate::AccountStatus::Active).await.unwrap());
+    assert_eq!(users.active_account_id("renamed-member").await.unwrap(), Some(original.clone()));
+    assert_eq!(
+        users
+            .active_account_name(&original)
             .await
             .unwrap()
             .as_deref(),
-        Some(crate::NO_PASSWORD_HASH),
+        Some("renamed-member"),
     );
-    assert!(users.add_or_login("renamed-member", "new-password").await.is_err());
-    assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::Removed);
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::NoSuchUser);
+    assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Deleted));
+    assert!(!users.set_account_status(&original, crate::AccountStatus::Active).await.unwrap());
     assert_eq!(users.account_name(&original).await.unwrap(), None);
     assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::NoSuchUser);
     assert_eq!(
@@ -95,7 +127,14 @@ async fn account_ids_and_deleted_records_survive_restart() {
     assert_ne!(id, replacement);
     let records: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     assert_eq!(records[format!("deleted:{id}")]["id"], id);
+    assert_eq!(records[format!("deleted:{id}")]["status"], "deleted");
+    assert_eq!(records[format!("deleted:{id}")]["credential_kind"], "none");
+    assert!(records[format!("deleted:{id}")].get("password_hash").is_none());
+    assert!(records[format!("deleted:{id}")]["created_at"].is_u64());
     assert_eq!(records["member"]["id"], replacement);
+    assert_eq!(records["member"]["status"], "active");
+    assert_eq!(records["member"]["credential_kind"], "bcrypt");
+    assert!(records["member"]["created_at"].is_u64());
 }
 
 #[tokio::test]
@@ -105,6 +144,26 @@ async fn a_renamed_account_keeps_its_tokens_and_a_reused_name_cannot_reactivate_
     let token = auth.tokens.issue(&id).await.unwrap();
     auth.users.rename_user(&id, "renamed").await.unwrap();
     assert_eq!(auth.tokens.lookup(&token).await.unwrap(), Some(id.clone()));
+    assert!(auth.users.set_account_status(&id, crate::AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert!(
+        auth.tokens
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(auth.users.set_account_status(&id, crate::AccountStatus::Active).await.unwrap());
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), Some(id.clone()));
+    assert_eq!(
+        auth.tokens
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .unwrap()
+            .owner_name(),
+        Some("renamed"),
+    );
     auth.users.delete_user(&id).await.unwrap();
     let (_, replacement) = auth.users.add_or_login("renamed", "password").await.unwrap();
     assert_ne!(id, replacement);
