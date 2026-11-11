@@ -21,27 +21,26 @@ pub(super) fn force_symlink(
 }
 
 /// The contents of the link at `link`, or an error when it isn't a link that
-/// could be reused. On a Windows network share only a junction can be reused,
-/// and reading it as one fails for a true symlink in the same open, so a
-/// warm install pays nothing extra per link to tell the two apart.
+/// could be reused. On a Windows network share only the kind of link that can
+/// be opened there is reused.
 fn read_reusable_link(link: &Path) -> io::Result<std::path::PathBuf> {
     #[cfg(windows)]
-    if crate::mapped_drive_path::is_on_network_drive_cached(link) {
-        return super::windows::read_junction_target(link);
+    if let Some(contents) = super::windows::read_share_link(link) {
+        return contents;
     }
     fs::read_link(link)
 }
 
 /// Whether the link at `link`, holding `existing`, can stay as it is: it
-/// points at `wanted`, and on Windows it isn't a symlink on a network share,
-/// which Windows doesn't follow by default. This is the check after a
+/// points at `wanted`, and on a Windows network share it is the kind of link
+/// that can be opened there. This is the check after a
 /// create conflict. [`force_symlink`] checks the same without an extra open.
 pub(super) fn existing_link_reusable(wanted: &Path, link: &Path, existing: &Path) -> bool {
     if !existing_symlink_up_to_date(wanted, link, existing) {
         return false;
     }
     #[cfg(windows)]
-    return !super::windows::is_symlink_on_network_share(link);
+    return super::windows::is_link_kind_usable(link);
     #[cfg(not(windows))]
     true
 }
