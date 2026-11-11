@@ -156,3 +156,31 @@ async fn shutdown_drain_returns_when_requests_finish() {
     .unwrap();
     assert_eq!(start.elapsed(), Duration::from_secs(1));
 }
+
+#[tokio::test(start_paused = true)]
+async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store() {
+    let tmp = TempDir::new().unwrap();
+    let hosted_config = s3_config(&tmp);
+    let hosted_storage = Storage::from_config(&hosted_config.storage).unwrap();
+    hosted_storage.ensure_hosted_layout().await.unwrap();
+    let blob_id = pnpr_storage::BlobId::of_bytes(Ecosystem::Npm, b"staged-tarball");
+    let key = pnpr_storage::StagedArchiveKey { principal: "alice", blob_id: &blob_id };
+    assert!(hosted_storage.stage_archive(&key, b"staged-tarball".to_vec()).await.unwrap());
+
+    let mut proxy_config = hosted_config.clone();
+    proxy_config.routing.hosted.clear();
+    proxy_config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
+    super::load_startup_auth(&proxy_config).await.unwrap();
+    tokio::time::advance(Duration::from_hours(2)).await;
+    tokio::task::yield_now().await;
+
+    assert_eq!(
+        hosted_storage
+            .read_staged_archive(&key)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(b"staged-tarball".as_slice()),
+    );
+}

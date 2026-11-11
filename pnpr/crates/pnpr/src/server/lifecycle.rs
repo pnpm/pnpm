@@ -34,20 +34,17 @@ pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
 
 /// Reclaim blob uploads abandoned before an unclean shutdown, and any left
 /// by a client that never came back. Only image pushes create these, so this
-/// is a no-op for a registry serving no image ecosystem.
+/// is a no-op for a registry serving no hosted image ecosystem.
 async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
-    if !config.routing.registries.has_ecosystem(Ecosystem::Oci) {
-        return Ok(());
-    }
-    let storage = Storage::from_config(&config.storage)?;
-    // Shared sessions live in their hosted namespace. Local scratch can be
-    // shared by those namespaces and is safe to sweep more than once.
     let mut namespaces: Vec<&str> = config.routing.hosted
         .iter()
         .filter(|(name, _)| config.routing.registries.ecosystem(name) == Some(Ecosystem::Oci))
         .map(|(_, hosted)| hosted.org.as_str())
         .collect();
-    namespaces.push("");
+    if namespaces.is_empty() {
+        return Ok(());
+    }
+    let storage = Storage::from_config(&config.storage)?;
     namespaces.sort_unstable();
     namespaces.dedup();
     for namespace in namespaces {
@@ -92,7 +89,6 @@ fn hosted_archive_namespaces(config: &Config) -> Vec<(String, Ecosystem)> {
             Some((hosted.org.clone(), config.routing.registries.ecosystem(name)?))
         })
         .collect();
-    namespaces.push((String::new(), Ecosystem::Npm));
     namespaces.sort_unstable();
     namespaces.dedup();
     namespaces
@@ -118,6 +114,9 @@ async fn sweep_archive_temp_bases(
 /// Remove release archives staged for a publish that never claimed them
 /// before they expired, now and then every hour while the server runs.
 async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
+    if config.routing.hosted.is_empty() {
+        return Ok(());
+    }
     let storage = Storage::from_config(&config.storage)?;
     report_staged_archive_sweep(storage.sweep_staged_archives().await?);
     tokio::spawn(async move {
