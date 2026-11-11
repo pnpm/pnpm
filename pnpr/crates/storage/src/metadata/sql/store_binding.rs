@@ -11,23 +11,20 @@ const PENDING_PREFIX: &str = "pending:";
 pub(crate) enum StoreBinding {
     /// Confirmed binding to this `store_id` in `hosted_store`.
     Bound(String),
-    /// An in-progress binding to this `store_id` in `hosted_store` whose
-    /// `layout.json` write has not yet been confirmed.
+    /// An in-progress binding with this database nonce in `hosted_store`
+    /// whose `layout.json` write has not yet been confirmed.
     Pending(String),
     /// No row in `hosted_store`. `has_data` says whether any hosted
     /// catalog, package, blob, staged archive, or removed package row exists.
     Unmarked { has_data: bool },
 }
 
-/// Outcome of starting or replacing a pending `store_id` claim in `hosted_store`.
+/// Outcome of starting a pending store claim in `hosted_store`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StoreClaim {
-    /// This call wrote `pending:<id>` into `hosted_store`.
-    Claimed(String),
-    /// `hosted_store` already held `pending:<id>` from another or interrupted
-    /// initialization.
-    ExistingPending(String),
-    /// `hosted_store` is already confirmed bound to `<id>`.
+    /// `hosted_store` holds `pending:<nonce>` for an in-progress initialization.
+    Pending(String),
+    /// `hosted_store` is already confirmed bound to `<store_id>`.
     Bound(String),
 }
 
@@ -40,43 +37,33 @@ impl SqlMetadata {
         .await
     }
 
-    /// Start binding this database to `candidate` by recording `pending:<candidate>`
-    /// when `hosted_store` has no row yet.
+    /// Record `pending:<candidate_nonce>` in `hosted_store` when it holds no
+    /// row yet, returning the active pending nonce or confirmed `store_id`.
     pub(crate) async fn begin_store_claim(
         self: &Arc<Self>,
-        candidate: String,
+        candidate_nonce: String,
     ) -> Result<StoreClaim> {
-        self.write(move |connection| begin_store_claim(connection, &candidate)).await
+        self.write(move |connection| begin_store_claim(connection, &candidate_nonce)).await
     }
 
-    /// Replace a stale `pending:<expected_pending>` claim with `pending:<candidate>`.
-    pub(crate) async fn replace_pending_store_claim(
-        self: &Arc<Self>,
-        expected_pending: String,
-        candidate: String,
-    ) -> Result<StoreClaim> {
-        self.write(move |connection| {
-            replace_pending_store_claim(connection, &expected_pending, &candidate)
-        })
-        .await
-    }
-
-    /// Confirm `pending:<store_id>` in `hosted_store` as `<store_id>` once
+    /// Confirm `pending:<pending_nonce>` in `hosted_store` as `<store_id>` once
     /// `layout.json` holds `<store_id>`.
     pub(crate) async fn confirm_store_claim(
         self: &Arc<Self>,
+        pending_nonce: String,
         store_id: String,
     ) -> Result<StoreBinding> {
-        self.write(move |connection| confirm_store_claim(connection, &store_id)).await
+        self.write(move |connection| confirm_store_claim(connection, &pending_nonce, &store_id))
+            .await
     }
 
-    /// Remove `pending:<store_id>` when `layout.json` could not be written for
-    /// `<store_id>`.
+    /// Remove `pending:<pending_nonce>` when the hosted store is already bound
+    /// to another database.
     pub(crate) async fn clear_pending_store_claim(
         self: &Arc<Self>,
-        store_id: String,
+        pending_nonce: String,
     ) -> Result<()> {
-        self.write(move |connection| clear_pending_store_claim(connection, &store_id)).await
+        self.write(move |connection| clear_pending_store_claim(connection, &pending_nonce)).await
     }
 
     /// Synchronous confirmed claim for test fixture setup.
@@ -124,10 +111,10 @@ fn read_raw_store_id(connection: &dyn Connection) -> Result<Option<String>> {
     Ok(Some(store_id))
 }
 
-fn begin_store_claim(connection: &dyn Connection, candidate: &str) -> Result<StoreClaim> {
+fn begin_store_claim(connection: &dyn Connection, candidate_nonce: &str) -> Result<StoreClaim> {
     match read_store_binding(connection)? {
         StoreBinding::Bound(id) => return Ok(StoreClaim::Bound(id)),
-        StoreBinding::Pending(id) => return Ok(StoreClaim::ExistingPending(id)),
+        StoreBinding::Pending(nonce) => return Ok(StoreClaim::Pending(nonce)),
         StoreBinding::Unmarked { has_data: true } => {
             return Err(RegistryError::StorageUnavailable {
                 reason: "the metadata database has no store_id in hosted_store and holds data from an earlier schema".to_string(),
@@ -135,31 +122,27 @@ fn begin_store_claim(connection: &dyn Connection, candidate: &str) -> Result<Sto
         }
         StoreBinding::Unmarked { has_data: false } => {}
     }
-    let pending = format!("{PENDING_PREFIX}{candidate}");
+    let pending = format!("{PENDING_PREFIX}{candidate_nonce}");
     connection.execute(
         "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
          ON CONFLICT DO NOTHING",
         params![pending.as_str()],
     )?;
-    claim_from_binding(read_store_binding(connection)?, candidate)
+    match read_store_binding(connection)? {
+        StoreBinding::Bound(id) => Ok(StoreClaim::Bound(id)),
+        StoreBinding::Pending(nonce) => Ok(StoreClaim::Pending(nonce)),
+        StoreBinding::Unmarked { .. } => Err(RegistryError::Internal {
+            reason: "hosted_store holds no store_id after claim".to_string(),
+        }),
+    }
 }
 
-fn replace_pending_store_claim(
+fn confirm_store_claim(
     connection: &dyn Connection,
-    expected_pending: &str,
-    candidate: &str,
-) -> Result<StoreClaim> {
-    let expected = format!("{PENDING_PREFIX}{expected_pending}");
-    let next = format!("{PENDING_PREFIX}{candidate}");
-    connection.execute(
-        "UPDATE hosted_store SET store_id = ?1 WHERE singleton = 1 AND store_id = ?2",
-        params![next.as_str(), expected.as_str()],
-    )?;
-    claim_from_binding(read_store_binding(connection)?, candidate)
-}
-
-fn confirm_store_claim(connection: &dyn Connection, store_id: &str) -> Result<StoreBinding> {
-    let pending = format!("{PENDING_PREFIX}{store_id}");
+    pending_nonce: &str,
+    store_id: &str,
+) -> Result<StoreBinding> {
+    let pending = format!("{PENDING_PREFIX}{pending_nonce}");
     connection.execute(
         "UPDATE hosted_store SET store_id = ?1 WHERE singleton = 1 AND store_id = ?2",
         params![store_id, pending.as_str()],
@@ -167,8 +150,8 @@ fn confirm_store_claim(connection: &dyn Connection, store_id: &str) -> Result<St
     read_store_binding(connection)
 }
 
-fn clear_pending_store_claim(connection: &dyn Connection, store_id: &str) -> Result<()> {
-    let pending = format!("{PENDING_PREFIX}{store_id}");
+fn clear_pending_store_claim(connection: &dyn Connection, pending_nonce: &str) -> Result<()> {
+    let pending = format!("{PENDING_PREFIX}{pending_nonce}");
     connection.execute(
         "DELETE FROM hosted_store WHERE singleton = 1 AND store_id = ?1",
         params![pending.as_str()],
@@ -176,28 +159,16 @@ fn clear_pending_store_claim(connection: &dyn Connection, store_id: &str) -> Res
     Ok(())
 }
 
-fn claim_from_binding(binding: StoreBinding, candidate: &str) -> Result<StoreClaim> {
-    match binding {
-        StoreBinding::Bound(id) => Ok(StoreClaim::Bound(id)),
-        StoreBinding::Pending(id) if id == candidate => Ok(StoreClaim::Claimed(id)),
-        StoreBinding::Pending(id) => Ok(StoreClaim::ExistingPending(id)),
-        StoreBinding::Unmarked { .. } => Err(RegistryError::Internal {
-            reason: "hosted_store holds no store_id after claim".to_string(),
-        }),
-    }
-}
-
 fn claim_store_id(connection: &dyn Connection, candidate: &str) -> Result<String> {
     match read_store_binding(connection)? {
         StoreBinding::Bound(existing) => return Ok(existing),
-        StoreBinding::Pending(existing) if existing == candidate => {
+        StoreBinding::Pending(_) => {
             connection.execute(
                 "UPDATE hosted_store SET store_id = ?1 WHERE singleton = 1",
                 params![candidate],
             )?;
             return Ok(candidate.to_string());
         }
-        StoreBinding::Pending(existing) => return Ok(existing),
         StoreBinding::Unmarked { .. } => {}
     }
     connection.execute(

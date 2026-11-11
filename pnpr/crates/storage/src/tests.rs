@@ -302,10 +302,10 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     // 1. Interrupted after `begin_store_claim` and before `layout.json` is written.
     let tmp_before_marker = TempDir::new().unwrap();
     let initial = storage_in(&tmp_before_marker);
-    let stale_id = crate::layout::new_store_id();
+    let pending_nonce = crate::layout::new_store_id();
     assert_eq!(
-        initial.database.begin_store_claim(stale_id.clone()).await.unwrap(),
-        crate::metadata::sql::StoreClaim::Claimed(stale_id),
+        initial.database.begin_store_claim(pending_nonce.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(pending_nonce),
     );
     drop(initial);
 
@@ -319,11 +319,12 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     // 2. Interrupted after `layout.json` is written and before `confirm_store_claim` completes.
     let tmp = TempDir::new().unwrap();
     let first_boot = storage_in(&tmp);
-    let candidate = crate::layout::new_store_id();
+    let db_nonce = crate::layout::new_store_id();
     assert_eq!(
-        first_boot.database.begin_store_claim(candidate.clone()).await.unwrap(),
-        crate::metadata::sql::StoreClaim::Claimed(candidate.clone()),
+        first_boot.database.begin_store_claim(db_nonce.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(db_nonce.clone()),
     );
+    let candidate = format!("{db_nonce}-{}", crate::layout::new_store_id());
     fs::create_dir_all(tmp.path().join("storage")).await.unwrap();
     fs::write(
         tmp.path().join("storage/layout.json"),
