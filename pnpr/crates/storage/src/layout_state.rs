@@ -151,15 +151,21 @@ impl Storage {
     /// metadata database to its `store_id`. Only for an empty store and
     /// database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
-        match self.database.begin_store_claim(new_store_id()).await? {
+        let candidate_nonce = new_store_id();
+        match self.database.begin_store_claim(candidate_nonce.clone()).await? {
             StoreClaim::Pending(pending_nonce) => {
-                self.write_or_confirm_pending_marker(&pending_nonce).await
+                let created_claim = pending_nonce == candidate_nonce;
+                self.write_or_confirm_pending_marker(&pending_nonce, created_claim).await
             }
             StoreClaim::Bound(bound_id) => self.verify_bound_store(&bound_id).await,
         }
     }
 
-    async fn write_or_confirm_pending_marker(&self, pending_nonce: &str) -> Result<()> {
+    async fn write_or_confirm_pending_marker(
+        &self,
+        pending_nonce: &str,
+        created_claim: bool,
+    ) -> Result<()> {
         let candidate = claimed_store_id(pending_nonce);
         let marker = serde_json::to_vec(&LayoutMarker {
             layout: LAYOUT_VERSION,
@@ -172,7 +178,9 @@ impl Storage {
         if marker_matches_pending_claim(&existing_id, pending_nonce) {
             return self.confirm_claimed_marker(pending_nonce, &existing_id).await;
         }
-        let _ = self.database.clear_pending_store_claim(pending_nonce.to_string()).await;
+        if created_claim {
+            let _ = self.database.clear_pending_store_claim(pending_nonce.to_string()).await;
+        }
         Err(unmarked_database_error(&existing_id))
     }
 

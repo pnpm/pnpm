@@ -71,19 +71,9 @@ pub fn step_1(connection: &dyn Connection) -> Result<()> {
     Ok(())
 }
 
-fn step_2(connection: &dyn Connection) -> Result<()> {
-    let ddl = match (connection.schema_marker().is_some(), connection.transactional_ddl()) {
-        (false, _) => {
-            "CREATE TABLE IF NOT EXISTS hosted_store (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL) STRICT"
-        }
-        (true, true) => {
-            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL)"
-        }
-        (true, false) => {
-            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id VARBINARY(512) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs"
-        }
-    };
-    connection.execute_ddl(ddl)
+/// Step 2: the `hosted_store` table binding the database to its store.
+pub fn step_2(connection: &dyn Connection) -> Result<()> {
+    connection.execute_ddl(connection.hosted_store_table())
 }
 fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
     let applied_at = SystemTime::now()
@@ -322,7 +312,7 @@ fn inspect_without_marker(
     if has(LEGACY_AUTH_MARKER) {
         return Ok(Inspection::Refused(Stored::Pre1_0Auth));
     }
-    if table_names(TABLES).iter().any(|table| has(table)) {
+    if has("hosted_store") || table_names(TABLES).iter().any(|table| has(table)) {
         return Ok(Inspection::Refused(Stored::Unmarked));
     }
     Ok(Inspection::Current(0))
@@ -346,7 +336,7 @@ fn inspect_marked(
     if max_version > target {
         return Ok(Inspection::Refused(Stored::FutureVersion(max_version)));
     }
-    if let Some(stored) = incomplete(has) {
+    if let Some(stored) = incomplete(max_version, has) {
         return Ok(Inspection::Refused(stored));
     }
     Ok(Inspection::Current(max_version))
@@ -389,11 +379,14 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 
 /// The tables a database marked with [`MARKER`] lacks, given whether it `has`
 /// each table.
-fn incomplete(has: impl Fn(&str) -> bool) -> Option<Stored> {
-    let missing = table_names(TABLES)
+fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
+    let mut missing = table_names(TABLES)
         .into_iter()
         .filter(|table| !has(table))
         .collect::<Vec<_>>();
+    if max_version >= 2 && !has("hosted_store") {
+        missing.push("hosted_store".to_string());
+    }
     (!missing.is_empty()).then_some(Stored::Incomplete(missing))
 }
 

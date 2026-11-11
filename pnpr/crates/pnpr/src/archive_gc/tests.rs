@@ -20,6 +20,11 @@ async fn collect_with(
     (min_age, lease): (Duration, Duration),
     dry_run: bool,
 ) -> Result<(usize, u64), RegistryError> {
+    if dry_run {
+        storage.check_hosted_layout().await?;
+    } else {
+        storage.ensure_hosted_layout().await?;
+    }
     let collection = Collection { storage, manifest_limit: MANIFEST_LIMIT, lease };
     let options = GcOptions { registries: Vec::new(), min_age, dry_run };
     let report = collection.run(&options).await?;
@@ -517,23 +522,8 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
-    let empty_collection = Collection {
-        storage: &empty_db,
-        manifest_limit: MANIFEST_LIMIT,
-        lease: Duration::from_hours(1),
-    };
-    assert!(
-        empty_collection
-            .run(&GcOptions { dry_run: true, ..GcOptions::default() })
-            .await
-            .is_err(),
-    );
-    assert!(
-        empty_collection
-            .run(&GcOptions { dry_run: false, ..GcOptions::default() })
-            .await
-            .is_err(),
-    );
+    assert!(collect(&empty_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
+    assert!(collect(&empty_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
     assert!(manifest_archive.exists());
     assert!(layer_archive.exists());
 
@@ -547,22 +537,37 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
-    let wrong_collection = Collection {
-        storage: &wrong_db,
-        manifest_limit: MANIFEST_LIMIT,
-        lease: Duration::from_hours(1),
-    };
+    assert!(collect(&wrong_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
+    assert!(collect(&wrong_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
+
+    // A partial database reset that leaves only `hosted_store` is refused before
+    // opening the metadata database, so gc cannot run against missing blob rows.
+    let partial_db_path = temp.path().join("partial.sqlite");
+    std::fs::copy(temp.path().join("metadata.sqlite"), &partial_db_path).unwrap();
+    let partial_conn = rusqlite::Connection::open(&partial_db_path).unwrap();
+    let drop_tables: Vec<String> = partial_conn
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'hosted_store'")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    for table in drop_tables {
+        partial_conn
+            .execute(&format!("DROP TABLE {table}"), [])
+            .unwrap();
+    }
+    drop(partial_conn);
     assert!(
-        wrong_collection
-            .run(&GcOptions { dry_run: true, ..GcOptions::default() })
-            .await
-            .is_err(),
-    );
-    assert!(
-        wrong_collection
-            .run(&GcOptions { dry_run: false, ..GcOptions::default() })
-            .await
-            .is_err(),
+        Storage::new(
+            &HostedStoreConfig::Fs,
+            temp.path().join("store"),
+            temp.path().join("cache"),
+            &pnpr_config::MetadataBackend::Sqlite(partial_db_path),
+        )
+        .is_err(),
     );
     assert!(manifest_archive.exists());
     assert!(layer_archive.exists());

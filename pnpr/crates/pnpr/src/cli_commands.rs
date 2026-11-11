@@ -266,9 +266,6 @@ fn run_import_htpasswd(
 }
 
 async fn run_gc(config: &Config, options: &crate::archive_gc::GcOptions) -> miette::Result<()> {
-    if !options.dry_run {
-        crate::prepare_storage(config).await.map_err(|err| redacted_report(&err))?;
-    }
     let report = crate::archive_gc::collect_archives(config, options).await
         .map_err(|err| redacted_report(&err))?;
     let verb = if options.dry_run { "would remove" } else { "removed" };

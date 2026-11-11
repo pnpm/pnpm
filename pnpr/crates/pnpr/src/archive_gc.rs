@@ -116,10 +116,8 @@ impl Collection<'_> {
     /// rest to run; the first failure is returned.
     pub(crate) async fn run(&self, options: &GcOptions) -> Result<GcReport> {
         if options.dry_run {
-            self.storage.check_hosted_layout().await?;
             return self.plan(options.min_age).await;
         }
-        self.storage.ensure_hosted_layout().await?;
         let mut tally = Tally::default();
         if self.storage.ecosystem() == Ecosystem::Oci {
             let unmapped = self.unmap_unreachable_images(options.min_age).await;
