@@ -46,29 +46,48 @@ pub(crate) fn should_read_pin_lockfile(
         return false;
     };
     let on_fail = effective_on_fail(config, pm);
-    if on_fail == PmOnFail::Ignore
-        || !should_persist_package_manager_lockfile(&WantedPackageManager {
-            name: pm.name.clone(),
-            version: pm.version.clone(),
-            from_dev_engines: pm.from_dev_engines,
-            on_fail: Some(on_fail.as_str().to_string()),
-        })
-    {
-        return false;
-    }
-    if invocation.pin_handling == PinHandling::SwitchOnly
-        && crate::cli_args::package_manager::exact_version(spec).as_deref() == Some(running_version)
-    {
+    if on_fail == PmOnFail::Ignore || !persists_the_pin(pm, on_fail) {
         return false;
     }
     let switch_wanted =
         on_fail == PmOnFail::Download && !process_state.package_manager_switch_disabled;
-    if can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state) {
-        return true;
+    let can_switch =
+        can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state);
+    lockfile_steers_the_decision(invocation, spec, can_switch, running_version)
+}
+
+/// Whether the env lockfile can change what `decide` does with a pin it
+/// persists.
+fn lockfile_steers_the_decision(
+    invocation: &Invocation,
+    spec: &str,
+    can_switch: bool,
+    running_version: &str,
+) -> bool {
+    match invocation.pin_handling {
+        PinHandling::Enforce => {
+            can_switch
+                || (invocation.entry_point != EntryPoint::UnknownFlag
+                    && version_satisfies(running_version, spec))
+        }
+        // `SwitchOnly` never records, so only a lockfile that may name another
+        // pnpm than the running one matters.
+        PinHandling::SwitchOnly => {
+            can_switch
+                && crate::cli_args::package_manager::exact_version(spec).as_deref()
+                    != Some(running_version)
+        }
+        PinHandling::Skip => false,
     }
-    invocation.pin_handling == PinHandling::Enforce
-        && invocation.entry_point != EntryPoint::UnknownFlag
-        && version_satisfies(running_version, spec)
+}
+
+fn persists_the_pin(pm: &WantedPackageManager, on_fail: PmOnFail) -> bool {
+    should_persist_package_manager_lockfile(&WantedPackageManager {
+        name: pm.name.clone(),
+        version: pm.version.clone(),
+        from_dev_engines: pm.from_dev_engines,
+        on_fail: Some(on_fail.as_str().to_string()),
+    })
 }
 
 /// Pure decision over a pre-read [`PinInput`], [`Config`], and [`Invocation`].
