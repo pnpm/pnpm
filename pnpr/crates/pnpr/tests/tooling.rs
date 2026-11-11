@@ -867,12 +867,12 @@ async fn add_user_preserves_account_id_when_changing_password() {
 #[tokio::test]
 async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
     let dir_a = TempDir::new().unwrap();
-    let (config_a, _) = create_test_config(dir_a.path());
+    let (config_a, _) = create_hosting_test_config(dir_a.path());
     write_local_layout_marker(&config_a.storage.hosted_dir).unwrap();
     seed_archive(&config_a.storage.hosted_dir, Ecosystem::Npm, "pkg-a", "pkg-a-1.0.0.tgz", b"tar");
 
     let dir_b = TempDir::new().unwrap();
-    let (config_b, _) = create_test_config(dir_b.path());
+    let (config_b, _) = create_hosting_test_config(dir_b.path());
     write_local_layout_marker(&config_b.storage.hosted_dir).unwrap();
 
     // Database B pointed at store A (differing store_ids).
@@ -931,6 +931,12 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
         );
         assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
     }
+
+    // An upstream-only proxy hosts no packages and does not bind the package store,
+    // so replicas with separate local SQLite files can share one store directory.
+    let mut proxy_replica = mismatched.clone();
+    proxy_replica.routing.hosted.clear();
+    pnpr::prepare_storage(&proxy_replica).await.unwrap();
 }
 
 mod startup;

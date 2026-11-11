@@ -183,8 +183,10 @@ some of pnpr's tables. It also refuses a pre-1.0 database without
 `auth_schema_migrations`, or unmarked tables) before changing anything in it.
 To replace a pre-1.0 database, drop its pnpr tables (or delete the SQLite file
 and its `-wal` and `-shm` files) together with the hosted store, or move to a
-fresh storage directory or bucket prefix, so pnpr initializes both with a new
-store ID.
+fresh hosted store (such as a new storage directory or bucket prefix) and a
+fresh metadata database (moving the storage directory replaces the default
+SQLite file only when `database.url` is not set), so pnpr initializes both with
+a new store ID.
 
 ## PostgreSQL and MySQL metadata
 

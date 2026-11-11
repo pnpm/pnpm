@@ -26,7 +26,9 @@ pub(super) fn load_active_osv_index(
 /// before serving requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
     let storage = Storage::from_config(&config.storage)?;
-    storage.ensure_hosted_layout().await?;
+    if !config.routing.hosted.is_empty() {
+        storage.ensure_hosted_layout().await?;
+    }
     storage.reset_cache_from_other_layout().await
 }
 
