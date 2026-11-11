@@ -326,8 +326,12 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             supported_version: Document::FORMAT_VERSION,
         });
     }
-    let recorded = stored.is_some() || restore_owners(&storage, key, &mut document).await?;
-    claim_ownership(state, target, key, &mut document, recorded)?;
+    let record = if stored.is_some() || restore_owners(&storage, key, &mut document).await? {
+        OwnerRecord::Recorded
+    } else {
+        OwnerRecord::Unclaimed
+    };
+    claim_ownership(state, target, key, &mut document, record)?;
     refuse(&document)?;
     document.merge(addition);
 
@@ -349,6 +353,15 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         publisher: None,
         verification: Verification::default(),
     })
+}
+
+/// Whether a package being published records its owners yet.
+#[derive(Clone, Copy)]
+enum OwnerRecord {
+    /// Its stored document, or the tombstone of its removal, lists them.
+    Recorded,
+    /// A new name, which the publish claims.
+    Unclaimed,
 }
 
 /// Give a package being published again after its removal the owners its
@@ -376,14 +389,18 @@ fn claim_ownership<Document: HostedDocument>(
     target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     document: &mut Document,
-    recorded: bool,
+    record: OwnerRecord,
 ) -> Result<(), RegistryError> {
-    let ownership =
-        if recorded { Ownership::Owners(document.owners()) } else { Ownership::Unclaimed };
+    let ownership = match record {
+        OwnerRecord::Recorded => Ownership::Owners(document.owners()),
+        OwnerRecord::Unclaimed => Ownership::Unclaimed,
+    };
     let source = RegistrySource::Hosted(target.registry.to_string());
     let package = (key.as_str(), &ownership);
     authorize_with_ownership(state, target.publisher, &source, package, Action::Publish)?;
-    if !recorded && let Some(owner) = target.publisher.user_id() {
+    if matches!(record, OwnerRecord::Unclaimed)
+        && let Some(owner) = target.publisher.user_id()
+    {
         document.owners_mut().push(owner.to_string());
     }
     Ok(())

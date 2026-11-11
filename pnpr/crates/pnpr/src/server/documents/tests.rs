@@ -1,4 +1,4 @@
-use super::{HostedTarget, claim_ownership};
+use super::{HostedTarget, OwnerRecord, claim_ownership};
 use crate::server::routing::state_and_router;
 use pnpr_auth::AuthState;
 use pnpr_cargo::CrateDocument;
@@ -25,19 +25,23 @@ registries:
     state_and_router(config, AuthState::in_memory(), None).unwrap().0
 }
 
-fn claim(publisher: &str, document: &mut CrateDocument, stored: bool) -> Result<(), RegistryError> {
+fn claim(
+    publisher: &str,
+    document: &mut CrateDocument,
+    record: OwnerRecord,
+) -> Result<(), RegistryError> {
     let dir = tempfile::TempDir::new().unwrap();
     let state = state(dir.path());
     let publisher = Identity::user(publisher);
     let target = HostedTarget { namespace: "", registry: "crates", publisher: &publisher };
     let key = CanonicalPackageName::parse("demo", Ecosystem::Cargo).unwrap();
-    claim_ownership(&state, &target, &key, document, stored)
+    claim_ownership(&state, &target, &key, document, record)
 }
 
 #[test]
 fn the_first_publish_records_its_publisher_as_the_owner() {
     let mut document = CrateDocument::new("demo");
-    claim("bob", &mut document, false).unwrap();
+    claim("bob", &mut document, OwnerRecord::Unclaimed).unwrap();
     assert_eq!(document.owners, ["bob"]);
 }
 
@@ -45,18 +49,18 @@ fn the_first_publish_records_its_publisher_as_the_owner() {
 fn a_stored_document_admits_only_its_owners_and_admins() {
     let mut document = CrateDocument::new("demo");
     document.owners = vec!["alice".to_string()];
-    let refused = claim("bob", &mut document, true).unwrap_err();
+    let refused = claim("bob", &mut document, OwnerRecord::Recorded).unwrap_err();
     assert!(matches!(refused, RegistryError::Forbidden { .. }), "{refused:?}");
-    claim("alice", &mut document, true).unwrap();
-    claim("root", &mut document, true).unwrap();
+    claim("alice", &mut document, OwnerRecord::Recorded).unwrap();
+    claim("root", &mut document, OwnerRecord::Recorded).unwrap();
     assert_eq!(document.owners, ["alice"]);
 }
 
 #[test]
 fn a_stored_document_without_owners_admits_only_admins() {
     let mut document = CrateDocument::new("demo");
-    let refused = claim("bob", &mut document, true).unwrap_err();
+    let refused = claim("bob", &mut document, OwnerRecord::Recorded).unwrap_err();
     assert!(matches!(refused, RegistryError::Forbidden { .. }), "{refused:?}");
-    claim("root", &mut document, true).unwrap();
+    claim("root", &mut document, OwnerRecord::Recorded).unwrap();
     assert!(document.owners.is_empty());
 }
