@@ -391,17 +391,6 @@ impl<'a> InstallFrozenLockfile<'a> {
         // `index.db` (no WAL / SHM sidecar under the read-only root).
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
-        if !self.platform.runtime_provisioning
-            && !self.platform.skip_runtimes
-            && let Some(alias) = crate::runtime_dependency_alias(
-                self.lockfiles.wanted,
-                self.inputs().included(),
-                &settled.skipped,
-            )
-        {
-            return Err(InstallFrozenLockfileError::RuntimeProvisioningUnavailable { alias });
-        }
-
         let (store_index_writer, writer_task) = spawn_store_index_writer(ctx.config);
 
         let fetched = self.fetch::<Reporter>(
