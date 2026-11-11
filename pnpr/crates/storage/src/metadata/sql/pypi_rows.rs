@@ -11,7 +11,6 @@ use super::{
     removed, to_column,
 };
 use pnpr_error::{RegistryError, Result};
-use pnpr_sql::DialectSql;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -209,36 +208,6 @@ fn insert_pypi_file(commit: &Commit<'_>, item: &IncomingPypiFile, position: i64)
     )
 }
 
-const RECORD_REMOVED_FILES: DialectSql = DialectSql {
-    sqlite: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-             SELECT ?1, ?2, ?3, value, ?5
-             FROM (SELECT value FROM json_each(?4)) AS removed
-             WHERE value != ''
-             ON CONFLICT DO NOTHING",
-    postgres: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-               SELECT ?1, ?2, ?3, value, ?5
-               FROM (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value)) AS removed
-               WHERE value != ''
-               ON CONFLICT DO NOTHING",
-    mysql: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-            SELECT ?1, ?2, ?3, value, ?5
-            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
-            WHERE value != ''
-            ON DUPLICATE KEY UPDATE namespace = removed_pypi_files.namespace",
-};
-
-const DELETE_FILES: DialectSql = DialectSql {
-    sqlite: "DELETE FROM pypi_files
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-               AND filename IN (SELECT value FROM json_each(?4))",
-    postgres: "DELETE FROM pypi_files
-               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-                 AND filename IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
-    mysql: "DELETE FROM pypi_files
-            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-              AND filename IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
-};
-
 fn retire_deleted_files(
     commit: &Commit<'_>,
     dropped: &BTreeMap<String, StoredPypiFile>,
@@ -253,7 +222,7 @@ fn retire_deleted_files(
             .collect();
         let filenames = super::blobs::json_array(&keys);
         commit.transaction.execute(
-            DELETE_FILES.get(commit.transaction.dialect()),
+            removed::DELETE_PYPI_FILE_LIST.get(commit.transaction.dialect()),
             params![namespace, ecosystem, name, &filenames],
         )?;
     }
@@ -271,7 +240,7 @@ fn retire_deleted_files(
     }
     let filenames = super::blobs::json_array(&to_record);
     commit.transaction.execute(
-        RECORD_REMOVED_FILES.get(commit.transaction.dialect()),
+        removed::RECORD_REMOVED_PYPI_FILE_LIST.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &filenames, to_column(commit.generation)],
     )?;
     Ok(true)

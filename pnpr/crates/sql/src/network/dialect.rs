@@ -187,13 +187,14 @@ impl NetworkDialect {
         params: &[Param<'value>],
         ordered: &mut Vec<Param<'value>>,
     ) -> Result<String> {
-        debug_assert!(
-            !self
+        if cfg!(debug_assertions)
+            && let Some(syntax) = self
                 .sqlite_only()
                 .iter()
-                .any(|syntax| sql.contains(syntax)),
-            "statement in SQLite syntax reached {self:?}: {sql}",
-        );
+                .find(|syntax| sql.contains(**syntax))
+        {
+            panic!("statement with SQLite syntax `{syntax}` reached {self:?}: {sql}");
+        }
         let mut rendered = String::with_capacity(sql.len());
         let mut chars = sql.chars().peekable();
         let mut quoted = false;

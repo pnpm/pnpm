@@ -97,21 +97,14 @@ impl FenceRead {
         dialect: Dialect,
         namespace: &'read str,
     ) -> Vec<Query<'read>> {
+        let (rows_sql, mapped_sql) = (ROWS.get(dialect), MAPPED.get(dialect));
         let rows = self.ids
             .iter()
-            .map(|(ecosystem, ids)| {
-                query!(ROWS.get(dialect), namespace, ecosystem.as_str(), ids.as_str())
-            });
+            .map(|(ecosystem, ids)| query!(rows_sql, namespace, ecosystem.as_str(), ids.as_str()));
         let mapped = self.referenced
             .iter()
             .map(|((ecosystem, name), files)| {
-                query!(
-                    MAPPED.get(dialect),
-                    namespace,
-                    ecosystem.as_str(),
-                    name.as_str(),
-                    files.as_str()
-                )
+                query!(mapped_sql, namespace, ecosystem.as_str(), name.as_str(), files.as_str())
             });
         rows.chain(mapped).collect()
     }

@@ -130,16 +130,12 @@ impl LookupRead {
         let (namespace, ecosystem, name) = self.key.params();
         let mut queries = Vec::new();
         if let Some(ids) = &self.ids {
-            queries.push(query!(ROWS.get(dialect), namespace, ecosystem, ids.as_str()));
+            let rows = ROWS.get(dialect);
+            queries.push(query!(rows, namespace, ecosystem, ids.as_str()));
         }
         if let Some(artifacts) = &self.artifacts {
-            queries.push(query!(
-                MAPPED.get(dialect),
-                namespace,
-                ecosystem,
-                name,
-                artifacts.as_str()
-            ));
+            let mapped = MAPPED.get(dialect);
+            queries.push(query!(mapped, namespace, ecosystem, name, artifacts.as_str()));
         }
         queries
     }

@@ -124,6 +124,66 @@ pub(super) const RECORD_REMOVED_PYPI_FILES: DialectSql = DialectSql::with_mysql(
      ON DUPLICATE KEY UPDATE namespace = removed_pypi_files.namespace",
 );
 
+pub(super) const RECORD_REMOVED_CARGO_VERSION_LIST: DialectSql = DialectSql {
+    sqlite: "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+             SELECT ?1, ?2, ?3, value, ?5
+             FROM (SELECT value FROM json_each(?4)) AS removed
+             WHERE value != ''
+             ON CONFLICT DO NOTHING",
+    postgres: "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+               SELECT ?1, ?2, ?3, value, ?5
+               FROM (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value)) AS removed
+               WHERE value != ''
+               ON CONFLICT DO NOTHING",
+    mysql: "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+            SELECT ?1, ?2, ?3, value, ?5
+            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
+            WHERE value != ''
+            ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
+};
+
+pub(super) const DELETE_CARGO_VERSION_LIST: DialectSql = DialectSql {
+    sqlite: "DELETE FROM cargo_versions
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND version IN (SELECT value FROM json_each(?4))",
+    postgres: "DELETE FROM cargo_versions
+               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND version IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "DELETE FROM cargo_versions
+            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+              AND version IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
+
+pub(super) const DELETE_PYPI_FILE_LIST: DialectSql = DialectSql {
+    sqlite: "DELETE FROM pypi_files
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND filename IN (SELECT value FROM json_each(?4))",
+    postgres: "DELETE FROM pypi_files
+               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND filename IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "DELETE FROM pypi_files
+            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+              AND filename IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
+
+pub(super) const RECORD_REMOVED_PYPI_FILE_LIST: DialectSql = DialectSql {
+    sqlite: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
+             SELECT ?1, ?2, ?3, value, ?5
+             FROM (SELECT value FROM json_each(?4)) AS removed
+             WHERE value != ''
+             ON CONFLICT DO NOTHING",
+    postgres: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
+               SELECT ?1, ?2, ?3, value, ?5
+               FROM (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value)) AS removed
+               WHERE value != ''
+               ON CONFLICT DO NOTHING",
+    mysql: "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
+            SELECT ?1, ?2, ?3, value, ?5
+            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
+            WHERE value != ''
+            ON DUPLICATE KEY UPDATE namespace = removed_pypi_files.namespace",
+};
+
 pub(super) const RECORD_REMOVED_CARGO_VERSIONS: DialectSql = DialectSql::with_mysql(
     "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
      SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
