@@ -138,6 +138,22 @@ fn tree_node(
     })
 }
 
+/// The child of `parent` named `name`; panics listing the children it has.
+fn child_of(parent: &HoisterResult, name: &str) -> Rc<HoisterResult> {
+    let children = parent.dependencies.borrow();
+    let child = children
+        .iter()
+        .find(|dep| dep.0.name == name)
+        .unwrap_or_else(|| {
+            let names: Vec<&str> = children
+                .iter()
+                .map(|dep| dep.0.name.as_str())
+                .collect();
+            panic!("{} has no child {name}, only {names:?}", parent.name)
+        });
+    Rc::clone(&child.0)
+}
+
 /// The `.` root [`hoist`] builds, over hand-made [`tree_node`] children.
 fn tree_root(dependencies: Vec<Rc<HoisterTree>>) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {

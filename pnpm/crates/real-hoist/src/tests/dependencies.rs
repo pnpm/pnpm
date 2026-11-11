@@ -1,8 +1,8 @@
 use super::{
-    HashMap, HoistOpts, HoisterResult, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, assert_eq, dep_key, empty_lockfile,
-    hoist, lockfile_version, nm_hoist, percent_encode_path, pkg_metadata_with_peer, pkg_name,
-    resolved_dep, tree_node, tree_root, ver_peer,
+    HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, assert_eq, child_of, dep_key,
+    empty_lockfile, hoist, lockfile_version, nm_hoist, percent_encode_path, pkg_metadata_with_peer,
+    pkg_name, resolved_dep, tree_node, tree_root, ver_peer,
 };
 
 #[test]
@@ -339,18 +339,6 @@ fn same_locator_node_is_not_deduped_when_its_parent_provides_a_different_peer() 
     let root = tree_root(vec![apps, nds1]);
 
     let result = nm_hoist(&root, &HoistOpts::default());
-    let child_of = |parent: &HoisterResult, name: &str| -> Rc<HoisterResult> {
-        let children = parent.dependencies.borrow();
-        let names: Vec<&str> = children
-            .iter()
-            .map(|dep| dep.0.name.as_str())
-            .collect();
-        let child = children
-            .iter()
-            .find(|dep| dep.0.name == name)
-            .unwrap_or_else(|| panic!("{} has no child {name}, only {names:?}", parent.name));
-        Rc::clone(&child.0)
-    };
     assert!(
         child_of(&result, "core").references.borrow().contains("core@2.0.0"),
         "the more-used core@2.0.0 takes the root slot",
@@ -592,18 +580,6 @@ fn shallower_peer_variant_wins_the_root_slot_and_nests_its_own_dep() {
     names.sort_unstable();
     assert_eq!(names, ["apps", "core", "md", "nds", "widget"], "one md at root: {result:#?}");
 
-    let child_of = |parent: &HoisterResult, name: &str| -> Rc<HoisterResult> {
-        let children = parent.dependencies.borrow();
-        let names: Vec<&str> = children
-            .iter()
-            .map(|dep| dep.0.name.as_str())
-            .collect();
-        let child = children
-            .iter()
-            .find(|dep| dep.0.name == name)
-            .unwrap_or_else(|| panic!("{} has no child {name}, only {names:?}", parent.name));
-        Rc::clone(&child.0)
-    };
     assert!(
         child_of(&result, "core").references.borrow().contains("core@2.0.0"),
         "the more-used core@2.0.0 takes the root slot",
@@ -619,7 +595,15 @@ fn shallower_peer_variant_wins_the_root_slot_and_nests_its_own_dep() {
         1,
         "nds@1.0.0 keeps only its conflicting core@1.0.0; its md dedups against the root",
     );
-    let nds_under_widget = child_of(&child_of(&result, "widget"), "nds");
+    let widget = child_of(&result, "widget");
+    assert!(
+        !widget.dependencies
+            .borrow()
+            .iter()
+            .any(|dep| dep.0.name == "md"),
+        "nds@2.0.0's md resolves from the root, not from widget: {widget:#?}",
+    );
+    let nds_under_widget = child_of(&widget, "nds");
     assert!(
         nds_under_widget.dependencies.borrow().is_empty(),
         "nds@2.0.0's md and core dedup against the root copies: {nds_under_widget:#?}",

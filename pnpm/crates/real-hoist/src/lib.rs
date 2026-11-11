@@ -691,10 +691,6 @@ fn node_ident(node: &HoisterResult) -> String {
 /// variants of one package version) reaches the root first; the other
 /// dedups against it and its own children are dropped (see
 /// [`AbsorbDecision::SameNode`](absorption::AbsorbDecision::SameNode)).
-/// Walking a hoisted node at once instead would let a variant found
-/// deep under an early root child claim the slot ahead of one sitting
-/// directly under a later root child, and nest a different dependency
-/// set under the root copy than upstream does.
 ///
 /// [hoist-graph]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L588-L716
 /// [defer]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L660
