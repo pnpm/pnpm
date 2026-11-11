@@ -209,7 +209,9 @@ impl UserBackend for FailedPostUpdateLookup {
         self.users.password_hash(name).await
     }
     async fn create_user(&self, name: &str, password: &str) -> pnpr::Result<pnpr::UserCreation> {
-        self.users.create_user(name, password).await
+        let creation = self.users.create_user(name, password).await?;
+        self.has_updated.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(creation)
     }
     async fn set_password(&self, id: &str, password: &str) -> pnpr::Result<pnpr::PasswordChange> {
         let changed = self.users.set_password(id, password).await?;
@@ -226,7 +228,7 @@ impl UserBackend for FailedPostUpdateLookup {
         self.users.provision_user(name).await
     }
     async fn account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
-        if name == "example-user" && self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
+        if self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(pnpr::RegistryError::StorageUnavailable {
                 reason: "account lookup failed".to_string(),
             });
@@ -242,21 +244,14 @@ impl UserBackend for FailedPostUpdateLookup {
 }
 
 #[tokio::test]
-async fn an_admin_password_change_keeps_the_id_without_a_second_account_lookup() {
+async fn admin_create_and_password_change_keep_the_id_without_a_name_lookup() {
     let dir = TempDir::new().unwrap();
     let users = Arc::new(UserStore::in_memory());
-    users.create_user("root", "secret123").await.unwrap();
-    users.create_user("example-user", "old-password").await.unwrap();
-    let id = users
-        .account_id("example-user")
-        .await
-        .unwrap()
-        .unwrap();
-    let root_id = users
-        .account_id("root")
-        .await
-        .unwrap()
-        .unwrap();
+    let pnpr::UserCreation::Created(root_id) =
+        users.create_user("root", "secret123").await.unwrap()
+    else {
+        panic!("expected root to be created");
+    };
     let backend = Arc::new(FailedPostUpdateLookup {
         users: Arc::clone(&users),
         has_updated: std::sync::atomic::AtomicBool::new(false),
@@ -265,17 +260,28 @@ async fn an_admin_password_change_keeps_the_id_without_a_second_account_lookup()
     let token = tokens.issue(&root_id).await.unwrap();
     let auth = AuthState { users: Arc::clone(&backend) as Arc<dyn UserBackend>, tokens };
     let app = account_router(load_config(&dir), auth).await;
+    let (status, created) = send(
+        &app,
+        "POST",
+        "/-/pnpr/v0/admin/users",
+        Some(&token),
+        Some(json!({ "name": "example-user", "password": "old-password" })),
+    )
+    .await;
+    assert_eq!(status, axum::http::StatusCode::CREATED);
+    let id = created["id"].as_str().unwrap();
+    assert!(backend.account_id("example-user").await.is_err());
+
     let (status, result) = send(
         &app,
         "PUT",
-        "/-/pnpr/v0/admin/users/example-user",
+        &format!("/-/pnpr/v0/admin/users/{id}"),
         Some(&token),
         Some(json!({ "password": "new-password" })),
     )
     .await;
     assert_eq!(status, axum::http::StatusCode::OK);
-    assert_eq!(result["id"], id);
-    assert!(backend.account_id("example-user").await.is_err());
+    assert_eq!(result, json!({ "id": id, "name": "example-user" }));
     assert!(users.add_or_login("example-user", "new-password").await.is_ok());
 }
 

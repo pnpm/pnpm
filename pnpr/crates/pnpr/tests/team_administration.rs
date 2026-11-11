@@ -63,10 +63,9 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
-    let path = crate::tokens::admin_path(app, method, path, token).await;
     let mut request = Request::builder()
         .method(method)
-        .uri(&path)
+        .uri(path)
         .header("content-type", "application/json");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
@@ -284,7 +283,7 @@ async fn deleting_a_member_prevents_reclaiming_its_team_access() {
         StatusCode::NOT_FOUND,
     );
     assert_eq!(
-        send(&app, "DELETE", "/-/pnpr/v0/admin/users/former-member", Some(&root), None)
+        send(&app, "DELETE", &format!("/-/pnpr/v0/admin/users/{former_id}"), Some(&root), None)
             .await
             .0,
         StatusCode::NO_CONTENT,
@@ -323,7 +322,7 @@ async fn deleted_members_can_be_removed_by_id_after_their_name_is_reused() {
         StatusCode::CREATED,
     );
     assert_eq!(
-        send(&app, "DELETE", "/-/pnpr/v0/admin/users/member", Some(&root), None)
+        send(&app, "DELETE", &format!("/-/pnpr/v0/admin/users/{former_id}"), Some(&root), None)
             .await
             .0,
         StatusCode::NO_CONTENT,

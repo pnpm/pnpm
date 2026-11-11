@@ -37,20 +37,20 @@ impl LibsqlAuth {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let hash = hash.as_str();
         let id = crate::new_principal_id();
-        let id = id.as_str();
+        let id_ref = id.as_str();
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 let inserted = tx.execute(
                     "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
-                    params![username, hash, id, crate::validation::username_skeleton_hash(username)],
+                    params![username, hash, id_ref, crate::validation::username_skeleton_hash(username)],
                 )
                 .await;
                 match inserted {
                     Ok(_) => {
                         tx.execute(COUNT_ONE_MORE, ()).await?;
                         tx.commit().await?;
-                        Ok(UserCreation::Created)
+                        Ok(UserCreation::Created(id_ref.to_string()))
                     }
                     Err(err) if is_unique_violation(&err) => {
                         tx.rollback().await?;

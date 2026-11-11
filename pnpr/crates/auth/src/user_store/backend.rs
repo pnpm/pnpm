@@ -130,8 +130,10 @@ impl UserBackend for UserStore {
                 return Ok(Change::Keep(UserCreation::NameTaken));
             }
             check_username_skeleton(users, &name, None)?;
-            users.insert(name, StoredAccount::new(hash));
-            Ok(Change::Write(UserCreation::Created))
+            let account = StoredAccount::new(hash);
+            let id = account.id.clone();
+            users.insert(name, account);
+            Ok(Change::Write(UserCreation::Created(id)))
         })
         .await
     }

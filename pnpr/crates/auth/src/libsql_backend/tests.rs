@@ -528,23 +528,14 @@ async fn libsql_supports_the_admin_operations() {
 #[tokio::test]
 async fn admin_created_users_count_against_the_registration_cap() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
-    assert_eq!(backend.create_user("alice", "secret123").await.unwrap(), UserCreation::Created);
+    let UserCreation::Created(alice_id) = backend.create_user("alice", "secret123").await.unwrap()
+    else {
+        panic!("expected alice to be created");
+    };
     let err = backend.add_or_login("bob", "secret123").await.unwrap_err();
     assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
 
-    assert_eq!(
-        backend
-            .delete_user(
-                &backend
-                    .account_id("alice")
-                    .await
-                    .unwrap()
-                    .unwrap()
-            )
-            .await
-            .unwrap(),
-        UserRemoval::Removed,
-    );
+    assert_eq!(backend.delete_user(&alice_id).await.unwrap(), UserRemoval::Removed);
     assert!(matches!(
         backend.add_or_login("bob", "secret123").await.unwrap(),
         (UpsertOutcome::Created, _),

@@ -7,12 +7,14 @@ use std::{sync::Arc, time::Duration};
 /// A token for `username`, stored as an account first: pnpr honors only
 /// tokens whose owner is an account.
 pub(crate) async fn issue_token(auth: &AuthState, username: &str) -> String {
-    auth.users.create_user(username, "password").await.unwrap();
-    let id = auth.users
-        .account_id(username)
-        .await
-        .unwrap()
-        .unwrap();
+    let id = match auth.users.create_user(username, "password").await.unwrap() {
+        pnpr::UserCreation::Created(id) => id,
+        pnpr::UserCreation::NameTaken => auth.users
+            .account_id(username)
+            .await
+            .unwrap()
+            .unwrap(),
+    };
     auth.tokens.issue(&id).await.unwrap()
 }
 
@@ -99,26 +101,4 @@ pub(crate) async fn account_id(
     }
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"].as_str().map(str::to_string)
-}
-
-pub(crate) async fn admin_path(
-    app: &axum::Router,
-    method: &str,
-    path: &str,
-    token: Option<&str>,
-) -> String {
-    let prefix = "/-/pnpr/v0/admin/users/";
-    let Some(rest) = path.strip_prefix(prefix) else {
-        return path.to_string();
-    };
-    if method == "PUT" {
-        return path.to_string();
-    }
-    let (name, tail) = rest
-        .split_once('/')
-        .map_or((rest, ""), |(name, tail)| (name, tail));
-    let Some(id) = account_id(app, name, token).await else {
-        return path.to_string();
-    };
-    if tail.is_empty() { format!("{prefix}{id}") } else { format!("{prefix}{id}/{tail}") }
 }

@@ -804,7 +804,8 @@ anonymous and `403` when signed in.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/-/pnpr/v0/admin/users` | Every active account, as `{"users": [{"id": ..., "name": ...}]}`, sorted by name. |
-| `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). Replacing a password revokes the account's bearer tokens. Also revokes browser sessions on the serving replica. The body is `{"password": "..."}`. Creating ignores `maxUsers`. |
+| `POST` | `/-/pnpr/v0/admin/users` | Create an account with `{"name": "...", "password": "..."}`. Returns `201` with `{"id": ..., "name": ...}`, or `409` when the login name is taken. Ignores `maxUsers`. |
+| `PUT` | `/-/pnpr/v0/admin/users/{id}` | Replace an account's password with `{"password": "..."}`. Revokes the account's bearer tokens and revokes browser sessions on the serving replica. Returns `200` with `{"id": ..., "name": ...}`, or `404` when the account does not exist. |
 | `PATCH` | `/-/pnpr/v0/admin/users/{id}` | Rename an account with `{"name": "..."}`. Its ID, tokens, and grants stay with it. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}` | Delete the account and revoke its credentials. The login name becomes available; a replacement account receives a fresh ID. Returns `204`. |
 | `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
