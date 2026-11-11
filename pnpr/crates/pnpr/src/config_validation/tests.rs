@@ -205,3 +205,46 @@ fn rejects_persisted_or_shared_cache_dir_without_configured_secret() {
     let err = validate_startup_config(&mut restarted).unwrap_err().to_string();
     assert!(err.contains("when the cache directory persists across restarts"), "{err}");
 }
+
+#[test]
+fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
+    let tmp = tempfile::tempdir().unwrap();
+    let storage = tmp.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+
+    let mut valid_subdir = base_config();
+    valid_subdir.has_configured_secret = true;
+    valid_subdir.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
+    valid_subdir.storage.hosted_dir = storage.clone();
+    valid_subdir.storage.metadata =
+        MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage));
+    valid_subdir.storage.cache_dir = storage.join("cache");
+    validate_startup_config(&mut valid_subdir).unwrap();
+
+    let mut equal_paths = valid_subdir.clone();
+    equal_paths.storage.cache_dir = storage.clone();
+    let err = validate_startup_config(&mut equal_paths).unwrap_err().to_string();
+    assert!(err.contains("cache path must not equal or contain"), "{err}");
+
+    let mut cache_contains_storage = valid_subdir.clone();
+    cache_contains_storage.storage.cache_dir = tmp.path().to_path_buf();
+    let err = validate_startup_config(&mut cache_contains_storage).unwrap_err().to_string();
+    assert!(err.contains("cache path must not equal or contain"), "{err}");
+
+    let mut sqlite_in_cache = valid_subdir.clone();
+    sqlite_in_cache.storage.cache_dir = tmp.path().join("separate-cache");
+    sqlite_in_cache.storage.metadata =
+        MetadataBackend::Sqlite(sqlite_in_cache.storage.cache_dir.join("metadata.sqlite"));
+    let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
+    assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
+
+    #[cfg(unix)]
+    {
+        let link = tmp.path().join("cache-link");
+        std::os::unix::fs::symlink(&storage, &link).unwrap();
+        let mut symlink_equal = valid_subdir;
+        symlink_equal.storage.cache_dir = link;
+        let err = validate_startup_config(&mut symlink_equal).unwrap_err().to_string();
+        assert!(err.contains("cache path must not equal or contain"), "{err}");
+    }
+}

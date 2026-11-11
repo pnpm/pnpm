@@ -13,7 +13,7 @@ to the public npm registry:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
-secret: replace-with-a-random-32-byte-secret
+secret: ${PNPR_SECRET}
 
 auth:
   users:
@@ -43,6 +43,7 @@ Pass it with `-c`, and create the first account with
 [`pnpr add-user`](cli.md#add-user):
 
 ```sh
+export PNPR_SECRET="$(openssl rand -hex 32)"
 pnpr -c ./pnpr.yaml add-user alice
 pnpr -c ./pnpr.yaml
 ```

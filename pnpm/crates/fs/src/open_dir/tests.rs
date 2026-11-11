@@ -249,3 +249,75 @@ fn open_child_dir_ignores_a_link_substituted_after_the_open() {
     );
     assert_eq!(names(&root.path().join("moved/v12")), Vec::<String>::new());
 }
+
+#[test]
+fn child_file_stat_and_remove_child_file_act_only_on_regular_files() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::write(root.path().join("real/payload"), b"hello").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    let stat = dir
+        .child_file_stat("payload".as_ref())
+        .unwrap()
+        .expect("regular file stat");
+    assert_eq!(stat.len, 5);
+    assert!(
+        dir.child_file_stat("metadata".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        dir.child_file_stat("missing".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+
+    assert!(!dir.remove_child_file("metadata".as_ref()).unwrap());
+    assert!(dir.remove_child_file("payload".as_ref()).unwrap());
+    assert!(!dir.remove_child_file("payload".as_ref()).unwrap());
+    assert!(
+        !root
+            .path()
+            .join("real/payload")
+            .exists(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn open_descendant_and_remove_child_file_reject_substituted_symlink() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::create_dir_all(root.path().join("elsewhere/sub")).unwrap();
+    fs::write(root.path().join("elsewhere/sub/victim"), b"keep").unwrap();
+    fs::create_dir_all(root.path().join("real/sub")).unwrap();
+    fs::write(root.path().join("real/sub/target"), b"gone").unwrap();
+
+    let base = OpenDir::open(root.path()).unwrap();
+    substitute_real(root.path());
+
+    assert!(
+        base.open_descendant_dir(Path::new("real/sub"))
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        root.path()
+            .join("elsewhere/sub/victim")
+            .exists(),
+    );
+
+    let moved_sub = base
+        .open_descendant_dir(Path::new("moved/sub"))
+        .unwrap()
+        .expect("real descendant opens");
+    assert!(moved_sub.remove_child_file("target".as_ref()).unwrap());
+    assert!(
+        base.open_descendant_dir(Path::new("moved"))
+            .unwrap()
+            .unwrap()
+            .remove_empty_child_dir("sub".as_ref())
+            .unwrap(),
+    );
+}

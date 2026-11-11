@@ -4,7 +4,8 @@ use std::{
     ffi::{OsStr, OsString},
     fs,
     io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
+    time::SystemTime,
 };
 
 #[cfg(unix)]
@@ -21,6 +22,14 @@ use std::{
 
 #[cfg(unix)]
 mod unix;
+
+/// Size and timestamps of a regular file inspected through [`OpenDir`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChildFileStat {
+    pub len: u64,
+    pub modified: SystemTime,
+    pub accessed: SystemTime,
+}
 
 /// A directory held open while its children are opened or removed.
 ///
@@ -142,6 +151,107 @@ impl OpenDir {
         match remove_dirent(&path) {
             Ok(()) => Ok(true),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(true),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Open a relative directory path inside `self`, stepping through each
+    /// normal component without following symbolic links. Returns `None` if any
+    /// segment is missing, a file, a symbolic link, or not a normal component.
+    pub fn open_descendant_dir(&self, rel: &Path) -> io::Result<Option<Self>> {
+        let mut current: Option<Self> = None;
+        for component in rel.components() {
+            match component {
+                Component::CurDir => {}
+                Component::Normal(part) => {
+                    let base = current.as_ref().unwrap_or(self);
+                    let Some(next) = base.open_child_dir(part)? else {
+                        return Ok(None);
+                    };
+                    current = Some(next);
+                }
+                _ => return Ok(None),
+            }
+        }
+        if let Some(dir) = current { Ok(Some(dir)) } else { self.reopen().map(Some) }
+    }
+
+    #[cfg(unix)]
+    fn reopen(&self) -> io::Result<Self> {
+        let handle = unix::open_dir_at(self.handle.as_fd(), c".")?;
+        Ok(Self { path: self.path.clone(), handle: handle.into() })
+    }
+
+    #[cfg(not(unix))]
+    fn reopen(&self) -> io::Result<Self> {
+        Self::open(&self.path)
+    }
+
+    /// Inspect the regular file `name` directly inside this directory without
+    /// following symbolic links. Returns `None` for directories, symbolic
+    /// links, special files, and missing entries.
+    #[cfg(unix)]
+    pub fn child_file_stat(&self, name: &OsStr) -> io::Result<Option<ChildFileStat>> {
+        unix::stat_file_at(self.handle.as_fd(), &c_name(name)?)
+    }
+
+    #[cfg(not(unix))]
+    pub fn child_file_stat(&self, name: &OsStr) -> io::Result<Option<ChildFileStat>> {
+        let path = self.path.join(name);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if !metadata.file_type().is_file() {
+            return Ok(None);
+        }
+        let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        let accessed = metadata.accessed().unwrap_or(modified);
+        Ok(Some(ChildFileStat { len: metadata.len(), modified, accessed }))
+    }
+
+    /// Remove the regular file `name` directly inside this directory without
+    /// following symbolic links. Returns `false` when `name` is missing, a
+    /// directory, or a symbolic link.
+    #[cfg(unix)]
+    pub fn remove_child_file(&self, name: &OsStr) -> io::Result<bool> {
+        unix::unlink_file_at(self.handle.as_fd(), &c_name(name)?)
+    }
+
+    #[cfg(not(unix))]
+    pub fn remove_child_file(&self, name: &OsStr) -> io::Result<bool> {
+        if self.child_file_stat(name)?.is_none() {
+            return Ok(false);
+        }
+        match fs::remove_file(self.path.join(name)) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Remove the empty directory `name` directly inside this directory without
+    /// following symbolic links. Returns `false` when `name` is non-empty,
+    /// missing, a file, or a symbolic link.
+    #[cfg(unix)]
+    pub fn remove_empty_child_dir(&self, name: &OsStr) -> io::Result<bool> {
+        unix::unlink_empty_dir_at(self.handle.as_fd(), &c_name(name)?)
+    }
+
+    #[cfg(not(unix))]
+    pub fn remove_empty_child_dir(&self, name: &OsStr) -> io::Result<bool> {
+        let path = self.path.join(name);
+        if !is_dir_no_follow(&path)? {
+            return Ok(false);
+        }
+        match fs::remove_dir(&path) {
+            Ok(()) => Ok(true),
+            Err(error)
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
+            {
+                Ok(false)
+            }
             Err(error) => Err(error),
         }
     }

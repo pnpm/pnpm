@@ -4,12 +4,16 @@
 use std::{
     ffi::{CStr, OsStr, OsString},
     io::{self, ErrorKind},
+    mem::MaybeUninit,
     os::{
         fd::{AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd},
         raw::c_int,
         unix::ffi::OsStrExt,
     },
+    time::{Duration, SystemTime},
 };
+
+use super::ChildFileStat;
 
 /// Open the directory `name` inside `parent` without following a link.
 pub(super) fn open_dir_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<OwnedFd> {
@@ -64,6 +68,82 @@ fn unlink_at(parent: BorrowedFd<'_>, name: &CStr, flags: c_int) -> io::Result<()
     }
     let error = io::Error::last_os_error();
     if error.kind() == ErrorKind::NotFound { Ok(()) } else { Err(error) }
+}
+
+pub(super) fn stat_file_at(
+    parent: BorrowedFd<'_>,
+    name: &CStr,
+) -> io::Result<Option<ChildFileStat>> {
+    let mut stat = MaybeUninit::<libc::stat>::uninit();
+    // SAFETY: `name` is NUL-terminated, `parent` stays open, and `stat` is writable.
+    let rc = unsafe {
+        libc::fstatat(
+            parent.as_raw_fd(),
+            name.as_ptr(),
+            stat.as_mut_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if rc != 0 {
+        let error = io::Error::last_os_error();
+        return if error.kind() == ErrorKind::NotFound { Ok(None) } else { Err(error) };
+    }
+    // SAFETY: `fstatat` succeeded and initialized `stat`.
+    let stat = unsafe { stat.assume_init() };
+    if (stat.st_mode & libc::S_IFMT) != libc::S_IFREG {
+        return Ok(None);
+    }
+    Ok(Some(child_file_stat(&stat)))
+}
+
+fn child_file_stat(stat: &libc::stat) -> ChildFileStat {
+    ChildFileStat {
+        len: u64::try_from(stat.st_size).unwrap_or(0),
+        modified: unix_system_time(stat.st_mtime, stat.st_mtime_nsec),
+        accessed: unix_system_time(stat.st_atime, stat.st_atime_nsec),
+    }
+}
+
+pub(super) fn unlink_file_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<bool> {
+    if stat_file_at(parent, name)?.is_none() {
+        return Ok(false);
+    }
+    // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
+    if unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), 0) } == 0 {
+        return Ok(true);
+    }
+    let error = io::Error::last_os_error();
+    if error.kind() == ErrorKind::NotFound { Ok(false) } else { Err(error) }
+}
+
+pub(super) fn unlink_empty_dir_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<bool> {
+    match open_dir_at(parent, name) {
+        Ok(dir) => drop(dir),
+        Err(error) if is_not_a_real_dir(&error) => return Ok(false),
+        Err(error) => return Err(error),
+    }
+    // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
+    if unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), libc::AT_REMOVEDIR) } == 0 {
+        return Ok(true);
+    }
+    let error = io::Error::last_os_error();
+    if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty)
+        || matches!(error.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST))
+    {
+        Ok(false)
+    } else {
+        Err(error)
+    }
+}
+
+fn unix_system_time(secs: libc::time_t, nsecs: libc::c_long) -> SystemTime {
+    let Ok(pos) = u64::try_from(secs) else {
+        return SystemTime::UNIX_EPOCH;
+    };
+    let nanos = u32::try_from(nsecs).unwrap_or(0);
+    SystemTime::UNIX_EPOCH
+        .checked_add(Duration::new(pos, nanos))
+        .unwrap_or(SystemTime::UNIX_EPOCH)
 }
 
 pub(super) fn entry_names(dir: BorrowedFd<'_>) -> io::Result<Vec<OsString>> {

@@ -167,22 +167,10 @@ async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
     }
 }
 
-async fn write_configured_cache_marker(config: &Config) -> pnpr_error::Result<()> {
-    if !config.has_configured_secret {
-        return Ok(());
-    }
-    let cache_dir = &config.storage.cache_dir;
-    tokio::fs::create_dir_all(cache_dir).await?;
-    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
-    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
-    pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await
-}
-
 async fn ensure_only_ephemeral_entries(cache_dir: &std::path::Path) -> pnpr_error::Result<()> {
     let mut entries = tokio::fs::read_dir(cache_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
-        let name = entry.file_name();
-        if name != "lost+found" && name != pnpr_config::CACHE_SECRET_MARKER {
+        if !crate::config_validation::is_ignorable_cache_entry(&entry.file_name(), true) {
             return Err(persistent_cache_secret_error());
         }
     }
@@ -201,8 +189,16 @@ async fn write_ephemeral_cache_marker(
         .await
     {
         Ok(mut file) => {
-            file.write_all(fingerprint.as_bytes()).await?;
-            file.flush().await?;
+            let written = async {
+                file.write_all(fingerprint.as_bytes()).await?;
+                file.flush().await
+            }
+            .await;
+            if let Err(err) = written {
+                drop(file);
+                let _ = tokio::fs::remove_file(marker).await;
+                return Err(err.into());
+            }
             Ok(EphemeralMarkerState::Created)
         }
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -238,8 +234,9 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     }
     if config.features.registry.enabled || config.features.resolver.enabled {
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
+    } else {
+        crate::cache_maintenance::sync_cache_secret_on_startup(config).await?;
     }
-    write_configured_cache_marker(config).await?;
     AuthState::load(&config.identity.auth, &config.identity.backend).await
 }
 
@@ -259,10 +256,11 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
-    crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
+    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
     tracing::info!(listen = %listener.local_addr()?, "pnpr listening");
     serve_until_shutdown(listener, app, metrics).await
 }
@@ -376,9 +374,10 @@ pub async fn serve_listener_with(
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
-    crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state).await?;
+    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
     tracing::info!(%listen, "pnpr listening");
     serve_until_shutdown(listener, wrap(app), metrics).await
 }

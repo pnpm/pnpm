@@ -5,19 +5,15 @@
 //! whole-cache size caps across upstream mirrors, tar variants, and the
 //! resolver's store and caches.
 
+mod eviction;
 mod inventory;
 mod orphans;
 mod sqlite;
 
 use crate::{Config, Result};
-use inventory::{
-    cas_digest_of_store_file, inventory_cache_dir, is_cache_tmp_file, prune_empty_cache_dirs,
-};
-use orphans::prune_orphaned_namespaces;
-use sqlite::{
-    VerdictExpiry, expire_verdict_rows, prune_store_index_digests, resolver_sqlite_bytes,
-    trim_verdict_db_to_fit,
-};
+use eviction::{DryRunAdjustments, evict_and_prune_cache};
+use orphans::{prune_orphaned_namespaces, prune_private_resolver_scopes_only};
+use pnpm_fs::ChildFileStat;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -71,21 +67,22 @@ pub struct CacheGcOptions {
     pub scope: CacheGcScope,
 }
 
+/// Guard that aborts the periodic cache-eviction task when dropped.
+pub struct PeriodicCacheEviction(Option<tokio::task::JoinHandle<()>>);
+
+impl Drop for PeriodicCacheEviction {
+    fn drop(&mut self) {
+        if let Some(handle) = self.0.take() {
+            handle.abort();
+        }
+    }
+}
+
 struct CachedFile {
     path: PathBuf,
     size: u64,
     effective_time: SystemTime,
     age: Duration,
-}
-
-struct EvictionState {
-    effect: CacheGcEffect,
-    report: CacheReport,
-    retained: Vec<CachedFile>,
-    retained_bytes: u64,
-    non_evictable_bytes: u64,
-    removed_cas_digests: HashSet<String>,
-    verdict_expiry: Option<VerdictExpiry>,
 }
 
 /// The set of active upstream and tar-variant cache namespaces.
@@ -137,12 +134,18 @@ async fn should_prune_private_resolver_scopes(cache_dir: &Path, config: &Config)
     }
 }
 
-async fn sync_configured_cache_marker(config: &Config, effect: CacheGcEffect) -> Result<()> {
+async fn sync_configured_cache_marker(
+    config: &Config,
+    effect: CacheGcEffect,
+    create_dir: bool,
+) -> Result<()> {
     if !config.has_configured_secret || !matches!(effect, CacheGcEffect::Apply) {
         return Ok(());
     }
     let cache_dir = &config.storage.cache_dir;
-    if !fs::try_exists(cache_dir).await.unwrap_or(false) {
+    if create_dir {
+        fs::create_dir_all(cache_dir).await?;
+    } else if !fs::try_exists(cache_dir).await.unwrap_or(false) {
         return Ok(());
     }
     let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
@@ -150,14 +153,40 @@ async fn sync_configured_cache_marker(config: &Config, effect: CacheGcEffect) ->
     pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await
 }
 
+pub(crate) async fn sync_cache_secret_on_startup(config: &Config) -> Result<()> {
+    let cache_dir = &config.storage.cache_dir;
+    let clean = if should_prune_private_resolver_scopes(cache_dir, config).await {
+        let active = active_cache_namespaces(config);
+        prune_private_resolver_scopes_only(cache_dir, &active, CacheGcEffect::Apply).await?
+    } else {
+        true
+    };
+    if clean {
+        sync_configured_cache_marker(config, CacheGcEffect::Apply, true).await?;
+    }
+    Ok(())
+}
+
 /// Run a complete cache collection pass according to the given options.
 pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<CacheReport> {
+    collect_cache_inner(config, options, false).await
+}
+
+async fn collect_cache_inner(
+    config: &Config,
+    options: &CacheGcOptions,
+    create_marker_dir: bool,
+) -> Result<CacheReport> {
+    crate::config_validation::validate_cache_paths(config)?;
     let cache_dir = &config.storage.cache_dir;
     let active = active_cache_namespaces(config);
     let prune_private = should_prune_private_resolver_scopes(cache_dir, config).await;
-    let mut report =
+    let outcome =
         prune_orphaned_namespaces(cache_dir, &active, prune_private, options.effect).await?;
-    sync_configured_cache_marker(config, options.effect).await?;
+    if outcome.private_scopes_clean {
+        sync_configured_cache_marker(config, options.effect, create_marker_dir).await?;
+    }
+    let mut report = outcome.report;
     if matches!(options.scope, CacheGcScope::OrphansOnly) {
         return Ok(report);
     }
@@ -168,24 +197,16 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
     let max_age = options.max_age.or(config.storage.cache.max_age);
     let max_size = options.max_size.or(config.storage.cache.max_size);
     if max_age.is_some() || max_size.is_some() {
-        let ev = evict_and_prune_cache(cache_dir, max_age, max_size, options.effect).await?;
+        let adjustments = DryRunAdjustments {
+            pruned_dirs: outcome.pruned_dirs,
+            swept_staging_bytes: staging.bytes,
+        };
+        let ev = evict_and_prune_cache(cache_dir, max_age, max_size, options.effect, &adjustments)
+            .await?;
         report.files_evicted += ev.files_evicted;
         report.bytes_reclaimed += ev.bytes_reclaimed;
     }
     Ok(report)
-}
-
-async fn evict_and_prune_cache(
-    cache_dir: &Path,
-    max_age: Option<Duration>,
-    max_size: Option<u64>,
-    effect: CacheGcEffect,
-) -> Result<CacheReport> {
-    let ev = evict_cache(cache_dir, max_age, max_size, effect).await?;
-    if matches!(effect, CacheGcEffect::Apply) && ev.files_evicted > 0 {
-        prune_empty_cache_dirs(cache_dir).await?;
-    }
-    Ok(ev)
 }
 
 /// Evict cache entries on startup: cleans orphaned namespaces and enforces configured caps.
@@ -196,21 +217,34 @@ pub async fn prune_orphaned_namespaces_startup(config: &Config) -> Result<CacheR
         max_age: config.storage.cache.max_age,
         scope: CacheGcScope::Full,
     };
-    collect_cache(config, &opts).await
+    collect_cache_inner(config, &opts, true).await
 }
 
 /// Run a periodic eviction pass using configured size and age limits.
 pub async fn evict_configured_cache(config: &Config) -> Result<CacheReport> {
-    prune_orphaned_namespaces_startup(config).await
+    collect_cache(
+        config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: config.storage.cache.max_size,
+            max_age: config.storage.cache.max_age,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
 }
 
 /// Spawns a background task running cache eviction periodically if configured.
-pub fn spawn_periodic_cache_eviction(config: &Config) {
-    if config.storage.cache.max_size.is_none() && config.storage.cache.max_age.is_none() {
-        return;
+#[must_use]
+pub fn spawn_periodic_cache_eviction(config: &Config) -> PeriodicCacheEviction {
+    if (!config.features.registry.enabled && !config.features.resolver.enabled)
+        || (config.storage.cache.max_size.is_none()
+            && config.storage.cache.max_age.is_none())
+    {
+        return PeriodicCacheEviction(None);
     }
     let background_config = config.clone();
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_mins(10));
         interval.tick().await;
         loop {
@@ -220,143 +254,12 @@ pub fn spawn_periodic_cache_eviction(config: &Config) {
             }
         }
     });
+    PeriodicCacheEviction(Some(handle))
 }
 
-async fn counts_as_removed(effect: CacheGcEffect, path: &Path) -> bool {
-    match effect {
-        CacheGcEffect::Apply => fs::remove_file(path).await.is_ok(),
-        CacheGcEffect::DryRun => true,
-    }
-}
-
-async fn evict_file_if_expired(
-    cache_dir: &Path,
-    file: CachedFile,
-    max_age: Option<Duration>,
-    state: &mut EvictionState,
-) {
-    if is_cache_tmp_file(cache_dir, &file.path) {
-        if !pnpr_storage::is_active_blob_temp(&file.path)
-            && is_abandoned_tmp_age(file.age)
-            && counts_as_removed(state.effect, &file.path).await
-        {
-            state.report.files_evicted += 1;
-            state.report.bytes_reclaimed += file.size;
-        } else {
-            state.non_evictable_bytes += file.size;
-        }
-        return;
-    }
-    if max_age.is_some_and(|ttl| file.age >= ttl)
-        && counts_as_removed(state.effect, &file.path).await
-    {
-        record_evicted_file(cache_dir, &file.path, file.size, state);
-        return;
-    }
-    state.retained_bytes += file.size;
-    state.retained.push(file);
-}
-
-fn record_evicted_file(cache_dir: &Path, path: &Path, size: u64, state: &mut EvictionState) {
-    state.report.files_evicted += 1;
-    state.report.bytes_reclaimed += size;
-    if let Some(digest) = cas_digest_of_store_file(cache_dir, path) {
-        state.removed_cas_digests.insert(digest);
-    }
-}
-
-async fn evict_cache(
-    cache_dir: &Path,
-    max_age: Option<Duration>,
-    max_size: Option<u64>,
-    effect: CacheGcEffect,
-) -> Result<CacheReport> {
-    let inv = inventory_cache_dir(cache_dir).await?;
-    let mut state = EvictionState {
-        effect,
-        report: CacheReport::default(),
-        retained: Vec::new(),
-        retained_bytes: 0,
-        non_evictable_bytes: inv.non_evictable_bytes,
-        removed_cas_digests: HashSet::new(),
-        verdict_expiry: None,
-    };
-    if let Some(ttl) = max_age {
-        let expiry = expire_verdict_rows(cache_dir, ttl, effect).await;
-        state.report.bytes_reclaimed += expiry.reclaimed_bytes;
-        state.verdict_expiry = Some(expiry);
-    }
-    for file in inv.files {
-        evict_file_if_expired(cache_dir, file, max_age, &mut state).await;
-    }
-    flush_removed_cas_digests(cache_dir, &mut state).await;
-    if let Some(limit) = max_size {
-        enforce_max_size(cache_dir, limit, &mut state).await;
-    }
-    Ok(state.report)
-}
-
-async fn flush_removed_cas_digests(cache_dir: &Path, state: &mut EvictionState) {
-    let digests = std::mem::take(&mut state.removed_cas_digests);
-    if matches!(state.effect, CacheGcEffect::Apply) && !digests.is_empty() {
-        state.report.bytes_reclaimed += prune_store_index_digests(cache_dir, digests).await;
-    }
-}
-
-async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionState) {
-    let dry_expired = match (state.effect, &state.verdict_expiry) {
-        (CacheGcEffect::DryRun, Some(exp)) => exp.reclaimed_bytes,
-        _ => 0,
-    };
-    let sqlite_bytes = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
-    let mut total_size = state.non_evictable_bytes + sqlite_bytes + state.retained_bytes;
-    if total_size <= limit {
-        return;
-    }
-    state.retained.sort_by_key(|entry| entry.effective_time);
-    let candidates = std::mem::take(&mut state.retained);
-    for entry in &candidates {
-        if total_size <= limit {
-            break;
-        }
-        if evict_lru_entry(cache_dir, entry, state).await {
-            total_size = total_size.saturating_sub(entry.size);
-        }
-    }
-    flush_removed_cas_digests(cache_dir, state).await;
-    let updated_sqlite = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
-    let remaining_total = total_size.saturating_sub(sqlite_bytes).saturating_add(updated_sqlite);
-    if remaining_total > limit {
-        let floor = state.verdict_expiry.as_ref().map(|exp| exp.cutoff_ms);
-        state.report.bytes_reclaimed +=
-            trim_verdict_db_to_fit(cache_dir, remaining_total - limit, floor, state.effect).await;
-    }
-}
-
-async fn evict_lru_entry(cache_dir: &Path, entry: &CachedFile, state: &mut EvictionState) -> bool {
-    match state.effect {
-        CacheGcEffect::Apply => {
-            if let Ok(meta) = fs::metadata(&entry.path).await {
-                let (current_time, _) = file_effective_time(&meta);
-                if current_time > entry.effective_time {
-                    return false;
-                }
-            }
-            if fs::remove_file(&entry.path).await.is_err() {
-                return false;
-            }
-        }
-        CacheGcEffect::DryRun => {}
-    }
-    record_evicted_file(cache_dir, &entry.path, entry.size, state);
-    true
-}
-
-fn file_effective_time(metadata: &std::fs::Metadata) -> (SystemTime, Duration) {
-    let mtime = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-    let atime = metadata.accessed().unwrap_or(mtime);
-    let effective = mtime.max(atime);
-    let age = SystemTime::now().duration_since(mtime).unwrap_or(Duration::ZERO);
+fn stat_effective_time(stat: ChildFileStat) -> (SystemTime, Duration) {
+    let effective = stat.modified.max(stat.accessed);
+    let age = SystemTime::now().duration_since(stat.modified).unwrap_or(Duration::ZERO);
     (effective, age)
 }
 

@@ -288,17 +288,98 @@ async fn non_dot_cache_subdir_inside_fresh_hosted_storage_starts_cleanly() {
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let serve_task = tokio::spawn(super::serve_listener(config, listener));
-    for _ in 0..200 {
-        if cache_dir.join(pnpr_config::CACHE_SECRET_MARKER).exists()
-            && tokio::net::TcpStream::connect(addr).await.is_ok()
-        {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    let mut serve_task = tokio::spawn(super::serve_listener(config, listener));
+    wait_for_http_ping(addr, &mut serve_task).await;
     serve_task.abort();
     let _ = serve_task.await;
     assert!(storage_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists());
     assert!(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER).exists());
+}
+
+async fn wait_for_http_ping(
+    addr: SocketAddr,
+    serve_task: &mut tokio::task::JoinHandle<pnpr_error::Result<()>>,
+) {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    for _ in 0..300 {
+        if serve_task.is_finished() {
+            let res = serve_task.await.expect("serve_listener task panicked");
+            panic!("serve_listener exited before answering /-/ping: {res:?}");
+        }
+        if let Ok(mut stream) = tokio::net::TcpStream::connect(addr).await
+            && stream
+                .write_all(b"GET /-/ping HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .await
+                .is_ok()
+        {
+            let mut buf = Vec::new();
+            if stream.read_to_end(&mut buf).await.is_ok() && buf.starts_with(b"HTTP/1.1 200") {
+                return;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("timed out waiting for HTTP 200 on /-/ping at {addr}");
+}
+
+#[tokio::test]
+async fn concurrent_ephemeral_cache_claims_admit_only_one_secret() {
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().join("shared-ephemeral-cache");
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+
+    let mut cfg_a = Config::from_default_yaml(tmp.path(), listen, None);
+    cfg_a.storage.cache_dir = cache_dir.clone();
+    let mut cfg_b = Config::from_default_yaml(tmp.path(), listen, None);
+    cfg_b.storage.cache_dir = cache_dir;
+
+    let claim_a = super::claim_ephemeral_cache_dir(&cfg_a);
+    let claim_b = super::claim_ephemeral_cache_dir(&cfg_b);
+    let (res_a, res_b) = tokio::join!(claim_a, claim_b);
+    assert_eq!(
+        usize::from(res_a.is_ok()) + usize::from(res_b.is_ok()),
+        1,
+        "exactly one distinct ephemeral secret may claim an unmarked cache dir",
+    );
+}
+
+#[tokio::test]
+async fn artifacts_only_startup_prunes_private_scopes_on_secret_rotation() {
+    let tmp = TempDir::new().unwrap();
+    let storage_dir = tmp.path().join("storage");
+    let cache_dir = tmp.path().join("cache");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(
+        cache_dir.join(pnpr_config::CACHE_SECRET_MARKER),
+        pnpr_config::cache_secret_fingerprint(b"old-secret-key-32-bytes-00000001"),
+    )
+    .unwrap();
+    let stale_private = cache_dir.join("resolver-cache/v12/metadata-private/old-scope/pkg.jsonl");
+    std::fs::create_dir_all(stale_private.parent().unwrap()).unwrap();
+    std::fs::write(&stale_private, b"{}").unwrap();
+
+    let config_path = tmp.path().join("artifacts.yaml");
+    std::fs::write(
+        &config_path,
+        format!(
+            "storage: {}\ncache: {}\nsecret: new-secret-key-32-bytes-00000002\nresolver:\n  enabled: false\nartifacts:\n  enabled: true\n",
+            storage_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    assert!(!config.features.registry.enabled && !config.features.resolver.enabled);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let mut serve_task = tokio::spawn(super::serve_listener(config.clone(), listener));
+    wait_for_http_ping(addr, &mut serve_task).await;
+    serve_task.abort();
+    let _ = serve_task.await;
+
+    assert!(!stale_private.exists(), "artifacts-only startup must prune rotated private scopes");
+    let stored = std::fs::read_to_string(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER)).unwrap();
+    assert_eq!(stored.trim(), pnpr_config::cache_secret_fingerprint(&config.cache_secret));
 }

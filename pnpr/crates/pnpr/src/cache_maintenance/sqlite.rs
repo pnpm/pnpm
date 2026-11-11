@@ -97,7 +97,11 @@ fn delete_expired_verdict_rows(db_path: &Path, cutoff_ms: i64) -> u64 {
     if deleted == 0 {
         return 0;
     }
-    compact_sqlite(&conn);
+    if should_vacuum(&conn) {
+        compact_sqlite(&conn);
+    } else {
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
+    }
     drop(conn);
     before.saturating_sub(sqlite_family_bytes(db_path))
 }
@@ -172,19 +176,29 @@ fn delete_oldest_verdict_rows(db_path: &Path, excess_bytes: u64) -> u64 {
     let Ok(conn) = open_sqlite(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE) else {
         return 0;
     };
-    let reclaimable = before.saturating_sub(EMPTY_VERDICT_DB_BYTES);
-    if excess_bytes >= reclaimable {
-        let _ = conn.execute("DELETE FROM lockfile_verdicts", []);
-    } else if let Some(limit) = rows_to_delete(&conn, reclaimable, excess_bytes) {
-        let _ = conn.execute(
+    let free_bytes = freelist_bytes(&conn);
+    let needed_from_rows = excess_bytes.saturating_sub(free_bytes);
+    let live_reclaimable = before.saturating_sub(EMPTY_VERDICT_DB_BYTES).saturating_sub(free_bytes);
+    let deleted = if needed_from_rows == 0 {
+        0
+    } else if needed_from_rows >= live_reclaimable {
+        conn.execute("DELETE FROM lockfile_verdicts", [])
+            .unwrap_or(0)
+    } else if let Some(limit) = rows_to_delete(&conn, live_reclaimable, needed_from_rows) {
+        conn.execute(
             "DELETE FROM lockfile_verdicts WHERE rowid IN (
                  SELECT rowid FROM lockfile_verdicts
                  ORDER BY verified_at_ms ASC, rowid ASC LIMIT ?1
              )",
             [limit],
-        );
+        )
+        .unwrap_or(0)
+    } else {
+        0
+    };
+    if deleted > 0 || free_bytes > 0 || wal_has_frames(db_path) {
+        compact_sqlite(&conn);
     }
-    compact_sqlite(&conn);
     drop(conn);
     before.saturating_sub(sqlite_family_bytes(db_path))
 }
@@ -237,7 +251,12 @@ pub(super) async fn prune_store_index_digests(
 fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -> u64 {
     let store_dir = StoreDir::new(cache_dir.join("resolver-store"));
     let db_path = store_dir.root().join("index.db");
-    if !db_path.is_file() {
+    if !db_path.is_file()
+        && !store_dir
+            .root()
+            .join(pnpm_store_dir::INDEX_DIR)
+            .is_dir()
+    {
         return 0;
     }
     let before = sqlite_family_bytes(&db_path);
@@ -247,9 +266,7 @@ fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -
     let mut keys = Vec::new();
     let _ = index.for_each_raw(|key, data| {
         if let Ok(pkg) = decode_package_files_index(&data)
-            && pkg.files
-                .values()
-                .any(|file| removed_digests.contains(&file.digest))
+            && package_references_removed_digest(&pkg, removed_digests)
         {
             keys.push(key);
         }
@@ -258,6 +275,20 @@ fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -
     let _ = index.delete_many(&keys);
     drop(index);
     before.saturating_sub(sqlite_family_bytes(&db_path))
+}
+
+fn package_references_removed_digest(
+    pkg: &pnpm_store_dir::PackageFilesIndex,
+    removed_digests: &HashSet<String>,
+) -> bool {
+    pkg.files
+        .values()
+        .any(|file| removed_digests.contains(&file.digest))
+        || pkg.side_effects
+            .iter()
+            .flatten()
+            .flat_map(|(_, diff)| diff.added.iter().flatten())
+            .any(|(_, file)| removed_digests.contains(&file.digest))
 }
 
 fn open_sqlite(db_path: &Path, flags: OpenFlags) -> rusqlite::Result<Connection> {
@@ -291,6 +322,25 @@ fn immutable_sqlite_uri(db_path: &Path) -> Option<String> {
     let mut url = url::Url::from_file_path(&absolute).ok()?;
     url.query_pairs_mut().append_pair("immutable", "1");
     Some(url.into())
+}
+
+fn should_vacuum(conn: &Connection) -> bool {
+    let freelist = pragma_u64(conn, "freelist_count");
+    let pages = pragma_u64(conn, "page_count");
+    freelist >= 16 && freelist.saturating_mul(4) >= pages
+}
+
+fn freelist_bytes(conn: &Connection) -> u64 {
+    let freelist = pragma_u64(conn, "freelist_count");
+    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
+    freelist.saturating_mul(page_size)
+}
+
+fn pragma_u64(conn: &Connection, name: &str) -> u64 {
+    conn.pragma_query_value(None, name, |row| row.get::<_, i64>(0))
+        .ok()
+        .and_then(|val| u64::try_from(val).ok())
+        .unwrap_or(0)
 }
 
 fn compact_sqlite(conn: &Connection) {

@@ -27,7 +27,7 @@ pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
 pub use link_failure::{LinkFailure, LinkFallback, LinkFallbackPolicy};
 pub use lock_mode::LockMode;
 pub use mapped_drive_path::canonicalize_preserving_mapped_drive;
-pub use open_dir::OpenDir;
+pub use open_dir::{ChildFileStat, OpenDir};
 #[cfg(unix)]
 pub use pending_temp::die_from_signal;
 pub use pending_temp::{

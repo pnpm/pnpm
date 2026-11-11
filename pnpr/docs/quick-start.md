@@ -13,7 +13,7 @@ one of them. Save this as `pnpr.yaml`:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
-secret: replace-with-a-random-32-byte-secret
+secret: ${PNPR_SECRET}
 
 auth:
   users:
@@ -54,7 +54,10 @@ dependency confusion.
 
 ## Start the server
 
+Generate a secret and start `pnpr`:
+
 ```sh
+export PNPR_SECRET="$(openssl rand -hex 32)"
 pnpr -c ./pnpr.yaml
 ```
 

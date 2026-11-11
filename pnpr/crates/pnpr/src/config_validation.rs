@@ -3,13 +3,22 @@ use pnpr_config::{
     SqlBackendSettings, cache_secret_fingerprint,
 };
 use pnpr_error::{RegistryError, Result};
-use std::{fs, io::ErrorKind, path::Path};
+use std::{
+    ffi::OsStr,
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 use url::Url;
 
 const SHARED_BACKEND_SECRET_REQUIRED: &str =
     "`secret` or `secrets.cache` must be configured when using shared storage or database backends";
 pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secrets.cache` must be \
      configured when the cache directory persists across restarts or is shared";
+const CACHE_OVERLAPS_HOSTED_STORAGE: &str =
+    "cache path must not equal or contain the storage directory";
+const CACHE_CONTAINS_METADATA_DB: &str =
+    "database.url SQLite path must not live inside the disposable cache directory";
 
 /// Validate startup settings without opening databases or creating files.
 ///
@@ -22,11 +31,56 @@ pub(crate) fn validate_startup_config(config: &mut Config) -> Result<()> {
     config.http.ensure_valid_metrics()?;
     validate_metadata_backend(&config.storage.metadata)?;
     validate_identity_backend(&config.identity.backend)?;
+    validate_cache_paths(config)?;
     validate_cache_secret(config)?;
     Ok(())
 }
 
+pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
+    let norm_cache = normalize_config_path(&config.storage.cache_dir)?;
+    let norm_hosted = normalize_config_path(&config.storage.hosted_dir)?;
+    if norm_hosted.starts_with(&norm_cache) {
+        return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
+    }
+    if config.features.registry.enabled
+        && let MetadataBackend::Sqlite(db_path) = &config.storage.metadata
+        && !db_path.as_os_str().is_empty()
+        && normalize_config_path(db_path)?.starts_with(&norm_cache)
+    {
+        return Err(invalid(CACHE_CONTAINS_METADATA_DB));
+    }
+    Ok(())
+}
+
+fn normalize_config_path(path: &Path) -> Result<PathBuf> {
+    let absolute = std::path::absolute(path)?;
+    let lexical = pnpm_fs::lexical_normalize(&absolute);
+    let mut tail = Vec::new();
+    let mut current = lexical.as_path();
+    while let Some(parent) = current.parent() {
+        match fs::canonicalize(current) {
+            Ok(mut resolved) => {
+                resolved.extend(tail.iter().rev());
+                return Ok(resolved);
+            }
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+                if let Some(name) = current.file_name() {
+                    tail.push(name);
+                }
+                current = parent;
+            }
+            Err(_) => return Ok(lexical),
+        }
+    }
+    Ok(lexical)
+}
+
+pub(crate) fn is_ignorable_cache_entry(name: &OsStr, allow_marker: bool) -> bool {
+    name == "lost+found" || (allow_marker && name == CACHE_SECRET_MARKER)
+}
+
 pub(crate) fn validate_cache_secret(config: &Config) -> Result<()> {
+    validate_cache_paths(config)?;
     if config.has_configured_secret {
         return Ok(());
     }
@@ -57,7 +111,7 @@ fn validate_ephemeral_cache_dir(cache_dir: &Path, cache_secret: &[u8]) -> Result
     };
     for entry in entries {
         let entry = entry?;
-        if entry.file_name() != "lost+found" {
+        if !is_ignorable_cache_entry(&entry.file_name(), false) {
             return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
         }
     }
