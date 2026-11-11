@@ -22,6 +22,7 @@ pub use variant_snapshots::{has_variant_snapshots, with_selected_variant_snapsho
 mod missing_projects;
 mod platform_archives;
 mod reachability;
+mod runtime_dependencies;
 mod variant_snapshots;
 
 use std::{
@@ -31,68 +32,14 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap,
-};
+use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::DependencyGroup;
 
 use crate::SkippedSnapshots;
 
 pub struct MaterializationClosure {
     pub lockfile: Lockfile,
     pub importer_ids: HashSet<String>,
-}
-
-impl MaterializationClosure {
-    pub fn runtime_dependency_alias(&self, included: IncludedDependencies) -> Option<String> {
-        self.importer_ids
-            .iter()
-            .filter_map(|importer_id| self.lockfile.importers.get(importer_id))
-            .flat_map(|importer| {
-                importer.dependencies_by_groups(
-                    [
-                        included.dependencies.then_some(DependencyGroup::Prod),
-                        included.dev_dependencies.then_some(DependencyGroup::Dev),
-                        included.optional_dependencies.then_some(DependencyGroup::Optional),
-                    ]
-                    .into_iter()
-                    .flatten(),
-                )
-            })
-            .find_map(|(alias, dependency)| {
-                let runtime = match &dependency.version {
-                    ImporterDepVersion::Regular(version) => version.prefix() == Prefix::Runtime,
-                    ImporterDepVersion::Alias(version) => {
-                        version.suffix.prefix() == Prefix::Runtime
-                    }
-                    ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => false,
-                };
-                runtime.then(|| alias.to_string())
-            })
-            .or_else(|| {
-                self.lockfile.snapshots
-                    .iter()
-                    .flat_map(|snapshots| snapshots.values())
-                    .flat_map(|snapshot| {
-                        snapshot.dependencies
-                            .iter()
-                            .chain(
-                                included.optional_dependencies
-                                    .then_some(snapshot.optional_dependencies.as_ref())
-                                    .flatten()
-                                    .into_iter(),
-                            )
-                    })
-                    .flat_map(|dependencies| dependencies.iter())
-                    .find_map(|(alias, dependency)| {
-                        dependency
-                            .ver_peer()
-                            .is_some_and(|version| version.prefix() == Prefix::Runtime)
-                            .then(|| alias.to_string())
-                    })
-            })
-    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
