@@ -272,3 +272,33 @@ async fn default_osv_dir_in_unmarked_hosted_store_passes_layout_check() {
     assert!(osv_path.exists());
     let _router = crate::try_router(config).unwrap();
 }
+
+#[tokio::test]
+async fn non_dot_cache_subdir_inside_fresh_hosted_storage_starts_cleanly() {
+    let tmp = TempDir::new().unwrap();
+    let storage_dir = tmp.path().join("cold-mock-storage");
+    let cache_dir = storage_dir.join("cache");
+
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let mut config = Config::from_default_yaml(tmp.path(), listen, None);
+    config.storage.hosted_dir = storage_dir.clone();
+    config.storage.cache_dir = cache_dir.clone();
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage_dir));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let serve_task = tokio::spawn(super::serve_listener(config, listener));
+    for _ in 0..200 {
+        if cache_dir.join(pnpr_config::CACHE_SECRET_MARKER).exists()
+            && tokio::net::TcpStream::connect(addr).await.is_ok()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    serve_task.abort();
+    let _ = serve_task.await;
+    assert!(storage_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists());
+    assert!(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER).exists());
+}

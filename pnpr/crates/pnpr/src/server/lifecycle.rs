@@ -233,10 +233,13 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
         sweep_abandoned_uploads(config).await?;
         sweep_abandoned_archive_temps(config).await?;
         sweep_expired_staged_archives(config).await?;
+    } else {
+        claim_ephemeral_cache_dir(config).await?;
     }
     if config.features.registry.enabled || config.features.resolver.enabled {
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }
+    write_configured_cache_marker(config).await?;
     AuthState::load(&config.identity.auth, &config.identity.backend).await
 }
 
@@ -249,11 +252,9 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
     crate::config_validation::validate_startup_config(&mut config)?;
-    claim_ephemeral_cache_dir(&config).await?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
-    write_configured_cache_marker(&config).await?;
     let listen = config.http.listen;
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
@@ -369,14 +370,12 @@ pub async fn serve_listener_with(
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
     crate::config_validation::validate_startup_config(&mut config)?;
-    claim_ephemeral_cache_dir(&config).await?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
-    write_configured_cache_marker(&config).await?;
     crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let (state, app) = state_and_router(config, auth, osv_index)?;
     let metrics = bind_metrics_listener(state).await?;
