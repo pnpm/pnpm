@@ -18,6 +18,7 @@ import {
   withOtpHandling,
 } from '@pnpm/network.web-auth'
 import { addUser, AddUserHttpError, AddUserNoTokenError } from '@pnpm/registry-access.client'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
@@ -215,6 +216,21 @@ function readUrlField (body: unknown, field: 'loginUrl' | 'doneUrl'): string | u
  * Whether `url` contains a Unicode control character (the C0 controls, DEL,
  * or the C1 controls) — the same set pacquet rejects via `char::is_control`.
  */
+/**
+ * Prints the registry's `npm-notice` header, such as the code a web login asks
+ * the user to type in the browser. The text is registry-controlled, so control
+ * and formatting characters are removed first, and a notice that is empty
+ * afterwards is skipped.
+ */
+function reportNotices (headers: LoginFetchResponseHeaders, globalInfo: (message: string) => void): void {
+  const notice = headers.get('npm-notice')
+  if (notice == null) return
+  const sanitized = sanitizeInline(notice)
+  if (sanitized !== '') {
+    globalInfo(sanitized)
+  }
+}
+
 function containsControlCharacters (url: string): boolean {
   for (const char of url) {
     const codePoint = char.codePointAt(0) ?? 0
@@ -285,6 +301,8 @@ async function webLogin ({
   if (containsControlCharacters(authUrl) || containsControlCharacters(doneUrl)) {
     throw new UnsafeLoginUrlError()
   }
+
+  reportNotices(response.headers, globalInfo)
 
   // A non-TTY stdout (a CI log, a pipe) cannot render the QR code block, so
   // print the URL on its own.

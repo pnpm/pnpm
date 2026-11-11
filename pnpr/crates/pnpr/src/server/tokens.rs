@@ -1,9 +1,12 @@
 mod payload;
 
+use payload::CredentialLimits;
+
 use std::net::IpAddr;
 
 use axum::{
     extract::{Path, State},
+    http::HeaderMap,
     response::{IntoResponse, Response},
 };
 use pnpr_auth::TokenRecord;
@@ -32,10 +35,22 @@ pub(crate) async fn post_create_token(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(_): TargetRegistry,
     client_ip: Option<axum::extract::Extension<super::ClientIp>>,
+    headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
     let ip = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
-    private_no_cache(create_token(&state, ip, &identity, &body).await)
+    let credential = super::single_authorization_header(&headers)
+        .ok()
+        .flatten()
+        .and_then(super::authentication::token_credentials);
+    let caller = Caller { identity: &identity, credential: credential.as_deref() };
+    private_no_cache(create_token(&state, ip, &caller, &body).await)
+}
+
+/// Who calls the token API, and the raw credential they authenticated with.
+pub(super) struct Caller<'a> {
+    pub(super) identity: &'a Identity,
+    pub(super) credential: Option<&'a str>,
 }
 
 pub(crate) async fn get_token_list(
@@ -67,10 +82,10 @@ pub(crate) async fn delete_session_token(
 pub(super) async fn create_token(
     state: &AppState,
     client_ip: Option<IpAddr>,
-    identity: &Identity,
+    caller: &Caller<'_>,
     body: &[u8],
 ) -> Response {
-    let username = match require_caller(identity, "token creation") {
+    let username = match require_caller(caller.identity, "token creation") {
         Ok(u) => u,
         Err(err) => return err.into_response(),
     };
@@ -81,22 +96,25 @@ pub(super) async fn create_token(
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, &username) {
         return super::user_accounts::login_throttled_response(state, retry_after);
     }
-    create_verified_token(state, client_ip, identity, body).await
+    create_verified_token(state, client_ip, caller, body).await
         .unwrap_or_else(IntoResponse::into_response)
 }
 
 async fn create_verified_token(
     state: &AppState,
     client_ip: Option<IpAddr>,
-    identity: &Identity,
+    caller: &Caller<'_>,
     body: &[u8],
 ) -> Result<Response, RegistryError> {
-    let username = identity.username().expect("authenticated caller");
-    let request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
+    let username = caller.identity.username().expect("authenticated caller");
+    let mut request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
     let verified_hash =
         verify_caller_password(state, client_ip, username, request.password()).await?;
+    if verified_hash == pnpr_auth::NO_PASSWORD_HASH {
+        request = request.within(credential_limits(state, caller.credential).await?)?;
+    }
     let new_token = request.into_new_token(pnpr_auth::unix_millis())?;
-    let user_id = identity.user_id().expect("authenticated caller");
+    let user_id = caller.identity.user_id().expect("authenticated caller");
     let (raw, record) = state.inner.identity.auth.issue_token_if_credential_current(
         username,
         user_id,
@@ -105,6 +123,28 @@ async fn create_verified_token(
     )
     .await?;
     Ok(json_response(StatusCode::OK, &create_token_response(&raw, &record)))
+}
+
+/// The limits of the browser session or token that `credential` carries.
+/// Without a password, a new token is held to them.
+async fn credential_limits(
+    state: &AppState,
+    credential: Option<&str>,
+) -> Result<CredentialLimits, RegistryError> {
+    let unsupported = || RegistryError::Unauthenticated {
+        resource: "token creation without a password from this credential".to_string(),
+    };
+    let raw = credential.ok_or_else(unsupported)?;
+    if let Some(expires) = state.inner.identity.oidc.session_expires(raw) {
+        const MILLIS_PER_SECOND: u64 = 1_000;
+        let expires_at = u64::try_from(expires)
+            .ok()
+            .and_then(|seconds| seconds.checked_mul(MILLIS_PER_SECOND));
+        return Ok(CredentialLimits { cidr_whitelist: Vec::new(), expires_at });
+    }
+    let record =
+        state.inner.identity.auth.tokens.lookup_record(raw).await?.ok_or_else(unsupported)?;
+    Ok(CredentialLimits { cidr_whitelist: record.cidr_whitelist, expires_at: record.expires_at })
 }
 
 pub(super) async fn verify_caller_password(

@@ -37,8 +37,9 @@ pub enum LoginReturn {
     /// The web UI, which redeems a [handoff code](OidcState::hand_off) for
     /// the token.
     Ui,
-    /// CLI web login session flow (`/-/v1/login`).
-    Cli { session: String },
+    /// The CLI web login (`/-/v1/login`) that a browser claimed with its
+    /// user code.
+    Cli { login_id: String },
 }
 
 impl OidcState {
@@ -57,6 +58,16 @@ impl OidcState {
         }
         sessions.remove(&hash);
         Err(rejected())
+    }
+
+    /// When the unexpired browser session `raw` expires, in Unix seconds.
+    pub fn session_expires(&self, raw: &str) -> Option<i64> {
+        let now = Utc::now().timestamp();
+        let sessions = self.browser.sessions.lock().expect("OIDC session mutex poisoned");
+        sessions
+            .get(&super::super::sha256_hex(raw.as_bytes()))
+            .map(|session| session.expires)
+            .filter(|expires| *expires > now)
     }
 
     pub fn revoke_session(&self, raw: &str) -> bool {

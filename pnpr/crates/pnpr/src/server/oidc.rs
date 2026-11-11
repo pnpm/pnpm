@@ -40,7 +40,6 @@ pub(super) fn routes(ui_served: bool) -> Router<AppState> {
 pub(super) struct LoginQuery {
     #[serde(rename = "return")]
     returns_to: Option<String>,
-    session: Option<String>,
 }
 
 async fn login(
@@ -53,28 +52,30 @@ async fn login(
         None => LoginReturn::Token,
         Some("ui") if ui_served => LoginReturn::Ui,
         Some("ui") => return bad_request("this pnpr does not serve the web UI"),
-        Some("cli") => {
-            let Some(session) = query.session.as_deref() else {
-                return bad_request("session query parameter required for return=cli");
-            };
-            if !is_valid_state(session) || !state.inner.identity.oidc.is_valid_web_login(session) {
-                return bad_request("invalid or expired web login session");
-            }
-            LoginReturn::Cli { session: session.to_string() }
-        }
         Some(_) => return bad_request("return must be ui"),
     };
-    let response = match state.inner.identity.oidc.start(&provider, returns_to).await {
-        Ok(start) => with_cookie(
-            Redirect::to(&start.url).into_response(),
-            &format!(
-                "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
-                start.state, start.browser_secret,
-            ),
+    redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to)
+        .await
+        .unwrap_or_else(|err| protect(err.into_response()))
+}
+
+/// Send the browser to `provider` to sign in. Only this browser can finish
+/// the sign-in, because the callback requires the cookie set here. `Err`
+/// means the sign-in did not start, so no browser can finish it.
+pub(super) async fn redirect_to_provider(
+    oidc: &OidcState,
+    provider: &str,
+    returns_to: LoginReturn,
+) -> Result<Response, RegistryError> {
+    let start = oidc.start(provider, returns_to).await?;
+    let response = with_cookie(
+        Redirect::to(&start.url).into_response(),
+        &format!(
+            "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
+            start.state, start.browser_secret,
         ),
-        Err(err) => err.into_response(),
-    };
-    protect(response)
+    );
+    Ok(protect(response))
 }
 
 #[derive(Deserialize)]
@@ -128,8 +129,8 @@ fn signed_in(oidc: &OidcState, flow: &str, session: LoginSession) -> Response {
             Err(err) => err.into_response(),
         };
     }
-    if let LoginReturn::Cli { session: ref session_id } = session.returns_to {
-        return match oidc.fulfill_web_login(session_id, session.token) {
+    if let LoginReturn::Cli { ref login_id } = session.returns_to {
+        return match oidc.fulfill_web_login(login_id, session.token) {
             Ok(()) => {
                 let html = r#"<!doctype html>
 <html>
