@@ -2,6 +2,11 @@ use super::{AppState, CanonicalPackageName, RegistryError, packument_tarball_fil
 use serde_json::Value;
 use std::collections::HashSet;
 
+enum BlobEviction {
+    Package,
+    Files(HashSet<String>),
+}
+
 pub(in crate::server) async fn refresh_cached_packument(
     state: &AppState,
     namespace: &str,
@@ -15,8 +20,15 @@ pub(in crate::server) async fn refresh_cached_packument(
         state.inner.packuments.workers.run(move || reconcile(previous.as_deref(), bytes, &package))
             .await??;
     // Evict before publishing the new document so a failed deletion cannot be forgotten.
-    for filename in removed {
-        state.inner.storage.remove_upstream_blob(namespace, name, &filename).await?;
+    match removed {
+        BlobEviction::Package => {
+            state.inner.storage.remove_upstream_package(namespace, name).await?;
+        }
+        BlobEviction::Files(filenames) => {
+            for filename in filenames {
+                state.inner.storage.remove_upstream_blob(namespace, name, &filename).await?;
+            }
+        }
     }
     state.inner.storage.write_upstream_document(namespace, name, &bytes).await?;
     Ok(bytes)
@@ -26,15 +38,17 @@ fn reconcile(
     previous: Option<&[u8]>,
     bytes: Vec<u8>,
     name: &CanonicalPackageName,
-) -> Result<(Vec<u8>, HashSet<String>), RegistryError> {
+) -> Result<(Vec<u8>, BlobEviction), RegistryError> {
     let mut current: Value = serde_json::from_slice(&bytes)?;
     let Some(previous) = previous else {
-        return Ok((bytes, HashSet::new()));
+        return Ok((bytes, BlobEviction::Files(HashSet::new())));
     };
-    let previous: Value = serde_json::from_slice(previous)?;
+    let Ok(previous) = serde_json::from_slice::<Value>(previous) else {
+        return Ok((bytes, BlobEviction::Package));
+    };
     let mut removed = HashSet::new();
     let Some(versions) = previous.get("versions").and_then(Value::as_object) else {
-        return Ok((bytes, removed));
+        return Ok((bytes, BlobEviction::Files(removed)));
     };
     for (version, old) in versions {
         let new = current
@@ -48,7 +62,7 @@ fn reconcile(
             removed.insert(filename);
         }
     }
-    Ok((serde_json::to_vec(&current)?, removed))
+    Ok((serde_json::to_vec(&current)?, BlobEviction::Files(removed)))
 }
 
 fn same_tarball(old: &Value, new: &Value) -> bool {
