@@ -33,7 +33,7 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
       - name: Install Rust toolchain
@@ -55,12 +55,17 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
           clean: false
           persist-credentials: false
 
+      - name: Test reduced shell emulator
+        run: cargo test --locked -p pnpm-executor --no-default-features
+
+      - name: Test reduced runtime resolver
+        run: cargo test --locked -p pnpm-resolving-default-resolver --no-default-features
+
       - name: Measure pull request
+        shell: bash
         run: |
           just engine-size --json target/engine-size-pr.json --compare "$RUNNER_TEMP/engine-size-main.json" | tee -a "$GITHUB_STEP_SUMMARY"
           just engine-size --no-default-features --json target/engine-size-pr-reduced.json --compare "$RUNNER_TEMP/engine-size-main.json" | tee -a "$GITHUB_STEP_SUMMARY"

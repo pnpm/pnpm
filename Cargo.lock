@@ -6479,6 +6479,7 @@ dependencies = [
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-resolving-tarball-resolver",
+ "pnpm-tool-protocol",
  "ssri",
  "tokio",
 ]

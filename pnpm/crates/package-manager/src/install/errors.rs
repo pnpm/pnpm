@@ -214,6 +214,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
+    #[cfg(not(feature = "runtime-provisioning"))]
+    #[display("Runtime provisioning is not enabled in this build for {alias}")]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_PROVISIONING_UNAVAILABLE))]
+    RuntimeProvisioningUnavailable {
+        #[error(not(source))]
+        alias: String,
+    },
+
     #[diagnostic(transparent)]
     LocalTarballIntegrity(#[error(source)] pnpm_tarball::TarballError),
 

@@ -120,6 +120,15 @@ pub struct SpecNotSupportedByAnyResolverError {
     pub specifier: String,
 }
 
+#[cfg(not(feature = "runtime-provisioning"))]
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Provisioning is not enabled in this build for {alias}@{specifier}")]
+#[diagnostic(code(ERR_PNPM_PROVISIONING_UNAVAILABLE))]
+pub(crate) struct ProvisioningUnavailableError {
+    pub(crate) alias: String,
+    pub(crate) specifier: String,
+}
+
 impl SpecNotSupportedByAnyResolverError {
     #[must_use]
     pub fn new(wanted_dependency: &WantedDependency) -> Self {

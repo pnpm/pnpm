@@ -5,6 +5,10 @@ use super::{
     frozen_project_anchor_ids, initial_materialization_ids, map_frozen_lockfile_error,
     previously_skipped, prior_unbuilt_builds, settle_frozen_verification,
 };
+#[cfg(not(feature = "runtime-provisioning"))]
+use pnpm_lockfile::{ImporterDepVersion, Prefix};
+#[cfg(not(feature = "runtime-provisioning"))]
+use pnpm_package_manifest::DependencyGroup;
 
 impl<'a> MaterializationInputs<'a, '_> {
     fn groups(&self, lockfile: &Lockfile) -> crate::GroupSelection {
@@ -117,6 +121,16 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );
+        #[cfg(not(feature = "runtime-provisioning"))]
+        if !self.install.execution.skip_runtimes
+            && let Some(alias) = selected_runtime_dependency(
+                &scope.closure.lockfile,
+                &scope.closure.importer_ids,
+                scope.groups.included,
+            )
+        {
+            return Err(InstallError::RuntimeProvisioningUnavailable { alias });
+        }
         let supported_lockfile_major =
             matches!(scope.lockfile().lockfile_version.major, 9 | 12 | 13);
         debug_assert!(supported_lockfile_major);
@@ -149,6 +163,36 @@ impl<'a> MaterializationInputs<'a, '_> {
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }
+}
+
+#[cfg(not(feature = "runtime-provisioning"))]
+fn selected_runtime_dependency(
+    lockfile: &Lockfile,
+    importer_ids: &HashSet<String>,
+    included: pnpm_modules_yaml::IncludedDependencies,
+) -> Option<String> {
+    importer_ids
+        .iter()
+        .filter_map(|importer_id| lockfile.importers.get(importer_id))
+        .flat_map(|importer| {
+            importer.dependencies_by_groups(
+                [
+                    included.dependencies.then_some(DependencyGroup::Prod),
+                    included.dev_dependencies.then_some(DependencyGroup::Dev),
+                    included.optional_dependencies.then_some(DependencyGroup::Optional),
+                ]
+                .into_iter()
+                .flatten(),
+            )
+        })
+        .find_map(|(alias, dependency)| {
+            let runtime = match &dependency.version {
+                ImporterDepVersion::Regular(version) => version.prefix() == Prefix::Runtime,
+                ImporterDepVersion::Alias(version) => version.suffix.prefix() == Prefix::Runtime,
+                ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => false,
+            };
+            runtime.then(|| alias.to_string())
+        })
 }
 
 impl<'a> MaterializationWorkspace<'a> {
