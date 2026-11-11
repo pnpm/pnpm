@@ -510,6 +510,43 @@ defaultRegistry: main
 }
 
 #[tokio::test]
+async fn cargo_hosted_registry_rejects_owners_publish_rule() {
+    let dir = TempDir::new().unwrap();
+    let config_yaml = "\
+auth:
+  admins: [root]
+  users:
+    maxUsers: 100
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    rulesManagedBy: api
+    packages:
+      'foo': {}
+  main:
+    type: router
+    sources: [crates]
+defaultRegistry: main
+";
+    let storage = dir.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let path = dir.path().join("config.yaml");
+    std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
+    let app = app_router(config).await;
+    let root = add_user(&app, "root").await;
+
+    let body = json!({ "packages": { "foo": { "publish": ["$owners"] } } });
+    let (status, bytes) =
+        send_raw(&app, "PUT", "/-/pnpr/v0/admin/rules/cargo/crates", Some(&root), Some(body)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let msg = String::from_utf8_lossy(&bytes);
+    assert!(msg.contains("do not record package owners"), "expected owners error, got: {msg}");
+}
+
+#[tokio::test]
 async fn pre_upgrade_stored_unpublish_override_on_cargo_does_not_lock_out_registry() {
     let dir = TempDir::new().unwrap();
     let config_yaml = "\

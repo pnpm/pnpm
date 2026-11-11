@@ -27,6 +27,7 @@ fn registry_mock_rules() -> RuleTable {
         ],
         None,
     )
+    .with_default_publish(list("$authenticated"))
     .with_default_unpublish(list("$authenticated"))
 }
 
@@ -291,7 +292,8 @@ fn falls_back_to_safe_defaults_when_no_rules_match() {
     let effective = policies.for_package("anything");
     assert!(effective.access.allows(&Identity::Anonymous));
     assert!(!effective.publish.allows(&Identity::Anonymous));
-    assert!(effective.publish.allows(&user("alice")));
+    assert!(!effective.publish.allows(&user("alice")));
+    assert!(effective.publish.allows_with_context(&user("alice"), true));
     assert!(!effective.unpublish.allows(&Identity::Anonymous));
     assert!(!effective.unpublish.allows(&user("alice")));
 }

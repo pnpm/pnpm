@@ -4,7 +4,8 @@
 pub mod oidc;
 
 pub use access::{
-    AccessSpec, PackageAccess, compile_access_list, validate_member_name, validate_team_name,
+    AccessSpec, PackageAccess, check_owners_supported, compile_access_list, validate_member_name,
+    validate_team_name,
 };
 pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
 pub use backend_config::{
