@@ -320,13 +320,19 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
 const UPSTREAM_TOKEN: &str = "Bearer upstream-secret";
 
 fn corp_credential() -> String {
-    super::credential_digest(UPSTREAM_TOKEN)
+    super::headers_credential_digest(&HeaderMap::from_iter([(
+        AUTHORIZATION,
+        HeaderValue::from_static(UPSTREAM_TOKEN),
+    )]))
 }
 
 /// A *different* credential digest, standing in for the same upstream after its
 /// upstream credential has been rotated.
 fn rotated_credential() -> String {
-    super::credential_digest("Bearer rotated-secret")
+    super::headers_credential_digest(&HeaderMap::from_iter([(
+        AUTHORIZATION,
+        HeaderValue::from_static("Bearer rotated-secret"),
+    )]))
 }
 
 fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {

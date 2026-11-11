@@ -3,7 +3,7 @@ use pnpm_network::{AddressGuard, LocalResponse};
 use super::{
     AUTHORIZATION, Arc, Footprint, Identity, LocalFetch, MetadataCacheScope, Mutex,
     PrivateAccessDescriptor, ResolvedAlias, RouteClass, RouteContext, UpstreamConfig,
-    UpstreamRouteHook, credential_digest, fmt, nerf_prefix, scheme_of,
+    UpstreamRouteHook, fmt, headers_credential_digest, nerf_prefix, scheme_of,
 };
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
@@ -58,6 +58,9 @@ impl RouteHook {
 
 impl UpstreamRouteHook for RouteHook {
     fn fetch_local(&self, url: &str, headers: reqwest::header::HeaderMap) -> Option<LocalResponse> {
+        if !self.context.allows_fetch(url) || !self.context.is_own_url(url) {
+            return None;
+        }
         self.local_fetch.as_ref()?(url, headers)
     }
 
@@ -76,7 +79,7 @@ impl UpstreamRouteHook for RouteHook {
                 let authorization = self.context.aliases
                     .iter()
                     .find(|candidate| candidate.name == alias)
-                    .map(|candidate| candidate.authorization.clone());
+                    .and_then(|candidate| candidate.authorization.clone());
                 // Package-qualified only when the upstream's rules explicitly
                 // refine this name, so replay re-checks the refinement.
                 let package = self.context.alias_package_qualifier(&alias, package);
@@ -129,19 +132,19 @@ impl RouteHook {
 }
 
 impl ResolvedAlias {
-    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
-    /// participates in route classification only when it declares both an
-    /// `access:` policy and a resolved `Authorization` credential; routing is
-    /// by registry origin, so no package glob is attached.
+    /// Resolve upstream access and credential state for route classification.
     pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
-        let access = upstream.access.clone()?;
+        let access = upstream.access
+            .clone()
+            .unwrap_or_else(|| super::AccessList::from_tokens(["$all"]));
         let authorization = upstream.headers
             .get(AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())?
-            .to_string();
+            .filter(|_| upstream.access.is_some())
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
         Some(Self {
             name: name.to_string(),
-            credential_digest: credential_digest(&authorization),
+            credential_digest: headers_credential_digest(&upstream.headers),
             registry: upstream.url.clone(),
             origin: nerf_prefix(&upstream.url)?,
             scheme: scheme_of(&upstream.url)?.to_string(),

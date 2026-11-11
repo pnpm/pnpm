@@ -829,6 +829,15 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
 
 #[tokio::test]
 async fn fetch_full_metadata_returns_not_modified_on_304() {
+    conditional_metadata(false).await;
+}
+
+#[tokio::test]
+async fn local_metadata_preserves_conditional_headers() {
+    conditional_metadata(true).await;
+}
+
+async fn conditional_metadata(local: bool) {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
@@ -841,9 +850,16 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::default();
+    let auth_headers = if local {
+        AuthHeaders::default()
+            .with_route_hook(std::sync::Arc::new(LocalMetadata {
+                target: format!("{registry}acme"),
+            }))
+    } else {
+        AuthHeaders::default()
+    };
     let opts = FetchFullMetadataOptions {
-        registry: &registry,
+        registry: if local { "https://local.invalid/" } else { &registry },
         full_metadata: true,
         etag: Some(r#"W/"fresh""#),
         modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
@@ -860,6 +876,32 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
         "expected NotModified, got: {outcome:?}",
     );
     mock.assert_async().await;
+}
+
+struct LocalMetadata {
+    target: String,
+}
+
+impl pnpm_network::UpstreamRouteHook for LocalMetadata {
+    fn authorize(&self, _: &str, _: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn fetch_local(
+        &self,
+        _: &str,
+        headers: reqwest::header::HeaderMap,
+    ) -> Option<pnpm_network::LocalResponse> {
+        let target = self.target.clone();
+        Some(Box::pin(async move {
+            reqwest::Client::new()
+                .get(target)
+                .headers(headers)
+                .send()
+                .await
+                .unwrap()
+        }))
+    }
 }
 
 /// A registry that accepts each connection, reads the request, writes

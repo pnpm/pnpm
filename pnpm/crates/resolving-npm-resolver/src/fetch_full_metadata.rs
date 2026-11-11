@@ -286,8 +286,7 @@ async fn send_once<'a>(
     validators: &Validators<'_>,
     bypass_cache: bool,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
-    let mut headers = header::HeaderMap::new();
-    headers.insert(header::ACCEPT, opts.accept.parse().expect("static accept header"));
+    let headers = metadata_headers(opts.accept, validators, bypass_cache);
     if let Some(response) =
         opts.http.auth_headers.fetch_local(opts.url, Some(opts.pkg_name), headers)
     {
@@ -309,20 +308,13 @@ async fn send_remote_once<'a>(
         opts.priority,
         opts.http.retry_opts,
         |client| {
-            let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
+            let mut request = client
+                .get(opts.url)
+                .headers(metadata_headers(opts.accept, validators, bypass_cache));
             if let Some(value) =
                 opts.http.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name))
             {
                 request = request.header(header::AUTHORIZATION, value);
-            }
-            if let Some(etag) = validators.etag {
-                request = request.header(header::IF_NONE_MATCH, etag);
-            }
-            if let Some(modified) = validators.modified.as_deref() {
-                request = request.header(header::IF_MODIFIED_SINCE, modified);
-            }
-            if bypass_cache {
-                request = request.header(header::CACHE_CONTROL, "no-cache");
             }
             request
         },
@@ -332,6 +324,27 @@ async fn send_remote_once<'a>(
         url: redact_url_credentials(opts.url),
         error: error.without_url(),
     })
+}
+
+fn metadata_headers(
+    accept: &str,
+    validators: &Validators<'_>,
+    bypass_cache: bool,
+) -> header::HeaderMap {
+    let mut headers = header::HeaderMap::new();
+    headers.insert(header::ACCEPT, accept.parse().expect("static accept header"));
+    for (name, value) in [
+        (header::IF_NONE_MATCH, validators.etag),
+        (header::IF_MODIFIED_SINCE, validators.modified.as_deref()),
+    ] {
+        if let Some(value) = value.and_then(|value| value.parse().ok()) {
+            headers.insert(name, value);
+        }
+    }
+    if bypass_cache {
+        headers.insert(header::CACHE_CONTROL, header::HeaderValue::from_static("no-cache"));
+    }
+    headers
 }
 
 /// Convert a stored `modified` value — the packument's ISO-8601

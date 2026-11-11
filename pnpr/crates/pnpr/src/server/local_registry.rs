@@ -3,40 +3,41 @@ use axum::{Router, body::Body, http::Request};
 use pnpr_policy::Identity;
 use pnpr_route::LocalFetch;
 use reqwest::ResponseBuilderExt;
-use std::sync::{Arc, OnceLock, Weak};
+use std::sync::{Arc, Weak};
 use tower::ServiceExt;
 use url::Url;
 
 pub(crate) struct LocalRegistry {
     pub(crate) public_url: String,
     state: Weak<AppInner>,
+    router: Router<AppState>,
 }
 
 impl LocalRegistry {
     pub(crate) fn new(public_url: String) -> Self {
-        Self { public_url, state: Weak::new() }
+        Self { public_url, state: Weak::new(), router: Router::new() }
     }
 
     pub(crate) fn attach(&mut self, state: &AppState) {
         self.state = Arc::downgrade(&state.inner);
+        self.router = local_registry_router(&state.inner.config);
     }
 
     pub(crate) fn fetcher(&self, identity: Identity) -> Arc<LocalFetch> {
         let base = Url::parse(&format!("{}/", self.public_url.trim_end_matches('/'))).ok();
-        let state = self.state.upgrade();
-        let router = OnceLock::new();
+        let router = self.state
+            .upgrade()
+            .map(|inner| {
+                self.router
+                    .clone()
+                    .with_state(AppState { inner })
+            })
+            .unwrap_or_default();
         Arc::new(move |url, headers| {
             let url = Url::parse(url).ok()?;
             let base = base.as_ref()?;
             let uri = local_uri(base, &url)?;
-            let router = router
-                .get_or_init(|| {
-                    state
-                        .as_ref()
-                        .map(|inner| local_registry_router(AppState { inner: Arc::clone(inner) }))
-                        .unwrap_or_default()
-                })
-                .clone();
+            let router = router.clone();
             let mut request = Request::get(uri)
                 .body(Body::empty())
                 .expect("parsed URL path");

@@ -38,10 +38,15 @@ async fn resolve_private_hosted_package_in_process_as_caller() {
     .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.http.public_url = format!("{public_url}/registry");
+    config.http.public_url = format!("{public_url}/registry/");
     config.routing.hosted.insert("internal".into(), hosted_with_access("internal", "reader"));
     config.routing.registries = Registries::new(
-        std::iter::once(("internal".into(), Registry::Hosted { patterns: vec![] })).collect(),
+        [
+            ("internal".into(), Registry::Hosted { patterns: vec![] }),
+            ("private-router".into(), Registry::Router { sources: vec!["internal".into()] }),
+        ]
+        .into_iter()
+        .collect(),
         Some("internal".into()),
     );
     let auth =
@@ -62,7 +67,7 @@ async fn resolve_private_hosted_package_in_process_as_caller() {
         .await
         .unwrap();
     assert_eq!(published.status(), StatusCode::CREATED);
-    for path in ["npm/", "npm/~internal/", "npm/~%69nternal/"] {
+    for path in ["npm/", "npm/~internal/", "npm/~%69nternal/", "npm/~private-router/"] {
         let registry = format!("{public_url}/registry/{path}");
         let body = resolve(&app, (&registry, "1.0.0"), &reader).await;
         assert!(!body.contains(r#""type":"error""#), "{body}");
@@ -80,6 +85,15 @@ async fn resolve_private_hosted_package_in_process_as_caller() {
 
 #[tokio::test]
 async fn resolve_private_upstream_sends_credential_only_to_upstream() {
+    resolve_private_upstream("authorization").await;
+}
+
+#[tokio::test]
+async fn resolve_private_upstream_with_custom_header_keeps_cache_private() {
+    resolve_private_upstream("x-api-key").await;
+}
+
+async fn resolve_private_upstream(header: &str) {
     let (public_url, requests) = spawn_counting_server(
         b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
     )
@@ -87,7 +101,7 @@ async fn resolve_private_upstream_sends_credential_only_to_upstream() {
     let mut upstream = mockito::Server::new_async().await;
     let (_, tgz) = package_tar_and_tgz(r#"{"name":"private-widget","version":"1.0.0"}"#);
     let packument = upstream.mock("GET", "/private-widget")
-        .match_header("authorization", "Bearer upstream-test-token")
+        .match_header(header, "Bearer upstream-test-token")
         .with_header("content-type", "application/json")
         .with_body(json!({
             "name": "private-widget",
@@ -106,7 +120,10 @@ async fn resolve_private_upstream_sends_credential_only_to_upstream() {
     config.http.public_url = public_url.clone();
     let source = config.routing.upstreams.get_mut("npmjs").unwrap();
     source.access = Some(AccessList::from_tokens(["reader"]));
-    source.headers.insert("authorization", "Bearer upstream-test-token".parse().unwrap());
+    source.headers.insert(
+        reqwest::header::HeaderName::from_bytes(header.as_bytes()).unwrap(),
+        "Bearer upstream-test-token".parse().unwrap(),
+    );
     let auth =
         crate::tokens::seeded_auth(&config, &[("reader", "password"), ("outsider", "password")]);
     let reader = issue_token(&auth, "reader").await;

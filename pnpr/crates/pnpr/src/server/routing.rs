@@ -440,11 +440,8 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
 }
 
-pub(super) fn local_registry_router(state: AppState) -> Router {
-    let config = &state.inner.config;
-    let router = if config.features.registry.enabled
-        && config.routing.registries.has_ecosystem(Ecosystem::Npm)
-    {
+pub(super) fn local_registry_router(config: &Config) -> Router<AppState> {
+    if config.features.registry.enabled && config.routing.registries.has_ecosystem(Ecosystem::Npm) {
         let mut packages = Router::new();
         for base in ["", "/~{registry}"] {
             packages = npm_package_routes(packages, base);
@@ -452,6 +449,5 @@ pub(super) fn local_registry_router(state: AppState) -> Router {
         Router::new().nest(&Ecosystem::Npm.base_path(), packages)
     } else {
         Router::new()
-    };
-    router.with_state(state)
+    }
 }

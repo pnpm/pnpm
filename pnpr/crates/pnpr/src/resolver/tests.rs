@@ -113,7 +113,12 @@ fn private_alias_footprint(alias: &str) -> Footprint {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: alias.to_string(),
-        credential_digest: pnpr_route::credential_digest(ALIAS_TOKEN),
+        credential_digest: pnpr_route::headers_credential_digest(
+            &reqwest::header::HeaderMap::from_iter([(
+                reqwest::header::AUTHORIZATION,
+                ALIAS_TOKEN.parse().unwrap(),
+            )]),
+        ),
         package: None,
     });
     footprint
