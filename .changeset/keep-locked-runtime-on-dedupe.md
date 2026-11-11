@@ -1,6 +1,7 @@
 ---
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.deps-resolver": patch
+"@pnpm/engine.runtime.node-resolver": patch
 "pnpm": patch
 "pacquet": patch
 ---

@@ -160,17 +160,19 @@ impl NodeResolver {
             return Ok(None);
         };
         if let Some((current, version)) = opts.refresh.kept_runtime() {
-            parse_node_specifier(version_spec)
+            let wanted = parse_node_specifier(version_spec)
                 .map_err(|err| {
                     Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
                 })?;
-            return Ok(Some(node_resolve_result(
-                wanted_dependency,
-                current.id.clone(),
-                current.resolution.clone(),
-                version,
-                None,
-            )));
+            if locked_on_release_channel(version, &wanted.release_channel) {
+                return Ok(Some(node_resolve_result(
+                    wanted_dependency,
+                    current.id.clone(),
+                    current.resolution.clone(),
+                    version,
+                    None,
+                )));
+            }
         }
 
         let picked = self
@@ -416,6 +418,16 @@ struct PickedNodeVersion {
     /// [`exact_release_version`] — the release index was never
     /// consulted, so the version's existence is still unproven.
     resolved_without_index: bool,
+}
+
+/// Whether a runtime locked at `version` may serve `release_channel`. A
+/// version without a channel's prerelease tag cannot be told apart from a
+/// release of any channel, so it stays.
+fn locked_on_release_channel(version: &str, release_channel: &str) -> bool {
+    parse_node_specifier(version)
+        .is_ok_and(|locked| {
+            locked.release_channel == "release" || locked.release_channel == release_channel
+        })
 }
 
 fn node_resolve_result(
