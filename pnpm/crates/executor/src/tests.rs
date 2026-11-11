@@ -4,7 +4,7 @@
 // declaration) so `unit_test_file_layout` still sees a plain
 // `#[cfg(test)] mod tests;` and recognises this file as the external
 // test module.
-#![cfg(unix)]
+#![cfg(all(unix, feature = "shell-emulator"))]
 
 use super::execute_shell;
 
