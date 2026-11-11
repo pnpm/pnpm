@@ -26,11 +26,11 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | --- | --- |
 | `-c, --config <path>` | Path to a [YAML config](configuration.md). When omitted, the global `config.yaml` in pnpr's config dir is used if it exists, otherwise the bundled default config. |
 | `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:7677`. |
-| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. A [metadata database](storage.md#sqlite-metadata) at the default path, `<storage>/.metadata/metadata.sqlite`, moves with it; one anywhere else stays where it is. |
+| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. A [metadata database](storage.md#sqlite-metadata) at `<storage>/.metadata/metadata.sqlite` and an [OSV database](configuration.md#osv) at `<storage>/.osv/npm/all.zip` move with it; explicit paths stay where they are. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `maxAge` overrides it for that registry. |
-| `--osv [<bool>]` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. `--osv false` turns off checks that the config enables. |
+| `--osv [<bool>]` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<storage>/.osv/npm/all.zip`. `--osv false` turns off checks that the config enables. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
 | `--disable-resolver` | Disable the install-accelerator surface: `GET /-/pnpr`, `POST /-/pnpr/v0/resolve`, and `POST /-/pnpr/v0/verify-lockfile`. Overrides `resolver.enabled`. |
@@ -230,11 +230,12 @@ stored longer than `--min-age` ago.
 
 Added in: v0.1.0-alpha.16
 
-Reclaims cached upstream tarballs and packuments, prunes orphaned namespaces
-left behind by per-process secrets or changed configurations, and enforces
-cache size and age limits. It also sweeps abandoned publish staging files under
-`<cache>/.staging/` older than [`requestTimeout`](configuration.md#requesttimeout)
-(or `1h` when request timeouts are disabled).
+Reclaims cached upstream and resolver files across the whole cache directory,
+prunes orphaned upstream namespaces from changed configurations or rotated
+secrets, and enforces cache size and age limits. It also sweeps abandoned
+publish staging files under `<cache>/.staging/` older than
+[`requestTimeout`](configuration.md#requesttimeout) (or `1h` when request
+timeouts are disabled).
 
 | Flag | Description |
 | --- | --- |

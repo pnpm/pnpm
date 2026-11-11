@@ -222,6 +222,17 @@ pub fn default_cache_dir(storage: &Path) -> PathBuf {
     storage.join(".pnpr-cache")
 }
 
+/// The default location for the local OSV npm vulnerability database under
+/// `storage`. The leading dot keeps it out of hosted package listings and
+/// unmarked-layout checks.
+#[must_use]
+pub fn default_osv_path(storage: &Path) -> PathBuf {
+    storage
+        .join(".osv")
+        .join("npm")
+        .join("all.zip")
+}
+
 pub(crate) fn resolve_relative(raw: &str, base_dir: &Path) -> PathBuf {
     let path = PathBuf::from(raw);
     if path.is_absolute() {

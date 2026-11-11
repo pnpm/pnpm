@@ -29,7 +29,7 @@ pub enum Command {
         #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
     },
-    /// Reclaim cached upstream tarballs and packuments.
+    /// Reclaim cached upstream and resolver files, and prune orphaned namespaces.
     CacheGc {
         /// Report reclaimable entries without deleting them.
         #[arg(long)]

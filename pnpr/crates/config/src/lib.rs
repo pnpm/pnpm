@@ -24,9 +24,13 @@ pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
-pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
+pub use secrets::{
+    CACHE_SECRET_MARKER, MIN_RESOLUTION_SECRET_LEN, cache_secret_fingerprint, derive_subkey,
+    random_secret, resolution_secret,
+};
 pub use storage_config::{
     CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
+    default_osv_path,
 };
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};

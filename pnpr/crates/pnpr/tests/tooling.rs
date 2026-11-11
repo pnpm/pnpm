@@ -622,6 +622,7 @@ fn test_config_check_reports_the_auth_backend_and_every_default_registry() {
         r"
 storage: '{}'
 cache: '{}'
+secret: 'test-secret-key-32-chars-long-12'
 database:
   url: 'libsql://db.example.turso.io'
   authToken: 'secret-database-token'
@@ -676,6 +677,7 @@ fn test_config_check_reports_the_s3_key_prefix() {
             r"
 storage: '{}'
 cache: '{}'
+secret: 'test-secret-key-32-chars-long-12'
 s3:
   bucket: packages
   region: auto
@@ -741,6 +743,7 @@ fn test_config_check_redacts_the_database_user_query_parameter() {
         r"
 storage: '{}'
 cache: '{}'
+secret: 'test-secret-key-32-chars-long-12'
 database:
   url: 'libsql://db.example.com/pnpr?user=registry-admin'
 registries:

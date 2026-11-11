@@ -184,3 +184,90 @@ async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store()
         Some(b"staged-tarball".as_slice()),
     );
 }
+
+#[tokio::test]
+async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let config_path = tmp.path().join("pnpr.yaml");
+    let storage_dir = tmp.path().join("storage");
+    let cache_dir = tmp.path().join("cache");
+    std::fs::write(
+        &config_path,
+        format!(
+            "storage: {}\ncache: {}\nregistries:\n  private-up:\n    type: upstream\n    url: https://npm.pkg.github.com/\n    access:\n      - $all\n",
+            storage_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+
+    let first_config = Config::from_yaml(&config_path, listen, None).unwrap();
+    assert!(!first_config.has_configured_secret);
+    let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
+    let serve_task = tokio::spawn(super::serve_listener(first_config, listener));
+
+    for _ in 0..200 {
+        if cache_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER).exists());
+
+    let stale_private =
+        cache_dir.join("~upstreams/ephemeral-run-digest/packages/pkg/document.json");
+    tokio::fs::create_dir_all(stale_private.parent().unwrap()).await.unwrap();
+    tokio::fs::write(&stale_private, b"{}").await.unwrap();
+
+    serve_task.abort();
+    let _ = serve_task.await;
+
+    let restart_without_secret = Config::from_yaml(&config_path, listen, None).unwrap();
+    let listener2 = tokio::net::TcpListener::bind(listen).await.unwrap();
+    let err =
+        super::serve_listener(restart_without_secret, listener2).await.unwrap_err().to_string();
+    assert!(err.contains("when the cache directory persists across restarts"), "{err}");
+
+    std::fs::write(
+        &config_path,
+        format!(
+            "storage: {}\ncache: {}\nsecret: configured-secret-for-restart-32\nregistries:\n  private-up:\n    type: upstream\n    url: https://npm.pkg.github.com/\n    access:\n      - $all\n",
+            storage_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    let configured_restart = Config::from_yaml(&config_path, listen, None).unwrap();
+    let listener3 = tokio::net::TcpListener::bind(listen).await.unwrap();
+    let serve_task3 = tokio::spawn(super::serve_listener(configured_restart, listener3));
+    for _ in 0..200 {
+        if !stale_private.exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    serve_task3.abort();
+    let _ = serve_task3.await;
+    assert!(!stale_private.exists(), "startup with configured secret prunes prior ephemeral dirs");
+}
+
+#[tokio::test]
+async fn default_osv_dir_in_unmarked_hosted_store_passes_layout_check() {
+    let tmp = TempDir::new().unwrap();
+    let storage_dir = tmp.path().join("storage");
+    let osv_path = pnpr_config::default_osv_path(&storage_dir);
+    tokio::fs::create_dir_all(osv_path.parent().unwrap()).await.unwrap();
+    tokio::fs::write(&osv_path, b"placeholder").await.unwrap();
+
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let mut config = Config::from_default_yaml(tmp.path(), listen, None);
+    config.storage.hosted_dir = storage_dir.clone();
+    config.storage.cache_dir = tmp.path().join("cache");
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage_dir));
+
+    super::prepare_storage(&config).await.unwrap();
+    assert!(storage_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists());
+    assert!(osv_path.exists());
+}

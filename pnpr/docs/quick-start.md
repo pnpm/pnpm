@@ -13,6 +13,7 @@ one of them. Save this as `pnpr.yaml`:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+secret: replace-with-a-random-32-byte-secret
 
 auth:
   users:

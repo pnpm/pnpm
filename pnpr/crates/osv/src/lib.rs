@@ -286,10 +286,7 @@ pub fn load_osv_index(config: &Config) -> Result<Option<Arc<OsvIndex>>, Registry
 }
 
 fn default_osv_path(config: &Config) -> PathBuf {
-    config.storage.cache_dir
-        .join("osv")
-        .join("npm")
-        .join("all.zip")
+    pnpr_config::default_osv_path(&config.storage.hosted_dir)
 }
 
 #[must_use]

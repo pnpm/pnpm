@@ -141,6 +141,59 @@ fn report_staged_archive_sweep(swept: usize) {
     }
 }
 
+async fn claim_cache_dir(config: &Config) -> pnpr_error::Result<()> {
+    let cache_dir = &config.storage.cache_dir;
+    tokio::fs::create_dir_all(cache_dir).await?;
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    if config.has_configured_secret {
+        return pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await;
+    }
+    ensure_only_ephemeral_entries(cache_dir).await?;
+    write_ephemeral_cache_marker(&marker, &fingerprint).await
+}
+
+async fn ensure_only_ephemeral_entries(cache_dir: &std::path::Path) -> pnpr_error::Result<()> {
+    let mut entries = tokio::fs::read_dir(cache_dir).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let name = entry.file_name();
+        if name != "lost+found" && name != pnpr_config::CACHE_SECRET_MARKER {
+            return Err(persistent_cache_secret_error());
+        }
+    }
+    Ok(())
+}
+
+async fn write_ephemeral_cache_marker(
+    marker: &std::path::Path,
+    fingerprint: &str,
+) -> pnpr_error::Result<()> {
+    use tokio::io::AsyncWriteExt as _;
+    match tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(marker)
+        .await
+    {
+        Ok(mut file) => {
+            file.write_all(fingerprint.as_bytes()).await?;
+            file.flush().await?;
+            Ok(())
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            let stored = tokio::fs::read_to_string(marker).await.unwrap_or_default();
+            if stored.trim() == fingerprint { Ok(()) } else { Err(persistent_cache_secret_error()) }
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn persistent_cache_secret_error() -> pnpr_error::RegistryError {
+    pnpr_error::RegistryError::InvalidConfig {
+        reason: crate::config_validation::PERSISTENT_CACHE_SECRET_REQUIRED.to_string(),
+    }
+}
+
 /// Run startup side effects and load the auth backends. The registry
 /// prepares its storage; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
@@ -151,6 +204,8 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
         sweep_abandoned_uploads(config).await?;
         sweep_abandoned_archive_temps(config).await?;
         sweep_expired_staged_archives(config).await?;
+    }
+    if config.features.registry.enabled || config.features.resolver.enabled {
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }
     AuthState::load(&config.identity.auth, &config.identity.backend).await
@@ -165,6 +220,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
     crate::config_validation::validate_startup_config(&mut config)?;
+    claim_cache_dir(&config).await?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -283,6 +339,7 @@ pub async fn serve_listener_with(
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
     crate::config_validation::validate_startup_config(&mut config)?;
+    claim_cache_dir(&config).await?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`

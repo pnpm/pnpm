@@ -56,12 +56,9 @@ pub(super) async fn prune_orphaned_namespaces(
     cache_dir: &Path,
     active: &HashSet<String>,
     effect: CacheGcEffect,
-    has_configured_secret: bool,
 ) -> Result<CacheReport> {
     let mut report = CacheReport::default();
-    if has_configured_secret {
-        prune_orphan_prefix(cache_dir, "~upstreams", active, effect, &mut report).await;
-    }
+    prune_orphan_prefix(cache_dir, "~upstreams", active, effect, &mut report).await;
     prune_orphan_prefix(cache_dir, "~public", active, effect, &mut report).await;
     Ok(report)
 }

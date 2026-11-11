@@ -1,6 +1,15 @@
-use pnpr_config::{BackendConfig, Config, LibsqlSettings, MetadataBackend, SqlBackendSettings};
+use pnpr_config::{
+    BackendConfig, CACHE_SECRET_MARKER, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend,
+    SqlBackendSettings, cache_secret_fingerprint,
+};
 use pnpr_error::{RegistryError, Result};
+use std::{fs, io::ErrorKind, path::Path};
 use url::Url;
+
+const SHARED_BACKEND_SECRET_REQUIRED: &str =
+    "`secret` or `secrets.cache` must be configured when using shared storage or database backends";
+pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secrets.cache` must be \
+     configured when the cache directory persists across restarts or is shared";
 
 /// Validate startup settings without opening databases or creating files.
 ///
@@ -13,6 +22,45 @@ pub(crate) fn validate_startup_config(config: &mut Config) -> Result<()> {
     config.http.ensure_valid_metrics()?;
     validate_metadata_backend(&config.storage.metadata)?;
     validate_identity_backend(&config.identity.backend)?;
+    validate_cache_secret(config)?;
+    Ok(())
+}
+
+fn validate_cache_secret(config: &Config) -> Result<()> {
+    if config.has_configured_secret {
+        return Ok(());
+    }
+    if uses_shared_backend(config) {
+        return Err(invalid(SHARED_BACKEND_SECRET_REQUIRED));
+    }
+    validate_ephemeral_cache_dir(&config.storage.cache_dir, &config.cache_secret)
+}
+
+fn uses_shared_backend(config: &Config) -> bool {
+    !matches!(config.storage.hosted_backend, HostedStoreConfig::Fs)
+        || !matches!(config.storage.metadata, MetadataBackend::Sqlite(_))
+        || !matches!(config.identity.backend, BackendConfig::Local)
+}
+
+fn validate_ephemeral_cache_dir(cache_dir: &Path, cache_secret: &[u8]) -> Result<()> {
+    let marker = cache_dir.join(CACHE_SECRET_MARKER);
+    match fs::read_to_string(&marker) {
+        Ok(stored) if stored.trim() == cache_secret_fingerprint(cache_secret) => return Ok(()),
+        Ok(_) => return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+        Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
+        Err(_) => return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+    }
+    let Ok(entries) = fs::read_dir(cache_dir) else {
+        return Ok(());
+    };
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+        };
+        if entry.file_name() != "lost+found" {
+            return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+        }
+    }
     Ok(())
 }
 

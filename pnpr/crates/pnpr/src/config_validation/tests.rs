@@ -1,8 +1,13 @@
 use super::validate_startup_config;
-use pnpr_config::{BackendConfig, Config, LibsqlSettings, MetadataBackend, SqlBackendSettings};
+use object_store::memory::InMemory;
+use pnpr_config::{
+    BackendConfig, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend, S3Settings,
+    SqlBackendSettings,
+};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -124,4 +129,79 @@ fn rejects_zero_pool_limits_and_timeouts() {
             .to_string()
             .contains("timeout"),
     );
+}
+
+#[test]
+fn rejects_shared_backends_without_configured_secret() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut s3_hosted = base_config();
+    s3_hosted.storage.cache_dir = tmp.path().join("cache-s3");
+    s3_hosted.storage.hosted_backend = HostedStoreConfig::S3(S3Settings {
+        bucket: "packages".to_string(),
+        region: Some("auto".to_string()),
+        endpoint: Some("https://s3.example.test".to_string()),
+        prefix: None,
+        access_key_id: None,
+        secret_access_key: None,
+        force_path_style: None,
+        allow_http: None,
+    });
+    let err = validate_startup_config(&mut s3_hosted).unwrap_err().to_string();
+    assert!(err.contains("`secret` or `secrets.cache` must be configured"), "{err}");
+
+    let mut obj_hosted = base_config();
+    obj_hosted.storage.cache_dir = tmp.path().join("cache-obj");
+    obj_hosted.storage.hosted_backend =
+        HostedStoreConfig::ObjectStore { store: Arc::new(InMemory::new()), prefix: String::new() };
+    let err = validate_startup_config(&mut obj_hosted).unwrap_err().to_string();
+    assert!(err.contains("`secret` or `secrets.cache` must be configured"), "{err}");
+
+    #[cfg(feature = "backend-libsql")]
+    {
+        let mut shared_db = base_config();
+        shared_db.storage.cache_dir = tmp.path().join("cache-libsql");
+        shared_db.storage.metadata =
+            MetadataBackend::Libsql(libsql_settings("libsql://db.example.test"));
+        let err = validate_startup_config(&mut shared_db).unwrap_err().to_string();
+        assert!(err.contains("`secret` or `secrets.cache` must be configured"), "{err}");
+
+        shared_db.has_configured_secret = true;
+        shared_db.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
+        validate_startup_config(&mut shared_db).unwrap();
+    }
+}
+
+#[test]
+fn rejects_persisted_or_shared_cache_dir_without_configured_secret() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let empty_cache = tmp.path().join("empty-cache");
+    std::fs::create_dir_all(empty_cache.join("lost+found")).unwrap();
+    let mut fresh = base_config();
+    fresh.storage.cache_dir = empty_cache;
+    validate_startup_config(&mut fresh).unwrap();
+
+    let populated_cache = tmp.path().join("populated-cache");
+    std::fs::create_dir_all(&populated_cache).unwrap();
+    std::fs::write(populated_cache.join("layout.json"), b"{\"layout\":1}").unwrap();
+    let mut persisted = base_config();
+    persisted.storage.cache_dir = populated_cache;
+    let err = validate_startup_config(&mut persisted).unwrap_err().to_string();
+    assert!(err.contains("when the cache directory persists across restarts"), "{err}");
+
+    persisted.has_configured_secret = true;
+    persisted.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
+    validate_startup_config(&mut persisted).unwrap();
+
+    let marked_cache = tmp.path().join("marked-cache");
+    std::fs::create_dir_all(&marked_cache).unwrap();
+    std::fs::write(
+        marked_cache.join(pnpr_config::CACHE_SECRET_MARKER),
+        pnpr_config::cache_secret_fingerprint(b"previous-ephemeral-secret-32byte"),
+    )
+    .unwrap();
+    let mut restarted = base_config();
+    restarted.storage.cache_dir = marked_cache;
+    let err = validate_startup_config(&mut restarted).unwrap_err().to_string();
+    assert!(err.contains("when the cache directory persists across restarts"), "{err}");
 }
