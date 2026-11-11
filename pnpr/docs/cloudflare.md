@@ -337,8 +337,8 @@ use a new key namespace or purge its entries.
 
 For cache hits that do not contact the container, use the
 [CDN cache example](#cdn-cache-with-push-invalidation). It caches public npm
-metadata and package tarballs. pnpr sends global purges when hosted packages
-or access rules change. Access revocation is eventually consistent.
+metadata and package tarballs. Package changes purge the package tag; access-rule
+changes purge the deployment tag. Access revocation is eventually consistent.
 
 The [revalidating metadata cache example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
 remains available when every read must check access and freshness at the registry.

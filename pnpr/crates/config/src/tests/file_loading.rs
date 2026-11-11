@@ -597,3 +597,18 @@ secrets:
     assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
     assert_eq!(config.cache_secret.len(), 32);
 }
+
+#[test]
+fn unresolved_secret_in_a_flow_mapping_is_rejected() {
+    let yaml = r#"cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123}, cacheTag: example }"#;
+    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    let reason = error.to_string();
+    assert!(reason.contains("PNPR_TEST_UNRESOLVED_VAR_123"), "{reason}");
+    assert!(!reason.contains("prefix-"), "the credential must not appear in the diagnostic");
+    let with_default = yaml.replace(
+        "${PNPR_TEST_UNRESOLVED_VAR_123}",
+        "${PNPR_TEST_UNRESOLVED_VAR_123:-fallback}",
+    );
+    let config = Config::from_yaml_str(&with_default, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
+}

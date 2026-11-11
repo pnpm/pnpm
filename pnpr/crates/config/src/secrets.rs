@@ -252,7 +252,8 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
 
 pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), RegistryError> {
     let Ok(val) = serde_saphyr::from_str::<serde_json::Value>(raw) else {
-        return Ok(());
+        // Without a parsed tree, any unresolved variable may belong to a secret.
+        return check_secret_env_field::<Sys>("unparsed configuration", raw);
     };
     if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
     {

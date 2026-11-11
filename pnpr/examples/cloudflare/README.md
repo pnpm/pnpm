@@ -3,8 +3,8 @@
 For cache hits that avoid the origin, use `cdn-cache.mjs` with pnpr's
 `cloudflareCdn` configuration. The [setup and consistency contract](../../docs/cloudflare.md#cdn-cache-with-push-invalidation)
 cover credentials, tag matching, retries, and the five-minute cache lifetime.
-This helper caches anonymous public metadata and package tarballs; pnpr drives
-global invalidation after hosted mutations.
+This helper caches anonymous public metadata and package tarballs. Package changes
+purge the package tag; policy changes purge the deployment tag.
 
 The [deployment guide](../../docs/cloudflare.md) uses a pass-through Worker.
 For metadata revalidation on every read, copy `cache-policy.mjs` and

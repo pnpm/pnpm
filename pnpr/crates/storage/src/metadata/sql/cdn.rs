@@ -84,6 +84,7 @@ impl Storage {
 impl SqlMetadata {
     async fn pending_cdn_invalidations(self: &Arc<Self>) -> Result<Vec<CdnInvalidation>> {
         self.read(String::new(), Freshness::Current, |connection, _| {
+            // Reserve one row for policy invalidation within the 30-tag purge limit.
             let rows = connection.query(
                 "SELECT name, generation FROM (
                    SELECT name, generation, 0 AS priority FROM registry_records WHERE kind = ?1 AND name = '*'
