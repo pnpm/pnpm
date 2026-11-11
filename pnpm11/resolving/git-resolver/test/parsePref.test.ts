@@ -121,6 +121,7 @@ test.each([
   ['github:owner/repo#v1.2.3::path:packages/x', { gitCommittish: 'v1.2.3', path: 'packages/x' }],
   ['git+https://example.com/owner/repo.git#main::path:packages/x', { gitCommittish: 'main', path: 'packages/x' }],
   ['github:owner/repo#semver:^1.0.0::path:packages/x', { gitCommittish: null, path: 'packages/x' }],
+  ['github:owner/repo#v1.2.3::path:packages/x::', { gitCommittish: 'v1.2.3', path: 'packages/x' }],
 ])('npm\'s :: separator in %s is read as %o', (input, output) => {
   expect(parseGitSpecCommittishAndPath(input)).toMatchObject(output)
 })

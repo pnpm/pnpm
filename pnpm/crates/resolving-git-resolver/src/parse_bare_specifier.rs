@@ -201,6 +201,7 @@ fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
     for param in committish
         .split('&')
         .flat_map(|part| part.split("::"))
+        .filter(|param| !param.is_empty())
     {
         if let Some(range) = param.strip_prefix("semver:") {
             out.git_range = Some(range.to_string());

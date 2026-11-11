@@ -55,6 +55,13 @@ fn parse_git_params_accepts_npm_double_colon_separator() {
 }
 
 #[test]
+fn parse_git_params_skips_empty_params() {
+    let params = parse_git_params(Some("v1.2.3::path:packages/x::"));
+    assert_eq!(params.git_committish.as_deref(), Some("v1.2.3"));
+    assert_eq!(params.path.as_deref(), Some("packages/x"));
+}
+
+#[test]
 fn git_spec_committish_and_path_reads_npm_double_colon_separator() {
     assert_eq!(
         git_spec_committish_and_path("github:owner/repo#v1.2.3::path:packages/x"),
