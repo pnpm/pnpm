@@ -7,9 +7,11 @@
 
 pub use hrana::RoundTrips;
 pub use plain_http::{EXECUTE_RESPONSE, PlainHttpServer, serve_plain_http};
+pub use tls_proxy::serve_tls_proxy;
 
 mod hrana;
 mod plain_http;
+mod tls_proxy;
 
 use axum::{
     Json, Router,

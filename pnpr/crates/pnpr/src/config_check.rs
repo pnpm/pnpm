@@ -71,7 +71,11 @@ pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckRep
     )
     .map_err(|err| miette::miette!("{err}"))?;
 
-    check_resolved_config(&mut config, &source).map_err(|error| miette::miette!("{error}"))
+    check_resolved_config(&mut config, &source)
+        .map_err(|error| {
+            let message = error.log_message();
+            miette::miette!("{message}")
+        })
 }
 
 fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {

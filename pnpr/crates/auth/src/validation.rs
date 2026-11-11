@@ -148,6 +148,7 @@ pub(crate) fn confusable_username() -> RegistryError {
     }
 }
 
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) fn username_conflict(username: &str, exact_match: bool) -> RegistryError {
     if exact_match {
         RegistryError::AdminConflict { reason: format!("username {username:?} is taken") }
