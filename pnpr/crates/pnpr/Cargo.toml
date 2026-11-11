@@ -79,7 +79,7 @@ pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-lockfile-verification = { workspace = true }
 pnpm-network = { workspace = true }
-pnpm-package-manager = { workspace = true }
+pnpm-package-manager = { workspace = true, features = ["runtime-provisioning"] }
 pnpm-package-manifest = { workspace = true }
 pnpm-python-resolver = { workspace = true }
 pnpm-reporter = { workspace = true }

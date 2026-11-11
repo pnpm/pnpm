@@ -384,7 +384,7 @@ fn bumped_runtime_range(
     #[cfg(not(feature = "runtime-provisioning"))]
     {
         let _ = (alias, declared, resolved, default_style);
-        Some(None)
+        None
     }
     #[cfg(feature = "runtime-provisioning")]
     {

@@ -13,8 +13,13 @@ pub struct SizeChange {
 #[derive(Deserialize)]
 struct SizeReport {
     target: String,
+    #[serde(default = "unknown_probe_features")]
     probe_features: String,
     measurements: Vec<SizeMeasurement>,
+}
+
+fn unknown_probe_features() -> String {
+    "unknown".to_string()
 }
 
 #[derive(Deserialize)]

@@ -81,3 +81,13 @@ fn comparison_uses_stripped_size_from_json_reports() {
         "Baseline features: `default`; current features: `no-default-features`\n\n| LTO | Baseline | Current | Change | Change % |\n| --- | ---: | ---: | ---: | ---: |\n| thin | 100 | 90 | -10 | -10.00% |\n",
     );
 }
+
+#[test]
+fn comparison_accepts_a_baseline_report_without_feature_metadata() {
+    let current = r#"{"target":"x86_64-unknown-linux-gnu","probe_features":"no-default-features","measurements":[{"lto":"thin","stripped_size":90}]}"#;
+    let baseline = r#"{"target":"x86_64-unknown-linux-gnu","measurements":[{"lto":"thin","stripped_size":100}]}"#;
+    assert_eq!(
+        super::render_comparison(current, baseline).unwrap(),
+        "Baseline features: `unknown`; current features: `no-default-features`\n\n| LTO | Baseline | Current | Change | Change % |\n| --- | ---: | ---: | ---: | ---: |\n| thin | 100 | 90 | -10 | -10.00% |\n",
+    );
+}
