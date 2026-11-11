@@ -15,6 +15,7 @@ struct LockfileDirPathsBeforeHook {
     node_path_dirs: [PathBuf; 2],
     hook_node_path: Option<Option<String>>,
     hook_node_options: Option<Option<String>>,
+    modules_dir_changed: bool,
 }
 
 /// `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
@@ -116,7 +117,12 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         config.lockfile_dir = None;
     }
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
-    if paths_before_hook.lockfile_dir.is_some() && config.lockfile_dir.is_none() {
+    if config.lockfile_dir.is_none()
+        && (paths_before_hook.lockfile_dir.is_some()
+            || (paths_before_hook.modules_dir_changed
+                && (!config.explicit_settings.contains_key("virtualStoreDir")
+                    || config.enable_global_virtual_store)))
+    {
         let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
         config.anchor_lockfile_paths(&default_lockfile_dir);
     }
@@ -155,6 +161,7 @@ fn lockfile_dir_paths_before_hook(
             ],
             hook_node_path: changed_extra_env_value(input, current, "NODE_PATH"),
             hook_node_options: changed_extra_env_value(input, current, "NODE_OPTIONS"),
+            modules_dir_changed: delta.get("modulesDir").is_some(),
         })
 }
 
