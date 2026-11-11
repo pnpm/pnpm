@@ -94,14 +94,22 @@ async fn post_v1_login_returns_404_when_no_oidc_login_configured() {
     assert_eq!(scoped_response.status(), StatusCode::NOT_FOUND);
 }
 
-#[tokio::test]
-async fn post_v1_login_returns_202_with_urls() {
-    let storage = TempDir::new().unwrap();
-    let app = router(config_with_single_login_provider(&storage));
+fn notice_code(response: &axum::response::Response) -> String {
+    let notice = response.headers()["npm-notice"].to_str().unwrap();
+    notice
+        .strip_prefix("Enter the code ")
+        .and_then(|rest| rest.strip_suffix(" in the browser to sign in"))
+        .unwrap()
+        .to_string()
+}
 
+/// Starts a web login at `path`, returning the response's user code,
+/// `loginUrl`, and `doneUrl`.
+async fn start_login_at(app: &axum::Router, path: &str) -> (String, String, String) {
     let response = app
+        .clone()
         .oneshot(
-            Request::post("/-/v1/login")
+            Request::post(path)
                 .header("npm-auth-type", "web")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from("{}"))
@@ -111,128 +119,84 @@ async fn post_v1_login_returns_202_with_urls() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
     assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
-
+    let code = notice_code(&response);
     let body = body_json(response.into_body()).await;
-    let login_url = body["loginUrl"].as_str().unwrap();
-    let done_url = body["doneUrl"].as_str().unwrap();
+    let url = |field: &str| {
+        body[field]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    (code, url("loginUrl"), url("doneUrl"))
+}
 
-    let browser_session =
-        login_url.strip_prefix("https://registry.example/-/v1/login/start?session=").unwrap();
+fn submit_code(code: &str, provider: &str, site: Option<&str>) -> Request<Body> {
+    let mut request = Request::post("/-/v1/login/device")
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+    if let Some(site) = site {
+        request = request.header("sec-fetch-site", site);
+    }
+    request
+        .body(Body::from(format!("code={code}&provider={provider}")))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn post_v1_login_returns_a_code_and_a_login_url_without_secrets() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let (code, login_url, done_url) = start_login_at(&app, "/-/v1/login").await;
+
+    let (first, second) = code.split_once('-').unwrap();
+    assert_eq!((first.len(), second.len()), (4, 4), "{code}");
+    assert_eq!(login_url, "https://registry.example/-/v1/login/device");
     let poll_token = done_url.strip_prefix("https://registry.example/-/v1/login/poll/").unwrap();
-    assert_ne!(browser_session, poll_token);
+    assert!(!poll_token.is_empty());
+    assert!(!poll_token.contains(&code));
 }
 
 #[tokio::test]
 async fn post_v1_login_preserves_registry_prefix() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_single_login_provider(&storage));
-
-    let response = app
-        .oneshot(
-            Request::post("/~internal/-/v1/login")
-                .header("npm-auth-type", "web")
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from("{}"))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::ACCEPTED);
-
-    let body = body_json(response.into_body()).await;
-    let login_url = body["loginUrl"].as_str().unwrap();
-    let done_url = body["doneUrl"].as_str().unwrap();
-
-    let browser_session = login_url
-        .strip_prefix("https://registry.example/~internal/-/v1/login/start?session=")
-        .unwrap();
-    let poll_token =
-        done_url.strip_prefix("https://registry.example/~internal/-/v1/login/poll/").unwrap();
-    assert_ne!(browser_session, poll_token);
+    let (_, login_url, done_url) = start_login_at(&app, "/~internal/-/v1/login").await;
+    assert_eq!(login_url, "https://registry.example/~internal/-/v1/login/device");
+    assert!(done_url.starts_with("https://registry.example/~internal/-/v1/login/poll/"));
 }
 
 #[tokio::test]
-async fn polling_done_url_before_and_after_fulfillment() {
+async fn polling_stays_pending_until_the_login_completes() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_single_login_provider(&storage));
+    let (code, _, done_url) = start_login_at(&app, "/-/v1/login").await;
+    let poll = |path: String| {
+        let app = app.clone();
+        async move {
+            app.oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
 
-    // 1. Initiate login
-    let response = app
-        .clone()
-        .oneshot(
-            Request::post("/-/v1/login")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let code = notice_code(&response);
-    let body = body_json(response.into_body()).await;
-    let login_url = body["loginUrl"].as_str().unwrap();
-    let done_url = body["doneUrl"].as_str().unwrap();
-    let poll_token = done_url.strip_prefix("https://registry.example/-/v1/login/poll/").unwrap();
-    let browser_session =
-        login_url.strip_prefix("https://registry.example/-/v1/login/start?session=").unwrap();
-    assert_ne!(browser_session, poll_token);
+    let pending = poll(
+        done_url
+            .strip_prefix("https://registry.example")
+            .unwrap()
+            .to_string(),
+    )
+    .await;
+    assert_eq!(pending.status(), StatusCode::ACCEPTED);
+    assert_eq!(pending.headers()[header::RETRY_AFTER], "1");
+    assert_eq!(pending.headers()[header::CACHE_CONTROL], "private, no-store");
 
-    // 2. Poll while pending using poll_token
-    let poll_response = app
-        .clone()
-        .oneshot(
-            Request::get(format!("/-/v1/login/poll/{poll_token}"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(poll_response.status(), StatusCode::ACCEPTED);
-    assert_eq!(poll_response.headers()[header::RETRY_AFTER], "1");
-    assert_eq!(poll_response.headers()[header::CACHE_CONTROL], "private, no-store");
-
-    // 3. Polling with browser_session returns 404
-    let browser_poll_response = app
-        .clone()
-        .oneshot(
-            Request::get(format!("/-/v1/login/poll/{browser_session}"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(browser_poll_response.status(), StatusCode::NOT_FOUND);
-
-    // 4. The start page asks to confirm the code the CLI printed
-    let start_path = login_url.strip_prefix("https://registry.example").unwrap();
-    let start_response = app
-        .clone()
-        .oneshot(
-            Request::get(start_path)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(start_response.status(), StatusCode::OK);
-    let html = String::from_utf8(body_bytes(start_response.into_body()).await).unwrap();
-    assert!(html.contains(&format!("it must be <strong>{code}</strong>")), "{html}");
-    assert!(
-        html.contains(&format!(
-            r#"<form method="post" action="?session={browser_session}&amp;provider=company">"#,
-        )),
-        "{html}",
-    );
-
-    // 5. Poll on unknown session returns 404
-    let unknown_poll = app
-        .clone()
-        .oneshot(
-            Request::get("/-/v1/login/poll/unknown_session")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(unknown_poll.status(), StatusCode::NOT_FOUND);
+    for unknown in [code, "unknown_session".to_string()] {
+        let response = poll(format!("/-/v1/login/poll/{unknown}")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
 }
 
 #[tokio::test]
@@ -267,72 +231,55 @@ async fn post_v1_login_rate_limits_excessive_requests() {
 }
 
 #[tokio::test]
-async fn start_with_multiple_providers_offers_each_provider() {
+async fn the_device_page_asks_for_the_code_and_offers_each_provider() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_multiple_login_providers(&storage));
-
     let response = app
-        .clone()
         .oneshot(
-            Request::post("/-/v1/login")
+            Request::get("/-/v1/login/device")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    let body = body_json(response.into_body()).await;
-    let login_url = body["loginUrl"].as_str().unwrap();
-    let start_path = login_url.strip_prefix("https://registry.example").unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
+    assert_eq!(response.headers()["referrer-policy"], "no-referrer");
 
-    let start_response = app
-        .oneshot(
-            Request::get(start_path)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(start_response.status(), StatusCode::OK);
-    assert_eq!(start_response.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
-
-    let html = String::from_utf8(body_bytes(start_response.into_body()).await).unwrap();
-    assert!(html.contains("Sign in with google"));
-    assert!(html.contains("Sign in with okta"));
-    assert!(html.contains(r#"&amp;provider=google">"#));
-    assert!(html.contains(r#"&amp;provider=okta">"#));
+    let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(html.contains(r#"<input name="code""#), "{html}");
+    assert!(html.contains(r#"name="provider" value="google">Sign in with google<"#), "{html}");
+    assert!(html.contains(r#"name="provider" value="okta">Sign in with okta<"#), "{html}");
 }
 
 #[tokio::test]
-async fn invalid_sessions_are_rejected() {
+async fn the_device_page_is_absent_without_oidc_login() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_without_oidc(&storage));
+    for request in [
+        Request::get("/-/v1/login/device")
+            .body(Body::empty())
+            .unwrap(),
+        submit_code("BCDF-GHJK", "company", Some("same-origin")),
+    ] {
+        assert_eq!(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NOT_FOUND,
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_cli_login_cannot_be_completed_without_the_typed_code() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_single_login_provider(&storage));
 
-    // Invalid start session
-    let start_response = app
+    let direct = app
         .clone()
-        .oneshot(
-            Request::get("/-/v1/login/start?session=invalid_session")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(start_response.status(), StatusCode::BAD_REQUEST);
-
-    // Invalid session parameter on provider login
-    let login_response = app
-        .clone()
-        .oneshot(
-            Request::get("/-/oidc/company/login?return=cli&session=invalid_session")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(login_response.status(), StatusCode::BAD_REQUEST);
-
-    // A provider sign-in cannot complete a CLI session without the confirmation
-    let missing_session_response = app
         .oneshot(
             Request::get("/-/oidc/company/login?return=cli")
                 .body(Body::empty())
@@ -340,88 +287,29 @@ async fn invalid_sessions_are_rejected() {
         )
         .await
         .unwrap();
-    assert_eq!(missing_session_response.status(), StatusCode::BAD_REQUEST);
-}
-
-fn notice_code(response: &axum::response::Response) -> String {
-    let notice = response.headers()["npm-notice"].to_str().unwrap();
-    notice
-        .strip_prefix("Sign in only if the browser shows the code ")
-        .unwrap()
-        .to_string()
-}
-
-async fn start_login(app: &axum::Router) -> (String, String) {
-    let response = app
-        .clone()
-        .oneshot(
-            Request::post("/-/v1/login")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let code = notice_code(&response);
-    let body = body_json(response.into_body()).await;
-    let session = body["loginUrl"]
-        .as_str()
-        .unwrap()
-        .strip_prefix("https://registry.example/-/v1/login/start?session=")
-        .unwrap()
-        .to_string();
-    (session, code)
-}
-
-fn confirm(
-    session: &str,
-    provider: &str,
-    site: Option<&str>,
-    origin: Option<&str>,
-) -> Request<Body> {
-    let mut request =
-        Request::post(format!("/-/v1/login/start?session={session}&provider={provider}"));
-    if let Some(site) = site {
-        request = request.header("sec-fetch-site", site);
-    }
-    if let Some(origin) = origin {
-        request = request.header(header::ORIGIN, origin);
-    }
-    request.body(Body::empty()).unwrap()
-}
-
-#[tokio::test]
-async fn post_v1_login_prints_the_confirmation_code() {
-    let storage = TempDir::new().unwrap();
-    let app = router(config_with_single_login_provider(&storage));
-    let (_, code) = start_login(&app).await;
-    let (first, second) = code.split_once('-').unwrap();
-    assert_eq!((first.len(), second.len()), (4, 4), "{code}");
-}
-
-#[tokio::test]
-async fn a_cli_session_cannot_be_bound_to_a_provider_sign_in_without_confirmation() {
-    let storage = TempDir::new().unwrap();
-    let app = router(config_with_single_login_provider(&storage));
-    let (session, _) = start_login(&app).await;
-
-    let direct = app
-        .clone()
-        .oneshot(
-            Request::get(format!("/-/oidc/company/login?return=cli&session={session}"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
     assert_eq!(direct.status(), StatusCode::BAD_REQUEST);
 
+    let wrong = app
+        .oneshot(submit_code("BCDF-GHJK", "company", Some("same-origin")))
+        .await
+        .unwrap();
+    assert_eq!(wrong.status(), StatusCode::BAD_REQUEST);
+    assert!(!wrong.headers().contains_key(header::SET_COOKIE));
+    let html = String::from_utf8(body_bytes(wrong.into_body()).await).unwrap();
+    assert!(html.contains("That code is unknown, expired, or already used."), "{html}");
+}
+
+#[tokio::test]
+async fn the_code_is_accepted_only_from_a_same_origin_form_for_a_known_provider() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let (code, _, _) = start_login_at(&app, "/-/v1/login").await;
     for request in [
-        confirm(&session, "company", Some("cross-site"), None),
-        confirm(&session, "company", Some("same-site"), Some("https://registry.example")),
-        confirm(&session, "company", None, Some("https://attacker.example")),
-        confirm(&session, "company", None, Some("https://registry.example")),
-        confirm(&session, "company", None, Some("null")),
-        confirm(&session, "company", None, None),
+        submit_code(&code, "company", None),
+        submit_code(&code, "company", Some("cross-site")),
+        submit_code(&code, "company", Some("same-site")),
+        submit_code(&code, "github", Some("same-origin")),
+        submit_code(&code, "unknown", Some("same-origin")),
     ] {
         let response = app
             .clone()
@@ -434,20 +322,20 @@ async fn a_cli_session_cannot_be_bound_to_a_provider_sign_in_without_confirmatio
 }
 
 #[tokio::test]
-async fn confirming_rejects_unknown_providers_and_sessions() {
+async fn code_guesses_are_rate_limited() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_single_login_provider(&storage));
-    let (session, _) = start_login(&app).await;
-    for request in [
-        confirm(&session, "github", Some("same-origin"), None),
-        confirm(&session, "unknown", Some("same-origin"), None),
-        confirm("unknown_session", "company", Some("same-origin"), None),
-    ] {
+    for _ in 0..20 {
         let response = app
             .clone()
-            .oneshot(request)
+            .oneshot(submit_code("BCDF-GHJK", "company", Some("same-origin")))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
+    let throttled = app
+        .oneshot(submit_code("BCDF-GHJK", "company", Some("same-origin")))
+        .await
+        .unwrap();
+    assert_eq!(throttled.status(), StatusCode::TOO_MANY_REQUESTS);
 }

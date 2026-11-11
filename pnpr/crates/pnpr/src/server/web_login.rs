@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -8,7 +8,7 @@ use pnpr_auth::oidc::{LoginReturn, WebLoginPoll};
 use serde::Deserialize;
 use serde_json::json;
 
-use std::fmt::Write as _;
+use std::{fmt::Write as _, net::IpAddr};
 
 use super::{
     AppState, TargetRegistry, not_found,
@@ -20,33 +20,20 @@ use super::{
 mod tests;
 
 #[derive(Deserialize)]
-pub(crate) struct StartQuery {
-    session: String,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct ConfirmQuery {
-    session: String,
-    provider: String,
-}
-
-#[derive(Deserialize)]
 pub(crate) struct PollPath {
     session: String,
 }
 
-fn has_oidc_login_provider(state: &AppState) -> bool {
-    state.inner.config.identity.auth.oidc.iter().any(|provider| provider.login.is_some())
-}
+type ClientIpExtension = Option<Extension<super::ClientIp>>;
+type PeerAddrExtension = Option<Extension<axum::extract::ConnectInfo<super::PeerAddr>>>;
 
 fn resolve_rate_limit_ips(
-    client_ip: Option<axum::extract::Extension<super::ClientIp>>,
-    peer_addr: Option<axum::extract::Extension<axum::extract::ConnectInfo<super::PeerAddr>>>,
-) -> (Option<std::net::IpAddr>, Option<std::net::IpAddr>) {
-    let ip = client_ip.map(|axum::extract::Extension(super::ClientIp(addr))| addr);
-    let peer = peer_addr.map(
-        |axum::extract::Extension(axum::extract::ConnectInfo(super::PeerAddr(addr)))| addr.ip(),
-    );
+    client_ip: ClientIpExtension,
+    peer_addr: PeerAddrExtension,
+) -> (Option<IpAddr>, Option<IpAddr>) {
+    let ip = client_ip.map(|Extension(super::ClientIp(addr))| addr);
+    let peer =
+        peer_addr.map(|Extension(axum::extract::ConnectInfo(super::PeerAddr(addr)))| addr.ip());
     (ip, peer)
 }
 
@@ -60,19 +47,21 @@ fn build_login_urls(
         .map(|reg| format!("/~{reg}"))
         .unwrap_or_default();
     (
-        format!("{base}{prefix}/-/v1/login/start?session={}", tokens.browser_session_id),
+        format!("{base}{prefix}/-/v1/login/device"),
         format!("{base}{prefix}/-/v1/login/poll/{}", tokens.poll_token),
     )
 }
 
-/// `POST /-/v1/login` or `POST /~{registry}/-/v1/login`: initiate CLI web login.
+/// `POST /-/v1/login` or `POST /~{registry}/-/v1/login`: initiate CLI web
+/// login. The `npm-notice` header carries the user code to type on the
+/// `loginUrl` page.
 pub(crate) async fn post_v1_login(
     State(state): State<AppState>,
     TargetRegistry(registry): TargetRegistry,
-    client_ip: Option<axum::extract::Extension<super::ClientIp>>,
-    peer_addr: Option<axum::extract::Extension<axum::extract::ConnectInfo<super::PeerAddr>>>,
+    client_ip: ClientIpExtension,
+    peer_addr: PeerAddrExtension,
 ) -> Response {
-    if !has_oidc_login_provider(&state) {
+    if login_providers(&state).is_empty() {
         return not_found();
     }
     let (ip_address, peer_ip) = resolve_rate_limit_ips(client_ip, peer_addr);
@@ -87,10 +76,10 @@ pub(crate) async fn post_v1_login(
     };
     let (login_url, done_url) =
         build_login_urls(&state.inner.config.http.public_url, registry.as_deref(), &tokens);
-    let notice = format!("Sign in only if the browser shows the code {}", tokens.confirmation_code);
+    let notice = format!("Enter the code {} in the browser to sign in", tokens.user_code);
     let Ok(notice) = HeaderValue::from_str(&notice) else {
         return pnpr_error::RegistryError::Internal {
-            reason: "invalid web login confirmation code".to_string(),
+            reason: "invalid web login user code".to_string(),
         }
         .into_response();
     };
@@ -107,62 +96,80 @@ pub(crate) async fn post_v1_login(
     )
 }
 
-/// `GET /-/v1/login/start?session={session}`: browser entry point for web
-/// login. Shows the session's confirmation code, which the CLI also prints,
-/// and a button per OIDC provider that confirms the sign-in.
-pub(crate) async fn get_v1_login_start(
+/// `GET /-/v1/login/device`: the browser page where the user types the code
+/// the CLI printed and picks an OIDC provider.
+pub(crate) async fn get_v1_login_device(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
-    Query(query): Query<StartQuery>,
 ) -> Response {
-    let Some(code) = pending_confirmation_code(&state, &query.session) else {
-        return bad_request("invalid or expired login session");
-    };
     let providers = login_providers(&state);
     if providers.is_empty() {
         return not_found();
     }
-    let html = render_confirmation_page(&providers, &query.session, &code);
-    protect(
-        (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response(
-        ),
-    )
+    device_page(StatusCode::OK, &providers, None)
 }
 
-/// `POST /-/v1/login/start?session={session}&provider={provider}`: the user
-/// confirmed the sign-in on the page [`get_v1_login_start`] served. Starts
-/// the provider sign-in that completes the CLI session.
-pub(crate) async fn post_v1_login_start(
+/// `POST /-/v1/login/device`: claims the web login whose code the form
+/// carries and starts the provider sign-in that completes it. The form body
+/// holds `code` and `provider`.
+pub(crate) async fn post_v1_login_device(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
-    Query(query): Query<ConfirmQuery>,
+    client_ip: ClientIpExtension,
+    peer_addr: PeerAddrExtension,
     headers: HeaderMap,
+    body: axum::body::Bytes,
 ) -> Response {
+    let providers = login_providers(&state);
+    if providers.is_empty() {
+        return not_found();
+    }
     if !is_same_origin_request(&headers) {
-        return bad_request("confirm the sign-in on the page that shows its code");
+        return bad_request("submit the code from the sign-in page");
     }
-    if pending_confirmation_code(&state, &query.session).is_none() {
-        return bad_request("invalid or expired login session");
-    }
-    if !login_providers(&state)
-        .iter()
-        .any(|provider| provider.name == query.provider)
+    let (ip_address, peer_ip) = resolve_rate_limit_ips(client_ip, peer_addr);
+    if let Err(retry_after) =
+        state.inner.identity.login_rate_limiter.check_and_record_web_login(ip_address, peer_ip)
     {
-        return bad_request("unknown sign-in provider");
+        return super::user_accounts::login_throttled_response(&state, retry_after);
     }
-    redirect_to_provider(
-        &state.inner.identity.oidc,
-        &query.provider,
-        LoginReturn::Cli { session: query.session },
-    )
-    .await
+    let form = DeviceForm::parse(&body);
+    let Some(provider) = providers
+        .iter()
+        .find(|provider| Some(provider.name.as_str()) == form.provider.as_deref())
+    else {
+        return bad_request("unknown sign-in provider");
+    };
+    let Some(login_id) = state.inner.identity.oidc.claim_web_login(&form.code.unwrap_or_default())
+    else {
+        return device_page(
+            StatusCode::BAD_REQUEST,
+            &providers,
+            Some("That code is unknown, expired, or already used. Run the login command again."),
+        );
+    };
+    redirect_to_provider(&state.inner.identity.oidc, &provider.name, LoginReturn::Cli { login_id })
+        .await
 }
 
-fn pending_confirmation_code(state: &AppState, session: &str) -> Option<String> {
-    if !is_valid_state(session) {
-        return None;
+#[derive(Default)]
+struct DeviceForm {
+    code: Option<String>,
+    provider: Option<String>,
+}
+
+impl DeviceForm {
+    fn parse(body: &[u8]) -> Self {
+        let mut form = DeviceForm::default();
+        for (key, value) in url::form_urlencoded::parse(body) {
+            match key.as_ref() {
+                "code" => form.code = Some(value.into_owned()),
+                "provider" => form.provider = Some(value.into_owned()),
+                _ => {}
+            }
+        }
+        form
     }
-    state.inner.identity.oidc.pending_web_login_code(session)
 }
 
 fn login_providers(state: &AppState) -> Vec<&pnpr_config::oidc::OidcProvider> {
@@ -206,34 +213,42 @@ fn bad_request(reason: &str) -> Response {
     protect(pnpr_error::RegistryError::BadRequest { reason: reason.to_string() }.into_response())
 }
 
-fn render_confirmation_page(
+fn device_page(
+    status: StatusCode,
     providers: &[&pnpr_config::oidc::OidcProvider],
-    session: &str,
-    code: &str,
+    error: Option<&str>,
+) -> Response {
+    let html = render_device_page(providers, error);
+    protect((status, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response())
+}
+
+fn render_device_page(
+    providers: &[&pnpr_config::oidc::OidcProvider],
+    error: Option<&str>,
 ) -> String {
     let mut buttons = String::new();
     for provider in providers {
-        let action = url::form_urlencoded::Serializer::new(String::new())
-            .append_pair("session", session)
-            .append_pair("provider", &provider.name)
-            .finish();
+        let name = escape_html(&provider.name);
         let _ = write!(
             buttons,
-            r#"<form method="post" action="?{}"><button type="submit">Sign in with {}</button></form>"#,
-            escape_html(&action),
-            escape_html(&provider.name),
+            r#"<p><button type="submit" name="provider" value="{name}">Sign in with {name}</button></p>"#,
         );
     }
-    let code = escape_html(code);
+    let error = error
+        .map(|error| format!("<p><strong>{}</strong></p>", escape_html(error)))
+        .unwrap_or_default();
     format!(
         r#"<!doctype html>
 <html>
-<head><title>Confirm Sign In - pnpr</title><meta charset="utf-8"></head>
+<head><title>Sign In - pnpr</title><meta charset="utf-8"></head>
 <body>
-  <h1>Confirm command-line sign-in</h1>
-  <p>A command-line tool asked to sign in to this registry. Continue only if you started the sign-in yourself.</p>
-  <p>If your terminal shows a code, it must be <strong>{code}</strong>.</p>
-  {buttons}
+  <h1>Command-line sign-in</h1>
+  <p>Enter the code that your terminal shows. If you did not start a sign-in from a terminal, close this page.</p>
+  {error}
+  <form method="post">
+    <p><label>Code <input name="code" required autofocus autocomplete="off" autocapitalize="characters" spellcheck="false"></label></p>
+    {buttons}
+  </form>
 </body>
 </html>"#,
     )

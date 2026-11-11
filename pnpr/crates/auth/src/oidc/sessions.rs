@@ -37,8 +37,9 @@ pub enum LoginReturn {
     /// The web UI, which redeems a [handoff code](OidcState::hand_off) for
     /// the token.
     Ui,
-    /// CLI web login session flow (`/-/v1/login`).
-    Cli { session: String },
+    /// The CLI web login (`/-/v1/login`) that a browser claimed with its
+    /// user code.
+    Cli { login_id: String },
 }
 
 impl OidcState {

@@ -128,8 +128,8 @@ fn signed_in(oidc: &OidcState, flow: &str, session: LoginSession) -> Response {
             Err(err) => err.into_response(),
         };
     }
-    if let LoginReturn::Cli { session: ref session_id } = session.returns_to {
-        return match oidc.fulfill_web_login(session_id, session.token) {
+    if let LoginReturn::Cli { ref login_id } = session.returns_to {
+        return match oidc.fulfill_web_login(login_id, session.token) {
             Ok(()) => {
                 let html = r#"<!doctype html>
 <html>

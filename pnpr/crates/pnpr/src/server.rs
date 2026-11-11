@@ -313,13 +313,13 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
 /// puts the raw bearer token in the URL path, and a reusable credential
 /// must never reach a log line, so everything after that marker is
 /// redacted. Web login polling (`/-/v1/login/poll/{token}`) is also
-/// redacted, and OIDC callback and web login start queries are omitted.
+/// redacted, and OIDC callback queries are omitted.
 /// Other URIs are logged verbatim; a false positive (a registry path that
 /// merely embeds the marker) is redacted too, which only costs log detail
 /// on a request no route serves.
 fn loggable_uri(uri: &axum::http::Uri) -> String {
     let path = uri.path();
-    if path.starts_with("/-/oidc/") || path.ends_with("/-/v1/login/start") {
+    if path.starts_with("/-/oidc/") {
         return path.to_string();
     }
     const TOKEN_MARKER: &str = "/-/user/token/";

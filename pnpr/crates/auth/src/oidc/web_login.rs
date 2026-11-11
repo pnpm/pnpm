@@ -8,30 +8,46 @@ mod tests;
 /// How long a web login session remains valid for browser authentication and CLI polling.
 pub const WEB_LOGIN_TTL: Duration = Duration::from_mins(5);
 
+/// Letters without vowels or look-alike pairs, as RFC 8628 section 6.1
+/// suggests for codes a person types.
+const USER_CODE_ALPHABET: &[u8; 20] = b"BCDFGHJKLMNPQRSTVWXZ";
+const USER_CODE_LETTERS: usize = 8;
+
 pub(super) enum WebLoginState {
+    /// Waiting for a browser to enter the user code.
     Pending,
-    Fulfilled { token: String },
+    /// A browser entered the user code and went to sign in.
+    Claimed,
+    Fulfilled {
+        token: String,
+    },
 }
 
 pub(super) struct WebLoginEntry {
     pub(super) state: WebLoginState,
     pub(super) expires: i64,
     pub(super) poll_hash: String,
-    pub(super) confirmation_code: String,
+    pub(super) code_hash: String,
 }
 
+/// Pending CLI web logins, keyed by a login ID that only the server and the
+/// signed sign-in cookie of the browser that claimed it ever hold.
 #[derive(Default)]
 pub(super) struct WebLogins {
     pub(super) entries: HashMap<String, WebLoginEntry>,
-    pub(super) poll_to_browser: HashMap<String, String>,
+    pub(super) poll_to_login: HashMap<String, String>,
+    /// Unclaimed logins by the hash of their user code.
+    pub(super) code_to_login: HashMap<String, String>,
 }
 
 impl WebLogins {
     pub(super) fn prune(&mut self, now: i64) {
-        let poll_to_browser = &mut self.poll_to_browser;
+        let poll_to_login = &mut self.poll_to_login;
+        let code_to_login = &mut self.code_to_login;
         self.entries.retain(|_, entry| {
             if entry.expires <= now {
-                poll_to_browser.remove(&entry.poll_hash);
+                poll_to_login.remove(&entry.poll_hash);
+                code_to_login.remove(&entry.code_hash);
                 false
             } else {
                 true
@@ -40,13 +56,13 @@ impl WebLogins {
     }
 }
 
-/// The two secrets issued for a CLI web login flow, and the code that both
-/// the CLI and the confirmation page show.
+/// What the CLI receives for a web login: the secret it polls with, and the
+/// code the user types in the browser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebLoginTokens {
-    pub browser_session_id: String,
     pub poll_token: String,
-    pub confirmation_code: String,
+    /// Formatted as `XXXX-XXXX`.
+    pub user_code: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,51 +75,58 @@ pub enum WebLoginPoll {
 impl OidcState {
     /// Creates a pending web login session for the CLI web login flow.
     pub fn create_web_login(&self) -> Result<WebLoginTokens> {
-        let browser_session_id = random_secret()?;
+        let login_id = random_secret()?;
         let poll_token = random_secret()?;
-        let confirmation_code = random_confirmation_code()?;
+        let letters = random_user_code_letters()?;
         let now = Utc::now().timestamp();
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         logins.prune(now);
         if logins.entries.len() >= MAX_ENTRIES {
             return Err(unavailable());
         }
-        let expires = now + WEB_LOGIN_TTL.as_secs() as i64;
-        let browser_hash = super::super::sha256_hex(browser_session_id.as_bytes());
+        let code_hash = super::super::sha256_hex(letters.as_bytes());
+        if logins.code_to_login.contains_key(&code_hash) {
+            return Err(unavailable());
+        }
         let poll_hash = super::super::sha256_hex(poll_token.as_bytes());
         logins.entries.insert(
-            browser_hash.clone(),
+            login_id.clone(),
             WebLoginEntry {
                 state: WebLoginState::Pending,
-                expires,
+                expires: now + WEB_LOGIN_TTL.as_secs() as i64,
                 poll_hash: poll_hash.clone(),
-                confirmation_code: confirmation_code.clone(),
+                code_hash: code_hash.clone(),
             },
         );
-        logins.poll_to_browser.insert(poll_hash, browser_hash);
-        Ok(WebLoginTokens { browser_session_id, poll_token, confirmation_code })
+        logins.poll_to_login.insert(poll_hash, login_id.clone());
+        logins.code_to_login.insert(code_hash, login_id);
+        let (first, second) = letters.split_at(USER_CODE_LETTERS / 2);
+        Ok(WebLoginTokens { poll_token, user_code: format!("{first}-{second}") })
     }
 
-    /// The confirmation code of a web login session that exists, is
-    /// unexpired, and is still pending.
-    pub fn pending_web_login_code(&self, session_id: &str) -> Option<String> {
+    /// Claims the pending web login whose user code a browser entered,
+    /// returning its login ID. Case, spaces, and dashes in `user_code` are
+    /// ignored. A code can be claimed once.
+    pub fn claim_web_login(&self, user_code: &str) -> Option<String> {
+        let letters = normalize_user_code(user_code)?;
         let now = Utc::now().timestamp();
-        let hash = super::super::sha256_hex(session_id.as_bytes());
-        let logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
-        logins.entries
-            .get(&hash)
-            .filter(|entry| entry.expires > now && matches!(entry.state, WebLoginState::Pending))
-            .map(|entry| entry.confirmation_code.clone())
-    }
-
-    /// Fulfills a pending web login session with the issued session token.
-    pub fn fulfill_web_login(&self, session_id: &str, token: String) -> Result<()> {
-        let now = Utc::now().timestamp();
-        let hash = super::super::sha256_hex(session_id.as_bytes());
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
-        if let Some(entry) = logins.entries.get_mut(&hash)
+        let login_id = logins.code_to_login.remove(&super::super::sha256_hex(letters.as_bytes()))?;
+        let entry = logins.entries.get_mut(&login_id)?;
+        if entry.expires <= now || !matches!(entry.state, WebLoginState::Pending) {
+            return None;
+        }
+        entry.state = WebLoginState::Claimed;
+        Some(login_id)
+    }
+
+    /// Fulfills a claimed web login with the issued session token.
+    pub fn fulfill_web_login(&self, login_id: &str, token: String) -> Result<()> {
+        let now = Utc::now().timestamp();
+        let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
+        if let Some(entry) = logins.entries.get_mut(login_id)
             && entry.expires > now
-            && matches!(entry.state, WebLoginState::Pending)
+            && matches!(entry.state, WebLoginState::Claimed)
         {
             entry.state = WebLoginState::Fulfilled { token };
             return Ok(());
@@ -116,52 +139,59 @@ impl OidcState {
         let now = Utc::now().timestamp();
         let poll_hash = super::super::sha256_hex(poll_token.as_bytes());
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
-        let Some(browser_hash) = logins.poll_to_browser.get(&poll_hash).cloned() else {
+        let Some(login_id) = logins.poll_to_login.get(&poll_hash).cloned() else {
             return WebLoginPoll::NotFound;
         };
-        let Some(entry) = logins.entries.get(&browser_hash) else {
-            logins.poll_to_browser.remove(&poll_hash);
+        let Some(entry) = logins.entries.get(&login_id) else {
+            logins.poll_to_login.remove(&poll_hash);
             return WebLoginPoll::NotFound;
         };
         if entry.expires <= now {
-            logins.entries.remove(&browser_hash);
-            logins.poll_to_browser.remove(&poll_hash);
+            let code_hash = entry.code_hash.clone();
+            logins.entries.remove(&login_id);
+            logins.poll_to_login.remove(&poll_hash);
+            logins.code_to_login.remove(&code_hash);
             return WebLoginPoll::NotFound;
         }
-        if matches!(entry.state, WebLoginState::Pending) {
+        if !matches!(entry.state, WebLoginState::Fulfilled { .. }) {
             return WebLoginPoll::Pending;
         }
-        let Some(entry) = logins.entries.remove(&browser_hash) else {
-            logins.poll_to_browser.remove(&poll_hash);
-            return WebLoginPoll::NotFound;
-        };
-        logins.poll_to_browser.remove(&poll_hash);
-        if let WebLoginState::Fulfilled { token } = entry.state {
-            WebLoginPoll::Ready(token)
-        } else {
-            WebLoginPoll::NotFound
+        logins.poll_to_login.remove(&poll_hash);
+        match logins.entries.remove(&login_id).map(|entry| entry.state) {
+            Some(WebLoginState::Fulfilled { token }) => WebLoginPoll::Ready(token),
+            _ => WebLoginPoll::NotFound,
         }
     }
 }
 
-/// Letters without vowels or look-alike pairs, as RFC 8628 section 6.1
-/// suggests for codes a person compares or types.
-const CONFIRMATION_CODE_ALPHABET: &[u8; 20] = b"BCDFGHJKLMNPQRSTVWXZ";
+/// The letters of `user_code` in canonical form, or `None` when it cannot be
+/// a user code.
+fn normalize_user_code(user_code: &str) -> Option<String> {
+    let letters: String = user_code
+        .chars()
+        .filter(|char| !char.is_whitespace() && *char != '-')
+        .map(|char| char.to_ascii_uppercase())
+        .collect();
+    (letters.len() == USER_CODE_LETTERS
+        && letters
+            .bytes()
+            .all(|byte| USER_CODE_ALPHABET.contains(&byte)))
+    .then_some(letters)
+}
 
-/// Eight letters from [`CONFIRMATION_CODE_ALPHABET`], split as `XXXX-XXXX`.
-fn random_confirmation_code() -> Result<String> {
+/// [`USER_CODE_LETTERS`] letters from [`USER_CODE_ALPHABET`].
+fn random_user_code_letters() -> Result<String> {
     // The largest multiple of the alphabet size that fits in a byte. Rejecting
     // bytes at or above it keeps every letter equally likely.
     const UNBIASED_LIMIT: u8 = 240;
-    let mut letters = String::with_capacity(8);
-    while letters.len() < 8 {
+    let mut letters = String::with_capacity(USER_CODE_LETTERS);
+    while letters.len() < USER_CODE_LETTERS {
         let mut byte = [0u8; 1];
         getrandom::fill(&mut byte).map_err(|_| unavailable())?;
         if byte[0] < UNBIASED_LIMIT {
-            let index = usize::from(byte[0]) % CONFIRMATION_CODE_ALPHABET.len();
-            letters.push(char::from(CONFIRMATION_CODE_ALPHABET[index]));
+            let index = usize::from(byte[0]) % USER_CODE_ALPHABET.len();
+            letters.push(char::from(USER_CODE_ALPHABET[index]));
         }
     }
-    let (first, second) = letters.split_at(4);
-    Ok(format!("{first}-{second}"))
+    Ok(letters)
 }

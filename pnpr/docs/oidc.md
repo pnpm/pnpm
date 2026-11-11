@@ -117,12 +117,11 @@ CLI opens the browser to sign in and polls until authentication completes. If no
 OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
 to username and password authentication (`/-/user/org.couchdb.user:{name}`).
 
-Before it sends the browser to the provider, pnpr asks the user to confirm
-that they started the sign-in, and shows a confirmation code. pnpr sends the
-same code to the CLI in an `npm-notice` header, which `pnpm login` in pnpm 12 prints. A
-CLI that does not print the header shows no code.
-The confirmation keeps a login link someone else started from signing you in
-silently through an existing provider session.
+The CLI prints a code, and the browser page asks for it before sending the
+browser to the provider. pnpr sends the code in an `npm-notice` header, which
+`pnpm login` and `npm login` print. A code works once and expires with the
+login after five minutes. Because the login page carries no secret, a link to
+it cannot sign anyone in through an existing provider session.
 
 A passwordless account can create personal access tokens while signed in.
 These are separate account credentials. They carry the account's ordinary
