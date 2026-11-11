@@ -71,6 +71,28 @@ pub struct PackageView {
     pub generation: Generation,
 }
 
+/// What looking up an entry in a hosted package's document found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostedLookup<Found> {
+    /// The package has no hosted document.
+    Absent,
+    /// The package's document has no matching entry.
+    Missing,
+    /// The matching entry.
+    Found(Found),
+}
+
+impl<Found> HostedLookup<Found> {
+    /// The found entry, `None` when the package or entry is absent.
+    #[must_use]
+    pub fn found(self) -> Option<Found> {
+        match self {
+            Self::Found(found) => Some(found),
+            Self::Absent | Self::Missing => None,
+        }
+    }
+}
+
 /// A dist-tag change: point `tag` at `target`, or remove it when `target` is
 /// `None`.
 #[derive(Debug, Clone, Copy)]
@@ -188,6 +210,21 @@ impl Storage {
         generation: u64,
     ) -> Result<Option<PackageView>> {
         self.metadata.read_view_at_least(name, generation).await
+    }
+
+    /// Look up an entry in the hosted package's document, reading the primary
+    /// when a lagging replica lacks the package or `select` finds nothing in
+    /// its view.
+    pub async fn lookup_in_hosted_document<Found, Select>(
+        &self,
+        name: &CanonicalPackageName,
+        select: Select,
+    ) -> Result<HostedLookup<Found>>
+    where
+        Found: Send + 'static,
+        Select: FnMut(&[u8]) -> Result<Option<Found>> + Send + 'static,
+    {
+        self.metadata.lookup_in_view(name, select).await
     }
 
     /// One version's accepted manifest, without its README and deprecation.

@@ -121,8 +121,9 @@ macro_rules! driver {
                     &self,
                     _source: ReadSource,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
-                ) -> Result<()> {
+                ) -> Result<crate::adapter::Snapshot> {
                     self.run(self.settings.timeout, operation)
+                        .map(|()| crate::adapter::Snapshot::Current)
                 }
 
                 fn is_retryable(&self, error: &RegistryError) -> bool {

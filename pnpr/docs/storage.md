@@ -195,6 +195,8 @@ file and pulls the primary's changes every `syncInterval`:
 
 - Package documents and listings are read from the replica. A change made
   through another pnpr instance shows up within `syncInterval`.
+- Archives and exact version metadata are read from the replica first, and
+  from the primary when the replica does not have them yet.
 - An instance always sees its own changes.
 - Permission checks, the reads a write depends on, and the response to a
   retried publish read the primary.

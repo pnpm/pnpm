@@ -2,9 +2,10 @@ use super::{
     Action, Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
     ImageDocument, Method, OciPublication, Refusal, RegistryError, RegistrySource, Request,
     Response, ResponseBody, StatusCode, authorize, collect_body, created, error, header,
-    hosted_manifest_response, insert_header, method_not_allowed, no_content, read_hosted_document,
-    read_manifest_bytes, registry_error, unknown_repository,
+    hosted_manifest_response, insert_header, lookup_in_hosted_document, method_not_allowed,
+    no_content, read_manifest_bytes, registry_error, unknown_repository,
 };
+use pnpr_storage::metadata::HostedLookup;
 
 impl Request {
     /// `HEAD`/`GET`/`PUT`/`DELETE /v2/<name>/manifests/<reference>`.
@@ -25,20 +26,22 @@ impl Request {
             Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let document = match read_hosted_document::<ImageDocument>(
+        let requested = reference.to_string();
+        let entry = match lookup_in_hosted_document::<ImageDocument, _>(
             &self.state,
             &self.identity,
             &repo.source,
             &repo.key,
+            move |document| document.resolve(&requested).cloned(),
         )
         .await
         {
-            Ok(Some(document)) => document,
-            Ok(None) => return unknown_repository(name).respond(),
+            Ok(HostedLookup::Found(entry)) => entry,
+            Ok(HostedLookup::Absent) => return unknown_repository(name).respond(),
+            Ok(HostedLookup::Missing) => {
+                return error(ErrorCode::ManifestUnknown, "no such manifest or tag");
+            }
             Err(err) => return registry_error(err),
-        };
-        let Some(entry) = document.resolve(reference).cloned() else {
-            return error(ErrorCode::ManifestUnknown, "no such manifest or tag");
         };
         // A manifest is small enough to answer from memory, and the response
         // carries its digest and media type either way.

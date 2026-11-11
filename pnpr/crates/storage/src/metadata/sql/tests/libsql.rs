@@ -11,7 +11,14 @@ use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::{Primary, serve_primary};
 use pnpr_package_name::Ecosystem;
 use serde_json::Value;
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{
+    net::SocketAddr,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 use tempfile::TempDir;
 
 /// A primary on a loopback port, and the directory its files live in.
@@ -385,4 +392,198 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a removal: {made:#?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unsynced_replica_reads_exact_versions_and_blobs_from_the_primary() {
+    use super::{
+        blobs::{id, tgz},
+        log::record_of,
+    };
+    use crate::metadata::{
+        BatchDocument, BlobFence, BlobRef, HostedLookup, PublicationRequest, PublishNotes,
+        ReleaseRecords,
+    };
+
+    let server = server().await;
+    let writer = server.instance(None, 60);
+    let (one, two) = (id(b"one"), id(b"two"));
+    let (record_v1, record_v2) = (record_of("pkg", "1.0.0"), record_of("pkg", "2.0.0"));
+    commit_version(&writer, &["1.0.0"], tgz("pkg", "1.0.0", &one, 1), &record_v1, "first").await;
+
+    let reader_db = server.instance(Some("reader"), 3600);
+    let reader = views(&reader_db);
+    assert_eq!(latest(&reader).await.as_deref(), Some("1.0.0"));
+    round_trips(&server);
+
+    assert_eq!(
+        reader
+            .artifact_blob(&npm("pkg"), "pkg-1.0.0.tgz")
+            .await
+            .unwrap(),
+        Some(BlobRef { id: one, incarnation: 1 }),
+    );
+    assert!(
+        reader
+            .read_version(&npm("pkg"), "1.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(
+        reader
+            .read_release_record(&npm("pkg"), "1.0.0", 0)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(record_v1.as_slice()),
+    );
+    assert!(
+        reader_db
+            .release_record_entry(&npm("pkg"), "", "1.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        reader_db
+            .publication("", "first")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(round_trips(&server).is_empty(), "hits stay on the replica");
+
+    let selects = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&selects);
+    let missing = reader
+        .lookup_in_view(&npm("pkg"), move |bytes| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let doc: Value = serde_json::from_slice(bytes)?;
+            Ok(doc["versions"].get("9.9.9").map(|_| ()))
+        })
+        .await
+        .unwrap();
+    assert_eq!(missing, HostedLookup::Missing);
+    assert_eq!(selects.load(Ordering::SeqCst), 1);
+
+    commit_version(
+        &writer,
+        &["1.0.0", "2.0.0"],
+        tgz("pkg", "2.0.0", &two, 1),
+        &record_v2,
+        "second",
+    )
+    .await;
+    round_trips(&server);
+
+    assert_eq!(latest(&reader).await.as_deref(), Some("1.0.0"));
+    assert!(round_trips(&server).is_empty(), "packument views stay on the replica");
+
+    assert_eq!(
+        reader
+            .artifact_blob(&npm("pkg"), "pkg-2.0.0.tgz")
+            .await
+            .unwrap(),
+        Some(BlobRef { id: two, incarnation: 1 }),
+    );
+    assert_eq!(round_trips(&server).len(), 1, "a blob miss reads the primary once");
+
+    assert!(
+        reader
+            .read_version(&npm("pkg"), "2.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(
+        reader
+            .read_release_record(&npm("pkg"), "2.0.0", 0)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(record_v2.as_slice()),
+    );
+    assert!(
+        reader_db
+            .release_record_entry(&npm("pkg"), "", "2.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        reader_db
+            .publication("", "second")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    let lookup = reader
+        .lookup_in_view(&npm("pkg"), |bytes| {
+            let doc: Value = serde_json::from_slice(bytes)?;
+            Ok(doc["versions"].get("2.0.0").map(|_| ()))
+        })
+        .await
+        .unwrap();
+    assert_eq!(lookup, HostedLookup::Found(()));
+
+    round_trips(&server);
+    assert_eq!(
+        reader
+            .artifact_blob(&npm("pkg"), "pkg-9.9.9.tgz")
+            .await
+            .unwrap(),
+        None,
+    );
+    assert_eq!(round_trips(&server).len(), 1, "an absent blob reads the primary once");
+
+    async fn commit_version(
+        database: &Arc<SqlMetadata>,
+        versions: &[&str],
+        artifact: crate::metadata::ArtifactBlob,
+        record: &[u8],
+        publication_name: &str,
+    ) {
+        let expected = views(database)
+            .read_for_update(&npm("pkg"))
+            .await
+            .unwrap()
+            .map(|d| d.version);
+        let latest_version = (*versions.last().unwrap()).to_string();
+        let mut doc = packument("pkg", versions);
+        for version in versions {
+            doc["versions"][*version]["_archiveManifest"] = serde_json::json!({
+                "profile": "npm-install-manifest/1",
+                "packageJson": "sha512-x",
+            });
+        }
+        let mut records = ReleaseRecords::new();
+        records.insert(latest_version, record.to_vec());
+        let document = BatchDocument {
+            ecosystem: Ecosystem::Npm,
+            name: "pkg".to_string(),
+            bytes: serde_json::to_vec(&doc).unwrap(),
+            expected,
+            principal: Some("alice".to_string()),
+            records,
+        };
+        let request = PublicationRequest {
+            principal: "alice".to_string(),
+            idempotency_key: format!("key:{publication_name}"),
+            request_digest: publication_name.to_string(),
+            name: Some(publication_name.to_string()),
+        };
+        let fence = BlobFence { artifacts: vec![artifact], references: Vec::new() };
+        database
+            .commit_fenced_publication(
+                "",
+                vec![document],
+                Vec::new(),
+                PublishNotes::default(),
+                Some(request),
+                fence,
+            )
+            .await
+            .unwrap();
+    }
 }

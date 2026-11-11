@@ -22,7 +22,7 @@ use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId, BlobSlot, Storage,
-    metadata::{ArtifactBlob, BlobLookup},
+    metadata::{ArtifactBlob, BlobLookup, HostedLookup},
 };
 
 /// The per-project document a hosted registry keeps in its document slot: a
@@ -158,6 +158,29 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
         .await?
         .map(|bytes| Document::parse(&bytes).map_err(RegistryError::Json))
         .transpose()
+}
+
+/// Look up an entry in `key`'s hosted document through `source`'s read gate,
+/// reading the primary when a lagging replica lacks the project or the entry.
+pub(super) async fn lookup_in_hosted_document<Document, Found>(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &CanonicalPackageName,
+    mut select: impl FnMut(&Document) -> Option<Found> + Send + 'static,
+) -> Result<HostedLookup<Found>, RegistryError>
+where
+    Document: HostedDocument,
+    Found: Send + 'static,
+{
+    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
+    state.inner.storage
+        .for_hosted(&org, Document::ECOSYSTEM)
+        .lookup_in_hosted_document(key, move |bytes| {
+            let document = Document::parse(bytes).map_err(RegistryError::Json)?;
+            Ok(select(&document))
+        })
+        .await
 }
 
 /// Publish one blob: store `bytes` as `filename` under `key` in the hosted

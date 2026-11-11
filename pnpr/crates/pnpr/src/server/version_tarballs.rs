@@ -248,6 +248,19 @@ impl VersionRequest<'_> {
         cached: Option<&CachedPackument>,
         stamp: Option<DocumentStamp>,
     ) -> Result<Option<(VersionTgz, Option<DistOrigin>)>, RegistryError> {
+        if let RegistrySource::Hosted(hosted) = source {
+            let org = hosted_read_namespace(self.state, self.identity, hosted, name.as_str())?;
+            let package = name.clone();
+            let version = self.version.to_string();
+            let tgz = self.state.inner.storage
+                .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+                .lookup_in_hosted_document(name, move |bytes| {
+                    Ok(version_tgz(bytes, &package, &version))
+                })
+                .await?
+                .found();
+            return Ok(tgz.map(|tgz| (tgz, None)));
+        }
         if stamp.is_none()
             && let RegistrySource::Upstream(id) = source
             && let Some(read) = self.read_version_manifest(id, name, cached).await
