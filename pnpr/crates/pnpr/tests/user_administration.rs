@@ -603,3 +603,89 @@ async fn invalid_rename_payloads_are_client_errors() {
     }
     assert_eq!(crate::tokens::account_id(&app, "root", Some(&root)).await, Some(id));
 }
+
+#[tokio::test]
+async fn registration_and_rename_reject_lookalike_usernames() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret123").await.unwrap();
+    let app = account_router(load_config(&dir), auth).await;
+    let root = login(&app, "root", "secret123").await.unwrap();
+    assert!(login(&app, "cltest", "secret123").await.is_ok());
+    let cltest_id = crate::tokens::account_id(&app, "cltest", Some(&root)).await.unwrap();
+
+    for (encoded, decoded) in [
+        ("CLTEST", "CLTEST"),
+        ("Cltest", "Cltest"),
+        ("cLtest", "cLtest"),
+        ("clTest", "clTest"),
+        ("clt%C3%A9st", "clt\u{00e9}st"),
+        ("clte%CC%81st", "clte\u{0301}st"),
+        ("cl%D1%82est", "cl\u{0442}est"),
+    ] {
+        let register_path = format!("/-/user/org.couchdb.user:{encoded}");
+        let register_body =
+            json!({ "name": decoded, "password": "secret123", "type": "user", "roles": [] });
+        assert_eq!(
+            send(&app, "PUT", &register_path, None, Some(register_body)).await.0,
+            StatusCode::BAD_REQUEST,
+            "register {decoded:?}",
+        );
+        let admin_put_path = format!("/-/pnpr/v0/admin/users/{encoded}");
+        assert_eq!(
+            send(
+                &app,
+                "PUT",
+                &admin_put_path,
+                Some(&root),
+                Some(json!({ "password": "secret123" }))
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST,
+            "admin create {decoded:?}",
+        );
+    }
+
+    let (status, other) = send(
+        &app,
+        "PUT",
+        "/-/pnpr/v0/admin/users/other",
+        Some(&root),
+        Some(json!({ "password": "secret123" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let other_rename_path = format!("/-/pnpr/v0/admin/users/{}", other["id"].as_str().unwrap());
+    for lookalike in ["CLTEST", "Cltest", "clt\u{00e9}st", "clte\u{0301}st", "cl\u{0442}est"] {
+        assert_eq!(
+            send(
+                &app,
+                "PATCH",
+                &other_rename_path,
+                Some(&root),
+                Some(json!({ "name": lookalike }))
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST,
+            "rename other to {lookalike:?}",
+        );
+    }
+
+    let own_rename_path = format!("/-/pnpr/v0/admin/users/{cltest_id}");
+    assert_eq!(
+        send(&app, "PATCH", &own_rename_path, Some(&root), Some(json!({ "name": "Cltest" })))
+            .await
+            .0,
+        StatusCode::OK,
+    );
+    let (_, roster) = send(&app, "GET", "/-/pnpr/v0/admin/users", Some(&root), None).await;
+    let names: Vec<_> = roster["users"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Cltest", "other", "root"]);
+}

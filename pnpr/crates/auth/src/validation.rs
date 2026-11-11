@@ -1,7 +1,11 @@
 #[cfg(test)]
 pub(crate) mod tests;
 
+use icu_normalizer::{
+    DecomposingNormalizerBorrowed, properties::CanonicalCombiningClassMapBorrowed,
+};
 use pnpr_error::{RegistryError, Result};
+use unicode_security::{GeneralSecurityProfile as _, MixedScript as _};
 
 /// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
 pub const MAX_PASSWORD_BYTES: usize = 71;
@@ -56,6 +60,23 @@ fn rejected_username_reason(username: &str) -> Option<&'static str> {
     if username.chars().any(char::is_control) {
         return Some("username must not contain control characters");
     }
+    let combining_classes = CanonicalCombiningClassMapBorrowed::new();
+    if username
+        .chars()
+        .next()
+        .is_some_and(|first| combining_classes.get_u8(first) != 0)
+    {
+        return Some("username must not start with a combining mark");
+    }
+    if username
+        .chars()
+        .any(|character| !character.is_ascii() && !character.identifier_allowed())
+    {
+        return Some("username contains restricted Unicode characters");
+    }
+    if !username.is_single_script() {
+        return Some("username must not mix scripts");
+    }
     None
 }
 
@@ -89,9 +110,36 @@ pub(crate) fn token_scopes_to_sql(scopes: Option<&[String]>) -> Option<String> {
     })
 }
 
+fn fold_case(text: &str) -> String {
+    let mut folded = String::with_capacity(text.len());
+    for character in text.chars() {
+        match character {
+            'ß' | 'ẞ' => folded.push_str("ss"),
+            'ς' => folded.push('σ'),
+            other => folded.extend(other.to_lowercase()),
+        }
+    }
+    folded
+}
+
+/// Hash a username's normalized confusable key.
+///
+/// Folding case before UTS 39 `skeleton` keeps `'I'` aligned with `'i'` instead
+/// of `'l'`, folding again after `skeleton` lowers uppercase prototypes such as
+/// `'0' -> 'O'`, and dropping non-starter combining marks equates accented and
+/// stroked lookalikes with their base letters.
 pub(crate) fn username_skeleton_hash(username: &str) -> String {
-    let skeleton: String = unicode_security::confusable_detection::skeleton(username).collect();
-    pnpm_crypto_hash::create_hex_hash(&skeleton)
+    let decomposed = DecomposingNormalizerBorrowed::new_nfkd().normalize(username);
+    let pre_folded = fold_case(&decomposed);
+    let raw_skeleton: String =
+        unicode_security::confusable_detection::skeleton(&pre_folded).collect();
+    let combining_classes = CanonicalCombiningClassMapBorrowed::new();
+    let skeleton: String = fold_case(&raw_skeleton)
+        .chars()
+        .filter(|character| combining_classes.get_u8(*character) == 0)
+        .collect();
+    let key = if skeleton.is_empty() { pre_folded.as_str() } else { skeleton.as_str() };
+    pnpm_crypto_hash::create_hex_hash(key)
 }
 
 pub(crate) fn confusable_username() -> RegistryError {

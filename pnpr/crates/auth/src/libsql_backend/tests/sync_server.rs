@@ -247,7 +247,10 @@ async fn stale_replicas_distinguish_exact_and_confusable_account_conflicts() {
     first.provision_user("scope").await.unwrap();
     let error = second.rename_user(&other, "scope").await.unwrap_err();
     assert!(matches!(error, crate::RegistryError::AdminConflict { .. }), "{error:?}");
-    let error = second.rename_user(&other, "scоpe").await.unwrap_err();
-    assert!(matches!(error, crate::RegistryError::BadRequest { .. }), "{error:?}");
+    for confusable in ["Scope", "sc0pe"] {
+        let error = second.rename_user(&other, confusable).await.unwrap_err();
+        assert!(matches!(error, crate::RegistryError::BadRequest { .. }), "{error:?}");
+        assert_eq!(error.to_string(), crate::validation::confusable_username().to_string());
+    }
     server.abort();
 }
