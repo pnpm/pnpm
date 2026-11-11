@@ -35,6 +35,38 @@ pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     is_unc_path(path) || drive_letter(path).is_some_and(|drive| mapped_drive(drive).is_some())
 }
 
+/// [`is_on_network_drive`], with whether each drive letter is mapped looked
+/// up once per process. An install asks this for every link it writes, and
+/// the drive mappings don't change during one.
+#[cfg(windows)]
+pub(crate) fn is_on_network_drive_cached(path: &Path) -> bool {
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    const UNKNOWN: u8 = 0;
+    const LOCAL: u8 = 1;
+    const NETWORK: u8 = 2;
+    static DRIVES: [AtomicU8; 26] = [const { AtomicU8::new(UNKNOWN) }; 26];
+
+    let absolute = std::path::absolute(path);
+    let path = absolute.as_deref().unwrap_or(path);
+    if is_unc_path(path) {
+        return true;
+    }
+    let Some(drive) = drive_letter(path).filter(char::is_ascii_uppercase) else {
+        return false;
+    };
+    let slot = &DRIVES[usize::from(drive as u8 - b'A')];
+    match slot.load(Ordering::Relaxed) {
+        LOCAL => false,
+        NETWORK => true,
+        _ => {
+            let network = mapped_drive(drive).is_some();
+            slot.store(if network { NETWORK } else { LOCAL }, Ordering::Relaxed);
+            network
+        }
+    }
+}
+
 #[cfg(windows)]
 fn is_unc_path(path: &Path) -> bool {
     use std::path::Prefix;

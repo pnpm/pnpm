@@ -816,6 +816,56 @@ fn windows_other_link_failures_are_not_blamed_on_a_share() {
     assert!(!error.to_string().contains("nodeLinker"), "a missing parent is not a refusal");
 }
 
+/// The `junction` crate prefixes `\??\` to the full path, so a plain UNC
+/// target goes to it in verbatim form (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_junction_target_for_a_unc_path_is_verbatim() {
+    use std::path::Path;
+
+    assert_eq!(
+        super::windows::junction_target(Path::new(r"\\server\share\project\node_modules\.pnpm")),
+        Path::new(r"\\?\UNC\server\share\project\node_modules\.pnpm"),
+    );
+    for unchanged in [
+        r"Z:\project\node_modules\.pnpm",
+        r"\\?\C:\project\node_modules\.pnpm",
+        r"\\?\UNC\server\share\project",
+    ] {
+        assert_eq!(super::windows::junction_target(Path::new(unchanged)), Path::new(unchanged));
+    }
+}
+
+/// A junction to a UNC path holds `\??\UNC\server\…`, which reads back as
+/// the UNC path. `\??\` put in front of the `\\server` form would read back
+/// as `\\?\\\server\…` and name nothing (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_junction_to_a_unc_path_holds_the_unc_target() {
+    let root = tempdir().expect("create temp dir");
+    let link = root.path().join("link");
+    let target = std::path::Path::new(r"\\server\share\project\node_modules\.pnpm\pkg");
+
+    super::windows::create_junction(target, &link).expect("create the junction");
+
+    assert_eq!(fs::read_link(&link).expect("read the junction"), target);
+}
+
+/// Links on a share are junctions, so the per-link check must know a UNC
+/// path without asking Windows, and a local drive must not count
+/// (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_links_on_a_share_are_recognized() {
+    use crate::mapped_drive_path::is_on_network_drive_cached;
+    use std::path::Path;
+
+    assert!(is_on_network_drive_cached(Path::new(r"\\server\share\project\node_modules\pkg")));
+    assert!(is_on_network_drive_cached(Path::new(r"\\?\UNC\server\share\project\node_modules")));
+    let local = tempdir().expect("create temp dir");
+    assert!(!is_on_network_drive_cached(local.path()), "the temp dir is on a local drive");
+}
+
 #[test]
 fn distinguishes_non_links_from_ownership_read_failures() {
     assert!(super::is_non_link_read_error(&std::io::Error::from(std::io::ErrorKind::InvalidInput)));

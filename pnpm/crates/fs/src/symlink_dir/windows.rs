@@ -1,5 +1,6 @@
 use derive_more::{Display, Error};
 use std::{
+    borrow::Cow,
     fs, io,
     path::{Path, PathBuf},
     sync::{
@@ -73,6 +74,17 @@ pub(super) fn explain_network_share_refusal(link: &Path, error: io::Error) -> io
 }
 
 fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
+    // Windows evaluates a symlink on a share on the client, and by default
+    // doesn't follow one there that points back into a share ("remote to
+    // remote" in `fsutil behavior query SymlinkEvaluation`). The relative
+    // links in `node_modules/.pnpm` are exactly that, so a share that accepts
+    // symlinks would get links nothing can open. A junction is resolved by
+    // the server, and pnpm 11 links with junctions everywhere on Windows, so
+    // links on a share stay junctions whatever the process may create. This
+    // doesn't touch `MODE`: links on local drives keep preferring symlinks.
+    if crate::mapped_drive_path::is_on_network_drive_cached(link) {
+        return create_junction(original, link);
+    }
     match MODE.load(Ordering::Relaxed) {
         USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
             Err(error) if should_fallback_to_junction(&error) => {
@@ -125,8 +137,40 @@ fn create_and_cache_junction(original: &Path, link: &Path) -> io::Result<()> {
 }
 
 pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
-    let staging = stage_junction(original, link)?;
+    let staging = stage_junction(&junction_target(original), link)?;
     commit_staged_junction(link, &staging)
+}
+
+/// The target to give `junction::create` for `original`.
+///
+/// The `junction` crate prefixes the full path with `\??\`, which makes an
+/// NT path only of a drive path or a verbatim path. A plain UNC path
+/// `\\server\share\…` would become `\??\\\server\share\…`, which names
+/// nothing. Its verbatim form `\\?\UNC\server\share\…` becomes
+/// `\??\UNC\server\share\…`, the target Node.js writes for a junction to
+/// that path.
+pub(super) fn junction_target(original: &Path) -> Cow<'_, Path> {
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::{OsStrExt as _, OsStringExt as _},
+        path::{Component, Prefix},
+    };
+
+    let is_plain_unc = matches!(
+        original.components().next(),
+        Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::UNC(..)),
+    );
+    if !is_plain_unc {
+        return Cow::Borrowed(original);
+    }
+    let mut verbatim: Vec<u16> = r"\\?\UNC\".encode_utf16().collect();
+    verbatim.extend(
+        original
+            .as_os_str()
+            .encode_wide()
+            .skip(2),
+    );
+    Cow::Owned(PathBuf::from(OsString::from_wide(&verbatim)))
 }
 
 /// Build the junction at a unique sibling path so no other worker can
