@@ -324,7 +324,7 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
         first_boot.database.begin_store_claim(db_nonce.clone()).await.unwrap(),
         crate::metadata::sql::StoreClaim::Pending(db_nonce.clone()),
     );
-    let candidate = format!("{db_nonce}-{}", crate::layout::new_store_id());
+    let candidate = format!("{}{}", &db_nonce[..16], &crate::layout::new_store_id()[..16]);
     fs::create_dir_all(tmp.path().join("storage")).await.unwrap();
     fs::write(
         tmp.path().join("storage/layout.json"),

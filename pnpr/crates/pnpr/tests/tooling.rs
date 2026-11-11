@@ -905,7 +905,14 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
         assert!(collect_archives(bad, &gc_dry).await.is_err());
         assert!(collect_archives(bad, &gc_live).await.is_err());
         assert!(verify_storage(bad, &verify_opts).await.is_err());
-        assert!(export_storage(bad, &export_out, false).await.is_err());
+        assert!(
+            pnpr::run_command(
+                bad,
+                pnpr::Command::Export { out: export_out.clone(), include_auth: false },
+            )
+            .await
+            .is_err(),
+        );
         assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
     }
 }

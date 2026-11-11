@@ -160,7 +160,7 @@ impl Storage {
     }
 
     async fn write_or_confirm_pending_marker(&self, pending_nonce: &str) -> Result<()> {
-        let candidate = format!("{pending_nonce}-{}", new_store_id());
+        let candidate = claimed_store_id(pending_nonce);
         let marker = serde_json::to_vec(&LayoutMarker {
             layout: LAYOUT_VERSION,
             store_id: Some(candidate.clone()),
@@ -287,10 +287,18 @@ pub(crate) fn namespace(
         .with_ecosystem(ecosystem)
 }
 
+const PENDING_PREFIX_HEX_LEN: usize = 16;
+
+fn claimed_store_id(pending_nonce: &str) -> String {
+    let prefix = &pending_nonce[..pending_nonce.len().min(PENDING_PREFIX_HEX_LEN)];
+    let suffix = new_store_id();
+    format!("{prefix}{}", &suffix[..PENDING_PREFIX_HEX_LEN])
+}
+
 fn marker_matches_pending_claim(store_id: &str, pending_nonce: &str) -> bool {
-    store_id
-        .strip_prefix(pending_nonce)
-        .is_some_and(|rest| rest.starts_with('-') && rest.len() > 1)
+    pending_nonce.len() >= PENDING_PREFIX_HEX_LEN
+        && store_id.len() == PENDING_PREFIX_HEX_LEN * 2
+        && store_id.starts_with(&pending_nonce[..PENDING_PREFIX_HEX_LEN])
 }
 
 fn parse_marker(bytes: &[u8]) -> Result<LayoutMarker> {

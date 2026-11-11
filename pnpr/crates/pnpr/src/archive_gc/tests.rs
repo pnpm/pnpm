@@ -517,8 +517,23 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
-    assert!(collect(&empty_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
-    assert!(collect(&empty_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    let empty_collection = Collection {
+        storage: &empty_db,
+        manifest_limit: MANIFEST_LIMIT,
+        lease: Duration::from_hours(1),
+    };
+    assert!(
+        empty_collection
+            .run(&GcOptions { dry_run: true, ..GcOptions::default() })
+            .await
+            .is_err(),
+    );
+    assert!(
+        empty_collection
+            .run(&GcOptions { dry_run: false, ..GcOptions::default() })
+            .await
+            .is_err(),
+    );
     assert!(manifest_archive.exists());
     assert!(layer_archive.exists());
 
@@ -532,8 +547,23 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
-    assert!(collect(&wrong_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
-    assert!(collect(&wrong_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    let wrong_collection = Collection {
+        storage: &wrong_db,
+        manifest_limit: MANIFEST_LIMIT,
+        lease: Duration::from_hours(1),
+    };
+    assert!(
+        wrong_collection
+            .run(&GcOptions { dry_run: true, ..GcOptions::default() })
+            .await
+            .is_err(),
+    );
+    assert!(
+        wrong_collection
+            .run(&GcOptions { dry_run: false, ..GcOptions::default() })
+            .await
+            .is_err(),
+    );
     assert!(manifest_archive.exists());
     assert!(layer_archive.exists());
 }
