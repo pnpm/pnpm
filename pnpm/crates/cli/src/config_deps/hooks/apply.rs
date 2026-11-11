@@ -95,6 +95,10 @@ pub(super) fn apply_hook_delta(
             .clone()
             .unwrap_or_else(|| config.lockfile_dir_for(base_dir).to_path_buf());
         config.pin_lockfile_dir(&lockfile_dir, base_dir);
+        if config.lockfile_dir.is_none() {
+            let default_lockfile_dir = config.lockfile_dir_for(base_dir).to_path_buf();
+            config.anchor_lockfile_paths(&default_lockfile_dir);
+        }
     }
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;

@@ -59,7 +59,7 @@ async fn update_config_lockfile_dir_restores_default_workspace_paths() {
         .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
