@@ -58,9 +58,9 @@ impl Storage {
         .await
     }
 
-    /// Read a bounded batch after `after`, wrapping to the first name at the end.
-    pub async fn pending_cdn_invalidations(&self, after: &str) -> Result<Vec<CdnInvalidation>> {
-        self.database.pending_cdn_invalidations(after.to_string()).await
+    /// Read pending policy changes and the oldest package changes from the primary.
+    pub async fn pending_cdn_invalidations(&self) -> Result<Vec<CdnInvalidation>> {
+        self.database.pending_cdn_invalidations().await
     }
 
     /// Acknowledge only the delivered generations, retaining concurrent changes.
@@ -82,19 +82,24 @@ impl Storage {
 }
 
 impl SqlMetadata {
-    async fn pending_cdn_invalidations(
-        self: &Arc<Self>,
-        after: String,
-    ) -> Result<Vec<CdnInvalidation>> {
-        self.read(String::new(), Freshness::Current, move |connection, _| {
-            let query = "SELECT name, generation FROM registry_records WHERE kind = ?1 AND name > ?2 ORDER BY name LIMIT 30";
-            let mut rows = connection.query(query, params![PENDING, &after])?;
-            if rows.is_empty() && !after.is_empty() {
-                rows = connection.query(query, params![PENDING, ""])?;
-            }
-            rows.into_iter().map(|mut row| {
-                Ok(CdnInvalidation { package: row.get(0)?, generation: row.get(1)? })
-            }).collect()
-        }).await
+    async fn pending_cdn_invalidations(self: &Arc<Self>) -> Result<Vec<CdnInvalidation>> {
+        self.read(String::new(), Freshness::Current, |connection, _| {
+            let rows = connection.query(
+                "SELECT name, generation FROM (
+                   SELECT name, generation, 0 AS priority FROM registry_records WHERE kind = ?1 AND name = '*'
+                   UNION ALL SELECT name, generation, 1 AS priority FROM (
+                     SELECT name, generation FROM registry_records
+                     WHERE kind = ?1 AND name <> '*' ORDER BY generation LIMIT 29
+                   ) AS packages
+                 ) AS pending ORDER BY priority, generation",
+                params![PENDING],
+            )?;
+            rows.into_iter()
+                .map(|mut row| {
+                    Ok(CdnInvalidation { package: row.get(0)?, generation: row.get(1)? })
+                })
+                .collect()
+        })
+        .await
     }
 }

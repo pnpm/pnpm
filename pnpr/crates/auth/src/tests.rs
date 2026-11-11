@@ -1013,22 +1013,26 @@ async fn incompatible_auth_databases_are_refused_without_migration() {
 
 #[tokio::test]
 async fn schema_migrations_refuses_future_schema_version() {
+    let future = pnpr_sql::schema::SCHEMA_VERSION + 1;
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
 
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
         conn.execute_batch(
-            "CREATE TABLE schema_migrations (version INTEGER NOT NULL PRIMARY KEY) STRICT;
-             INSERT INTO schema_migrations (version) VALUES (1), (2);",
+            "CREATE TABLE schema_migrations (version INTEGER NOT NULL PRIMARY KEY) STRICT;",
         )
         .unwrap();
+        for version in 1..=future {
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (?1)", [version])
+                .unwrap();
+        }
     }
 
     let err = TokenStore::open(path).unwrap_err();
     let err_str = err.to_string();
     assert!(
-        err_str.contains("schema version 2"),
+        err_str.contains(&format!("schema version {future}")),
         "expected error about newer version, got: {err_str}",
     );
 }

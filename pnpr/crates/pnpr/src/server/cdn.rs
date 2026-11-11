@@ -27,7 +27,6 @@ pub(super) fn start(state: &AppState) -> Result<(), RegistryError> {
     let weak = Arc::downgrade(&state.inner);
     tokio::spawn(async move {
         let mut enabled = false;
-        let mut after = String::new();
         loop {
             let Some(inner) = weak.upgrade() else { break };
             let storage = inner.storage.clone();
@@ -35,7 +34,7 @@ pub(super) fn start(state: &AppState) -> Result<(), RegistryError> {
             if !enabled {
                 enabled = subscribe(&storage, &config).await;
             }
-            if enabled && let Err(reason) = deliver(&storage, &client, &config, &mut after).await {
+            if enabled && let Err(reason) = deliver(&storage, &client, &config).await {
                 tracing::error!(%reason, "CDN purge failed; pending invalidations will be retried");
             }
             tokio::time::sleep(RETRY_INTERVAL).await;
@@ -59,10 +58,9 @@ async fn deliver(
     storage: &Storage,
     client: &reqwest::Client,
     config: &CloudflareCdnConfig,
-    after: &mut String,
 ) -> Result<(), String> {
     let pending = storage
-        .pending_cdn_invalidations(after)
+        .pending_cdn_invalidations()
         .await
         .map_err(|_| "could not read pending CDN invalidations".to_string())?;
     if pending.is_empty() {
@@ -72,15 +70,10 @@ async fn deliver(
     let endpoint =
         format!("https://api.cloudflare.com/client/v4/zones/{}/purge_cache", config.zone_id);
     purge(client, &endpoint, &config.api_token, tags).await?;
-    let next = pending
-        .last()
-        .map(|event| event.package.clone())
-        .unwrap_or_default();
     storage
         .acknowledge_cdn_invalidations(pending)
         .await
         .map_err(|_| "could not acknowledge CDN invalidations".to_string())?;
-    *after = next;
     Ok(())
 }
 

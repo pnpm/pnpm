@@ -662,10 +662,11 @@ async fn libsql_tokens_persist_scopes_and_kind() {
 #[tokio::test]
 async fn libsql_schema_migrations_refuses_future_version() {
     let backend = local_backend(MaxUsers::Unlimited).await;
+    let future = pnpr_sql::schema::SCHEMA_VERSION + 1;
     backend.pool
         .connect()
         .unwrap()
-        .execute("INSERT INTO schema_migrations (version) VALUES (2)", ())
+        .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [future])
         .await
         .unwrap();
 
@@ -676,7 +677,7 @@ async fn libsql_schema_migrations_refuses_future_version() {
     .unwrap_err();
     let err_str = err.to_string();
     assert!(
-        err_str.contains("schema version 2"),
+        err_str.contains(&format!("schema version {future}")),
         "expected error about newer version, got: {err_str}",
     );
 }
