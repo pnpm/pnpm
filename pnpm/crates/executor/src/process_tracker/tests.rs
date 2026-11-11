@@ -66,6 +66,48 @@ fn one_watchdog_watches_every_process_group() {
     assert_eq!(watchdogs.len(), 1, "one watchdog should watch all three groups");
 }
 
+#[test]
+fn a_watchdog_started_ahead_of_its_groups_watches_them() {
+    let mut watch = GroupWatch::new();
+    assert!(watch.start().expect("start the watchdog"), "`sh` is available");
+    assert!(watch.start().expect("start the watchdog again"), "`sh` is available");
+    let mut leader = spawn_group_leader();
+    assert!(watch.watch(leader.id()).expect("watch the group"), "`sh` is available");
+    assert_eq!(watchdogs().len(), 1, "a running watchdog should not be started again");
+
+    drop(watch);
+
+    assert!(
+        exits_within(&mut leader, Duration::from_secs(10)),
+        "the group should have been killed once its watchdog lost pnpm",
+    );
+}
+
+#[test]
+fn starting_replaces_a_watchdog_that_died() {
+    let mut watch = GroupWatch::new();
+    assert!(watch.start().expect("start the watchdog"), "`sh` is available");
+    let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
+    // SAFETY: `dead` is this process's own child, the watchdog started
+    // above. It is killed and waited for without being reaped, so `start`
+    // still owns its exit status.
+    unsafe {
+        libc::kill(dead, libc::SIGKILL);
+        let mut info: libc::siginfo_t = std::mem::zeroed();
+        libc::waitid(
+            libc::P_PID,
+            libc::id_t::try_from(dead).expect("a pid is not negative"),
+            &raw mut info,
+            libc::WEXITED | libc::WNOWAIT,
+        );
+    }
+
+    assert!(watch.start().expect("restart the watchdog"), "`sh` is available");
+    let replacements = watchdogs();
+    assert_eq!(replacements.len(), 1, "a replacement should be running: {replacements:?}");
+    assert_ne!(replacements[0], dead);
+}
+
 /// Dropping the watch closes the watchdog's pipe the way pnpm's death does.
 /// Every group still watched is killed, past one that has exited already,
 /// and a released group is left alone.

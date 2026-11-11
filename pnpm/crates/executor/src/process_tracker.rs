@@ -224,15 +224,19 @@ pub fn spawn_child<'tracker>(
     if separate_process_group {
         prepare_command(command);
     }
+    // Only Unix gives a child a process group of its own, and only then
+    // must a relayed signal address that group rather than the child.
+    let own_process_group = cfg!(unix) && separate_process_group;
+    #[cfg(unix)]
+    if own_process_group {
+        group_watchdog::start()?;
+    }
     let child = command.spawn()?;
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
-    // Only Unix gives a child a process group of its own, and only then
-    // must a relayed signal address that group rather than the child.
-    let own_process_group = cfg!(unix) && separate_process_group;
     #[cfg(unix)]
     let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);

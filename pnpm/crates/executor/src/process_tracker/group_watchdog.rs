@@ -11,8 +11,9 @@
 //! pnpm died, and the watchdog kills every group still named, as the
 //! signal would have had the children stayed in pnpm's group.
 //!
-//! One watchdog serves every group of a pnpm process. It starts with the
-//! first group, so a command that creates none starts no `sh`.
+//! One watchdog serves every group of a pnpm process. It starts before the
+//! first group's leader is spawned, so a command that creates no group
+//! starts no `sh`.
 //!
 //! Windows needs none of this: the Job Object in [`crate::job_control`]
 //! ends the children when pnpm does.
@@ -55,6 +56,15 @@ for group in $groups; do kill -9 -"$group"; done"#;
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
 
+/// Start the watchdog unless one is running, replacing one that exited. A child runs from the moment
+/// it is spawned, so starting the watchdog before the first group's leader
+/// keeps [`watch`] down to one write, rather than leaving that group
+/// unwatched for as long as a `sh` takes to spawn. Returns `false` when there
+/// is no `sh` to watch with.
+pub(super) fn start() -> io::Result<bool> {
+    lock().start()
+}
+
 /// Watch the process group led by `leader` until [`release`] is called for
 /// it, killing the group should pnpm die first. Returns `false` when there
 /// is no `sh` to watch with, which leaves the group on its own.
@@ -85,6 +95,19 @@ pub(super) struct GroupWatch {
 impl GroupWatch {
     pub(super) const fn new() -> Self {
         Self { watchdog: None, leaders: Vec::new(), shell_missing: false }
+    }
+
+    /// See [`start`].
+    pub(super) fn start(&mut self) -> io::Result<bool> {
+        if self.shell_missing {
+            return Ok(false);
+        }
+        if let Some(watchdog) = &mut self.watchdog
+            && watchdog.is_running()
+        {
+            return Ok(true);
+        }
+        self.start_watchdog()
     }
 
     /// See [`watch`].
@@ -124,11 +147,13 @@ impl GroupWatch {
     /// Start a watchdog over every group in [`Self::leaders`], replacing
     /// one that died.
     fn start_watchdog(&mut self) -> io::Result<bool> {
-        if let Some(mut dead) = self.watchdog.take() {
+        if let Some(mut replaced) = self.watchdog.take()
+            && replaced.is_running()
+        {
             // pnpm still holds its pipe, so a watchdog that is only refusing
             // writes would never see end of input and could not be reaped.
-            let _ = dead.process.kill();
-            let _ = dead.process.wait();
+            let _ = replaced.process.kill();
+            let _ = replaced.process.wait();
         }
         let Some(mut watchdog) = GroupWatchdog::spawn()? else {
             self.shell_missing = true;
@@ -177,6 +202,13 @@ impl GroupWatchdog {
         };
         let lifeline = process.stdin.take().expect("the watchdog's stdin is piped");
         Ok(Some(Self { process, lifeline }))
+    }
+
+    /// Whether the watchdog has not exited. One reaped elsewhere, such as
+    /// under an inherited ignored `SIGCHLD`, counts as exited: its pid may
+    /// name another process by now, so it must not be signalled.
+    fn is_running(&mut self) -> bool {
+        matches!(self.process.try_wait(), Ok(None))
     }
 
     fn watch(&mut self, leader: u32) -> io::Result<()> {
