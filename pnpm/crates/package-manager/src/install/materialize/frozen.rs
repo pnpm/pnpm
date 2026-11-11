@@ -5,10 +5,6 @@ use super::{
     frozen_project_anchor_ids, initial_materialization_ids, map_frozen_lockfile_error,
     previously_skipped, prior_unbuilt_builds, settle_frozen_verification,
 };
-#[cfg(not(feature = "runtime-provisioning"))]
-use pnpm_lockfile::{ImporterDepVersion, Prefix};
-#[cfg(not(feature = "runtime-provisioning"))]
-use pnpm_package_manifest::DependencyGroup;
 
 impl<'a> MaterializationInputs<'a, '_> {
     fn groups(&self, lockfile: &Lockfile) -> crate::GroupSelection {
@@ -169,108 +165,10 @@ fn ensure_runtime_provisioning(
     if skip_runtimes {
         return Ok(());
     }
-    if let Some(alias) = selected_runtime_dependency(
-        &scope.closure.lockfile,
-        &scope.closure.importer_ids,
-        scope.groups.included,
-    ) {
+    if let Some(alias) = scope.closure.runtime_dependency_alias(scope.groups.included) {
         return Err(InstallError::RuntimeProvisioningUnavailable { alias });
     }
     Ok(())
-}
-
-#[cfg(not(feature = "runtime-provisioning"))]
-fn selected_runtime_dependency(
-    lockfile: &Lockfile,
-    importer_ids: &HashSet<String>,
-    included: pnpm_modules_yaml::IncludedDependencies,
-) -> Option<String> {
-    importer_ids
-        .iter()
-        .filter_map(|importer_id| lockfile.importers.get(importer_id))
-        .flat_map(|importer| {
-            importer.dependencies_by_groups(
-                [
-                    included.dependencies.then_some(DependencyGroup::Prod),
-                    included.dev_dependencies.then_some(DependencyGroup::Dev),
-                    included.optional_dependencies.then_some(DependencyGroup::Optional),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-        })
-        .find_map(|(alias, dependency)| {
-            let runtime = match &dependency.version {
-                ImporterDepVersion::Regular(version) => version.prefix() == Prefix::Runtime,
-                ImporterDepVersion::Alias(version) => version.suffix.prefix() == Prefix::Runtime,
-                ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => false,
-            };
-            runtime.then(|| alias.to_string())
-        })
-        .or_else(|| {
-            lockfile.snapshots
-                .iter()
-                .flat_map(|snapshots| snapshots.values())
-                .flat_map(|snapshot| {
-                    snapshot.dependencies
-                        .iter()
-                        .chain(
-                            included.optional_dependencies
-                                .then_some(snapshot.optional_dependencies.as_ref())
-                                .flatten()
-                                .iter(),
-                        )
-                })
-                .flat_map(|dependencies| dependencies.iter())
-                .find_map(|(alias, dependency)| {
-                    dependency
-                        .ver_peer()
-                        .is_some_and(|version| version.prefix() == Prefix::Runtime)
-                        .then(|| alias.to_string())
-                })
-        })
-}
-
-#[cfg(all(test, not(feature = "runtime-provisioning")))]
-mod tests {
-    use super::selected_runtime_dependency;
-    use pnpm_modules_yaml::IncludedDependencies;
-    use std::collections::HashSet;
-
-    #[test]
-    fn finds_runtime_dependencies_in_selected_snapshots() {
-        let lockfile: super::Lockfile = serde_saphyr::from_str(
-            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      library: 1.0.0\npackages:\n  library@1.0.0: {}\n  node@runtime:22.0.0: {}\nsnapshots:\n  library@1.0.0:\n    dependencies:\n      node: runtime:22.0.0\n  node@runtime:22.0.0: {}\n",
-        )
-        .expect("parse lockfile");
-        let importer_ids = HashSet::from([".".to_string()]);
-        let included = IncludedDependencies {
-            dependencies: true,
-            dev_dependencies: false,
-            optional_dependencies: false,
-        };
-
-        assert_eq!(
-            selected_runtime_dependency(&lockfile, &importer_ids, included),
-            Some("node".to_string())
-        );
-    }
-
-    #[test]
-    fn ignores_optional_runtime_dependencies_when_optionals_are_excluded() {
-        let lockfile: super::Lockfile = serde_saphyr::from_str(
-            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      library: 1.0.0\npackages:\n  library@1.0.0: {}\n  node@runtime:22.0.0: {}\nsnapshots:\n  library@1.0.0:\n    optionalDependencies:\n      node: runtime:22.0.0\n  node@runtime:22.0.0: {}\n",
-        )
-        .expect("parse lockfile");
-        let importer_ids = HashSet::from([".".to_string()]);
-        let included = IncludedDependencies {
-            dependencies: true,
-            dev_dependencies: false,
-            optional_dependencies: false,
-        };
-
-        assert_eq!(selected_runtime_dependency(&lockfile, &importer_ids, included), None);
-    }
 }
 
 impl<'a> MaterializationWorkspace<'a> {
