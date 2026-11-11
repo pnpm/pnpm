@@ -8,6 +8,8 @@
 pub(super) use directory::{ScimState, is_deprovisioned, reload_directory};
 
 mod directory;
+mod subjects;
+pub(super) use subjects::{resolve_subject, validate_oidc};
 mod discovery;
 mod resources;
 #[cfg(test)]

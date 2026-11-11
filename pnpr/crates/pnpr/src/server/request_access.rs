@@ -1,6 +1,6 @@
 use super::{
-    AppState, Config, HeaderMap, Identity, Next, RegistryError, Request, Response, State, Upstream,
-    authentication, header, identify,
+    AppState, AuthedCaller, Config, HeaderMap, Identity, Next, RegistryError, Request, Response,
+    Upstream, header,
 };
 use axum::response::IntoResponse;
 
@@ -136,60 +136,38 @@ pub(super) fn require_admin(
     }
 }
 
-pub(super) async fn caller_user_id(
-    state: &AppState,
-    headers: &HeaderMap,
-) -> Result<Option<String>, RegistryError> {
-    let authorization = single_authorization_header(headers)?;
-    let username = match authorization.and_then(authentication::bearer_credentials) {
-        Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => Some(user.user_id),
-        _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,
-    };
-    if let Some(username) = &username
-        && super::scim::is_deprovisioned(state, username)?
-    {
-        return Err(RegistryError::Unauthenticated {
-            resource: "a deprovisioned account".to_string(),
-        });
-    }
-    Ok(username)
-}
-
 pub(super) async fn require_resolver_caller(
-    State(state): State<AppState>,
+    caller: AuthedCaller,
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "dependency resolution").await
+    require_protocol_caller(caller, request, next, "dependency resolution").await
 }
 
 pub(super) async fn require_artifact_caller(
-    State(state): State<AppState>,
+    caller: AuthedCaller,
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "shared artifacts").await
+    require_protocol_caller(caller, request, next, "shared artifacts").await
 }
 
 pub(super) async fn require_pipeline_caller(
-    State(state): State<AppState>,
+    caller: AuthedCaller,
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "pipeline runs").await
+    require_protocol_caller(caller, request, next, "pipeline runs").await
 }
 
 pub(super) async fn require_protocol_caller(
-    state: &AppState,
+    AuthedCaller(identity): AuthedCaller,
     request: Request,
     next: Next,
     resource: &str,
 ) -> Response {
-    match caller_user_id(state, request.headers()).await {
-        Ok(Some(_username)) => next.run(request).await,
-        Ok(None) => {
-            RegistryError::Unauthenticated { resource: resource.to_string() }.into_response()
-        }
+    match require_caller(&identity, resource) {
+        Ok(_) => next.run(request).await,
         Err(error) => error.into_response(),
     }
 }

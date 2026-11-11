@@ -156,6 +156,7 @@ impl ProxyState {
 
 impl IdentityServices {
     fn new(config: &Config, auth: AuthState) -> pnpr_error::Result<Self> {
+        super::scim::validate_oidc(config)?;
         super::oidc::validate_workloads(config)?;
         super::oidc_groups::validate_group_grants(config)?;
         let oidc =

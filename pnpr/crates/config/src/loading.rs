@@ -218,19 +218,21 @@ impl Config {
             uplinks: file.uplinks.as_ref(),
             upstreams: file.upstreams.as_ref(),
         })?;
+        let registry_declared = !file.registries.is_empty();
+        let resolved = resolve_file_registries(
+            file.registries,
+            file.default_registry,
+            registry_declared && !overrides.disable_registry,
+        )?;
+        let routing = build_routing_config(resolved, file.routes)?;
         let features = build_features(
-            !file.registries.is_empty(),
+            registry_declared,
             file.resolver,
             file.artifacts,
             file.pipeline,
             overrides,
+            &routing.hosted,
         )?;
-        let resolved = resolve_file_registries(
-            file.registries,
-            file.default_registry,
-            features.registry.enabled,
-        )?;
-        let routing = build_routing_config(resolved, file.routes)?;
         let secrets = resolve_secrets(file.secret.as_deref(), file.secrets.as_ref())?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),

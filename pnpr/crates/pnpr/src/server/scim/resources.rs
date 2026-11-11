@@ -48,18 +48,18 @@ pub(super) fn parse_user(body: &Value) -> Result<(String, ScimUser), RegistryErr
         .get("active")
         .map(parse_active)
         .unwrap_or(Ok(true))?;
-    let attributes = object
+    let mut attributes = object
         .iter()
         .filter(|(key, _)| !MANAGED_ATTRIBUTES.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
+    normalize_external_id(&mut attributes)?;
     Ok((username.to_string(), ScimUser { username: username.to_string(), active, attributes }))
 }
 
 /// Apply a `PatchOp` body to `user`. `active` and top-level or `name.*`
 /// attributes change. Operations on a filtered path such as
-/// `emails[type eq "work"].value` are accepted and ignored, because pnpr
-/// reads no attribute but `active`.
+/// `emails[type eq "work"].value` are accepted and ignored.
 pub(super) fn apply_patch(user: &mut ScimUser, body: &Value) -> Result<(), RegistryError> {
     let schemas = body.get("schemas").and_then(Value::as_array);
     if !schemas.is_some_and(|schemas| {
@@ -76,7 +76,7 @@ pub(super) fn apply_patch(user: &mut ScimUser, body: &Value) -> Result<(), Regis
     for operation in operations {
         apply_operation(user, operation)?;
     }
-    Ok(())
+    normalize_external_id(&mut user.attributes)
 }
 
 fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), RegistryError> {
@@ -134,6 +134,7 @@ fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), Reg
             reason: format!("{path} cannot be changed through PATCH"),
         });
     }
+    let path = if path.eq_ignore_ascii_case("externalId") { "externalId" } else { path };
     let keys = attribute_keys(path);
     if keys.len() > MAX_PATH_DEPTH {
         return Err(RegistryError::BadRequest {
@@ -217,4 +218,23 @@ pub(super) fn parse_filter(filter: &str) -> Result<String, RegistryError> {
 
 fn invalid(reason: &str) -> RegistryError {
     RegistryError::BadRequest { reason: reason.to_string() }
+}
+
+fn normalize_external_id(attributes: &mut Map<String, Value>) -> Result<(), RegistryError> {
+    let keys: Vec<_> = attributes
+        .keys()
+        .filter(|key| key.eq_ignore_ascii_case("externalId"))
+        .cloned()
+        .collect();
+    if keys.len() > 1 {
+        return Err(invalid("externalId must appear only once"));
+    }
+    if let Some(key) = keys.first() {
+        let value = attributes.remove(key).expect("attribute exists");
+        if value.as_str().is_none_or(str::is_empty) {
+            return Err(invalid("externalId must be a nonempty string"));
+        }
+        attributes.insert("externalId".to_string(), value);
+    }
+    Ok(())
 }

@@ -2,8 +2,8 @@
 //! each artifact owner owns, and how much the artifact store keeps.
 
 use super::{
-    AccessList, AccessSpec, ArtifactQuotaFile, IndexMap, RegistryError, StorageAccessFile,
-    TeamDirectory, validate_registry_name,
+    AccessList, AccessSpec, ArtifactQuotaFile, HostedConfig, IndexMap, RegistryError,
+    StorageAccessFile, TeamDirectory, validate_registry_name,
 };
 
 /// Toggle for the shared-artifact surface. Off by default while the
@@ -46,6 +46,7 @@ pub struct StorageAccess {
 
 pub(super) fn parse_storage_access(
     policies: IndexMap<String, StorageAccessFile>,
+    hosted: &IndexMap<String, HostedConfig>,
 ) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
     policies
         .into_iter()
@@ -53,7 +54,7 @@ pub(super) fn parse_storage_access(
             validate_registry_name(&name)?;
             let parse = |field: &str, spec: &AccessSpec| {
                 let list = spec
-                    .to_access_list(&TeamDirectory::default())
+                    .to_access_list_resolving(|reference| artifact_team(reference, hosted))
                     .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("artifact owner {name:?}: {reason}"),
                     })?;
@@ -96,4 +97,17 @@ pub(super) fn parse_artifact_quota(
         });
     }
     Ok(quota)
+}
+
+fn artifact_team(
+    reference: &str,
+    hosted: &IndexMap<String, HostedConfig>,
+) -> Result<(String, TeamDirectory), String> {
+    let (registry, team) = reference
+        .rsplit_once(':')
+        .ok_or_else(|| "artifact teams require team:<registry>:<teamId>".to_string())?;
+    let config = hosted
+        .get(registry)
+        .ok_or_else(|| format!("{registry:?} is not a hosted registry"))?;
+    Ok((team.to_string(), config.teams.clone()))
 }

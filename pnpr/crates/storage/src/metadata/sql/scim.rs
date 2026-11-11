@@ -22,6 +22,7 @@ pub struct StoredScimUser {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScimStatus {
+    pub external_id: Option<String>,
     pub user_id: String,
     pub active: bool,
     pub deprovisions: u64,
@@ -84,7 +85,7 @@ impl Storage {
         self.database.read(String::new(), Freshness::Current, move |connection, _| {
             connection
                 .query(
-                    "SELECT user_id, active, removed, deprovisions, generation
+                    "SELECT user_id, active, removed, deprovisions, generation, attributes
                          FROM scim_users WHERE generation > ?1 ORDER BY generation",
                     params![since],
                 )?
@@ -207,6 +208,7 @@ fn remove_user(connection: &dyn Connection, user_id: &str) -> Result<ScimUserRem
     let deprovisions = match existing.lifecycle {
         ScimLifecycle::Removed => {
             return Ok(ScimUserRemoval::Removed(ScimStatus {
+                external_id: None,
                 user_id: user_id.to_string(),
                 active: false,
                 deprovisions: existing.deprovisions,
@@ -225,6 +227,7 @@ fn remove_user(connection: &dyn Connection, user_id: &str) -> Result<ScimUserRem
     )?;
     transaction.commit()?;
     Ok(ScimUserRemoval::Removed(ScimStatus {
+        external_id: None,
         user_id: user_id.to_string(),
         active: false,
         deprovisions,
@@ -288,7 +291,13 @@ fn status_from_row(mut row: Row) -> Result<ScimStatus> {
         ScimLifecycle::Active => true,
         ScimLifecycle::Inactive | ScimLifecycle::Removed => false,
     };
-    Ok(ScimStatus { user_id, active, deprovisions, generation })
+    let attributes_raw: String = row.get(5)?;
+    let attributes: Map<String, Value> = serde_json::from_str(&attributes_raw)?;
+    let external_id = attributes
+        .get("externalId")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    Ok(ScimStatus { external_id, user_id, active, deprovisions, generation })
 }
 
 fn decode_status_columns(row: &mut Row) -> Result<DecodedStatusRow> {

@@ -18,16 +18,33 @@ pub(super) fn verify_workload(
     validate_claims(config, &token_payload(raw)?)
 }
 
-/// The one configured user the token's claims bind to.
-/// The user of the one login binding the ID token satisfies, with the team
-/// grants its groups claim earns.
-pub(super) fn bound_user(config: &OidcProvider, token: &CoreIdToken) -> Result<SessionUser> {
+/// Bind verified login claims to an account and its session team grants.
+pub(super) fn bound_user(
+    config: &OidcProvider,
+    token: &CoreIdToken,
+    resolve_subject: impl FnOnce(&str) -> Result<String>,
+) -> Result<SessionUser> {
     let payload = token_payload(&token.to_string())?;
     validate_claims(config, &payload)?;
     let login = config.login.as_ref().ok_or_else(rejected)?;
-    let binding = unique_binding(login.users.iter(), &payload)?;
+    let user_id = if login.scim {
+        let subject = payload
+            .get("sub")
+            .and_then(Value::as_str)
+            .filter(|subject| !subject.is_empty())
+            .ok_or_else(rejected)?;
+        if config.workloads
+            .iter()
+            .any(|workload| workload.identity.subject == subject)
+        {
+            return Err(rejected());
+        }
+        resolve_subject(subject)?
+    } else {
+        unique_binding(login.users.iter(), &payload)?.user_id.clone()
+    };
     let teams = super::groups::granted_teams(login, &payload);
-    Ok(SessionUser { user_id: binding.user_id.clone(), teams })
+    Ok(SessionUser { user_id, teams })
 }
 
 pub(super) fn token_verifier(

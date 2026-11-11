@@ -184,7 +184,7 @@ use axum::{
 };
 use chrono::Utc;
 use indexmap::IndexMap;
-use pnpr_auth::{AuthState, UpsertOutcome, identify};
+use pnpr_auth::{AuthState, UpsertOutcome};
 use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;

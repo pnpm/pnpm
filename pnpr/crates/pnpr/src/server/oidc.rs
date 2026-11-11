@@ -100,6 +100,7 @@ async fn callback(
             &query.state,
             secret,
             query.code.as_deref().unwrap_or(""),
+            |subject| super::scim::resolve_subject(&state, subject),
         )
         .await
         {

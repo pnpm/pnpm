@@ -17,6 +17,7 @@
         { "type": "doc", "id": "auth-backends", "label": "Shared database" },
         "identity",
         "oidc",
+        "access",
         "scim"
       ]
     },

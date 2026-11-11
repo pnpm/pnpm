@@ -38,6 +38,7 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
     let second = storage(&db);
     let mut attrs = Map::new();
     attrs.insert("displayName".to_string(), json!("Alice"));
+    attrs.insert("externalId".to_string(), json!("subject-1"));
     let created = first
         .insert_scim_user(NewScimUser {
             user_id: "u-alice".to_string(),
@@ -62,6 +63,7 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
 
     let initial_delta = second.read_scim_statuses_since(0).await.unwrap();
     assert_eq!(initial_delta.len(), 1);
+    assert_eq!(initial_delta[0].external_id.as_deref(), Some("subject-1"));
     assert!(
         second
             .read_scim_statuses_since(created.generation)
@@ -106,6 +108,8 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
         panic!("expected removal");
     };
     assert!(!removed.active);
+    let removed_delta = first.read_scim_statuses_since(deactivated.generation).await.unwrap();
+    assert_eq!(removed_delta[0].external_id, None);
     assert!(
         first
             .read_scim_user("u-alice")

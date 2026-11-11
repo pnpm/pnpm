@@ -463,6 +463,7 @@ fn build_features(
     artifacts: Option<ArtifactsFeatureFile>,
     pipeline: Option<PipelineFeatureFile>,
     overrides: FeatureOverrides,
+    hosted: &IndexMap<String, HostedConfig>,
 ) -> Result<Features, RegistryError> {
     let resolver_file = resolver.unwrap_or_default();
     let artifacts_file = artifacts.unwrap_or_default();
@@ -472,7 +473,7 @@ fn build_features(
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            owners: parse_storage_access(artifacts_file.owners)?,
+            owners: parse_storage_access(artifacts_file.owners, hosted)?,
             quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
         pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },

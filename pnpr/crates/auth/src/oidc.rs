@@ -150,6 +150,7 @@ impl OidcState {
         state: &str,
         browser_secret: &str,
         code: &str,
+        resolve_subject: impl FnOnce(&str) -> Result<String>,
     ) -> Result<LoginSession> {
         let login = self.open_login(browser_secret)?;
         self.validate_pending_login(&login, provider_name, state, code)?;
@@ -174,7 +175,7 @@ impl OidcState {
             &Nonce::new(login.nonce),
         )
         .await?;
-        let user = bound_user(&provider.config, token)?;
+        let user = bound_user(&provider.config, token, resolve_subject)?;
         let now = Utc::now().timestamp();
         if login.expires <= now {
             return Err(rejected());
