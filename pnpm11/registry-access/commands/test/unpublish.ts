@@ -181,7 +181,7 @@ describe('unpublish: OTP challenges', () => {
   test('a 401 carrying authUrl/doneUrl is an OTP challenge, not a missing login', async () => {
     const restoreTty = overrideTty(false)
     try {
-      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(401, WEB_AUTH_CHALLENGE)
 
       await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true } }, ['test-pkg']))
@@ -194,7 +194,7 @@ describe('unpublish: OTP challenges', () => {
   test('the classic "one-time pass" wording on the packument PUT is an OTP challenge too', async () => {
     const restoreTty = overrideTty(false)
     try {
-      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/test-pkg/-rev/3-abc' })
         .reply(401, { error: 'You must provide a one-time pass. Upgrade your client to npm@latest in order to use 2FA.' })
 
@@ -206,7 +206,7 @@ describe('unpublish: OTP challenges', () => {
   })
 
   test('a plain 401 is reported as a missing login, with its body stripped of terminal control characters', async () => {
-    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(401, 'unauthorized \u001b[2J spoofed\r line')
 
     await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true } }, ['test-pkg']))
@@ -215,7 +215,7 @@ describe('unpublish: OTP challenges', () => {
 
   test('--otp sends the code up front under the legacy auth type', async () => {
     let deleteHeaders: Headers = {}
-    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(({ headers }) => {
       deleteHeaders = headers as Headers
       return { statusCode: 200, data: {} }
@@ -237,7 +237,7 @@ describe('unpublish: OTP challenges', () => {
         '0.0.2': { name: 'test-pkg', version: '0.0.2', dist: { tarball: `${registryUrl}test-pkg/-/test-pkg-0.0.2.tgz` } },
       },
     }
-    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/npm/test-pkg' }).reply(200, packument).times(2)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/npm/test-pkg?write=true' }).reply(200, packument).times(2)
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/npm/test-pkg/-rev/3-abc' }).reply(200, {})
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/npm/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc' }).reply(200, {})
 
@@ -262,7 +262,7 @@ describe('unpublish: OTP challenges', () => {
     const putCommandHeaders: Array<string | string[] | undefined> = []
     let tarballDeleteHeaders: Headers = {}
     try {
-      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT).times(2)
+      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT).times(2)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/test-pkg/-rev/3-abc' }).reply(({ headers }) => {
         const otp = (headers as Headers)['npm-otp']
         putOtpHeaders.push(otp)
