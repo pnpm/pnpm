@@ -26,7 +26,9 @@ use crate::retry::{
 /// (`std::os::windows::fs::symlink_dir`) and falls back to a junction
 /// on a privilege error (symbolic links may require elevated
 /// privileges; junctions don't). The first successful branch is cached
-/// process-wide so subsequent calls skip the privilege probe.
+/// process-wide so subsequent calls skip the privilege probe. A link on a
+/// network share is always a junction, as in pnpm 11, because Windows
+/// doesn't follow a symlink on a share that points into a share by default.
 pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
