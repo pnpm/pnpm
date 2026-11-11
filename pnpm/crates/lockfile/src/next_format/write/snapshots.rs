@@ -177,8 +177,7 @@ impl<'a> Transitive<'a> {
         let segments = provider_segments(&key.suffix);
         for (alias, name) in std::mem::take(&mut self.unnamed) {
             let found = finder
-                .provider_below(key, name)
-                .filter(|reference| match segments.as_deref() {
+                .provider_below(key, name, |reference| match segments.as_deref() {
                     Some(segments) => names_provider(segments, &alias, reference),
                     None => binds_reference(providers, &alias, reference),
                 })

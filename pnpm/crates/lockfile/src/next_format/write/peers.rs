@@ -80,6 +80,44 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         &mut self,
         key: &'a PackageKey,
         name: &'a str,
+        matches: impl Fn(&SnapshotDepRef) -> bool,
+    ) -> Option<&'a SnapshotDepRef> {
+        self.first_provider_below(key, name)
+            .filter(|reference| matches(reference))
+            .or_else(|| self.matching_provider_below(key, name, matches))
+    }
+
+    fn matching_provider_below(
+        &self,
+        key: &'a PackageKey,
+        name: &'a str,
+        matches: impl Fn(&SnapshotDepRef) -> bool,
+    ) -> Option<&'a SnapshotDepRef> {
+        let mut pending = vec![key];
+        let mut visited = HashSet::new();
+        while let Some(key) = pending.pop() {
+            if !visited.insert(key) {
+                continue;
+            }
+            let entry = &self.snapshots[key];
+            if let Some((_, reference)) = children(entry)
+                .find(|(alias, reference)| {
+                    self.own_peers[key].contains(alias)
+                        && alias.to_string() == name
+                        && matches(reference)
+                })
+            {
+                return Some(reference);
+            }
+            pending.extend(self.children_needing_peer(key, name));
+        }
+        None
+    }
+
+    fn first_provider_below(
+        &mut self,
+        key: &'a PackageKey,
+        name: &'a str,
     ) -> Option<&'a SnapshotDepRef> {
         if let Some(found) = self.found.get(&(key, name)) {
             return *found;
@@ -99,15 +137,22 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
             return Some(reference);
         }
         #[expect(clippy::needless_collect, reason = "the search borrows `self` mutably")]
-        let candidates: Vec<&'a PackageKey> = children(entry)
-            .filter_map(|(alias, reference)| {
+        let candidates: Vec<_> = self.children_needing_peer(key, name).collect();
+        candidates
+            .into_iter()
+            .find_map(|child_key| self.first_provider_below(child_key, name))
+    }
+
+    fn children_needing_peer<'finder>(
+        &'finder self,
+        key: &PackageKey,
+        name: &'finder str,
+    ) -> impl Iterator<Item = &'a PackageKey> + 'finder {
+        children(&self.snapshots[key])
+            .filter_map(move |(alias, reference)| {
                 let (child_key, _) = self.snapshots.get_key_value(&reference.resolve(alias)?)?;
                 self.needs_from_outside(child_key, name).then_some(child_key)
             })
-            .collect();
-        candidates
-            .into_iter()
-            .find_map(|child_key| self.provider_below(child_key, name))
     }
 
     fn needs_from_outside(&self, key: &PackageKey, name: &str) -> bool {
@@ -229,10 +274,8 @@ pub(super) fn binds_reference(
     alias: &PkgName,
     reference: &SnapshotDepRef,
 ) -> bool {
-    reference.as_link_target().is_some()
-        || providers.is_none_or(|providers| {
-            reference
-                .resolve(alias)
-                .is_some_and(|target| providers.binds(&target))
-        })
+    providers.is_none_or(|providers| match reference.resolve(alias) {
+        Some(target) => providers.binds(&target),
+        None => providers.is_hashed() && reference.as_link_target().is_some(),
+    })
 }
