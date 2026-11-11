@@ -739,6 +739,7 @@ resolver-only server that exposes no registry surface.
 | `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
+| `POST` | `/-/npm/v1/tokens` | Creates a bearer token for the authenticated caller after verifying `password`. Accepts `readonly` (`true` or `false`) or `packages_and_scopes_permission` (`"read-only"` or `"read-write"`), `cidr_whitelist`, `name`, `expires` (positive integer days or an RFC 3339 timestamp), and `expires_in` (positive integer seconds). Unsupported package, scope, organization, and stage-only restrictions return `400`. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |
 | `DELETE` | `/-/npm/v1/tokens/token/{key}` | Revokes one of the caller's tokens by listing-side token key. |
 | `DELETE` | `/-/user/token/{token}` | npm logout endpoint. Revokes the raw bearer token in the path when it belongs to the authenticated caller. |

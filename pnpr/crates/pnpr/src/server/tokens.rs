@@ -1,3 +1,5 @@
+mod payload;
+
 use std::net::IpAddr;
 
 use axum::{
@@ -12,22 +14,8 @@ use serde_json::{Value, json};
 
 use super::{
     AppState, AuthedCaller, StatusCode, TargetRegistry, iso_from_unix_millis, json_response,
-    not_found, parse_json_body, private_no_cache, require_caller,
+    not_found, private_no_cache, require_caller,
 };
-
-#[derive(Default, Deserialize)]
-struct CreateTokenPayload {
-    password: Option<String>,
-    #[serde(default)]
-    readonly: bool,
-    #[serde(default)]
-    cidr_whitelist: Vec<String>,
-    name: Option<String>,
-    expires: Option<Value>,
-    expires_in: Option<u64>,
-    scopes: Option<Vec<String>>,
-    kind: Option<String>,
-}
 
 #[derive(Deserialize)]
 pub(super) struct TokenPath {
@@ -89,135 +77,24 @@ pub(super) async fn create_token(
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, &username) {
         return super::user_accounts::login_throttled_response(state, retry_after);
     }
-    let payload = match parse_create_token_payload(body) {
-        Ok(p) => p,
+    let request = match payload::parse_and_validate_token_request(body, token_store_unix_seconds())
+    {
+        Ok(req) => req,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = validate_token_payload(&payload) {
-        return err.into_response();
-    }
-    let now = token_store_unix_seconds();
-    let expires_at = match parse_token_expiry(&payload, now) {
-        Ok(exp) => exp,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) =
-        verify_caller_password(state, client_ip, &username, payload.password.as_deref()).await
+    if let Err(err) = verify_caller_password(state, client_ip, &username, request.password()).await
     {
         return err.into_response();
     }
-    let new_token = pnpr_auth::NewToken::new()
-        .with_readonly(payload.readonly)
-        .with_cidr_whitelist(payload.cidr_whitelist)
-        .with_name(payload.name)
-        .with_expires_at(expires_at)
-        .with_scopes(payload.scopes)
-        .with_kind(payload.kind);
-    match state.inner.identity.auth.tokens.issue_token(
-        identity.user_id().expect("authenticated caller"),
-        new_token,
-    )
-    .await
-    {
+    let new_token = match request.into_new_token(token_store_unix_seconds()) {
+        Ok(token) => token,
+        Err(err) => return err.into_response(),
+    };
+    let user_id = identity.user_id().expect("authenticated caller");
+    match state.inner.identity.auth.tokens.issue_token(user_id, new_token).await {
         Ok((raw, record)) => json_response(StatusCode::OK, &create_token_response(&raw, &record)),
         Err(err) => err.into_response(),
     }
-}
-
-fn validate_token_payload(payload: &CreateTokenPayload) -> Result<(), RegistryError> {
-    validate_cidr_whitelist(&payload.cidr_whitelist)?;
-    if let Some(kind) = payload.kind.as_deref()
-        && kind.chars().count() > 64
-    {
-        return Err(RegistryError::BadRequest {
-            reason: "kind must be at most 64 characters".to_string(),
-        });
-    }
-    Ok(())
-}
-
-fn parse_create_token_payload(body: &[u8]) -> Result<CreateTokenPayload, RegistryError> {
-    if body.is_empty() {
-        return Ok(CreateTokenPayload::default());
-    }
-    parse_json_body(body)
-}
-
-fn validate_cidr_whitelist(whitelist: &[String]) -> Result<(), RegistryError> {
-    for entry in whitelist {
-        if pnpr_config::IpNetwork::parse(entry.trim()).is_err() {
-            return Err(RegistryError::BadRequest {
-                reason: format!("invalid CIDR whitelist entry: {entry}"),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn parse_token_expiry(
-    payload: &CreateTokenPayload,
-    now: u64,
-) -> Result<Option<u64>, RegistryError> {
-    if let Some(sec) = payload.expires_in {
-        if sec == 0 {
-            return Err(RegistryError::BadRequest {
-                reason: "expires_in must be greater than 0".to_string(),
-            });
-        }
-        return Ok(Some(now.saturating_add(sec)));
-    }
-    let Some(val) = &payload.expires else {
-        return Ok(None);
-    };
-    parse_expiry_value(val, now)
-}
-
-fn parse_expiry_value(val: &Value, now: u64) -> Result<Option<u64>, RegistryError> {
-    match val {
-        Value::Number(n) => {
-            let n = n
-                .as_u64()
-                .ok_or_else(|| RegistryError::BadRequest {
-                    reason: "invalid expiry timestamp".to_string(),
-                })?;
-            resolve_future_expiry(n, now)
-        }
-        Value::String(s) => parse_expiry_string(s, now),
-        Value::Null => Ok(None),
-        _ => Err(RegistryError::BadRequest { reason: "invalid expiry value".to_string() }),
-    }
-}
-
-fn parse_expiry_string(raw: &str, now: u64) -> Result<Option<u64>, RegistryError> {
-    if let Ok(n) = raw.parse::<u64>() {
-        resolve_future_expiry(n, now)
-    } else if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(raw) {
-        let exp = dt.timestamp().max(0) as u64;
-        if exp <= now {
-            return Err(RegistryError::BadRequest {
-                reason: "expiry must be in the future".to_string(),
-            });
-        }
-        Ok(Some(exp))
-    } else {
-        Err(RegistryError::BadRequest { reason: format!("unsupported expiry format: {raw}") })
-    }
-}
-
-fn resolve_future_expiry(raw: u64, now: u64) -> Result<Option<u64>, RegistryError> {
-    let exp = if raw < 100_000_000 {
-        now.saturating_add(raw)
-    } else if raw > 1_000_000_000_000 {
-        raw / 1000
-    } else {
-        raw
-    };
-    if exp <= now {
-        return Err(RegistryError::BadRequest {
-            reason: "expiry must be in the future".to_string(),
-        });
-    }
-    Ok(Some(exp))
 }
 
 async fn verify_caller_password(
