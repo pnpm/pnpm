@@ -10,6 +10,11 @@ struct HookExecutionChanges {
     changed_extra_env: Option<HashMap<String, String>>,
 }
 
+struct LockfileDirPathsBeforeHook {
+    lockfile_dir: Option<PathBuf>,
+    node_path_dirs: [PathBuf; 2],
+}
+
 /// `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
 /// `from_value(delta)` ignores them. The hook's values are pulled out
 /// first and assigned directly.
@@ -69,6 +74,15 @@ pub(super) fn apply_hook_delta(
     let delta = filter_hook_delta(config, config_delta(input, current));
     let hook_node_path = changed_extra_env_value(input, current, "NODE_PATH");
     let hook_node_options = changed_extra_env_value(input, current, "NODE_OPTIONS");
+    let lockfile_dir_paths_before_hook = delta
+        .get("lockfileDir")
+        .map(|_| LockfileDirPathsBeforeHook {
+            lockfile_dir: config.lockfile_dir.clone(),
+            node_path_dirs: [
+                config.install_state_dir.join("node_modules"),
+                config.modules_dir.clone(),
+            ],
+        });
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
@@ -92,8 +106,8 @@ pub(super) fn apply_hook_delta(
     config.apply_cli_registries();
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
-    if delta.get("lockfileDir").is_some() {
-        apply_lockfile_dir_change(config, hook_node_path, hook_node_options);
+    if let Some(paths_before_hook) = lockfile_dir_paths_before_hook {
+        apply_lockfile_dir_change(config, paths_before_hook, hook_node_path, hook_node_options);
     }
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;
@@ -106,6 +120,7 @@ pub(super) fn apply_hook_delta(
 
 fn apply_lockfile_dir_change(
     config: &mut Config,
+    paths_before_hook: LockfileDirPathsBeforeHook,
     hook_node_path: Option<Option<String>>,
     hook_node_options: Option<Option<String>>,
 ) {
@@ -113,12 +128,19 @@ fn apply_lockfile_dir_change(
     let lockfile_dir = config.lockfile_dir
         .clone()
         .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
+    if paths_before_hook.lockfile_dir.is_none() {
+        config.lockfile_dir = None;
+    }
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
-    if config.lockfile_dir.is_none() {
+    if paths_before_hook.lockfile_dir.is_some() && config.lockfile_dir.is_none() {
         let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
         config.anchor_lockfile_paths(&default_lockfile_dir);
     }
-    config.refresh_node_path_after_lockfile_dir_change::<Host>(hook_node_path, hook_node_options);
+    config.refresh_node_path_after_lockfile_dir_change::<Host>(
+        [&paths_before_hook.node_path_dirs[0], &paths_before_hook.node_path_dirs[1]],
+        hook_node_path,
+        hook_node_options,
+    );
 }
 
 fn changed_extra_env_value(input: &Value, current: &Value, key: &str) -> Option<Option<String>> {

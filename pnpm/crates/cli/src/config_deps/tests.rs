@@ -73,6 +73,32 @@ async fn update_config_lockfile_dir_restores_default_workspace_paths() {
 }
 
 #[tokio::test]
+async fn update_config_default_lockfile_dir_preserves_project_virtual_store_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir + '/.'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    let virtual_store_dir = project.join("cache");
+    config.explicit_settings.insert("virtualStoreDir".to_string(), serde_json::json!("cache"));
+    config.set_virtual_store_dir(virtual_store_dir.clone());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &project).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, Some(virtual_store_dir.clone()));
+    assert_eq!(config.install_state_dir, virtual_store_dir);
+}
+
+#[tokio::test]
 async fn update_config_lockfile_dir_uses_the_invoking_project_as_its_default() {
     let root = tempfile::tempdir().expect("workspace tempdir");
     let workspace = root.path().join("workspace");
@@ -139,6 +165,57 @@ async fn update_config_lockfile_dir_refreshes_derived_node_path() {
                 .to_str()
                 .unwrap()
         ),
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let old_paths =
+        [lockfile_dir.join("node_modules/.pnpm/node_modules"), lockfile_dir.join("node_modules")];
+    config.extra_env.insert(
+        "NODE_PATH".to_string(),
+        format!(
+            "/custom{delimiter}{}",
+            old_paths
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(&delimiter.to_string())
+        ),
+    );
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is configured");
+    assert!(node_path.contains("/custom"));
+    assert!(!node_path.contains(&lockfile_dir.display().to_string()));
+    assert!(
+        node_path.contains(
+            &workspace
+                .join("node_modules/.pnpm/node_modules")
+                .display()
+                .to_string()
+        )
     );
 }
 

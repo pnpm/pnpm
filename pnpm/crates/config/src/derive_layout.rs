@@ -33,11 +33,15 @@ impl Config {
 
     pub fn refresh_node_path_after_lockfile_dir_change<Sys>(
         &mut self,
+        previous_node_path_dirs: [&Path; 2],
         hook_node_path: Option<Option<String>>,
         hook_node_options: Option<Option<String>>,
     ) where
         Sys: EnvVar,
     {
+        if hook_node_path.is_none() {
+            self.remove_previous_global_virtual_store_node_path(previous_node_path_dirs);
+        }
         if hook_node_path.is_none()
             && cfg!(any(unix, target_os = "wasi"))
             && self.prefer_symlinked_executables == Some(true)
@@ -56,6 +60,32 @@ impl Config {
         if let Some(node_options) = hook_node_options {
             set_extra_env_value(&mut self.extra_env, "NODE_OPTIONS", node_options);
         }
+    }
+
+    fn remove_previous_global_virtual_store_node_path(&mut self, previous_dirs: [&Path; 2]) {
+        if !(self.enable_global_virtual_store
+            && self.extend_node_path
+            && self.node_linker == NodeLinker::Isolated)
+        {
+            return;
+        }
+        let Some(node_path) = self.extra_env.get("NODE_PATH") else { return };
+        let delimiter = if cfg!(windows) { ';' } else { ':' };
+        let previous_paths =
+            previous_dirs.map(|dir| pnpm_fs::lexical_normalize(dir).display().to_string());
+        let node_paths = node_path
+            .split(delimiter)
+            .filter(|path| {
+                !previous_paths
+                    .iter()
+                    .any(|previous| previous == path)
+            })
+            .collect::<Vec<_>>();
+        set_extra_env_value(
+            &mut self.extra_env,
+            "NODE_PATH",
+            (!node_paths.is_empty()).then(|| node_paths.join(&delimiter.to_string())),
+        );
     }
 
     /// The directory layout and environment every spawned process sees,
