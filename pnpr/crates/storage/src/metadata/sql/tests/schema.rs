@@ -382,7 +382,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
 
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
-        let steps: &[Step] = &[schema::step_1, step_2_ddl, step_3_rust_data_fix];
+        let steps: &[Step] = &[schema::step_1, schema::step_2, step_2_ddl, step_3_rust_data_fix];
         let refused = schema::prepare_adapter_with_steps(&*adapter, steps)?;
         assert_eq!(refused, None);
         Ok::<_, RegistryError>(())
@@ -391,7 +391,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
     .unwrap()
     .unwrap();
 
-    assert_eq!(marker(&db).await, [1, 2, 3]);
+    assert_eq!(marker(&db).await, [1, 2, 3, 4]);
     assert_migrated_v1_fixture_rows(&db).await;
 }
 
@@ -459,6 +459,7 @@ async fn a_failed_step_is_not_recorded_and_can_be_rerun(db: Db) {
 }
 
 fn step_2_increment_generation(connection: &dyn Connection) -> Result<()> {
+    schema::step_2(connection)?;
     std::thread::sleep(Duration::from_millis(25));
     connection.execute(
         "UPDATE record_generation SET generation = generation + 1 WHERE singleton = 1",

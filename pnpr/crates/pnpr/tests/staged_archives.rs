@@ -383,3 +383,30 @@ async fn a_publish_held_for_approval_carries_its_archive() {
     assert_eq!(refused.status, StatusCode::BAD_REQUEST);
     assert!(refused.text.contains("inline"), "{}", refused.text);
 }
+
+#[tokio::test]
+async fn an_upstream_only_proxy_refuses_archive_staging() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let mut proxy_config = Config::proxy(listen, tmp.path().to_path_buf());
+    proxy_config.http.public_url = "http://example.test".to_string();
+    proxy_config.identity.auth.users.max_users = MaxUsers::Unlimited;
+    proxy_config.routing.hosted.clear();
+    proxy_config.routing.registries = pnpr_registry::Registries::new(
+        std::iter::once((
+            "npmjs".to_string(),
+            pnpr_registry::Registry::Upstream { patterns: Vec::new() },
+        ))
+        .collect(),
+        Some("npmjs".to_string()),
+    );
+    let app = router(proxy_config);
+    let alice = token_of(&app, "alice").await;
+    let archive = npm_tgz("staged", "1.0.0", b"payload");
+    let path = staging_path(&sri_sha512(&archive));
+
+    let put = blob(&app, "PUT", &path, Some(&alice), Some(&archive)).await;
+    assert_eq!(put.status, StatusCode::NOT_FOUND);
+    let head = blob(&app, "HEAD", &path, Some(&alice), None).await;
+    assert_eq!(head.status, StatusCode::NOT_FOUND);
+}

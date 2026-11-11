@@ -54,6 +54,11 @@ impl GcReport {
 pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<GcReport> {
     let registries = selected_registries(config, options)?;
     let storage = Storage::from_config(&config.storage)?;
+    if options.dry_run {
+        storage.check_hosted_layout().await?;
+    } else {
+        storage.ensure_hosted_layout().await?;
+    }
     let mut report = GcReport::default();
     for (namespace, ecosystem) in registries {
         let view = storage.for_hosted(&namespace, ecosystem);
@@ -116,10 +121,8 @@ impl Collection<'_> {
     /// rest to run; the first failure is returned.
     pub(crate) async fn run(&self, options: &GcOptions) -> Result<GcReport> {
         if options.dry_run {
-            self.storage.check_hosted_layout().await?;
             return self.plan(options.min_age).await;
         }
-        self.storage.ensure_hosted_layout().await?;
         let mut tally = Tally::default();
         if self.storage.ecosystem() == Ecosystem::Oci {
             let unmapped = self.unmap_unreachable_images(options.min_age).await;

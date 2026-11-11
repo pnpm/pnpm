@@ -29,7 +29,7 @@ pub(crate) fn retry_delay(attempt: u32) -> Duration {
 }
 
 /// The latest schema version this pnpr creates and reads (`STEPS.len()`).
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// The table recording each applied migration step (`1..=SCHEMA_VERSION`).
 pub const MARKER: &str = "schema_migrations";
@@ -55,7 +55,7 @@ pub const TABLES: &str = include_str!("schema/tables.sql");
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
-pub const STEPS: &[Step] = &[step_1];
+pub const STEPS: &[Step] = &[step_1, step_2];
 
 const _: () = assert!(
     SCHEMA_VERSION > 0 && STEPS.len() == SCHEMA_VERSION.cast_unsigned() as usize,
@@ -71,6 +71,10 @@ pub fn step_1(connection: &dyn Connection) -> Result<()> {
     Ok(())
 }
 
+/// Step 2: the `hosted_store` table binding the database to its store.
+pub fn step_2(connection: &dyn Connection) -> Result<()> {
+    connection.execute_ddl(connection.hosted_store_table())
+}
 fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
     let applied_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -170,7 +174,8 @@ pub fn refused_error(name: &str, stored: &Stored) -> RegistryError {
         | Stored::Unmarked => format!(
             "the database {name} holds {stored}, which is incompatible with this pnpr \
              (expects schema version {SCHEMA_VERSION}). Pre-1.0 databases without {MARKER} \
-             are not migrated; wipe pnpr's tables, and pnpr creates them afresh",
+             are not migrated; wipe pnpr's tables and its hosted store together, and pnpr \
+             creates them afresh",
         ),
     };
     RegistryError::InvalidConfig { reason }
@@ -307,7 +312,7 @@ fn inspect_without_marker(
     if has(LEGACY_AUTH_MARKER) {
         return Ok(Inspection::Refused(Stored::Pre1_0Auth));
     }
-    if table_names(TABLES).iter().any(|table| has(table)) {
+    if has("hosted_store") || table_names(TABLES).iter().any(|table| has(table)) {
         return Ok(Inspection::Refused(Stored::Unmarked));
     }
     Ok(Inspection::Current(0))
@@ -331,7 +336,7 @@ fn inspect_marked(
     if max_version > target {
         return Ok(Inspection::Refused(Stored::FutureVersion(max_version)));
     }
-    if let Some(stored) = incomplete(has) {
+    if let Some(stored) = incomplete(max_version, has) {
         return Ok(Inspection::Refused(stored));
     }
     Ok(Inspection::Current(max_version))
@@ -374,11 +379,14 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 
 /// The tables a database marked with [`MARKER`] lacks, given whether it `has`
 /// each table.
-fn incomplete(has: impl Fn(&str) -> bool) -> Option<Stored> {
-    let missing = table_names(TABLES)
+fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
+    let mut missing = table_names(TABLES)
         .into_iter()
         .filter(|table| !has(table))
         .collect::<Vec<_>>();
+    if max_version >= 2 && !has("hosted_store") {
+        missing.push("hosted_store".to_string());
+    }
     (!missing.is_empty()).then_some(Stored::Incomplete(missing))
 }
 

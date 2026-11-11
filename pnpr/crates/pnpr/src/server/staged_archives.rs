@@ -112,6 +112,9 @@ pub(super) async fn serve_stage_archive(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
+    if state.inner.config.routing.hosted.is_empty() {
+        return private_no_cache(StatusCode::NOT_FOUND.into_response());
+    }
     private_no_cache(
         stage_archive(&state, &caller.0, integrity, &headers, body).await
             .map_or_else(IntoResponse::into_response, |created| {
@@ -127,6 +130,9 @@ pub(super) async fn serve_staged_archive_size(
     caller: AuthedCaller,
     Path(ArchivePath { integrity }): Path<ArchivePath>,
 ) -> Response {
+    if state.inner.config.routing.hosted.is_empty() {
+        return private_no_cache(StatusCode::NOT_FOUND.into_response());
+    }
     let result = async {
         let principal = principal(&caller.0)?;
         let blob_id = archive_blob_id(&integrity)?;

@@ -20,6 +20,11 @@ async fn collect_with(
     (min_age, lease): (Duration, Duration),
     dry_run: bool,
 ) -> Result<(usize, u64), RegistryError> {
+    if dry_run {
+        storage.check_hosted_layout().await?;
+    } else {
+        storage.ensure_hosted_layout().await?;
+    }
     let collection = Collection { storage, manifest_limit: MANIFEST_LIMIT, lease };
     let options = GcOptions { registries: Vec::new(), min_age, dry_run };
     let report = collection.run(&options).await?;
@@ -47,13 +52,16 @@ async fn referenced_blobs(
 
 fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
-    std::fs::create_dir_all(temp.path().join("store")).unwrap();
-    pnpr_storage::layout::write_local_layout_marker(&temp.path().join("store")).unwrap();
+    let store_dir = temp.path().join("store");
+    let db_path = temp.path().join("metadata.sqlite");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    pnpr_storage::layout::write_local_layout_marker(&store_dir).unwrap();
+    std::fs::copy(pnpr_config::default_metadata_path(&store_dir), &db_path).unwrap();
     let storage = Storage::new(
         &HostedStoreConfig::Fs,
-        temp.path().join("store"),
+        store_dir,
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+        &pnpr_config::MetadataBackend::Sqlite(db_path),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
@@ -493,4 +501,74 @@ async fn dry_run_matches_collection_for_shared_unreferenced_blobs() {
         collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(),
         (1, shared_bytes.len() as u64),
     );
+}
+
+#[tokio::test]
+async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intact() {
+    let (temp, storage) = setup();
+    let repository = name("acme/app");
+    let (manifest, layer) = retained_image(&storage, &repository).await;
+    let manifest_archive = archive_path(&temp, &storage, &repository, &manifest).await;
+    let layer_archive = archive_path(&temp, &storage, &repository, &layer).await;
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
+
+    // Point an empty database at the populated store.
+    let empty_db = Storage::new(
+        &HostedStoreConfig::Fs,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("empty.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci);
+    assert!(collect(&empty_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
+    assert!(collect(&empty_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
+
+    // Point a database bound to another store at the populated store.
+    let (other_temp, _other_storage) = setup();
+    let wrong_db = Storage::new(
+        &HostedStoreConfig::Fs,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(other_temp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci);
+    assert!(collect(&wrong_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
+    assert!(collect(&wrong_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
+
+    // A partial database reset that leaves only `hosted_store` is refused before
+    // opening the metadata database, so gc cannot run against missing blob rows.
+    let partial_db_path = temp.path().join("partial.sqlite");
+    std::fs::copy(temp.path().join("metadata.sqlite"), &partial_db_path).unwrap();
+    let partial_conn = rusqlite::Connection::open(&partial_db_path).unwrap();
+    let drop_tables: Vec<String> = partial_conn
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'hosted_store'")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    for table in drop_tables {
+        partial_conn
+            .execute(&format!("DROP TABLE {table}"), [])
+            .unwrap();
+    }
+    drop(partial_conn);
+    assert!(
+        Storage::new(
+            &HostedStoreConfig::Fs,
+            temp.path().join("store"),
+            temp.path().join("cache"),
+            &pnpr_config::MetadataBackend::Sqlite(partial_db_path),
+        )
+        .is_err(),
+    );
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
 }

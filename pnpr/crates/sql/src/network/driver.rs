@@ -358,6 +358,17 @@ macro_rules! driver {
                         Dialect::Mysql => super::mysql_schema::MARKER_TABLE,
                     })
                 }
+
+                fn hosted_store_table(&self) -> &'static str {
+                    match self.dialect {
+                        Dialect::Postgres => {
+                            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL)"
+                        }
+                        Dialect::Mysql => {
+                            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id VARBINARY(512) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs"
+                        }
+                    }
+                }
             }
 
             fn decode_row(row: &$row, start: usize) -> Result<Row> {
