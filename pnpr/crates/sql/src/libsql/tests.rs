@@ -1,6 +1,8 @@
 use super::{
     SyncStart, SyncState,
-    statements::{StepKind, StreamState, classify_sql, script_transition, step_transition},
+    statements::{
+        StepKind, StreamState, TxStatus, classify_sql, script_transition, step_transition,
+    },
 };
 use std::time::Duration;
 
@@ -58,33 +60,41 @@ fn classify_sql_distinguishes_reads_transactions_rollbacks_and_writes() {
 
 #[test]
 fn step_and_script_transitions_track_autocommit_and_staged_writes() {
-    let mut in_tx = false;
-    let state = step_transition(StreamState::Active, &mut in_tx, StepKind::Begin);
-    assert!(in_tx);
+    let mut tx = TxStatus::Autocommit;
+    let state = step_transition(StreamState::Active, &mut tx, StepKind::Begin);
+    assert_eq!(tx, TxStatus::InTransaction);
     assert_eq!(state, StreamState::Active);
-    assert_eq!(step_transition(state, &mut in_tx, StepKind::Commit), StreamState::Active);
-    assert!(!in_tx);
+    assert_eq!(step_transition(state, &mut tx, StepKind::Commit), StreamState::Active);
+    assert_eq!(tx, TxStatus::Autocommit);
 
-    let state = step_transition(StreamState::Active, &mut in_tx, StepKind::Write);
+    let state = step_transition(StreamState::Active, &mut tx, StepKind::Write);
     assert_eq!(state, StreamState::Committed);
 
-    in_tx = true;
-    let staged = step_transition(StreamState::Active, &mut in_tx, StepKind::Write);
+    tx = TxStatus::InTransaction;
+    let staged = step_transition(StreamState::Active, &mut tx, StepKind::Write);
     assert_eq!(staged, StreamState::StagedWrite);
-    assert_eq!(step_transition(staged, &mut in_tx, StepKind::Rollback), StreamState::Active);
-    assert!(!in_tx);
+    assert_eq!(step_transition(staged, &mut tx, StepKind::Write), StreamState::StagedWrite);
+    assert_eq!(step_transition(staged, &mut tx, StepKind::Rollback), StreamState::Active);
+    assert_eq!(tx, TxStatus::Autocommit);
 
-    assert_eq!(script_transition(StreamState::Active, false, false, " ; "), StreamState::Active);
     assert_eq!(
-        script_transition(StreamState::Active, false, true, "BEGIN; UPDATE t SET x = 1;"),
+        script_transition(StreamState::Active, TxStatus::Autocommit, " ; "),
+        StreamState::Active,
+    );
+    assert_eq!(
+        script_transition(StreamState::Active, TxStatus::InTransaction, "UPDATE t SET x = 1;"),
         StreamState::StagedWrite,
     );
     assert_eq!(
-        script_transition(StreamState::Active, false, true, "UPDATE t SET x = 1; BEGIN;"),
-        StreamState::Committed,
+        script_transition(StreamState::StagedWrite, TxStatus::InTransaction, "ROLLBACK;"),
+        StreamState::Active,
     );
     assert_eq!(
-        script_transition(StreamState::StagedWrite, true, false, "UPDATE t SET x = 1; COMMIT;"),
+        script_transition(
+            StreamState::Active,
+            TxStatus::Autocommit,
+            "BEGIN; UPDATE t SET x = 1; COMMIT; BEGIN",
+        ),
         StreamState::Committed,
     );
 }

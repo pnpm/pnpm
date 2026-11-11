@@ -10,6 +10,10 @@ use crate::{
 use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::{Primary, serve_primary};
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::{
+    adapter::{Adapter, WriteTransaction},
+    libsql::LibsqlAdapter,
+};
 use serde_json::Value;
 use std::{
     net::SocketAddr,
@@ -631,11 +635,6 @@ async fn metadata_writes_and_reads_retry_when_the_primary_expires_or_drops_a_str
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
-    use pnpr_sql::{
-        adapter::{Adapter, WriteTransaction},
-        libsql::LibsqlAdapter,
-    };
-
     let server = server().await;
     let instance = server.instance(None, 60);
     publish(&views(&instance), &["1.0.0"]).await;
@@ -646,110 +645,127 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     // A callback that already committed a transaction and then hits a stale
     // stream in a second transaction must surface the error rather than
     // replaying the first committed write.
-    let tx_calls = Arc::new(AtomicUsize::new(0));
-    let tx_calls_run = Arc::clone(&tx_calls);
-    let adapter_run = Arc::clone(&adapter);
-    let primary_run = Arc::clone(&server.primary);
-    let tx_err = tokio::task::spawn_blocking(move || {
-        adapter_run.write(&mut |connection| {
-            tx_calls_run.fetch_add(1, Ordering::SeqCst);
-            let first = WriteTransaction::begin(connection)?;
-            first.execute(
-                "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
-                &[],
-            )?;
-            first.commit()?;
-
-            let second = WriteTransaction::begin(connection)?;
-            second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
-            primary_run.expire_next_stream();
-            second.execute(
-                "UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''",
-                &[],
-            )?;
-            second.commit()
-        })
-    })
-    .await
-    .unwrap()
-    .unwrap_err();
+    let (tx_res, tx_calls) =
+        run_write_case(&adapter, &server.primary, committed_tx_then_expired_tx).await;
+    let tx_err = tx_res.unwrap_err();
     assert!(pnpr_libsql::is_stale_stream(&tx_err), "{tx_err:?}");
-    assert_eq!(tx_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(tx_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 1);
     assert_eq!(instance.catalog_generation("").await.unwrap(), 11);
 
     // An autocommit write flushed in an earlier batch is equally irreversible.
-    let auto_calls = Arc::new(AtomicUsize::new(0));
-    let auto_calls_run = Arc::clone(&auto_calls);
-    let adapter_auto = Arc::clone(&adapter);
-    let primary_auto = Arc::clone(&server.primary);
-    let auto_err = tokio::task::spawn_blocking(move || {
-        adapter_auto.write(&mut |connection| {
-            auto_calls_run.fetch_add(1, Ordering::SeqCst);
-            connection.execute(
-                "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
-                &[],
-            )?;
-            connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
-
-            let second = WriteTransaction::begin(connection)?;
-            second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
-            primary_auto.drop_next_stream();
-            second.execute(
-                "UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''",
-                &[],
-            )?;
-            second.commit()
-        })
-    })
-    .await
-    .unwrap()
-    .unwrap_err();
+    let (auto_res, auto_calls) =
+        run_write_case(&adapter, &server.primary, flushed_autocommit_write_then_expired_tx).await;
+    let auto_err = auto_res.unwrap_err();
     assert!(pnpr_libsql::is_stale_stream(&auto_err), "{auto_err:?}");
-    assert_eq!(auto_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(auto_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 2);
     assert_eq!(instance.catalog_generation("").await.unwrap(), 21);
 
     // An autocommit write held until `WriteTransaction::begin` shares its batch
     // with `BEGIN IMMEDIATE` and still commits before the transaction starts.
-    let batched_calls = Arc::new(AtomicUsize::new(0));
-    let batched_run = Arc::clone(&batched_calls);
-    let adapter_batched = Arc::clone(&adapter);
-    let primary_batched = Arc::clone(&server.primary);
-    let batched_err = tokio::task::spawn_blocking(move || {
-        batched_autocommit_write_then_expired_tx(&adapter_batched, &primary_batched, &batched_run)
-    })
-    .await
-    .unwrap()
-    .unwrap_err();
+    let (batched_res, batched_calls) =
+        run_write_case(&adapter, &server.primary, batched_autocommit_write_then_expired_tx).await;
+    let batched_err = batched_res.unwrap_err();
     assert!(pnpr_libsql::is_stale_stream(&batched_err), "{batched_err:?}");
-    assert_eq!(batched_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(batched_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 3);
     assert_eq!(instance.catalog_generation("").await.unwrap(), 31);
 
+    // A multi-statement `execute_batch` script that commits a write before
+    // opening another transaction is also irreversible.
+    let (script_res, script_calls) =
+        run_write_case(&adapter, &server.primary, script_commit_then_expired_tx).await;
+    let script_err = script_res.unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&script_err), "{script_err:?}");
+    assert_eq!(script_calls, 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 4);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 41);
+
     // A read-only `SELECT` in autocommit mode makes no durable change, so a
     // stale stream in the transaction after it still replays the callback.
-    let read_then_write_calls = Arc::new(AtomicUsize::new(0));
-    let read_then_write_run = Arc::clone(&read_then_write_calls);
-    let primary_retry = Arc::clone(&server.primary);
-    tokio::task::spawn_blocking(move || {
-        read_then_write_with_first_attempt_expired(&adapter, &primary_retry, &read_then_write_run)
+    let (retry_res, retry_calls) =
+        run_write_case(&adapter, &server.primary, read_then_write_with_first_attempt_expired).await;
+    retry_res.unwrap();
+    assert_eq!(retry_calls, 2);
+    assert_eq!(server.primary.stale_stream_rejections(), 5);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 42);
+}
+
+async fn run_write_case(
+    adapter: &Arc<LibsqlAdapter>,
+    primary: &Arc<Primary>,
+    case: fn(&LibsqlAdapter, &Primary, &AtomicUsize) -> pnpr_error::Result<()>,
+) -> (pnpr_error::Result<()>, usize) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_run = Arc::clone(&calls);
+    let adapter = Arc::clone(adapter);
+    let primary = Arc::clone(primary);
+    let result = tokio::task::spawn_blocking(move || case(&adapter, &primary, &calls_run))
+        .await
+        .unwrap();
+    (result, calls.load(Ordering::SeqCst))
+}
+
+fn script_commit_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        connection.execute_batch(
+            "BEGIN; UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''; COMMIT; BEGIN",
+        )?;
+        primary.expire_next_stream();
+        connection.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        connection.commit()
     })
-    .await
-    .unwrap()
-    .unwrap();
-    assert_eq!(read_then_write_calls.load(Ordering::SeqCst), 2);
-    assert_eq!(server.primary.stale_stream_rejections(), 4);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 32);
+}
+
+fn committed_tx_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        let first = WriteTransaction::begin(connection)?;
+        first.execute("UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''", &[])?;
+        first.commit()?;
+        let second = WriteTransaction::begin(connection)?;
+        second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        primary.expire_next_stream();
+        second.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        second.commit()
+    })
+}
+
+fn flushed_autocommit_write_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        connection.execute(
+            "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+            &[],
+        )?;
+        connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        let second = WriteTransaction::begin(connection)?;
+        second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        primary.drop_next_stream();
+        second.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        second.commit()
+    })
 }
 
 fn batched_autocommit_write_then_expired_tx(
-    adapter: &pnpr_sql::libsql::LibsqlAdapter,
-    primary: &pnpr_libsql::testing::Primary,
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
     calls: &AtomicUsize,
 ) -> pnpr_error::Result<()> {
-    use pnpr_sql::adapter::{Adapter, WriteTransaction};
-
     adapter.write(&mut |connection| {
         calls.fetch_add(1, Ordering::SeqCst);
         connection.execute(
@@ -765,12 +781,10 @@ fn batched_autocommit_write_then_expired_tx(
 }
 
 fn read_then_write_with_first_attempt_expired(
-    adapter: &pnpr_sql::libsql::LibsqlAdapter,
-    primary: &pnpr_libsql::testing::Primary,
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
     calls: &AtomicUsize,
 ) -> pnpr_error::Result<()> {
-    use pnpr_sql::adapter::{Adapter, WriteTransaction};
-
     adapter.write(&mut |connection| {
         let attempt = calls.fetch_add(1, Ordering::SeqCst);
         connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;

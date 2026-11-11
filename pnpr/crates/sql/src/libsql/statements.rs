@@ -48,6 +48,18 @@ pub(super) enum StepKind {
     Rollback,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum TxStatus {
+    Autocommit,
+    InTransaction,
+}
+
+impl TxStatus {
+    fn from_conn(conn: &libsql::Connection) -> Self {
+        if conn.is_autocommit() { Self::Autocommit } else { Self::InTransaction }
+    }
+}
+
 pub(super) struct HeldStatement {
     sql: String,
     params: Vec<libsql::Value>,
@@ -104,13 +116,13 @@ impl Statements<'_> {
         result
     }
 
-    fn advance_after_steps(&self, mut in_tx: bool, steps: &[StepKind]) {
+    fn advance_after_steps(&self, mut tx: TxStatus, steps: &[StepKind]) {
         if self.local || self.read {
             return;
         }
         let mut state = self.state.get();
         for &step in steps {
-            state = step_transition(state, &mut in_tx, step);
+            state = step_transition(state, &mut tx, step);
         }
         self.state.set(state);
     }
@@ -128,14 +140,14 @@ impl Statements<'_> {
         if held.is_empty() {
             return Ok(Vec::new());
         }
-        let in_tx = !self.conn.is_autocommit();
+        let tx = TxStatus::from_conn(self.conn);
         let (steps, statements): (Vec<_>, Vec<_>) = held
             .into_iter()
             .map(|item| (item.step, (item.sql, item.params)))
             .unzip();
         let results = self.wait(async {
             let mut batch = self.conn.execute_batch_with_params(statements).await?;
-            self.advance_after_steps(in_tx, &steps);
+            self.advance_after_steps(tx, &steps);
             let mut results = Vec::new();
             while let Some(step) = batch.next_stmt_row() {
                 results.push(match step {
@@ -207,13 +219,11 @@ impl Connection for Statements<'_> {
     /// script again, and its rendering can differ from them.
     fn execute_batch(&self, sql: &str) -> Result<()> {
         self.send()?;
-        let in_tx_before = !self.conn.is_autocommit();
+        let tx = TxStatus::from_conn(self.conn);
         self.wait(async {
             self.conn.execute_batch(sql).await?;
             if !self.local && !self.read {
-                let in_tx_after = !self.conn.is_autocommit();
-                let next = script_transition(self.state.get(), in_tx_before, in_tx_after, sql);
-                self.state.set(next);
+                self.state.set(script_transition(self.state.get(), tx, sql));
             }
             Ok(())
         })
@@ -327,32 +337,33 @@ fn rollback_state(state: StreamState) -> StreamState {
     }
 }
 
-pub(super) fn step_transition(state: StreamState, in_tx: &mut bool, step: StepKind) -> StreamState {
+pub(super) fn step_transition(
+    state: StreamState,
+    tx: &mut TxStatus,
+    step: StepKind,
+) -> StreamState {
     match step {
         StepKind::Read => state,
         StepKind::Begin => {
-            *in_tx = true;
+            *tx = TxStatus::InTransaction;
             state
         }
-        StepKind::Write if *in_tx => stage_write(state),
-        StepKind::Write => StreamState::Committed,
+        StepKind::Write => match *tx {
+            TxStatus::InTransaction => stage_write(state),
+            TxStatus::Autocommit => StreamState::Committed,
+        },
         StepKind::Commit => {
-            *in_tx = false;
+            *tx = TxStatus::Autocommit;
             commit_state(state)
         }
         StepKind::Rollback => {
-            *in_tx = false;
+            *tx = TxStatus::Autocommit;
             rollback_state(state)
         }
     }
 }
 
-pub(super) fn script_transition(
-    state: StreamState,
-    mut in_tx_before: bool,
-    in_tx_after: bool,
-    sql: &str,
-) -> StreamState {
+pub(super) fn script_transition(state: StreamState, mut tx: TxStatus, sql: &str) -> StreamState {
     let body = skip_sql_trivia(sql)
         .trim_end()
         .trim_end_matches(';')
@@ -361,13 +372,9 @@ pub(super) fn script_transition(
         return state;
     }
     if !body.contains(';') {
-        return step_transition(state, &mut in_tx_before, classify_sql(body));
+        return step_transition(state, &mut tx, classify_sql(body));
     }
-    let begins = leading_word(body).eq_ignore_ascii_case("BEGIN");
-    if !in_tx_after || (!in_tx_before && !begins) {
-        return StreamState::Committed;
-    }
-    stage_write(state)
+    StreamState::Committed
 }
 
 pub(super) fn classify_sql(sql: &str) -> StepKind {
@@ -411,9 +418,15 @@ fn skip_sql_trivia(mut sql: &str) -> &str {
     loop {
         sql = sql.trim_start();
         if let Some(rest) = sql.strip_prefix("--") {
-            sql = rest.split_once('\n').map_or("", |(_, tail)| tail);
+            sql = rest
+                .split_once('\n')
+                .map(|(_, tail)| tail)
+                .unwrap_or("");
         } else if let Some(rest) = sql.strip_prefix("/*") {
-            sql = rest.split_once("*/").map_or("", |(_, tail)| tail);
+            sql = rest
+                .split_once("*/")
+                .map(|(_, tail)| tail)
+                .unwrap_or("");
         } else {
             return sql;
         }
