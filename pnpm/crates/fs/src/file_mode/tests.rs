@@ -188,11 +188,11 @@ fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
 /// readable-and-writable store implies.
 #[test]
 fn store_inode_mode_is_linkable_ignores_group_and_other_write() {
-    use super::{store_entry_mode, store_inode_mode_is_linkable};
+    use super::{Umask, store_entry_mode, store_inode_mode_is_linkable};
     for (dir_mode, umask) in [(0o777, 0o000), (0o1777, 0o000), (0o2775, 0o002), (0o2775, 0o022)] {
         for executable in [false, true] {
             let mode = super::inherited_file_mode(dir_mode, executable);
-            let desired = store_entry_mode(executable, umask);
+            let desired = store_entry_mode(executable, Umask::from_mask(umask));
             assert!(
                 store_inode_mode_is_linkable(mode, desired),
                 "a {mode:o} entry from a {dir_mode:o} directory is linkable under umask {umask:o}",
@@ -203,30 +203,30 @@ fn store_inode_mode_is_linkable_ignores_group_and_other_write() {
 
 #[test]
 fn store_inode_mode_is_linkable_rejects_other_differences() {
-    use super::{store_entry_mode, store_inode_mode_is_linkable};
-    let plain_077 = store_entry_mode(false, 0o077);
-    let exec_077 = store_entry_mode(true, 0o077);
+    use super::{Umask, store_entry_mode, store_inode_mode_is_linkable};
+    let plain_077 = store_entry_mode(false, Umask::from_mask(0o077));
+    let exec_077 = store_entry_mode(true, Umask::from_mask(0o077));
     assert!(!store_inode_mode_is_linkable(0o644, plain_077), "extra read bits");
     assert!(!store_inode_mode_is_linkable(0o755, exec_077), "extra read and execute bits");
     assert!(!store_inode_mode_is_linkable(0o646, plain_077), "extra other-write");
     assert!(
-        !store_inode_mode_is_linkable(0o666, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(0o666, store_entry_mode(false, Umask::from_mask(0o022))),
         "extra other-write",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o600, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(0o600, store_entry_mode(false, Umask::from_mask(0o022))),
         "missing read bits",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o644, store_entry_mode(true, 0o022)),
+        !store_inode_mode_is_linkable(0o644, store_entry_mode(true, Umask::from_mask(0o022))),
         "missing execute bits",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o755, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(0o755, store_entry_mode(false, Umask::from_mask(0o022))),
         "extra execute bits",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o444, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(0o444, store_entry_mode(false, Umask::from_mask(0o022))),
         "missing owner write",
     );
 }

@@ -35,6 +35,7 @@ pub use machine::native_architecture;
 pub use open_file_limit::{raise_open_file_limit, soft_open_file_limit};
 #[cfg(windows)]
 pub use process_list::{has_children, runs_image};
+pub use umask::Umask;
 #[cfg(unix)]
 pub use umask::current_umask;
 
@@ -59,5 +60,4 @@ mod machine;
 mod open_file_limit;
 #[cfg(windows)]
 mod process_list;
-#[cfg(unix)]
 mod umask;

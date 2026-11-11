@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use super::Umask;
 use super::{current_umask, read_umask_by_writing_it};
 #[cfg(target_os = "linux")]
 use text_block_macros::text_block_fnl;
@@ -35,7 +37,7 @@ fn an_octal_umask_line_parses() {
         "Umask:\t0022"
         "State:\tR (running)"
     };
-    assert_eq!(super::parse_published_umask(status), Some(0o022));
+    assert_eq!(super::parse_published_umask(status), Some(Umask::from_mask(0o022)));
 }
 
 #[cfg(target_os = "linux")]

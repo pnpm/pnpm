@@ -3,6 +3,7 @@ pub use directory::grant_inherited_dir_mode;
 pub use directory::{
     create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
 };
+pub use pnpm_ffi_process::Umask;
 
 mod directory;
 #[cfg(unix)]
@@ -41,8 +42,8 @@ pub const BASE_FILE_MODE: u32 = 0b110_110_110;
 /// mode is what a store write would have produced, whatever umask
 /// populated the store (pnpm/pnpm#3807).
 #[must_use]
-pub fn store_entry_mode(executable: bool, umask: u32) -> u32 {
-    (if executable { EXEC_MODE } else { BASE_FILE_MODE }) & !umask & 0o777
+pub fn store_entry_mode(executable: bool, umask: Umask) -> u32 {
+    (if executable { EXEC_MODE } else { BASE_FILE_MODE }) & !umask.mask() & 0o777
 }
 
 /// Whether a store inode of `mode` can be linked where [`store_entry_mode`]
@@ -63,8 +64,8 @@ pub fn store_inode_mode_is_linkable(mode: u32, desired: u32) -> bool {
 /// the import hot path would otherwise pay a syscall per file.
 #[cfg(unix)]
 #[must_use]
-pub fn current_umask() -> u32 {
-    static UMASK: std::sync::LazyLock<u32> =
+pub fn current_umask() -> Umask {
+    static UMASK: std::sync::LazyLock<Umask> =
         std::sync::LazyLock::new(pnpm_ffi_process::current_umask);
     *UMASK
 }
@@ -72,17 +73,17 @@ pub fn current_umask() -> u32 {
 /// Cache the host process mask for WASI permission calculations.
 #[cfg(target_os = "wasi")]
 #[must_use]
-pub fn current_umask() -> u32 {
-    static UMASK: std::sync::LazyLock<u32> =
-        std::sync::LazyLock::new(crate::wasi_fs::current_umask);
+pub fn current_umask() -> Umask {
+    static UMASK: std::sync::LazyLock<Umask> =
+        std::sync::LazyLock::new(|| Umask::from_mask(crate::wasi_fs::current_umask()));
     *UMASK
 }
 
 /// Platforms without permission bits have no mode bits to mask.
 #[cfg(not(any(unix, target_os = "wasi")))]
 #[must_use]
-pub fn current_umask() -> u32 {
-    0
+pub fn current_umask() -> Umask {
+    Umask::from_mask(0)
 }
 
 /// Whether a file mode has *any* executable bit set (`u+x`, `g+x`, or

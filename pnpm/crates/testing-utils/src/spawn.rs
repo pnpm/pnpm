@@ -1,15 +1,17 @@
 //! Spawn settings a test needs and the standard library does not offer.
 
+pub use pnpm_fs::file_mode::Umask;
+
 /// Give a forked child the file-creation mask `umask` before it `exec`s.
 ///
 /// For a test that has to install under a mask of its own choosing; the
 /// mask is process-global, so setting it in the test's own process would
 /// reach every other test in it.
 #[cfg(unix)]
-pub fn with_umask(command: &mut std::process::Command, umask: u32) {
+pub fn with_umask(command: &mut std::process::Command, umask: Umask) {
     use std::os::unix::process::CommandExt as _;
 
-    let umask = libc::mode_t::try_from(umask).expect("the mask fits mode_t");
+    let umask = umask.narrow();
     // SAFETY: the hook runs in the forked child, between the fork and the
     // `exec`, where only the calling thread exists and so only
     // async-signal-safe work is allowed. It calls `umask` and nothing else:
