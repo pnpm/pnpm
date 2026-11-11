@@ -52,7 +52,6 @@ fn keeps_the_declared_range_operator() {
     assert_eq!(bump("1.0.0", "1.2.0").as_deref(), Some("1.2.0"));
 }
 
-#[cfg(not(feature = "runtime-provisioning"))]
 #[test]
 fn registry_ranges_still_bump_without_runtime_provisioning() {
     assert_eq!(bump("^1.0.0", "1.2.0").as_deref(), Some("^1.2.0"));

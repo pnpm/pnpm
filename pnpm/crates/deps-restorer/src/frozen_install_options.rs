@@ -161,6 +161,8 @@ pub struct FrozenPlatformOptions<'a> {
     /// supplied architecture overrides.
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 
+    pub runtime_provisioning: bool,
+
     /// When `true`, runtime dependencies (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`) — i.e. packages whose
     /// metadata resolution is `Binary` or `Variations` — are

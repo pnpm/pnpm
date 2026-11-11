@@ -15,6 +15,10 @@ pub(super) fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> In
         InstallFrozenLockfileError::LockfileVerification(verify_error) => {
             InstallError::LockfileVerification(verify_error)
         }
+        #[cfg(not(feature = "runtime-provisioning"))]
+        InstallFrozenLockfileError::RuntimeProvisioningUnavailable { alias } => {
+            InstallError::RuntimeProvisioningUnavailable { alias }
+        }
         other => InstallError::FrozenLockfile(other),
     }
 }

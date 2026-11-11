@@ -70,6 +70,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             lockfiles: self.frozen_lockfiles(scope, lockfile),
             platform: pnpm_deps_restorer::FrozenPlatformOptions {
                 supported_architectures: self.execution.supported_architectures,
+                runtime_provisioning: cfg!(feature = "runtime-provisioning"),
                 skip_runtimes: self.install.execution.skip_runtimes,
                 node_linker: self.install.execution.node_linker,
             },
@@ -117,8 +118,6 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );
-        #[cfg(not(feature = "runtime-provisioning"))]
-        ensure_runtime_provisioning(&scope, self.install.execution.skip_runtimes)?;
         assert_supported_lockfile_major(scope.lockfile());
 
         let frozen_verification_override = settle_frozen_verification::<Reporter>(
@@ -155,20 +154,6 @@ fn assert_supported_lockfile_major(lockfile: &Lockfile) {
     let major = lockfile.lockfile_version.major;
     let supported = matches!(major, 9 | 12 | 13);
     debug_assert!(supported);
-}
-
-#[cfg(not(feature = "runtime-provisioning"))]
-fn ensure_runtime_provisioning(
-    scope: &FrozenScope<'_>,
-    skip_runtimes: bool,
-) -> Result<(), InstallError> {
-    if skip_runtimes {
-        return Ok(());
-    }
-    if let Some(alias) = scope.closure.runtime_dependency_alias(scope.groups.included) {
-        return Err(InstallError::RuntimeProvisioningUnavailable { alias });
-    }
-    Ok(())
 }
 
 impl<'a> MaterializationWorkspace<'a> {

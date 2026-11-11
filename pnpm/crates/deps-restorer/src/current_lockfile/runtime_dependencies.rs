@@ -1,23 +1,25 @@
-use super::MaterializationClosure;
-use pnpm_lockfile::{ImporterDepVersion, Prefix};
+use crate::SkippedSnapshots;
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, PackageKey, Prefix};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 
-impl MaterializationClosure {
-    #[must_use]
-    pub fn runtime_dependency_alias(&self, included: IncludedDependencies) -> Option<String> {
-        importer_runtime_dependency_alias(self, included)
-            .or_else(|| snapshot_runtime_dependency_alias(self, included))
-    }
+#[must_use]
+pub fn runtime_dependency_alias(
+    lockfile: &Lockfile,
+    included: IncludedDependencies,
+    skipped: &SkippedSnapshots,
+) -> Option<String> {
+    importer_runtime_dependency_alias(lockfile, included, skipped)
+        .or_else(|| snapshot_runtime_dependency_alias(lockfile, included, skipped))
 }
 
 fn importer_runtime_dependency_alias(
-    closure: &MaterializationClosure,
+    lockfile: &Lockfile,
     included: IncludedDependencies,
+    skipped: &SkippedSnapshots,
 ) -> Option<String> {
-    closure.importer_ids
-        .iter()
-        .filter_map(|importer_id| closure.lockfile.importers.get(importer_id))
+    lockfile.importers
+        .values()
         .flat_map(|importer| {
             importer.dependencies_by_groups(
                 [
@@ -30,22 +32,34 @@ fn importer_runtime_dependency_alias(
             )
         })
         .find_map(|(alias, dependency)| {
-            let runtime = match &dependency.version {
-                ImporterDepVersion::Regular(version) => version.prefix() == Prefix::Runtime,
-                ImporterDepVersion::Alias(version) => version.suffix.prefix() == Prefix::Runtime,
-                ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => false,
+            let key = match &dependency.version {
+                ImporterDepVersion::Regular(version) if version.prefix() == Prefix::Runtime => {
+                    PackageKey::new(alias.clone(), version.clone())
+                }
+                ImporterDepVersion::Alias(version)
+                    if version.suffix.prefix() == Prefix::Runtime =>
+                {
+                    PackageKey::new(version.name.clone(), version.suffix.clone())
+                }
+                ImporterDepVersion::Regular(_)
+                | ImporterDepVersion::Alias(_)
+                | ImporterDepVersion::Link(_)
+                | ImporterDepVersion::File(_) => return None,
             };
-            runtime.then(|| alias.to_string())
+            (!skipped.contains(&key)).then(|| alias.to_string())
         })
 }
 
 fn snapshot_runtime_dependency_alias(
-    closure: &MaterializationClosure,
+    lockfile: &Lockfile,
     included: IncludedDependencies,
+    skipped: &SkippedSnapshots,
 ) -> Option<String> {
-    closure.lockfile.snapshots
+    lockfile.snapshots
         .iter()
-        .flat_map(|snapshots| snapshots.values())
+        .flat_map(|snapshots| snapshots.iter())
+        .filter(|(key, _)| !skipped.contains(key))
+        .map(|(_, snapshot)| snapshot)
         .flat_map(|snapshot| {
             snapshot.dependencies
                 .iter()
@@ -57,9 +71,9 @@ fn snapshot_runtime_dependency_alias(
         })
         .flat_map(|dependencies| dependencies.iter())
         .find_map(|(alias, dependency)| {
-            dependency
-                .ver_peer()
-                .is_some_and(|version| version.prefix() == Prefix::Runtime)
-                .then(|| alias.to_string())
+            let target = dependency.resolve(alias)?;
+            let runtime = target.suffix.prefix() == Prefix::Runtime;
+            let key = PackageKey::new(target.name, target.suffix);
+            (runtime && !skipped.contains(&key)).then(|| alias.to_string())
         })
 }
