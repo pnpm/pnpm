@@ -171,9 +171,19 @@ The `resolve` response is an NDJSON stream:
 | Frame | Description |
 | --- | --- |
 | `package` | One resolved tarball: `id`, `name`, `version`, `integrity`, `tarball`, and optional `unpackedSize` / `fileCount` / `requiresBuild`. |
-| `done` | Terminal success frame. For `resolve`, carries `lockfile` and `stats.totalPackages`; for `verify-lockfile`, only indicates success. |
+| `done` | Terminal success frame. For `resolve`, carries `lockfile` and `stats.totalPackages`; for npm `resolve` and `verify-lockfile`, also carries `appliedPolicies`. Clients must reject success when this echo is missing, incomplete, or differs from their requested policies. |
 | `violations` | Terminal policy failure frame. Carries rendered lockfile or OSV violations. |
 | `error` | Terminal server-side resolution or verification error. |
+
+For npm requests, `appliedPolicies` includes `autoInstallPeers`, `dedupePeers`,
+`excludeLinksFromLockfile`, `addMissingPeerTypes`, `projectScopedOptionalPeers`,
+`frozenLockfile`, `resolutionMode`, `trustLockfile`, `minimumReleaseAge`,
+`minimumReleaseAgeExclude`, `minimumReleaseAgeIgnoreMissingTime`, `trustPolicy`,
+`trustPolicyExclude`, and `trustPolicyIgnoreAfter`. Exclusion lists default to
+`[]`. Unset ages and an inactive trust policy are `null`.
+The verification endpoint echoes the same shape; clients check its verification
+policies without comparing resolution settings.
+Upgrade the pnpr server before upgrading clients that require this echo.
 
 ### Shared-artifact endpoints
 

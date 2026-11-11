@@ -67,7 +67,7 @@ async fn lockfile_repair_uses_an_advertised_capability() {
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
         .create_async()
         .await;
 
@@ -115,7 +115,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustLockfile": true,
             "updatePatches": true,
         })))
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
         .create_async()
         .await;
 
@@ -192,9 +192,10 @@ async fn does_not_check_a_project_the_server_did_not_return() {
     // response leaves out carries no importer to compare a publish directory
     // against, and the merge only takes the importers the server did return.
     let lockfile = matching_transform_lockfile(&options);
+    let applied = matching_applied_policies(&options);
     let result = resolve_mock_frames(
         options,
-        vec![json!({ "type": "done", "lockfile": lockfile })],
+        vec![json!({ "type": "done", "lockfile": lockfile, "appliedPolicies": applied })],
         true,
         |_| {},
     )
@@ -334,9 +335,10 @@ async fn assert_protocol_rejected(
     lockfile: Value,
     expected_message: &str,
 ) {
+    let applied = matching_applied_policies(&options);
     let Err(PnprClientError::Protocol(message)) = resolve_mock_frames(
         options,
-        vec![json!({ "type": "done", "lockfile": lockfile })],
+        vec![json!({ "type": "done", "lockfile": lockfile, "appliedPolicies": applied })],
         true,
         |_| {},
     )
@@ -566,16 +568,7 @@ async fn negotiates_v0_when_supported_by_handshake() {
     let done = json!({
         "type": "done",
         "lockfile": matching_transform_lockfile(&options),
-        "appliedPolicies": {
-            "autoInstallPeers": false,
-            "dedupePeers": true,
-            "excludeLinksFromLockfile": false,
-            "addMissingPeerTypes": true,
-            "frozenLockfile": false,
-            "resolutionMode": "time-based",
-            "minimumReleaseAge": 1440,
-            "trustPolicy": "no-downgrade"
-        }
+        "appliedPolicies": matching_applied_policies(&options)
     });
 
     let resolve_mock = server
@@ -638,16 +631,7 @@ async fn unknown_frames_are_ignored() {
     let done_frame = json!({
         "type": "done",
         "lockfile": matching_transform_lockfile(&options),
-        "appliedPolicies": {
-            "autoInstallPeers": false,
-            "dedupePeers": true,
-            "excludeLinksFromLockfile": false,
-            "addMissingPeerTypes": true,
-            "frozenLockfile": false,
-            "resolutionMode": "time-based",
-            "minimumReleaseAge": 1440,
-            "trustPolicy": "no-downgrade"
-        }
+        "appliedPolicies": matching_applied_policies(&options)
     });
 
     let resolve_mock = server
@@ -672,18 +656,12 @@ async fn fails_when_server_ignores_trust_policy() {
     let mut opts = resolve_projects_options();
     opts.verification.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
 
+    let mut mismatched_policies = matching_applied_policies(&opts);
+    mismatched_policies["trustPolicy"] = json!("off");
     let done = json!({
         "type": "done",
         "lockfile": matching_transform_lockfile(&opts),
-        "appliedPolicies": {
-            "autoInstallPeers": true,
-            "dedupePeers": true,
-            "excludeLinksFromLockfile": false,
-            "addMissingPeerTypes": false,
-            "frozenLockfile": false,
-            "resolutionMode": "highest",
-            "trustPolicy": "off"
-        }
+        "appliedPolicies": mismatched_policies
     });
 
     let resolve_mock = server
@@ -739,4 +717,136 @@ async fn capability_handshake_ignores_unknown_protocols_and_features() {
     client.handshake().await.unwrap();
     assert_eq!(client.negotiated_resolver_version().await.unwrap(), 0);
     handshake.assert_async().await;
+}
+
+fn matching_applied_policies(options: &ResolveProjectsOptions) -> Value {
+    let mut applied = serde_json::to_value(&options.verification).unwrap();
+    let object = applied.as_object_mut().unwrap();
+    object.extend(
+        serde_json::to_value(&options.resolution)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone(),
+    );
+    object.insert("frozenLockfile".into(), json!(options.reuse.frozen_lockfile));
+    object.insert("trustLockfile".into(), json!(options.reuse.trust_lockfile));
+    applied
+}
+
+#[tokio::test]
+async fn resolve_rejects_missing_applied_policies() {
+    for field in [
+        "appliedPolicies",
+        "minimumReleaseAge",
+        "minimumReleaseAgeExclude",
+        "minimumReleaseAgeIgnoreMissingTime",
+        "trustPolicy",
+        "trustPolicyExclude",
+        "trustPolicyIgnoreAfter",
+        "trustLockfile",
+        "projectScopedOptionalPeers",
+    ] {
+        let options = resolve_projects_options();
+        let mut done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": matching_applied_policies(&options) });
+        if field == "appliedPolicies" {
+            done.as_object_mut()
+                .unwrap()
+                .remove(field);
+        } else {
+            done["appliedPolicies"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+        }
+        let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
+        assert!(matches!(result, Err(PnprClientError::Protocol(_))), "{field}: {result:?}");
+    }
+}
+
+#[tokio::test]
+async fn verify_requires_matching_applied_policies() {
+    for field in [
+        "success",
+        "appliedPolicies",
+        "minimumReleaseAge",
+        "minimumReleaseAgeExclude",
+        "minimumReleaseAgeIgnoreMissingTime",
+        "trustPolicy",
+        "trustPolicyExclude",
+        "trustPolicyIgnoreAfter",
+        "trustLockfile",
+    ] {
+        let mut options = resolve_projects_options();
+        options.reuse.lockfile =
+            Some(serde_json::from_value(matching_transform_lockfile(&options)).unwrap());
+        let mut applied = matching_applied_policies(&options);
+        if field != "success" && field != "appliedPolicies" {
+            applied[field] = mismatched_policy(field);
+        }
+        let mut done = json!({ "type": "done", "appliedPolicies": applied });
+        if field == "appliedPolicies" {
+            done.as_object_mut()
+                .unwrap()
+                .remove(field);
+        }
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/-/pnpr/v0/verify-lockfile")
+            .with_body(format!("{done}\n"))
+            .create_async()
+            .await;
+        let result = PnprClient::new(server.url())
+            .verify_lockfile(
+                crate::VerifyLockfileOptions::from_resolve_projects_options(&options).unwrap(),
+            )
+            .await;
+        if field == "success" {
+            result.unwrap();
+        } else {
+            assert!(matches!(result, Err(PnprClientError::Protocol(_))), "{field}: {result:?}");
+        }
+        mock.assert_async().await;
+    }
+}
+
+fn mismatched_policy(field: &str) -> Value {
+    match field {
+        "minimumReleaseAge" | "trustPolicyIgnoreAfter" => json!(0),
+        "minimumReleaseAgeExclude" | "trustPolicyExclude" => json!([]),
+        "minimumReleaseAgeIgnoreMissingTime" | "projectScopedOptionalPeers" => json!(true),
+        "trustPolicy" => json!(null),
+        "trustLockfile" | "addMissingPeerTypes" => json!(false),
+        _ => panic!("no mismatch for {field}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_rejects_mismatched_policies() {
+    for field in [
+        "minimumReleaseAge",
+        "minimumReleaseAgeExclude",
+        "minimumReleaseAgeIgnoreMissingTime",
+        "trustPolicy",
+        "trustPolicyExclude",
+        "trustPolicyIgnoreAfter",
+        "trustLockfile",
+        "addMissingPeerTypes",
+        "projectScopedOptionalPeers",
+    ] {
+        let options = resolve_projects_options();
+        let mut applied = matching_applied_policies(&options);
+        applied[field] = mismatched_policy(field);
+        let done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": applied });
+        let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
+        let Err(PnprClientError::Protocol(message)) = result else {
+            panic!("{field}: expected a protocol error, got {result:?}");
+        };
+        let expected_message = match field {
+            "addMissingPeerTypes" => "pnpr server ignored requested addMissingPeerTypes (expected Some(true), got false)".to_string(),
+            "projectScopedOptionalPeers" => "pnpr server ignored requested projectScopedOptionalPeers (expected Some(false), got true)".to_string(),
+            _ => format!("pnpr server ignored requested {field}"),
+        };
+        assert_eq!(message, expected_message, "{field}");
+    }
 }

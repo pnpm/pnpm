@@ -488,7 +488,7 @@ fn frozen_lockfile_response(
         .map(|sizes| frozen_package_frames(config, tarball_router, &lockfile, &sizes))
         .unwrap_or_default();
     let applied = protocol::AppliedPolicies::from_request(request);
-    frames.push(done_frame(&lockfile, Some(&applied)));
+    frames.push(done_frame(&lockfile, &applied));
     Some(ndjson_frames(&frames))
 }
 
@@ -511,7 +511,7 @@ fn cached_resolution_response(
         identity,
     )?;
     let applied = protocol::AppliedPolicies::from_request(request);
-    Some(ndjson_single_frame(&done_frame(&lockfile, Some(&applied))))
+    Some(ndjson_single_frame(&done_frame(&lockfile, &applied)))
 }
 
 /// What a finished resolution offers the resolution cache.

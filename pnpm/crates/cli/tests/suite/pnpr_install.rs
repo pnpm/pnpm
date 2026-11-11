@@ -615,7 +615,7 @@ fn mock_filtered_repair_response(
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body(format!("{response}\n"))
+        .with_body_from_request(move |request| pnpr_done_frame(request, response.clone()))
         .expect(1)
         .create();
     (handshake, resolve)
@@ -748,3 +748,40 @@ mod resolution;
 mod pnpmfile;
 
 mod variants_only;
+
+fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> Vec<u8> {
+    use serde_json::{Value, json};
+
+    let request: Value = serde_json::from_slice(request.body().unwrap()).unwrap();
+    let mut policies = json!({
+        "autoInstallPeers": true,
+        "dedupePeers": false,
+        "excludeLinksFromLockfile": false,
+        "addMissingPeerTypes": false,
+        "projectScopedOptionalPeers": false,
+        "frozenLockfile": false,
+        "resolutionMode": "highest",
+        "trustLockfile": false,
+        "minimumReleaseAge": null,
+        "minimumReleaseAgeExclude": [],
+        "minimumReleaseAgeIgnoreMissingTime": true,
+        "trustPolicy": null,
+        "trustPolicyExclude": [],
+        "trustPolicyIgnoreAfter": null,
+    });
+    for (name, value) in policies.as_object_mut().unwrap() {
+        if let Some(requested) = request.get(name) {
+            *value = requested.clone();
+        }
+    }
+    for name in ["minimumReleaseAgeExclude", "trustPolicyExclude"] {
+        if policies[name].is_null() {
+            policies[name] = json!([]);
+        }
+    }
+    if policies["trustPolicy"] == "off" {
+        policies["trustPolicy"] = Value::Null;
+    }
+    frame["appliedPolicies"] = policies;
+    format!("{frame}\n").into_bytes()
+}

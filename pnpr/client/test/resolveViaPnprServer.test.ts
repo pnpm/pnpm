@@ -230,7 +230,8 @@ test('omits an absent publishConfig so servers that predate the field see the sa
 
 async function captureResolveRequest (
   options: Omit<ResolveViaPnprServerOptions, 'registryUrl'>,
-  returnedLockfile?: Record<string, unknown>
+  returnedLockfile?: Record<string, unknown>,
+  policyOverrides: Record<string, unknown> | null = {}
 ): Promise<CapturedResolveRequest> {
   let capturedRequest: CapturedResolveRequest | undefined
   const server = http.createServer(async (request, response) => {
@@ -241,6 +242,7 @@ async function captureResolveRequest (
     capturedRequest = JSON.parse(Buffer.concat(chunks).toString('utf8')) as CapturedResolveRequest
     response.end(`${JSON.stringify({
       type: 'done',
+      appliedPolicies: policyOverrides === null ? undefined : { ...matchingPolicies(options), ...policyOverrides },
       lockfile: returnedLockfile ?? {
         lockfileVersion: '9.0',
         importers: { '.': {} },
@@ -282,3 +284,57 @@ async function closeServer (server: http.Server): Promise<void> {
     })
   })
 }
+
+test('rejects a server that omits appliedPolicies', async () => {
+  await expect(captureResolveRequest({ dependencies: {} }, undefined, null)).rejects.toThrow('omitted appliedPolicies')
+})
+
+test.each([
+  ['minimumReleaseAge', 60, 0],
+  ['minimumReleaseAgeExclude', ['example-*'], []],
+  ['minimumReleaseAgeIgnoreMissingTime', false, true],
+  ['trustPolicy', 'no-downgrade', null],
+  ['trustPolicyExclude', ['example-*'], []],
+  ['trustPolicyIgnoreAfter', 1440, null],
+  ['trustLockfile', false, true],
+  ['autoInstallPeers', false, true],
+  ['frozenLockfile', true, false],
+  ['resolutionMode', 'time-based', 'highest'],
+] as const)('rejects a mismatched %s echo', async (name, requested, actual) => {
+  await expect(captureResolveRequest({ dependencies: {}, [name]: requested }, undefined, { [name]: actual })).rejects.toThrow(`ignored requested ${name}`)
+})
+
+function matchingPolicies (options: Omit<ResolveViaPnprServerOptions, 'registryUrl'>): Record<string, unknown> {
+  return {
+    autoInstallPeers: options.autoInstallPeers ?? true,
+    dedupePeers: options.dedupePeers ?? true,
+    excludeLinksFromLockfile: options.excludeLinksFromLockfile ?? false,
+    addMissingPeerTypes: false,
+    projectScopedOptionalPeers: false,
+    frozenLockfile: options.frozenLockfile ?? false,
+    resolutionMode: options.resolutionMode ?? 'highest',
+    minimumReleaseAge: options.minimumReleaseAge ?? null,
+    minimumReleaseAgeExclude: options.minimumReleaseAgeExclude ?? [],
+    minimumReleaseAgeIgnoreMissingTime: options.minimumReleaseAgeIgnoreMissingTime ?? true,
+    trustPolicy: options.trustPolicy === 'no-downgrade' ? 'no-downgrade' : null,
+    trustPolicyExclude: options.trustPolicyExclude ?? [],
+    trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter ?? null,
+    trustLockfile: options.trustLockfile ?? false,
+  }
+}
+
+test.each(Object.keys(matchingPolicies({})))('rejects an incomplete echo missing %s', async (name) => {
+  await expect(captureResolveRequest({ dependencies: {} }, undefined, { [name]: undefined })).rejects.toThrow('pnpr server')
+})
+
+test('accepts the complete requested verification policy', async () => {
+  await captureResolveRequest({
+    minimumReleaseAge: 60,
+    minimumReleaseAgeExclude: ['example-*'],
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-*'],
+    trustPolicyIgnoreAfter: 1440,
+    trustLockfile: false,
+  })
+})
