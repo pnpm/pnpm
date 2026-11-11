@@ -301,7 +301,7 @@ impl PnprClient {
         blob: &ArtifactBlobSource,
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
-        let url = self.blob_url(owner, &blob.integrity);
+        let url = self.blob_url(owner, &blob.integrity)?;
         let mut head = self.http.head(&url).timeout(self.artifact_request_timeout);
         if let Some(authorization) = authorization {
             head = head.header("authorization", authorization);
@@ -311,7 +311,7 @@ impl PnprClient {
             return Ok(());
         }
         if response.status() != StatusCode::NOT_FOUND {
-            check_status(response, "HEAD /-/pnpr/v0/artifacts/blob").await?;
+            check_status(response, "HEAD /-/pnpr/v0/artifacts/blobs").await?;
         }
         let mut put = self.http
             .put(&url)
@@ -322,19 +322,27 @@ impl PnprClient {
         if let Some(authorization) = authorization {
             put = put.header("authorization", authorization);
         }
-        check_status(put.send().await?, "PUT /-/pnpr/v0/artifacts/blob").await?;
+        check_status(put.send().await?, "PUT /-/pnpr/v0/artifacts/blobs").await?;
         Ok(())
     }
 
-    /// Where one blob of `owner` is uploaded and looked up.
-    fn blob_url(&self, owner: &OwnerScope, integrity: &str) -> String {
-        let mut query = url::form_urlencoded::Serializer::new(String::new());
-        match owner {
-            OwnerScope::Organization { name } => query.append_pair("organization", name),
-            OwnerScope::Publisher { package } => query.append_pair("publisher", package),
+    /// Where one blob of `owner` is uploaded, looked up, and read. Only an
+    /// organization stores blobs.
+    fn blob_url(&self, owner: &OwnerScope, integrity: &str) -> Result<String, PnprClientError> {
+        let OwnerScope::Organization { name } = owner else {
+            return Err(PnprClientError::Protocol(
+                "shared artifact blobs are stored only under an organization".to_string(),
+            ));
         };
-        query.append_pair("integrity", integrity);
-        format!("{}-/pnpr/v0/artifacts/blob?{}", self.base_url, query.finish())
+        let segment = |value: &str| -> String {
+            url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+        };
+        Ok(format!(
+            "{}-/pnpr/v0/artifacts/blobs/{}/{}",
+            self.base_url,
+            segment(name),
+            segment(integrity),
+        ))
     }
 
     /// Resolve a batch and keep only variants signed by a configured key and
@@ -410,14 +418,13 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<reqwest::Response, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut post = self.http
-            .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
-            .timeout(blob_timeout(self.artifact_request_timeout, size))
-            .json(request);
+        let mut get = self.http
+            .get(self.blob_url(&request.owner, &request.integrity)?)
+            .timeout(blob_timeout(self.artifact_request_timeout, size));
         if let Some(authorization) = authorization {
-            post = post.header("authorization", authorization);
+            get = get.header("authorization", authorization);
         }
-        check_status(post.send().await?, "/-/pnpr/v0/artifacts/blob").await
+        check_status(get.send().await?, "GET /-/pnpr/v0/artifacts/blobs").await
     }
 }
 

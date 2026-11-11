@@ -296,13 +296,14 @@ async fn artifact_blob_misses_and_errors_are_caller_scoped() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let http = reqwest::Client::new();
     let missing_integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(b"missing")));
+    let blob_url = |integrity: &str| {
+        let integrity: String =
+            url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect();
+        format!("{pnpr_url}-/pnpr/v0/artifacts/blobs/pnpr-client/{integrity}")
+    };
     let missing = http
-        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/blob"))
+        .get(blob_url(&missing_integrity))
         .header(reqwest::header::AUTHORIZATION, &pnpr_auth)
-        .json(&ArtifactBlobRequest {
-            owner: OwnerScope::organization("pnpr-client"),
-            integrity: missing_integrity,
-        })
         .send()
         .await
         .expect("missing blob response");
@@ -311,12 +312,8 @@ async fn artifact_blob_misses_and_errors_are_caller_scoped() {
     assert_eq!(missing.headers()[reqwest::header::VARY], "Authorization");
 
     let invalid = http
-        .post(format!("{pnpr_url}-/pnpr/v0/artifacts/blob"))
+        .get(blob_url("not-an-integrity"))
         .header(reqwest::header::AUTHORIZATION, &pnpr_auth)
-        .json(&serde_json::json!({
-            "owner": { "type": "organization", "name": "pnpr-client" },
-            "integrity": "not-an-integrity",
-        }))
         .send()
         .await
         .expect("invalid blob response");

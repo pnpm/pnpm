@@ -293,8 +293,11 @@ A publisher can upload each archive on its own before the publish that
 references it, so one request body need not carry a whole release:
 
 ```text
-PUT /-/pnpr/v0/artifacts/blob?integrity=sha512-…
+PUT /-/pnpr/v0/publish/archives/sha512-…
 ```
+
+The integrity is one percent-encoded path segment, so its `/`, `+`, and `=`
+are sent as `%2F`, `%2B`, and `%3D`.
 
 The route is also mounted under `/npm/` and a named npm registry's
 `/npm/~<registry>/`. A staged archive belongs to the account that uploaded it,

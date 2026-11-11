@@ -83,13 +83,13 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
             .contains("shared artifacts"),
     );
 
-    for method in ["PUT", "HEAD"] {
+    for method in ["GET", "PUT", "HEAD"] {
         let blob = app
             .clone()
             .oneshot(
                 Request::builder()
                     .method(method)
-                    .uri("/-/pnpr/v0/artifacts/blob?organization=acme&integrity=sha512-AAAA")
+                    .uri("/-/pnpr/v0/artifacts/blobs/acme/sha512-AAAA")
                     .body(Body::from("blob"))
                     .unwrap(),
             )

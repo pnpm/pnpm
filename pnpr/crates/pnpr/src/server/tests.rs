@@ -122,7 +122,6 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/verify-lockfile"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/resolve"));
-    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/blob"));
     assert!(!is_write_request(&Method::POST, "/-/oidc/handoff"));
     assert!(!is_write_request(&Method::POST, "/npm/-/npm/v1/security/audits"));
     assert!(!is_write_request(&Method::POST, "/npm/~local/-/npm/v1/security/advisories/bulk"));

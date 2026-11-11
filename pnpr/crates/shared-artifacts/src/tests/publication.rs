@@ -1,9 +1,9 @@
 use super::{
-    Arc, ArtifactBlobRequest, ArtifactUsage, ArtifactVariant, FailArtifactWrites, FailOnly,
-    HostedStoreConfig, InMemory, Instant, MAX_RESOLVE_RESPONSE_SIZE, ObjectPath, ObjectStore,
-    ObjectStoreExt, OwnerScope, PutPayload, RegistryError, ResolveArtifactsResponse, ResolveBudget,
-    ResolvedArtifact, SharedArtifactStore, SignedArtifactEnvelope, TempDir, artifact_operation_id,
-    owner_key, publication, publication_tagged, publication_with_blob,
+    Arc, ArtifactUsage, ArtifactVariant, FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory,
+    Instant, MAX_RESOLVE_RESPONSE_SIZE, ObjectPath, ObjectStore, ObjectStoreExt, OwnerScope,
+    PutPayload, RegistryError, ResolveArtifactsResponse, ResolveBudget, ResolvedArtifact,
+    SharedArtifactStore, SignedArtifactEnvelope, TempDir, artifact_operation_id, owner_key,
+    publication, publication_tagged, publication_with_blob,
 };
 use futures_util::StreamExt as _;
 
@@ -198,14 +198,7 @@ async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
 
     assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
     let blob = store
-        .read_blob(
-            "acme",
-            &serde_json::to_vec(&ArtifactBlobRequest {
-                owner: OwnerScope::organization("acme"),
-                integrity,
-            })
-            .unwrap(),
-        )
+        .read_blob("acme", &OwnerScope::organization("acme"), &integrity)
         .await
         .unwrap();
     assert!(blob.is_some());

@@ -407,8 +407,7 @@ fn outdated_notes_show_the_notes_of_the_upgrade() {
 /// registry declared `serverType: pnpr` commits without uploading.
 fn archives_staged(server: &mut mockito::Server) -> mockito::Mock {
     server
-        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Any)
+        .mock("HEAD", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(200)
         .create()
 }

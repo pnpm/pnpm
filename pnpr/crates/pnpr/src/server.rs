@@ -244,7 +244,6 @@ const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
 /// A pipeline run record is a summary plus a bounded event stream; well
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.

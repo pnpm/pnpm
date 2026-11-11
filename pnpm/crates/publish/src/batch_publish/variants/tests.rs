@@ -57,13 +57,13 @@ async fn published_batch(
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let uploads = Arc::new(Mutex::new(Vec::new()));
-    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned());
+    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/publish/archives/".to_owned());
     // Each archive staged before is held, at seven bytes; the registry holds
     // no other.
     for integrity in staged_before {
+        let archive: String = url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect();
         server
-            .mock("HEAD", blob.clone())
-            .match_query(mockito::Matcher::UrlEncoded("integrity".into(), (*integrity).into()))
+            .mock("HEAD", format!("/-/pnpr/v0/publish/archives/{archive}").as_str())
             .with_status(200)
             .with_header("content-length", "7")
             .create_async()
@@ -81,7 +81,7 @@ async fn published_batch(
         .mock("PUT", blob)
         .with_status(201)
         .with_body_from_request(move |request| {
-            let url = request.path_and_query().to_owned();
+            let url = request.path().to_owned();
             recorded.lock().unwrap().push(url);
             Vec::new()
         })
@@ -114,7 +114,7 @@ async fn published_batch(
         .unwrap()
         .iter()
         .map(|url| {
-            let encoded = url.split_once("integrity=").unwrap().1;
+            let encoded = url.rsplit_once('/').unwrap().1;
             percent_decode(encoded)
         })
         .collect();
@@ -202,7 +202,7 @@ async fn a_batch_references_variants_another_job_staged_by_their_size() {
 async fn a_batch_referencing_an_archive_the_registry_lacks_uploads_nothing() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned());
+    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/publish/archives/".to_owned());
     server
         .mock("HEAD", blob.clone())
         .with_status(404)
@@ -265,7 +265,7 @@ async fn a_missing_archive_on_one_registry_publishes_nothing_to_another() {
     let mut second = mockito::Server::new_async().await;
     let first_registry = format!("{}/", first.url());
     let second_registry = format!("{}/", second.url());
-    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned());
+    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/publish/archives/".to_owned());
     let mut first_requests = Vec::new();
     for method in ["HEAD", "PUT"] {
         first_requests.push(
