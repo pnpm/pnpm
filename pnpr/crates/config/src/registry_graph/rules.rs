@@ -79,7 +79,7 @@ fn compile_package_rule(
     let key = pattern.to_string();
     let key = key.as_str();
     validate_unpublish_supported(registry, ecosystem, key, rule)?;
-    Ok(PackageRule {
+    let compiled = PackageRule {
         pattern: pattern.clone(),
         access: compile_rule_access_list(
             registry,
@@ -102,7 +102,30 @@ fn compile_package_rule(
             rule.and_then(|fields| fields.unpublish.as_ref()),
             teams,
         )?,
-    })
+    };
+    validate_owners_supported(registry, ecosystem, key, &compiled)?;
+    Ok(compiled)
+}
+
+fn validate_owners_supported(
+    registry: &str,
+    ecosystem: Ecosystem,
+    key: &str,
+    rule: &PackageRule,
+) -> Result<(), RegistryError> {
+    let references_owners = [&rule.publish, &rule.unpublish]
+        .into_iter()
+        .flatten()
+        .any(AccessList::references_owners);
+    if ecosystem != Ecosystem::Npm && references_owners {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {registry:?} serves {ecosystem}, which does not record package owners; \
+                 `$owners` in the {key:?} rule is invalid",
+            ),
+        });
+    }
+    Ok(())
 }
 
 pub(super) fn build_rules(
@@ -116,5 +139,6 @@ pub(super) fn build_rules(
     for (pattern, rule) in packages.values() {
         rules.push(compile_package_rule(registry, ecosystem, pattern, rule.as_ref(), teams)?);
     }
-    Ok(PackageRules::new(rules, default_access))
+    Ok(PackageRules::new(rules, default_access)
+        .with_default_publish(AccessList::publish_default(ecosystem)))
 }

@@ -42,7 +42,7 @@ pub const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
 /// The `local` hosted registry's `packages:` rules in the registry-mock shape:
 /// the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with default rules,
 /// `@private/*` and `@pnpm.e2e/needs-auth` restricted to authenticated callers,
-/// and unpublish open to any authenticated user.
+/// and publish and unpublish open to any authenticated user.
 #[must_use]
 pub fn registry_mock_rules() -> PackageRules {
     let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
@@ -64,6 +64,7 @@ pub fn registry_mock_rules() -> PackageRules {
         unpublish: authenticated(),
     });
     PackageRules::new(rules, None)
+        .with_default_publish(AccessList::from_tokens(["$authenticated"]))
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
 }
 

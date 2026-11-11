@@ -54,7 +54,8 @@ async fn the_catalog_omits_repositories_the_caller_may_not_read() {
             unpublish: None,
         }],
         Some(AccessList::from_tokens(["$all"])),
-    );
+    )
+    .with_default_publish(AccessList::publish_default(Ecosystem::Oci));
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "1.0").await;

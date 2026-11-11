@@ -9,9 +9,9 @@
 //!
 //! Each permission is a list of tokens; a request is allowed when the
 //! caller's identity satisfies any token in the list. Tokens are the
-//! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`), a
-//! bare account ID, or a `team:<id>` reference to a team the owning
-//! registry declares. Teams are registry-scoped — the registry is the
+//! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`,
+//! `$owners`), a bare account ID, or a `team:<id>` reference to a team the
+//! owning registry declares. Teams are registry-scoped — the registry is the
 //! tenant, so it owns its principal sets — and a `team:` token reads the
 //! registry's live [`TeamDirectory`], so evaluation needs only the caller's
 //! identity.
@@ -26,7 +26,7 @@ mod teams;
 
 use std::collections::BTreeMap;
 
-use pnpr_registry::PackagePattern;
+use pnpr_registry::{Ecosystem, PackagePattern};
 
 /// One entry of a registry's `packages:` map: a namespace claim
 /// ([`PackagePattern`] key) plus optional per-package rules. `access`
@@ -152,20 +152,22 @@ pub struct Effective<'a> {
 
 impl RuleTable {
     /// Build a registry's rules. `default_access` is the registry-level
-    /// `access:` (its omission = `$all`); publish defaults to
-    /// `$authenticated` and unpublish to nobody, the safe defaults.
+    /// `access:` (its omission = `$all`); publish defaults to npm's
+    /// [`AccessList::publish_default`] and unpublish to nobody, the safe
+    /// defaults. A registry serving another ecosystem sets its own with
+    /// [`Self::with_default_publish`].
     #[must_use]
     pub fn new(rules: Vec<PackageRule>, default_access: Option<AccessList>) -> Self {
         Self {
             index: RuleIndex::build(&rules),
             rules,
             default_access: default_access.unwrap_or_else(|| AccessList::from_tokens(["$all"])),
-            default_publish: AccessList::from_tokens(["$authenticated"]),
+            default_publish: AccessList::publish_default(Ecosystem::Npm),
             default_unpublish: AccessList::default(),
         }
     }
 
-    /// Override the registry-level publish default (`$authenticated`).
+    /// Override the registry-level publish default.
     #[must_use]
     pub fn with_default_publish(mut self, publish: AccessList) -> Self {
         self.default_publish = publish;

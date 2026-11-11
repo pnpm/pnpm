@@ -295,6 +295,49 @@ async fn owners_policy_restricts_subsequent_publish() {
 }
 
 #[tokio::test]
+async fn publish_defaults_to_owners_for_an_entry_without_a_publish_list() {
+    let (_dir, config) = config_with_packages("packages:\n  'default-lib': {}\n", &[]);
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+
+    let doc = publish_doc("default-lib", "1.0.0", b"tarball-1");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/default-lib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let doc = publish_doc("default-lib", "1.0.1", b"tarball-2");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/default-lib", &bob_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let response = app
+        .clone()
+        .oneshot(authed_put(
+            "/npm/-/package/default-lib/dist-tags/next",
+            &bob_token,
+            json!("1.0.0"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let doc = publish_doc("default-lib", "1.0.1", b"tarball-2");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/default-lib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
 async fn npm_owner_maintainer_mutation_flow() {
     let (_dir, config) = config_with_packages(
         "packages:\n  'team-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",

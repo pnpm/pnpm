@@ -47,7 +47,8 @@ pub fn mixed_router_config(
         hosted.name.to_string(),
         HostedConfig::new(
             hosted.org,
-            PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted.access]))),
+            PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted.access])))
+                .with_default_publish(AccessList::publish_default(ecosystem)),
         ),
     );
     config.routing.upstreams.insert(

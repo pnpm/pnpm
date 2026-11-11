@@ -1,4 +1,5 @@
 use super::TeamDirectory;
+use pnpr_registry::Ecosystem;
 use std::sync::Arc;
 
 /// A single token in an access list.
@@ -64,6 +65,19 @@ impl AccessList {
                 .map(|token| AccessToken::from(token.as_ref()))
                 .collect(),
         )
+    }
+
+    /// The registry-level `publish` default for a registry serving
+    /// `ecosystem`. Only npm packages record maintainers, so elsewhere
+    /// `$owners` would admit nobody.
+    #[must_use]
+    pub fn publish_default(ecosystem: Ecosystem) -> Self {
+        match ecosystem {
+            Ecosystem::Npm => Self::from_tokens(["$owners"]),
+            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => {
+                Self::from_tokens(["$authenticated"])
+            }
+        }
     }
 
     /// Whether `identity` satisfies any token in the list.

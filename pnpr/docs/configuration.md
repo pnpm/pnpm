@@ -25,7 +25,6 @@ registries:
       # The names this registry serves, plus their access rules.
       '@mycompany/*':
         access: $authenticated
-        publish: $authenticated
 
   npmjs:
     type: upstream
@@ -159,8 +158,9 @@ reordering the map (by a formatter, or a YAML round-trip) can never change
 which rule applies. A duplicate key is a config error.
 
 Each value can set `access`, `publish`, and `unpublish`. When a field is
-omitted, `access` falls back to the registry-level `access:` default, `publish`
-defaults to `$authenticated`, and `unpublish` defaults to nobody.
+omitted, `access` falls back to the registry-level `access:` default, and
+`unpublish` defaults to nobody. `publish` defaults to `$owners` on npm
+registries and to `$authenticated` on Cargo, PyPI, and OCI registries.
 Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
 not support package unpublishing.
 
@@ -172,12 +172,13 @@ them, and the grammar is deliberately small:
 | `$all` | Anyone, authenticated or not. |
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
+| `$owners` | The package's maintainers and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its maintainer. Valid only in `publish` and `unpublish` lists of npm registries. |
 | `team:<id>` | The members of a [team](#teams) declared on this registry. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
 Tokens are validated at config load:
 
-- `$` is reserved for the three built-ins. Any other `$token` is an error.
+- `$` is reserved for the built-ins above. Any other `$token` is an error.
 - `all`, `authenticated`, `anonymous`, and `@`-prefixed spellings like `@all`
   are errors suggesting the `$` form.
 - `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
@@ -199,8 +200,7 @@ registries:
     access: $authenticated
     packages:
       '@mycompany/*':
-        publish: $authenticated
-        unpublish: $authenticated
+        unpublish: $owners
       # An explicit entry fully decides its names — this opens one
       # package on an otherwise-private registry.
       '@mycompany/open-sdk':
