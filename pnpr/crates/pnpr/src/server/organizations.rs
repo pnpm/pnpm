@@ -1,8 +1,8 @@
 use super::{
     Action, AppState, Body, CanonicalPackageName, DiscoverySource, Ecosystem, FetchOutcome,
     HostedConfig, HostedGate, Identity, Map, RegistryError, RegistrySource, Response, StatusCode,
-    Value, authorize, default_registry_target, discovery_sources, header, hosted_gate,
-    hosted_storage, json, not_found, resolve_registry_source,
+    Value, authorize, authorize_package, default_registry_target, discovery_sources, header,
+    hosted_gate, hosted_storage, json, not_found, resolve_registry_source,
 };
 use axum::response::IntoResponse;
 
@@ -78,7 +78,7 @@ pub(super) async fn add_hosted_org_packages(
     if !hosted.rules.any_access_admits(identity) {
         return Ok(());
     }
-    let storage = hosted_storage(state, Some(&hosted.org));
+    let storage = hosted_storage(state, Some(&hosted.namespace));
     let mut names = storage.hosted_package_names().await?;
     names.sort();
     let resolved = RegistrySource::Hosted(scan.source.to_string());
@@ -86,8 +86,20 @@ pub(super) async fn add_hosted_org_packages(
         if !hosted_org_package_is_visible(state, identity, &scan, &name) {
             continue;
         }
-        let writable = authorize(state, identity, &resolved, &name, Action::Publish).is_ok();
-        let permission = if writable { "write" } else { "read" };
+        let permission = match authorize_package(
+            state,
+            identity,
+            &resolved,
+            &name,
+            Action::Publish,
+            Some(&hosted.namespace),
+        )
+        .await
+        {
+            Ok(()) => "write",
+            Err(RegistryError::Forbidden { .. } | RegistryError::Unauthenticated { .. }) => "read",
+            Err(err) => return Err(err),
+        };
         packages.insert(name, Value::String(permission.to_string()));
     }
     Ok(())

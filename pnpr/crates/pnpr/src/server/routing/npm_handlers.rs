@@ -187,13 +187,13 @@ async fn preauthorize_publish(
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await
     {
         return Err(err.into_response());
     }
-    let storage = hosted_storage(state, Some(&target.org));
+    let storage = hosted_storage(state, Some(&target.namespace));
     check_publish_tombstone(state, identity, &storage, &name).await
         .map_err(IntoResponse::into_response)?;
     Ok(name)
@@ -220,7 +220,7 @@ async fn preauthorize_rewrite(
         &source,
         name.as_str(),
         Action::Publish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await
     {

@@ -1,4 +1,4 @@
-use super::tokens::token_timestamp_millis;
+use super::tokens::token_timestamp_iso;
 mod compiler_cache;
 mod npm_errors;
 mod observability;
@@ -33,9 +33,9 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 
 #[test]
-fn token_timestamp_millis_saturates_before_i64_conversion() {
-    assert_eq!(token_timestamp_millis(42), 42_000);
-    assert_eq!(token_timestamp_millis(u64::MAX), i64::MAX / 1000 * 1000);
+fn token_timestamp_iso_formats_millis_and_saturates_overflow() {
+    assert_eq!(token_timestamp_iso(42_123), "1970-01-01T00:00:42.123Z");
+    assert_eq!(token_timestamp_iso(u64::MAX), token_timestamp_iso(i64::MAX as u64));
 }
 
 // ---------------------------------------------------------------
@@ -122,7 +122,6 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/verify-lockfile"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/resolve"));
-    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/blob"));
     assert!(!is_write_request(&Method::POST, "/-/oidc/handoff"));
     assert!(!is_write_request(&Method::POST, "/npm/-/npm/v1/security/audits"));
     assert!(!is_write_request(&Method::POST, "/npm/~local/-/npm/v1/security/advisories/bulk"));
@@ -596,11 +595,6 @@ fn access_log_uri_redacts_the_logout_token_segment() {
     assert_eq!(
         redact("/~corp/-/user/token/npm_secret-token-value"),
         "/~corp/-/user/token/<redacted>",
-    );
-    assert_eq!(redact("/-/v1/login/start?session=secret-session-id"), "/-/v1/login/start");
-    assert_eq!(
-        redact("/~corp/-/v1/login/start?session=secret-session-id"),
-        "/~corp/-/v1/login/start",
     );
     assert_eq!(redact("/-/v1/login/poll/secret-poll-token"), "/-/v1/login/poll/<redacted>");
     assert_eq!(

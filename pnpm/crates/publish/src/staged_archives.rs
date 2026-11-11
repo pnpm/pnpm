@@ -3,8 +3,8 @@
 //! bytes.
 //!
 //! pnpr stages an archive uploaded to
-//! `PUT <registry>/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` for the
-//! account that uploaded it, and answers `HEAD` on the same URL when it is
+//! `PUT <registry>/-/pnpr/v0/publish/archives/<sha512-…>` for the account
+//! that uploaded it, and answers `HEAD` on the same URL when it is
 //! staged already, so a resumed publish uploads only what is missing.
 
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::registry_config_keys::NormalizedRegistryUrl;
 
-const STAGING_ENDPOINT: &str = "-/pnpr/v0/artifacts/blob";
+const STAGING_ENDPOINT: &str = "-/pnpr/v0/publish/archives/";
 
 /// The most staged archives one pnpr commit may reference. A batch with more
 /// sends its archives inline.
@@ -198,11 +198,9 @@ async fn upload_archive(
 }
 
 fn staging_url(registry: &NormalizedRegistryUrl, integrity: &str) -> Result<String, StagingError> {
-    let query = url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("integrity", integrity)
-        .finish();
+    let archive: String = url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect();
     registry
-        .join(&format!("{STAGING_ENDPOINT}?{query}"))
+        .join(&format!("{STAGING_ENDPOINT}{archive}"))
         .map_err(StagingError::InvalidUrl)
 }
 

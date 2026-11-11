@@ -117,6 +117,10 @@ pub struct ProjectDocument {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     /// Filenames permanently reserved after an administrator deletes them.
     pub deleted_files: BTreeSet<String>,
+    /// The account IDs that may publish to this project, recorded by its first
+    /// publish. When empty, `$owners` admits only admins.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owners: Vec<String>,
 }
 
 impl ProjectDocument {
@@ -127,6 +131,7 @@ impl ProjectDocument {
             name: name.to_string(),
             files: Vec::new(),
             deleted_files: BTreeSet::new(),
+            owners: Vec::new(),
         }
     }
 

@@ -1149,7 +1149,8 @@ fn declared_dependencies(manifest: &Value, groups: &[&str]) -> Vec<String> {
 }
 
 /// Node.js's lookup of `name` from a package at `from`.
-fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> {
+#[must_use]
+pub fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> {
     from.ancestors()
         .filter(|dir| {
             dir.file_name()

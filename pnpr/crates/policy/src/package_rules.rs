@@ -30,6 +30,13 @@ impl PackageRules {
         Self(Arc::new(RwLock::new(Arc::new(table))))
     }
 
+    /// See [`RuleTable::with_default_publish`].
+    #[must_use]
+    pub fn with_default_publish(self, publish: AccessList) -> Self {
+        let table = RuleTable::clone(&self.snapshot()).with_default_publish(publish);
+        Self::from_table(table)
+    }
+
     /// Override the registry-level unpublish default (nobody).
     #[must_use]
     pub fn with_default_unpublish(self, unpublish: AccessList) -> Self {

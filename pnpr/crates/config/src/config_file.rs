@@ -46,10 +46,10 @@ pub(super) struct HostedFile {
     #[serde(default)]
     pub(super) ecosystem: Option<Ecosystem>,
     /// Storage namespace for this registry's packages, so two hosted registries can
-    /// hold the same `name@version` without colliding. A grouped registry defaults
-    /// to `name`; a flat entry defaults to the default namespace (`""`).
+    /// hold the same `name@version` without colliding. Omitted ⇒ the default
+    /// namespace (`""`).
     #[serde(default)]
-    pub(super) org: Option<String>,
+    pub(super) namespace: Option<String>,
     /// The registry-level default: who may read this registry's packages when
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default)]
@@ -68,8 +68,8 @@ pub(super) struct HostedFile {
     /// point the admin API may change. Omitted ⇒ `config`.
     #[serde(default)]
     pub(super) rules_managed_by: Management,
-    /// The names this registry serves and accepts publishes for — its
-    /// namespace — with optional per-package `access`/`publish`/`unpublish`
+    /// The package patterns this registry serves and accepts publishes for,
+    /// with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
     /// specific matching key wins; key order carries no meaning. Omitted ⇒
     /// every name, default rules.
@@ -130,7 +130,7 @@ pub(super) struct UpstreamFile {
     /// from `access` and the per-package refinements as `team:<id>`.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, TeamFile>,
-    /// The names that may be requested through this registry — its namespace —
+    /// The package patterns that may be requested through this registry,
     /// with optional per-package `access` refinements as values (`{}` or null
     /// ⇒ the registry default; a `publish`/`unpublish` value is a config
     /// error, since no write can land on an upstream). Omitted ⇒ every name.
@@ -155,16 +155,6 @@ pub(super) struct RouterFile {
     /// `tgz`.
     #[serde(default)]
     pub(super) tarballs: Option<TarballFormat>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(
-    untagged,
-    expecting = "a registry with type hosted, upstream, or router, or an ecosystem group of registries"
-)]
-pub(super) enum RegistryGroupFile {
-    Registry(RegistryFile),
-    Ecosystem(IndexMap<String, RegistryFile>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -279,7 +269,7 @@ pub(super) struct ConfigFile {
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`.
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) registries: IndexMap<String, RegistryGroupFile>,
+    pub(super) registries: IndexMap<String, RegistryFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
     /// registry and clients must address a `/~<name>/`.
     #[serde(default)]
@@ -488,7 +478,7 @@ pub(super) struct ArtifactsFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) orgs: IndexMap<String, StorageAccessFile>,
+    pub(super) owners: IndexMap<String, StorageAccessFile>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) quota: ArtifactQuotaFile,
 }

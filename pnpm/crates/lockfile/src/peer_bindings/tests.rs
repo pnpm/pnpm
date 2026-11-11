@@ -62,6 +62,46 @@ snapshots:
 }
 
 #[test]
+fn bound_providers_recovers_mixed_cycle_cut_groups() {
+    let suffix = PeerBindings::Explicit(vec![
+        "bound@1.0.0(child@1.0.0)".to_string(),
+        "cut@1.0.0".to_string(),
+    ])
+    .to_suffix(3)
+    .unwrap();
+    let root = key(&format!("root@1.0.0{suffix}"));
+    let yaml = format!(
+        r"lockfileVersion: '9.0'
+packages:
+  root@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+      bound: ^1.0.0
+      cut: ^1.0.0
+      own: ^2.0.0
+snapshots:
+  '{root}':
+    dependencies:
+      bound: 1.0.0(child@1.0.0)
+      cut: 1.0.0(root@1.0.0)
+      own: 2.0.0
+",
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    let providers = BoundProviders::of_snapshot(
+        crate::LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: lockfile.snapshots.as_ref(),
+        },
+        &root,
+    );
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&key("bound@1.0.0")));
+    assert!(providers.binds(&key("cut@1.0.0")));
+    assert!(!providers.binds(&key("own@2.0.0")));
+}
+
+#[test]
 fn bound_providers_of_snapshot_recovers_hashed_peers_across_shared_descendant_branches() {
     let suffix = PeerBindings::Explicit(vec!["p@1.0.0".to_string(), "q@1.0.0".to_string()])
         .to_suffix(3)
@@ -173,6 +213,58 @@ packages:
 }
 
 #[test]
+fn unmatched_hash_with_many_provider_candidates_stays_unknown() {
+    let suffix =
+        PeerBindings::Explicit(vec!["provider@9000.0.0".to_string()]).to_suffix(3).unwrap();
+    let root = key(&format!("root@1.0.0{suffix}"));
+    let mut snapshots = std::collections::HashMap::new();
+    let mut root_dependencies = std::collections::HashMap::new();
+    for index in 0..600 {
+        let name = format!("branch-{index}");
+        root_dependencies.insert(
+            name.parse().unwrap(),
+            crate::SnapshotDepRef::Plain("1.0.0".parse().unwrap()),
+        );
+        snapshots.insert(
+            key(&format!("{name}@1.0.0")),
+            crate::SnapshotEntry {
+                dependencies: Some(std::collections::HashMap::from([(
+                    "provider".parse().unwrap(),
+                    crate::SnapshotDepRef::Plain(
+                        format!("{}.0.0(child@1.0.0)", index + 1).parse().unwrap(),
+                    ),
+                )])),
+                ..Default::default()
+            },
+        );
+    }
+    snapshots.insert(
+        root.clone(),
+        crate::SnapshotEntry {
+            dependencies: Some(root_dependencies),
+            transitive_peer_dependencies: Some(vec!["provider".to_string()]),
+            ..Default::default()
+        },
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"lockfileVersion: '9.0'
+packages:
+  root@1.0.0:
+    resolution: {integrity: sha512-AAAA}
+",
+    )
+    .unwrap();
+    let providers = BoundProviders::of_snapshot(
+        crate::LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: Some(&snapshots),
+        },
+        &root,
+    );
+    assert!(providers.is_hashed());
+}
+
+#[test]
 fn an_explicit_suffix_names_its_providers_in_order() {
     let bindings = PeerBindings::from_key(&key("a@1.0.0(b@2.0.0(c@1.0.0))(c@1.0.0)")).unwrap();
     let providers: Vec<String> = bindings
@@ -276,4 +368,15 @@ fn bindings_round_trip_through_every_checked_in_lockfile() {
         }
     }
     assert!(checked > 0, "no snapshot with peers found under {}", repo_root.display());
+}
+
+#[test]
+fn snapshot_bindings_preserve_recorded_peer_contexts() {
+    let full = BoundProviders::from_key(&key("parent@1.0.0(provider@1.0.0(nested@1.0.0))"));
+    assert!(full.binds_snapshot(&key("provider@1.0.0(nested@1.0.0)")));
+    assert!(!full.binds_snapshot(&key("provider@1.0.0(nested@2.0.0)")));
+    assert!(!full.binds_snapshot(&key("provider@1.0.0")));
+    let bare = BoundProviders::from_key(&key("parent@1.0.0(provider@1.0.0)"));
+    assert!(bare.binds_snapshot(&key("provider@1.0.0(nested@2.0.0)")));
+    assert!(!bare.binds_snapshot(&key("provider@2.0.0(nested@2.0.0)")));
 }

@@ -1,9 +1,9 @@
-use pnpm_network::AddressGuard;
+use pnpm_network::{AddressGuard, LocalResponse};
 
 use super::{
-    AUTHORIZATION, Arc, Footprint, Identity, MetadataCacheScope, Mutex, PrivateAccessDescriptor,
-    ResolvedAlias, RouteClass, RouteContext, UpstreamConfig, UpstreamRouteHook, credential_digest,
-    fmt, nerf_prefix, scheme_of,
+    AUTHORIZATION, Arc, Footprint, Identity, LocalFetch, MetadataCacheScope, Mutex,
+    PrivateAccessDescriptor, ResolvedAlias, RouteClass, RouteContext, UpstreamConfig,
+    UpstreamRouteHook, fmt, headers_credential_digest, nerf_prefix, scheme_of,
 };
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
@@ -19,6 +19,7 @@ pub struct RouteHook {
     /// ([`MetadataCacheScope::Private`]); the same server secret the
     /// resolution cache keys private footprints with.
     pub(super) secret: Arc<[u8]>,
+    local_fetch: Option<Arc<LocalFetch>>,
 }
 
 impl fmt::Debug for RouteHook {
@@ -30,6 +31,7 @@ impl fmt::Debug for RouteHook {
             .field("identity", &self.identity)
             .field("footprint", &self.footprint)
             .field("secret", &"<redacted>")
+            .field("local_fetch", &self.local_fetch.is_some())
             .finish()
     }
 }
@@ -42,12 +44,29 @@ impl RouteHook {
         footprint: Arc<Mutex<Footprint>>,
         secret: Arc<[u8]>,
     ) -> Self {
-        Self { context, identity, footprint, secret }
+        Self { context, identity, footprint, secret, local_fetch: None }
+    }
+}
+
+impl RouteHook {
+    #[must_use]
+    pub fn with_local_fetch(mut self, fetch: Arc<LocalFetch>) -> Self {
+        self.local_fetch = Some(fetch);
+        self
     }
 }
 
 impl UpstreamRouteHook for RouteHook {
+    fn fetch_local(&self, url: &str, headers: reqwest::header::HeaderMap) -> Option<LocalResponse> {
+        if !self.context.allows_fetch(url) || !self.context.is_own_url(url) {
+            return None;
+        }
+        self.local_fetch.as_ref()?(url, headers)
+    }
+
     fn authorize(&self, url: &str, package: Option<&str>) -> Option<String> {
+        let local_package = self.context.local_package(url);
+        let package = local_package.as_deref().or(package);
         match self.context.classify(&self.identity, url, package) {
             RouteClass::Public => None,
             RouteClass::Hosted { policy_id } => {
@@ -60,12 +79,12 @@ impl UpstreamRouteHook for RouteHook {
                 let authorization = self.context.aliases
                     .iter()
                     .find(|candidate| candidate.name == alias)
-                    .map(|candidate| candidate.authorization.clone());
+                    .and_then(|candidate| candidate.authorization.clone());
                 // Package-qualified only when the upstream's rules explicitly
                 // refine this name, so replay re-checks the refinement.
                 let package = self.context.alias_package_qualifier(&alias, package);
                 self.record(PrivateAccessDescriptor::Alias { alias, credential_digest, package });
-                authorization
+                authorization.filter(|_| !self.context.is_own_url(url))
             }
         }
     }
@@ -80,6 +99,8 @@ impl UpstreamRouteHook for RouteHook {
     }
 
     fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
+        let local_package = self.context.local_package(url);
+        let package = local_package.as_deref().or(package);
         // Read-only classification — this must not record into the
         // footprint (`authorize` already does, at the real fetch point).
         match self.context.classify(&self.identity, url, package) {
@@ -111,19 +132,19 @@ impl RouteHook {
 }
 
 impl ResolvedAlias {
-    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
-    /// participates in route classification only when it declares both an
-    /// `access:` policy and a resolved `Authorization` credential; routing is
-    /// by registry origin, so no package glob is attached.
+    /// Resolve upstream access and credential state for route classification.
     pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
-        let access = upstream.access.clone()?;
+        let access = upstream.access
+            .clone()
+            .unwrap_or_else(|| super::AccessList::from_tokens(["$all"]));
         let authorization = upstream.headers
             .get(AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())?
-            .to_string();
+            .filter(|_| upstream.access.is_some())
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
         Some(Self {
             name: name.to_string(),
-            credential_digest: credential_digest(&authorization),
+            credential_digest: headers_credential_digest(&upstream.headers),
             registry: upstream.url.clone(),
             origin: nerf_prefix(&upstream.url)?,
             scheme: scheme_of(&upstream.url)?.to_string(),

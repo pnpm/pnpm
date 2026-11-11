@@ -124,6 +124,7 @@ pub struct WorkspaceLockfileReuse {
     /// Reconsider these packages using the existing-version preferences,
     /// without treating them as explicit update targets.
     pub dedupe: crate::UpdateTargets,
+    pub runtimes: crate::LockedRuntimeReuse,
 }
 
 #[derive(Default)]

@@ -1,7 +1,7 @@
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
-import { promisify } from 'node:util'
+import { isDeepStrictEqual, promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -145,7 +145,7 @@ interface Violation { name: string, version: string, code: string, reason: strin
  */
 type ResolveFrame =
   | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
-  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies?: unknown }
+  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies: Record<string, unknown> }
   | { type: 'error', message: string, code?: string }
   | { type: 'violations', violations: Violation[] }
 
@@ -171,6 +171,7 @@ export async function resolveViaPnprServer (
   const terminal = parseTerminalFrame(body.toString('utf-8'))
   assertResolutionSucceeded(terminal)
 
+  assertAppliedPolicies(terminal.appliedPolicies, opts)
   assertTransformMetadata(terminal.lockfile, opts)
   assertPublishDirectories(terminal.lockfile, projects)
 
@@ -240,6 +241,46 @@ function assertResolutionSucceeded (terminal: TerminalFrame): asserts terminal i
       .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
       .join('\n')
     throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
+  }
+}
+
+function assertAppliedPolicies (applied: Record<string, unknown> | undefined, opts: ResolveViaPnprServerOptions): void {
+  if (applied == null || typeof applied !== 'object' || Array.isArray(applied)) {
+    throw new PnpmError('PNPR_POLICY_MISMATCH', 'pnpr server omitted appliedPolicies')
+  }
+  const expected = expectedPolicies(opts)
+  for (const [name, value] of Object.entries(expected)) {
+    if (!isDeepStrictEqual(applied[name], value)) {
+      throw new PnpmError('PNPR_POLICY_MISMATCH', `pnpr server ignored requested ${name}`)
+    }
+  }
+  assertAppliedResolutionSettings(applied, opts)
+}
+
+function expectedPolicies (opts: ResolveViaPnprServerOptions): Record<string, unknown> {
+  return {
+    minimumReleaseAge: opts.minimumReleaseAge ?? null,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ?? [],
+    minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime ?? true,
+    trustPolicy: opts.trustPolicy === 'no-downgrade' ? 'no-downgrade' : null,
+    trustPolicyExclude: opts.trustPolicyExclude ?? [],
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter ?? null,
+    trustLockfile: opts.trustLockfile ?? false,
+    frozenLockfile: opts.frozenLockfile ?? false,
+    resolutionMode: opts.resolutionMode ?? 'highest',
+  }
+}
+
+function assertAppliedResolutionSettings (applied: Record<string, unknown>, opts: ResolveViaPnprServerOptions): void {
+  for (const name of ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const) {
+    if (typeof applied[name] !== 'boolean' || (opts[name] != null && applied[name] !== opts[name])) {
+      throw new PnpmError('PNPR_POLICY_MISMATCH', `pnpr server ignored requested ${name}`)
+    }
+  }
+  for (const name of ['addMissingPeerTypes', 'projectScopedOptionalPeers']) {
+    if (typeof applied[name] !== 'boolean') {
+      throw new PnpmError('PNPR_POLICY_MISMATCH', `pnpr server omitted appliedPolicies.${name}`)
+    }
   }
 }
 

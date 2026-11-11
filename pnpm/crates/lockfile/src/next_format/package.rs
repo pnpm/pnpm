@@ -90,6 +90,8 @@ pub struct NextPackage {
     pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unbound_peer_dependencies: Option<Vec<String>>,
 
     /// What each snapshot adds to the shared graph fields, when the package
     /// has several.
@@ -148,6 +150,8 @@ pub struct NextPackageOut<'a> {
     pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unbound_peer_dependencies: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snapshots: Option<Vec<NextSnapshotEntry>>,
 }
@@ -202,6 +206,7 @@ impl<'a> NextPackageOut<'a> {
             dependencies: shared.dependencies,
             optional_dependencies: shared.optional_dependencies,
             optional: shared.optional,
+            unbound_peer_dependencies: shared.unbound_peer_dependencies,
             snapshots,
         }
     }
@@ -234,6 +239,10 @@ fn hoist(
                 rest,
                 |snapshot| &snapshot.transitive_peer_dependencies,
             ),
+            unbound_peer_dependencies: common_value(
+                first.unbound_peer_dependencies.as_ref(),
+                rest.iter().map(|snapshot| snapshot.unbound_peer_dependencies.as_ref()),
+            ),
             optional: first.optional && rest.iter().all(|snapshot| snapshot.optional),
         }
     };
@@ -257,6 +266,7 @@ impl NextPackage {
             optional_dependencies: self.optional_dependencies.take(),
             peer_dependencies: peers.bindings.own,
             transitive_peer_dependencies: peers.bindings.below,
+            unbound_peer_dependencies: self.unbound_peer_dependencies.take(),
             optional: self.optional,
         };
         let snapshots = self.snapshots.take();
@@ -368,6 +378,9 @@ impl NextSnapshotEntry {
         if shared.id.is_some() {
             self.id = None;
         }
+        if shared.unbound_peer_dependencies.is_some() {
+            self.unbound_peer_dependencies = None;
+        }
         if shared.optional {
             self.optional = false;
         }
@@ -391,6 +404,9 @@ impl NextSnapshotEntry {
             }
         }
         self.id = self.id.or_else(|| shared.id.clone());
+        self.unbound_peer_dependencies = self.unbound_peer_dependencies.or_else(|| {
+            shared.unbound_peer_dependencies.clone()
+        });
         self.optional |= shared.optional;
         self
     }

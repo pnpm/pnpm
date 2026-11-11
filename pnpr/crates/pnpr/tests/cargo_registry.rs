@@ -16,7 +16,7 @@ mod publishing;
 #[path = "cargo_registry/routing.rs"]
 mod routing;
 
-use crate::{ecosystem as common, registry_groups};
+use crate::{ecosystem as common, multi_ecosystem};
 
 use axum::{
     body::Body,
@@ -38,7 +38,7 @@ fn cargo_config(storage: PathBuf, upstream_url: &str, hosted_access: &str) -> Co
         Ecosystem::Cargo,
         HostedSource {
             name: "crates",
-            org: "crates",
+            namespace: "crates",
             access: hosted_access,
             packages: &["demo", "inflector"],
         },

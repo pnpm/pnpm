@@ -487,7 +487,8 @@ async fn test_migrate_storage_from_takes_the_archives_of_another_directory() {
     seed_packuments(&storage, &["configured-a", "configured-b"]).await;
     let elsewhere = dir.path().join("elsewhere");
     std::fs::create_dir_all(&elsewhere).unwrap();
-    write_local_layout_marker(&elsewhere).unwrap();
+    std::fs::copy(config.storage.hosted_dir.join("layout.json"), elsewhere.join("layout.json"))
+        .unwrap();
     seed_archive(&elsewhere, Ecosystem::Npm, "configured-a", "configured-a-1.0.0.tgz", b"tarball");
 
     let options = MigrateStorageOptions {
@@ -637,7 +638,7 @@ registries:
   crates:
     type: hosted
     ecosystem: cargo
-    org: crates
+    namespace: crates
     packages:
       acme-crate:
         publish: $authenticated
@@ -861,6 +862,81 @@ async fn add_user_preserves_account_id_when_changing_password() {
         reloaded.users.add_or_login("example-user", "second-password").await.unwrap();
     assert_eq!(id, logged_in_id);
     assert!(reloaded.users.add_or_login("example-user", "first-password").await.is_err());
+}
+
+#[tokio::test]
+async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
+    let dir_a = TempDir::new().unwrap();
+    let (config_a, _) = create_hosting_test_config(dir_a.path());
+    write_local_layout_marker(&config_a.storage.hosted_dir).unwrap();
+    seed_archive(&config_a.storage.hosted_dir, Ecosystem::Npm, "pkg-a", "pkg-a-1.0.0.tgz", b"tar");
+
+    let dir_b = TempDir::new().unwrap();
+    let (config_b, _) = create_hosting_test_config(dir_b.path());
+    write_local_layout_marker(&config_b.storage.hosted_dir).unwrap();
+
+    // Database B pointed at store A (differing store_ids).
+    let mut mismatched = config_a.clone();
+    mismatched.storage.metadata = config_b.storage.metadata.clone();
+
+    // Fresh empty database pointed at store A (store has id, database doesn't).
+    let mut wiped_db = config_a.clone();
+    wiped_db.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(dir_a.path().join("wiped.sqlite"));
+
+    // Database A pointed at an unmarked empty store (database has id, store doesn't).
+    let mut wiped_store = config_a.clone();
+    wiped_store.storage.hosted_dir = dir_a.path().join("empty-store");
+    std::fs::create_dir_all(&wiped_store.storage.hosted_dir).unwrap();
+
+    let export_out = dir_a.path().join("export-out");
+    let migrate_opts = MigrateStorageOptions {
+        to_bucket: Some("mock-bucket".to_string()),
+        to_region: Some("us-east-1".to_string()),
+        dry_run: true,
+        ..MigrateStorageOptions::default()
+    };
+    let gc_dry = GcOptions { dry_run: true, ..GcOptions::default() };
+    let gc_live = GcOptions { dry_run: false, ..GcOptions::default() };
+    let verify_opts = VerifyOptions { check_hashes: true };
+
+    for bad in [&mismatched, &wiped_db, &wiped_store] {
+        assert!(pnpr::prepare_storage(bad).await.is_err());
+        assert!(collect_archives(bad, &gc_dry).await.is_err());
+        assert!(collect_archives(bad, &gc_live).await.is_err());
+        assert!(
+            pnpr::run_command(
+                bad,
+                pnpr::Command::Gc { registry: Vec::new(), dry_run: true, min_age: Duration::ZERO },
+            )
+            .await
+            .is_err(),
+        );
+        assert!(
+            pnpr::run_command(
+                bad,
+                pnpr::Command::Gc { registry: Vec::new(), dry_run: false, min_age: Duration::ZERO },
+            )
+            .await
+            .is_err(),
+        );
+        assert!(verify_storage(bad, &verify_opts).await.is_err());
+        assert!(
+            pnpr::run_command(
+                bad,
+                pnpr::Command::Export { out: export_out.clone(), include_auth: false },
+            )
+            .await
+            .is_err(),
+        );
+        assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
+    }
+
+    // An upstream-only proxy hosts no packages and does not bind the package store,
+    // so replicas with separate local SQLite files can share one store directory.
+    let mut proxy_replica = mismatched.clone();
+    proxy_replica.routing.hosted.clear();
+    pnpr::prepare_storage(&proxy_replica).await.unwrap();
 }
 
 mod startup;

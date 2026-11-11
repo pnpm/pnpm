@@ -36,8 +36,6 @@ pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
 pub use archives::{PromotedArchive, archive_temp_bases};
 pub use blob_id::{BlobId, parse_blob_key};
 
-pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
-
 pub use staged_archives::{
     INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
     StagedArchiveUsage,
@@ -62,13 +60,11 @@ mod archives;
 mod blob_id;
 
 mod layout_state;
-use layout_state::namespace;
+use layout_state::slice;
 
 mod staged_records;
 
 mod staged_archives;
-
-mod registry_records;
 
 mod atomic_write;
 use atomic_write::create_tmp_file;
@@ -154,22 +150,23 @@ pub enum CachedDocument {
 ///   on scratch/ephemeral disk.
 ///
 /// Both lay out packages as [`layout`] describes. A `Storage` addresses one
-/// hosted namespace, the default one unless [`Storage::for_hosted`] picked
-/// an org's, and the records every namespace shares.
+/// hosted `(namespace, ecosystem)` slice, the default npm one unless
+/// [`Storage::for_hosted`] picked another, and the records every namespace
+/// shares.
 #[derive(Debug, Clone)]
 pub struct Storage {
     /// The whole hosted store: its layout marker and the shared records.
     pub(crate) root: Arc<dyn HostedBackend>,
-    /// One namespace of `root`.
+    /// One `(namespace, ecosystem)` slice of `root`.
     hosted: Arc<dyn HostedBackend>,
     cached: Store,
-    /// The hosted backend's tar-integrity namespace, shared by every
-    /// organization; see [`Storage::read_tar_integrities`].
+    /// The hosted backend's tar-integrity record directory, shared by every
+    /// namespace; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
     /// The metadata database every namespace shares.
     database: Arc<metadata::SqlMetadata>,
-    /// The metadata of `hosted`'s namespace.
+    /// The metadata of `hosted`'s `(namespace, ecosystem)` slice.
     metadata: metadata::PackageMetadata,
 }
 
@@ -253,7 +250,7 @@ impl Storage {
         database: Arc<metadata::SqlMetadata>,
     ) -> Self {
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
-        let hosted = namespace(&root, "", Ecosystem::Npm);
+        let hosted = slice(&root, "", Ecosystem::Npm);
         let metadata = database.view("", Ecosystem::Npm);
         Self {
             root,
@@ -395,4 +392,33 @@ mod tests;
 pub struct MetadataRecord {
     pub bytes: Vec<u8>,
     pub generation: i64,
+}
+
+/// Mark the local hosted store at `root` as being in [`layout::LAYOUT_VERSION`]
+/// and bind its default `SQLite` metadata database to the same `store_id`.
+///
+/// # Errors
+///
+/// Writing the marker or binding the metadata database failed.
+pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
+    if !root.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("hosted store directory '{}' does not exist", root.display()),
+        ));
+    }
+    let existing = std::fs::read(root.join(layout::LAYOUT_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<layout::LayoutMarker>(&bytes).ok())
+        .and_then(|marker| marker.store_id)
+        .filter(|id| !id.is_empty());
+    let candidate = existing.unwrap_or_else(layout::new_store_id);
+    let database = metadata::SqlMetadata::open_sqlite(&pnpr_config::default_metadata_path(root))
+        .map_err(std::io::Error::other)?;
+    let store_id = database.claim_store_id_sync(&candidate).map_err(std::io::Error::other)?;
+    let marker = serde_json::to_vec(&layout::LayoutMarker {
+        layout: layout::LAYOUT_VERSION,
+        store_id: Some(store_id),
+    })?;
+    std::fs::write(root.join(layout::LAYOUT_FILE), marker)
 }

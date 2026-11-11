@@ -2,11 +2,12 @@
 
 use super::{
     STAGED_ARCHIVES_DIR, StagedArchiveKey, StagedArchiveUsage, StagedEntry, is_collectable,
-    is_held, object, parse_object, principal_namespace, unix_now,
+    is_held, principal_namespace, unix_now,
 };
 use crate::{
-    Result, Storage,
+    BlobId, Result, Storage,
     metadata::{StagedId, StagedRecord, StagedState},
+    parse_blob_key,
 };
 use std::collections::HashMap;
 
@@ -82,7 +83,7 @@ impl Storage {
         if written.is_none() {
             return Ok(false);
         }
-        let name = object(&id.digest, record.incarnation);
+        let name = id.blob_id.key(record.incarnation);
         self.root.remove_record(&principal_namespace(&id.principal), &name).await?;
         Ok(true)
     }
@@ -95,17 +96,17 @@ impl Storage {
         stored: Vec<String>,
         entries: &[StagedEntry],
     ) -> Result<usize> {
-        let current: HashMap<(String, &str), &StagedRecord> = entries
+        let current: HashMap<(String, &BlobId), &StagedRecord> = entries
             .iter()
-            .map(|(id, record)| ((principal_namespace(&id.principal), id.digest.as_str()), record))
+            .map(|(id, record)| ((principal_namespace(&id.principal), &id.blob_id), record))
             .collect();
         let mut removed = 0;
         for key in stored {
             let Some((hash, name)) = key.split_once('/') else { continue };
-            let Some((digest, incarnation)) = parse_object(name) else { continue };
+            let Some((blob_id, incarnation)) = parse_blob_key(name) else { continue };
             let namespace = format!("{STAGED_ARCHIVES_DIR}/{hash}");
             let dead = current
-                .get(&(namespace.clone(), digest))
+                .get(&(namespace.clone(), &blob_id))
                 .is_none_or(|record| is_dead(record, incarnation));
             if dead {
                 removed += usize::from(self.root.remove_record(&namespace, name).await?);
@@ -125,6 +126,6 @@ fn is_dead(record: &StagedRecord, incarnation: u64) -> bool {
 impl StagedArchiveKey<'_> {
     #[cfg(test)]
     pub(super) fn object_name(&self, incarnation: u64) -> String {
-        object(self.digest, incarnation)
+        self.blob_id.key(incarnation)
     }
 }

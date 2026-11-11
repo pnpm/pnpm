@@ -108,6 +108,39 @@ async fn keeps_the_locked_runtime_without_network() {
 }
 
 #[tokio::test]
+async fn a_locked_runtime_from_another_release_channel_is_resolved_again() {
+    let mut resolver = resolver();
+    resolver.offline = true;
+    let mut opts = locked_node_opts(UpdateBehavior::Off, false);
+    let current = opts.refresh.current_pkg.as_mut().expect("locked runtime");
+    current.id = "node@runtime:26.0.0-nightly20260101abcdef".into();
+    current.version = Some("26.0.0-nightly20260101abcdef".to_string());
+    let wanted = |bare_specifier: &str| WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+
+    let kept = resolver
+        .resolve(&wanted("runtime:nightly/^26"), &opts)
+        .await
+        .unwrap()
+        .expect("node resolver claims the runtime dependency");
+    assert_eq!(kept.id.as_str(), "node@runtime:26.0.0-nightly20260101abcdef");
+
+    for other_channel in ["runtime:rc/^26", "runtime:^26"] {
+        let err = resolver
+            .resolve(&wanted(other_channel), &opts)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<super::NodeResolverError>(),
+            Some(super::NodeResolverError::Offline),
+        ));
+    }
+}
+
+#[tokio::test]
 async fn a_kept_runtime_still_rejects_an_unknown_release_channel() {
     let wanted = WantedDependency {
         alias: Some("node".to_string()),

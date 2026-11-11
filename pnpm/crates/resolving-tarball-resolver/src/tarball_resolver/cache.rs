@@ -152,6 +152,10 @@ impl TarballResolver {
                 ctx.auth_headers
                     .for_url_with_package(url, Some(package_id))
                     .is_none()
+                    && matches!(
+                        ctx.auth_headers.metadata_scope(url, Some(package_id)),
+                        pnpm_network::MetadataCacheScope::Public,
+                    )
             })
     }
 

@@ -4,7 +4,7 @@
 use super::{
     importers::{importer_dependencies, next_importer, non_empty},
     peers::{
-        ProviderFinder, all_groups_named, names_provider, own_peer_names, provider_segments,
+        ProviderConstraint, ProviderFinder, all_groups_named, own_peer_names, provider_segments,
         transitive_named_in_key,
     },
     {
@@ -15,9 +15,15 @@ use super::{
         Explicit, children,
     },
 };
-use crate::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry};
+use crate::{
+    BoundProviders, Lockfile, LockfileEntries, PackageKey, PackageMetadata, PkgName,
+    SnapshotDepRef, SnapshotEntry,
+};
+use naming::{BindingVariation, NamingBudget, binding_components, varying_bindings};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+
+mod naming;
 
 /// One snapshot of the lockfile, split into the next format's maps.
 pub(super) struct Snapshot<'a> {
@@ -98,8 +104,26 @@ impl Snapshot<'_> {
             optional_dependencies: non_empty(optional_dependencies),
             peer_dependencies: non_empty(peer_dependencies),
             transitive_peer_dependencies: non_empty(transitive),
+            unbound_peer_dependencies: explicit.unbound_peer_names
+                .contains(self.key)
+                .then(|| self.unbound_peer_names()),
             optional: self.entry.optional,
         }
+    }
+    fn unbound_peer_names(&self) -> Vec<String> {
+        let mut names: Vec<_> = self.entry.transitive_peer_dependencies
+            .iter()
+            .flatten()
+            .filter(|name| {
+                !self.transitive
+                    .iter()
+                    .any(|(bound, _)| bound.to_string() == **name)
+            })
+            .cloned()
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names
     }
 }
 
@@ -110,12 +134,13 @@ pub(super) struct Snapshots<'a> {
     index: HashMap<&'a PackageKey, (usize, usize)>,
     /// Per package, the peers its snapshots bind differently: the bindings
     /// that name one of them.
-    varying: Vec<HashSet<PkgName>>,
+    varying: Vec<BindingVariation>,
+    named: HashMap<&'a PackageKey, Option<NamedBindings>>,
+    components: HashMap<&'a PackageKey, usize>,
 }
 
 /// A snapshot's transitive peers: those its key names, and those left for
-/// [`ProviderFinder`]. A peer nothing provides is not written: the reader
-/// derives it from the `peerDependencies` of the packages below.
+/// [`ProviderFinder`].
 struct Transitive<'a> {
     named: Vec<(PkgName, SnapshotDepRef)>,
     unnamed: Vec<(PkgName, &'a str)>,
@@ -140,20 +165,19 @@ impl<'a> Transitive<'a> {
 
     /// Finds the providers of the unnamed peers below `key`. A peer whose
     /// provider the key does not name is missing as far as the key goes.
-    fn find_unnamed(&mut self, finder: &mut ProviderFinder<'a, '_>, key: &'a PackageKey) {
+    fn find_unnamed(
+        &mut self,
+        finder: &mut ProviderFinder<'a, '_>,
+        key: &'a PackageKey,
+        providers: Option<&BoundProviders>,
+    ) {
         if self.unnamed.is_empty() {
             return;
         }
         let segments = provider_segments(&key.suffix);
         for (alias, name) in std::mem::take(&mut self.unnamed) {
-            let found = finder
-                .provider_below(key, name)
-                .filter(|reference| {
-                    segments
-                        .as_deref()
-                        .is_none_or(|segments| names_provider(segments, &alias, reference))
-                })
-                .cloned();
+            let constraint = ProviderConstraint::new(&alias, segments.as_deref(), providers);
+            let found = finder.provider_below(key, name, &constraint).cloned();
             if let Some(reference) = found {
                 self.named.push((alias, reference));
             }
@@ -166,9 +190,15 @@ impl<'a> Snapshots<'a> {
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     ) -> Result<Self, NextFormatError> {
+        let entries = LockfileEntries { packages, snapshots: Some(snapshots) };
+        let providers: HashMap<_, _> = snapshots
+            .par_iter()
+            .filter(|(key, _)| provider_segments(&key.suffix).is_none())
+            .map(|(key, _)| (key, BoundProviders::of_snapshot(entries, key)))
+            .collect();
         let own_peers: HashMap<&PackageKey, HashSet<&PkgName>> = snapshots
             .par_iter()
-            .map(|(key, entry)| (key, own_peer_names(key, entry, packages)))
+            .map(|(key, entry)| (key, own_peer_names(key, entry, packages, providers.get(key))))
             .collect();
         let prepared = snapshots
             .par_iter()
@@ -177,7 +207,7 @@ impl<'a> Snapshots<'a> {
         let mut finder = ProviderFinder::new(snapshots, &own_peers);
         let mut grouped: HashMap<PackageKey, Vec<Snapshot<'a>>> = HashMap::new();
         for (key, entry, mut transitive) in prepared {
-            transitive.find_unnamed(&mut finder, key);
+            transitive.find_unnamed(&mut finder, key, providers.get(key));
             grouped
                 .entry(key.without_peer())
                 .or_default()
@@ -188,10 +218,12 @@ impl<'a> Snapshots<'a> {
                     transitive: transitive.named,
                 });
         }
-        Ok(Snapshots::from_groups(grouped))
+        Snapshots::from_groups(grouped)
     }
 
-    fn from_groups(grouped: HashMap<PackageKey, Vec<Snapshot<'a>>>) -> Self {
+    fn from_groups(
+        grouped: HashMap<PackageKey, Vec<Snapshot<'a>>>,
+    ) -> Result<Self, NextFormatError> {
         let mut by_package: Vec<(PackageKey, Vec<Snapshot<'a>>)> = grouped.into_iter().collect();
         by_package
             .par_iter_mut()
@@ -213,22 +245,41 @@ impl<'a> Snapshots<'a> {
             .par_iter()
             .map(|(_, snapshots)| varying_bindings(snapshots))
             .collect();
-        Snapshots { by_package, index, varying }
+        let components = binding_components(&by_package);
+        let mut snapshots =
+            Snapshots { by_package, index, varying, named: HashMap::new(), components };
+        for key in snapshots.index.keys().copied() {
+            let named = snapshots.naming_bindings_in(key, &mut NamingBudget::default())?;
+            snapshots.named.insert(key, named);
+        }
+        Ok(snapshots)
     }
 
     /// The bindings that name the snapshot `target` among its package's: the
     /// peers the package's snapshots bind differently, as `target` binds
     /// them. `None` when nothing tells the snapshot apart.
     pub(super) fn naming_bindings(&self, target: &PackageKey) -> Option<NamedBindings> {
-        let &(package, index) = self.index.get(target)?;
-        let snapshot = &self.by_package[package].1[index];
-        let varying = &self.varying[package];
-        let peers: NamedBindings = snapshot
-            .bindings()
-            .filter(|(name, _)| varying.contains(*name))
-            .map(|(name, reference)| (name.to_string(), without_groups(reference)))
-            .collect();
-        (!peers.is_empty()).then_some(peers)
+        self.named
+            .get(target)
+            .cloned()
+            .flatten()
+    }
+
+    /// Nested discriminators must also be written on the bindings they identify.
+    pub(super) fn mark_nested_bindings(&self, explicit: &mut Explicit) {
+        for snapshot in self.by_package.iter().flat_map(|(_, snapshots)| snapshots) {
+            let Some(bindings) = self.naming_bindings(snapshot.key) else { continue };
+            for name in snapshot
+                .binding_names()
+                .filter(|name| {
+                    bindings
+                        .get(&name.to_string())
+                        .is_some_and(|reference| reference.peers().is_some())
+                })
+            {
+                explicit.mark_snapshot_reference(snapshot.key, name);
+            }
+        }
     }
 
     pub(super) fn sections(
@@ -334,23 +385,5 @@ fn importer_mismatches<'l>(
                 })
                 .map(move |(alias, _)| (id.as_str(), alias))
         })
-        .collect()
-}
-
-/// The peers that `snapshots`, of one package, bind differently or not all
-/// bind.
-fn varying_bindings(snapshots: &[Snapshot<'_>]) -> HashSet<PkgName> {
-    let mut values: HashMap<&PkgName, (HashSet<SnapshotDepRef>, usize)> = HashMap::new();
-    for snapshot in snapshots {
-        for (name, reference) in snapshot.bindings() {
-            let (bound, count) = values.entry(name).or_default();
-            bound.insert(without_groups(reference));
-            *count += 1;
-        }
-    }
-    values
-        .into_iter()
-        .filter(|(_, (bound, count))| bound.len() > 1 || *count < snapshots.len())
-        .map(|(name, _)| name.clone())
         .collect()
 }

@@ -10,8 +10,8 @@ use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use reqwest::header::HeaderMap;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
-/// The namespace [`MockConfigPresets::proxy`] declares on its flat-root hosted org, so
-/// those names resolve locally rather than to the npm upstream: the
+/// The package patterns [`MockConfigPresets::proxy`] declares on its flat-root hosted
+/// registry, so those names resolve locally rather than to the npm upstream: the
 /// registry-mock fixture scopes plus the unscoped fixtures. Kept in sync
 /// with the fixtures under `pnpr/.fixtures/packages`.
 pub const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
@@ -42,7 +42,7 @@ pub const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
 /// The `local` hosted registry's `packages:` rules in the registry-mock shape:
 /// the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with default rules,
 /// `@private/*` and `@pnpm.e2e/needs-auth` restricted to authenticated callers,
-/// and unpublish open to any authenticated user.
+/// and publish and unpublish open to any authenticated user.
 #[must_use]
 pub fn registry_mock_rules() -> PackageRules {
     let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
@@ -64,6 +64,7 @@ pub fn registry_mock_rules() -> PackageRules {
         unpublish: authenticated(),
     });
     PackageRules::new(rules, None)
+        .with_default_publish(AccessList::from_tokens(["$authenticated"]))
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
 }
 

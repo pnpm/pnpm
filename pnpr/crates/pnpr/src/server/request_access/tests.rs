@@ -13,7 +13,7 @@ fn config_from(yaml: &str) -> Config {
 }
 
 #[test]
-fn upstream_cache_namespace_is_stable_across_ecosystem_grouping() {
+fn renaming_an_upstream_gives_it_a_separate_cache_namespace() {
     let top_level = config_from(
         "\
 storage: ./s
@@ -33,37 +33,36 @@ registries:
     public: true
 ",
     );
-    let grouped = config_from(
+    let renamed = config_from(
         "\
 storage: ./s
 registries:
-  npm:
-    npmjs:
-      type: upstream
-      url: https://registry.npmjs.org/
-      public: true
-    private-npm:
-      type: upstream
-      url: https://npm.example.com/
-      access: $authenticated
-  cargo:
-    crates:
-      type: upstream
-      url: https://index.crates.io/
-      public: true
+  public-npm:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  private:
+    type: upstream
+    url: https://npm.example.com/
+    access: $authenticated
+  cratesio:
+    type: upstream
+    ecosystem: cargo
+    url: https://index.crates.io/
+    public: true
 ",
     );
 
-    assert_eq!(
+    assert_ne!(
         compute_upstream_cache_namespace(&top_level, "npmjs"),
-        compute_upstream_cache_namespace(&grouped, "npm/npmjs"),
+        compute_upstream_cache_namespace(&renamed, "public-npm"),
     );
-    assert_eq!(
+    assert_ne!(
         compute_upstream_cache_namespace(&top_level, "private-npm"),
-        compute_upstream_cache_namespace(&grouped, "npm/private-npm"),
+        compute_upstream_cache_namespace(&renamed, "private"),
     );
-    assert_eq!(
+    assert_ne!(
         compute_upstream_cache_namespace(&top_level, "crates"),
-        compute_upstream_cache_namespace(&grouped, "cargo/crates"),
+        compute_upstream_cache_namespace(&renamed, "cratesio"),
     );
 }

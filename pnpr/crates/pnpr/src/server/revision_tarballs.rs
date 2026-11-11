@@ -362,8 +362,8 @@ async fn serve_hosted_revision_tarball(
     source: &str,
     (package, version, revision): (&CanonicalPackageName, &str, TarballRevision),
 ) -> Response {
-    let org = match hosted_read_namespace(state, identity, source, package.as_str()) {
-        Ok(org) => org,
+    let namespace = match hosted_read_namespace(state, identity, source, package.as_str()) {
+        Ok(namespace) => namespace,
         Err(err) => return err.into_response(),
     };
     if let Err(err) = ensure_osv_allowed(state, package, version) {
@@ -372,7 +372,7 @@ async fn serve_hosted_revision_tarball(
     if revision.get() != 0 {
         return not_found();
     }
-    let storage = state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm);
+    let storage = state.inner.storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Npm);
     let original = match hosted_original(&storage, package, version).await {
         Ok(Some(original)) => original,
         Ok(None) => return not_found(),

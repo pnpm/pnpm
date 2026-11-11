@@ -90,7 +90,7 @@ fn mysql_upserts_accept_columns_adjacent_to_the_table() {
 fn mysql_select_upserts_omit_row_alias() {
     let (sql, _) = Dialect::Mysql
         .statement(
-            "INSERT INTO removed_versions (name, generation) SELECT value, ?2 FROM (SELECT value FROM json_each(?1)) AS removed WHERE value != '' ON CONFLICT (name) DO UPDATE SET generation = excluded.generation",
+            "INSERT INTO removed_oci_manifests (artifact, generation) SELECT value, ?2 FROM (SELECT value FROM json_each(?1)) AS removed WHERE value != '' ON CONFLICT (artifact) DO UPDATE SET generation = excluded.generation",
             &[Param::Text(r#"["sha256-a"]"#), Param::Integer(7)],
         )
         .unwrap();

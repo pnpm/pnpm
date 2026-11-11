@@ -1,7 +1,7 @@
-//! The records of staged archives: a principal's archive uploaded by digest
+//! The records of staged archives: a principal's archive uploaded by integrity
 //! ahead of the commit that claims it (see [`crate::StagedArchiveKey`]).
 //!
-//! The bytes stay in the hosted store, under `<digest>.<incarnation>`. The
+//! The bytes stay in the hosted store, under `<blob_id>.<incarnation>`. The
 //! record counts incarnations up like a blob's row (see
 //! [`crate::metadata::BlobRow`]): once a sweep records an incarnation
 //! `gone`, a later upload of the same bytes stores the next one, so the

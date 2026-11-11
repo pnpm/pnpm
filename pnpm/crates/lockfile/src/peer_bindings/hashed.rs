@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 
 use pnpm_crypto_hash::create_short_hash;
 
@@ -216,65 +216,135 @@ fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
 ) -> Option<HashSet<PkgNameVerPeer>> {
-    let total = candidates
-        .iter()
-        .try_fold(1_usize, |acc, targets| acc.checked_mul(targets.len() + 1))?;
-    if total > MAX_COMBINATIONS {
+    if !within_combination_limit(candidates) {
         return None;
     }
-    let mut chosen = Vec::with_capacity(candidates.len());
-    for strip_peers in [false, true] {
-        if let Some(matched) =
-            find_matching_combination(candidates, 0, &mut chosen, strip_peers, hash_hex)
-        {
+    for mode in [PeerGroups::Full, PeerGroups::Bare] {
+        if let Some(matched) = CombinationSearch::new(mode, hash_hex).find(candidates) {
             return Some(matched);
         }
     }
-    None
+    if !candidates
+        .iter()
+        .flatten()
+        .any(|target| !target.suffix.peer().is_empty())
+    {
+        return None;
+    }
+    // Cycle cuts can omit nested groups from only some providers.
+    let mixed = mixed_cycle_cut_candidates(candidates);
+    if mixed.as_slice() == candidates {
+        return None;
+    }
+    CombinationSearch::new(PeerGroups::Full, hash_hex).find(&mixed)
 }
 
-fn find_matching_combination<'a>(
-    candidates: &'a [Vec<PkgNameVerPeer>],
-    idx: usize,
-    chosen: &mut Vec<&'a PkgNameVerPeer>,
-    strip_peers: bool,
-    hash_hex: &str,
-) -> Option<HashSet<PkgNameVerPeer>> {
-    if idx < candidates.len() {
-        for candidate in &candidates[idx] {
-            chosen.push(candidate);
-            if let Some(matched) =
-                find_matching_combination(candidates, idx + 1, chosen, strip_peers, hash_hex)
-            {
+fn within_combination_limit(candidates: &[Vec<PkgNameVerPeer>]) -> bool {
+    candidates
+        .iter()
+        .try_fold(1_usize, |count, targets| count.checked_mul(targets.len() + 1))
+        .is_some_and(|count| count <= MAX_COMBINATIONS)
+}
+
+fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<PkgNameVerPeer>> {
+    candidates
+        .iter()
+        .map(|targets| {
+            let mut variants = targets.clone();
+            let mut seen: HashSet<_> = targets.iter().cloned().collect();
+            for target in targets {
+                let bare = target.without_peer();
+                if seen.insert(bare.clone()) {
+                    variants.push(bare);
+                }
+            }
+            variants
+        })
+        .collect()
+}
+
+#[derive(Clone, Copy)]
+enum PeerGroups {
+    Full,
+    Bare,
+}
+
+impl PeerGroups {
+    fn provider(self, target: &PkgNameVerPeer) -> Cow<'_, PkgNameVerPeer> {
+        match self {
+            Self::Full => Cow::Borrowed(target),
+            Self::Bare => Cow::Owned(target.without_peer()),
+        }
+    }
+}
+
+struct CombinationSearch<'hash> {
+    mode: PeerGroups,
+    hash_hex: &'hash str,
+    remaining: usize,
+}
+
+impl<'hash> CombinationSearch<'hash> {
+    fn new(mode: PeerGroups, hash_hex: &'hash str) -> Self {
+        CombinationSearch { mode, hash_hex, remaining: MAX_COMBINATIONS }
+    }
+
+    fn find(&mut self, candidates: &[Vec<PkgNameVerPeer>]) -> Option<HashSet<PkgNameVerPeer>> {
+        let mut chosen = Vec::with_capacity(candidates.len());
+        // Prefer complete provider sets before spending the budget on omissions.
+        for omitted in 0..=candidates.len() {
+            if let Some(matched) = self.with_omissions(candidates, &mut chosen, omitted) {
                 return Some(matched);
             }
-            chosen.pop();
         }
-        return find_matching_combination(candidates, idx + 1, chosen, strip_peers, hash_hex);
+        None
     }
-    subset_matches_hash(chosen, strip_peers, hash_hex)
-        .then(|| {
-            chosen
-                .iter()
-                .map(|target| target.without_peer())
-                .collect()
-        })
+
+    fn with_omissions<'a>(
+        &mut self,
+        candidates: &'a [Vec<PkgNameVerPeer>],
+        chosen: &mut Vec<&'a PkgNameVerPeer>,
+        omitted: usize,
+    ) -> Option<HashSet<PkgNameVerPeer>> {
+        if self.remaining == 0 || omitted > candidates.len() {
+            return None;
+        }
+        let Some((targets, rest)) = candidates.split_first() else {
+            return self.match_chosen(chosen);
+        };
+        for target in targets.iter().take(self.remaining) {
+            chosen.push(target);
+            let matched = self.with_omissions(rest, chosen, omitted);
+            chosen.pop();
+            if matched.is_some() {
+                return matched;
+            }
+        }
+        if omitted == 0 { None } else { self.with_omissions(rest, chosen, omitted - 1) }
+    }
+
+    fn match_chosen(&mut self, chosen: &[&PkgNameVerPeer]) -> Option<HashSet<PkgNameVerPeer>> {
+        self.remaining -= 1;
+        subset_matches_hash(chosen, self.mode, self.hash_hex)
+            .then(|| {
+                chosen
+                    .iter()
+                    .map(|target| self.mode.provider(target).into_owned())
+                    .collect()
+            })
+    }
 }
 
-fn subset_matches_hash(chosen: &[&PkgNameVerPeer], strip_peers: bool, hash_hex: &str) -> bool {
+fn subset_matches_hash(chosen: &[&PkgNameVerPeer], mode: PeerGroups, hash_hex: &str) -> bool {
     if chosen.is_empty() {
         return false;
     }
     let mut segments: Vec<String> = chosen
         .iter()
-        .map(|target| render_segment(target, strip_peers))
+        .map(|target| mode.provider(target).to_string())
         .collect();
     segments.sort();
     create_short_hash(&segments.join(")(")) == hash_hex
-}
-
-fn render_segment(target: &PkgNameVerPeer, strip_peers: bool) -> String {
-    if strip_peers { target.without_peer().to_string() } else { target.to_string() }
 }
 
 impl BoundProviders {
@@ -287,8 +357,11 @@ impl BoundProviders {
             return providers;
         }
         match recover_hashed_providers(entries, key) {
-            Some(recovered) => BoundProviders(Some(recovered)),
+            Some(recovered) => Self::from_providers(recovered),
             None => providers,
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,7 +1,7 @@
 use super::{LibsqlAuth, RegistryError, Result, Row, TokenBackend, TokenRecord, first_row, params};
 use crate::{
     NewToken,
-    token_store::{mint_token, sha256_hex, unix_seconds},
+    token_store::{mint_token, sha256_hex, unix_millis},
     validation::{
         token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql,
         token_timestamp_to_sql,
@@ -28,7 +28,7 @@ impl TokenBackend for LibsqlAuth {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, user_id);
         let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds();
+        let now = unix_millis();
         let record = TokenRecord {
             owner_name: None,
             user_id: user_id.to_string(),
@@ -70,7 +70,7 @@ impl TokenBackend for LibsqlAuth {
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let token_hash = token_hash.as_str();
-        let now = unix_seconds();
+        let now = unix_millis();
         self.pool.read(|conn| async move {
             let rows = conn
                 .query(
@@ -92,7 +92,7 @@ impl TokenBackend for LibsqlAuth {
              WHERE t.token_hash = ?1",
         );
         let query = query.as_str();
-        let now = unix_seconds();
+        let now = unix_millis();
         self.pool.read(|conn| async move {
             let rows = conn.query(query, params![token_hash]).await?;
             let record = first_row(rows, |row| {

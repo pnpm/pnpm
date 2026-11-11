@@ -2,18 +2,19 @@ use super::{
     Config, Identity, Path, RegistryError, hosted_rules_config, hosted_rules_err, listen, user,
 };
 
-/// A hosted `org` becomes a storage path segment, so a traversal-y value —
+/// A hosted `namespace` becomes a storage path segment, so a traversal-y value —
 /// including a Windows drive-relative prefix, which `PathBuf::join` treats as
 /// a new path rather than a child — must be rejected at load rather than
 /// reach the filesystem.
 #[test]
-fn from_yaml_str_rejects_hosted_org_path_traversal() {
-    for org in ["../../etc", "C:acme", "a/b"] {
-        let yaml =
-            format!("storage: ./s\nregistries:\n  evil:\n    type: hosted\n    org: {org}\n");
+fn from_yaml_str_rejects_hosted_namespace_path_traversal() {
+    for namespace in ["../../etc", "C:acme", "a/b"] {
+        let yaml = format!(
+            "storage: ./s\nregistries:\n  evil:\n    type: hosted\n    namespace: {namespace}\n",
+        );
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a traversal-y hosted org must be rejected");
-        assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
+            .expect_err("a traversal-y hosted namespace must be rejected");
+        assert!(err.to_string().contains("path-safe"), "unexpected error for {namespace:?}: {err}");
     }
 }
 
@@ -168,7 +169,7 @@ registries:
         access: team:platform
   corp:
     type: hosted
-    org: corp
+    namespace: corp
     packages:
       '@corp/*':
         access: team:platform
@@ -420,6 +421,20 @@ fn unpublish_rule_rejected_on_cargo_and_pypi_but_accepted_on_oci() {
     let oci_yaml = "storage: ./s\nregistries:\n  images:\n    type: hosted\n    ecosystem: oci\n    packages:\n      image:\n        unpublish: $authenticated\n";
     let oci_config = Config::from_yaml_str(oci_yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(oci_config.routing.hosted.contains_key("images"));
+}
+
+#[test]
+fn publish_defaults_to_owners_in_every_ecosystem() {
+    for eco in ["npm", "cargo", "pypi", "oci"] {
+        let yaml = format!(
+            "storage: ./s\nregistries:\n  local:\n    type: hosted\n    ecosystem: {eco}\n    packages:\n      pkg: {{}}\n",
+        );
+        let config = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap();
+        let table = config.routing.hosted["local"].rules.snapshot();
+        let publish = table.for_package("pkg").publish;
+        assert!(publish.references_owners(), "{eco}");
+        assert!(!publish.allows(&user("alice")), "{eco}");
+    }
 }
 
 #[test]

@@ -23,7 +23,7 @@ auth:
 registries:
   local:
     type: hosted
-    org: \"\"
+    namespace: \"\"
     rulesManagedBy: api
     teams:
       readers: { name: readers, members: [carol] }
@@ -33,7 +33,7 @@ registries:
       '**': {}
   fixed:
     type: hosted
-    org: fixed
+    namespace: fixed
     packages:
       '@fixed/*': {}
   main:
@@ -196,15 +196,19 @@ async fn a_new_process_applies_the_stored_changes() {
 #[tokio::test]
 async fn unreadable_stored_changes_close_the_registry() {
     let dir = TempDir::new().unwrap();
-    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
-    storage
-        .create_registry_record(
-            pnpr_storage::RegistryRecord::RuleOverrides,
-            "npm/local",
-            b"not rules",
-        )
-        .await
-        .unwrap();
+    let config = load_config(dir.path());
+    let _storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
+        unreachable!();
+    };
+    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
+    conn.execute_batch(
+        "INSERT INTO rule_override_sets (registry, generation) VALUES ('npm/local', 1);
+         INSERT INTO rule_override_grants (registry, pattern, action, position, principal)
+         VALUES ('npm/local', '@secret/*', 'access', 0, 'root');",
+    )
+    .unwrap();
+    drop(conn);
     let app = app_router(load_config(dir.path())).await;
     let bob = add_user(&app, "bob").await;
 
@@ -355,25 +359,39 @@ async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version()
 #[tokio::test]
 async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
     let dir = TempDir::new().unwrap();
-    let change_with_unknown = json!({
-        "access": ["$authenticated"],
-        "futureFieldFromNewerReplica": true,
-        "packages": {
-            "@secret/*": {
-                "access": ["root"],
-                "unknownPackageField": 123
-            }
-        }
-    });
-    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let config = load_config(dir.path());
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let mut packages = std::collections::BTreeMap::new();
+    packages.insert(
+        "@secret/*".to_string(),
+        pnpr_storage::metadata::StoredPackageOverride {
+            access: Some(vec!["root".to_string()]),
+            ..Default::default()
+        },
+    );
     storage
-        .create_registry_record(
-            pnpr_storage::RegistryRecord::RuleOverrides,
+        .replace_rule_overrides(
             "npm/local",
-            &serde_json::to_vec(&change_with_unknown).unwrap(),
+            None,
+            &pnpr_storage::metadata::StoredRuleOverrides {
+                access: Some(vec!["$authenticated".to_string()]),
+                packages,
+            },
         )
         .await
         .unwrap();
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
+        unreachable!();
+    };
+    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
+    conn.execute_batch(
+        "INSERT INTO rule_overrides (registry, pattern, action)
+         VALUES ('npm/local', '@secret/*', 'future_action');
+         INSERT INTO rule_override_grants (registry, pattern, action, position, principal)
+         VALUES ('npm/local', '@secret/*', 'future_action', 0, 'someone');",
+    )
+    .unwrap();
+    drop(conn);
 
     let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
@@ -384,43 +402,43 @@ async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
 }
 
 #[tokio::test]
-async fn moving_registry_into_ecosystem_group_preserves_rules() {
+async fn making_default_ecosystem_and_namespace_explicit_preserves_rules() {
     let dir = TempDir::new().unwrap();
     let app1 = app_router(load_config(dir.path())).await;
     let root = add_user(&app1, "root").await;
     let change = json!({ "access": ["$authenticated"] });
     assert_eq!(send(&app1, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
 
-    let grouped_config_yaml = "\
+    let explicit_config_yaml = "\
 auth:
   admins: [root]
   users:
     maxUsers: 100
 registries:
-  npm:
-    local:
-      type: hosted
-      org: \"\"
-      rulesManagedBy: api
-      teams:
-        readers: { name: readers, members: [carol] }
-      packages:
-        '@secret/*':
-          access: [$authenticated]
-        '**': {}
+  local:
+    type: hosted
+    ecosystem: npm
+    namespace: \"\"
+    rulesManagedBy: api
+    teams:
+      readers: { name: readers, members: [carol] }
+    packages:
+      '@secret/*':
+        access: [$authenticated]
+      '**': {}
   fixed:
     type: hosted
-    org: fixed
+    namespace: fixed
     packages:
       '@fixed/*': {}
   main:
     type: router
-    sources: [fixed, 'npm/local']
+    sources: [fixed, local]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
-    let path = dir.path().join("config_grouped.yaml");
-    std::fs::write(&path, format!("storage: {}\n{grouped_config_yaml}", storage.display()))
+    let path = dir.path().join("config_explicit.yaml");
+    std::fs::write(&path, format!("storage: {}\n{explicit_config_yaml}", storage.display()))
         .unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let config2 =
@@ -443,21 +461,21 @@ auth:
   users:
     maxUsers: 100
 registries:
-  cargo:
-    crates:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'foo': {}
-  pypi:
-    wheels:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'bar': {}
+  crates:
+    type: hosted
+    ecosystem: cargo
+    rulesManagedBy: api
+    packages:
+      'foo': {}
+  wheels:
+    type: hosted
+    ecosystem: pypi
+    rulesManagedBy: api
+    packages:
+      'bar': {}
   main:
     type: router
-    sources: ['cargo/crates']
+    sources: [crates]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
@@ -518,36 +536,37 @@ auth:
   users:
     maxUsers: 100
 registries:
-  cargo:
-    crates:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'foo': {}
+  crates:
+    type: hosted
+    ecosystem: cargo
+    rulesManagedBy: api
+    packages:
+      'foo': {}
   main:
     type: router
-    sources: ['cargo/crates']
+    sources: [crates]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
-    let change_with_unpublish = json!({
-        "packages": {
-            "foo": {
-                "access": ["$authenticated"],
-                "unpublish": ["root"],
-            },
-        },
-    });
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
     let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let mut packages = std::collections::BTreeMap::new();
+    packages.insert(
+        "foo".to_string(),
+        pnpr_storage::metadata::StoredPackageOverride {
+            access: Some(vec!["$authenticated".to_string()]),
+            publish: None,
+            unpublish: Some(vec!["root".to_string()]),
+        },
+    );
     storage
-        .create_registry_record(
-            pnpr_storage::RegistryRecord::RuleOverrides,
+        .replace_rule_overrides(
             "cargo/crates",
-            &serde_json::to_vec(&change_with_unpublish).unwrap(),
+            None,
+            &pnpr_storage::metadata::StoredRuleOverrides { access: None, packages },
         )
         .await
         .unwrap();

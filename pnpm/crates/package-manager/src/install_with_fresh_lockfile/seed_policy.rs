@@ -124,6 +124,16 @@ impl UpdateSeedPolicy {
         }
     }
 
+    pub(super) fn locked_runtime_reuse(&self) -> pnpm_resolving_deps_resolver::LockedRuntimeReuse {
+        use pnpm_resolving_deps_resolver::LockedRuntimeReuse;
+
+        if matches!(self, UpdateSeedPolicy::KeepAllResolveAll) {
+            LockedRuntimeReuse::Keep
+        } else {
+            LockedRuntimeReuse::Repick
+        }
+    }
+
     /// Matches the update targets whose pins every importer of `lockfile`
     /// withholds at every depth, so none of their locked versions is
     /// reused. `None` when a locked version of a target may survive: a

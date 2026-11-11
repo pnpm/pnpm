@@ -32,14 +32,14 @@ fn segments_the_encoding_cannot_produce_do_not_decode() {
 }
 
 #[test]
-fn the_default_namespace_cannot_be_an_org() {
+fn the_default_namespace_cannot_collide_with_a_named_namespace() {
     assert_eq!(namespace_segments("", Ecosystem::Npm), ["default", "npm"]);
     assert_eq!(namespace_segments("", Ecosystem::Cargo), ["default", "cargo"]);
-    assert_eq!(namespace_segments("default", Ecosystem::Npm), ["orgs", "default", "npm"]);
-    assert_eq!(namespace_segments("acme", Ecosystem::Oci), ["orgs", "acme", "oci"]);
+    assert_eq!(namespace_segments("default", Ecosystem::Npm), ["namespaces", "default", "npm"]);
+    assert_eq!(namespace_segments("acme", Ecosystem::Oci), ["namespaces", "acme", "oci"]);
     assert_eq!(
         namespace_segments("npm~internal", Ecosystem::Pypi),
-        ["orgs", "npm!7einternal", "pypi"],
+        ["namespaces", "npm!7einternal", "pypi"],
     );
 }
 

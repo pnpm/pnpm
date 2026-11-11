@@ -1,15 +1,15 @@
 use super::{Deserialize, PackageRules, TeamDirectory};
 
-/// A resolved hosted registry: the `org` namespace it serves and its
-/// `packages:` rules — the namespace it claims plus the per-package
+/// A resolved hosted registry: the storage `namespace` it serves and its
+/// `packages:` rules — the package patterns it claims plus the per-package
 /// `access` / `publish` / `unpublish` policies, with the registry-level
 /// `access:` as the default an entry's omitted fields fall back to.
 #[derive(Debug, Clone)]
 pub struct HostedConfig {
     /// The storage/serving namespace, so two hosted registries holding the same
-    /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
-    pub org: String,
-    /// The registry's `packages:` map: namespace and per-package rules in one
+    /// `name@version` never collide. Empty (`""`) ⇒ the default namespace.
+    pub namespace: String,
+    /// The registry's `packages:` map: claimed patterns and per-package rules in one
     /// declaration, selected by specificity. The effective `access` gates
     /// reads *and* the write routing (publish, dist-tag, unpublish), with a
     /// denied caller masked as not-found either way.
@@ -25,9 +25,9 @@ pub struct HostedConfig {
 impl HostedConfig {
     /// A registry without teams.
     #[must_use]
-    pub fn new(org: impl Into<String>, rules: PackageRules) -> Self {
+    pub fn new(namespace: impl Into<String>, rules: PackageRules) -> Self {
         Self {
-            org: org.into(),
+            namespace: namespace.into(),
             rules,
             teams: TeamDirectory::default(),
             teams_managed_by: Management::Config,

@@ -25,7 +25,7 @@ mod upload_errors;
 use publication::post_upload;
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
+    Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize_package,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
@@ -178,8 +178,10 @@ async fn visible_project_names(
     let mut names = BTreeSet::new();
     for source in hosted_sources(state, target, ECOSYSTEM) {
         let Some(hosted) = state.inner.config.routing.hosted.get(&source) else { continue };
-        let listed =
-            state.inner.storage.for_hosted(&hosted.org, ECOSYSTEM).hosted_package_names().await?;
+        let listed = state.inner.storage
+            .for_hosted(&hosted.namespace, ECOSYSTEM)
+            .hosted_package_names()
+            .await?;
         for name in listed {
             if visible_here(state, identity, target, &VisibleName { source: &source, name: &name })
             {

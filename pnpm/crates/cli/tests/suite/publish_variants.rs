@@ -69,8 +69,7 @@ fn publishes_every_archive_by_its_staged_integrity_from_one_machine() {
     write_package(&workspace, &registry, true);
     let mut staged = |method: &str, status: usize| {
         server
-            .mock(method, "/-/pnpr/v0/artifacts/blob")
-            .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+            .mock(method, Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
             .with_status(status)
             .expect(2)
             .create()
@@ -150,8 +149,7 @@ fn uploads_a_variant_and_a_final_publish_references_it() {
     let registry = format!("{}/", server.url());
     write_package(&workspace, &registry, true);
     let upload = server
-        .mock("PUT", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+        .mock("PUT", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(201)
         .expect(1)
         .create();
@@ -171,8 +169,7 @@ fn uploads_a_variant_and_a_final_publish_references_it() {
     assert!(integrity.starts_with("sha512-"), "{line}");
 
     let held = server
-        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+        .mock("HEAD", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(200)
         .with_header("content-length", "321")
         .expect(2)

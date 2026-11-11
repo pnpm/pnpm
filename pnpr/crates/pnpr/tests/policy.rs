@@ -27,7 +27,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     // Route everything to one local hosted over the flat storage root (an
-    // empty `org` namespace), so the path-less base resolves and the
+    // empty `namespace`), so the path-less base resolves and the
     // registry's own `packages:` rules gate the request. The callers pass a
     // top-level-shaped block ("packages:\n  '<key>': ..."); nest it under
     // the registry by re-indenting.
@@ -40,7 +40,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
         .join("\n");
     let yaml = format!(
         "storage: {}\nauth:\n  users:\n    maxUsers: 100\nregistries:\n  \
-         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n  \
+         local:\n    type: hosted\n    namespace: \"\"\n    access: $all\n    packages:\n{nested}\n  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
         storage.display(),

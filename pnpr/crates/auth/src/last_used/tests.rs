@@ -1,7 +1,7 @@
 use super::{
-    LAST_USED_GRANULARITY_SECS, LastUsedWriter, MAX_WRITES_IN_FLIGHT, MIN_CLAIMS_BEFORE_PRUNE,
+    LAST_USED_GRANULARITY_MILLIS, LastUsedWriter, MAX_WRITES_IN_FLIGHT, MIN_CLAIMS_BEFORE_PRUNE,
 };
-use crate::{NewToken, Result, TokenBackend, TokenRecord, sha256_hex, unix_seconds};
+use crate::{NewToken, Result, TokenBackend, TokenRecord, sha256_hex, unix_millis};
 use async_trait::async_trait;
 use pnpr_error::RegistryError;
 use std::{
@@ -83,16 +83,16 @@ async fn wait_until(condition: impl Fn() -> bool + Send + Sync) {
 
 /// A stored time every test treats as due for a write.
 const STALE: u64 = 0;
-const NOW: u64 = 1_000;
+const NOW: u64 = 1_000_000;
 
 #[test]
 fn an_interval_is_claimed_once_per_token() {
     let (writer, _) = writer();
     assert!(writer.claim("k", NOW));
     assert!(!writer.claim("k", NOW));
-    assert!(!writer.claim("k", NOW + LAST_USED_GRANULARITY_SECS - 1));
+    assert!(!writer.claim("k", NOW + LAST_USED_GRANULARITY_MILLIS - 1));
     assert!(writer.claim("other", NOW));
-    assert!(writer.claim("k", NOW + LAST_USED_GRANULARITY_SECS));
+    assert!(writer.claim("k", NOW + LAST_USED_GRANULARITY_MILLIS));
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn expired_claims_are_pruned() {
     for index in 0..MIN_CLAIMS_BEFORE_PRUNE {
         assert!(writer.claim(&format!("old-{index}"), NOW));
     }
-    assert!(writer.claim("new", NOW + LAST_USED_GRANULARITY_SECS));
+    assert!(writer.claim("new", NOW + LAST_USED_GRANULARITY_MILLIS));
     let claims = writer.claims.lock().unwrap();
     assert_eq!(claims.written_at.len(), 1);
     assert!(claims.written_at.contains_key("new"));
@@ -110,7 +110,7 @@ fn expired_claims_are_pruned() {
 #[tokio::test]
 async fn a_fresh_stored_time_needs_no_write_and_no_key() {
     let (writer, log) = writer();
-    assert!(!writer.record_with(unix_seconds(), || panic!("a fresh time derives no key")));
+    assert!(!writer.record_with(unix_millis(), || panic!("a fresh time derives no key")));
     assert!(writer.record_with(STALE, || "k".to_string()));
     wait_until(|| !log.touches.lock().unwrap().is_empty()).await;
     let touches = log.touches.lock().unwrap();

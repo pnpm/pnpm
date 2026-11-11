@@ -158,9 +158,9 @@ pub(super) async fn serve_hosted_blob(
     key: &CanonicalPackageName,
     filename: &str,
 ) -> Result<Response, RegistryError> {
-    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
+    let namespace = hosted_read_namespace(state, identity, source, key.as_str())?;
     let blob = state.inner.storage
-        .for_hosted(&org, key.ecosystem())
+        .for_hosted(&namespace, key.ecosystem())
         .open_hosted_blob(key, filename)
         .await?;
     Ok(match blob {

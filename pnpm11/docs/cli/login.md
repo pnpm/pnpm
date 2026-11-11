@@ -17,6 +17,8 @@ Supports web-based login with QR code as well as classic username/password authe
 
 Since v11.19.0, web-based login no longer requires an interactive terminal: without a TTY, `pnpm login` prints the authentication URL (skipping the QR code and the prompt to open the URL in a browser) and polls the registry until the browser approval completes. Only the classic username/password login still fails with `ERR_PNPM_LOGIN_NON_INTERACTIVE` in a non-interactive terminal.
 
+Since v11.28.12, web-based login prints the registry's `npm-notice` message before the authentication URL. Some registries use it to show a code that you type in the browser.
+
 Auth tokens are written to [`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations).
 
 ## Options

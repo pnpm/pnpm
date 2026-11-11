@@ -279,7 +279,7 @@ async fn an_archive_listing_holds_its_namespace_only() {
     {
         upload(&store, key, bytes).await;
     }
-    let other = store.namespaced("org");
+    let other = store.namespaced("other");
     upload(&other, &key_of(b"elsewhere"), b"elsewhere").await;
     let mut listed: Vec<String> = crate::HostedBackend::list_archives(&store)
         .map_ok(|stored| stored.name)

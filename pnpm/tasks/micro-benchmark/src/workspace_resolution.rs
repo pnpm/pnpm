@@ -310,6 +310,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
             scope: UpdateReuseScope::All,
             scopes_by_importer: BTreeMap::new(),
             depth: UpdateDepth::UNLIMITED,
+            runtimes: pnpm_resolving_deps_resolver::LockedRuntimeReuse::Repick,
         },
         version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution {
             pick_lowest_direct: false,

@@ -63,15 +63,15 @@ pub fn hosted_file(storage: &Path, name: &str, file: &str) -> Option<Vec<u8>> {
 }
 
 /// The names stored where the hosted store at `storage` keeps the archives
-/// of `(org, ecosystem)`, keys pnpr stored and anything else.
+/// of `(namespace, ecosystem)`, keys pnpr stored and anything else.
 #[must_use]
 pub fn stored_archives(
     storage: &Path,
-    org: &str,
+    namespace: &str,
     ecosystem: pnpr_storage::Ecosystem,
 ) -> Vec<String> {
     let mut dir = storage.to_path_buf();
-    dir.extend(pnpr_storage::layout::namespace_segments(org, ecosystem));
+    dir.extend(pnpr_storage::layout::namespace_segments(namespace, ecosystem));
     dir.push("archives");
     let mut names: Vec<String> = walkdir::WalkDir::new(dir)
         .into_iter()
@@ -140,17 +140,17 @@ fn needs_auth_packument() -> Value {
     })
 }
 
-/// Every file below the `(org, ecosystem)` namespace of the hosted store at
+/// Every file below `(namespace, ecosystem)` in the hosted store at
 /// `storage`: its stored archives, and anything a publish staged there and
 /// left behind.
 #[must_use]
 pub fn namespace_files(
     storage: &Path,
-    org: &str,
+    namespace: &str,
     ecosystem: pnpr_storage::Ecosystem,
 ) -> Vec<std::path::PathBuf> {
     let mut dir = storage.to_path_buf();
-    dir.extend(pnpr_storage::layout::namespace_segments(org, ecosystem));
+    dir.extend(pnpr_storage::layout::namespace_segments(namespace, ecosystem));
     walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(Result::ok)
@@ -160,16 +160,17 @@ pub fn namespace_files(
 }
 
 /// The bytes the hosted store `config` describes serves for the file `file`
-/// of `name` in the `ecosystem` namespace of `org`, through the metadata
-/// database it names, `None` when the package maps no such file.
+/// of `name` in `(namespace, ecosystem)`, through the metadata database it
+/// names, `None` when the package maps no such file.
 pub async fn served_file(
     config: &pnpr::Config,
-    (org, ecosystem): (&str, pnpr_storage::Ecosystem),
+    (namespace, ecosystem): (&str, pnpr_storage::Ecosystem),
     name: &str,
     file: &str,
 ) -> Option<Vec<u8>> {
-    let storage =
-        pnpr_storage::Storage::from_config(&config.storage).unwrap().for_hosted(org, ecosystem);
+    let storage = pnpr_storage::Storage::from_config(&config.storage)
+        .unwrap()
+        .for_hosted(namespace, ecosystem);
     let name = pnpr_package_name::CanonicalPackageName::parse(name, ecosystem).unwrap();
     let (body, _) = storage.open_hosted_blob(&name, file).await.unwrap()?;
     Some(axum::body::to_bytes(body, usize::MAX).await.unwrap().to_vec())

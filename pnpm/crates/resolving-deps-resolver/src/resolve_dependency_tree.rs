@@ -2,7 +2,9 @@ pub use catalogs::{ChildCatalogs, local_directory_child_specs};
 pub use failure::DependencyResolutionError;
 pub use manifest::{declared_specifiers, manifest_child_specs};
 
-pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
+pub use update_scope::{
+    LockedRuntimeReuse, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+};
 
 pub use reuse::real_package_name_of;
 

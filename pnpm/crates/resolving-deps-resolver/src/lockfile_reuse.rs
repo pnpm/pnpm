@@ -9,7 +9,7 @@ pub(crate) use registry_range::{any_locked_key_admits, locked_key_is_current};
 mod locked_version;
 mod registry_range;
 
-use locked_version::admits_locked_version;
+use locked_version::{admits_locked_version, runtime_child_admits};
 use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
     PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
@@ -79,7 +79,9 @@ pub(crate) fn prior_child_key(
                 .and_then(|deps| deps.get(&name))
         })?;
     let key = dep_ref.resolve(&name)?;
-    locked_child_admits(&name, &key, bare_specifier, registries)?.then_some(key)
+    runtime_child_admits(&key, bare_specifier)
+        .or_else(|| locked_child_admits(&name, &key, bare_specifier, registries))?
+        .then_some(key)
 }
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior

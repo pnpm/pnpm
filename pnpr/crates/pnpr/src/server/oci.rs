@@ -19,7 +19,9 @@ pub(super) mod tokens;
 
 pub(super) use response::{Refusal, error};
 
-pub(super) use publication::{OciPublication, authorize_publication};
+pub(super) use publication::{
+    OciPublication, OciTarget, authorize_publication, continue_publication,
+};
 
 mod response;
 use response::{
@@ -53,7 +55,7 @@ mod proxy;
 mod publication;
 
 use super::{
-    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
+    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize, authorize_package,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
     hosted_read_namespace, private_no_cache, resolve_ecosystem_source,
@@ -357,18 +359,32 @@ impl Request {
 
     /// The hosted registry a write of `name` lands on, once the caller is
     /// allowed to publish it.
-    fn publish_target(&self, name: &str) -> Result<(CanonicalPackageName, String), Refusal> {
-        authorize_publication(&self.state, &self.identity, self.registry.as_deref(), name)
+    async fn publish_target(&self, name: &str) -> Result<OciTarget, Refusal> {
+        authorize_publication(&self.state, &self.identity, self.registry.as_deref(), name).await
+    }
+
+    /// [`Self::publish_target`] for a later request of an upload session.
+    fn session_target(&self, name: &str) -> Result<OciTarget, Refusal> {
+        continue_publication(&self.state, &self.identity, self.registry.as_deref(), name)
     }
 
     /// The hosted repository `name` addresses, with the storage this caller
     /// may read it from.
     fn hosted_repo(&self, name: &str) -> Result<HostedRepo, Refusal> {
         let (key, source) = self.hosted_source(name)?;
-        let org = hosted_read_namespace(&self.state, &self.identity, &source, key.as_str())
+        let namespace = hosted_read_namespace(&self.state, &self.identity, &source, key.as_str())
             .map_err(Refusal::from)?;
-        let storage = self.state.inner.storage.for_hosted(&org, ECOSYSTEM);
-        Ok(HostedRepo { key, source, storage })
+        let storage = self.state.inner.storage.for_hosted(&namespace, ECOSYSTEM);
+        Ok(HostedRepo { key, source, namespace, storage })
+    }
+
+    /// Whether the caller may delete from `repo`. Called under the package
+    /// lock, so an owner removed meanwhile can no longer delete.
+    async fn authorize_unpublish(&self, repo: &HostedRepo) -> Result<(), RegistryError> {
+        let source = RegistrySource::Hosted(repo.source.clone());
+        let (key, namespace) = (repo.key.as_str(), Some(repo.namespace.as_str()));
+        authorize_package(&self.state, &self.identity, &source, key, Action::Unpublish, namespace)
+            .await
     }
 
     /// Whether a bearer token on the request denies pulling `source_key`.
@@ -428,6 +444,7 @@ struct TagList<'listing> {
 struct HostedRepo {
     key: CanonicalPackageName,
     source: String,
+    namespace: String,
     storage: Storage,
 }
 

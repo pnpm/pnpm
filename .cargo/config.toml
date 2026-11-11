@@ -2,6 +2,13 @@
 # Do not append `--` or it will break IDEs
 codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --exclude pnpm-micro-benchmark --exclude pnpm-registry-mock --ignore-filename-regex tasks"
 
+[env]
+# Seed aws-lc's RNG from the OS CSPRNG only, without CPU jitter entropy.
+# Jitter entropy's power-on health test can fail on loaded or virtualized
+# machines, and aws-lc then calls abort() during the first TLS handshake:
+# pnpm/tasks#239, aws/aws-lc-rs#1072.
+AWS_LC_SYS_NO_JITTER_ENTROPY = "1"
+
 [target.powerpc64le-unknown-linux-gnu]
 # cross's binutils 2.26 mislinks calls to optional libc symbols such as gettid.
 # Use Rust's bundled LLD while retaining the cross image's libc baseline.

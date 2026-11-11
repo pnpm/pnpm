@@ -84,7 +84,6 @@ fn is_read_only_post_path(path: &str) -> bool {
         "/-/pnpr/v0/resolve"
             | "/-/pnpr/v0/verify-lockfile"
             | "/-/pnpr/v0/artifacts/resolve"
-            | "/-/pnpr/v0/artifacts/blob"
             | "/-/oidc/handoff",
     )
 }

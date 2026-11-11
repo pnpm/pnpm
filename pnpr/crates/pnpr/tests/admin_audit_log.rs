@@ -31,7 +31,7 @@ auth:
 registries:
   local:
     type: hosted
-    org: \"\"
+    namespace: \"\"
     rulesManagedBy: api
     teamsManagedBy: api
     teams:
@@ -673,7 +673,7 @@ fn oci_app(tmp: &TempDir) -> axum::Router {
         pnpr::Ecosystem::Oci,
         crate::ecosystem::HostedSource {
             name: "images",
-            org: "images",
+            namespace: "images",
             access: "$all",
             packages: &["acme/*"],
         },

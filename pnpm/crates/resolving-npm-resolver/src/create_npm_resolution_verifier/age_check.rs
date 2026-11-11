@@ -128,7 +128,15 @@ impl NpmResolutionVerifier {
         {
             request = request.header("authorization", value);
         }
-        let response = match request.send().await {
+        let sent = match self.metadata.auth_headers.fetch_local(
+            &url,
+            Some(&name.to_string()),
+            reqwest::header::HeaderMap::new(),
+        ) {
+            Some(response) => Ok(response.await),
+            None => request.send().await,
+        };
+        let response = match sent {
             Ok(response) if response.status().is_success() => response,
             _ => return None,
         };

@@ -387,14 +387,14 @@ async fn tokens_issue_with_options_persists_and_expires() {
                 .with_readonly(true)
                 .with_cidr_whitelist(vec!["127.0.0.1/32".to_string()])
                 .with_name(Some("ci-token".to_string()))
-                .with_expires_at(Some(2_000_000_000)),
+                .with_expires_at(Some(4_000_000_000_000)),
         )
         .await
         .unwrap();
     assert_eq!(record.user_id, "alice");
     assert!(record.readonly);
     assert_eq!(record.name.as_deref(), Some("ci-token"));
-    assert_eq!(record.expires_at, Some(2_000_000_000));
+    assert_eq!(record.expires_at, Some(4_000_000_000_000));
     drop(store);
 
     let reopened = TokenStore::open(path.clone()).unwrap();
@@ -407,7 +407,7 @@ async fn tokens_issue_with_options_persists_and_expires() {
     assert!(looked_up.readonly);
     assert_eq!(looked_up.cidr_whitelist, vec!["127.0.0.1/32".to_string()]);
     assert_eq!(looked_up.name.as_deref(), Some("ci-token"));
-    assert_eq!(looked_up.expires_at, Some(2_000_000_000));
+    assert_eq!(looked_up.expires_at, Some(4_000_000_000_000));
 }
 
 #[tokio::test]
@@ -1019,13 +1019,13 @@ async fn schema_migrations_refuses_future_schema_version() {
 
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch(
-            "CREATE TABLE schema_migrations (version INTEGER NOT NULL PRIMARY KEY) STRICT;",
-        )
-        .unwrap();
+        conn.execute_batch(pnpr_sql::schema::MARKER_TABLE).unwrap();
         for version in 1..=future {
-            conn.execute("INSERT INTO schema_migrations (version) VALUES (?1)", [version])
-                .unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 1)",
+                [version],
+            )
+            .unwrap();
         }
     }
 

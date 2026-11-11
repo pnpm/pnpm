@@ -281,10 +281,13 @@ pub struct AppliedPolicies {
     pub project_scoped_optional_peers: bool,
     pub frozen_lockfile: bool,
     pub resolution_mode: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_lockfile: bool,
     pub minimum_release_age: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum_release_age_exclude: Vec<String>,
+    pub minimum_release_age_ignore_missing_time: bool,
     pub trust_policy: Option<String>,
+    pub trust_policy_exclude: Vec<String>,
+    pub trust_policy_ignore_after: Option<u64>,
 }
 
 impl AppliedPolicies {
@@ -301,6 +304,15 @@ impl AppliedPolicies {
             pnpm_config::TrustPolicy::NoDowngrade => Some("no-downgrade".to_string()),
         };
         Self {
+            minimum_release_age_exclude: request.minimum_release_age_exclude
+                .clone()
+                .unwrap_or_default(),
+            minimum_release_age_ignore_missing_time: request
+                .minimum_release_age_ignore_missing_time
+                .unwrap_or(true),
+            trust_policy_exclude: request.trust_policy_exclude.clone().unwrap_or_default(),
+            trust_policy_ignore_after: request.trust_policy_ignore_after,
+            trust_lockfile: request.trust_lockfile,
             auto_install_peers: settings.auto_install_peers,
             dedupe_peers: settings.dedupe_peers,
             exclude_links_from_lockfile: settings.exclude_links_from_lockfile,

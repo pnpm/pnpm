@@ -188,6 +188,10 @@ fn semver_validation_is_strict() {
     }
 }
 
+mod claims;
+
 mod fence;
 
 mod names;
+
+mod owners;

@@ -40,7 +40,6 @@ pub(super) fn routes(ui_served: bool) -> Router<AppState> {
 pub(super) struct LoginQuery {
     #[serde(rename = "return")]
     returns_to: Option<String>,
-    session: Option<String>,
 }
 
 async fn login(
@@ -53,28 +52,30 @@ async fn login(
         None => LoginReturn::Token,
         Some("ui") if ui_served => LoginReturn::Ui,
         Some("ui") => return bad_request("this pnpr does not serve the web UI"),
-        Some("cli") => {
-            let Some(session) = query.session.as_deref() else {
-                return bad_request("session query parameter required for return=cli");
-            };
-            if !is_valid_state(session) || !state.inner.identity.oidc.is_valid_web_login(session) {
-                return bad_request("invalid or expired web login session");
-            }
-            LoginReturn::Cli { session: session.to_string() }
-        }
         Some(_) => return bad_request("return must be ui"),
     };
-    let response = match state.inner.identity.oidc.start(&provider, returns_to).await {
-        Ok(start) => with_cookie(
-            Redirect::to(&start.url).into_response(),
-            &format!(
-                "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
-                start.state, start.browser_secret,
-            ),
+    redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to)
+        .await
+        .unwrap_or_else(|err| protect(err.into_response()))
+}
+
+/// Send the browser to `provider` to sign in. Only this browser can finish
+/// the sign-in, because the callback requires the cookie set here. `Err`
+/// means the sign-in did not start, so no browser can finish it.
+pub(super) async fn redirect_to_provider(
+    oidc: &OidcState,
+    provider: &str,
+    returns_to: LoginReturn,
+) -> Result<Response, RegistryError> {
+    let start = oidc.start(provider, returns_to).await?;
+    let response = with_cookie(
+        Redirect::to(&start.url).into_response(),
+        &format!(
+            "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
+            start.state, start.browser_secret,
         ),
-        Err(err) => err.into_response(),
-    };
-    protect(response)
+    );
+    Ok(protect(response))
 }
 
 #[derive(Deserialize)]
@@ -128,8 +129,8 @@ fn signed_in(oidc: &OidcState, flow: &str, session: LoginSession) -> Response {
             Err(err) => err.into_response(),
         };
     }
-    if let LoginReturn::Cli { session: ref session_id } = session.returns_to {
-        return match oidc.fulfill_web_login(session_id, session.token) {
+    if let LoginReturn::Cli { ref login_id } = session.returns_to {
+        return match oidc.fulfill_web_login(login_id, session.token) {
             Ok(()) => {
                 let html = r#"<!doctype html>
 <html>
@@ -301,15 +302,15 @@ fn validate_workload_packages(packages: &[String]) -> Result<(), RegistryError> 
     Ok(())
 }
 
-/// The routes besides its own packages' publish that a workload may call,
-/// under the server root, the npm base, or its registry's address:
-/// staging a release archive, and committing a publish that references
-/// staged archives. The commit is scoped to the workload's packages by
-/// [`WorkloadScope`].
-const WORKLOAD_PROTOCOL_ROUTES: [(&str, &[axum::http::Method]); 2] = [
-    ("/-/pnpr/v0/artifacts/blob", &[axum::http::Method::PUT, axum::http::Method::HEAD]),
-    ("/-/pnpr/v0/publish", &[axum::http::Method::PUT]),
-];
+/// The publish commit a workload may call besides its own packages' publish,
+/// under the server root, the npm base, or its registry's address. The
+/// commit is scoped to the workload's packages by [`WorkloadScope`].
+const WORKLOAD_PUBLISH_ROUTE: &str = "/-/pnpr/v0/publish";
+
+/// Where a workload stages the release archives its commit references, one
+/// archive per path segment below it, under the same bases as
+/// [`WORKLOAD_PUBLISH_ROUTE`].
+const WORKLOAD_ARCHIVES_ROUTE: &str = "/-/pnpr/v0/publish/archives";
 
 pub(super) fn check_workload_request(
     workload: &pnpr_config::oidc::OidcWorkload,
@@ -327,15 +328,23 @@ pub(super) fn check_workload_request(
     {
         return Ok(());
     }
-    let protocol = WORKLOAD_PROTOCOL_ROUTES
-        .iter()
-        .any(|(route, methods)| {
-            methods.contains(method)
-                && ["", base.as_str(), registry_base.as_str()]
-                    .iter()
-                    .any(|prefix| decoded == format!("{prefix}{route}"))
-        });
-    if protocol {
+    let prefixes = ["", base.as_str(), registry_base.as_str()];
+    let publish = *method == axum::http::Method::PUT
+        && prefixes
+            .iter()
+            .any(|prefix| decoded == format!("{prefix}{WORKLOAD_PUBLISH_ROUTE}"));
+    // The parent is compared as sent, as the router matches it, so the
+    // percent-encoded archive segment cannot stand for more than one.
+    let staging = matches!(*method, axum::http::Method::PUT | axum::http::Method::HEAD)
+        && path
+            .rsplit_once('/')
+            .is_some_and(|(parent, archive)| {
+                !archive.is_empty()
+                    && prefixes
+                        .iter()
+                        .any(|prefix| parent == format!("{prefix}{WORKLOAD_ARCHIVES_ROUTE}"))
+            });
+    if publish || staging {
         return Ok(());
     }
     Err(RegistryError::Forbidden {

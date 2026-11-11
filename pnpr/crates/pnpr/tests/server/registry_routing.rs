@@ -1,8 +1,8 @@
 use super::{
     AuthState, Body, Ecosystem, MaxUsers, PackagePattern, Registries, Registry, Request,
-    ServiceExt, StatusCode, TempDir, assert_grouped_ecosystem, body_bytes, body_json, config_for,
-    header, hosted_with_access, json, mock_package, mock_packument_for_tarball,
-    read_registry_directory, registry_groups, router, router_config, router_with_auth,
+    ServiceExt, StatusCode, TempDir, assert_ecosystem_directory, body_bytes, body_json, config_for,
+    header, hosted_with_access, json, mock_package, mock_packument_for_tarball, multi_ecosystem,
+    read_registry_directory, router, router_config, router_with_auth,
 };
 use crate::tokens::issue_token;
 
@@ -702,9 +702,9 @@ async fn a_single_npm_ecosystem_still_answers_under_its_prefix() {
 }
 
 #[tokio::test]
-async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
+async fn registries_keep_ecosystem_access_and_defaults_separate() {
     let tmp = TempDir::new().unwrap();
-    let config = registry_groups::grouped_config(tmp.path(), "alice");
+    let config = multi_ecosystem::multi_ecosystem_config(tmp.path(), "alice");
     let auth = crate::tokens::seeded_auth(
         &config,
         &[("alice", "password"), ("bob", "password"), ("ci", "password")],
@@ -714,7 +714,7 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     for authenticated in [false, true] {
         let directory = read_registry_directory(&app, authenticated.then_some(&token)).await;
         for ecosystem in Ecosystem::all() {
-            assert_grouped_ecosystem(
+            assert_ecosystem_directory(
                 &directory,
                 ecosystem,
                 ecosystem != Ecosystem::Npm || authenticated,
@@ -722,14 +722,14 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
         }
     }
     for path in [
-        "/cargo/~internal/index/config.json",
-        "/cargo/~main/index/config.json",
+        "/cargo/~cargo-internal/index/config.json",
+        "/cargo/~cargo-main/index/config.json",
         "/cargo/index/config.json",
-        "/pypi/~internal/simple/",
-        "/pypi/~main/simple/",
+        "/pypi/~pypi-internal/simple/",
+        "/pypi/~pypi-main/simple/",
         "/pypi/simple/",
-        "/oci/~internal/v2/",
-        "/oci/~main/v2/",
+        "/oci/~oci-internal/v2/",
+        "/oci/~oci-main/v2/",
         "/v2/",
     ] {
         let response = app
@@ -748,7 +748,7 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
         );
     }
     for path in [
-        "/npm/~internal/demo",
+        "/npm/~npm-internal/demo",
         "/npm/~cargo%2Finternal/demo",
         "/cargo/~npm%2Finternal/index/config.json",
     ] {

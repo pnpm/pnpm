@@ -79,12 +79,12 @@ pub use pnpm_deps_path::DepPath;
 pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
     ChildCatalogs, DependencyResolutionError, DependencySpec, Deprecation, DeprecationLogFn,
-    FinalizedChild, FinalizedPackage, FinalizedPackageFn, ManifestHook, ResolveDependencyTreeError,
-    ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
-    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
-    WorkspaceTreeCtx, declared_specifiers, dependency_is_injected, dependency_meta_is_injected,
-    directory_package_dir, extend_tree, local_directory_child_specs, manifest_child_specs,
-    real_package_name_of, resolve_dependency_tree,
+    FinalizedChild, FinalizedPackage, FinalizedPackageFn, LockedRuntimeReuse, ManifestHook,
+    ResolveDependencyTreeError, ResolveDependencyTreeOptions, SkippedOptionalDependency,
+    SkippedOptionalDependencyParent, SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope,
+    UpdateTargets, VersionLine, WorkspaceTreeCtx, declared_specifiers, dependency_is_injected,
+    dependency_meta_is_injected, directory_package_dir, extend_tree, local_directory_child_specs,
+    manifest_child_specs, real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,

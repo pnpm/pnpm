@@ -1,138 +1,85 @@
 use super::{
-    AppState, AuthedCaller, Body, CallerOrgs, Ecosystem, Response, State, StatusCode, header,
+    AppState, AuthedCaller, Body, CallerOwners, Ecosystem, Response, State, StatusCode, header,
     private_no_cache,
 };
-use axum::{
-    http::{HeaderMap, Uri},
-    response::IntoResponse,
-};
+use axum::{extract::Path, http::HeaderMap, response::IntoResponse};
 use pnpm_shared_artifact_protocol::OwnerScope;
 use pnpr_error::RegistryError;
 
-/// `GET /-/pnpr` — capability handshake for the pnpr resolver
-/// protocol. A plain npm registry has no such route and 404s, so a
-/// client can fail fast against a misconfigured server. `versions`
-/// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks;
-/// `fixLockfile` narrows that list to versions that honor repair requests;
-/// `ecosystems` names the package ecosystems `/-/pnpr/v0/resolve` accepts
-/// in its request body, so a client meeting a server that does not serve
-/// one of them resolves it locally rather than failing; `publish` lists the
-/// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
-/// transaction. `records` lists the release record formats whose records
-/// hosted registries log, with the `manifestProfiles` they are derived
-/// under.
+/// Configuration-derived protocol capabilities.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
-    let config = &state.inner.config;
-    let resolver_enabled = config.features.resolver.enabled;
-    let versions = resolver_enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let fix_lockfile = versions.clone();
-    let ecosystems: Vec<&str> = if resolver_enabled {
-        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
-    } else {
-        Vec::new()
-    };
-    let artifacts = enabled_version(config.features.artifacts.enabled);
-    let publish = enabled_version(config.features.registry.enabled);
-    let pipeline = enabled_version(config.features.pipeline.enabled);
-
-    let protocols = build_protocols_payload(config);
-    let features = build_features_payload(config);
-    let (records, manifest_profiles) = records_payload(&state);
-
     (
         StatusCode::OK,
-        axum::Json(serde_json::json!({
-            "pnpr": {
-                "versions": versions,
-                "artifacts": artifacts,
-                "pipeline": pipeline,
-                "fixLockfile": fix_lockfile,
-                "ecosystems": ecosystems,
-                "publish": publish,
-                "protocols": protocols,
-                "features": features,
-                "records": records,
-                "manifestProfiles": manifest_profiles,
-            }
-        })),
+        axum::Json(serde_json::json!({ "pnpr": { "protocols": build_protocols_payload(&state.inner.config) } })),
     )
         .into_response()
 }
 
-/// The release record formats hosted registries log, and the profiles they
-/// derive them under. Records are logged by hosted registries with a log
-/// signing key.
-fn records_payload(state: &AppState) -> (Vec<u32>, Vec<&'static str>) {
-    let config = &state.inner.config;
-    let logs_records = config.features.registry.enabled
-        && config.release_records.log_signing_key.is_some();
-    let records = logs_records
-        .then_some(1)
-        .into_iter()
-        .collect();
-    let profiles = logs_records
-        .then_some(pnpm_package_manifest::INSTALL_MANIFEST_PROFILE)
-        .into_iter()
-        .collect();
-    (records, profiles)
+pub(super) async fn serve_npm_handshake(State(state): State<AppState>) -> Response {
+    let mut protocols = build_protocols_payload(&state.inner.config);
+    for name in ["resolver", "artifacts", "compilerCache", "pipeline"] {
+        protocols[name]["versions"] = serde_json::json!([]);
+        protocols[name]["features"] = serde_json::json!([]);
+    }
+    protocols["resolver"]["ecosystems"] = serde_json::json!([]);
+    axum::Json(serde_json::json!({ "pnpr": { "protocols": protocols } })).into_response()
 }
 
-fn enabled_version(enabled: bool) -> Vec<u32> {
-    enabled
-        .then_some(0)
+fn protocol(enabled: bool, version: u32) -> serde_json::Value {
+    let versions: Vec<u32> = enabled
+        .then_some(version)
         .into_iter()
-        .collect()
+        .collect();
+    serde_json::json!({ "versions": versions, "features": [], "experimental": false })
 }
 
 fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
     let resolver_enabled = config.features.resolver.enabled;
-    let versions = resolver_enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let ecosystems: Vec<&str> = if resolver_enabled {
-        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
+    let mut resolver = protocol(resolver_enabled, 0);
+    resolver["features"] = serde_json::json!(if resolver_enabled {
+        vec![
+            "fixLockfile",
+            "verifyLockfile",
+            "projectTransforms",
+            "policyEcho",
+            "errorCodes",
+            "acceptedLockfileFormats",
+        ]
     } else {
         Vec::new()
-    };
+    });
+    resolver["ecosystems"] = serde_json::json!(if resolver_enabled {
+        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    });
     serde_json::json!({
-        "resolver": {
-            "version": 0,
-            "versions": versions,
-            "features": [
-                "fixLockfile",
-                "verifyLockfile",
-                "projectTransforms",
-                "policyEcho",
-                "errorCodes",
-                "acceptedLockfileFormats"
-            ],
-            "ecosystems": ecosystems,
-        },
-        "artifacts": { "version": 0, "versions": enabled_version(config.features.artifacts.enabled) },
-        "compilerCache": {
-            "version": 0,
-            "versions": enabled_version(config.features.artifacts.enabled),
-        },
-        "pipeline": { "version": 0, "versions": enabled_version(config.features.pipeline.enabled) },
-        "publish": {
-            "version": 0,
-            "versions": enabled_version(config.features.registry.enabled),
-            "pnpmPublish": if config.features.registry.enabled { vec![1] } else { Vec::new() },
-        },
+        "resolver": resolver,
+        "artifacts": experimental_protocol(config.features.artifacts.enabled),
+        "compilerCache": experimental_protocol(config.features.artifacts.enabled),
+        "pipeline": experimental_protocol(config.features.pipeline.enabled),
+        "publish": protocol(config.features.registry.enabled, 0),
+        "pnpmPublish": protocol(config.features.registry.enabled, 1),
+        "records": records_protocol(config),
     })
 }
 
-fn build_features_payload(config: &crate::Config) -> serde_json::Value {
-    serde_json::json!({
-        "registries": true,
-        "admin": !config.identity.admins.is_empty(),
-        "scim": config.identity.auth.scim.is_some(),
-        "signIn": !config.identity.auth.oidc.is_empty(),
-    })
+fn experimental_protocol(enabled: bool) -> serde_json::Value {
+    let mut capability = protocol(enabled, 0);
+    capability["experimental"] = serde_json::json!(true);
+    capability
+}
+
+fn records_protocol(config: &crate::Config) -> serde_json::Value {
+    let records_enabled = config.features.registry.enabled
+        && config.release_records.log_signing_key.is_some();
+    let mut records = protocol(records_enabled, 1);
+    records["manifestProfiles"] = serde_json::json!(if records_enabled {
+        vec![pnpm_package_manifest::INSTALL_MANIFEST_PROFILE]
+    } else {
+        Vec::new()
+    });
+    records
 }
 
 /// 404 stub mounted on the capability handshake when neither pnpr protocol is
@@ -155,6 +102,7 @@ pub(super) async fn serve_resolve(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
+        &state,
     );
     crate::resolver::handle_resolve(runtime, identity, body).await
 }
@@ -168,6 +116,7 @@ pub(super) async fn serve_verify_lockfile(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
+        &state,
     );
     crate::resolver::handle_verify_lockfile(runtime, identity, body).await
 }
@@ -177,7 +126,7 @@ pub(super) async fn serve_publish_artifact(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact publication") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact publication") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -204,7 +153,7 @@ pub(super) async fn serve_resolve_artifacts(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact lookup") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact lookup") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -221,19 +170,23 @@ pub(super) async fn serve_resolve_artifacts(
     )
 }
 
+type BlobPath = Path<(String, String)>;
+
+/// `GET /-/pnpr/v0/artifacts/blobs/{organization}/{integrity}`: one stored
+/// blob. A blob the caller may not read answers as if it were not stored.
 pub(super) async fn serve_artifact_blob(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    body: axum::body::Bytes,
+    Path((organization, integrity)): BlobPath,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact blob") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
     match state.inner.builds.artifacts
         .as_ref()
         .expect("artifact routes require an artifact store")
-        .read_blob(&caller, &body)
+        .read_blob(&caller, &OwnerScope::organization(organization), &integrity)
         .await
     {
         Ok(Some(blob)) => Response::builder()
@@ -249,23 +202,21 @@ pub(super) async fn serve_artifact_blob(
     }
 }
 
-/// `PUT /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — store one
-/// blob ahead of the publication that names it, streamed from the body. The
-/// owner is `organization=<name>` or `publisher=<package>`, and
+/// `PUT /-/pnpr/v0/artifacts/blobs/{organization}/{integrity}`: store one
+/// blob ahead of the publication that names it, streamed from the body.
 /// `Content-Length` is required.
 pub(super) async fn serve_upload_artifact_blob(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    uri: Uri,
+    Path((organization, integrity)): BlobPath,
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob upload") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact blob upload") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
     let result = async {
-        let (owner, integrity) = blob_target(&uri)?;
         let size = headers
             .get(header::CONTENT_LENGTH)
             .and_then(|length| {
@@ -281,7 +232,13 @@ pub(super) async fn serve_upload_artifact_blob(
         state.inner.builds.artifacts
             .as_ref()
             .expect("artifact routes require an artifact store")
-            .store_blob(&caller, &owner, &integrity, size, body.into_data_stream())
+            .store_blob(
+                &caller,
+                &OwnerScope::organization(organization),
+                &integrity,
+                size,
+                body.into_data_stream(),
+            )
             .await
     }
     .await;
@@ -292,53 +249,25 @@ pub(super) async fn serve_upload_artifact_blob(
     })
 }
 
-/// `HEAD /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — whether
-/// the blob is stored, so a publisher uploads only what is missing.
+/// `HEAD /-/pnpr/v0/artifacts/blobs/{organization}/{integrity}`: whether the
+/// blob is stored, so a publisher uploads only what is missing.
 pub(super) async fn serve_artifact_blob_size(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    uri: Uri,
+    Path((organization, integrity)): BlobPath,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact blob") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
-    let result = async {
-        let (owner, integrity) = blob_target(&uri)?;
-        state.inner.builds.artifacts
-            .as_ref()
-            .expect("artifact routes require an artifact store")
-            .blob_size(&caller, &owner, &integrity)
-            .await
-    }
-    .await;
+    let result = state.inner.builds.artifacts
+        .as_ref()
+        .expect("artifact routes require an artifact store")
+        .blob_size(&caller, &OwnerScope::organization(organization), &integrity)
+        .await;
     private_no_cache(match result {
         Ok(Some(size)) => ([(header::CONTENT_LENGTH, size.to_string())], ()).into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(err) => err.into_response(),
     })
-}
-
-/// The owner and integrity a blob request's query string names.
-fn blob_target(uri: &Uri) -> Result<(OwnerScope, String), RegistryError> {
-    let mut owners = Vec::new();
-    let mut integrity = None;
-    for (key, value) in url::form_urlencoded::parse(
-        uri.query()
-            .unwrap_or_default()
-            .as_bytes(),
-    ) {
-        match key.as_ref() {
-            "organization" => owners.push(OwnerScope::organization(value)),
-            "publisher" => owners.push(OwnerScope::Publisher { package: value.into_owned() }),
-            "integrity" => integrity = Some(value.into_owned()),
-            _ => {}
-        }
-    }
-    let invalid = || RegistryError::BadRequest {
-        reason: "a blob request names one owner (organization or publisher) and an integrity"
-            .to_string(),
-    };
-    let [owner] = <[OwnerScope; 1]>::try_from(owners).map_err(|_| invalid())?;
-    Ok((owner, integrity.ok_or_else(invalid)?))
 }

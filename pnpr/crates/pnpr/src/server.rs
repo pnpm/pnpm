@@ -1,5 +1,6 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
+pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -19,9 +20,9 @@ use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;
 use pnpr_protocol::{
-    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_pnpr_handshake,
-    serve_publish_artifact, serve_resolve, serve_resolve_artifacts, serve_upload_artifact_blob,
-    serve_verify_lockfile,
+    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_npm_handshake,
+    serve_pnpr_handshake, serve_publish_artifact, serve_resolve, serve_resolve_artifacts,
+    serve_upload_artifact_blob, serve_verify_lockfile,
 };
 
 mod pipeline_runs;
@@ -113,18 +114,19 @@ mod batch;
 mod cargo;
 mod client_ip;
 mod compiler_cache;
-mod org_access;
-use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
 mod health;
 use health::shutdown_signal;
+mod local_registry;
 mod managed_state;
 mod metrics;
 mod notes;
 mod oci;
 mod oidc;
 mod oidc_groups;
+mod owner_access;
+use owner_access::CallerOwners;
 mod package_mutation;
 mod publications;
 mod publishing;
@@ -154,7 +156,10 @@ mod web_ui;
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
+    authentication::{
+        Action, AuthedCaller, Ownership, authenticate, authorize, authorize_against_packument,
+        authorize_continuation, authorize_package, authorize_with_ownership,
+    },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
@@ -215,9 +220,9 @@ use std::{collections::HashSet, fmt, net::SocketAddr, sync::Arc, time::Duration}
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
-/// The response header that carries the catalog generation a hosted package
+/// The response header that carries the namespace generation a hosted package
 /// view was rendered from, or that a mutation committed, as
-/// `<catalog>:<generation>`. Only a metadata backend that tracks generations
+/// `<namespace>:<generation>`. Only a metadata backend that tracks generations
 /// sends it.
 const GENERATION_HEADER: &str = "pnpr-generation";
 
@@ -244,7 +249,6 @@ const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
 /// A pipeline run record is a summary plus a bounded event stream; well
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.
@@ -313,13 +317,13 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
 /// puts the raw bearer token in the URL path, and a reusable credential
 /// must never reach a log line, so everything after that marker is
 /// redacted. Web login polling (`/-/v1/login/poll/{token}`) is also
-/// redacted, and OIDC callback and web login start queries are omitted.
+/// redacted, and OIDC callback queries are omitted.
 /// Other URIs are logged verbatim; a false positive (a registry path that
 /// merely embeds the marker) is redacted too, which only costs log detail
 /// on a request no route serves.
 fn loggable_uri(uri: &axum::http::Uri) -> String {
     let path = uri.path();
-    if path.starts_with("/-/oidc/") || path.ends_with("/-/v1/login/start") {
+    if path.starts_with("/-/oidc/") {
         return path.to_string();
     }
     const TOKEN_MARKER: &str = "/-/user/token/";
@@ -491,10 +495,10 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// The npm hosted storage view for `org`, or the default npm namespace when
-/// `org` is `None`.
-fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
-    state.inner.storage.for_hosted(org.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
+/// The npm hosted storage view for `namespace`, or the default npm slice when
+/// `namespace` is `None`.
+fn hosted_storage(state: &AppState, namespace: Option<&str>) -> Storage {
+    state.inner.storage.for_hosted(namespace.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
 
 // --------------------------------------------------------------------
@@ -504,7 +508,7 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
 /// unpublish, packument update) targets, or the [`Response`] to return. A
 /// write routes like a publish: through the addressed `/~<name>/` (or,
-/// path-less, the default-target registry) to a hosted org, rejecting a name
+/// path-less, the default-target registry) to a hosted registry, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
 /// target or the registry's access list denies the caller.
 fn resolve_write_target(
@@ -525,7 +529,7 @@ fn resolve_write_target_for(
     name: &CanonicalPackageName,
 ) -> Result<WriteTarget, RegistryError> {
     match resolve_publish_target_for(state, identity, registry, ecosystem, name.as_str()) {
-        PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
+        PublishTarget::Hosted { source, namespace } => Ok(WriteTarget { source, namespace }),
         PublishTarget::Reject(reason) => Err(RegistryError::BadRequest { reason }),
         PublishTarget::Denied(response) => Err(response),
         PublishTarget::NotFound => Err(RegistryError::NotFound),
@@ -536,7 +540,7 @@ fn resolve_write_target_for(
 /// `publish`/`unpublish` rule lookup) and its storage namespace.
 struct WriteTarget {
     source: String,
-    org: String,
+    namespace: String,
 }
 
 fn not_found() -> Response {

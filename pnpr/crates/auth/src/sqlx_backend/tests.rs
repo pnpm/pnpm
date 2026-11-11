@@ -515,10 +515,54 @@ pub(super) async fn assert_saturated_auth_writes_timeout(database: impl AuthSqlB
     assert!(matches!(delete, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))), "{delete:?}");
 }
 
+#[tokio::test]
+async fn backends_without_atomic_conditional_rename_reject_it() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: false,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "member".to_string(),
+                bcrypt_hash: crate::NO_PASSWORD_HASH.to_string(),
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+    assert!(matches!(
+        auth.account_login("account-id").await,
+        Err(RegistryError::BadRequest { .. })
+    ));
+    assert!(matches!(
+        auth.rename_user_if_current("account-id", 0, "renamed").await,
+        Err(RegistryError::BadRequest { .. }),
+    ));
+}
+
 pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + TokenBackend) {
     let id = auth.provision_user("example").await.unwrap();
     assert!(auth.provision_user("example").await.is_err());
+    let initial = auth
+        .account_login(&id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(initial, crate::AccountLogin { username: "example".to_string(), revision: 0 });
     auth.rename_user(&id, "renamed").await.unwrap();
+    assert_eq!(
+        auth.rename_user_if_current(&id, initial.revision, "stale").await.unwrap(),
+        crate::UserRename::CurrentChanged,
+    );
+    let after_admin = auth
+        .account_login(&id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after_admin, crate::AccountLogin { username: "renamed".to_string(), revision: 1 });
+    assert_eq!(
+        auth.rename_user_if_current(&id, after_admin.revision, "renamed").await.unwrap(),
+        crate::UserRename::Renamed(2),
+    );
     assert_eq!(
         auth.account_name(&id).await
             .unwrap()

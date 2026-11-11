@@ -178,6 +178,13 @@ async fn send_archive_request(
     client: &ThrottledClientGuard<'_>,
     archive: ArchiveRequest<'_>,
 ) -> Result<reqwest::Response, reqwest::Error> {
+    if let Some(response) = archive.auth_headers.fetch_local(
+        archive.package_url,
+        Some(archive.package_id),
+        reqwest::header::HeaderMap::new(),
+    ) {
+        return Ok(response.await);
+    }
     let mut attempt = 0;
     loop {
         let request = build_archive_request(client, archive);

@@ -31,11 +31,11 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     config.features.registry.enabled = false;
     config.features.resolver.enabled = false;
     config.features.pipeline.enabled = true;
-    for (org, reader, writer) in
+    for (owner, reader, writer) in
         [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
     {
-        config.features.artifacts.orgs.insert(
-            org.to_string(),
+        config.features.artifacts.owners.insert(
+            owner.to_string(),
             pnpr_config::StorageAccess {
                 access: pnpr_policy::AccessList::from_tokens([reader]),
                 publish: pnpr_policy::AccessList::from_tokens([writer]),
@@ -59,52 +59,45 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [],
-                "artifacts": [],
-                "pipeline": [0],
-                "fixLockfile": [],
-                "ecosystems": [],
-                "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 0,
                         "versions": [],
-                        "features": [
-                            "fixLockfile",
-                            "verifyLockfile",
-                            "projectTransforms",
-                            "policyEcho",
-                            "errorCodes",
-                            "acceptedLockfileFormats"
-                        ],
-                        "ecosystems": []
+                        "features": [],
+                        "ecosystems": [],
+                        "experimental": false
                     },
                     "artifacts": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "compilerCache": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "pipeline": {
-                        "version": 0,
-                        "versions": [0]
+                        "versions": [0],
+                        "features": [],
+                        "experimental": true
                     },
                     "publish": {
-                        "version": 0,
                         "versions": [],
-                        "pnpmPublish": []
+                        "features": [],
+                        "experimental": false
+                    },
+                    "pnpmPublish": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false
+                    },
+                    "records": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false,
+                        "manifestProfiles": []
                     }
-                },
-                "features": {
-                    "registries": true,
-                    "admin": false,
-                    "scim": false,
-                    "signIn": false
-                },
-                "records": [],
-                "manifestProfiles": []
+                }
             }
         }),
     );
@@ -595,5 +588,65 @@ async fn unsupported_npm_package_endpoints_explain_the_refusal() {
             let body = body_json(response.into_body()).await;
             assert_eq!(body["error"], "unsupported_route");
         }
+    }
+}
+
+#[tokio::test]
+async fn npm_capability_handshakes_advertise_only_reachable_protocols() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873)),
+        tmp.path().to_path_buf(),
+    );
+    config.features.resolver.enabled = true;
+    config.features.artifacts.enabled = true;
+    config.features.pipeline.enabled = true;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
+    let auth = crate::tokens::seeded_auth(&config, &[("publisher", "password")]);
+    let token = crate::tokens::issue_token(&auth, "publisher").await;
+    let app = pnpr::router_with_auth(config, auth);
+    for (index, base) in ["", "/npm", "/npm/~local"].into_iter().enumerate() {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(format!("{base}/-/pnpr"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{base}");
+        let body = body_json(response.into_body()).await;
+        let protocols = &body["pnpr"]["protocols"];
+        let expected = if base.is_empty() { json!([0]) } else { json!([]) };
+        for name in ["resolver", "artifacts", "compilerCache", "pipeline"] {
+            assert_eq!(protocols[name]["versions"], expected, "{base} {name}");
+            assert_eq!(
+                protocols[name]["features"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty(),
+                !base.is_empty() || name != "resolver",
+                "{base} {name}",
+            );
+        }
+        assert_eq!(protocols["publish"]["versions"], json!([0]));
+        assert_eq!(protocols["pnpmPublish"]["versions"], json!([1]));
+        let package = format!("example-package-{index}");
+        let tarball = crate::npm::npm_tgz(&package, "1.0.0", b"package contents");
+        let document = crate::npm::publish_doc(&package, "1.0.0", &tarball);
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("{base}/-/pnpr/v0/publish"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::from(json!({ "packages": [document] }).to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED, "{base}");
+        assert_eq!(body_json(response.into_body()).await["ok"], true);
     }
 }

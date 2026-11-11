@@ -40,7 +40,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     let catch_all = if packages_block.contains("'**'") { "" } else { "      '**': {}\n" };
     let yaml = format!(
         "storage: {}\nauth:\n  users:\n    maxUsers: 100\n{admin_line}registries:\n  \
-         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
+         local:\n    type: hosted\n    namespace: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
         storage.display(),
@@ -292,6 +292,74 @@ async fn owners_policy_restricts_subsequent_publish() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn publish_defaults_to_owners_for_an_entry_without_a_publish_list() {
+    let (_dir, config) = config_with_packages("packages:\n  'default-lib': {}\n", &[]);
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+
+    let doc = publish_doc("default-lib", "1.0.0", b"tarball-1");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/default-lib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let doc = publish_doc("default-lib", "1.0.1", b"tarball-2");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/default-lib", &bob_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let response = app
+        .clone()
+        .oneshot(authed_put(
+            "/npm/-/package/default-lib/dist-tags/next",
+            &bob_token,
+            json!("1.0.0"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let doc = publish_doc("default-lib", "1.0.1", b"tarball-2");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/default-lib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn organization_listing_reports_write_for_maintainers_under_the_default_rule() {
+    let (_dir, config) = config_with_packages("packages:\n  '@acme/*': {}\n", &[]);
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+    let doc = publish_doc("@acme/lib", "1.0.0", b"tarball-1");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/@acme%2flib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    for (token, permission) in [(&alice_token, "write"), (&bob_token, "read")] {
+        let response = app
+            .clone()
+            .oneshot(authed_get("/npm/-/org/acme/package", token))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_json(response.into_body()).await["@acme/lib"], json!(permission));
+    }
 }
 
 #[tokio::test]

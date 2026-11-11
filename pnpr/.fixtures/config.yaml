@@ -17,7 +17,7 @@ registries:
     access: $all
     packages:
       # Scopes seeded from the in-repo fixture sources (`pnpr/.fixtures/packages/`).
-      '@foo/*': &default-rules { unpublish: $authenticated }
+      '@foo/*': &default-rules { publish: $authenticated, unpublish: $authenticated }
       '@having/*': *default-rules
       '@jsr/*': *default-rules
       '@pnpm.e2e/*': *default-rules

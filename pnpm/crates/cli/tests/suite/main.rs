@@ -51,6 +51,7 @@ mod dedupe_direct_deps;
 mod dedupe_injected_deps;
 mod dedupe_reporting;
 mod deploy;
+mod deploy_peer_oracles;
 mod deploy_specifiers;
 mod deprecate;
 mod dev_install;

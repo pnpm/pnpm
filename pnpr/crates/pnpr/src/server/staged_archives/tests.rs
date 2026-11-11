@@ -1,30 +1,14 @@
-use super::{PrincipalUploads, StagedReferences, archive_digest, names_owner, query_integrity};
-use axum::http::Uri;
+use super::{PrincipalUploads, StagedReferences, archive_blob_id};
 use pnpr_config::HostedStoreConfig;
 use pnpr_storage::{StagedArchiveKey, Storage};
 use std::time::Duration;
 
 #[test]
-fn only_an_owner_parameter_routes_a_blob_to_shared_artifacts() {
-    let uri = |query: &str| format!("/-/pnpr/v0/artifacts/blob?{query}").parse::<Uri>().unwrap();
-    assert!(names_owner(&uri("organization=acme&integrity=sha512-AAAA")));
-    assert!(names_owner(&uri("publisher=pkg&integrity=sha512-AAAA")));
-    assert!(!names_owner(&uri("integrity=sha512-AAAA")));
-}
-
-#[test]
-fn a_staged_archive_names_exactly_one_integrity() {
-    let uri = |query: &str| format!("/-/pnpr/v0/artifacts/blob?{query}").parse::<Uri>().unwrap();
-    assert_eq!(query_integrity(&uri("integrity=sha512-AAAA")).unwrap(), "sha512-AAAA");
-    assert!(query_integrity(&uri("")).is_err());
-    assert!(query_integrity(&uri("integrity=sha512-AAAA&integrity=sha512-BBBB")).is_err());
-}
-
-#[test]
 fn only_a_sha512_integrity_addresses_a_staged_archive() {
-    assert!(archive_digest("sha1-AAAA").is_err());
-    let digest = archive_digest(&format!("sha512-{}==", "A".repeat(86))).unwrap();
-    assert_eq!(digest.len(), 128);
+    assert!(archive_blob_id("sha1-AAAA").is_err());
+    let blob_id = archive_blob_id(&format!("sha512-{}==", "A".repeat(86))).unwrap();
+    assert!(blob_id.as_str().starts_with("sha512-"));
+    assert_eq!(blob_id.as_str().len(), "sha512-".len() + 128);
 }
 
 #[tokio::test]
@@ -59,8 +43,8 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
     )
     .unwrap();
     let integrity = format!("sha512-{}==", "A".repeat(86));
-    let digest = archive_digest(&integrity).unwrap();
-    let key = StagedArchiveKey { principal: "alice", digest: &digest };
+    let blob_id = archive_blob_id(&integrity).unwrap();
+    let key = StagedArchiveKey { principal: "alice", blob_id: &blob_id };
     storage
         .stage_archive(&key, vec![0; 10])
         .await

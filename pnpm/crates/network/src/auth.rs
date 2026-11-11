@@ -36,6 +36,13 @@ pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
 
 pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
 
+/// A response served without opening a network connection.
+pub type LocalResponse = std::pin::Pin<Box<dyn Future<Output = reqwest::Response> + Send>>;
+
+/// An in-process GET handler. `None` delegates to the network transport.
+pub type LocalFetch =
+    dyn Fn(&str, reqwest::header::HeaderMap) -> Option<LocalResponse> + Send + Sync;
+
 /// Server-side override for upstream auth selection.
 ///
 /// A plain [`AuthHeaders`] answers "what `Authorization` header does the
@@ -53,6 +60,15 @@ pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
 /// (returning `None` for an anonymous/public fetch) and records the
 /// route. A `None` hook (the CLI case) leaves lookup behavior unchanged.
 pub trait UpstreamRouteHook: Send + Sync {
+    /// Serve a deployment-owned URL in process, retaining the caller identity.
+    fn fetch_local(
+        &self,
+        _url: &str,
+        _headers: reqwest::header::HeaderMap,
+    ) -> Option<LocalResponse> {
+        None
+    }
+
     /// Decide the `Authorization` header value for a fetch to `url` for
     /// package `package` (`None` for non-package fetches), and record the
     /// route the decision selected. `None` means fetch anonymously.
@@ -464,6 +480,20 @@ impl AuthHeaders {
             return None;
         }
         self.for_url_with_package(url, pkg_name)
+    }
+
+    /// Dispatch a GET locally when the route hook owns its destination.
+    #[must_use]
+    pub fn fetch_local(
+        &self,
+        url: &str,
+        package: Option<&str>,
+        headers: reqwest::header::HeaderMap,
+    ) -> Option<LocalResponse> {
+        let hook = self.route_hook.as_ref()?;
+        let response = hook.fetch_local(url, headers)?;
+        hook.authorize(url, package);
+        Some(response)
     }
 
     /// Attach a server-side [`UpstreamRouteHook`] that takes over auth

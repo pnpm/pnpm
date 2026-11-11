@@ -8,12 +8,12 @@ use super::{
     catalogs_for_children, current_pkg_from_lockfile, dependencies_named_as_peers,
     emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
     failed_edge::SkippedOptionalReport, is_exotic_resolved_via, is_update_target,
-    keeps_locked_version, lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
-    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
-    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
-    pin_patched_revision, project_relative_cache_scope, register_peer_dep_names,
-    register_shadowable_dep_names, resolve_wanted_cached, resolves_children_through_catalogs,
-    seed_reused_node, try_reuse_node,
+    keeps_locked_runtime, keeps_locked_version, lock_recoverable, node_alias,
+    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
+    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
+    pin_locked_version, pin_patched_revision, project_relative_cache_scope,
+    register_peer_dep_names, register_shadowable_dep_names, resolve_wanted_cached,
+    resolves_children_through_catalogs, seed_reused_node, try_reuse_node,
 };
 
 #[async_recursion]
@@ -204,8 +204,8 @@ pub(super) fn edge_opts<'c>(
     }
     match current_pkg {
         Some(current_pkg) => {
-            let keeps_locked =
-                prior_key.is_some_and(|key| keeps_locked_version(ctx, wanted, key, edge.depth));
+            let keeps_locked = keeps_locked_runtime(ctx, &current_pkg)
+                || prior_key.is_some_and(|key| keeps_locked_version(ctx, wanted, key, edge.depth));
             Cow::Owned(ResolveOptions {
                 refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
                     prefer_current_version: edge.depth == 0 && keeps_locked,

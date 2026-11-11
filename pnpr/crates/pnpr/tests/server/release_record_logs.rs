@@ -10,9 +10,12 @@ use super::{
 use crate::tokens::issue_token;
 use axum::Router;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use pnpm_release_record::{Envelope, PredicateType, RecordDigest, StoredRecord, verify_statement};
+use pnpm_release_record::{
+    ConflictMonitor, Envelope, LogEntry, PredicateType, RecordDigest, StoredRecord,
+    verify_statement,
+};
 use pnpm_transparency_log::{
-    CheckpointPolicy, Hash, KeySet, NoteSigner, decode_bundle, verify_inclusion,
+    CheckpointPolicy, Hash, KeySet, NoteSigner, decode_bundle, verify_consistency, verify_inclusion,
 };
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -21,7 +24,7 @@ use tempfile::TempDir;
 const LOG_SIGNING_KEY: &str =
     "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
 
-/// The origin of the `acme` organization's npm log.
+/// The origin of the `acme` namespace's npm log.
 const ORIGIN: &str = "PeterNeumann/npm/~acme";
 
 /// A hosted `acme` registry with `SQLite` metadata and a log signing key, the
@@ -66,7 +69,12 @@ async fn setup(rules: Vec<pnpr::PackageRule>) -> (TempDir, Router, String) {
     (tmp, app, token)
 }
 
-async fn publish(app: &Router, token: &str, package: &str, version: &str) {
+async fn publish_response(
+    app: &Router,
+    token: &str,
+    package: &str,
+    version: &str,
+) -> (StatusCode, String) {
     let manifest = format!(r#"{{"name":"{package}","version":"{version}"}}"#);
     let tar = tar_of(&[("package/package.json", manifest.as_bytes())]);
     let request = hosted_publish_request(
@@ -81,7 +89,18 @@ async fn publish(app: &Router, token: &str, package: &str, version: &str) {
         .oneshot(request)
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
+    let status = response.status();
+    let text = String::from_utf8_lossy(&body_bytes(response.into_body()).await).into_owned();
+    (status, text)
+}
+
+async fn publish_status(app: &Router, token: &str, package: &str, version: &str) -> StatusCode {
+    publish_response(app, token, package, version).await.0
+}
+
+async fn publish(app: &Router, token: &str, package: &str, version: &str) {
+    let (status, body) = publish_response(app, token, package, version).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
 }
 
 async fn get(app: &Router, uri: &str, token: Option<&str>) -> axum::response::Response {
@@ -186,9 +205,9 @@ async fn a_record_is_proven_by_its_evidence() {
     }
 
     let capabilities = body_json(get(&app, "/-/pnpr", None).await.into_body()).await;
-    assert_eq!(capabilities["pnpr"]["records"], serde_json::json!([1]));
+    assert_eq!(capabilities["pnpr"]["protocols"]["records"]["versions"], serde_json::json!([1]));
     assert_eq!(
-        capabilities["pnpr"]["manifestProfiles"],
+        capabilities["pnpr"]["protocols"]["records"]["manifestProfiles"],
         serde_json::json!(["npm-install-manifest/1"]),
     );
 }
@@ -222,10 +241,10 @@ async fn entry_bundles_are_read_only_by_who_may_read_every_package() {
     assert_eq!(decode_bundle(&body_bytes(bundle.into_body()).await).unwrap().len(), 2);
 }
 
-/// A hosted registry serves its organization's log, also when addressed by
-/// name, and a registry that reaches no organization serves none.
+/// A hosted registry serves its namespace's log, also when addressed by
+/// name, and a registry that reaches no namespace serves none.
 #[tokio::test]
-async fn a_log_is_served_only_where_one_organization_is_reached() {
+async fn a_log_is_served_only_where_one_namespace_is_reached() {
     let (_tmp, app, token) = setup(Vec::new()).await;
     publish(&app, &token, "@acme/widget", "1.0.0").await;
     let evidence = get(&app, "/npm/~acme/@acme%2Fwidget/1.0.0+r0/evidence", None).await;
@@ -280,4 +299,210 @@ async fn a_router_built_outside_a_runtime_recovers_its_log() {
         assert!(std::time::Instant::now() < deadline, "the log was never recovered");
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
+}
+
+async fn wait_for_checkpoint_size(app: &Router, min_size: u64) -> pnpm_transparency_log::TreeHead {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let response = get(app, "/npm/-/log/checkpoint", None).await;
+        if response.status() == StatusCode::OK {
+            let note = body_bytes(response.into_body()).await;
+            let tree_head = log_policy().verify(&note).unwrap().tree_head;
+            if tree_head.size >= min_size {
+                return tree_head;
+            }
+        }
+        assert!(std::time::Instant::now() < deadline, "checkpoint never reached {min_size}");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+#[tokio::test]
+async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
+    let tmp = TempDir::new().unwrap();
+    let db_path = tmp.path().join("metadata.sqlite");
+    let db_backup = tmp.path().join("metadata.sqlite.backup");
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+
+    let app_initial = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
+    publish(&app_initial, &token, "@acme/widget", "1.0.0").await;
+    assert_eq!(wait_for_checkpoint_size(&app_initial, 1).await.size, 1);
+    rusqlite::Connection::open(&db_path)
+        .unwrap()
+        .execute("VACUUM INTO ?1", [db_backup.to_str().unwrap()])
+        .unwrap();
+    drop(app_initial);
+
+    let app_before_crash = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
+    publish(&app_before_crash, &token, "@acme/widget", "1.0.1").await;
+    publish(&app_before_crash, &token, "@acme/widget", "1.0.2").await;
+    let before_restore = wait_for_checkpoint_size(&app_before_crash, 3).await;
+    assert_eq!(before_restore.size, 3);
+    drop(app_before_crash);
+
+    // Even without calling `prepare_storage` first, an immediate publish on a
+    // fresh router pointed at the earlier metadata backup reconciles the log
+    // before staging or committing.
+    let mut restored_config = acme_config(tmp.path(), Vec::new());
+    restored_config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(db_backup);
+    let app_restored = router_with_auth(restored_config, auth);
+    let (republish_status, republish_body) =
+        publish_response(&app_restored, &token, "@acme/widget", "1.0.1").await;
+    assert_eq!(republish_status, StatusCode::FORBIDDEN, "{republish_body}");
+    publish(&app_restored, &token, "@acme/widget", "1.0.3").await;
+    let after_restore = wait_for_checkpoint_size(&app_restored, 4).await;
+    assert_eq!(after_restore.size, 4);
+
+    let evidence = body_json(
+        get(&app_restored, "/npm/@acme%2Fwidget/1.0.3+r0/evidence", None).await.into_body(),
+    )
+    .await;
+    assert_eq!(evidence["inclusion"]["index"].as_u64(), Some(3));
+    let inclusion_proof: Vec<Hash> = evidence["inclusion"]["proof"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hash| {
+            Hash(
+                STANDARD
+                    .decode(hash.as_str().unwrap())
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            )
+        })
+        .collect();
+
+    let tile =
+        body_bytes(get(&app_restored, "/npm/-/log/tile/0/000.p/4", None).await.into_body()).await;
+    let (chunks, remainder) = tile.as_chunks::<32>();
+    assert!(remainder.is_empty());
+    let leaves: Vec<Hash> = chunks
+        .iter()
+        .copied()
+        .map(Hash)
+        .collect();
+    assert_eq!(leaves.len(), 4);
+    let consistency = [inclusion_proof[0], leaves[3], inclusion_proof[1]];
+    verify_consistency(&consistency, &before_restore, &after_restore).unwrap();
+
+    let bundle =
+        body_bytes(get(&app_restored, "/npm/-/log/tile/entries/000.p/4", None).await.into_body())
+            .await;
+    let mut monitor = ConflictMonitor::default();
+    let decoded = decode_bundle(&bundle).unwrap();
+    assert_eq!(decoded.len(), 4);
+    verify_inclusion(&inclusion_proof, &after_restore, 3, decoded[3]).unwrap();
+    for (index, raw) in decoded.into_iter().enumerate() {
+        let entry = LogEntry::parse(raw).unwrap();
+        assert_eq!(monitor.observe(u64::try_from(index).unwrap(), &entry), None);
+    }
+}
+
+#[tokio::test]
+async fn prepare_storage_and_publish_refuse_a_forked_transparency_log() {
+    let donor_tmp = TempDir::new().unwrap();
+    let donor_auth = AuthState::in_memory();
+    let donor_token = issue_token(&donor_auth, "alice").await;
+    let donor_app = router_with_auth(acme_config(donor_tmp.path(), Vec::new()), donor_auth);
+    publish(&donor_app, &donor_token, "@acme/other", "1.0.0").await;
+    assert_eq!(wait_for_checkpoint_size(&donor_app, 1).await.size, 1);
+    drop(donor_app);
+
+    let target_tmp = TempDir::new().unwrap();
+    let target_auth = AuthState::in_memory();
+    let target_token = issue_token(&target_auth, "alice").await;
+    let target_config = acme_config(target_tmp.path(), Vec::new());
+    pnpr::prepare_storage(&target_config).await.unwrap();
+    let target_app = router_with_auth(target_config.clone(), target_auth.clone());
+    publish(&target_app, &target_token, "@acme/widget", "1.0.0").await;
+    assert_eq!(wait_for_checkpoint_size(&target_app, 1).await.size, 1);
+    let checkpoint_subpath = ".transparency-log/npm/~acme/checkpoint";
+    let donor_checkpoint = std::fs::read(donor_tmp.path().join(checkpoint_subpath)).unwrap();
+    std::fs::write(target_tmp.path().join(checkpoint_subpath), &donor_checkpoint).unwrap();
+
+    // A live server rechecks the stored checkpoint note before sequencing a
+    // publish, so the very next publish fails closed without committing.
+    let live_status = publish_status(&target_app, &target_token, "@acme/widget", "1.0.1").await;
+    assert_eq!(live_status, StatusCode::INTERNAL_SERVER_ERROR);
+    drop(target_app);
+
+    let startup_err = pnpr::prepare_storage(&target_config).await.unwrap_err();
+    assert!(
+        startup_err.to_string().contains("disagree")
+            || startup_err.to_string().contains("not a prefix"),
+        "{startup_err}",
+    );
+
+    let restarted = router_with_auth(target_config, target_auth);
+    let status = publish_status(&restarted, &target_token, "@acme/widget", "2.0.0").await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        std::fs::read(target_tmp.path().join(checkpoint_subpath)).unwrap(),
+        donor_checkpoint,
+    );
+}
+
+#[tokio::test]
+async fn migrate_local_to_s3_copies_transparency_log_for_migrated_startup() {
+    let primary_dir = TempDir::new().unwrap();
+    let (_primary, primary_addr, _primary_task) =
+        pnpr_libsql::testing::serve_primary(primary_dir.path().join("primary.db")).await;
+    let metadata = pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+        url: format!("http://{primary_addr}"),
+        auth_token: None,
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    });
+
+    let local_tmp = TempDir::new().unwrap();
+    let mut local_config = acme_config(local_tmp.path(), Vec::new());
+    local_config.storage.metadata = metadata.clone();
+    pnpr::prepare_storage(&local_config).await.unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let local_app = router_with_auth(local_config, auth.clone());
+    publish(&local_app, &token, "@acme/widget", "1.0.0").await;
+    let before_migrate = wait_for_checkpoint_size(&local_app, 1).await;
+    drop(local_app);
+
+    let s3_scratch = TempDir::new().unwrap();
+    let mut s3_config = acme_config(s3_scratch.path(), Vec::new());
+    s3_config.storage.metadata = metadata;
+    s3_config.storage.hosted_backend = pnpr_config::HostedStoreConfig::ObjectStore {
+        store: Arc::new(object_store::memory::InMemory::new()),
+        prefix: "registry".to_string(),
+    };
+
+    // Before `.transparency-log/` is migrated, startup refuses the empty bucket.
+    assert!(pnpr::prepare_storage(&s3_config).await.is_err());
+
+    let migrate_options = pnpr::migrate_storage::MigrateStorageOptions {
+        from: Some(local_tmp.path().to_path_buf()),
+        verify: true,
+        ..Default::default()
+    };
+    let report = pnpr::migrate_storage::migrate_local_to_s3(&s3_config, &migrate_options)
+        .await
+        .unwrap();
+    assert_eq!(report.packages_migrated, 1);
+    assert!(report.blobs_transferred >= 4, "{report:?}");
+
+    // Re-running migration against the populated bucket is idempotent.
+    pnpr::migrate_storage::migrate_local_to_s3(&s3_config, &migrate_options)
+        .await
+        .unwrap();
+
+    pnpr::prepare_storage(&s3_config).await.unwrap();
+    let s3_app = router_with_auth(s3_config, auth);
+    assert_eq!(wait_for_checkpoint_size(&s3_app, 1).await, before_migrate);
+
+    publish(&s3_app, &token, "@acme/widget", "1.0.1").await;
+    let after_migrate = wait_for_checkpoint_size(&s3_app, 2).await;
+    assert_eq!(after_migrate.size, 2);
+    let bundle =
+        body_bytes(get(&s3_app, "/npm/-/log/tile/entries/000.p/2", None).await.into_body()).await;
+    assert_eq!(decode_bundle(&bundle).unwrap().len(), 2);
 }

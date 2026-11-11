@@ -29,11 +29,11 @@ use object_store::{
     memory::InMemory, path::Path as ObjectPath,
 };
 use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSubject, ArtifactVariant, BuilderProfile,
-    CompatibilityConstraints, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
-    PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
-    ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+    ArtifactPayload, ArtifactSubject, ArtifactVariant, BuilderProfile, CompatibilityConstraints,
+    MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity,
+    PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
 };
 use pnpr_config::{ArtifactQuota, HostedStoreConfig, normalize_key_prefix};
 use pnpr_error::RegistryError;
@@ -474,17 +474,17 @@ impl ObjectStore for FailArtifactWrites {
 }
 
 /// The rule the store's own tests are written against: a caller reads and
-/// publishes the organization named after it, and nothing else.
-impl super::OrgAccess for str {
+/// publishes the artifact owner named after it, and nothing else.
+impl super::OwnerAccess for str {
     fn username(&self) -> &str {
         self
     }
 
-    fn may_read(&self, org: &str) -> bool {
-        org == self
+    fn may_read(&self, owner: &str) -> bool {
+        owner == self
     }
 
-    fn may_publish(&self, org: &str) -> bool {
-        org == self
+    fn may_publish(&self, owner: &str) -> bool {
+        owner == self
     }
 }

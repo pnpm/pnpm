@@ -36,18 +36,18 @@ pub async fn verify_storage(
     let mut report = VerifyReport::default();
     let namespaces = crate::export::configured_hosted_namespaces(config);
 
-    for org in namespaces {
-        let org_storage = storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm);
-        let package_names = org_storage
+    for namespace in namespaces {
+        let npm_storage = storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Npm);
+        let package_names = npm_storage
             .hosted_package_names()
             .await
             .map_err(|err| miette::miette!("failed to list hosted packages: {err}"))?;
-        let mut ctx = VerifyContext { storage: &org_storage, options, report: &mut report };
+        let mut ctx = VerifyContext { storage: &npm_storage, options, report: &mut report };
         for pkg_name in package_names {
             verify_package(&mut ctx, &pkg_name).await?;
         }
         for ecosystem in pnpr_registry::Ecosystem::all() {
-            check_orphaned_archives(&storage.for_hosted(&org, ecosystem), &mut report).await?;
+            check_orphaned_archives(&storage.for_hosted(&namespace, ecosystem), &mut report).await?;
         }
     }
 

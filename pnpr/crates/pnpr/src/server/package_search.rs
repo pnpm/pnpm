@@ -275,7 +275,7 @@ pub(super) async fn hosted_search_names(
     if !hosted.rules.any_access_admits(identity) {
         return Ok(None);
     }
-    let storage = state.inner.storage.for_hosted(&hosted.org, ecosystem);
+    let storage = state.inner.storage.for_hosted(&hosted.namespace, ecosystem);
     let keep = |name: &str| {
         matches!(
             resolve_ecosystem_source(state, registry, ecosystem, name),

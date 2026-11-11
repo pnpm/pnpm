@@ -369,9 +369,6 @@ pub const RESOLVER_PROTOCOL_VERSION: u32 = 0;
 /// Shared artifacts protocol version this client speaks.
 pub const ARTIFACTS_PROTOCOL_VERSION: u32 = 0;
 
-/// Pipeline runs protocol version this client speaks.
-pub const PIPELINE_PROTOCOL_VERSION: u32 = 0;
-
 #[derive(Default, Deserialize)]
 struct HandshakeResponse {
     #[serde(default)]
@@ -381,15 +378,28 @@ struct HandshakeResponse {
 #[derive(Default, Clone, Deserialize)]
 pub struct HandshakeCapability {
     #[serde(default)]
+    pub protocols: BTreeMap<String, ProtocolCapability>,
+}
+
+#[derive(Default, Clone, Deserialize)]
+pub struct ProtocolCapability {
+    #[serde(default)]
     pub versions: Vec<u32>,
     #[serde(default)]
-    pub artifacts: Vec<u32>,
-    #[serde(default, rename = "fixLockfile")]
-    pub fix_lockfile: Vec<u32>,
-    /// The package ecosystems `/-/pnpr/v0/resolve` reads in its request
-    /// body. An empty list is a server that resolves npm alone.
+    pub features: Vec<String>,
     #[serde(default)]
     pub ecosystems: Vec<String>,
+}
+
+impl HandshakeCapability {
+    fn protocol(&self, name: &str) -> &ProtocolCapability {
+        static UNSUPPORTED: ProtocolCapability = ProtocolCapability {
+            versions: Vec::new(),
+            features: Vec::new(),
+            ecosystems: Vec::new(),
+        };
+        self.protocols.get(name).unwrap_or(&UNSUPPORTED)
+    }
 }
 
 /// Inputs for a Python resolution. Send them only to a server that
@@ -442,15 +452,9 @@ impl PnprClient {
 
     /// Negotiate the highest common resolver protocol version with the server.
     pub async fn negotiated_resolver_version(&self) -> Result<u32, PnprClientError> {
-        let cap = self.ensure_handshake().await?;
-        if cap.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
-            Ok(RESOLVER_PROTOCOL_VERSION)
-        } else {
-            Err(PnprClientError::server(format!(
-                "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
-                cap.versions,
-            )))
-        }
+        let capability = self.ensure_handshake().await?;
+        Self::require_resolver_protocol(capability)?;
+        Ok(RESOLVER_PROTOCOL_VERSION)
     }
 
     /// Confirm the server speaks a compatible protocol version. Errors
@@ -464,7 +468,12 @@ impl PnprClient {
     async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
         let capability = self.ensure_handshake().await?;
         Self::require_resolver_protocol(capability)?;
-        if !capability.fix_lockfile.contains(&RESOLVER_PROTOCOL_VERSION) {
+        if !capability
+            .protocol("resolver")
+            .features
+            .iter()
+            .any(|feature| feature == "fixLockfile")
+        {
             return Err(PnprClientError::server(format!(
                 "pnpr server does not advertise lockfile repair support for resolver protocol v{RESOLVER_PROTOCOL_VERSION}",
             )));
@@ -473,10 +482,10 @@ impl PnprClient {
     }
 
     fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
-        if !capability.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
+        if !capability.protocol("resolver").versions.contains(&RESOLVER_PROTOCOL_VERSION) {
             return Err(PnprClientError::server(format!(
                 "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
-                capability.versions,
+                capability.protocol("resolver").versions,
             )));
         }
         Ok(())
@@ -510,7 +519,9 @@ impl PnprClient {
     pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
         let capability = self.fetch_handshake(None).await?;
         Self::require_resolver_protocol(&capability)?;
-        Ok(capability.ecosystems
+        Ok(capability
+            .protocol("resolver")
+            .ecosystems
             .iter()
             .any(|supported| supported == ecosystem))
     }

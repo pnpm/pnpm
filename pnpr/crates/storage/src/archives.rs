@@ -83,8 +83,8 @@ impl Storage {
 
     /// The rows of `ids` in this namespace, read from the primary.
     pub async fn blob_rows(&self, ids: Vec<BlobId>) -> Result<BTreeMap<BlobId, BlobRow>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        self.database.blob_rows(catalog, ecosystem, ids).await
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        self.database.blob_rows(namespace, ecosystem, ids).await
     }
 
     /// Reserve a staging slot for the archive `filename` of `name`. The
@@ -155,7 +155,7 @@ impl Storage {
     /// Map `artifact` outside a publication commit, as an image blob's
     /// upload does, refused as a commit depending on it would be.
     pub async fn map_hosted_artifact(&self, artifact: ArtifactBlob) -> Result<()> {
-        self.database.map_artifact(self.metadata.catalog(), artifact).await
+        self.database.map_artifact(self.metadata.namespace(), artifact).await
     }
 
     /// Remove the package's metadata, then reclaim the blobs its files were
@@ -204,9 +204,9 @@ pub fn archive_temp_bases(
     match &config.hosted_backend {
         pnpr_config::HostedStoreConfig::Fs => namespaces
             .iter()
-            .map(|(org, ecosystem)| {
+            .map(|(namespace, ecosystem)| {
                 let mut base = config.hosted_dir.clone();
-                base.extend(crate::layout::namespace_segments(org, *ecosystem));
+                base.extend(crate::layout::namespace_segments(namespace, *ecosystem));
                 base.push(crate::ARCHIVES_DIR);
                 base.push("archive");
                 base

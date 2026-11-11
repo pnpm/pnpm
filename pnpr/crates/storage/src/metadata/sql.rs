@@ -1,33 +1,10 @@
 //! Metadata in a SQL database.
 //!
-//! An npm packument is stored as rows: one per accepted version manifest,
-//! README, tag, deprecation, and the package-level fields. A version's rows
-//! are insert-only; tags, deprecations, and package fields change without
-//! touching them. Another ecosystem's document is stored whole. Reads render
-//! the packument from those rows through the fragment cache in [`render`].
-//!
-//! The schema, the queries, and the rules they enforce are shared by every
-//! database. What differs between databases is behind [`adapter::Adapter`]:
-//! [`sqlite::SqliteAdapter`] keeps the database in one embedded file, and
-//! `libsql::LibsqlAdapter` in a libSQL primary, such as Turso, with an
-//! optional embedded replica.
-//!
-//! Every operation runs on the blocking pool. A write runs in one
-//! serializable transaction, after taking the database's write lock, so
-//! writers queue rather than conflict. A compare-and-set reads the generation it
-//! replaces inside its own transaction. A write reads everything it compares
-//! with in one [`adapter::Connection::query_all`] as it begins, and decides
-//! in Rust, so a remote database answers it in one round trip and takes the
-//! writes with the commit in another. A write the adapter refused for a
-//! conflict runs again from the start. A read runs in one read transaction,
-//! one committed snapshot. The render caches are shared by every read.
-//!
-//! A read that may lag, a [`Freshness::Bounded`] one, goes to the replica
-//! when the adapter has one; [`SqlMetadata::read_present`] and
-//! [`SqlMetadata::read_if`] read the primary when a lagging replica misses. A
-//! [`Freshness::AtLeast`] read there first checks the catalog's generation: a
-//! replica found behind is synced, and read from the primary when the sync
-//! does not bring it far enough.
+//! Package documents are stored as normalized rows per ecosystem — accepted
+//! version manifests, READMEs, tags, deprecations, crate versions, Python
+//! distribution files, OCI manifests and tags, plus package-level state
+//! versioned by `packages.state_version` — and rendered through the fragment
+//! and view caches in [`render`].
 
 #[cfg(feature = "backend-libsql")]
 pub(crate) use pnpr_sql::libsql;
@@ -38,30 +15,42 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
-pub(crate) use records::RecordKey;
+pub use rule_overrides::{
+    RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrideSet, StoredRuleOverrides,
+};
+pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser};
 pub(crate) use staged::{StagedEntry, StagedId};
+pub(crate) use store_binding::{StoreBinding, StoreClaim};
 pub use tags::TagHistoryEntry;
+pub use team_rosters::{StoredTeam, StoredTeamRoster, TeamRosterWrite};
 pub(crate) use view::PackageMetadata;
 
 mod batch;
 mod blobs;
 mod cache;
+mod cargo_rows;
 mod cdn;
 mod commit;
 mod fence;
 mod log;
 mod mappings;
 mod notes;
+mod oci_rows;
 mod packument;
 mod publications;
 mod publish;
+mod pypi_rows;
 mod reclaims;
 mod records;
 mod removed;
 mod render;
+mod rule_overrides;
 mod schema_monitor;
+mod scim;
 mod staged;
+mod store_binding;
 mod tags;
+mod team_rosters;
 mod transactions;
 mod versions;
 mod view;
@@ -70,7 +59,10 @@ use super::{
     ArtifactMember, BatchDocument, BlobFence, Generation, Publication, PublicationCommit,
     PublicationRequest, PublishNotes, RecordedOutcome,
 };
-use crate::{HostedDocumentVersion, transparency_log::LogId};
+use crate::{
+    HostedDocumentVersion,
+    transparency_log::{ImportedLogEntry, LogId, RawLogState},
+};
 use adapter::{Adapter, Connection};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
@@ -99,18 +91,18 @@ pub struct SqlMetadata {
 /// Which package a statement addresses.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct PackageKey {
-    catalog: String,
+    namespace: String,
     ecosystem: Ecosystem,
     name: String,
 }
 
 impl PackageKey {
     fn params(&self) -> (&str, &str, &str) {
-        (&self.catalog, self.ecosystem.as_str(), &self.name)
+        (&self.namespace, self.ecosystem.as_str(), &self.name)
     }
 
     fn generation(&self, value: u64) -> Generation {
-        Generation { catalog: self.catalog.clone(), value }
+        Generation { namespace: self.namespace.clone(), value }
     }
 }
 
@@ -199,7 +191,8 @@ impl SqlMetadata {
     /// Create the schema in an empty database, and apply pending numbered
     /// migration steps to one at an older version. Refuse a database from a
     /// newer release, and a pre-1.0 database without `schema_migrations`;
-    /// the operator wipes pnpr's tables, and pnpr creates them afresh.
+    /// the operator wipes pnpr's tables and its hosted store together, and
+    /// pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
             self.schema_monitor.result()?;
@@ -249,11 +242,11 @@ impl SqlMetadata {
         self.cache.stats()
     }
 
-    /// The current generation of `catalog`, `0` before its first commit.
-    pub async fn catalog_generation(self: &Arc<Self>, catalog: &str) -> Result<u64> {
-        let catalog = catalog.to_string();
-        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
-            catalog_generation(connection, &catalog)
+    /// The current generation of `namespace`, `0` before its first commit.
+    pub async fn namespace_generation(self: &Arc<Self>, namespace: &str) -> Result<u64> {
+        let namespace = namespace.to_string();
+        self.read(namespace.clone(), Freshness::Current, move |connection, _| {
+            namespace_generation(connection, &namespace)
         })
         .await
     }
@@ -263,34 +256,34 @@ impl SqlMetadata {
     pub async fn tag_history(
         self: &Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
         tag: &str,
     ) -> Result<Vec<TagHistoryEntry>> {
         let key = PackageKey {
-            catalog: org.to_string(),
+            namespace: namespace.to_string(),
             ecosystem: name.ecosystem(),
             name: name.as_str().to_string(),
         };
         let tag = tag.to_string();
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             tags::tag_history(connection, &key, &tag)
         })
         .await
     }
 
-    /// Commit `documents` of `catalog` as one publication, under one new
+    /// Commit `documents` of `namespace` as one publication, under one new
     /// generation, or none of them. `artifacts` are the members of other
     /// ecosystems than npm, whose versions are recorded from the documents.
     pub async fn commit_publication(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         documents: Vec<BatchDocument>,
         artifacts: Vec<ArtifactMember>,
         notes: PublishNotes,
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
         let fence = BlobFence::default();
-        self.commit_fenced_publication(catalog, documents, artifacts, notes, request, fence).await
+        self.commit_fenced_publication(namespace, documents, artifacts, notes, request, fence).await
     }
 
     /// [`Self::commit_publication`], mapping every file of `fence` to its
@@ -301,17 +294,17 @@ impl SqlMetadata {
     /// with the commit.
     pub async fn commit_fenced_publication(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         documents: Vec<BatchDocument>,
         artifacts: Vec<ArtifactMember>,
         notes: PublishNotes,
         request: Option<PublicationRequest>,
         fence: BlobFence,
     ) -> Result<PublicationCommit> {
-        let catalog = catalog.to_string();
+        let namespace = namespace.to_string();
         self.write(move |connection| {
             let submission = publish::Submission {
-                catalog: &catalog,
+                namespace: &namespace,
                 documents: &documents,
                 artifacts: &artifacts,
                 notes: &notes,
@@ -323,47 +316,47 @@ impl SqlMetadata {
         .await
     }
 
-    /// The retained outcome of `request` in `catalog`, when an identical
+    /// The retained outcome of `request` in `namespace`, when an identical
     /// request committed there and none of its npm versions was unpublished.
     pub async fn recorded_outcome(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         request: &PublicationRequest,
     ) -> Result<Option<RecordedOutcome>> {
-        let (catalog, request) = (catalog.to_string(), request.clone());
-        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
-            publications::recorded_outcome(connection, &catalog, &request)
+        let (namespace, request) = (namespace.to_string(), request.clone());
+        self.read(namespace.clone(), Freshness::Current, move |connection, _| {
+            publications::recorded_outcome(connection, &namespace, &request)
         })
         .await
     }
 
-    /// The publication of `catalog` with this id or name.
+    /// The publication of `namespace` with this id or name.
     pub async fn publication(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         id_or_name: &str,
     ) -> Result<Option<Publication>> {
-        let (catalog, id_or_name) = (catalog.to_string(), id_or_name.to_string());
+        let (namespace, id_or_name) = (namespace.to_string(), id_or_name.to_string());
         self.read_present(move |connection, _| {
-            publications::publication(connection, &catalog, &id_or_name)
+            publications::publication(connection, &namespace, &id_or_name)
         })
         .await
     }
 
-    /// The publication that introduced `version` of `name` in `org`.
+    /// The publication that introduced `version` of `name` in `namespace`.
     pub async fn initial_publication(
         self: &Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
         version: &str,
     ) -> Result<Option<Publication>> {
         let key = PackageKey {
-            catalog: org.to_string(),
+            namespace: namespace.to_string(),
             ecosystem: name.ecosystem(),
             name: name.as_str().to_string(),
         };
         let version = version.to_string();
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             publications::initial_publication(connection, &key, &version)
         })
         .await
@@ -371,7 +364,7 @@ impl SqlMetadata {
 
     /// Every transparency log with a sequenced entry, with its size.
     pub async fn sequenced_logs(self: &Arc<Self>) -> Result<Vec<(LogId, u64)>> {
-        // Any catalog: the read sees every log.
+        // Any namespace: the read sees every log.
         self.read(String::new(), Freshness::Current, move |connection, _| log::sizes(connection))
             .await
     }
@@ -379,7 +372,7 @@ impl SqlMetadata {
     /// The number of entries sequenced in `log`.
     pub async fn log_size(self: &Arc<Self>, log: &LogId) -> Result<u64> {
         let log = log.clone();
-        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+        self.read(log.namespace.clone(), Freshness::Current, move |connection, _| {
             log::size(connection, &log)
         })
         .await
@@ -389,8 +382,16 @@ impl SqlMetadata {
     /// its first integration.
     pub async fn log_head(self: &Arc<Self>, log: &LogId) -> Result<Option<(u64, Vec<u8>)>> {
         let log = log.clone();
-        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+        self.read(log.namespace.clone(), Freshness::Current, move |connection, _| {
             log::head(connection, &log)
+        })
+        .await
+    }
+
+    pub(crate) async fn log_head_and_size(self: &Arc<Self>, log: &LogId) -> Result<RawLogState> {
+        let log = log.clone();
+        self.read(log.namespace.clone(), Freshness::Current, move |connection, _| {
+            log::head_and_size(connection, &log)
         })
         .await
     }
@@ -414,22 +415,34 @@ impl SqlMetadata {
         indexes: std::ops::Range<u64>,
     ) -> Result<Vec<Vec<u8>>> {
         let log = log.clone();
-        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+        self.read(log.namespace.clone(), Freshness::Current, move |connection, _| {
             log::entries(connection, &log, indexes.clone())
         })
         .await
     }
 
+    /// Re-import `imported`, starting at `start`, into `log` from stored entry
+    /// bundles after a metadata rollback.
+    pub(crate) async fn import_log_entries(
+        self: &Arc<Self>,
+        log: &LogId,
+        start: u64,
+        imported: Vec<ImportedLogEntry>,
+    ) -> Result<()> {
+        let log = log.clone();
+        self.write(move |connection| log::import_entries(connection, &log, start, &imported)).await
+    }
+
     /// The index of the log entry of the release record `version` of `name`
-    /// in `org` was accepted with, and the record's digest.
+    /// in `namespace` was accepted with, and the record's digest.
     pub async fn release_record_entry(
         self: &Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
         version: &str,
     ) -> Result<Option<(u64, String)>> {
         let key = PackageKey {
-            catalog: org.to_string(),
+            namespace: namespace.to_string(),
             ecosystem: name.ecosystem(),
             name: name.as_str().to_string(),
         };
@@ -437,27 +450,27 @@ impl SqlMetadata {
         self.read_present(move |connection, _| log::record_entry(connection, &key, &version)).await
     }
 
-    /// The metadata of `(org, ecosystem)`.
-    pub(crate) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> PackageMetadata {
-        PackageMetadata { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
+    /// The metadata of `(namespace, ecosystem)`.
+    pub(crate) fn view(self: &Arc<Self>, namespace: &str, ecosystem: Ecosystem) -> PackageMetadata {
+        PackageMetadata { database: Arc::clone(self), namespace: namespace.to_string(), ecosystem }
     }
 }
 
-/// The current generation of `catalog`, `0` before its first commit.
-fn catalog_generation(connection: &dyn Connection, catalog: &str) -> Result<u64> {
+/// The current generation of `namespace`, `0` before its first commit.
+fn namespace_generation(connection: &dyn Connection, namespace: &str) -> Result<u64> {
     let row = connection.query_optional(
-        "SELECT generation FROM catalogs WHERE catalog = ?1",
-        params![catalog],
+        "SELECT generation FROM namespaces WHERE namespace = ?1",
+        params![namespace],
     )?;
     row.map_or(Ok(0), |mut row| Ok(to_generation(row.get(0)?)))
 }
 
-/// Record `generation` as `catalog`'s current one.
-fn advance_catalog(connection: &dyn Connection, catalog: &str, generation: u64) -> Result<()> {
+/// Record `generation` as `namespace`'s current one.
+fn advance_namespace(connection: &dyn Connection, namespace: &str, generation: u64) -> Result<()> {
     connection.execute(
-        "INSERT INTO catalogs (catalog, generation) VALUES (?1, ?2)
-         ON CONFLICT (catalog) DO UPDATE SET generation = excluded.generation",
-        params![catalog, to_column(generation)],
+        "INSERT INTO namespaces (namespace, generation) VALUES (?1, ?2)
+         ON CONFLICT (namespace) DO UPDATE SET generation = excluded.generation",
+        params![namespace, to_column(generation)],
     )?;
     Ok(())
 }

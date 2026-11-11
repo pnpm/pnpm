@@ -13,8 +13,17 @@ use super::{
 use pnpr_error::{RegistryError, Result};
 use std::{sync::Arc, time::Duration};
 
-pub(super) const PAYLOAD_TABLES: [&str; 5] =
-    ["packages", "accepted_manifests", "release_records", "log_entries", "readmes"];
+pub(super) const PAYLOAD_TABLES: [&str; 9] = [
+    "packages",
+    "accepted_manifests",
+    "release_records",
+    "log_entries",
+    "readmes",
+    "scim_users",
+    "cargo_versions",
+    "pypi_files",
+    "oci_manifests",
+];
 
 const V1_TABLES: &str = include_str!("fixtures/v1_tables.sql");
 const V1_MYSQL_TABLES: &str = include_str!("fixtures/v1_mysql.sql");
@@ -221,7 +230,7 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
             }
             for version in 1..=SCHEMA_VERSION {
                 transaction.execute(
-                    &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
+                    &format!("INSERT INTO {MARKER} (version, applied_at) VALUES (?1, 1)"),
                     params![version],
                 )?;
             }
@@ -273,13 +282,16 @@ fn step_3_rust_data_fix(connection: &dyn Connection) -> Result<()> {
 }
 
 fn insert_v1_fixture_rows(connection: &dyn Connection) -> Result<()> {
-    connection.execute(&format!("INSERT INTO {MARKER} (version) VALUES (1)"), params![])?;
+    connection.execute(
+        &format!("INSERT INTO {MARKER} (version, applied_at) VALUES (1, 1)"),
+        params![],
+    )?;
     connection.execute(
         "UPDATE record_generation SET generation = 5 WHERE singleton = 1",
         params![],
     )?;
     connection.execute(
-        "INSERT INTO catalogs (catalog, generation) VALUES (?1, ?2)",
+        "INSERT INTO namespaces (namespace, generation) VALUES (?1, ?2)",
         params!["acme", 3_i64],
     )?;
     connection.execute(
@@ -340,10 +352,13 @@ async fn assert_migrated_v1_fixture_rows(db: &Db) {
                 .query_one("SELECT username FROM users WHERE id = ?1", params!["u-1"])?
                 .get(0)?;
             assert_eq!(username, "alice");
-            let catalog_gen: i64 = connection
-                .query_one("SELECT generation FROM catalogs WHERE catalog = ?1", params!["acme"])?
+            let namespace_gen: i64 = connection
+                .query_one(
+                    "SELECT generation FROM namespaces WHERE namespace = ?1",
+                    params!["acme"],
+                )?
                 .get(0)?;
-            assert_eq!(catalog_gen, 3);
+            assert_eq!(namespace_gen, 3);
             Ok(())
         })
     })
@@ -367,7 +382,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
 
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
-        let steps: &[Step] = &[schema::step_1, step_2_ddl, step_3_rust_data_fix];
+        let steps: &[Step] = &[schema::step_1, schema::step_2, step_2_ddl, step_3_rust_data_fix];
         let refused = schema::prepare_adapter_with_steps(&*adapter, steps)?;
         assert_eq!(refused, None);
         Ok::<_, RegistryError>(())
@@ -376,7 +391,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
     .unwrap()
     .unwrap();
 
-    assert_eq!(marker(&db).await, [1, 2, 3]);
+    assert_eq!(marker(&db).await, [1, 2, 3, 4]);
     assert_migrated_v1_fixture_rows(&db).await;
 }
 
@@ -444,6 +459,7 @@ async fn a_failed_step_is_not_recorded_and_can_be_rerun(db: Db) {
 }
 
 fn step_2_increment_generation(connection: &dyn Connection) -> Result<()> {
+    schema::step_2(connection)?;
     std::thread::sleep(Duration::from_millis(25));
     connection.execute(
         "UPDATE record_generation SET generation = generation + 1 WHERE singleton = 1",
@@ -500,7 +516,9 @@ async fn payload_tables_have_rowids(db: Db) {
 
 async fn unused_metadata_objects_are_absent(db: Db) {
     open(&db).await.unwrap();
-    assert!(!tables(&db).await.contains(&"note_history".to_string()));
+    let existing_tables = tables(&db).await;
+    assert!(!existing_tables.contains(&"note_history".to_string()));
+    assert!(!existing_tables.contains(&"registry_records".to_string()));
     let index_names = db.sql(
         "SELECT name FROM sqlite_master WHERE type = 'index'",
         "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()",
@@ -536,7 +554,8 @@ async fn a_matching_version_opens(db: Db) {
 async fn a_future_version_is_refused(db: Db) {
     open(&db).await.unwrap();
     let future = SCHEMA_VERSION + 1;
-    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES ({future})")]).await;
+    execute(&db, &[&format!("INSERT INTO {MARKER} (version, applied_at) VALUES ({future}, 1)")])
+        .await;
     let reason = refused(&db).await;
     assert!(reason.contains(&format!("holds schema version {future},")), "{reason}");
     assert!(!reason.contains("Pre-1.0"), "{reason}");
@@ -549,7 +568,7 @@ async fn another_version_is_refused(db: Db) {
         &[
             "CREATE TABLE schema_version (version TEXT NOT NULL)",
             &insert,
-            "CREATE TABLE catalogs (catalog VARCHAR(512) NOT NULL PRIMARY KEY)",
+            "CREATE TABLE namespaces (namespace VARCHAR(512) NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
@@ -557,7 +576,7 @@ async fn another_version_is_refused(db: Db) {
     assert!(reason.contains("holds pre-1.0 schema version 0.5,"), "{reason}");
     assert!(reason.contains("wipe pnpr's tables"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
-    execute(&db, &[&format!("DROP TABLE {LEGACY_MARKER}"), "DROP TABLE catalogs"]).await;
+    execute(&db, &[&format!("DROP TABLE {LEGACY_MARKER}"), "DROP TABLE namespaces"]).await;
     open(&db).await.unwrap();
     assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
 }
@@ -568,7 +587,7 @@ async fn an_integer_schema_version_is_refused(db: Db) {
         &[
             &format!("CREATE TABLE {LEGACY_MARKER} (version INTEGER NOT NULL)"),
             &format!("INSERT INTO {LEGACY_MARKER} (version) VALUES (4)"),
-            "CREATE TABLE catalogs (catalog VARCHAR(512) NOT NULL PRIMARY KEY)",
+            "CREATE TABLE namespaces (namespace VARCHAR(512) NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
@@ -599,11 +618,11 @@ async fn a_pre_1_0_auth_migrations_table_is_refused(db: Db) {
 async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     open(&db).await.unwrap();
     // A wipe that drops metadata or auth tables but leaves the marker.
-    execute(&db, &["DROP TABLE catalogs", "DROP TABLE notes", "DROP TABLE users"]).await;
+    execute(&db, &["DROP TABLE namespaces", "DROP TABLE notes", "DROP TABLE users"]).await;
     let reason = refused(&db).await;
     assert!(
         reason.contains(&format!(
-            "holds schema version {SCHEMA_VERSION} without the tables catalogs, \
+            "holds schema version {SCHEMA_VERSION} without the tables namespaces, \
              notes, users,"
         )),
         "{reason}",
@@ -613,8 +632,14 @@ async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
 
 async fn an_unreadable_schema_migrations_table_is_refused(db: Db) {
     open(&db).await.unwrap();
-    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES ({})", SCHEMA_VERSION + 2)])
-        .await;
+    execute(
+        &db,
+        &[&format!(
+            "INSERT INTO {MARKER} (version, applied_at) VALUES ({}, 1)",
+            SCHEMA_VERSION + 2,
+        )],
+    )
+    .await;
     let reason = refused(&db).await;
     assert!(reason.contains(&format!("holds an unreadable {MARKER} table,")), "{reason}");
     assert!(!reason.contains("Pre-1.0"), "{reason}");
@@ -669,8 +694,9 @@ conformance! {
 fn every_schema_table_is_known() {
     let tables = schema::table_names(TABLES);
     assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
-    assert!(tables.contains(&"catalogs".to_string()));
+    assert!(tables.contains(&"namespaces".to_string()));
     assert!(tables.contains(&"notes".to_string()));
+    assert!(tables.contains(&"removed_oci_manifests".to_string()));
     assert!(!tables.contains(&"note_history".to_string()));
     assert!(tables.contains(&"users".to_string()));
     assert!(tables.contains(&"tokens".to_string()));
@@ -685,8 +711,8 @@ fn every_schema_table_is_known() {
 #[test]
 fn a_table_is_known_however_its_statement_is_spaced_or_cased() {
     assert_eq!(
-        schema::table_names("create table\n  if not exists\tcatalogs(catalog TEXT);"),
-        ["catalogs"],
+        schema::table_names("create table\n  if not exists\tnamespaces(namespace TEXT);"),
+        ["namespaces"],
     );
     assert_eq!(schema::table_names("CREATE\nTABLE packages (name TEXT);"), ["packages"]);
     assert!(schema::table_names("CREATE INDEX packages_by_name ON packages (name);").is_empty());
@@ -833,7 +859,10 @@ async fn an_open_database_refuses_a_schema_advanced_by_another_server() {
     let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
     let writer = rusqlite::Connection::open(&path).unwrap();
     writer
-        .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [SCHEMA_VERSION + 1])
+        .execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 1)",
+            [SCHEMA_VERSION + 1],
+        )
         .unwrap();
     metadata.schema_monitor.expire();
     let error = metadata
@@ -865,14 +894,16 @@ async fn an_open_database_refuses_a_schema_advanced_by_another_server() {
 async fn fresh_migration_records_have_application_times() {
     let temp = tempfile::TempDir::new().unwrap();
     let path = temp.path().join("metadata.sqlite");
+    let before = crate::publish::now_millis();
     SqlMetadata::open_sqlite(&path).unwrap();
+    let after = crate::publish::now_millis();
     let connection = rusqlite::Connection::open(&path).unwrap();
-    let count: i64 = connection
-        .query_row("SELECT COUNT(*) FROM schema_migrations WHERE applied_at > 0", [], |row| {
+    let applied_at: i64 = connection
+        .query_row("SELECT applied_at FROM schema_migrations WHERE version = 1", [], |row| {
             row.get(0)
         })
         .unwrap();
-    assert_eq!(count, SCHEMA_VERSION);
+    assert!((before..=after).contains(&applied_at), "{applied_at} not in {before}..={after}");
 }
 
 #[tokio::test]
@@ -892,7 +923,7 @@ async fn a_confirmed_malformed_schema_remains_refused_after_a_runtime_probe() {
     assert!(error.contains("incompatible with this pnpr"), "{error}");
     assert!(matches!(metadata.ensure_schema(), Err(RegistryError::StorageUnavailable { .. })));
     writer
-        .execute("INSERT INTO schema_migrations (version) VALUES (1)", [])
+        .execute("INSERT INTO schema_migrations (version, applied_at) VALUES (1, 1)", [])
         .unwrap();
     assert_eq!(
         metadata

@@ -167,6 +167,14 @@ fn allows_registry_is_a_default_deny_allowlist() {
     // (here pnpr's own `/~corp/` endpoint prefix) onto a sibling path.
     assert!(!context.allows_registry(&format!("{}/~corp/../admin", config.http.public_url)));
     assert!(!context.allows_registry("https://npm.corp.example/../etc"));
+    for path in [r"npm\~corp/widget", "npm/~co\trp/widget", "npm/~co\nrp/widget"] {
+        assert!(!context.allows_registry(&format!("{}/{path}", config.http.public_url)));
+    }
+
+    assert!(!context.allows_registry(&format!(
+        "{}/npm/~denied/%2e%2e/~corp/widget",
+        config.http.public_url
+    )));
 }
 
 #[test]
@@ -312,13 +320,19 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
 const UPSTREAM_TOKEN: &str = "Bearer upstream-secret";
 
 fn corp_credential() -> String {
-    super::credential_digest(UPSTREAM_TOKEN)
+    super::headers_credential_digest(&HeaderMap::from_iter([(
+        AUTHORIZATION,
+        HeaderValue::from_static(UPSTREAM_TOKEN),
+    )]))
 }
 
 /// A *different* credential digest, standing in for the same upstream after its
 /// upstream credential has been rotated.
 fn rotated_credential() -> String {
-    super::credential_digest("Bearer rotated-secret")
+    super::headers_credential_digest(&HeaderMap::from_iter([(
+        AUTHORIZATION,
+        HeaderValue::from_static("Bearer rotated-secret"),
+    )]))
 }
 
 fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
@@ -367,6 +381,86 @@ fn upstream_per_package_rules_gate_alias_selection() {
             .classify(&user("bob"), "https://npm.corp.example/@corp%2ftool", Some("@corp/tool"),),
         RouteClass::Proxied { .. },
     ));
+}
+
+#[test]
+fn upstream_credential_is_bounded_by_its_packages_claim() {
+    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+
+    let mut config = base_config();
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
+    );
+    let patterns =
+        vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).expect("test pattern parses")];
+    config.routing.registries = Registries::new(
+        std::iter::once(("corp".to_string(), Registry::Upstream { patterns })).collect(),
+        None,
+    );
+    let context = RouteContext::from_config(&config);
+
+    let proxied =
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() };
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://npm.corp.example/@corp%2ftool",
+            Some("@corp/tool")
+        ),
+        proxied,
+    );
+    assert_eq!(
+        context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Public,
+    );
+    let descriptor = |package: &str| PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+        package: Some(package.to_string()),
+    };
+    assert!(context.allows_descriptor(&user("alice"), &descriptor("@corp/tool")));
+    assert!(!context.allows_descriptor(&user("alice"), &descriptor("lodash")));
+    let endpoint = format!("{}/npm/~corp/lodash", config.http.public_url);
+    assert_eq!(context.classify(&user("alice"), &endpoint, Some("lodash")), RouteClass::Public);
+}
+
+#[test]
+fn a_resolution_through_an_alias_an_earlier_one_skips_replays() {
+    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+
+    let mut config = base_config();
+    for name in ["scoped", "fallback"] {
+        config.routing.upstreams.insert(
+            name.to_string(),
+            upstream_with_access("https://npm.corp.example/", "$authenticated"),
+        );
+    }
+    let patterns =
+        vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).expect("test pattern parses")];
+    config.routing.registries = Registries::new(
+        std::iter::once(("scoped".to_string(), Registry::Upstream { patterns })).collect(),
+        None,
+    );
+    let context = Arc::new(RouteContext::from_config(&config));
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        Arc::clone(&context),
+        user("alice"),
+        Arc::clone(&footprint),
+        Arc::from(b"secret".as_slice()),
+    );
+
+    assert!(
+        hook.authorize("https://npm.corp.example/lodash", Some("lodash"))
+            .is_some(),
+    );
+    assert!(
+        footprint
+            .lock()
+            .unwrap()
+            .allows(&context, &user("alice")),
+    );
 }
 
 #[test]
@@ -675,6 +769,14 @@ fn route_hook_records_routes_and_returns_alias_credential() {
     assert_eq!(
         hook.authorize("https://npm.corp.example/@acme%2fwidget", Some("@acme/widget")),
         Some("Bearer upstream-secret".to_string()),
+    );
+
+    assert_eq!(
+        hook.authorize(
+            &format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url),
+            Some("@acme/widget")
+        ),
+        None,
     );
 
     let footprint = footprint.lock().unwrap();

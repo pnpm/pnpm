@@ -4,10 +4,10 @@ import * as dp from '@pnpm/deps.path'
 import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type DepPath, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
-import { type DroppedEdges, recordDroppedEdge } from './droppedEdges.js'
+import { createPeerContextChecker, type DroppedEdges, recordDroppedEdge } from './droppedEdges.js'
 import type { GraphEdits } from './tryComposeFastUpdates.js'
 import { getPeerNames } from './tryFastUpdateOverrides.js'
 import { isDirectoryDependency } from './tryFastUpdateSettings.js'
@@ -64,8 +64,9 @@ export function tryFastUpdateImporters (
     changed = pruned
   }
   const peerNames = getPeerNames(lockfile)
+  const hasPeerContext = createPeerContextChecker(lockfile)
   for (const project of opts.projects) {
-    const updated = updateProjectImporter(lockfile, project, { opts, edits, peerNames })
+    const updated = updateProjectImporter(lockfile, project, { opts, edits, peerNames, hasPeerContext })
     if (updated == null) return false
     changed ||= updated
   }
@@ -81,6 +82,7 @@ interface ImporterUpdateContext {
    * can redo.
    */
   peerNames: Set<string>
+  hasPeerContext: (root: DepPath) => boolean
 }
 
 interface ImporterEdge {
@@ -127,7 +129,7 @@ function updateProjectImporter (
   const importer = lockfile.importers[project.id]
   const manifestSpecifiers = getManifestSpecifiers(project.manifest)
   if (recordsNoDependencies(importer) && Object.keys(manifestSpecifiers).length > 0) {
-    if (!writeImporterFromLockedVersions(lockfile, project, context.opts)) return null
+    if (!writeImporterFromLockedVersions(lockfile, project, context)) return null
     // The only edit that adds reachability, so a package that until now
     // only optional dependencies reached can have stopped being optional.
     context.edits.optionalFlagsAreStale = true
@@ -199,7 +201,7 @@ function applySpecifierChange (
   const reference = recordedIn == null ? undefined : importer[recordedIn]![alias]
   if (semver.validRange(specifier) == null) return null
   if (reference == null) {
-    return addImporterEdge(lockfile, { ...edge, opts: context.opts, peerNames: context.peerNames }, context.edits) ? 'added' : null
+    return addImporterEdge(lockfile, edge, context) ? 'added' : null
   }
   if (!repointImporterEdge(lockfile, { edge, recordedIn: recordedIn!, reference }, context)) return null
   importer.specifiers[alias] = specifier
@@ -219,9 +221,7 @@ function repointImporterEdge (
   })
   if (wanted == null) return false
   if (wanted === version) return true
-  // Safe without resolving because the target version is already in
-  // the lockfile, subtree and all.
-  if (reference !== version) return false
+  if (reference !== version || context.hasPeerContext(`${edge.alias}@${wanted}` as DepPath)) return false
   edge.importer[recordedIn]![edge.alias] = wanted
   recordDroppedEdge(context.edits.dropped, edge.alias, reference)
   return true
@@ -290,8 +290,9 @@ function recordsNoDependencies (importer: ProjectSnapshot | undefined): boolean 
 function writeImporterFromLockedVersions (
   lockfile: LockfileObject,
   project: Project,
-  opts: FastImportersUpdateOptions
+  context: ImporterUpdateContext
 ): boolean {
+  const { opts } = context
   const importer: ProjectSnapshot = { specifiers: {} }
   for (const [alias, specifier] of Object.entries(getManifestSpecifiers(project.manifest))) {
     if (isDirectoryDependency(alias, specifier, opts.workspacePackages)) return false
@@ -300,7 +301,7 @@ function writeImporterFromLockedVersions (
       specifier,
       resolutionPicksLowest: opts.resolutionPicksLowest,
     })
-    if (version == null) return false
+    if (version == null || context.hasPeerContext(`${alias}@${version}` as DepPath)) return false
     const group = effectiveDependencyGroup(project.manifest, alias)
     ;(importer[group] ??= {})[alias] = version
     importer.specifiers[alias] = specifier
@@ -326,26 +327,16 @@ function recordImporterSettings (importer: ProjectSnapshot, manifest: ProjectMan
  * Record `alias` as a direct dependency of `importer` at the version the
  * lockfile already holds for it, under the group the manifest declares it in.
  *
- * Safe without resolving for the same reason a moved range is: the version
- * and its subtree are already recorded, and a subtree that resolved a peer
- * from outside itself would have left `alias` peer-suffixed, which
- * {@link lockedVersionResolutionWouldPick} refuses.
+ * Reusing a subtree in a new scope requires it to contain no declared peers.
  *
  * `false` leaves the caller on the full-resolution path.
  */
 function addImporterEdge (
   lockfile: LockfileObject,
-  edge: {
-    importer: ProjectSnapshot
-    alias: string
-    specifier: string
-    project: Project
-    opts: FastImportersUpdateOptions
-    peerNames: Set<string>
-  },
-  edits: GraphEdits
+  edge: ImporterEdge,
+  { opts, peerNames, hasPeerContext, edits }: ImporterUpdateContext
 ): boolean {
-  const { importer, alias, specifier, project, opts, peerNames } = edge
+  const { importer, alias, specifier, project } = edge
   // A recorded specifier with nothing to point at is a lockfile only the
   // resolver can make sense of.
   if (ownValue(importer.specifiers, alias) != null) return false
@@ -354,7 +345,7 @@ function addImporterEdge (
     specifier,
     resolutionPicksLowest: opts.resolutionPicksLowest,
   })
-  if (wanted == null) return false
+  if (wanted == null || hasPeerContext(`${alias}@${wanted}` as DepPath)) return false
   // `time` carries a publish date per direct dependency, and only a
   // resolution can look up the one for a package this promotes into that
   // position.

@@ -282,6 +282,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                 scopes_by_importer: self.prep.reuse.by_importer.clone(),
                 depth: self.owned.resolution.update_seed_policy.max_depth(),
                 dedupe,
+                runtimes: self.owned.resolution.update_seed_policy.locked_runtime_reuse(),
             },
             share_workspace_resolutions: self.setup.chain.custom_resolvers.is_empty(),
 

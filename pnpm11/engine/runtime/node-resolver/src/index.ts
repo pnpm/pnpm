@@ -68,7 +68,7 @@ export async function resolveNodeRuntime (
 ): Promise<NodeRuntimeResolveResult | null> {
   if (wantedDependency.alias !== 'node' || !wantedDependency.bareSpecifier?.startsWith('runtime:')) return null
 
-  if (opts?.currentPkg && !opts.update) {
+  if (opts?.currentPkg && !opts.update && lockedOnReleaseChannel(opts.currentPkg.version, wantedDependency.bareSpecifier)) {
     return {
       id: opts.currentPkg.id,
       resolution: opts.currentPkg.resolution as VariationsResolution,
@@ -99,6 +99,19 @@ export async function resolveNodeRuntime (
       variants,
     },
   }
+}
+
+/**
+ * Whether a runtime locked at `lockedVersion` may serve the release channel of
+ * `bareSpecifier`. A version without a channel's prerelease tag cannot be told
+ * apart from a release of any channel, so it stays.
+ */
+function lockedOnReleaseChannel (lockedVersion: string | undefined, bareSpecifier: string): boolean {
+  if (lockedVersion == null) return true
+  const lockedChannel = parseNodeSpecifier(lockedVersion).releaseChannel
+  if (lockedChannel === 'release') return true
+  const wanted = parseNodeSpecifier(normalizeRuntimeSpec(bareSpecifier.substring('runtime:'.length)))
+  return lockedChannel === wanted.releaseChannel
 }
 
 export async function resolveLatestNodeRuntime (

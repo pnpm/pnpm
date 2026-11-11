@@ -2,11 +2,8 @@
 
 use super::{SqlMetadata, adapter::Connection, batch::WriteTransaction, transactions::Freshness};
 use crate::Storage;
-use pnpr_error::Result;
+use pnpr_error::{RegistryError, Result};
 use std::sync::Arc;
-
-const SUBSCRIPTION: &str = "cdn-subscription";
-const PENDING: &str = "cdn-pending";
 
 /// A package name, or `*` for every cached response, and its delivery generation.
 #[derive(Debug, Clone)]
@@ -19,15 +16,15 @@ pub struct CdnInvalidation {
 pub(super) fn enqueue(connection: &dyn Connection, package: &str) -> Result<()> {
     connection.execute(
         "UPDATE record_generation SET generation = generation + 1 WHERE singleton = 1
-         AND EXISTS (SELECT 1 FROM registry_records WHERE kind = ?1 AND name = 'default')",
-        params![SUBSCRIPTION],
+         AND EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)",
+        params![],
     )?;
     connection.execute(
-        "INSERT INTO registry_records (kind, name, generation, body)
-         SELECT ?1, ?2, generation, ?3 FROM record_generation WHERE singleton = 1
-         AND EXISTS (SELECT 1 FROM registry_records WHERE kind = ?4 AND name = 'default')
-         ON CONFLICT (kind, name) DO UPDATE SET generation = excluded.generation",
-        params![PENDING, package, &[] as &[u8], SUBSCRIPTION],
+        "INSERT INTO cdn_purge_queue (package, generation)
+         SELECT ?1, generation FROM record_generation WHERE singleton = 1
+         AND EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)
+         ON CONFLICT (package) DO UPDATE SET generation = excluded.generation",
+        params![package],
     )?;
     Ok(())
 }
@@ -35,27 +32,33 @@ pub(super) fn enqueue(connection: &dyn Connection, package: &str) -> Result<()> 
 impl Storage {
     /// Enable transactional invalidation recording and invalidate pre-startup cache entries.
     pub async fn enable_cdn_invalidations(&self, target: &str) -> Result<()> {
-        let target = target.as_bytes().to_vec();
-        self.database.write(move |connection| {
-            let transaction = WriteTransaction::begin(connection)?;
-            transaction.execute(
-                "INSERT INTO registry_records (kind, name, generation, body)
-                 VALUES (?1, 'default', 0, ?2) ON CONFLICT DO NOTHING",
-                params![SUBSCRIPTION, &target],
-            )?;
-            let mut registered = transaction.query_optional(
-                "SELECT body FROM registry_records WHERE kind = ?1 AND name = 'default'",
-                params![SUBSCRIPTION],
-            )?.ok_or_else(|| pnpr_error::RegistryError::Internal { reason: "CDN subscription is missing".to_string() })?;
-            if registered.get::<Vec<u8>>(0)? != target {
-                return Err(pnpr_error::RegistryError::InvalidConfig {
-                    reason: "all servers sharing a database must use the same cloudflareCdn zoneId and cacheTag".to_string(),
-                });
-            }
-            enqueue(&*transaction, "*")?;
-            transaction.commit()
-        })
-        .await
+        let target = target.to_string();
+        self.database
+            .write(move |connection| {
+                let transaction = WriteTransaction::begin(connection)?;
+                transaction.execute(
+                    "INSERT INTO cdn_subscriptions (singleton, target)
+                     VALUES (1, ?1) ON CONFLICT DO NOTHING",
+                    params![&target],
+                )?;
+                let mut registered = transaction
+                    .query_optional(
+                        "SELECT target FROM cdn_subscriptions WHERE singleton = 1",
+                        params![],
+                    )?
+                    .ok_or_else(|| RegistryError::Internal {
+                        reason: "CDN subscription is missing".to_string(),
+                    })?;
+                if registered.get::<String>(0)? != target {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: "all servers sharing a database must use the same cloudflareCdn zoneId and cacheTag"
+                            .to_string(),
+                    });
+                }
+                enqueue(&*transaction, "*")?;
+                transaction.commit()
+            })
+            .await
     }
 
     /// Read pending policy changes and the oldest package changes from the primary.
@@ -72,12 +75,13 @@ impl Storage {
             let transaction = WriteTransaction::begin(connection)?;
             for event in &delivered {
                 transaction.execute(
-                    "DELETE FROM registry_records WHERE kind = ?1 AND name = ?2 AND generation = ?3",
-                    params![PENDING, &event.package, event.generation],
+                    "DELETE FROM cdn_purge_queue WHERE package = ?1 AND generation = ?2",
+                    params![&event.package, event.generation],
                 )?;
             }
             transaction.commit()
-        }).await
+        })
+        .await
     }
 }
 
@@ -85,14 +89,14 @@ impl SqlMetadata {
     async fn pending_cdn_invalidations(self: &Arc<Self>) -> Result<Vec<CdnInvalidation>> {
         self.read(String::new(), Freshness::Current, |connection, _| {
             let rows = connection.query(
-                "SELECT name, generation FROM (
-                   SELECT name, generation, 0 AS priority FROM registry_records WHERE kind = ?1 AND name = '*'
-                   UNION ALL SELECT name, generation, 1 AS priority FROM (
-                     SELECT name, generation FROM registry_records
-                     WHERE kind = ?1 AND name <> '*' ORDER BY generation LIMIT 29
+                "SELECT package, generation FROM (
+                   SELECT package, generation, 0 AS priority FROM cdn_purge_queue WHERE package = '*'
+                   UNION ALL SELECT package, generation, 1 AS priority FROM (
+                     SELECT package, generation FROM cdn_purge_queue
+                     WHERE package <> '*' ORDER BY generation LIMIT 29
                    ) AS packages
                  ) AS pending ORDER BY priority, generation",
-                params![PENDING],
+                params![],
             )?;
             rows.into_iter()
                 .map(|mut row| {

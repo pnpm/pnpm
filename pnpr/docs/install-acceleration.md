@@ -83,8 +83,8 @@ resolution, pnpm resolves it locally instead of failing.
 `pnpm install --fix-lockfile` is forwarded as a
 repair request, including during filtered installs. The server regenerates
 broken lockfile metadata while retaining locked versions that remain
-compatible. The `fixLockfile` list in `GET /-/pnpr` tells the client which
-resolver protocol versions support that request.
+compatible. The `fixLockfile` feature in `pnpr.protocols.resolver.features` tells the client
+whether the advertised resolver versions support that request.
 
 ## What a configured server does not cost
 
@@ -141,6 +141,11 @@ configuration points at it, lockfile entries stay integrity-only (the
 registry host lives in the client's `.npmrc`, not in the lockfile), and a
 project resolves to the same lockfile whether it installs through `/resolve`
 or directly against the registry endpoint.
+
+When an npm registry URL points to this pnpr server's `public_url`, resolution
+reads hosted packages and named upstreams such as `/npm/~internal/` inside the
+server, using the caller's access permissions. Upstream credentials are sent
+only to the configured upstream, never to `public_url` or its reverse proxy.
 
 The resolution cache is **authorization-aware**: a resolution that touched
 only public routes is cached once and shared by every caller, while a

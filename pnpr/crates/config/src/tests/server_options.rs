@@ -4,24 +4,24 @@ use super::{
 };
 
 #[test]
-fn org_policies_distinguish_readers_and_publishers() {
+fn owner_policies_distinguish_readers_and_publishers() {
     let config = Config::from_yaml_str(
-        "artifacts:\n  enabled: true\n  orgs:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
+        "artifacts:\n  enabled: true\n  owners:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
         Path::new("/config"), listen(), None,
     ).unwrap();
-    let policy = &config.features.artifacts.orgs["acme"];
+    let policy = &config.features.artifacts.owners["acme"];
     assert!(policy.access.allows(&Identity::user("developer")), "developer must be able to read");
     assert!(!policy.publish.allows(&Identity::user("developer")), "developer must not publish");
     assert!(policy.publish.allows(&Identity::user("ci")), "CI must be able to publish");
     assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
     assert!(
-        config.features.artifacts.orgs["disabled"].access.is_empty(),
+        config.features.artifacts.owners["disabled"].access.is_empty(),
         "empty access must deny reads",
     );
 }
 
 #[test]
-fn org_policies_reject_ambiguous_or_incomplete_declarations() {
+fn owner_policies_reject_ambiguous_or_incomplete_declarations() {
     for declaration in [
         "    '../acme': { access: ci, publish: ci }",
         "    acme: { access: ci }",
@@ -29,7 +29,7 @@ fn org_policies_reject_ambiguous_or_incomplete_declarations() {
         "    acme: { access: ci, publish: 'team:missing' }",
         "    acme: { access: ci, publish: ci, unexpected: true }",
     ] {
-        let yaml = format!("artifacts:\n  enabled: true\n  orgs:\n{declaration}\n");
+        let yaml = format!("artifacts:\n  enabled: true\n  owners:\n{declaration}\n");
         let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
         assert!(result.is_err(), "accepted {declaration:?}");
     }
