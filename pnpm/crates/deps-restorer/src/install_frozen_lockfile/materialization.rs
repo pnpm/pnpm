@@ -44,12 +44,27 @@ impl<'a> InstallFrozenLockfile<'a> {
                 install.platform.node_linker,
                 install.projects.workspace_root,
             );
+            let loaded_snapshots = phase.fetched.snapshot_selection.loaded
+                .as_ref()
+                .map(|keys| {
+                    keys.iter()
+                        .filter_map(|key| {
+                            snapshots.and_then(|snapshots| {
+                                snapshots
+                                    .get_key_value(key)
+                                    .map(|(key, entry)| (key.clone(), entry.clone()))
+                            })
+                        })
+                        .collect::<std::collections::HashMap<_, _>>()
+                });
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 cache: phase.fetched.build_cache(engine_name.as_deref(), phase.store_index_writer),
                 directories: build_directories(install.projects.workspace_root, ctx, phase.linked),
                 graph: crate::BuildPhaseGraph {
                     trusted_importer_ids: &install.importer_sets().0,
-                    loaded_snapshots: ctx.select_loaded_snapshots(snapshots),
+                    // Use the final loaded selection, including packages pulled into GVS
+                    // during cache fallback, when linking bins after builds.
+                    loaded_snapshots: loaded_snapshots.as_ref(),
                     snapshots,
                     packages,
                     importers: &install.lockfiles.wanted.importers,
