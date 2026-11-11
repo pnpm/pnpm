@@ -11,7 +11,9 @@ pub(super) fn public_tarball_response(
         && response
             .headers()
             .get(header::CONTENT_TYPE)
-            .is_some_and(|value| value == "application/octet-stream")
+            .is_some_and(|value| {
+                value == "application/octet-stream" || value == "application/x-tar"
+            })
         && !response.headers().contains_key(header::CACHE_CONTROL)
     {
         response

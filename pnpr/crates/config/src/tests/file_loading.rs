@@ -620,3 +620,23 @@ fn optional_nonsecret_variables_in_flow_mappings_remain_optional() {
     assert!(config.storage.hosted_dir.ends_with("store"));
     assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
 }
+
+#[test]
+fn expanded_yaml_fragments_do_not_hide_unresolved_secrets() {
+    struct FragmentEnv;
+    impl pnpm_env_replace::EnvVar for FragmentEnv {
+        fn var(name: &str) -> Option<String> {
+            (name == "CONFIG_FRAGMENT").then(|| "storage: /tmp/store".to_string())
+        }
+    }
+    let raw = r#"${CONFIG_FRAGMENT}
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
+"#;
+    let error = crate::secrets::validate_secret_env_vars::<FragmentEnv>(raw).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("cloudflareCdn.apiToken"));
+    assert!(message.contains("CF_TOKEN"));
+    assert!(!message.contains("prefix-"));
+    let optional = raw.replace("prefix-${CF_TOKEN}", "${CF_TOKEN-example-token}");
+    crate::secrets::validate_secret_env_vars::<FragmentEnv>(&optional).unwrap();
+}

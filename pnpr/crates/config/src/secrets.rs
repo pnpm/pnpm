@@ -251,7 +251,7 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
 }
 
 pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), RegistryError> {
-    let Some(val) = parse_unexpanded_config(raw) else { return Ok(()) };
+    let Some(val) = parse_unexpanded_config::<Sys>(raw) else { return Ok(()) };
     if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
     {
         check_secret_env_field::<Sys>("cloudflareCdn.apiToken", token)?;
@@ -265,7 +265,7 @@ pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), Reg
     Ok(())
 }
 
-fn parse_unexpanded_config(raw: &str) -> Option<serde_json::Value> {
+fn parse_unexpanded_config<Sys: EnvVar>(raw: &str) -> Option<serde_json::Value> {
     if let Ok(value) = serde_saphyr::from_str(raw) {
         return Some(value);
     }
@@ -281,6 +281,11 @@ fn parse_unexpanded_config(raw: &str) -> Option<serde_json::Value> {
         .enumerate()
         .rev()
     {
+        let (expanded, unresolved) = env_replace_lossy::<Sys>(&raw[range.clone()]);
+        if unresolved.is_empty() {
+            masked.replace_range(range, &expanded);
+            continue;
+        }
         let marker = format!("{prefix}{index}__");
         placeholders.push((marker.clone(), &raw[range.clone()]));
         masked.replace_range(range, &marker);
