@@ -50,7 +50,7 @@ jobs:
           tool: just
 
       - name: Measure main
-        run: just engine-size --json target/engine-size-main.json > /dev/null
+        run: just engine-size --json "$RUNNER_TEMP/engine-size-main.json" > /dev/null
 
       - name: Checkout pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,15 +62,15 @@ jobs:
 
       - name: Measure pull request
         run: |
-          just engine-size --json target/engine-size-pr.json --compare target/engine-size-main.json | tee -a "$GITHUB_STEP_SUMMARY"
-          just engine-size --no-default-features --json target/engine-size-pr-reduced.json --compare target/engine-size-main.json | tee -a "$GITHUB_STEP_SUMMARY"
+          just engine-size --json target/engine-size-pr.json --compare "$RUNNER_TEMP/engine-size-main.json" | tee -a "$GITHUB_STEP_SUMMARY"
+          just engine-size --no-default-features --json target/engine-size-pr-reduced.json --compare "$RUNNER_TEMP/engine-size-main.json" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pacquet-engine-size-${{ github.event.pull_request.number }}
           path: |
-            target/engine-size-main.json
+            ${{ runner.temp }}/engine-size-main.json
             target/engine-size-pr.json
             target/engine-size-pr-reduced.json
           if-no-files-found: error
