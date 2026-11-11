@@ -56,6 +56,11 @@ pub(crate) fn should_read_pin_lockfile(
     {
         return false;
     }
+    if invocation.pin_handling == PinHandling::SwitchOnly
+        && crate::cli_args::package_manager::exact_version(spec).as_deref() == Some(running_version)
+    {
+        return false;
+    }
     let switch_wanted =
         on_fail == PmOnFail::Download && !process_state.package_manager_switch_disabled;
     if can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state) {

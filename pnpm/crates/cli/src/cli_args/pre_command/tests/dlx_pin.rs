@@ -121,4 +121,13 @@ fn dlx_does_not_read_the_env_lockfile_when_it_cannot_switch() {
     assert!(plan_for_dlx(root.path(), SWITCH_ALLOWED).is_none());
 }
 
+#[test]
+fn dlx_does_not_read_the_env_lockfile_for_the_running_pnpm() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    write_lockfile(root.path(), MALFORMED_ENV_DOCUMENT);
+
+    assert!(plan_for_dlx(root.path(), SWITCH_ALLOWED).is_none());
+}
+
 const MALFORMED_ENV_DOCUMENT: &str = "---\nlockfileVersion: [\n---\n";
