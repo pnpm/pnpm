@@ -11,7 +11,7 @@ use crate::{
     fast_update_compose::Drift, fast_update_lockfile::GraphEdits,
     fast_update_overrides::get_peer_names, fast_update_settings::workspace_package_names,
 };
-use node_semver::Range;
+use node_semver::{Range, Version};
 use pnpm_lockfile::{
     Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
 };
@@ -21,6 +21,7 @@ use rustc_hash::FxHashMap;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    sync::OnceLock,
 };
 
 /// Each manifest alias with its specifier and the group it is
@@ -41,9 +42,28 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
     /// under one of them changes what the peer binds to, which only the
     /// resolver can redo.
     peer_names: HashSet<PkgName>,
+    lockfile: &'a Lockfile,
+    peer_dependents: OnceLock<HashSet<(PkgName, Version)>>,
     /// Whether `resolutionMode` resolves a direct dependency to its
     /// lowest satisfying version rather than its highest.
     resolution_picks_lowest: bool,
+}
+
+impl ImportersPlan<'_, '_> {
+    fn has_peer_dependent_subtree(&self, alias: &PkgName, version: &Version) -> bool {
+        self.peer_dependents
+            .get_or_init(|| {
+                crate::fast_update_lockfile::peer_sensitive_packages(self.lockfile)
+                    .into_iter()
+                    .filter_map(|key| {
+                        key.suffix
+                            .version_semver()
+                            .map(|version| (key.name.clone(), version.clone()))
+                    })
+                    .collect()
+            })
+            .contains(&(alias.clone(), version.clone()))
+    }
 }
 
 /// Whether the importers' records diverge from the manifests, without
@@ -53,7 +73,7 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
 /// the compose from cloning a workspace-scale lockfile it would then
 /// throw away.
 pub(crate) fn detect_importers_drift<'a, 'manifest>(
-    lockfile: &Lockfile,
+    lockfile: &'a Lockfile,
     manifests: &'a [(String, &'manifest PackageManifest)],
     project_manifests: &[(PathBuf, &PackageManifest)],
     prune_stale_importers: bool,
@@ -82,6 +102,8 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
             stale,
             workspace_package_names: workspace_package_names(project_manifests),
             peer_names: get_peer_names(lockfile),
+            lockfile,
+            peer_dependents: OnceLock::new(),
             resolution_picks_lowest,
         })
     } else {

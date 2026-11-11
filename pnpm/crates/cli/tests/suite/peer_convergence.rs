@@ -23,6 +23,7 @@
 //! v12-only `autoDedupe`, and each row's fresh v11 lockfile has to equal the
 //! v12 one.
 
+mod fast_update;
 mod harness;
 
 use harness::{Harness, Move, Project, project};

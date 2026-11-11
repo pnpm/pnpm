@@ -1,12 +1,21 @@
 //! Which children of a snapshot are its own peers, and which packages
 //! provide the peers bound below it.
 
+pub(super) use constraint::ProviderConstraint;
+
 use super::{super::NextFormatError, children};
 use crate::{
-    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef,
-    SnapshotEntry, split_peer_suffix_segments,
+    BoundProviders, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
+    SnapshotDepRef, SnapshotEntry, split_peer_suffix_segments,
 };
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::OnceLock,
+};
+
+mod candidates;
+mod constraint;
+use candidates::ProviderCandidates;
 
 /// The transitive peers of `key` whose providers its peer groups name, and the
 /// names left for [`ProviderFinder`].
@@ -66,6 +75,8 @@ pub(super) struct ProviderFinder<'a, 'own> {
     own_peers: &'own HashMap<&'a PackageKey, HashSet<&'a PkgName>>,
     /// `None` while a lookup is in progress, which ends a dependency cycle.
     found: HashMap<(&'a PackageKey, &'a str), Option<&'a SnapshotDepRef>>,
+    candidates: HashMap<&'a str, ProviderCandidates<'a>>,
+    needing_peer: OnceLock<HashMap<String, HashSet<&'a PackageKey>>>,
 }
 
 impl<'a, 'own> ProviderFinder<'a, 'own> {
@@ -73,10 +84,37 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         own_peers: &'own HashMap<&'a PackageKey, HashSet<&'a PkgName>>,
     ) -> Self {
-        ProviderFinder { snapshots, own_peers, found: HashMap::new() }
+        ProviderFinder {
+            snapshots,
+            own_peers,
+            found: HashMap::new(),
+            candidates: HashMap::new(),
+            needing_peer: OnceLock::new(),
+        }
     }
 
     pub(super) fn provider_below(
+        &mut self,
+        key: &'a PackageKey,
+        name: &'a str,
+        constraint: &ProviderConstraint,
+    ) -> Option<&'a SnapshotDepRef> {
+        if let Some(reference) = self
+            .first_provider_below(key, name)
+            .filter(|reference| constraint.matches(reference))
+        {
+            return Some(reference);
+        }
+        if !self.candidates.contains_key(name) {
+            self.candidates.insert(name, ProviderCandidates::of(self, name));
+        }
+        self.candidates
+            .get_mut(name)
+            .unwrap()
+            .matching(key, constraint)
+    }
+
+    fn first_provider_below(
         &mut self,
         key: &'a PackageKey,
         name: &'a str,
@@ -99,16 +137,47 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
             return Some(reference);
         }
         #[expect(clippy::needless_collect, reason = "the search borrows `self` mutably")]
-        let candidates: Vec<&'a PackageKey> = children(entry)
-            .filter(|(alias, _)| !own.contains(alias))
-            .filter_map(|(alias, reference)| {
+        let candidates: Vec<_> = self.children_needing_peer(key, name).collect();
+        candidates
+            .into_iter()
+            .find_map(|child_key| self.first_provider_below(child_key, name))
+    }
+
+    fn children_needing_peer<'finder>(
+        &'finder self,
+        key: &PackageKey,
+        name: &'finder str,
+    ) -> impl Iterator<Item = &'a PackageKey> + 'finder {
+        children(&self.snapshots[key])
+            .filter_map(move |(alias, reference)| {
                 let (child_key, _) = self.snapshots.get_key_value(&reference.resolve(alias)?)?;
                 self.needs_from_outside(child_key, name).then_some(child_key)
             })
-            .collect();
-        candidates
+    }
+
+    fn keys_needing_peer(&self, name: &str) -> impl Iterator<Item = &'a PackageKey> + '_ {
+        self.needing_peer
+            .get_or_init(|| {
+                let mut indexed: HashMap<String, HashSet<_>> = HashMap::new();
+                for (key, entry) in self.snapshots {
+                    let names = entry.transitive_peer_dependencies
+                        .iter()
+                        .flatten()
+                        .cloned()
+                        .chain(self.own_peers[key].iter().map(ToString::to_string));
+                    for name in names {
+                        indexed
+                            .entry(name)
+                            .or_default()
+                            .insert(key);
+                    }
+                }
+                indexed
+            })
+            .get(name)
             .into_iter()
-            .find_map(|child_key| self.provider_below(child_key, name))
+            .flatten()
+            .copied()
     }
 
     fn needs_from_outside(&self, key: &PackageKey, name: &str) -> bool {
@@ -123,18 +192,18 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
 }
 
 /// Non-transitive children whose providers appear in the peer groups.
-/// A hashed suffix uses the package's declared peers as candidates.
+/// Hashed groups use recovered providers when available, then declared peers.
 pub(super) fn own_peer_names<'a>(
     key: &PackageKey,
     entry: &'a SnapshotEntry,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    recovered: Option<&BoundProviders>,
 ) -> HashSet<&'a PkgName> {
     if key.suffix.peer().len() == key.suffix.patch_group().len() {
         return HashSet::new();
     }
     let segments = provider_segments(&key.suffix);
     let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
-    let declared = metadata.and_then(|metadata| metadata.peer_dependencies.as_ref());
     children(entry)
         .filter(|(alias, _)| {
             !entry.transitive_peer_dependencies
@@ -145,19 +214,37 @@ pub(super) fn own_peer_names<'a>(
             if let Some(segments) = &segments {
                 return names_provider(segments, alias, reference);
             }
-            let name = alias.to_string();
-            let optional_peer = metadata
-                .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
-                .and_then(|peers| peers.get(&name))
-                .is_some_and(|peer| peer.optional);
-            declared.is_some_and(|declared| declared.contains_key(&name))
-                && (!optional_peer
-                    || entry.optional_dependencies
-                        .as_ref()
-                        .is_some_and(|deps| deps.contains_key(*alias)))
+            is_own_hashed_peer(entry, metadata, recovered, alias, reference)
         })
         .map(|(alias, _)| alias)
         .collect()
+}
+
+fn is_own_hashed_peer(
+    entry: &SnapshotEntry,
+    metadata: Option<&PackageMetadata>,
+    recovered: Option<&BoundProviders>,
+    alias: &PkgName,
+    reference: &SnapshotDepRef,
+) -> bool {
+    let name = alias.to_string();
+    if !metadata
+        .and_then(|metadata| metadata.peer_dependencies.as_ref())
+        .is_some_and(|declared| declared.contains_key(&name))
+    {
+        return false;
+    }
+    if let Some(recovered) = recovered.filter(|recovered| !recovered.is_hashed()) {
+        return binds_reference(Some(recovered), alias, reference);
+    }
+    let optional_peer = metadata
+        .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
+        .and_then(|peers| peers.get(&name))
+        .is_some_and(|peer| peer.optional);
+    !optional_peer
+        || entry.optional_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(alias))
 }
 
 /// The provider groups of a peer suffix, or `None` when it is hashed.
@@ -205,4 +292,15 @@ pub(super) fn parse_peer_name(key: &PackageKey, name: &str) -> Result<PkgName, N
             referrer: key.to_string(),
             name: name.to_string(),
         })
+}
+
+pub(super) fn binds_reference(
+    providers: Option<&BoundProviders>,
+    alias: &PkgName,
+    reference: &SnapshotDepRef,
+) -> bool {
+    providers.is_none_or(|providers| match reference.resolve(alias) {
+        Some(target) => providers.binds_snapshot(&target),
+        None => providers.is_hashed() && reference.as_link_target().is_some(),
+    })
 }
