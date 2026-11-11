@@ -133,17 +133,6 @@ macro_rules! driver {
                     Dialect::retryable(&**error)
                 }
 
-                fn is_unavailable(&self, error: &RegistryError) -> bool {
-                    if self.is_retryable(error) {
-                        return true;
-                    }
-                    match error {
-                        RegistryError::StorageUnavailable { .. }
-                        | RegistryError::Sqlx(sqlx::Error::Io(_) | sqlx::Error::PoolTimedOut) => true,
-                        RegistryError::Sqlx(sqlx::Error::Database(error)) => error.is_transient_in_connect_phase(),
-                        _ => false,
-                    }
-                }
 
             }
 

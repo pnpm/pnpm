@@ -59,11 +59,16 @@ a byte range. pnpr verifies at most four object-store downloads in parallel. A
 request waiting more than five seconds for verification returns `503 Service
 Unavailable`.
 
-Temporary download files share a 1 GiB budget, reserved in 1 MiB units until
-the response finishes or disconnects. A file larger than 1 GiB reserves the
-whole budget and can download when no other temporary download file remains.
-Requests that cannot reserve space return `503 Service Unavailable`
-immediately. Corrupted archives also return `503 Service Unavailable`.
+Temporary download files share a 1 GiB admission threshold, reserved in 1 MiB
+units until the response finishes or disconnects. An archive larger than 1 GiB
+reserves the threshold exclusively and can use more than 1 GiB of disk space.
+The total size of these temporary files is bounded by the greater of 1 GiB and
+the largest active archive download. Requests that cannot reserve space return
+`503 Service Unavailable` immediately. Corrupted archives also return
+`503 Service Unavailable`.
+
+Provision the cache filesystem with enough free space for the largest published
+archive, including blobs allowed by the [OCI size limit](configuration.md#oci).
 
 `<incarnation>` counts the times the bytes were stored, from `1`. Bytes a
 [reclaim](cli.md#gc) removed and a later publish stores again take the next

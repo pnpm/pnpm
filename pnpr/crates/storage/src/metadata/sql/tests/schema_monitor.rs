@@ -48,7 +48,10 @@ impl Adapter for StalledPrimary {
         while !*released {
             released = self.probe.ready.wait(released).unwrap();
         }
-        Err(RegistryError::StorageUnavailable { reason: "primary unavailable".to_string() })
+        Err(RegistryError::Sqlite(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_INTERRUPT),
+            Some("query canceled".to_string()),
+        )))
     }
 
     fn is_retryable(&self, error: &RegistryError) -> bool {
@@ -61,7 +64,7 @@ impl Adapter for StalledPrimary {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn one_stalled_probe_does_not_block_request_bursts_or_replica_reads() {
+async fn a_stalled_or_canceled_probe_does_not_block_request_bursts_or_replica_reads() {
     let db = Db::sqlite();
     let probe = Arc::new(PendingProbe::default());
     let adapter = StalledPrimary { inner: db.adapter(), probe: Arc::clone(&probe) };

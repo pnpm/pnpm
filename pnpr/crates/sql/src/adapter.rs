@@ -216,11 +216,6 @@ pub trait Adapter: fmt::Debug + Send + Sync {
     /// another writer, after which the whole transaction may run again.
     fn is_retryable(&self, error: &RegistryError) -> bool;
 
-    /// Whether a failed primary probe may retain the last compatible schema result.
-    fn is_unavailable(&self, error: &RegistryError) -> bool {
-        matches!(error, RegistryError::StorageUnavailable { .. }) || self.is_retryable(error)
-    }
-
     /// Whether [`ReadSource::Replica`] reads a copy that may lag the primary.
     fn has_replica(&self) -> bool {
         false

@@ -354,26 +354,6 @@ impl Adapter for LibsqlAdapter {
         matches!(error, RegistryError::Libsql(error) if pnpr_libsql::is_transaction_conflict(error))
     }
 
-    fn is_unavailable(&self, error: &RegistryError) -> bool {
-        if matches!(error, RegistryError::StorageUnavailable { .. }) || self.is_retryable(error) {
-            return true;
-        }
-        match error {
-            RegistryError::Libsql(libsql::Error::ConnectionFailed(_)) => true,
-            RegistryError::Libsql(libsql::Error::Hrana(cause)) => {
-                let message = cause.to_string();
-                let status = message
-                    .strip_prefix("api error: `status=")
-                    .and_then(|rest| rest.split_once(' '))
-                    .map(|(status, _)| status);
-                message.starts_with("http error:")
-                    || matches!(status, Some("408" | "429" | "502" | "503" | "504"))
-                    || pnpr_libsql::is_stale_stream(error)
-            }
-            _ => false,
-        }
-    }
-
     fn has_replica(&self) -> bool {
         self.settings.replica_path.is_some()
     }

@@ -876,23 +876,23 @@ async fn fresh_migration_records_have_application_times() {
 }
 
 #[tokio::test]
-async fn an_unreadable_schema_remains_refused_after_a_failed_runtime_probe() {
+async fn a_confirmed_malformed_schema_remains_refused_after_a_runtime_probe() {
     let temp = tempfile::TempDir::new().unwrap();
     let path = temp.path().join("metadata.sqlite");
     let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
     let writer = rusqlite::Connection::open(&path).unwrap();
     writer
-        .execute("DROP TABLE schema_migrations", [])
+        .execute("DELETE FROM schema_migrations WHERE version = 1", [])
         .unwrap();
     metadata.schema_monitor.expire();
     let error = metadata
         .ensure_schema()
         .unwrap_err()
         .to_string();
-    assert!(error.contains("no such table"), "{error}");
+    assert!(error.contains("incompatible with this pnpr"), "{error}");
     assert!(matches!(metadata.ensure_schema(), Err(RegistryError::StorageUnavailable { .. })));
     writer
-        .execute(schema::MARKER_TABLE, [])
+        .execute("INSERT INTO schema_migrations (version) VALUES (1)", [])
         .unwrap();
     assert_eq!(
         metadata

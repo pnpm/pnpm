@@ -198,6 +198,7 @@ const SCRATCH_UNIT_BYTES: u64 = 1024 * 1024;
 const SCRATCH_UNITS: u32 = 1024;
 const STAGING_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// Oversized archives reserve the shared threshold exclusively to remain downloadable.
 fn reserve_scratch_space(
     capacity: &'static tokio::sync::Semaphore,
     size: u64,

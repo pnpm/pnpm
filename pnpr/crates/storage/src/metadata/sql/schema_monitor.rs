@@ -59,17 +59,20 @@ impl SchemaMonitor {
 
     pub(super) fn probe(&self, adapter: &dyn Adapter, name: &str) {
         let _probe = Probe(self);
+        let mut unsupported = None;
         let result = adapter.read(ReadSource::Primary, &mut |connection| {
-            schema::check_current(connection, name)
+            unsupported = schema::check_current(connection)?;
+            Ok(())
         });
         match result {
-            Err(error) if adapter.is_unavailable(&error) => {
+            Err(error) => {
                 tracing::warn!(%error, "Could not recheck the database schema; keeping the last supported version");
             }
-            Err(error) => {
-                let _ = self.refusal.set(error.to_string());
+            Ok(_) => {
+                if let Some(stored) = unsupported {
+                    let _ = self.refusal.set(schema::refused_error(name, &stored).to_string());
+                }
             }
-            Ok(_) => {}
         }
     }
 

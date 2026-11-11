@@ -110,14 +110,17 @@ fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
     )
 }
 
-/// Refuse a schema that has advanced beyond this server's supported version.
-pub fn check_current(connection: &dyn Connection, name: &str) -> Result<()> {
-    let mut row = connection.query_one("SELECT MAX(version) FROM schema_migrations", params![])?;
-    let version = row.get::<i64>(0)?;
-    if version > SCHEMA_VERSION {
-        return Err(refused_error(name, &Stored::FutureVersion(version)));
-    }
-    Ok(())
+/// The unsupported marker read from a running database, distinct from a failed probe.
+pub fn check_current(connection: &dyn Connection) -> Result<Option<Stored>> {
+    let rows = connection.query("SELECT version FROM schema_migrations", params![])?;
+    let Some(version) = parse_contiguous_versions(rows) else {
+        return Ok(Some(Stored::Unreadable));
+    };
+    Ok(match version.cmp(&SCHEMA_VERSION) {
+        std::cmp::Ordering::Greater => Some(Stored::FutureVersion(version)),
+        std::cmp::Ordering::Less => Some(Stored::Unreadable),
+        std::cmp::Ordering::Equal => None,
+    })
 }
 
 /// What a database holds when it cannot be migrated to [`SCHEMA_VERSION`].
