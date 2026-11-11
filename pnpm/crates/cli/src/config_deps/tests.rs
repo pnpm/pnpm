@@ -72,6 +72,32 @@ async fn update_config_lockfile_dir_restores_default_workspace_paths() {
     assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
 }
 
+#[tokio::test]
+async fn update_config_lockfile_dir_uses_the_invoking_project_as_its_default() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = '.'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, Some(workspace.clone()));
+    assert_eq!(config.modules_dir, workspace.join("node_modules"));
+    assert!(config.shares_one_lockfile());
+}
+
 /// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
 /// default a source had turned off.
 #[tokio::test]

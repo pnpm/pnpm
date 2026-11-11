@@ -93,10 +93,10 @@ pub(super) fn apply_hook_delta(
     if delta.get("lockfileDir").is_some() {
         let lockfile_dir = config.lockfile_dir
             .clone()
-            .unwrap_or_else(|| config.lockfile_dir_for(base_dir).to_path_buf());
-        config.pin_lockfile_dir(&lockfile_dir, base_dir);
+            .unwrap_or_else(|| config.lockfile_dir_for(&config.dir).to_path_buf());
+        config.pin_lockfile_dir(&lockfile_dir, &config.dir);
         if config.lockfile_dir.is_none() {
-            let default_lockfile_dir = config.lockfile_dir_for(base_dir).to_path_buf();
+            let default_lockfile_dir = config.lockfile_dir_for(&config.dir).to_path_buf();
             config.anchor_lockfile_paths(&default_lockfile_dir);
         }
     }

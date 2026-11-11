@@ -75,7 +75,6 @@ impl Config {
             .unwrap_or_else(|| self.default_lockfile_dir_for(project_dir))
     }
 
-    #[must_use]
     /// Whether one `pnpm-lock.yaml` covers every project the command
     /// touches. The `sharedWorkspaceLockfile` setting, which an explicit
     /// [`lockfile_dir`] overrides: pinning the lockfile to one directory

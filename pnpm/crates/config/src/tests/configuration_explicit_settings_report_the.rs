@@ -410,9 +410,11 @@ pub fn case_equivalent_lockfile_dir_keeps_dedicated_project_layout() {
     let workspace = tmp.path().join("CaseRoot");
     let project = workspace.join("packages/app");
     fs::create_dir_all(&project).expect("create project directory");
-    let lockfile_dir = workspace
+    let lockfile_dir = project
+        .parent()
+        .expect("project has a parent")
+        .join("APP")
         .to_string_lossy()
-        .replace("CaseRoot", "caseroot")
         .replace('\\', "/");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
