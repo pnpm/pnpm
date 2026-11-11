@@ -117,12 +117,13 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         config.lockfile_dir = None;
     }
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
-    if config.lockfile_dir.is_none()
-        && (paths_before_hook.lockfile_dir.is_some()
-            || (paths_before_hook.modules_dir_changed
-                && (!config.explicit_settings.contains_key("virtualStoreDir")
-                    || config.enable_global_virtual_store)))
-    {
+    if config.lockfile_dir.is_none() && paths_before_hook.modules_dir_changed {
+        if !config.explicit_settings.contains_key("virtualStoreDir")
+            || config.enable_global_virtual_store
+        {
+            config.install_state_dir = config.modules_dir.join(".pnpm");
+        }
+    } else if config.lockfile_dir.is_none() && paths_before_hook.lockfile_dir.is_some() {
         let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
         config.anchor_lockfile_paths(&default_lockfile_dir);
     }
