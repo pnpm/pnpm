@@ -43,9 +43,7 @@ fn failed_install_warns_and_runs_the_script() {
     drop(root);
 }
 
-/// A name that matches no script falls back to `exec`. The install still
-/// runs once, so its failure is reported once
-/// ([pnpm/pnpm#17977](https://github.com/pnpm/pnpm/issues/17977)).
+/// [pnpm/pnpm#17977](https://github.com/pnpm/pnpm/issues/17977)
 #[test]
 fn failed_install_warns_once_when_falling_back_to_exec() {
     let CommandTempCwd { pacquet, root, workspace, .. } =

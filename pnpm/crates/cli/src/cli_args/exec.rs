@@ -134,8 +134,6 @@ impl ExecArgs {
     }
 }
 
-/// Spawn the prepared single-project command, and end pnpm the same way
-/// when it did not succeed.
 fn run_prepared(
     command: &[String],
     dirs: ExecDirs<'_>,
