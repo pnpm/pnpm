@@ -169,6 +169,24 @@ pub(super) async fn bind_tarball_to_packument(
     let Some(packument) = packument else {
         return Ok(None);
     };
+    let result = parse_tarball_dist(state, packument, name, filename).await;
+    if result.is_ok() {
+        return result;
+    }
+    super::upstream_integrity::wait_for_pin(state, namespace, upstream, name).await;
+    let Some(packument) = state.inner.storage.read_upstream_document_any(namespace, name).await?
+    else {
+        return result;
+    };
+    parse_tarball_dist(state, packument, name, filename).await
+}
+
+async fn parse_tarball_dist(
+    state: &AppState,
+    packument: Vec<u8>,
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<Option<TarballDist>, RegistryError> {
     let name = name.clone();
     let filename = filename.to_string();
     state.inner.packuments.workers.run(move || expected_tarball_dist(&packument, &name, &filename))
@@ -265,13 +283,16 @@ fn stream_and_record_upstream_tarball(
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
+    let cached_path = write.final_path().to_path_buf();
     let scan = PromotedTarballScan::new(state, tarball);
-    let streamed = streaming::stream_verified_to_cache_and_then(
+    let state = state.clone();
+    let max_bytes = state.max_tarball_bytes();
+    let streamed = streaming::stream_verified_with_promotion(
         response,
         write,
         tarball.integrity,
-        state.max_tarball_bytes(),
-        move |cached_path| scan.spawn(cached_path),
+        max_bytes,
+        move |blob| scan.promote_if_current(state, blob, cached_path),
     );
     match streamed {
         Ok(body) => tarball_response(body, None),

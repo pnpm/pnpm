@@ -189,10 +189,17 @@ impl VersionRequest<'_> {
                     Ok(cached) => cached?,
                     Err(err) => return Some(err.into_response()),
                 };
-                let tgz = self.state.inner.proxy.version_tgzs.get_bound(
+                let stamp = match self.fresh_packument_stamp(&cached, name).await {
+                    Ok(Some(stamp)) => stamp,
+                    Ok(None) => return None,
+                    Err(err) => return Some(err.into_response()),
+                };
+                let tgz = self.state.inner.proxy.version_tgzs.get(
                     &cached.namespace,
                     name,
                     self.version,
+                    Some(stamp),
+                    cached.ttl,
                 )?;
                 let (filename, _) = tarball_cache_name(name, &tgz.filename).ok()?;
                 cached_upstream_tarball(self.state, &cached.namespace, name, &filename).await

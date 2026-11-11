@@ -1,4 +1,4 @@
-pub(super) use background::{BackgroundIntegrity, schedule};
+pub(super) use background::{BackgroundIntegrity, schedule, wait_for_pin};
 pub(super) use refresh::refresh_cached_packument;
 
 mod background;
@@ -192,6 +192,7 @@ impl PackumentIntegrityResolver<'_> {
         &self,
         candidate: &MissingIntegrityTarball,
     ) -> Result<(Option<pnpr_storage::SealedBlob>, Integrity), RegistryError> {
+        let _permit = self.state.inner.proxy.integrity_backfill.downloads.acquire().await.unwrap();
         if let Some(integrity) = self.cached_integrity(candidate).await? {
             return Ok((None, integrity));
         }

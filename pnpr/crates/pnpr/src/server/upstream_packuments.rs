@@ -151,14 +151,16 @@ pub(super) async fn cache_upstream_packument(
             if !upstream.caches() {
                 return Ok(Some(fetched.bytes));
             }
-            let bytes = super::upstream_integrity::refresh_cached_packument(
+            let (bytes, needs_backfill) = super::upstream_integrity::refresh_cached_packument(
                 state,
                 namespace,
                 name,
                 fetched.bytes,
             )
             .await?;
-            super::upstream_integrity::schedule(state, namespace, upstream, name, bytes.clone());
+            if needs_backfill {
+                super::upstream_integrity::schedule(state, namespace, upstream, name);
+            }
             Ok(Some(bytes))
         }
         PackumentFetch::NotFound => {

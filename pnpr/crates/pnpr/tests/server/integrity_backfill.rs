@@ -710,10 +710,22 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         .expect(1)
         .create_async()
         .await;
+    let (release, ready) = std::sync::mpsc::channel();
+    let ready = std::sync::Mutex::new(Some(ready));
     let tarball_mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
-        .with_body(bytes)
+        .with_chunked_body(move |writer| {
+            writer.write_all(bytes)?;
+            writer.flush()?;
+            let ready = ready.lock().unwrap().take();
+            if let Some(ready) = ready {
+                ready
+                    .recv_timeout(Duration::from_secs(10))
+                    .unwrap();
+            }
+            Ok(())
+        })
         .expect(2)
         .create_async()
         .await;
@@ -741,6 +753,16 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none(),
         "an integrity over bytes that contradict the declared shasum must not be pinned",
     );
+    let blobs = public_cache_blobs(&cache, "foo");
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while tarball_cache_entries(&blobs).is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("background temporary file created");
+    release.send(()).unwrap();
+    assert!(super::await_no_tgz(&blobs, Duration::from_secs(10)).await);
     assert!(tarball_cache_entries(&public_cache_blobs(&cache, "foo")).is_empty());
 
     let response = app
@@ -772,7 +794,10 @@ pub(super) async fn wait_for_pins(storage: &std::path::Path, count: usize) -> Va
                 .values()
                 .filter(|version| has_integrity(version))
                 .count();
-            let blobs = tarball_cache_entries(&public_cache_blobs(storage, "foo")).len();
+            let blobs = tarball_cache_entries(&public_cache_blobs(storage, "foo"))
+                .iter()
+                .filter(|name| name.ends_with(".tgz"))
+                .count();
             if pinned >= count && blobs >= count.min(64) {
                 return doc;
             }

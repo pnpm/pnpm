@@ -46,7 +46,7 @@ impl VersionRequest<'_> {
     }
 
     /// Read the version's dist and say where it came from, when it may be
-    /// cached. Without a fresh cached packument, an upstream's version
+    /// cached. Without a cached packument, an upstream's version
     /// manifest is fetched rather than its whole packument. The packument
     /// answers when the manifest does not, as for an upstream that serves
     /// none.
@@ -72,6 +72,7 @@ impl VersionRequest<'_> {
             return Ok(tgz.map(|tgz| (tgz, None)));
         }
         if stamp.is_none()
+            && self.has_no_cached_packument(cached, name).await?
             && let RegistrySource::Upstream(id) = source
             && let Some(read) = self.read_version_manifest(id, name, cached).await
         {
@@ -81,6 +82,7 @@ impl VersionRequest<'_> {
         else {
             return Ok(None);
         };
+        let packument = self.wait_for_packument_pin(source, name, cached, packument).await?;
         let stamp = match (stamp, cached) {
             (Some(stamp), _) => Some(stamp),
             (None, Some(cached)) => {
@@ -90,6 +92,48 @@ impl VersionRequest<'_> {
         };
         Ok(version_tgz(&packument, name, self.version)
             .map(|tgz| (tgz, stamp.map(DistOrigin::Packument))))
+    }
+
+    async fn has_no_cached_packument(
+        &self,
+        cached: Option<&CachedPackument>,
+        name: &CanonicalPackageName,
+    ) -> Result<bool, RegistryError> {
+        let Some(cached) = cached else { return Ok(true) };
+        Ok(self.state.inner.storage
+            .upstream_document_stamp(&cached.namespace, name)
+            .await?
+            .is_none())
+    }
+
+    async fn wait_for_packument_pin(
+        &self,
+        source: &RegistrySource,
+        name: &CanonicalPackageName,
+        cached: Option<&CachedPackument>,
+        mut packument: Vec<u8>,
+    ) -> Result<Vec<u8>, RegistryError> {
+        if version_tgz(&packument, name, self.version)
+            .is_some_and(|tgz| tgz.integrity_key.is_none())
+            && let Some(cached) = cached
+        {
+            if let RegistrySource::Upstream(id) = source {
+                let upstream = authorized_upstream(self.state, self.identity, id)?;
+                crate::server::upstream_integrity::wait_for_pin(
+                    self.state,
+                    &cached.namespace,
+                    upstream,
+                    name,
+                )
+                .await;
+            }
+            if let Some(pinned) =
+                self.state.inner.storage.read_upstream_document_any(&cached.namespace, name).await?
+            {
+                packument = pinned;
+            }
+        }
+        Ok(packument)
     }
 
     /// The version's dist from its manifest, or from the stale cached
@@ -174,7 +218,7 @@ impl VersionRequest<'_> {
     }
 
     /// The stamp of the cached packument, while it is fresh enough to serve.
-    async fn fresh_packument_stamp(
+    pub(super) async fn fresh_packument_stamp(
         &self,
         cached: &CachedPackument,
         name: &CanonicalPackageName,

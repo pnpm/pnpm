@@ -12,11 +12,11 @@ pub(in crate::server) async fn refresh_cached_packument(
     namespace: &str,
     name: &CanonicalPackageName,
     bytes: Vec<u8>,
-) -> Result<Vec<u8>, RegistryError> {
+) -> Result<(Vec<u8>, bool), RegistryError> {
     let _guard = super::lock_upstream_package(state, namespace, name).await;
     let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
     let package = name.clone();
-    let (bytes, removed) =
+    let (bytes, removed, backfill) =
         state.inner.packuments.workers.run(move || reconcile(previous.as_deref(), bytes, &package))
             .await??;
     // Evict before publishing the new document so a failed deletion cannot be forgotten.
@@ -31,38 +31,52 @@ pub(in crate::server) async fn refresh_cached_packument(
         }
     }
     state.inner.storage.write_upstream_document(namespace, name, &bytes).await?;
-    Ok(bytes)
+    Ok((bytes, backfill))
 }
 
 fn reconcile(
     previous: Option<&[u8]>,
     bytes: Vec<u8>,
     name: &CanonicalPackageName,
-) -> Result<(Vec<u8>, BlobEviction), RegistryError> {
+) -> Result<(Vec<u8>, BlobEviction, bool), RegistryError> {
     let mut current: Value = serde_json::from_slice(&bytes)?;
+    let needs_backfill = !super::missing_integrity_tarballs(&current, name, None).is_empty();
     let Some(previous) = previous else {
-        return Ok((bytes, BlobEviction::Files(HashSet::new())));
+        return Ok((bytes, BlobEviction::Files(HashSet::new()), needs_backfill));
     };
     let Ok(previous) = serde_json::from_slice::<Value>(previous) else {
-        return Ok((bytes, BlobEviction::Package));
+        return Ok((bytes, BlobEviction::Package, needs_backfill));
     };
+    let (removed, changed) = reconcile_versions(&previous, &mut current, name);
+    let needs_backfill =
+        needs_backfill && !super::missing_integrity_tarballs(&current, name, None).is_empty();
+    let bytes = if changed { serde_json::to_vec(&current)? } else { bytes };
+    Ok((bytes, BlobEviction::Files(removed), needs_backfill))
+}
+
+fn reconcile_versions(
+    previous: &Value,
+    current: &mut Value,
+    name: &CanonicalPackageName,
+) -> (HashSet<String>, bool) {
     let mut removed = HashSet::new();
     let Some(versions) = previous.get("versions").and_then(Value::as_object) else {
-        return Ok((bytes, BlobEviction::Files(removed)));
+        return (removed, false);
     };
+    let mut changed = false;
     for (version, old) in versions {
         let new = current
             .get_mut("versions")
             .and_then(|versions| versions.get_mut(version));
         if let Some(new) = new.filter(|new| same_tarball(old, new)) {
-            carry_integrity(old, new);
+            changed |= carry_integrity(old, new);
         } else if let Some(url) = old.pointer("/dist/tarball").and_then(Value::as_str)
             && let Ok(filename) = packument_tarball_filename(url, name, version)
         {
             removed.insert(filename);
         }
     }
-    Ok((serde_json::to_vec(&current)?, BlobEviction::Files(removed)))
+    (removed, changed)
 }
 
 fn same_tarball(old: &Value, new: &Value) -> bool {
@@ -84,16 +98,21 @@ fn missing_integrity(value: &Value) -> bool {
             })
 }
 
-fn carry_integrity(old: &Value, new: &mut Value) {
+fn carry_integrity(old: &Value, new: &mut Value) -> bool {
+    if old.pointer("/dist/integrity") == new.pointer("/dist/integrity") {
+        return false;
+    }
     let Some(integrity) = old.pointer("/dist/integrity").and_then(Value::as_str) else {
-        return;
+        return false;
     };
     if integrity
         .parse::<ssri::Integrity>()
         .is_ok_and(|integrity| !integrity.hashes.is_empty())
     {
         new["dist"]["integrity"] = Value::String(integrity.to_string());
+        return true;
     }
+    false
 }
 
 #[cfg(test)]

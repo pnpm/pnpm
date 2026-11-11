@@ -140,6 +140,41 @@ impl PromotedTarballScan {
         }
     }
 
+    pub(super) async fn promote_if_current(
+        self,
+        state: AppState,
+        blob: pnpr_storage::SealedBlob,
+        cached_path: PathBuf,
+    ) -> std::io::Result<()> {
+        let _guard = crate::server::upstream_packuments::lock_upstream_package(
+            &state,
+            &self.namespace,
+            &self.name,
+        )
+        .await;
+        let bytes = self.storage
+            .read_upstream_document_any(&self.namespace, &self.name)
+            .await
+            .map_err(std::io::Error::other)?;
+        let name = self.name.clone();
+        let filename = self.filename.clone();
+        let current = state.inner.packuments.workers
+            .run(move || {
+                bytes.and_then(|bytes| {
+                    crate::server::expected_tarball_dist(&bytes, &name, &filename).ok().flatten()
+                })
+            })
+            .await
+            .map_err(std::io::Error::other)?;
+        if current.is_some_and(|current| current.integrity == self.tgz_integrity) {
+            blob.promote().await?;
+            self.spawn(cached_path);
+        } else {
+            blob.abandon().await;
+        }
+        Ok(())
+    }
+
     pub(super) fn spawn(self, cached_path: PathBuf) {
         let Some(in_flight_guard) = self.background_scans.try_claim(
             &self.name,

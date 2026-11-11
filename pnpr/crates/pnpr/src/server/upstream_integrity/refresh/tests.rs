@@ -23,7 +23,7 @@ fn refresh_preserves_matching_pins_and_evicts_removed_or_changed_tarballs() {
         .unwrap()
         .remove("2.0.0");
     new["versions"]["3.0.0"]["dist"]["shasum"] = json!("changed");
-    let (bytes, removed) = reconcile(
+    let (bytes, removed, _) = reconcile(
         Some(&serde_json::to_vec(&old).unwrap()),
         serde_json::to_vec(&new).unwrap(),
         &name,
@@ -43,7 +43,7 @@ fn refresh_preserves_matching_pins_and_evicts_removed_or_changed_tarballs() {
 fn malformed_cached_metadata_is_replaced_after_purging_its_blobs() {
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let fresh = br#"{"versions":{}}"#.to_vec();
-    let (bytes, eviction) = reconcile(Some(b"malformed"), fresh.clone(), &name).unwrap();
+    let (bytes, eviction, _) = reconcile(Some(b"malformed"), fresh.clone(), &name).unwrap();
     assert_eq!(bytes, fresh);
     assert!(matches!(eviction, BlobEviction::Package));
 }

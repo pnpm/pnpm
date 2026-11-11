@@ -97,17 +97,6 @@ struct CachedVersionTgz {
 }
 
 impl VersionTgzCache {
-    pub(super) fn get_bound(
-        &self,
-        namespace: &str,
-        name: &CanonicalPackageName,
-        version: &str,
-    ) -> Option<Arc<VersionTgz>> {
-        let entries = self.entries.lock().expect("version dist cache lock poisoned");
-        let key = (namespace.to_string(), name.as_str().to_string(), version.to_string());
-        entries.get(&key).map(|cached| Arc::clone(&cached.tgz))
-    }
-
     pub(super) fn get(
         &self,
         namespace: &str,

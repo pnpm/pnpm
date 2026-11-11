@@ -231,3 +231,183 @@ async fn backfill_cached_tarball(cached_bytes: &[u8], downloads: usize) {
     metadata.assert_async().await;
     tarball.assert_async().await;
 }
+
+#[tokio::test]
+async fn an_inflight_download_cannot_restore_an_evicted_blob() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"old archive";
+    let mut doc = foo_packument(&upstream.url());
+    doc["versions"]["1.0.0"]["dist"]["integrity"] =
+        json!(ssri::Integrity::from(bytes.as_slice()).to_string());
+    let initial = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(doc.to_string())
+        .create_async()
+        .await;
+    let (started, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    let (release, ready) = std::sync::mpsc::channel();
+    let ready = std::sync::Mutex::new(ready);
+    let archive = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_chunked_body(move |writer| {
+            writer.write_all(bytes)?;
+            writer.flush()?;
+            started.send(()).unwrap();
+            ready
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(10))
+                .unwrap();
+            Ok(())
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    let app = router(config);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let download = tokio::spawn(body_bytes(response.into_body()));
+    observed.recv().await.unwrap();
+    initial.remove_async().await;
+    let removed = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(json!({"name":"foo", "versions":{}}).to_string())
+        .create_async()
+        .await;
+    let response = app
+        .oneshot(
+            Request::get("/npm/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    release.send(()).unwrap();
+    assert_eq!(download.await.unwrap(), bytes);
+    assert!(!public_cache_blob(tmp.path(), "foo", "foo-1.0.0.tgz").exists());
+    archive.assert_async().await;
+    removed.assert_async().await;
+}
+
+#[tokio::test]
+async fn version_downloads_refresh_metadata_before_serving_cached_bytes() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"archive";
+    let mut doc = foo_packument(&upstream.url());
+    doc["versions"]["1.0.0"]["dist"]["integrity"] =
+        json!(ssri::Integrity::from(bytes.as_slice()).to_string());
+    let initial = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(doc.to_string())
+        .create_async()
+        .await;
+    let archive = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    let app = router(config);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/foo@1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    initial.remove_async().await;
+    let stale_manifest = upstream
+        .mock("GET", "/foo/1.0.0")
+        .with_status(200)
+        .with_body(doc["versions"]["1.0.0"].to_string())
+        .expect(0)
+        .create_async()
+        .await;
+    let removed = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(json!({"name":"foo", "versions":{}}).to_string())
+        .create_async()
+        .await;
+    let response = app
+        .oneshot(
+            Request::get("/npm/foo@1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    stale_manifest.assert_async().await;
+    archive.assert_async().await;
+    removed.assert_async().await;
+}
+
+#[tokio::test]
+async fn cold_downloads_wait_for_missing_integrity() {
+    for route in ["/npm/foo/-/foo-1.0.0.tgz", "/npm/foo@1.0.0"] {
+        let mut upstream = mockito::Server::new_async().await;
+        let bytes = b"archive requiring a pin";
+        let mut doc = foo_packument(&upstream.url());
+        doc["versions"]["1.0.0"]["dist"]
+            .as_object_mut()
+            .unwrap()
+            .remove("integrity");
+        doc["versions"]["1.0.0"]["dist"]
+            .as_object_mut()
+            .unwrap()
+            .remove("shasum");
+        let metadata = upstream
+            .mock("GET", "/foo")
+            .with_status(200)
+            .with_body(doc.to_string())
+            .expect(1)
+            .create_async()
+            .await;
+        let archive = upstream
+            .mock("GET", "/foo/-/foo-1.0.0.tgz")
+            .with_status(200)
+            .with_body(bytes)
+            .expect(1)
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+        let response = app
+            .oneshot(
+                Request::get(route)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{route}");
+        assert_eq!(body_bytes(response.into_body()).await, bytes, "{route}");
+        metadata.assert_async().await;
+        archive.assert_async().await;
+    }
+}
