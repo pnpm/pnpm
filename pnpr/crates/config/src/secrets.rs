@@ -251,65 +251,60 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
 }
 
 pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), RegistryError> {
-    let Some(val) = parse_unexpanded_config::<Sys>(raw) else { return Ok(()) };
+    if let Ok(value) = serde_saphyr::from_str(raw) {
+        return validate_secret_fields::<Sys>(&value);
+    }
+    let (expanded, _) = env_replace_lossy::<Sys>(raw);
+    let mut marker = "__pnpr_unresolved_env__".to_string();
+    while raw.contains(&marker) || expanded.contains(&marker) {
+        marker.push('_');
+    }
+    for range in placeholder_ranges(raw) {
+        let placeholder = &raw[range.clone()];
+        if env_replace_lossy::<Sys>(placeholder).1.is_empty() {
+            continue;
+        }
+        let mut marked = raw.to_string();
+        marked.replace_range(range, &marker);
+        let (expanded, _) = env_replace_lossy::<Sys>(&marked);
+        let Ok(mut value) = serde_saphyr::from_str(&expanded) else { continue };
+        restore_unresolved_placeholder(&mut value, &marker, placeholder);
+        validate_secret_fields::<Sys>(&value)?;
+    }
+    Ok(())
+}
+
+fn validate_secret_fields<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
     if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
     {
         check_secret_env_field::<Sys>("cloudflareCdn.apiToken", token)?;
     }
-    validate_root_secrets::<Sys>(&val)?;
-    validate_release_record_secrets::<Sys>(&val)?;
-    validate_s3_secrets::<Sys>(&val)?;
-    validate_auth_secrets::<Sys>(&val)?;
-    validate_database_secrets::<Sys>(&val)?;
-    validate_registry_secrets::<Sys>(&val)?;
+    validate_root_secrets::<Sys>(val)?;
+    validate_release_record_secrets::<Sys>(val)?;
+    validate_s3_secrets::<Sys>(val)?;
+    validate_auth_secrets::<Sys>(val)?;
+    validate_database_secrets::<Sys>(val)?;
+    validate_registry_secrets::<Sys>(val)?;
     Ok(())
 }
 
-fn parse_unexpanded_config<Sys: EnvVar>(raw: &str) -> Option<serde_json::Value> {
-    if let Ok(value) = serde_saphyr::from_str(raw) {
-        return Some(value);
-    }
-    // Flow mappings reject unquoted braces inside environment placeholders.
-    let mut prefix = "__pnpr_env_".to_string();
-    while raw.contains(&prefix) {
-        prefix.push('_');
-    }
-    let mut masked = raw.to_string();
-    let mut placeholders = Vec::new();
-    for (index, range) in placeholder_ranges(raw)
-        .into_iter()
-        .enumerate()
-        .rev()
-    {
-        let (expanded, unresolved) = env_replace_lossy::<Sys>(&raw[range.clone()]);
-        if unresolved.is_empty() {
-            masked.replace_range(range, &expanded);
-            continue;
-        }
-        let marker = format!("{prefix}{index}__");
-        placeholders.push((marker.clone(), &raw[range.clone()]));
-        masked.replace_range(range, &marker);
-    }
-    let mut value = serde_saphyr::from_str(&masked).ok()?;
-    restore_env_placeholders(&mut value, &placeholders);
-    Some(value)
-}
-
-fn restore_env_placeholders(value: &mut serde_json::Value, placeholders: &[(String, &str)]) {
+fn restore_unresolved_placeholder(value: &mut serde_json::Value, marker: &str, placeholder: &str) {
     match value {
         serde_json::Value::String(text) => {
-            for (marker, placeholder) in placeholders {
-                *text = text.replace(marker, placeholder);
-            }
+            // Resolved environment values are literal, not another substitution pass.
+            *text = text
+                .replace('\\', r"\\")
+                .replace("${", r"\${")
+                .replace(marker, placeholder);
         }
         serde_json::Value::Array(values) => {
             for value in values {
-                restore_env_placeholders(value, placeholders);
+                restore_unresolved_placeholder(value, marker, placeholder);
             }
         }
         serde_json::Value::Object(values) => {
             for value in values.values_mut() {
-                restore_env_placeholders(value, placeholders);
+                restore_unresolved_placeholder(value, marker, placeholder);
             }
         }
         _ => {}

@@ -640,3 +640,39 @@ cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${
     let optional = raw.replace("prefix-${CF_TOKEN}", "${CF_TOKEN-example-token}");
     crate::secrets::validate_secret_env_vars::<FragmentEnv>(&optional).unwrap();
 }
+
+#[test]
+fn unset_yaml_fragments_do_not_hide_unresolved_secrets() {
+    struct EmptyEnv;
+    impl pnpm_env_replace::EnvVar for EmptyEnv {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    let raw = r#"${UNSET_NON_SECRET}
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
+"#;
+    let error = crate::secrets::validate_secret_env_vars::<EmptyEnv>(raw).unwrap_err();
+    assert!(error.to_string().contains("cloudflareCdn.apiToken"));
+    let optional = raw.replace("prefix-${CF_TOKEN}", "example-token");
+    crate::secrets::validate_secret_env_vars::<EmptyEnv>(&optional).unwrap();
+}
+
+#[test]
+fn flow_mapping_validation_does_not_expand_resolved_secrets_twice() {
+    struct LiteralEnv;
+    impl pnpm_env_replace::EnvVar for LiteralEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "ROOT_SECRET" => Some(r"a-long-root-secret-${INNER}-literal-\${ESCAPED}".into()),
+                "CF_TOKEN" => Some("example-token".into()),
+                _ => None,
+            }
+        }
+    }
+    let raw = r#"secret: ${ROOT_SECRET}
+ui: { dir: ${OPTIONAL_DIR} }
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: ${CF_TOKEN}, cacheTag: example }
+"#;
+    crate::secrets::validate_secret_env_vars::<LiteralEnv>(raw).unwrap();
+}
