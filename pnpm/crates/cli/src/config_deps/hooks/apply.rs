@@ -113,10 +113,18 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
     let lockfile_dir = config.lockfile_dir
         .clone()
         .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
+    let modules_dir = config.modules_dir.clone();
+    let configured_virtual_store_dir = config.configured_virtual_store_dir.clone();
+    let install_state_dir = config.install_state_dir.clone();
     if paths_before_hook.lockfile_dir.is_none() {
         config.lockfile_dir = None;
     }
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
+    if config.lockfile_dir.is_none() {
+        config.modules_dir = modules_dir;
+        config.configured_virtual_store_dir = configured_virtual_store_dir;
+        config.install_state_dir = install_state_dir;
+    }
     if config.lockfile_dir.is_none() && paths_before_hook.modules_dir_changed {
         if !config.explicit_settings.contains_key("virtualStoreDir")
             || config.enable_global_virtual_store
