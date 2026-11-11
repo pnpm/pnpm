@@ -167,9 +167,7 @@ pub(super) fn retarget_importer_dependency(
         return false;
     }
     if moves {
-        if recorded.suffix.peer() != ""
-            || plan.peer_dependents.contains(&(alias.clone(), wanted.version.clone()))
-        {
+        if recorded.suffix.peer() != "" || plan.has_peer_dependent_subtree(alias, &wanted.version) {
             return false;
         }
         let Ok(moved) = wanted.version.to_string().parse() else {
@@ -235,9 +233,7 @@ pub(super) fn importer_from_locked_versions(
             &range,
             plan.resolution_picks_lowest,
         )?;
-        if pick.peer_suffixed
-            || plan.peer_dependents.contains(&(alias.clone(), pick.version.clone()))
-        {
+        if pick.peer_suffixed || plan.has_peer_dependent_subtree(alias, &pick.version) {
             return None;
         }
         let dependency = ResolvedDependencySpec {
@@ -301,9 +297,7 @@ pub(super) fn add_importer_edge(
     ) else {
         return false;
     };
-    if wanted.peer_suffixed
-        || plan.peer_dependents.contains(&(alias.clone(), wanted.version.clone()))
-    {
+    if wanted.peer_suffixed || plan.has_peer_dependent_subtree(alias, &wanted.version) {
         return false;
     }
     let wanted = wanted.version;

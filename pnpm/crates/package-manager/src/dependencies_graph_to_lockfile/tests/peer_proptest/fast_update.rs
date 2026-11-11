@@ -61,6 +61,27 @@ proptest! {
     #![proptest_config(config())]
 
     #[test]
+    fn generated_peer_free_updates_use_fast_update(
+        mut workspace in model::workspace(),
+        next_format in any::<bool>(),
+        mutation in prop::sample::select(vec![Mutation::Remove, Mutation::Add, Mutation::Retarget]),
+    ) {
+        for version in workspace.packages.iter_mut().flatten() {
+            version.peers.clear();
+        }
+        workspace.importers = vec![vec![model::Edge { target: 0, major: 1 }]];
+        for major in model::MAJORS {
+            workspace.importers.push((0..workspace.packages.len())
+                .map(|target| model::Edge { target, major }).collect());
+        }
+        let settings = model::Settings {
+            format: if next_format { LockfileFormat::V13 } else { LockfileFormat::V9 },
+            ..Default::default()
+        };
+        prop_assert!(check_update(workspace, settings, (mutation, 0, 0)));
+    }
+
+    #[test]
     fn accepted_fast_update_matches_full_resolution(
         workspace in model::fixed_provider_workspace(),
         settings in model::settings(),

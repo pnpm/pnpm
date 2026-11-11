@@ -64,11 +64,33 @@ function peerIdsIn (peers: string): string[] {
     .filter((segment) => segment !== '' && !segment.startsWith('patch_hash='))
 }
 
-export function hasPeerContext (lockfile: LockfileObject, root: DepPath): boolean {
-  for (const [, snapshot] of walkSnapshots(lockfile, [root])) {
-    if (Object.keys(snapshot.peerDependencies ?? {}).length > 0) return true
+export function createPeerContextChecker (lockfile: LockfileObject): (root: DepPath) => boolean {
+  let sensitive: Set<DepPath> | undefined
+  return (root) => {
+    sensitive ??= peerSensitivePackages(lockfile)
+    return sensitive.has(root)
   }
-  return false
+}
+
+function peerSensitivePackages (lockfile: LockfileObject): Set<DepPath> {
+  const parents = new Map<DepPath, DepPath[]>()
+  const pending: DepPath[] = []
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    if (Object.keys(snapshot.peerDependencies ?? {}).length > 0) pending.push(depPath as DepPath)
+    for (const child of childPaths(snapshot)) {
+      const ancestors = parents.get(child) ?? []
+      ancestors.push(depPath as DepPath)
+      parents.set(child, ancestors)
+    }
+  }
+  const sensitive = new Set<DepPath>()
+  while (pending.length > 0) {
+    const depPath = pending.pop()!
+    if (sensitive.has(depPath)) continue
+    sensitive.add(depPath)
+    for (const parent of parents.get(depPath) ?? []) pending.push(parent)
+  }
+  return sensitive
 }
 
 export function includeDroppedSubtrees (lockfile: LockfileObject, dropped: DroppedEdges): DroppedEdges {

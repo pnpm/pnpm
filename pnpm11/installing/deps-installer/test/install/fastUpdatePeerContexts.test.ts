@@ -44,6 +44,8 @@ test.each([
   ['wrapper', true],
   ['consumer', false],
   ['wrapper', false],
+  ['both', true],
+  ['both', false],
 ] as const)('adding %s with declared peers=%s reuses only peer-free subtrees', async (dependency, hasPeers) => {
   const lockfile: LockfileObject = {
     lockfileVersion: '9.0',
@@ -60,7 +62,7 @@ test.each([
         resolution: { integrity: 'sha512-AAAA' },
         peerDependencies: hasPeers ? { provider: '^2.0.0' } : undefined,
         peerDependenciesMeta: hasPeers ? { provider: { optional: true } } : undefined,
-        dependencies: { provider: '2.0.0' },
+        dependencies: { provider: '2.0.0', ...(dependency === 'both' ? { wrapper: '1.0.0' } : {}) },
       },
       ['provider@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-AAAA' } },
     },
@@ -68,7 +70,7 @@ test.each([
   const accepted = await tryComposeFastUpdates(lockfile, {
     drift: { importers: true },
     projects: [
-      { id: '.' as ProjectId, manifest: { dependencies: { provider: '2.0.0', [dependency]: '1.0.0' } } },
+      { id: '.' as ProjectId, manifest: { dependencies: { provider: '2.0.0', ...(dependency === 'both' ? { consumer: '1.0.0', wrapper: '1.0.0' } : { [dependency]: '1.0.0' }) } } },
       { id: 'app' as ProjectId, manifest: { dependencies: { wrapper: '1.0.0' } } },
     ],
     workspacePackages: new Map(),

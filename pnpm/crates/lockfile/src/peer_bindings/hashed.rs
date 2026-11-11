@@ -220,19 +220,25 @@ fn match_candidates(
         return None;
     }
     let mut chosen = Vec::with_capacity(candidates.len());
-    for strip_peers in [false, true] {
-        if let Some(matched) =
-            find_matching_combination(candidates, 0, &mut chosen, strip_peers, hash_hex)
+    for mode in [PeerGroups::Full, PeerGroups::Bare] {
+        if let Some(matched) = find_matching_combination(candidates, 0, &mut chosen, mode, hash_hex)
         {
             return Some(matched);
         }
     }
-    // Cycle cuts can omit nested groups from only some providers.
-    let mixed = mixed_cycle_cut_candidates(candidates);
-    if !within_combination_limit(&mixed) {
+    if !candidates
+        .iter()
+        .flatten()
+        .any(|target| !target.suffix.peer().is_empty())
+    {
         return None;
     }
-    find_matching_combination(&mixed, 0, &mut chosen, false, hash_hex)
+    // Cycle cuts can omit nested groups from only some providers.
+    let mixed = mixed_cycle_cut_candidates(candidates);
+    if mixed.as_slice() == candidates || !within_combination_limit(&mixed) {
+        return None;
+    }
+    find_matching_combination(&mixed, 0, &mut chosen, PeerGroups::Full, hash_hex)
 }
 
 fn within_combination_limit(candidates: &[Vec<PkgNameVerPeer>]) -> bool {
@@ -247,9 +253,10 @@ fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<Pkg
         .iter()
         .map(|targets| {
             let mut variants = targets.clone();
+            let mut seen: HashSet<_> = targets.iter().cloned().collect();
             for target in targets {
                 let bare = target.without_peer();
-                if !variants.contains(&bare) {
+                if seen.insert(bare.clone()) {
                     variants.push(bare);
                 }
             }
@@ -258,26 +265,32 @@ fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<Pkg
         .collect()
 }
 
+#[derive(Clone, Copy)]
+enum PeerGroups {
+    Full,
+    Bare,
+}
+
 fn find_matching_combination<'a>(
     candidates: &'a [Vec<PkgNameVerPeer>],
     idx: usize,
     chosen: &mut Vec<&'a PkgNameVerPeer>,
-    strip_peers: bool,
+    mode: PeerGroups,
     hash_hex: &str,
 ) -> Option<HashSet<PkgNameVerPeer>> {
     if idx < candidates.len() {
         for candidate in &candidates[idx] {
             chosen.push(candidate);
             if let Some(matched) =
-                find_matching_combination(candidates, idx + 1, chosen, strip_peers, hash_hex)
+                find_matching_combination(candidates, idx + 1, chosen, mode, hash_hex)
             {
                 return Some(matched);
             }
             chosen.pop();
         }
-        return find_matching_combination(candidates, idx + 1, chosen, strip_peers, hash_hex);
+        return find_matching_combination(candidates, idx + 1, chosen, mode, hash_hex);
     }
-    subset_matches_hash(chosen, strip_peers, hash_hex)
+    subset_matches_hash(chosen, mode, hash_hex)
         .then(|| {
             chosen
                 .iter()
@@ -286,20 +299,23 @@ fn find_matching_combination<'a>(
         })
 }
 
-fn subset_matches_hash(chosen: &[&PkgNameVerPeer], strip_peers: bool, hash_hex: &str) -> bool {
+fn subset_matches_hash(chosen: &[&PkgNameVerPeer], mode: PeerGroups, hash_hex: &str) -> bool {
     if chosen.is_empty() {
         return false;
     }
     let mut segments: Vec<String> = chosen
         .iter()
-        .map(|target| render_segment(target, strip_peers))
+        .map(|target| render_segment(target, mode))
         .collect();
     segments.sort();
     create_short_hash(&segments.join(")(")) == hash_hex
 }
 
-fn render_segment(target: &PkgNameVerPeer, strip_peers: bool) -> String {
-    if strip_peers { target.without_peer().to_string() } else { target.to_string() }
+fn render_segment(target: &PkgNameVerPeer, mode: PeerGroups) -> String {
+    match mode {
+        PeerGroups::Full => target.to_string(),
+        PeerGroups::Bare => target.without_peer().to_string(),
+    }
 }
 
 impl BoundProviders {

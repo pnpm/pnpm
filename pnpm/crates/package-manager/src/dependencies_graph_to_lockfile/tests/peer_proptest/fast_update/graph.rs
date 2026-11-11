@@ -1,4 +1,4 @@
-use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer};
+use pnpm_lockfile::{BoundProviders, Lockfile, PkgName, PkgNameVerPeer};
 use std::collections::{BTreeMap, HashSet};
 
 type Edges = BTreeMap<String, PkgNameVerPeer>;
@@ -39,6 +39,7 @@ fn compare_snapshots(
         if !visited.insert((actual_key.clone(), expected_key.clone())) {
             continue;
         }
+        assert_peer_bindings(actual, expected, &actual_key, &expected_key);
         let actual_snapshot = &actual.snapshots.as_ref().unwrap()[&actual_key];
         let expected_snapshot = &expected.snapshots.as_ref().unwrap()[&expected_key];
         assert_eq!(actual_snapshot.optional, expected_snapshot.optional);
@@ -54,6 +55,21 @@ fn compare_snapshots(
         }
     }
 }
+fn assert_peer_bindings(
+    actual: &Lockfile,
+    expected: &Lockfile,
+    actual_key: &PkgNameVerPeer,
+    expected_key: &PkgNameVerPeer,
+) {
+    let actual_bindings = BoundProviders::of_snapshot(actual.into(), actual_key);
+    let expected_bindings = BoundProviders::of_snapshot(expected.into(), expected_key);
+    if actual_bindings.is_hashed() || expected_bindings.is_hashed() {
+        assert_eq!(actual_key, expected_key, "unrecovered peer bindings must have the same key");
+    } else {
+        assert_eq!(actual_bindings, expected_bindings, "peer providers differ");
+    }
+}
+
 fn pair_edges(actual: Edges, expected: Edges, pending: &mut Vec<(PkgNameVerPeer, PkgNameVerPeer)>) {
     assert_eq!(actual.keys().collect::<Vec<_>>(), expected.keys().collect::<Vec<_>>());
     pending.extend(actual.into_values().zip(expected.into_values()));
@@ -77,4 +93,24 @@ fn snapshot_edges(
         .flatten()
         .map(|(alias, dependency)| (alias.to_string(), dependency.resolve(alias).unwrap()))
         .collect()
+}
+
+#[test]
+fn oracle_rejects_different_peer_bindings_without_child_edges() {
+    let lockfile = |major| {
+        serde_saphyr::from_str::<Lockfile>(&format!(
+            r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      consumer:
+        specifier: 1.0.0
+        version: 1.0.0(provider@{major}.0.0)
+snapshots:
+  consumer@1.0.0(provider@{major}.0.0): {{}}
+",
+        ))
+        .unwrap()
+    };
+    assert!(std::panic::catch_unwind(|| assert_equivalent(&lockfile(1), &lockfile(2))).is_err());
 }

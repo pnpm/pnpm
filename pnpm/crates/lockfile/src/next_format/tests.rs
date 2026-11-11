@@ -1157,3 +1157,77 @@ fn peer_cycle_variants_use_consistent_nested_discriminators() {
     }
     written_and_read(&lockfile);
 }
+
+#[test]
+fn hashed_peer_keeps_an_ordinary_alias_as_a_dependency() {
+    for (peer_alias, ordinary_alias) in [("provider", "renamed"), ("renamed", "provider")] {
+        let suffix =
+            crate::PeerBindings::Explicit(vec!["provider@1.0.0".to_string()]).to_suffix(3).unwrap();
+        let lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      consumer:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+      {peer_alias}: '*'
+  provider@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+snapshots:
+  consumer@1.0.0{suffix}:
+    dependencies:
+      {peer_alias}: provider@1.0.0
+      {ordinary_alias}: provider@1.0.0
+  provider@1.0.0: {{}}
+",
+        ));
+        written_and_read(&lockfile);
+    }
+}
+
+#[test]
+fn hashed_transitive_peer_keeps_a_link_provider() {
+    let suffix = crate::PeerBindings::Explicit(vec!["provider@packages+provider".to_string()])
+        .to_suffix(3)
+        .unwrap();
+    let lockfile = parse(&format!(
+        r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      parent:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  parent@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  child@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+snapshots:
+  parent@1.0.0{suffix}:
+    dependencies:
+      child: 1.0.0{suffix}
+    transitivePeerDependencies:
+      - provider
+  child@1.0.0{suffix}:
+    dependencies:
+      provider: link:packages/provider
+",
+    ));
+    written_and_read(&lockfile);
+}

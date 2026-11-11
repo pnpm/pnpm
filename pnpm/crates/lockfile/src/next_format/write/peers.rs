@@ -127,14 +127,13 @@ pub(super) fn own_peer_names<'a>(
     key: &PackageKey,
     entry: &'a SnapshotEntry,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    recovered: &BoundProviders,
+    recovered: Option<&BoundProviders>,
 ) -> HashSet<&'a PkgName> {
     if key.suffix.peer().len() == key.suffix.patch_group().len() {
         return HashSet::new();
     }
     let segments = provider_segments(&key.suffix);
     let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
-    let declared = metadata.and_then(|metadata| metadata.peer_dependencies.as_ref());
     children(entry)
         .filter(|(alias, _)| {
             !entry.transitive_peer_dependencies
@@ -145,22 +144,37 @@ pub(super) fn own_peer_names<'a>(
             if let Some(segments) = &segments {
                 return names_provider(segments, alias, reference);
             }
-            if !recovered.is_hashed() {
-                return binds_reference(recovered, alias, reference);
-            }
-            let name = alias.to_string();
-            let optional_peer = metadata
-                .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
-                .and_then(|peers| peers.get(&name))
-                .is_some_and(|peer| peer.optional);
-            declared.is_some_and(|declared| declared.contains_key(&name))
-                && (!optional_peer
-                    || entry.optional_dependencies
-                        .as_ref()
-                        .is_some_and(|deps| deps.contains_key(*alias)))
+            is_own_hashed_peer(entry, metadata, recovered, alias, reference)
         })
         .map(|(alias, _)| alias)
         .collect()
+}
+
+fn is_own_hashed_peer(
+    entry: &SnapshotEntry,
+    metadata: Option<&PackageMetadata>,
+    recovered: Option<&BoundProviders>,
+    alias: &PkgName,
+    reference: &SnapshotDepRef,
+) -> bool {
+    let name = alias.to_string();
+    if !metadata
+        .and_then(|metadata| metadata.peer_dependencies.as_ref())
+        .is_some_and(|declared| declared.contains_key(&name))
+    {
+        return false;
+    }
+    if let Some(recovered) = recovered.filter(|recovered| !recovered.is_hashed()) {
+        return binds_reference(Some(recovered), alias, reference);
+    }
+    let optional_peer = metadata
+        .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
+        .and_then(|peers| peers.get(&name))
+        .is_some_and(|peer| peer.optional);
+    !optional_peer
+        || entry.optional_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(alias))
 }
 
 /// The provider groups of a peer suffix, or `None` when it is hashed.
@@ -211,11 +225,14 @@ pub(super) fn parse_peer_name(key: &PackageKey, name: &str) -> Result<PkgName, N
 }
 
 pub(super) fn binds_reference(
-    providers: &BoundProviders,
+    providers: Option<&BoundProviders>,
     alias: &PkgName,
     reference: &SnapshotDepRef,
 ) -> bool {
-    reference
-        .resolve(alias)
-        .is_some_and(|target| providers.binds(&target))
+    reference.as_link_target().is_some()
+        || providers.is_none_or(|providers| {
+            reference
+                .resolve(alias)
+                .is_some_and(|target| providers.binds(&target))
+        })
 }

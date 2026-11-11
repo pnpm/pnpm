@@ -169,7 +169,7 @@ impl<'a> Transitive<'a> {
         &mut self,
         finder: &mut ProviderFinder<'a, '_>,
         key: &'a PackageKey,
-        providers: &BoundProviders,
+        providers: Option<&BoundProviders>,
     ) {
         if self.unnamed.is_empty() {
             return;
@@ -198,11 +198,12 @@ impl<'a> Snapshots<'a> {
         let entries = LockfileEntries { packages, snapshots: Some(snapshots) };
         let providers: HashMap<_, _> = snapshots
             .par_iter()
+            .filter(|(key, _)| provider_segments(&key.suffix).is_none())
             .map(|(key, _)| (key, BoundProviders::of_snapshot(entries, key)))
             .collect();
         let own_peers: HashMap<&PackageKey, HashSet<&PkgName>> = snapshots
             .par_iter()
-            .map(|(key, entry)| (key, own_peer_names(key, entry, packages, &providers[key])))
+            .map(|(key, entry)| (key, own_peer_names(key, entry, packages, providers.get(key))))
             .collect();
         let prepared = snapshots
             .par_iter()
@@ -211,7 +212,7 @@ impl<'a> Snapshots<'a> {
         let mut finder = ProviderFinder::new(snapshots, &own_peers);
         let mut grouped: HashMap<PackageKey, Vec<Snapshot<'a>>> = HashMap::new();
         for (key, entry, mut transitive) in prepared {
-            transitive.find_unnamed(&mut finder, key, &providers[key]);
+            transitive.find_unnamed(&mut finder, key, providers.get(key));
             grouped
                 .entry(key.without_peer())
                 .or_default()
