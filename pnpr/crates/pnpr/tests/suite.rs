@@ -2,14 +2,14 @@
 // each loading a copy.
 #[path = "common/ecosystem.rs"]
 mod ecosystem;
+#[path = "common/multi_ecosystem.rs"]
+mod multi_ecosystem;
 #[path = "common/network.rs"]
 mod network;
 #[path = "common/npm.rs"]
 mod npm;
 #[path = "common/pausing_store.rs"]
 mod pausing_store;
-#[path = "common/registry_groups.rs"]
-mod registry_groups;
 #[path = "common/storage.rs"]
 mod storage;
 #[path = "common/tokens.rs"]

@@ -31,10 +31,9 @@ The hosted store has the same layout on disk and in a bucket:
 <namespace>/archives/<shard>/<identity>.<incarnation>
 ```
 
-`<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry declared
-under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems)
-without an `org` uses its own registry name as its `org`, under
-`orgs/<name>/<ecosystem>/`, for example `orgs/internal/npm/`. In an org name,
+`<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry without
+an `org` uses `default/<ecosystem>/`. Set `org` explicitly to store its packages
+under `orgs/<org>/<ecosystem>/`. In an org name,
 lowercase letters, digits, `.`, `_` and `-` are kept. Every other byte is
 written as `!` and two hex digits.
 

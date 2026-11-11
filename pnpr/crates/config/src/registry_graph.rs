@@ -13,82 +13,14 @@ use rules::{build_rules, registry_access_list};
 use super::{
     DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, Management,
     PackageAccess, PackagePattern, Registries, Registry, RegistryConfigError, RegistryError,
-    RegistryFile, RegistryGroupFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig,
-    UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
+    RegistryFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig, UpstreamConfigFile,
+    UpstreamFile, build_teams, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
 /// bad registry set fails startup and config reload like any other.
 pub(super) fn registry_err(err: &RegistryConfigError) -> RegistryError {
     RegistryError::InvalidConfig { reason: err.to_string() }
-}
-
-pub(super) fn set_group_ecosystem(
-    name: &str,
-    declared: &mut Option<Ecosystem>,
-    ecosystem: Ecosystem,
-) -> Result<(), RegistryError> {
-    if declared.is_some_and(|declared| declared != ecosystem) {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "registry {name:?} declares an ecosystem different from its {ecosystem} group",
-            ),
-        });
-    }
-    *declared = Some(ecosystem);
-    Ok(())
-}
-
-pub(super) fn flatten_registry_groups(
-    groups: IndexMap<String, RegistryGroupFile>,
-) -> Result<IndexMap<String, RegistryFile>, RegistryError> {
-    let mut entries = IndexMap::new();
-    for (name, group) in groups {
-        match group {
-            RegistryGroupFile::Registry(registry) => {
-                validate_registry_name(&name)?;
-                entries.insert(name, registry);
-            }
-            RegistryGroupFile::Ecosystem(registries) => {
-                let ecosystem = Ecosystem::all()
-                    .find(|ecosystem| ecosystem.as_str() == name)
-                    .ok_or_else(|| RegistryError::InvalidConfig {
-                        reason: format!("unknown registry ecosystem {name:?}"),
-                    })?;
-                flatten_ecosystem_group(ecosystem, registries, &mut entries)?;
-            }
-        }
-    }
-    Ok(entries)
-}
-
-/// Qualify every registry declared under an `<ecosystem>:` group with that
-/// ecosystem, in its own identity and in the sources a router names.
-pub(super) fn flatten_ecosystem_group(
-    ecosystem: Ecosystem,
-    registries: IndexMap<String, RegistryFile>,
-    entries: &mut IndexMap<String, RegistryFile>,
-) -> Result<(), RegistryError> {
-    for (name, mut registry) in registries {
-        validate_registry_name(&name)?;
-        match &mut registry {
-            RegistryFile::Hosted(hosted) => {
-                set_group_ecosystem(&name, &mut hosted.ecosystem, ecosystem)?;
-                hosted.org.get_or_insert_with(|| name.clone());
-            }
-            RegistryFile::Upstream(upstream) => {
-                set_group_ecosystem(&name, &mut upstream.ecosystem, ecosystem)?;
-            }
-            RegistryFile::Router(router) => {
-                for source in &mut router.sources {
-                    validate_registry_name(source)?;
-                    *source = format!("{ecosystem}/{source}");
-                }
-            }
-        }
-        entries.insert(format!("{ecosystem}/{name}"), registry);
-    }
-    Ok(())
 }
 
 /// Build the validated [`Registries`] graph (and the hosted table) from the
@@ -104,11 +36,10 @@ pub(super) fn flatten_ecosystem_group(
 /// on (or carry) upstream secrets it never uses.
 pub(super) fn build_registries(
     upstreams: &mut IndexMap<String, UpstreamConfig>,
-    registry_files: IndexMap<String, RegistryGroupFile>,
+    registry_files: IndexMap<String, RegistryFile>,
     default_registry: Option<DefaultRegistryFile>,
     resolve_upstreams: bool,
 ) -> Result<ResolvedRegistryGraph, RegistryError> {
-    let registry_files = flatten_registry_groups(registry_files)?;
     let (default_registry, defaults) = resolve_default_registry(default_registry)?;
     let mut builder = RegistryGraphBuilder::default();
     // Every configured upstream is, by definition, an upstream registry addressable
@@ -126,7 +57,6 @@ pub(super) fn build_registries(
         .fold(Registries::new(builder.graph, default_registry), |registries, (name, ecosystem)| {
             registries.with_ecosystem(name, *ecosystem)
         });
-    let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
     check_hosted_tar_sources(&registries, &builder.hosted, &builder.tar_registries)?;
@@ -137,8 +67,7 @@ pub(super) fn build_registries(
     })
 }
 
-/// The shared default registry, or the per-ecosystem defaults qualified
-/// by their ecosystem.
+/// The shared default registry or the per-ecosystem target names.
 pub(super) fn resolve_default_registry(
     default_registry: Option<DefaultRegistryFile>,
 ) -> Result<(Option<String>, IndexMap<Ecosystem, String>), RegistryError> {
@@ -149,7 +78,7 @@ pub(super) fn resolve_default_registry(
                 .into_iter()
                 .map(|(ecosystem, name)| {
                     validate_registry_name(&name)?;
-                    Ok((ecosystem, format!("{ecosystem}/{name}")))
+                    Ok((ecosystem, name))
                 })
                 .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
             Ok((None, defaults))
@@ -176,7 +105,7 @@ impl RegistryGraphBuilder {
         upstreams: &mut IndexMap<String, UpstreamConfig>,
         resolve_upstreams: bool,
     ) -> Result<(), RegistryError> {
-        validate_registry_key(&name)?;
+        validate_registry_name(&name)?;
         if self.graph.contains_key(&name) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
@@ -243,10 +172,7 @@ fn declares_tar_tarballs(name: &str, file: &RegistryFile) -> Result<bool, Regist
     let (tarballs, ecosystem) = match file {
         RegistryFile::Hosted(hosted) => (hosted.tarballs, hosted.ecosystem),
         RegistryFile::Upstream(upstream) => (upstream.tarballs, upstream.ecosystem),
-        RegistryFile::Router(router) => (
-            router.tarballs,
-            Ecosystem::all().find(|ecosystem| name.starts_with(&format!("{ecosystem}/"))),
-        ),
+        RegistryFile::Router(router) => (router.tarballs, None),
     };
     if tarballs != Some(TarballFormat::Tar) {
         return Ok(false);
@@ -259,24 +185,6 @@ fn declares_tar_tarballs(name: &str, file: &RegistryFile) -> Result<bool, Regist
         });
     }
     Ok(true)
-}
-
-/// Each ecosystem's default, addressed the way the registries name it.
-pub(super) fn addressed_defaults(
-    defaults: IndexMap<Ecosystem, String>,
-    registries: &Registries,
-) -> IndexMap<Ecosystem, String> {
-    defaults
-        .into_iter()
-        .map(|(ecosystem, target)| {
-            let local = Registries::local_name(&target);
-            let key = registries
-                .addressed(local, ecosystem)
-                .unwrap_or(&target)
-                .to_string();
-            (ecosystem, key)
-        })
-        .collect()
 }
 
 /// The serving config, ecosystem and claimed patterns of one `hosted:` registry.
@@ -446,7 +354,7 @@ pub(super) struct ResolvedFileRegistries {
 }
 
 pub(super) fn resolve_file_registries(
-    registries: IndexMap<String, RegistryGroupFile>,
+    registries: IndexMap<String, RegistryFile>,
     default_registry: Option<DefaultRegistryFile>,
     registry_enabled: bool,
 ) -> Result<ResolvedFileRegistries, RegistryError> {

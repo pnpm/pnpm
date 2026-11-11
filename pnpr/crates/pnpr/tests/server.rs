@@ -64,7 +64,7 @@ mod audit;
 #[path = "server/web_login.rs"]
 mod web_login;
 
-use crate::registry_groups;
+use crate::multi_ecosystem;
 
 use axum::{
     Router,
@@ -657,12 +657,12 @@ fn write_hosted_packument(storage: &Path, org: &str, pkg: &str, packument: &Valu
     pnpr_fixtures::write_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg, &bytes);
 }
 
-/// The grouped config declares `internal` and the `main` router over it in
-/// every ecosystem; a caller who cannot see them gets neither, and no default.
-fn assert_grouped_ecosystem(directory: &Value, ecosystem: Ecosystem, visible: bool) {
+/// A caller who cannot see a registry or its router gets neither in the
+/// directory, and no default.
+fn assert_ecosystem_directory(directory: &Value, ecosystem: Ecosystem, visible: bool) {
     assert_eq!(
         directory["defaultRegistries"][ecosystem.as_str()],
-        if visible { json!("main") } else { Value::Null },
+        if visible { json!(format!("{ecosystem}-main")) } else { Value::Null },
     );
     let entries: Vec<_> = directory["registries"]
         .as_array()
@@ -674,9 +674,9 @@ fn assert_grouped_ecosystem(directory: &Value, ecosystem: Ecosystem, visible: bo
     if !visible {
         return;
     }
-    assert_eq!(entries[0]["name"], "internal");
-    assert_eq!(entries[1]["name"], "main");
-    assert_eq!(entries[1]["sources"], json!(["internal"]));
+    assert_eq!(entries[0]["name"], format!("{ecosystem}-internal"));
+    assert_eq!(entries[1]["name"], format!("{ecosystem}-main"));
+    assert_eq!(entries[1]["sources"], json!([format!("{ecosystem}-internal")]));
 }
 
 /// The registry directory as one caller sees it.

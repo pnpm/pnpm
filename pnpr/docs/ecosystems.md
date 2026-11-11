@@ -86,48 +86,28 @@ defaultRegistry: main
 For a `cargo` upstream, `url` is a sparse index root; for `pypi`, a Simple API
 root.
 
-### Reusing a name across ecosystems
+### Defaults for each ecosystem
 
-Group the registries under an ecosystem key to give each protocol its own
-registry of the same name:
+Registry names are unique across the configuration. Declare every registry
+directly under `registries:` and select its protocol with `ecosystem:`.
+Nesting registries under ecosystem keys is rejected.
+
+`defaultRegistry` can name a shared router, as above, or select a target for
+each ecosystem:
 
 ```yaml title="pnpr.yaml"
-registries:
-  npm:
-    internal:
-      type: hosted
-      packages:
-        '@example/*': {}
-    public:
-      type: upstream
-      url: https://registry.npmjs.org/
-      public: true
-    main:
-      type: router
-      sources: [internal, public]
-  cargo:
-    internal:
-      type: hosted
-    main:
-      type: router
-      sources: [internal]
-
 defaultRegistry:
-  npm: main
-  cargo: main
+  npm: local
+  cargo: crates
+  pypi: python
 ```
 
-`/npm/~internal` and `/cargo/~internal` are then independent registries. Router
-sources resolve within their own group and cannot cross into another, and each
-ecosystem gets its own default. Access rules, teams, upstream credentials, and
-caches belong to the individual registry.
+Each target must serve the selected ecosystem. A default does not change a
+registry's ecosystem or storage namespace.
 
-A grouped hosted registry defaults its `org` to its own `<name>`, and each
-ecosystem stores its packages under its own `<ecosystem>/` directory in that
-namespace. Set `org` explicitly to choose another namespace (`org: ''` for the
-default namespace). Two hosted registries of the same ecosystem cannot share an
-`org` namespace. The flat configuration format and its shared
-`defaultRegistry: main` remain supported.
+Hosted registries use the [default storage namespace](storage.md#layout) when
+`org` is omitted. Set `org` to choose another namespace. Two hosted registries
+of the same ecosystem cannot share an `org` namespace.
 
 ## Cargo
 

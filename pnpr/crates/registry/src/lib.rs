@@ -118,8 +118,7 @@ pub struct Registries {
     default_registry: Option<String>,
     defaults: IndexMap<Ecosystem, String>,
     /// The ecosystem of every concrete registry that is not npm. A concrete
-    /// registry absent here is an npm registry. A flat router can span ecosystems;
-    /// a grouped router only includes sources in its own ecosystem.
+    /// registry absent here is an npm registry. Routers can span ecosystems.
     ecosystems: IndexMap<String, Ecosystem>,
 }
 

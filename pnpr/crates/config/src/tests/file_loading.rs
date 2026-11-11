@@ -414,17 +414,17 @@ fn config_rejects_unknown_fields_across_subsystems() {
         (
             "hosted registry",
             "registries:\n  h:\n    type: hosted\n    unknownReg: 1\n",
-            "a registry with type hosted, upstream, or router",
+            "unknown field `unknownReg`",
         ),
         (
             "upstream registry",
             "registries:\n  u:\n    type: upstream\n    url: https://x/\n    public: true\n    unknownUpstream: 1\n",
-            "a registry with type hosted, upstream, or router",
+            "unknown field `unknownUpstream`",
         ),
         (
             "router registry",
             "registries:\n  r:\n    type: router\n    unknownRouter: 1\n",
-            "a registry with type hosted, upstream, or router",
+            "unknown field `unknownRouter`",
         ),
     ];
     for (name, yaml, expected_snippet) in cases {

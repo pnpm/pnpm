@@ -126,8 +126,8 @@ or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 A registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
 Each ecosystem is addressed through its own path prefix (`/npm/`, `/cargo/`,
-`/pypi/`, or `/oci/`), and registry names can be reused across ecosystems
-by grouping the entries under an ecosystem key. See
+`/pypi/`, or `/oci/`). Declare registries directly under `registries:` with
+unique names. See
 [Cargo and Python registries](ecosystems.md) and
 [Container images](container-images.md).
 
@@ -209,7 +209,7 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
+| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
