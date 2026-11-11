@@ -189,7 +189,7 @@ async fn an_empty_database_initializes(db: Db) {
         assert!(tables.contains(&table), "{table} is missing from {tables:?}");
     }
     assert!(tables.contains(&MARKER.to_string()));
-    assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
 }
 
 async fn wipe_tables(db: &Db, table_names: &[String]) {
@@ -213,6 +213,9 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
             let ddl = transaction.schema_tables().unwrap_or_else(|| TABLES.to_string());
             for statement in schema::statements(&ddl) {
                 transaction.execute_ddl(&statement)?;
+            }
+            for step in &schema::STEPS[1..] {
+                step(&*transaction)?;
             }
             let marker_ddl = transaction.schema_marker().unwrap_or(schema::MARKER_TABLE);
             transaction.execute(marker_ddl, params![])?;
@@ -359,6 +362,8 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
     let migrated_from_v1 = snapshot(&db).await;
     expected.generation = migrated_from_v1.generation;
     assert_eq!(migrated_from_v1, expected);
+    wipe_tables(&db, &expected.tables).await;
+    seed_v1_fixture(&db).await;
 
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
@@ -393,7 +398,6 @@ fn recovering_step_2(connection: &dyn Connection) -> Result<()> {
 }
 
 async fn a_failed_step_is_not_recorded_and_can_be_rerun(db: Db) {
-    open(&db).await.unwrap();
     let adapter = db.instance_adapter();
     let error = tokio::task::spawn_blocking(move || {
         let steps: &[Step] = &[schema::step_1, failing_step_2];
@@ -526,14 +530,15 @@ async fn a_matching_version_opens(db: Db) {
     let created = tables(&db).await;
     open(&db).await.unwrap();
     assert_eq!(tables(&db).await, created);
-    assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
 }
 
 async fn a_future_version_is_refused(db: Db) {
     open(&db).await.unwrap();
-    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES (2)")]).await;
+    let future = SCHEMA_VERSION + 1;
+    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES ({future})")]).await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds schema version 2,"), "{reason}");
+    assert!(reason.contains(&format!("holds schema version {future},")), "{reason}");
     assert!(!reason.contains("Pre-1.0"), "{reason}");
 }
 
@@ -554,7 +559,7 @@ async fn another_version_is_refused(db: Db) {
     // Once the operator wipes the tables, pnpr creates them afresh.
     execute(&db, &[&format!("DROP TABLE {LEGACY_MARKER}"), "DROP TABLE catalogs"]).await;
     open(&db).await.unwrap();
-    assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
 }
 
 async fn an_integer_schema_version_is_refused(db: Db) {
@@ -608,7 +613,8 @@ async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
 
 async fn an_unreadable_schema_migrations_table_is_refused(db: Db) {
     open(&db).await.unwrap();
-    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES (3)")]).await;
+    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES ({})", SCHEMA_VERSION + 2)])
+        .await;
     let reason = refused(&db).await;
     assert!(reason.contains(&format!("holds an unreadable {MARKER} table,")), "{reason}");
     assert!(!reason.contains("Pre-1.0"), "{reason}");
@@ -766,13 +772,10 @@ mod mysql_recovery {
     }
 
     async fn assert_initialized(db: &Db, generation: i64) {
+        assert_eq!(super::marker(db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
         let adapter = db.adapter();
         tokio::task::spawn_blocking(move || {
             adapter.read(ReadSource::Primary, &mut |connection| {
-                let version = connection
-                    .query_one(&format!("SELECT version FROM {MARKER}"), params![])?
-                    .get::<i64>(0)?;
-                assert_eq!(version, SCHEMA_VERSION);
                 let stored = connection
                     .query_one("SELECT generation FROM record_generation", params![])?
                     .get::<i64>(0)?;

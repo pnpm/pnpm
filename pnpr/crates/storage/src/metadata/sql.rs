@@ -36,6 +36,7 @@ pub(crate) use pnpr_sql::network;
 pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 
 pub use cache::RenderStats;
+pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
 pub(crate) use records::RecordKey;
 pub(crate) use staged::{StagedEntry, StagedId};
@@ -45,6 +46,7 @@ pub(crate) use view::PackageMetadata;
 mod batch;
 mod blobs;
 mod cache;
+mod cdn;
 mod commit;
 mod fence;
 mod log;

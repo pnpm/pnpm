@@ -562,3 +562,19 @@ fn gc_refuses_unknown_keys() {
     let result = Config::from_yaml_str("gc:\n  leese: 1h\n", Path::new("/config"), listen(), None);
     assert!(matches!(result, Err(RegistryError::InvalidConfig { .. })), "{result:?}");
 }
+
+#[test]
+fn cloudflare_cdn_validates_identifiers_and_redacts_credentials() {
+    let yaml = "cloudflareCdn:\n  zoneId: '0123456789abcdef0123456789abcdef'\n  apiToken: secret-token\n  cacheTag: example-registry\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).unwrap();
+    let cdn = config.http.cloudflare_cdn.unwrap();
+    assert_eq!(cdn.cache_tag, "example-registry");
+    assert!(!format!("{cdn:?}").contains("secret-token"));
+    for invalid in [
+        yaml.replace("example-registry", "bad,tag"),
+        yaml.replace("secret-token", "'bad token'"),
+        yaml.replace("0123456789abcdef0123456789abcdef", "../other"),
+    ] {
+        assert!(Config::from_yaml_str(&invalid, Path::new("/config"), listen(), None).is_err());
+    }
+}

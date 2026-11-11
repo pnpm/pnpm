@@ -4,6 +4,7 @@
 mod conformance;
 mod batched_reads;
 mod blobs;
+mod cdn;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;

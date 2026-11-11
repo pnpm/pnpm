@@ -249,6 +249,7 @@ const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.
 const MAX_PIPELINE_RUN_BODY_BYTES: usize = 4 * 1024 * 1024;
+mod cdn;
 mod state;
 use state::AppInner;
 

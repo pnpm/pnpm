@@ -498,6 +498,10 @@ registries:
 #[test]
 fn secret_bearing_fields_reject_unresolved_env_vars() {
     let cases = [
+        (
+            "cloudflareCdn.apiToken",
+            "cloudflareCdn:\n  apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
         ("secret", "secret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         ("secrets.cache", "secrets:\n  cache: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         ("secrets.oci", "secrets:\n  oci: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
@@ -592,4 +596,83 @@ secrets:
     assert!(!config.has_configured_secret);
     assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
     assert_eq!(config.cache_secret.len(), 32);
+}
+
+#[test]
+fn unresolved_secret_in_a_flow_mapping_is_rejected() {
+    let yaml = r#"cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123}, cacheTag: example }"#;
+    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    let reason = error.to_string();
+    assert!(reason.contains("PNPR_TEST_UNRESOLVED_VAR_123"), "{reason}");
+    assert!(!reason.contains("prefix-"), "the credential must not appear in the diagnostic");
+    let with_default = yaml.replace(
+        "${PNPR_TEST_UNRESOLVED_VAR_123}",
+        "${PNPR_TEST_UNRESOLVED_VAR_123:-fallback}",
+    );
+    let config = Config::from_yaml_str(&with_default, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
+}
+
+#[test]
+fn optional_nonsecret_variables_in_flow_mappings_remain_optional() {
+    let yaml = r#"{ storage: ${PNPR_TEST_UNRESOLVED_VAR_123}./store, cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123:-fallback}, cacheTag: example } }"#;
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.storage.hosted_dir.ends_with("store"));
+    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
+}
+
+#[test]
+fn expanded_yaml_fragments_do_not_hide_unresolved_secrets() {
+    struct FragmentEnv;
+    impl pnpm_env_replace::EnvVar for FragmentEnv {
+        fn var(name: &str) -> Option<String> {
+            (name == "CONFIG_FRAGMENT").then(|| "storage: /tmp/store".to_string())
+        }
+    }
+    let raw = r#"${CONFIG_FRAGMENT}
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
+"#;
+    let error = crate::secrets::validate_secret_env_vars::<FragmentEnv>(raw).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("cloudflareCdn.apiToken"));
+    assert!(message.contains("CF_TOKEN"));
+    assert!(!message.contains("prefix-"));
+    let optional = raw.replace("prefix-${CF_TOKEN}", "${CF_TOKEN-example-token}");
+    crate::secrets::validate_secret_env_vars::<FragmentEnv>(&optional).unwrap();
+}
+
+#[test]
+fn unset_yaml_fragments_do_not_hide_unresolved_secrets() {
+    struct EmptyEnv;
+    impl pnpm_env_replace::EnvVar for EmptyEnv {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    let raw = r#"${UNSET_NON_SECRET}
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
+"#;
+    let error = crate::secrets::validate_secret_env_vars::<EmptyEnv>(raw).unwrap_err();
+    assert!(error.to_string().contains("cloudflareCdn.apiToken"));
+    let optional = raw.replace("prefix-${CF_TOKEN}", "example-token");
+    crate::secrets::validate_secret_env_vars::<EmptyEnv>(&optional).unwrap();
+}
+
+#[test]
+fn flow_mapping_validation_does_not_expand_resolved_secrets_twice() {
+    struct LiteralEnv;
+    impl pnpm_env_replace::EnvVar for LiteralEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "ROOT_SECRET" => Some(r"a-long-root-secret-${INNER}-literal-\${ESCAPED}".into()),
+                "CF_TOKEN" => Some("example-token".into()),
+                _ => None,
+            }
+        }
+    }
+    let raw = r#"secret: ${ROOT_SECRET}
+ui: { dir: ${OPTIONAL_DIR} }
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: ${CF_TOKEN}, cacheTag: example }
+"#;
+    crate::secrets::validate_secret_env_vars::<LiteralEnv>(raw).unwrap();
 }

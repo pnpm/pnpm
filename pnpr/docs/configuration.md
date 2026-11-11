@@ -1055,3 +1055,14 @@ Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
 OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token` and
 `bearerToken`, and upstream `headers` values) fail fast at startup with a fatal configuration error. This prevents accidental fallback to
 empty credentials or per-process secrets when an environment variable is unset.
+
+## cloudflareCdn
+
+Optional global CDN invalidation for a registry served through a Cloudflare zone.
+`zoneId` must contain 32 hexadecimal characters. `apiToken` must be nonempty
+and contain no whitespace. `cacheTag` accepts 1 to 100 ASCII letters, digits,
+hyphens, or underscores. The API token needs
+Cache Purge permission for that zone. Use environment substitution for the token.
+
+See [CDN cache with push invalidation](cloudflare.md#cdn-cache-with-push-invalidation)
+for the matching Worker, retry behavior, and access-revocation delay.

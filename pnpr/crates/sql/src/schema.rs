@@ -27,7 +27,7 @@ pub(crate) fn retry_delay(attempt: u32) -> Duration {
 }
 
 /// The latest schema version this pnpr creates and reads (`STEPS.len()`).
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// The table recording each applied migration step (`1..=SCHEMA_VERSION`).
 pub const MARKER: &str = "schema_migrations";
@@ -54,7 +54,7 @@ pub const TABLES: &str = include_str!("schema/tables.sql");
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
-pub const STEPS: &[Step] = &[step_1];
+pub const STEPS: &[Step] = &[step_1, step_2];
 
 const _: () = assert!(
     SCHEMA_VERSION > 0 && STEPS.len() == SCHEMA_VERSION.cast_unsigned() as usize,
@@ -68,6 +68,10 @@ pub fn step_1(connection: &dyn Connection) -> Result<()> {
         connection.execute_ddl(&statement)?;
     }
     Ok(())
+}
+
+fn step_2(connection: &dyn Connection) -> Result<()> {
+    connection.execute_ddl("CREATE INDEX IF NOT EXISTS registry_records_by_generation ON registry_records (kind, generation)")
 }
 
 /// What a database holds when it cannot be migrated to [`SCHEMA_VERSION`].

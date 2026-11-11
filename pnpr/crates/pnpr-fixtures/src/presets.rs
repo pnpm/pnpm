@@ -181,6 +181,7 @@ pub fn static_serve_config(listen: SocketAddr, storage: PathBuf) -> Config {
 
 fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
     pnpr_config::HttpConfig {
+        cloudflare_cdn: None,
         listen,
         public_url: format!("http://{listen}"),
         cors: CorsConfig::default(),

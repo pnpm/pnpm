@@ -228,6 +228,8 @@ pub(super) struct ConfigFile {
     /// pnpr-only: how pnpr's own package document is served.
     #[serde(default)]
     pub(super) package_documents: Option<PackageDocumentsFile>,
+    #[serde(default)]
+    pub(super) cloudflare_cdn: Option<super::CloudflareCdnConfig>,
     /// pnpr-only: how the release records of hosted versions are logged.
     #[serde(default)]
     pub(super) release_records: Option<ReleaseRecordsFile>,

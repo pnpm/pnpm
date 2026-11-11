@@ -19,6 +19,7 @@ pub(super) struct Batch<'conn> {
     transaction: WriteTransaction<'conn>,
     catalog: String,
     generation: u64,
+    cdn_enabled: bool,
     /// The packages the batch changed.
     touched: Vec<PackageKey>,
     /// The npm versions the batch accepted.
@@ -37,17 +38,20 @@ impl<'conn> Batch<'conn> {
     ) -> Result<(Self, Vec<Vec<Row>>)> {
         let transaction = WriteTransaction::begin(connection)?;
         let mut queries = vec![Query::new(
-            "SELECT generation FROM catalogs WHERE catalog = ?1",
+            "SELECT COALESCE((SELECT generation FROM catalogs WHERE catalog = ?1), 0),
+             EXISTS (SELECT 1 FROM registry_records WHERE kind = 'cdn-subscription' AND name = 'default')",
             params![catalog],
         )];
         queries.extend_from_slice(reads);
         let mut results = transaction.query_all(&queries)?.into_iter();
-        let current = results
+        let (current, cdn_enabled) = results
             .next()
             .and_then(|rows| rows.into_iter().next())
-            .map(|mut row| row.get(0).map(to_generation))
+            .map(|mut row| {
+                Ok::<_, RegistryError>((to_generation(row.get(0)?), row.get::<i64>(1)? != 0))
+            })
             .transpose()?
-            .unwrap_or(0);
+            .unwrap_or((0, false));
         let results: Vec<Vec<Row>> = results.collect();
         if results.len() != reads.len() {
             return Err(RegistryError::Internal {
@@ -58,6 +62,7 @@ impl<'conn> Batch<'conn> {
             transaction,
             catalog: catalog.to_string(),
             generation: current + 1,
+            cdn_enabled,
             touched: Vec::new(),
             accepted: RefCell::new(Vec::new()),
         };
@@ -120,6 +125,9 @@ impl<'conn> Batch<'conn> {
         }
         let generation = to_column(self.generation);
         for key in &self.touched {
+            if self.cdn_enabled && key.ecosystem == pnpr_package_name::Ecosystem::Npm {
+                super::cdn::enqueue(&*self.transaction, &key.name)?;
+            }
             let (catalog, ecosystem, name) = key.params();
             self.transaction.execute(
                 "UPDATE packages SET generation = ?4

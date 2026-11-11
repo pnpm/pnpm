@@ -86,6 +86,11 @@ pub(super) fn caller_scoped(
         {
             private_no_cache(response)
         }
+        _ if ecosystem == Ecosystem::Npm
+            && state.inner.config.http.cloudflare_cdn.is_some() =>
+        {
+            super::cdn::public_tarball_response(response)
+        }
         _ => response,
     }
 }

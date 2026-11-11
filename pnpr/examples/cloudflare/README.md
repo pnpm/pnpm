@@ -1,7 +1,13 @@
-# Cloudflare metadata cache
+# Cloudflare caches
+
+For cache hits that avoid the origin, use `cdn-cache.mjs` with pnpr's
+`cloudflareCdn` configuration. The [setup and consistency contract](../../docs/cloudflare.md#cdn-cache-with-push-invalidation)
+cover credentials, tag matching, retries, and the five-minute cache lifetime.
+This helper caches anonymous public metadata and package tarballs. Hosted package
+changes purge the package tag; policy changes purge the deployment tag.
 
 The [deployment guide](../../docs/cloudflare.md) uses a pass-through Worker.
-For a custom caching Worker, copy `cache-policy.mjs` and
+For metadata revalidation on every read, copy `cache-policy.mjs` and
 `revalidate-metadata.mjs` alongside its entry point. They have no runtime
 dependencies.
 
@@ -55,7 +61,7 @@ ETags and lists of validators.
 Tarballs always pass through, including revision URLs such as
 `widget@1.0.0+r1` and `/-/tarballs/sha512/` URLs. Their bytes may be immutable,
 but access can change after an unpublish, a rule change, or a vulnerability
-check. Do not add an edge cache that serves them without checking access.
+check. Use this pass-through option when every read must check access.
 
 When replacing a Worker that cached tarballs or served fresh and stale metadata
 without revalidation, remove its cache lookup paths. Purge any separate CDN
