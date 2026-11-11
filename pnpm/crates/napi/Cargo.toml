@@ -29,7 +29,7 @@ pnpm-lockfile = { workspace = true }
 pnpm-modules-yaml = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-pack = { workspace = true }
-pnpm-package-manager = { workspace = true }
+pnpm-package-manager = { workspace = true, features = ["runtime-provisioning", "shell-emulator"] }
 pnpm-resolving-deps-resolver = { workspace = true }
 node-semver = { workspace = true }
 pnpm-package-manifest = { workspace = true }

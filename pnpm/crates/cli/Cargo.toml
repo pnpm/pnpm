@@ -63,7 +63,7 @@ pnpm-pack = { workspace = true }
 pnpm-publish = { workspace = true }
 pnpm-python-resolver = { workspace = true }
 pnpm-package-manifest = { workspace = true }
-pnpm-package-manager = { workspace = true }
+pnpm-package-manager = { workspace = true, features = ["runtime-provisioning", "shell-emulator"] }
 pnpm-patching = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-registry = { workspace = true }
