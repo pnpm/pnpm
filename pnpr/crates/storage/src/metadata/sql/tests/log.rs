@@ -502,15 +502,15 @@ async fn unauthenticated_bundles_and_missing_prior_bundles_are_refused(db: Db) {
         .unwrap();
     assert_eq!(verified.unwrap().tree_head.size, 2);
 
-    let (restarted, concurrent) = storage
+    let concurrent = storage
         .reconcile_after_concurrent_advance(&log, &signer, async {
             publish(&storage, "acme", "core", &versions(4..600)).await;
             assert_eq!(storage.integrate_log(&log, &signer).await.unwrap().size, 600);
         })
         .await
         .unwrap();
-    assert!(restarted);
-    assert_eq!(concurrent.unwrap().tree_head.size, 600);
+    assert!(concurrent.restarted);
+    assert_eq!(concurrent.checkpoint.unwrap().tree_head.size, 600);
     assert_eq!(storage.integrate_log(&log, &signer).await.unwrap().size, 600);
     storage.root.remove_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000").await.unwrap();
     let missing_err = storage

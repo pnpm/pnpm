@@ -47,19 +47,19 @@ To back up while pnpr is stopped, stop pnpr and any scheduled `pnpr gc` jobs fir
 tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage users.json tokens.db
 ```
 
-The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A database configured with `database.url` outside `<storage>` needs its own copy.
+The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
 
 To back up while pnpr runs, your storage volume must provide point-in-time filesystem snapshots (such as ZFS, Btrfs, LVM, or cloud block-volume snapshots). A live `tar` walk across a changing directory can copy a newly written log checkpoint without the tiles and entry bundles written earlier in the walk. Without filesystem snapshots, stop pnpr or block writes and let background log integration finish before archiving.
 
 With filesystem snapshots, follow the [snapshot order](#snapshot-order):
 
 1. Pause scheduled `pnpr gc` jobs and block package unpublishes, then wait for any running `pnpr gc` or unpublish operations to finish.
-2. Back up the SQLite metadata database (and `tokens.db`, when configured) first with SQLite's backup API:
+2. Back up the metadata database (and `tokens.db`, when configured) first:
    ```sh
    sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
    sqlite3 /var/lib/pnpr/tokens.db ".backup /mnt/backups/pnpr-tokens-$(date +%Y%m%d).db"
    ```
-   With `database.url`, pass the path that URL names.
+   For a `sqlite:` `database.url`, pass the path that URL names. For a PostgreSQL, MySQL, or libSQL `database.url`, take a provider snapshot or record a point-in-time recovery timestamp ($T_{\text{db}}$) instead.
 3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$), resume publishes, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage and `users.json`:
    ```sh
    tar --exclude='storage/.metadata' --exclude='tokens.db*' -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /mnt/pnpr-snap storage users.json
@@ -84,7 +84,9 @@ To restore local filesystem storage:
    rm -rf /var/lib/pnpr/storage
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
-3. Restore the SQLite databases when they were backed up separately (`<storage>/.metadata/metadata.sqlite` by default or the path `database.url` names, plus `tokens.db` when configured). Delete any `-wal` and `-shm` files at each destination path first so SQLite does not replay another copy's write-ahead log. Copy the `.sqlite` and `tokens.db` backups into place, and confirm the storage archive came from the same offline backup or a snapshot captured **after** the metadata backup.
+3. Restore the metadata and token databases so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
+   - **SQLite**: Delete any `-wal` and `-shm` files at each destination path first so SQLite does not replay another copy's write-ahead log. Copy the backed-up metadata database (`<storage>/.metadata/metadata.sqlite` or the `sqlite:` path) and `tokens.db` into place.
+   - **PostgreSQL, MySQL, or libSQL (`database.url`)**: Restore the database to $T_{\text{db}}$. When `replicaPath` is configured for libSQL, delete that local replica file and its `-wal` and `-shm` files before starting pnpr.
 4. Run `pnpr verify` to confirm all referenced package documents and archives match:
    ```sh
    pnpr verify

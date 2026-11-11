@@ -2,6 +2,8 @@
 //! bundles, and checkpoint stored in `.transparency-log/`.
 
 mod bundles;
+#[cfg(test)]
+mod tests;
 
 use super::{
     LOG_NAMESPACE, LogId, Storage, StoredCheckpoint, TileReader, check_sequenced_at_least_head,
@@ -89,25 +91,6 @@ impl Storage {
                 ReconcileOutcome::TargetAdvanced => {}
             }
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn reconcile_after_concurrent_advance(
-        &self,
-        log: &LogId,
-        key: &NoteSigner,
-        concurrent: impl std::future::Future<Output = ()>,
-    ) -> Result<(bool, Option<StoredCheckpoint>)> {
-        let signer = log.signer(key)?;
-        let origin = signer.verifier_key().name().to_string();
-        let mut target = self.read_reconcile_target(log, &origin, Some(&signer)).await?;
-        concurrent.await;
-        let restarted = matches!(
-            self.reconcile_against_target(log, &mut target).await?,
-            ReconcileOutcome::TargetAdvanced,
-        );
-        let verified = self.reconcile_log(log, Some(key)).await?;
-        Ok((restarted, verified))
     }
 
     async fn read_reconcile_target<'signer>(
