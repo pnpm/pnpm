@@ -306,6 +306,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
             scope: crate::UpdateReuseScope::All,
             scopes_by_importer: BTreeMap::new(),
             depth: crate::UpdateDepth::UNLIMITED,
+            runtimes: crate::LockedRuntimeReuse::Repick,
         },
         version: crate::WorkspaceVersionResolution { pick_lowest_direct, time_based },
     }

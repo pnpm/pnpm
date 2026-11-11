@@ -471,6 +471,86 @@ fn add_keeps_the_locked_devengines_runtime_version() {
     );
 }
 
+#[test]
+fn dedupe_keeps_the_locked_runtime_of_a_dependency_engine() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let mocks = mock_node_releases(&mut server, &["24.0.0"], None);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({
+            "name": "dependency",
+            "version": "1.0.0",
+            "engines": {
+                "runtime": { "name": "node", "version": "rc/^24.0.0", "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "dependency": "file:dependency" } }).to_string(),
+    )
+    .unwrap();
+    command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    drop(mocks);
+    let _mocks = mock_node_releases(&mut server, &["24.0.0", "24.1.0"], None);
+
+    command(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("node@runtime:24.0.0") && !lockfile.contains("24.1.0"),
+        "the runtime stays at its locked version: {lockfile}",
+    );
+}
+
+#[test]
+fn dedupe_keeps_the_locked_devengines_runtime_version() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let mocks = mock_node_releases(&mut server, &["24.0.0"], None);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    write_devengines_manifest(&workspace, "rc/^24.0.0", Some("download"));
+    command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    drop(mocks);
+    let _mocks = mock_node_releases(&mut server, &["24.0.0", "24.1.0"], None);
+
+    command(&workspace)
+        .with_args(["dedupe", "--check"])
+        .assert()
+        .success();
+    command(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("version: runtime:24.0.0") && !lockfile.contains("24.1.0"),
+        "the runtime stays at its locked version: {lockfile}",
+    );
+}
+
 /// pnpm/pnpm#14817: the registry mock knows no package named "node", so the
 /// install fails if the npm resolver claims the union instead of leaving it
 /// to the runtime resolver.
