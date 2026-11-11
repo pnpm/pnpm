@@ -27,6 +27,19 @@ pub enum HostedLayout {
     Unmarked { has_data: bool },
 }
 
+enum MarkerClaim {
+    Created(String),
+    Existing(String),
+}
+
+impl MarkerClaim {
+    fn store_id(&self) -> &str {
+        match self {
+            Self::Created(id) | Self::Existing(id) => id,
+        }
+    }
+}
+
 impl Storage {
     /// A view of `(org, ecosystem)`'s hosted namespace, so two registries
     /// hosting the same `name@version` can't collide. The empty org is the
@@ -131,11 +144,47 @@ impl Storage {
         }
     }
 
-    /// Bind the metadata database and mark the hosted store as being in
-    /// [`LAYOUT_VERSION`]. Only for an empty store and database.
+    /// Mark the hosted store as being in [`LAYOUT_VERSION`] and bind the
+    /// metadata database to its `store_id`. Only for an empty store and
+    /// database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
-        let store_id = self.database.claim_store_id(new_store_id()).await?;
-        self.write_hosted_layout_marker_for(&store_id).await
+        let claim = self.claim_marker_store_id().await?;
+        let store_id = claim.store_id();
+        match self.database.claim_store_id(store_id.to_string()).await {
+            Ok(bound_id) if bound_id == store_id => Ok(()),
+            Ok(bound_id) => {
+                self.cleanup_created_marker(&claim).await;
+                Err(store_mismatch_error(store_id, &bound_id))
+            }
+            Err(err) => {
+                self.cleanup_created_marker(&claim).await;
+                Err(err)
+            }
+        }
+    }
+
+    async fn claim_marker_store_id(&self) -> Result<MarkerClaim> {
+        let candidate = new_store_id();
+        let marker = serde_json::to_vec(&LayoutMarker {
+            layout: LAYOUT_VERSION,
+            store_id: Some(candidate.clone()),
+        })?;
+        if self.root.create_record(ROOT, LAYOUT_FILE, &marker).await? {
+            return Ok(MarkerClaim::Created(candidate));
+        }
+        let store_id = self
+            .read_existing_marker_store_id()
+            .await?
+            .ok_or_else(|| RegistryError::StorageUnavailable {
+                reason: format!("the hosted store's {LAYOUT_FILE} has no store_id"),
+            })?;
+        Ok(MarkerClaim::Existing(store_id))
+    }
+
+    async fn cleanup_created_marker(&self, claim: &MarkerClaim) {
+        if matches!(claim, MarkerClaim::Created(_)) {
+            let _ = self.root.remove_record(ROOT, LAYOUT_FILE).await;
+        }
     }
 
     async fn write_hosted_layout_marker_for(&self, store_id: &str) -> Result<()> {
@@ -143,25 +192,27 @@ impl Storage {
             layout: LAYOUT_VERSION,
             store_id: Some(store_id.to_string()),
         })?;
-        if !self.root.create_record(ROOT, LAYOUT_FILE, &marker).await? {
-            let current = self.root.read_record(ROOT, LAYOUT_FILE).await?.unwrap_or_default();
-            let current = parse_marker(&current)?;
-            if current.layout != LAYOUT_VERSION {
-                return Err(other_layout_error(current.layout));
-            }
-            match current.store_id.as_deref() {
-                Some(current_id) if current_id == store_id => {}
-                Some(current_id) => return Err(store_mismatch_error(current_id, store_id)),
-                None => {
-                    return Err(RegistryError::StorageUnavailable {
-                        reason: format!(
-                            "the metadata database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
-                        ),
-                    });
-                }
-            }
+        if self.root.create_record(ROOT, LAYOUT_FILE, &marker).await? {
+            return Ok(());
         }
-        Ok(())
+        match self.read_existing_marker_store_id().await? {
+            Some(current_id) if current_id == store_id => Ok(()),
+            Some(current_id) => Err(store_mismatch_error(&current_id, store_id)),
+            None => Err(RegistryError::StorageUnavailable {
+                reason: format!(
+                    "the metadata database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
+                ),
+            }),
+        }
+    }
+
+    async fn read_existing_marker_store_id(&self) -> Result<Option<String>> {
+        let current = self.root.read_record(ROOT, LAYOUT_FILE).await?.unwrap_or_default();
+        let current = parse_marker(&current)?;
+        if current.layout != LAYOUT_VERSION {
+            return Err(other_layout_error(current.layout));
+        }
+        Ok(current.store_id)
     }
 
     /// Empty the proxy cache's upstream namespaces when they were written in

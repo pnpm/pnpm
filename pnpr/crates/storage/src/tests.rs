@@ -265,6 +265,13 @@ async fn mismatched_or_half_bound_store_and_database_are_refused() {
         .to_string();
     assert!(err.contains("has no layout.json"), "{err}");
     assert!(db_only.ensure_hosted_layout().await.is_err());
+    assert!(db_only.write_hosted_layout_marker().await.is_err());
+    assert!(
+        !empty_store
+            .path()
+            .join("storage/layout.json")
+            .exists(),
+    );
 
     // Store with `{"layout": 2}` and no `store_id`.
     let no_id = TempDir::new().unwrap();
