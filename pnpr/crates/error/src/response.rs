@@ -66,6 +66,7 @@ impl RegistryError {
             RegistryError::AdminConflict { .. } => "admin_conflict",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::PublishRejected { .. } => "publish_rejected",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
             RegistryError::ArchiveReclaimed { .. } => "archive_reclaimed",
@@ -99,6 +100,7 @@ impl RegistryError {
             RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
             RegistryError::DocumentFormatTooNew { .. } => "document_format_too_new",
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
+            RegistryError::CorruptArchive { .. } => "corrupt_archive",
             RegistryError::Internal { .. } => "internal",
             RegistryError::InvalidUsersFile { .. } => "invalid_users_file",
             RegistryError::Bcrypt(_) => "bcrypt",
@@ -123,7 +125,9 @@ impl RegistryError {
 
     fn storage_status_code(&self) -> StatusCode {
         match self {
-            RegistryError::StorageUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::StorageUnavailable { .. } | RegistryError::CorruptArchive { .. } => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
             RegistryError::InvalidConfig { .. }
             | RegistryError::Internal { .. }
             | RegistryError::InvalidUsersFile { .. }
@@ -227,6 +231,7 @@ impl RegistryError {
             RegistryError::PreconditionFailed { .. } => Some(StatusCode::PRECONDITION_FAILED),
             RegistryError::Unauthenticated { .. } => Some(StatusCode::UNAUTHORIZED),
             RegistryError::Forbidden { .. }
+            | RegistryError::PublishRejected { .. }
             | RegistryError::TeamsConfigManaged { .. }
             | RegistryError::RulesConfigManaged
             | RegistryError::OsvVulnerability { .. }

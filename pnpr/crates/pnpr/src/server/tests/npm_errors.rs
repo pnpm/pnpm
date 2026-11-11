@@ -177,7 +177,10 @@ async fn oversized_npm_publish_explains_the_body_limit() {
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(body["error"], "Publish request body exceeds the size limit");
+    assert_eq!(
+        body["error"],
+        "Publish request body exceeds the 100 MiB JSON limit; use staged archives for large tarballs",
+    );
     assert_eq!(body["error"], body["reason"]);
 }
 

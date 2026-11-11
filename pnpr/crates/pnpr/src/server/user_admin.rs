@@ -93,6 +93,9 @@ async fn put_user(
             "admin action performed on user",
         );
         let id = state.inner.identity.auth.users.account_id(&path.user).await?;
+        if let Some(id) = &id {
+            state.inner.identity.oidc.revoke_user_sessions(id);
+        }
         Ok(json_response(status, &json!({ "id": id, "name": path.user })))
     };
     respond(result.await)

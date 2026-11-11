@@ -97,7 +97,7 @@ pub(super) async fn create_token(
     }
 }
 
-async fn verify_caller_password(
+pub(super) async fn verify_caller_password(
     state: &AppState,
     client_ip: Option<IpAddr>,
     username: &str,
@@ -117,7 +117,7 @@ async fn verify_caller_password(
         if !valid {
             state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
             return Err(RegistryError::Unauthenticated {
-                resource: "invalid password".to_string(),
+                resource: "password verification".to_string(),
             });
         }
     }
@@ -202,23 +202,24 @@ pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &st
     if let Err(err) = require_caller(identity, "logout") {
         return err.into_response();
     }
-    if let Some(resp) =
-        try_logout_session(state, identity.user_id().expect("authenticated caller"), raw_token)
-    {
+    if let Some(resp) = try_logout_session(state, identity, raw_token) {
         return resp;
     }
-    logout_bearer_token(state, identity.user_id().expect("authenticated caller"), raw_token).await
+    logout_bearer_token(state, identity, raw_token).await
 }
 
-fn try_logout_session(state: &AppState, username: &str, raw_token: &str) -> Option<Response> {
+fn try_logout_session(state: &AppState, identity: &Identity, raw_token: &str) -> Option<Response> {
     match state.inner.identity.oidc.session(raw_token) {
-        Ok(Some(owner)) if owner.user_id == username => {
+        Ok(Some(owner)) if Some(owner.user_id.as_str()) == identity.user_id() => {
             state.inner.identity.oidc.revoke_session(raw_token);
             Some(json_response(StatusCode::OK, &json!({ "ok": true })))
         }
         Ok(Some(_)) => Some(
             RegistryError::Forbidden {
-                user: username.to_string(),
+                user: identity
+                    .username()
+                    .expect("authenticated caller")
+                    .to_string(),
                 action: "revoke",
                 resource: "this session".to_string(),
             }
@@ -229,15 +230,18 @@ fn try_logout_session(state: &AppState, username: &str, raw_token: &str) -> Opti
     }
 }
 
-async fn logout_bearer_token(state: &AppState, username: &str, raw_token: &str) -> Response {
+async fn logout_bearer_token(state: &AppState, identity: &Identity, raw_token: &str) -> Response {
     let target_owner = match state.inner.identity.auth.tokens.lookup(raw_token).await {
         Ok(Some(owner)) => owner,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    if target_owner != username {
+    if Some(target_owner.as_str()) != identity.user_id() {
         return RegistryError::Forbidden {
-            user: username.to_string(),
+            user: identity
+                .username()
+                .expect("authenticated caller")
+                .to_string(),
             action: "revoke",
             resource: "this token".to_string(),
         }

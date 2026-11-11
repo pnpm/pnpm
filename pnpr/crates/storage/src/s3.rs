@@ -13,6 +13,7 @@
 //! resolver `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
+mod archive_reads;
 mod hosted_backend;
 
 mod records;
@@ -31,7 +32,6 @@ use object_store::{
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
-    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -69,6 +69,7 @@ pub struct S3Store {
     /// The proxy-cache root `staging_dir` sits under, and this backend's local
     /// scratch root.
     cache_root: PathBuf,
+    verification_id: u64,
 }
 
 #[derive(Debug)]
@@ -135,6 +136,7 @@ impl S3Store {
             ecosystem: Ecosystem::Npm,
             staging_dir: cache_root.join(STAGING_SUBDIR),
             cache_root,
+            verification_id: next_verification_id(),
         }
     }
 
@@ -153,6 +155,7 @@ impl S3Store {
                 ecosystem: self.ecosystem,
                 staging_dir: self.staging_dir.clone(),
                 cache_root: self.cache_root.clone(),
+                verification_id: self.verification_id,
             };
         }
         Self {
@@ -161,6 +164,7 @@ impl S3Store {
             ecosystem: self.ecosystem,
             staging_dir: self.staging_dir.clone(),
             cache_root: self.cache_root.clone(),
+            verification_id: self.verification_id,
         }
     }
 
@@ -172,6 +176,7 @@ impl S3Store {
             ecosystem,
             staging_dir: self.staging_dir.clone(),
             cache_root: self.cache_root.clone(),
+            verification_id: self.verification_id,
         }
     }
 
@@ -223,22 +228,6 @@ impl S3Store {
                 | object_store::Error::NotFound { .. }
                 | object_store::Error::Precondition { .. },
             ) => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// Open a hosted archive for streaming, `None` when nothing is stored
-    /// under `key`.
-    pub async fn open_archive(&self, key: &str) -> Result<Option<(Body, Option<u64>)>> {
-        match self.store.get(&self.archive_key(key)).await {
-            Ok(result) => {
-                let len = result.meta.size;
-                let stream = result
-                    .into_stream()
-                    .map(|chunk| chunk.map_err(|err| io::Error::other(err.to_string())));
-                Ok(Some((Body::from_stream(stream), Some(len))))
-            }
-            Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
@@ -327,3 +316,9 @@ impl S3Store {
 
 #[cfg(test)]
 mod tests;
+
+fn next_verification_id() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+}

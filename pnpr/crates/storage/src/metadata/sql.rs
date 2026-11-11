@@ -76,7 +76,7 @@ use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
     path::Path,
     sync::{Arc, Mutex, OnceLock, PoisonError},
-    time::Instant,
+    time::{Duration, Instant},
 };
 use transactions::Freshness;
 
@@ -90,7 +90,7 @@ pub struct SqlMetadata {
     schema: OnceLock<()>,
     /// Held while the schema is checked, so concurrent first operations
     /// check it once.
-    schema_check: Mutex<()>,
+    schema_check: Mutex<Option<Instant>>,
     cache: cache::RenderCache,
 }
 
@@ -188,7 +188,7 @@ impl SqlMetadata {
             adapter,
             name,
             schema: OnceLock::new(),
-            schema_check: Mutex::new(()),
+            schema_check: Mutex::new(None),
             cache: cache::RenderCache::default(),
         }
     }
@@ -198,17 +198,22 @@ impl SqlMetadata {
     /// newer release, and a pre-1.0 database without `schema_migrations`;
     /// the operator wipes pnpr's tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
+        let mut checked = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
         if self.schema.get().is_some() {
-            return Ok(());
-        }
-        let _check = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
-        if self.schema.get().is_some() {
+            if checked.is_some_and(|checked| checked.elapsed() < Duration::from_secs(1)) {
+                return Ok(());
+            }
+            self.adapter.read(adapter::ReadSource::Primary, &mut |connection| {
+                schema::check_current(connection, &self.name)
+            })?;
+            *checked = Some(Instant::now());
             return Ok(());
         }
         if let Some(stored) = schema::prepare_adapter_with_steps(&*self.adapter, schema::STEPS)? {
             return Err(schema::refused_error(&self.name, &stored));
         }
         let _ = self.schema.set(());
+        *checked = Some(Instant::now());
         // A replica bootstrapped before the schema existed lacks its tables.
         // One that cannot sync now is left stale, and its reads sync first or
         // go to the primary.
@@ -216,6 +221,20 @@ impl SqlMetadata {
             tracing::warn!(%error, "the metadata replica could not sync; reads use the primary");
         }
         Ok(())
+    }
+
+    /// Check that the primary database schema is supported, with a bounded cached result.
+    pub async fn check_schema(self: &Arc<Self>) -> Result<()> {
+        if self.schema_check
+            .try_lock()
+            .is_ok_and(|checked| {
+                checked.is_some_and(|checked| checked.elapsed() < Duration::from_secs(1))
+            })
+        {
+            return Ok(());
+        }
+        let metadata = Arc::clone(self);
+        tokio::task::spawn_blocking(move || metadata.ensure_schema()).await?
     }
 
     /// What rendering has done since the database was opened.

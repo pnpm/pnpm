@@ -124,6 +124,9 @@ pub(super) async fn authenticate(
         Ok(header) => header.map(str::to_owned),
         Err(err) => return err.into_response(),
     };
+    if let Err(error) = state.inner.storage.sql_metadata().check_schema().await {
+        return error.into_response();
+    }
     super::managed_state::refresh_managed_state(&state).await;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();

@@ -134,14 +134,13 @@ impl LoginRateLimiter {
                 now,
             )?;
             self.check_key(&inner.map, &RateLimitKey::Ip(ip_address), self.max_ip_attempts, now)?;
-        } else {
-            self.check_key(
-                &inner.map,
-                &RateLimitKey::User(username.to_string()),
-                self.max_user_attempts,
-                now,
-            )?;
         }
+        self.check_key(
+            &inner.map,
+            &RateLimitKey::User(username.to_string()),
+            self.max_user_attempts,
+            now,
+        )?;
 
         Ok(())
     }
@@ -232,14 +231,11 @@ impl LoginRateLimiter {
         let mut inner = self.records.lock().unwrap();
         self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
 
-        let keys = if let Some(ip_address) = client_ip {
-            vec![
-                RateLimitKey::IpUser(ip_address, username.to_string()),
-                RateLimitKey::Ip(ip_address),
-            ]
-        } else {
-            vec![RateLimitKey::User(username.to_string())]
-        };
+        let mut keys = vec![RateLimitKey::User(username.to_string())];
+        if let Some(ip_address) = client_ip {
+            keys.push(RateLimitKey::IpUser(ip_address, username.to_string()));
+            keys.push(RateLimitKey::Ip(ip_address));
+        }
 
         for key in keys {
             inner.map
@@ -261,8 +257,7 @@ impl LoginRateLimiter {
         let mut inner = self.records.lock().unwrap();
         if let Some(ip_address) = client_ip {
             inner.map.remove(&RateLimitKey::IpUser(ip_address, username.to_string()));
-        } else {
-            inner.map.remove(&RateLimitKey::User(username.to_string()));
         }
+        inner.map.remove(&RateLimitKey::User(username.to_string()));
     }
 }

@@ -204,3 +204,35 @@ fn web_login_rejects_new_sessions_when_capacity_reached() {
         "already-admitted IP should still be allowed under attempt limit",
     );
 }
+
+#[test]
+fn rate_limiter_caps_account_attempts_across_client_ips() {
+    let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 20, 3);
+    for suffix in 1..=3 {
+        let client_ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, suffix));
+        assert!(
+            limiter
+                .check(Some(client_ip), "alice")
+                .is_ok(),
+        );
+        limiter.record_failure(Some(client_ip), "alice");
+    }
+    let fresh_ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 4));
+    assert!(
+        limiter
+            .check(Some(fresh_ip), "alice")
+            .is_err(),
+    );
+    assert!(limiter.check(None, "alice").is_err());
+    assert!(
+        limiter
+            .check(Some(fresh_ip), "bob")
+            .is_ok(),
+    );
+    limiter.record_success(Some(fresh_ip), "alice");
+    assert!(
+        limiter
+            .check(Some(fresh_ip), "alice")
+            .is_ok(),
+    );
+}

@@ -406,6 +406,10 @@ async fn create_token_password_verification_and_rate_limiting() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        body_json(res.into_body()).await["error"],
+        "Authentication required for password verification",
+    );
 
     let empty_payload = json!({});
     let res = app

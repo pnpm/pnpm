@@ -238,7 +238,7 @@ async fn collect_publish_body(
         .map_err(|_| {
             super::npm_errors::json_error(
                 StatusCode::PAYLOAD_TOO_LARGE,
-                "Publish request body exceeds the size limit",
+                "Publish request body exceeds the 100 MiB JSON limit; use staged archives for large tarballs",
             )
         })
 }

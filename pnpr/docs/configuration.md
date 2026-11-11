@@ -624,10 +624,12 @@ as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
 Must be greater than zero. The limit applies to downloads: a tarball pnpr
 cached under a higher limit is still served from the cache.
 
-A published package is still at most 100 MiB, the limit npm applies to a
-publish. The setting only affects tarballs proxied from upstream registries,
-where packages with large native binaries, such as `onnxruntime-node`, exceed
-100 MiB.
+An npm publish request is at most 100 MiB of JSON, including metadata and
+base64-encoded attachments. Base64 increases the archive size by about a third,
+so an inline tarball must be smaller than 75 MiB.
+[Staged archives](ecosystems.md#staged-archives) accept archives up to 100 MiB
+without base64 encoding. This setting only affects tarballs proxied from
+upstream registries.
 
 ```yaml title="pnpr.yaml"
 maxTarballSize: 256MiB
@@ -692,7 +694,7 @@ gc:
 pnpr includes built-in protections against denial-of-service and brute-force attacks:
 
 - **Pre-buffer authorization**: Package publish and modification endpoints (`PUT /{pkg}`, `PUT /@{scope}/{pkg}`, `PUT /{pkg}/-rev/{rev}`) check caller authentication and write permissions before reading or buffering request payloads (up to 100 MiB). Unauthorized or unauthenticated requests are rejected immediately with `401 Unauthorized` or `403 Forbidden` without consuming server memory or network bandwidth.
-- **Login rate limiting**: Login attempts (`PUT /-/user/org.couchdb.user:...`) are rate-limited to mitigate password brute-force and CPU exhaustion from bcrypt password verification. Failed login attempts are throttled by client IP and by username with a `429 Too Many Requests` response and a `Retry-After` header.
+- **Login rate limiting**: Login attempts (`PUT /-/user/org.couchdb.user:...`) are rate-limited to mitigate password brute-force and CPU exhaustion from bcrypt password verification. Failed login attempts are throttled by client IP and by username across all client IPs with a `429 Too Many Requests` response and a `Retry-After` header.
 - **Concurrency limits**: Intensive operations are governed by concurrency semaphores to protect against resource exhaustion (limiting concurrent password verifications and concurrent large payload buffering).
 - **Upstream request coalescing (singleflight)**: Concurrent requests for the same uncached upstream packument are coalesced so multiple concurrent requests result in only a single upstream fetch.
 

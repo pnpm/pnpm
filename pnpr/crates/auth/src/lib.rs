@@ -14,8 +14,8 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use htpasswd::{
-    is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
-    write_atomic,
+    dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
+    verify_bcrypt, write_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
@@ -26,7 +26,8 @@ pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
-use htpasswd::{dummy_verify, hash_bcrypt, verify_returning_user};
+mod password_login;
+use htpasswd::{hash_bcrypt, verify_returning_user};
 
 mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};
@@ -141,13 +142,22 @@ impl AuthState {
                 let Some(id) = self.users.account_id(username).await? else {
                     return Ok(None);
                 };
-                match self.users.set_password(&id, password).await? {
+                match self.change_password(&id, password).await? {
                     PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
                     // Another caller removed the user between the two calls.
                     PasswordChange::NoSuchUser => Ok(None),
                 }
             }
         }
+    }
+
+    /// Replace a password and revoke every bearer token for the account.
+    pub async fn change_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        let outcome = self.users.set_password(user_id, password).await?;
+        if matches!(outcome, PasswordChange::Changed) {
+            self.revoke_all_tokens(user_id).await?;
+        }
+        Ok(outcome)
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
@@ -429,7 +439,7 @@ pub trait TokenBackend: Send + Sync {
 /// tool. ~50–100 ms per hash on modern hardware — slow enough to
 /// frustrate offline cracking, cheap enough that adduser doesn't
 /// feel sluggish.
-const DEFAULT_BCRYPT_COST: u32 = 10;
+pub const DEFAULT_BCRYPT_COST: u32 = 10;
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -46,11 +46,19 @@ impl Storage {
 
     /// Finish the reclaims of this namespace that have been `reclaiming` for
     /// at least `lease`: reclaims that stopped before they recorded their
-    /// removal. Returns the incarnations removed.
-    pub async fn finish_stale_reclaims(&self, lease: Duration) -> Result<Vec<BlobRef>> {
+    /// removal. Returns the removed incarnations and their byte sizes.
+    pub async fn finish_stale_reclaims(&self, lease: Duration) -> Result<BTreeMap<BlobRef, u64>> {
         let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
         let stale = self.database.stale_reclaims(catalog, ecosystem, lease).await?;
-        self.remove_reclaiming(stale, |_| {}).await
+        let candidates = stale.keys().cloned().collect();
+        let removed = self.remove_reclaiming(candidates, |_| {}).await?;
+        Ok(removed
+            .into_iter()
+            .map(|blob| {
+                let size = *stale.get(&blob).expect("removed reclaim was selected");
+                (blob, size)
+            })
+            .collect())
     }
 
     /// Remove the keys of `stored`, incarnations stored in this namespace

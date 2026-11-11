@@ -49,6 +49,12 @@ its bytes, and a download of the file reads the bytes through that mapping.
 Files with the same bytes, of one package or of several, share one stored
 archive.
 
+pnpr verifies a hosted archive before starting its first download response.
+Unchanged archives reuse that verification. A first download from object storage
+uses temporary disk space under the cache while pnpr checks the complete archive,
+including when the client requested only a byte range. Corrupted archives return
+`503 Service Unavailable`.
+
 `<incarnation>` counts the times the bytes were stored, from `1`. Bytes a
 [reclaim](cli.md#gc) removed and a later publish stores again take the next
 incarnation, so a key is never written again once a reclaim may remove it.
@@ -139,8 +145,13 @@ deletions do not retain earlier text for restoration.
 ### Schema migrations {#metadata-schema-changes}
 
 pnpr creates its metadata and auth tables in an empty database and records each
-applied migration step in the `schema_migrations` table, starting with step `1`
-for the 1.0 schema. When pnpr opens a database at an older numbered version, it
+applied migration step in `schema_migrations`, starting with step `1` for the
+1.0 schema. Its `applied_at` column holds Unix seconds, or `0` for steps applied
+before pnpr recorded application times. Running servers recheck the primary
+database version before operations at most once per second and refuse a
+version newer than they support.
+
+When pnpr opens a database at an older numbered version, it
 takes the database write lock and runs each pending migration step in order.
 Steps run in one transaction on SQLite, libSQL, and PostgreSQL, and record
 their version in `schema_migrations` after completing on MySQL.

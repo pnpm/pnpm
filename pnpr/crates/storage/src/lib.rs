@@ -53,6 +53,7 @@ pub use pnpr_package_name::Ecosystem;
 
 pub use tar_integrities::DerivedTar;
 
+mod archive_verification;
 mod bounded_cache;
 mod tar_integrities;
 mod upstream_cache;

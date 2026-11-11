@@ -158,6 +158,7 @@ impl RemoteUploadStore {
         state.record.closed = true;
         self.write(id, &state.record, PutMode::Update(state.version)).await?;
         self.remove_chunks(id).await?;
+        self.remove(&self.key(id, "session.json")).await?;
         Ok(true)
     }
 
@@ -377,10 +378,8 @@ impl RemoteUpload {
         let version =
             self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
         *state = VersionedRecord { record, version };
-        if let Err(error) = self.backend.remove_chunks(&self.id).await {
-            tracing::warn!(%error, upload = self.id, "completed upload chunks await expiry cleanup");
-        }
-        Ok(())
+        self.backend.remove_chunks(&self.id).await?;
+        self.backend.remove(&self.backend.key(&self.id, "session.json")).await
     }
 }
 

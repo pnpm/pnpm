@@ -285,7 +285,7 @@ pnpr --disable-registry
 pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`:
 
 1. **Ceases new connections**: The server stops accepting new incoming TCP connections on its listen address.
-2. **Drains in-flight requests**: Active requests and ongoing package transfers are allowed to complete cleanly before the process exits.
+2. **Drains in-flight requests**: Active requests and ongoing package transfers have up to 30 seconds to complete before the process exits.
 
 Configuration changes are applied via process restart rather than in-process reloading (such as SIGHUP). In container orchestrators (such as Kubernetes or Docker Swarm), use rolling deployments so the new replica's readiness probe (`GET /-/ready`) passes before the old replica receives `SIGTERM` and drains.
 

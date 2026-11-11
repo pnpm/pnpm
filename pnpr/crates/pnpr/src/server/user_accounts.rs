@@ -1,3 +1,7 @@
+pub(crate) use profile::post_profile;
+
+mod profile;
+
 use super::{
     AppState, AuthedCaller, Body, Deserialize, Identity, Path, RegistryError, Response, State,
     StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response, parse_json_body,
@@ -208,8 +212,14 @@ async fn log_in(
     {
         return Err(deprovisioned(name));
     }
-    let (outcome, id) = users.add_or_login(name, password).await?;
-    let token = state.inner.identity.auth.tokens.issue(&id).await?;
+    let (outcome, id, token) = match state.inner.identity.auth.password_login(name, password).await
+    {
+        Err(RegistryError::TooManyUsers { .. }) => {
+            pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
+        }
+        result => result?,
+    };
     if super::scim::is_deprovisioned(state, &id)? {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(deprovisioned(name));

@@ -208,15 +208,39 @@ async fn serve_until_shutdown(
     )
     .with_graceful_shutdown(shutdown.clone())
     .into_future();
-    match metrics {
-        None => main.await?,
-        Some(MetricsListener { listener, router }) => {
-            let metrics =
-                axum::serve(listener, router).with_graceful_shutdown(shutdown).into_future();
-            tokio::try_join!(main, metrics)?;
+    let deadline_signal = shutdown.clone();
+    let serving = async {
+        match metrics {
+            None => main.await?,
+            Some(MetricsListener { listener, router }) => {
+                let metrics = axum::serve(listener, router)
+                    .with_graceful_shutdown(shutdown.clone())
+                    .into_future();
+                tokio::try_join!(main, metrics)?;
+            }
         }
+        Ok(())
+    };
+    drain_until_deadline(serving, deadline_signal).await
+}
+
+const SHUTDOWN_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+async fn drain_until_deadline(
+    serving: impl std::future::Future<Output = pnpr_error::Result<()>>,
+    shutdown: impl std::future::Future<Output = ()>,
+) -> pnpr_error::Result<()> {
+    tokio::pin!(serving);
+    tokio::select! {
+        result = &mut serving => return result,
+        () = shutdown => {}
     }
-    Ok(())
+    if let Ok(result) = tokio::time::timeout(SHUTDOWN_DRAIN_TIMEOUT, serving).await {
+        result
+    } else {
+        tracing::warn!("Shutdown drain exceeded 30 seconds; stopping the server");
+        Ok(())
+    }
 }
 
 /// Log which surfaces are mounted at startup. A misconfiguration — a

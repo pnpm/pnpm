@@ -70,6 +70,13 @@ pub enum RegistryError {
         reason: String,
     },
 
+    #[display("Stored archive {key:?} failed integrity verification")]
+    #[from(skip)]
+    CorruptArchive {
+        #[error(not(source))]
+        key: String,
+    },
+
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
     #[from(skip)]
     TarballIntegrity {
@@ -173,6 +180,13 @@ pub enum RegistryError {
     InvalidAttachment {
         #[error(not(source))]
         filename: String,
+        reason: String,
+    },
+
+    /// The addressed registry cannot accept the package. Maps to 403.
+    #[from(skip)]
+    PublishRejected {
+        #[error(not(source))]
         reason: String,
     },
 

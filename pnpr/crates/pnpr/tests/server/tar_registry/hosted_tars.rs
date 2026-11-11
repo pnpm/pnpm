@@ -177,7 +177,7 @@ async fn verify_checks_a_stored_tar_against_its_tar_integrity() {
     let report = pnpr::verify::verify_storage(&config, &options).await.unwrap();
     assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
     assert!(
-        report.corrupted_blobs[0].contains("tar integrity mismatch"),
+        report.corrupted_blobs[0].contains("failed integrity verification"),
         "{:?}",
         report.corrupted_blobs,
     );

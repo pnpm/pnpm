@@ -296,6 +296,12 @@ An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.
 
+Individual publishes to one package serialize their metadata updates. With a
+remote metadata database, each commit also waits for database round trips.
+A publisher using the HTTP API can include several versions in one npm
+publish document to commit them together. A batch accepts one document per
+package.
+
 ### Staged archives {#staged-archives}
 
 A publisher can upload each archive on its own before the publish that

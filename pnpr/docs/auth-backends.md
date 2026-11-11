@@ -136,3 +136,7 @@ revokes its credentials, and frees its login name. A new account using that
 name receives a fresh ID. Team memberships and package ownership remain bound
 to the deleted ID. Deleted accounts are hidden from user lists and do not count
 toward `maxUsers`. See [Account and team identity](identity.md).
+
+Use `npm profile set password` to change your password. Changing a password,
+including an administrator reset, revokes the account's existing tokens.
+Sign in again after the change.

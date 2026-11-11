@@ -102,12 +102,16 @@ async fn verify_version_tarball(
     };
 
     // A hosted tar registry stores the version's tar in place of its `.tgz`.
-    if let Some(bytes) = read_blob(ctx, canonical, filename).await? {
-        if ctx.options.check_hashes {
+    match read_blob(ctx, canonical, filename).await? {
+        BlobRead::Read(bytes) if ctx.options.check_hashes => {
             check_hash_mismatch(pkg_name, ver, filename, &bytes, dist, ctx.report);
         }
-    } else if !verify_stored_tar(ctx, canonical, ver, dist).await? {
-        ctx.report.missing_blobs.push(format!("{pkg_name}@{ver}: {filename}"));
+        BlobRead::Missing => {
+            if !verify_stored_tar(ctx, canonical, ver, dist).await? {
+                ctx.report.missing_blobs.push(format!("{pkg_name}@{ver}: {filename}"));
+            }
+        }
+        BlobRead::Read(_) | BlobRead::Corrupt => {}
     }
     Ok(())
 }
@@ -121,7 +125,11 @@ async fn verify_stored_tar(
     dist: &serde_json::Map<String, Value>,
 ) -> miette::Result<bool> {
     let tar = canonical.tar_name_for_version(ver);
-    let Some(bytes) = read_blob(ctx, canonical, &tar).await? else { return Ok(false) };
+    let bytes = match read_blob(ctx, canonical, &tar).await? {
+        BlobRead::Read(bytes) => bytes,
+        BlobRead::Missing => return Ok(false),
+        BlobRead::Corrupt => return Ok(true),
+    };
     if ctx.options.check_hashes
         && let Some(problem) = stored_tar_problem(ctx.storage, canonical, &bytes, dist).await?
     {
@@ -161,21 +169,35 @@ async fn stored_tar_problem(
     }))
 }
 
-/// The bytes of the hosted blob `filename`, counted as checked.
+enum BlobRead {
+    Read(axum::body::Bytes),
+    Missing,
+    Corrupt,
+}
+
 async fn read_blob(
     ctx: &mut VerifyContext<'_>,
     canonical: &CanonicalPackageName,
     filename: &str,
-) -> miette::Result<Option<axum::body::Bytes>> {
-    let opened = ctx.storage
-        .open_hosted_blob(canonical, filename)
-        .await
-        .map_err(|err| miette::miette!("error opening blob for '{}': {err}", canonical.as_str()))?;
-    let Some((body, _)) = opened else { return Ok(None) };
+) -> miette::Result<BlobRead> {
+    let opened = match ctx.storage.open_hosted_blob(canonical, filename).await {
+        Err(error @ pnpr_error::RegistryError::CorruptArchive { .. }) => {
+            ctx.report.blobs_checked += 1;
+            ctx.report.corrupted_blobs.push(format!(
+                "{}: {filename} ({error})",
+                canonical.as_str(),
+            ));
+            return Ok(BlobRead::Corrupt);
+        }
+        result => result.map_err(|err| {
+            miette::miette!("error opening blob for '{}': {err}", canonical.as_str())
+        })?,
+    };
+    let Some((body, _)) = opened else { return Ok(BlobRead::Missing) };
     let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
     ctx.report.blobs_checked += 1;
     ctx.report.bytes_verified += bytes.len() as u64;
-    Ok(Some(bytes))
+    Ok(BlobRead::Read(bytes))
 }
 
 fn check_hash_mismatch(
