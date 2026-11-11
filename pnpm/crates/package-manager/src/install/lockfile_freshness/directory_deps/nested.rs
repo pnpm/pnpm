@@ -253,6 +253,10 @@ fn nested_scope(
     scope
 }
 
+/// Without a recorded source, the `file:` and `workspace:` declarations can
+/// read different manifests (see [`super::unhooked_manifest`]), so the
+/// snapshot must match both. Where they differ, a lockfile the resolver just
+/// wrote fails the check.
 fn check_directory_declarations(
     source: Option<DirectoryManifestSource>,
     check: impl Fn(DirectoryManifestSource) -> Result<(), FreshnessCheckError>,

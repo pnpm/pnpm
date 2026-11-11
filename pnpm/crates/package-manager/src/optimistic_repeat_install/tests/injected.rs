@@ -279,6 +279,7 @@ fn recorded_injected_inputs_do_not_vouch_for_a_changed_nested_project() {
             "  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n\nsnapshots:\n\n  pkg-a@file:pkg-a: {}\n",
             "  bar@1.0.0:\n    resolution: {integrity: sha512-AAAA}\n\n  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace, dependencies: {bar: 1.0.0}}\n\n  pkg-b@file:pkg-b:\n    resolution: {directory: pkg-b, type: directory}\n    specifiers: {manifestSource: workspace}\n\nsnapshots:\n\n  bar@1.0.0:\n    dependencies:\n      pkg-b: file:pkg-b\n\n  pkg-a@file:pkg-a:\n    dependencies:\n      bar: 1.0.0\n\n  pkg-b@file:pkg-b: {}\n",
         );
+    assert!(lockfile.contains("\n  pkg-b: {}\n"), "{lockfile}");
     assert!(lockfile.contains("pkg-b: file:pkg-b"), "{lockfile}");
     let sibling = serde_json::json!({
         "name": "pkg-a",

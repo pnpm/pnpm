@@ -85,6 +85,8 @@ pub(super) fn check_single_directory_dep_freshness(
     check_legacy_directory(check, (dep, scope), (&local_manifest, snapshot, pkg_meta), visited)
 }
 
+/// The check for an entry without `specifiers`, which an older pnpm wrote.
+/// It takes no new fixes and goes at the next lockfile major (pnpm/tasks#228).
 fn check_legacy_directory(
     check: &ImporterSatisfactionCheck<'_>,
     (dep, scope): (&LocalDepContext<'_>, &AliasScope),

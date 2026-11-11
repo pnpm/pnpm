@@ -522,15 +522,33 @@ fn directory_input_record_rejects_a_range_edit_that_keeps_the_locked_version() {
 fn directory_input_matrix() {
     for hook in ["none", "extensions", "pnpmfile"] {
         for location in ["workspace", "workspace-path", "file", "publish"] {
-            for (shared, filtered) in [(true, true), (true, false), (false, true), (false, false)] {
-                directory_input_case(hook, location, shared, filtered);
+            for (layout, selection) in [
+                (LockfileLayout::Shared, Selection::Filtered),
+                (LockfileLayout::Shared, Selection::All),
+                (LockfileLayout::PerProject, Selection::Filtered),
+                (LockfileLayout::PerProject, Selection::All),
+            ] {
+                directory_input_case(hook, location, layout, selection);
             }
         }
     }
 }
 
-fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool) {
-    eprintln!("hook={hook} location={location} shared={shared} filtered={filtered}");
+#[derive(Debug, Clone, Copy)]
+enum LockfileLayout {
+    Shared,
+    PerProject,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Selection {
+    Filtered,
+    All,
+}
+
+fn directory_input_case(hook: &str, location: &str, layout: LockfileLayout, selection: Selection) {
+    eprintln!("hook={hook} location={location} layout={layout:?} selection={selection:?}");
+    let shared = matches!(layout, LockfileLayout::Shared);
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
     let directory = match location {
         "workspace" | "publish" => "packages/local",
@@ -578,14 +596,19 @@ fn directory_input_case(hook: &str, location: &str, shared: bool, filtered: bool
         fs::create_dir(local.join("dist")).expect("create publish directory");
     }
     fs::write(local.join("package.json"), manifest.to_string()).expect("write local manifest");
-    let selection = if filtered { vec!["--filter", "app"] } else { Vec::new() };
+    let selection = match selection {
+        Selection::Filtered => vec!["--filter", "app"],
+        Selection::All => Vec::new(),
+    };
     pacquet_in(&workspace)
         .with_args(&selection)
         .with_args(["install", "--reporter=silent"])
         .assert()
         .success();
-    let lockfile_path =
-        if shared { workspace.join("pnpm-lock.yaml") } else { app.join("pnpm-lock.yaml") };
+    let lockfile_path = match layout {
+        LockfileLayout::Shared => workspace.join("pnpm-lock.yaml"),
+        LockfileLayout::PerProject => app.join("pnpm-lock.yaml"),
+    };
     let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
     assert!(original.contains(r#""specifiers""#), "{original}");
     if hook != "none" {
