@@ -886,6 +886,42 @@ fn windows_reparse_tag_tells_a_symlink_from_a_junction() {
     }
 }
 
+/// The reuse check on a share reads a junction as `fs::read_link` does and
+/// fails for anything else, so a warm install tells a junction from a symlink
+/// without an extra open (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_read_junction_target_reads_only_junctions() {
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let local = root.path().join("local");
+    super::windows::create_junction(&target, &local).expect("create a local junction");
+    let unc = root.path().join("unc");
+    super::windows::create_junction(std::path::Path::new(r"\\server\share\pkg"), &unc)
+        .expect("create a junction to a UNC path");
+
+    for junction in [&local, &unc] {
+        assert_eq!(
+            super::windows::read_junction_target(junction).expect("read the junction"),
+            fs::read_link(junction).expect("read_link the junction"),
+        );
+    }
+    super::windows::read_junction_target(&target).expect_err("a directory is not a junction");
+
+    let symlink = root.path().join("symlink");
+    match std::os::windows::fs::symlink_dir(&target, &symlink) {
+        Ok(()) => {
+            super::windows::read_junction_target(&symlink).expect_err("a symlink is not reusable");
+        }
+        Err(error) if error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            eprintln!("skipping the symlink half: this process may not create symlinks");
+        }
+        Err(error) => panic!("create the symlink: {error}"),
+    }
+}
+
 /// Links on a real share: a matching symlink left by an earlier install is
 /// replaced with a junction, and a package opens through the junction.
 /// No share is available in CI, so this runs only when
