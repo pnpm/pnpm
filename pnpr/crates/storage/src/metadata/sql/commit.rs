@@ -19,6 +19,7 @@ use crate::{
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::DialectSql;
 use serde_json::{Map, Value};
 use std::{
     cell::RefCell,
@@ -178,14 +179,21 @@ pub(super) struct Commit<'batch> {
     pub(super) accepted: &'batch RefCell<Vec<ArtifactMember>>,
 }
 
+const WRITE_STATE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO packages (namespace, ecosystem, name, generation, state_version, state)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (namespace, ecosystem, name) DO UPDATE SET
+       state_version = excluded.state_version, state = excluded.state",
+    "INSERT INTO packages (namespace, ecosystem, name, generation, state_version, state)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     AS excluded ON DUPLICATE KEY UPDATE state_version = excluded.state_version, state = excluded.state",
+);
+
 impl Commit<'_> {
     pub(super) fn write_state(&self, state_version: u32, state: &[u8]) -> Result<()> {
         let (namespace, ecosystem, name) = self.key.params();
         self.transaction.execute(
-            "INSERT INTO packages (namespace, ecosystem, name, generation, state_version, state)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT (namespace, ecosystem, name) DO UPDATE SET
-               state_version = excluded.state_version, state = excluded.state",
+            WRITE_STATE.get(self.transaction.dialect()),
             params![
                 namespace,
                 ecosystem,

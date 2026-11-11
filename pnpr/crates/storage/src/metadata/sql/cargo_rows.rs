@@ -7,6 +7,7 @@ use super::{
     removed, to_column,
 };
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -122,10 +123,7 @@ fn clear_crate(
     removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-         SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-         ON CONFLICT DO NOTHING",
+        removed::RECORD_REMOVED_CARGO_VERSIONS.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
@@ -192,6 +190,36 @@ fn insert_cargo_version(
     )
 }
 
+const DELETE_VERSIONS: DialectSql = DialectSql {
+    sqlite: "DELETE FROM cargo_versions
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND version IN (SELECT value FROM json_each(?4))",
+    postgres: "DELETE FROM cargo_versions
+               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND version IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "DELETE FROM cargo_versions
+            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+              AND version IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
+
+const RECORD_REMOVED_VERSIONS: DialectSql = DialectSql {
+    sqlite: "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+             SELECT ?1, ?2, ?3, value, ?5
+             FROM (SELECT value FROM json_each(?4)) AS removed
+             WHERE value != ''
+             ON CONFLICT DO NOTHING",
+    postgres: "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+               SELECT ?1, ?2, ?3, value, ?5
+               FROM (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value)) AS removed
+               WHERE value != ''
+               ON CONFLICT DO NOTHING",
+    mysql: "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+            SELECT ?1, ?2, ?3, value, ?5
+            FROM (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements) AS removed
+            WHERE value != ''
+            ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
+};
+
 fn remove_dropped_versions(
     commit: &Commit<'_>,
     row: Option<&PackageRow>,
@@ -211,17 +239,11 @@ fn remove_dropped_versions(
         .collect();
     let versions = super::blobs::json_array(&keys);
     commit.transaction.execute(
-        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-         SELECT ?1, ?2, ?3, value, ?5
-         FROM (SELECT value FROM json_each(?4)) AS removed
-         WHERE value != ''
-         ON CONFLICT DO NOTHING",
+        RECORD_REMOVED_VERSIONS.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &versions, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
-        "DELETE FROM cargo_versions
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-           AND version IN (SELECT value FROM json_each(?4))",
+        DELETE_VERSIONS.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &versions],
     )?;
     Ok(true)

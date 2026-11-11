@@ -6,6 +6,7 @@ use super::{
 };
 use crate::MetadataRecord;
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -17,6 +18,13 @@ pub(crate) struct RecordWriteError {
     /// A commit may succeed even when its acknowledgement fails.
     pub(crate) may_have_committed: bool,
 }
+
+const STAGE_RECORD: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3)
+     ON CONFLICT (id) DO UPDATE SET generation = excluded.generation, body = excluded.body",
+    "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3)
+     AS excluded ON DUPLICATE KEY UPDATE generation = excluded.generation, body = excluded.body",
+);
 
 impl SqlMetadata {
     pub(crate) async fn read_staged_record(
@@ -52,11 +60,7 @@ impl SqlMetadata {
                 return Ok(None);
             };
             let parameters = [Param::Text(&id), Param::Integer(generation), Param::Blob(&body)];
-            transaction.execute(
-                "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3)
-                 ON CONFLICT (id) DO UPDATE SET generation = excluded.generation, body = excluded.body",
-                &parameters,
-            )?;
+            transaction.execute(STAGE_RECORD.get(transaction.dialect()), &parameters)?;
             committing.store(true, Ordering::Release);
             transaction.commit()?;
             Ok(Some(MetadataRecord { generation, bytes: body.clone() }))

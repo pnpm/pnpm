@@ -11,6 +11,7 @@ use super::{
     removed, to_column, to_generation,
 };
 use pnpr_error::Result;
+use pnpr_sql::DialectSql;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
@@ -176,6 +177,16 @@ fn upsert_manifests(
     Ok(changed)
 }
 
+const WRITE_TAG: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (namespace, ecosystem, name, tag) DO UPDATE SET
+       digest = excluded.digest, updated = excluded.updated",
+    "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     AS excluded ON DUPLICATE KEY UPDATE digest = excluded.digest, updated = excluded.updated",
+);
+
 fn reconcile_tags(
     commit: &Commit<'_>,
     stored: &mut BTreeMap<String, (String, u64)>,
@@ -186,10 +197,7 @@ fn reconcile_tags(
     for (tag, target) in incoming {
         if stored.remove(tag).as_ref() != Some(target) {
             commit.transaction.execute(
-                "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                 ON CONFLICT (namespace, ecosystem, name, tag) DO UPDATE SET
-                   digest = excluded.digest, updated = excluded.updated",
+                WRITE_TAG.get(commit.transaction.dialect()),
                 params![namespace, ecosystem, name, tag, &target.0, to_column(target.1)],
             )?;
             changed = true;
@@ -205,6 +213,18 @@ fn reconcile_tags(
     }
     Ok(changed)
 }
+
+const DELETE_MANIFESTS: DialectSql = DialectSql {
+    sqlite: "DELETE FROM oci_manifests
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND digest IN (SELECT value FROM json_each(?4))",
+    postgres: "DELETE FROM oci_manifests
+               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND digest IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "DELETE FROM oci_manifests
+            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+              AND digest IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
 
 fn remove_dropped_manifests(
     commit: &Commit<'_>,
@@ -226,9 +246,7 @@ fn remove_dropped_manifests(
         .collect();
     let digests = super::blobs::json_array(&keys);
     commit.transaction.execute(
-        "DELETE FROM oci_manifests
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-           AND digest IN (SELECT value FROM json_each(?4))",
+        DELETE_MANIFESTS.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &digests],
     )?;
     Ok(true)

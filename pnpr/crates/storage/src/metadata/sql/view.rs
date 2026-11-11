@@ -172,7 +172,12 @@ impl PackageMetadata {
             self.namespace.clone(),
             Freshness::Current,
             move |connection, cache| {
-                let (view, rows) = render::read_view_with(connection, cache, &key, read.queries())?;
+                let (view, rows) = render::read_view_with(
+                    connection,
+                    cache,
+                    &key,
+                    read.queries(connection.dialect()),
+                )?;
                 Ok((view, read.answer(&mut rows.into_iter())?))
             },
         )

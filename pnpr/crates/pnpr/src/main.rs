@@ -4,7 +4,7 @@ use pnpr::{
     Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
     default_cache_dir, logging::log_subscriber, run_command, serve,
 };
-use pnpr_config::{MetadataBackend, default_metadata_path};
+use pnpr_config::{BackendConfig, MetadataBackend, default_metadata_path};
 use std::{
     io::IsTerminal,
     net::SocketAddr,
@@ -102,6 +102,7 @@ async fn run_maintenance(
 
     init_logging(&config.logs);
     log_config_source(&source);
+    warn_experimental_database(&config);
     run_command(&config, cmd).await
 }
 
@@ -188,6 +189,16 @@ fn log_config_source(source: &ConfigSource) {
             tracing::info!(path = %path.display(), "loaded config from default path");
         }
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
+    }
+}
+
+fn warn_experimental_database(config: &Config) {
+    let mysql = matches!(config.storage.metadata, MetadataBackend::Mysql(_))
+        || matches!(config.identity.backend, BackendConfig::Mysql(_));
+    if mysql {
+        tracing::warn!(
+            "MySQL support is experimental; use SQLite, libSQL, or PostgreSQL for production data",
+        );
     }
 }
 

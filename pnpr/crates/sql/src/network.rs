@@ -21,7 +21,7 @@ mod driver;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod migration;
 mod mysql_schema;
-use dialect::Dialect;
+use dialect::NetworkDialect;
 
 #[cfg(feature = "backend-postgres")]
 driver!(
@@ -30,7 +30,7 @@ driver!(
     sqlx::PgPool,
     crate::postgres_pool,
     sqlx::postgres::PgRow,
-    Dialect::Postgres,
+    NetworkDialect::Postgres,
     crate::postgres_timeout_sql,
     crate::postgres::configure
 );
@@ -41,18 +41,18 @@ driver!(
     sqlx::MySqlPool,
     crate::mysql_pool,
     sqlx::mysql::MySqlRow,
-    Dialect::Mysql,
+    NetworkDialect::Mysql,
     crate::mysql_timeout_sql,
     crate::mysql::configure
 );
 
 /// Open a network [`Adapter`] for the database URL in `settings`.
 pub fn adapter(settings: &SqlBackendSettings) -> Result<Box<dyn Adapter>> {
-    match Dialect::from_url(&settings.url)? {
+    match NetworkDialect::from_url(&settings.url)? {
         #[cfg(feature = "backend-postgres")]
-        Dialect::Postgres => Ok(Box::new(postgres::NetworkAdapter::new(settings)?)),
+        NetworkDialect::Postgres => Ok(Box::new(postgres::NetworkAdapter::new(settings)?)),
         #[cfg(feature = "backend-mysql")]
-        Dialect::Mysql => Ok(Box::new(mysql::NetworkAdapter::new(settings)?)),
+        NetworkDialect::Mysql => Ok(Box::new(mysql::NetworkAdapter::new(settings)?)),
         #[cfg_attr(
             all(feature = "backend-postgres", feature = "backend-mysql"),
             expect(unreachable_patterns, reason = "Both enabled drivers cover every dialect.")

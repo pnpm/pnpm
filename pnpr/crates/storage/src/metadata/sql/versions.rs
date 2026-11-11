@@ -10,6 +10,7 @@ use super::{
 use crate::metadata::ArtifactMember;
 use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
@@ -239,6 +240,16 @@ fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<
     Ok(())
 }
 
+const WRITE_ANNOTATION: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO annotations (namespace, ecosystem, name, version, deprecated, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (namespace, ecosystem, name, version)
+     DO UPDATE SET deprecated = excluded.deprecated, generation = excluded.generation",
+    "INSERT INTO annotations (namespace, ecosystem, name, version, deprecated, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     AS excluded ON DUPLICATE KEY UPDATE deprecated = excluded.deprecated, generation = excluded.generation",
+);
+
 /// Set or clear a version's deprecation under the commit's generation.
 pub(super) fn write_deprecation(
     commit: &Commit<'_>,
@@ -255,10 +266,7 @@ pub(super) fn write_deprecation(
         return Ok(());
     };
     commit.transaction.execute(
-        "INSERT INTO annotations (namespace, ecosystem, name, version, deprecated, generation)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT (namespace, ecosystem, name, version)
-         DO UPDATE SET deprecated = excluded.deprecated, generation = excluded.generation",
+        WRITE_ANNOTATION.get(commit.transaction.dialect()),
         params![
             namespace,
             ecosystem,
@@ -275,14 +283,22 @@ fn json_text(value: Option<&Value>) -> Result<Option<String>> {
     Ok(value.map(serde_json::to_string).transpose()?)
 }
 
+const RECORD_REMOVED_VERSION: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+     SELECT namespace, ecosystem, name, version, ?5 FROM versions
+     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+     ON CONFLICT DO NOTHING",
+    "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+     SELECT namespace, ecosystem, name, version, ?5 FROM versions
+     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+     ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
+);
+
 /// Remove a version, keeping its identity so it is never accepted again.
 pub(super) fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
     let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-         SELECT namespace, ecosystem, name, version, ?5 FROM versions
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-         ON CONFLICT DO NOTHING",
+        RECORD_REMOVED_VERSION.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, version, to_column(commit.generation)],
     )?;
     for table in VERSION_TABLES {
