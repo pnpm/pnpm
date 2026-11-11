@@ -347,10 +347,6 @@ fn npm_registry_routes() -> Router<AppState> {
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
             .route(&path("/-/log/{*resource}"), get(super::log_routes::get_log_resource))
-            .route(
-                &path("/-/npm/v1/attestations/{*spec}"),
-                get(super::attestations::get_attestations),
-            )
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
@@ -404,6 +400,7 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
 fn npm_version_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
     let path = |tail: &str| format!("{base}{tail}");
     router
+        .route(&path("/-/npm/v1/attestations/{*spec}"), get(super::attestations::get_attestations))
         .route(
             &path("/-/package/{name}/visibility"),
             axum::routing::any(note_handlers::unsupported_npm_route),
@@ -441,4 +438,20 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
             post(staged::approve_staged).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
         )
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+}
+
+pub(super) fn local_registry_router(state: AppState) -> Router {
+    let config = &state.inner.config;
+    let router = if config.features.registry.enabled
+        && config.routing.registries.has_ecosystem(Ecosystem::Npm)
+    {
+        let mut packages = Router::new();
+        for base in ["", "/~{registry}"] {
+            packages = npm_package_routes(packages, base);
+        }
+        Router::new().nest(&Ecosystem::Npm.base_path(), packages)
+    } else {
+        Router::new()
+    };
+    router.with_state(state)
 }

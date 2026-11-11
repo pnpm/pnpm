@@ -25,6 +25,7 @@ pub use url_credentials::{
     sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
 };
 
+pub use local_routes::split_package_identifier;
 pub use route_hook::RouteHook;
 
 pub use footprint::{
@@ -35,6 +36,7 @@ pub use footprint::{
 mod url_credentials;
 use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_prefix, scheme_of};
 
+mod local_routes;
 mod route_hook;
 
 mod alias_admission;
@@ -279,7 +281,11 @@ impl RouteContext {
         let npm_endpoint =
             format!("{}{}/", hosted.trim_end_matches('/'), Ecosystem::Npm.base_path());
         if let Some(registry) = addressed_registry_segment(fetch, &npm_endpoint) {
-            return self.classify_addressed(identity, registry, package);
+            return self.classify_addressed(
+                identity,
+                &pnpm_network::percent_decode_str(registry),
+                package,
+            );
         }
 
         // A path-less fetch resolves through the graph's default registry —

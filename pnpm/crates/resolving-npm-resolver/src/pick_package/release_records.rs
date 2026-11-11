@@ -152,15 +152,21 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
     async fn download(&self) -> Result<(Vec<u8>, bool), ResolveError> {
         let http = self.ctx.metadata.http;
         let name = &self.version.name;
-        let (_guard, response) =
-            send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
-                let request = client.get(self.url).header(header::ACCEPT, "application/json");
-                match http.auth_headers.for_url_with_package(self.url, Some(name)) {
-                    Some(value) => request.header(header::AUTHORIZATION, value),
-                    None => request,
-                }
-            })
-            .await?;
+        let local = http.auth_headers.fetch_local(self.url, Some(name), header::HeaderMap::new());
+        let (_guard, response) = if let Some(response) = local {
+            (None, response.await)
+        } else {
+            let (guard, response) =
+                send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
+                    let request = client.get(self.url).header(header::ACCEPT, "application/json");
+                    match http.auth_headers.for_url_with_package(self.url, Some(name)) {
+                        Some(value) => request.header(header::AUTHORIZATION, value),
+                        None => request,
+                    }
+                })
+                .await?;
+            (Some(guard), response)
+        };
         let response = response.error_for_status()?;
         let lasting = response
             .headers()

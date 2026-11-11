@@ -167,6 +167,10 @@ fn allows_registry_is_a_default_deny_allowlist() {
     // (here pnpr's own `/~corp/` endpoint prefix) onto a sibling path.
     assert!(!context.allows_registry(&format!("{}/~corp/../admin", config.http.public_url)));
     assert!(!context.allows_registry("https://npm.corp.example/../etc"));
+    assert!(!context.allows_registry(&format!(
+        "{}/npm/~denied/%2e%2e/~corp/widget",
+        config.http.public_url
+    )));
 }
 
 #[test]
@@ -755,6 +759,14 @@ fn route_hook_records_routes_and_returns_alias_credential() {
     assert_eq!(
         hook.authorize("https://npm.corp.example/@acme%2fwidget", Some("@acme/widget")),
         Some("Bearer upstream-secret".to_string()),
+    );
+
+    assert_eq!(
+        hook.authorize(
+            &format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url),
+            Some("@acme/widget")
+        ),
+        None,
     );
 
     let footprint = footprint.lock().unwrap();

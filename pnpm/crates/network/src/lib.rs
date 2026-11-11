@@ -5,10 +5,11 @@ extern crate pnpm_http as reqwest;
 
 pub use address_guard::{AddressGuard, GuardedDnsResolver, is_public_address};
 pub use auth::{
-    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
-    base64_encode, base64_encode_bytes, hide_auth_information, is_url_secure_for_credentials,
-    nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
-    redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
+    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, LocalFetch, LocalResponse,
+    MetadataCacheScope, UpstreamRouteHook, base64_encode, base64_encode_bytes,
+    hide_auth_information, is_url_secure_for_credentials, nerf_dart, normalize_auth_key,
+    redact_and_sanitize, redact_and_sanitize_multiline, redact_npm_auth_key,
+    redact_url_credentials, redact_url_for_display,
 };
 pub use certificates::bundled_root_certs;
 pub use client_builder::{default_network_concurrency, native_dns_resolver};

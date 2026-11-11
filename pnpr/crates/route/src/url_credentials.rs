@@ -97,7 +97,7 @@ pub(super) fn addressed_registry_segment<'a>(
 /// Whether a nerf-darted key (`//host/path/`) has a `.` or `..` path segment,
 /// which could escape a path-scoped prefix match in [`crate::RouteContext::allows_registry`].
 pub(super) fn contains_dot_segment(nerfed: &str) -> bool {
-    nerfed
+    pnpm_network::percent_decode_str(nerfed)
         .split('/')
         .any(|segment| segment == "." || segment == "..")
 }

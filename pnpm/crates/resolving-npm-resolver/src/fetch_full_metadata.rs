@@ -286,6 +286,23 @@ async fn send_once<'a>(
     validators: &Validators<'_>,
     bypass_cache: bool,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
+    let mut headers = header::HeaderMap::new();
+    headers.insert(header::ACCEPT, opts.accept.parse().expect("static accept header"));
+    if let Some(response) =
+        opts.http.auth_headers.fetch_local(opts.url, Some(opts.pkg_name), headers)
+    {
+        let guard =
+            opts.http.http_client.acquire_for_url_with_priority(opts.url, opts.priority).await;
+        return Ok((guard, response.await));
+    }
+    send_remote_once(opts, validators, bypass_cache).await
+}
+
+async fn send_remote_once<'a>(
+    opts: &MetadataRequestOptions<'a>,
+    validators: &Validators<'_>,
+    bypass_cache: bool,
+) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
     send_with_retry_at_priority(
         opts.http.http_client,
         opts.url,
