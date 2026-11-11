@@ -24,22 +24,14 @@ impl SqlMetadata {
     }
 
     /// Bind this database to `candidate` when `hosted_store` holds no id yet,
-    /// returning the bound id and whether this call inserted `candidate`.
-    pub(crate) async fn claim_store_id(
-        self: &Arc<Self>,
-        candidate: String,
-    ) -> Result<(String, bool)> {
+    /// returning the bound `store_id`.
+    pub(crate) async fn claim_store_id(self: &Arc<Self>, candidate: String) -> Result<String> {
         self.write(move |connection| claim_store_id(connection, &candidate)).await
     }
 
     /// Synchronous [`Self::claim_store_id`] for test fixture setup.
-    pub(crate) fn claim_store_id_sync(&self, candidate: &str) -> Result<(String, bool)> {
+    pub(crate) fn claim_store_id_sync(&self, candidate: &str) -> Result<String> {
         self.run_write(|connection| claim_store_id(connection, candidate))
-    }
-
-    /// Remove `store_id` from `hosted_store` after writing `layout.json` failed.
-    pub(crate) async fn unclaim_store_id(self: &Arc<Self>, store_id: String) -> Result<()> {
-        self.write(move |connection| unclaim_store_id(connection, &store_id)).await
     }
 }
 
@@ -78,26 +70,17 @@ fn read_store_id(connection: &dyn Connection) -> Result<Option<String>> {
     Ok(Some(store_id))
 }
 
-fn claim_store_id(connection: &dyn Connection, candidate: &str) -> Result<(String, bool)> {
+fn claim_store_id(connection: &dyn Connection, candidate: &str) -> Result<String> {
     if let Some(existing) = read_store_id(connection)? {
-        return Ok((existing, false));
+        return Ok(existing);
     }
     connection.execute(
         "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
          ON CONFLICT DO NOTHING",
         params![candidate],
     )?;
-    let stored = read_store_id(connection)?
+    read_store_id(connection)?
         .ok_or_else(|| RegistryError::Internal {
             reason: "hosted_store holds no store_id after insert".to_string(),
-        })?;
-    let claimed = stored == candidate;
-    Ok((stored, claimed))
-}
-
-fn unclaim_store_id(connection: &dyn Connection, store_id: &str) -> Result<()> {
-    connection.execute(
-        "DELETE FROM hosted_store WHERE singleton = 1 AND store_id = ?1",
-        params![store_id],
-    )
+        })
 }

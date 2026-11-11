@@ -418,7 +418,7 @@ pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
     let candidate = existing.unwrap_or_else(layout::new_store_id);
     let database = metadata::SqlMetadata::open_sqlite(&pnpr_config::default_metadata_path(root))
         .map_err(std::io::Error::other)?;
-    let (store_id, _) = database.claim_store_id_sync(&candidate).map_err(std::io::Error::other)?;
+    let store_id = database.claim_store_id_sync(&candidate).map_err(std::io::Error::other)?;
     let marker = serde_json::to_vec(&layout::LayoutMarker {
         layout: layout::LAYOUT_VERSION,
         store_id: Some(store_id),

@@ -134,13 +134,8 @@ impl Storage {
     /// Bind the metadata database and mark the hosted store as being in
     /// [`LAYOUT_VERSION`]. Only for an empty store and database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
-        let candidate = new_store_id();
-        let (store_id, claimed) = self.database.claim_store_id(candidate).await?;
-        let result = self.write_hosted_layout_marker_for(&store_id).await;
-        if result.is_err() && claimed {
-            let _ = self.database.unclaim_store_id(store_id).await;
-        }
-        result
+        let store_id = self.database.claim_store_id(new_store_id()).await?;
+        self.write_hosted_layout_marker_for(&store_id).await
     }
 
     async fn write_hosted_layout_marker_for(&self, store_id: &str) -> Result<()> {
