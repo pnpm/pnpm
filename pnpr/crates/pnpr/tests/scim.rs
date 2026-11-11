@@ -491,4 +491,12 @@ async fn failed_scim_rollback_never_undoes_a_newer_claimed_login_name() {
         auth.users.rename_user_if_current(alice_id, claimed_rev, "bob").await.unwrap(),
         pnpr_auth::UserRename::CurrentChanged,
     );
+    assert_eq!(
+        auth.users
+            .account_name(alice_id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("carol"),
+    );
 }
