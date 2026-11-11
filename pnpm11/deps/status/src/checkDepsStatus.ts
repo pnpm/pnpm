@@ -107,11 +107,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
  * when those checks pass.
  */
 function checkWithoutLockfiles (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): CheckDepsStatusResult | undefined {
-  // This check must run before the node-linker=pnp early return below:
-  // that return reports up-to-date because verify-deps-before-run cannot
-  // inspect a PnP install, but for the optimistic repeat-install caller
-  // (the only one setting this flag) "up-to-date" would skip the install
-  // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
     const localFileDepsIssue = findLocalFileDepsIssue(opts) ?? findRecordedLocalDependencyIssue(workspaceState, workspaceProjectDirs(opts))
     if (localFileDepsIssue != null) return outdatedResult(localFileDepsIssue, workspaceState)

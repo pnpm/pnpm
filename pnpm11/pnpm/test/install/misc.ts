@@ -1002,6 +1002,24 @@ test('a repeat hoisted install relinks a workspace project dependency whose root
   expect((await readPackageJsonFromDir(rootEntry)).version).toBe('1.0.0')
 })
 
+test.each([true, false])('a repeat PnP install updates removed dependencies (optimistic: %s)', async (optimisticRepeatInstall) => {
+  const project = prepare({
+    dependencies: { 'linked-dependency': 'link:./linked-dependency' },
+  })
+  fs.mkdirSync('linked-dependency')
+  fs.writeFileSync('linked-dependency/package.json', JSON.stringify({ name: 'linked-dependency', version: '1.0.0' }))
+  writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'pnp', optimisticRepeatInstall })
+  await execPnpm(['install'])
+  expect(project.readLockfile().importers['.'].dependencies).toHaveProperty('linked-dependency')
+
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'project' }))
+
+  const result = execPnpmSync(['install'], { expectSuccess: true })
+
+  expect(result.stdout.toString()).not.toContain('verify-deps-before-run does not work with node-linker=pnp')
+  expect(project.readLockfile().importers['.'].dependencies).toBeUndefined()
+})
+
 test('a failed optional build leaves no link, and a repeat install does not rerun it', async () => {
   prepare({
     optionalDependencies: {
