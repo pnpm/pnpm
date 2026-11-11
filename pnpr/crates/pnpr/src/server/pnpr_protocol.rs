@@ -18,6 +18,16 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
         .into_response()
 }
 
+pub(super) async fn serve_npm_handshake(State(state): State<AppState>) -> Response {
+    let mut protocols = build_protocols_payload(&state.inner.config);
+    for name in ["resolver", "artifacts", "compilerCache", "pipeline"] {
+        protocols[name]["versions"] = serde_json::json!([]);
+        protocols[name]["features"] = serde_json::json!([]);
+    }
+    protocols["resolver"]["ecosystems"] = serde_json::json!([]);
+    axum::Json(serde_json::json!({ "pnpr": { "protocols": protocols } })).into_response()
+}
+
 fn protocol(enabled: bool, version: u32) -> serde_json::Value {
     let versions: Vec<u32> = enabled
         .then_some(version)

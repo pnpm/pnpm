@@ -346,7 +346,7 @@ fn npm_registry_routes() -> Router<AppState> {
         let path = |tail: &str| format!("{base}{tail}");
         let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
         let with_audit = super::security_audit::routes(with_teams, base)
-            .route(&path("/-/pnpr"), get(serve_pnpr_handshake))
+            .route(&path("/-/pnpr"), get(super::serve_npm_handshake))
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
             .route(&path("/-/log/{*resource}"), get(super::log_routes::get_log_resource))

@@ -592,26 +592,49 @@ async fn unsupported_npm_package_endpoints_explain_the_refusal() {
 }
 
 #[tokio::test]
-async fn capability_handshake_is_available_at_every_npm_base() {
+async fn npm_capability_handshakes_advertise_only_reachable_protocols() {
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for("http://upstream.invalid", tmp.path().to_path_buf()));
-    let mut expected = None;
-    for path in ["/-/pnpr", "/npm/-/pnpr", "/npm/~hosted/-/pnpr"] {
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.features.resolver.enabled = true;
+    config.features.artifacts.enabled = true;
+    config.features.pipeline.enabled = true;
+    let app = router(config);
+    for base in ["", "/npm", "/npm/~hosted"] {
         let response = app
             .clone()
             .oneshot(
-                Request::get(path)
+                Request::get(format!("{base}/-/pnpr"))
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(response.status(), StatusCode::OK, "{base}");
         let body = body_json(response.into_body()).await;
-        if let Some(expected) = &expected {
-            assert_eq!(&body, expected, "{path}");
-        } else {
-            expected = Some(body);
+        let protocols = &body["pnpr"]["protocols"];
+        let expected = if base.is_empty() { json!([0]) } else { json!([]) };
+        for name in ["resolver", "artifacts", "compilerCache", "pipeline"] {
+            assert_eq!(protocols[name]["versions"], expected, "{base} {name}");
+            assert_eq!(
+                protocols[name]["features"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty(),
+                !base.is_empty() || name != "resolver",
+                "{base} {name}",
+            );
         }
+        assert_eq!(protocols["publish"]["versions"], json!([0]));
+        assert_eq!(protocols["pnpmPublish"]["versions"], json!([1]));
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("{base}/-/pnpr/v0/publish"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(response.status(), StatusCode::NOT_FOUND, "{base}");
     }
 }

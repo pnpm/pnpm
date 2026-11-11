@@ -99,7 +99,10 @@ Every request routes through the registry graph:
 
 The capability handshake is served when any protocol surface is enabled. It is
 also available relative to each npm registry base, at `/npm/-/pnpr` and
-`/npm/~<name>/-/pnpr`. The `POST` endpoints require a valid pnpr
+`/npm/~<name>/-/pnpr`. At npm bases it advertises only `publish`,
+`pnpmPublish`, and `records`. Root-only protocols have empty versions and
+features there. Use the server root to discover and call resolver, artifact,
+compiler cache, and pipeline endpoints. The `POST` endpoints require a valid pnpr
 `Authorization` header.
 
 The response has one capability map, `pnpr.protocols`. Clients must ignore
