@@ -6,25 +6,29 @@ use pnpr_config::SqlBackendSettings;
 use pnpr_error::Result;
 use std::time::Duration;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires PNPR_TEST_POSTGRES_URL"]
-async fn on_postgres_writers_on_other_schemas_do_not_wait_for_each_other() {
-    let db = Db::network("PNPR_TEST_POSTGRES_URL").await;
-    let Backend::Network(settings) = &db.adapter else { unreachable!() };
-    let pool = sqlx::PgPool::connect(&settings.url).await.unwrap();
-    for schema in ["first", "second"] {
-        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
-            .execute(&pool)
+mod on_postgres {
+    use super::{Backend, Db, on_schema, write_while_holding};
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires PNPR_TEST_POSTGRES_URL"]
+    async fn writers_on_other_schemas_do_not_wait_for_each_other() {
+        let db = Db::network("PNPR_TEST_POSTGRES_URL").await;
+        let Backend::Network(settings) = &db.adapter else { unreachable!() };
+        let pool = sqlx::PgPool::connect(&settings.url).await.unwrap();
+        for schema in ["first", "second"] {
+            sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        pool.close().await;
+        let first = super::super::super::network::adapter(&on_schema(settings, "first")).unwrap();
+        let second = super::super::super::network::adapter(&on_schema(settings, "second")).unwrap();
+        tokio::task::spawn_blocking(move || write_while_holding(&*first, &*second))
             .await
+            .unwrap()
             .unwrap();
     }
-    pool.close().await;
-    let first = super::super::network::adapter(&on_schema(settings, "first")).unwrap();
-    let second = super::super::network::adapter(&on_schema(settings, "second")).unwrap();
-    tokio::task::spawn_blocking(move || write_while_holding(&*first, &*second))
-        .await
-        .unwrap()
-        .unwrap();
 }
 
 /// Commit a write through `second` while a write through `first` holds its

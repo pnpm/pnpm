@@ -74,6 +74,7 @@ async fn main() -> miette::Result<()> {
 
     init_logging(&config.logs);
     log_config_source(&source);
+    warn_experimental_database(&config);
     serve(config).await.map_err(|err| redacted_report(&err))
 }
 

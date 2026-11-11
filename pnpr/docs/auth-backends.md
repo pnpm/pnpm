@@ -84,7 +84,9 @@ database:
 pnpr uses the connection's current schema. Instances on different schemas of
 one database keep separate data and do not wait on each other's locks. Set the
 schema with the `options` URL parameter, for example
-`postgres://user:pass@host/db?options=-c%20search_path%3Dpnpr`.
+`postgres://user:pass@host/db?options=-c%20search_path%3Dpnpr`. The schema
+must exist before pnpr starts, and the database user needs permission to create
+tables in it.
 
 ## MySQL
 
