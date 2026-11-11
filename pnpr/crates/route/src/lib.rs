@@ -37,6 +37,8 @@ use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_pre
 
 mod route_hook;
 
+mod alias_admission;
+
 mod connect_policy;
 use connect_policy::ConnectPolicy;
 
@@ -213,27 +215,6 @@ impl RouteContext {
             upstream_rules,
             connect_policy: ConnectPolicy::from_config(config),
         }
-    }
-
-    /// Whether the upstream registry's effective per-package access admits
-    /// `identity` for `package`. A non-package fetch and an upstream with no
-    /// rules entry (a programmatically folded one) gate at the registry
-    /// level only, which alias selection already checked.
-    fn upstream_admits(&self, registry: &str, identity: &Identity, package: Option<&str>) -> bool {
-        let (Some(package), Some(rules)) = (package, self.upstream_rules.get(registry)) else {
-            return true;
-        };
-        rules.access_admits(package, identity)
-    }
-
-    /// The descriptor package qualifier for a proxied fetch: `Some(package)`
-    /// only when the upstream's rules explicitly refine this name's access,
-    /// so the cache descriptor re-checks that refinement on replay. Names
-    /// the registry-level gate alone covers stay registry-scoped, keeping
-    /// the common footprint one descriptor per alias.
-    fn alias_package_qualifier(&self, alias: &str, package: Option<&str>) -> Option<String> {
-        let (package, rules) = (package?, self.upstream_rules.get(alias)?);
-        rules.access_is_explicit(package).then(|| package.to_string())
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a
@@ -484,21 +465,6 @@ impl RouteContext {
             // matches a private hosted entry.
             RouteClass::Public
         }
-    }
-
-    fn select_alias(
-        &self,
-        identity: &Identity,
-        fetch: &str,
-        package: Option<&str>,
-    ) -> Option<&ResolvedAlias> {
-        self.aliases
-            .iter()
-            .find(|alias| {
-                fetch.starts_with(&alias.origin)
-                    && alias.access.allows(identity)
-                    && self.upstream_admits(&alias.name, identity, package)
-            })
     }
 
     pub(crate) fn allows_descriptor(
