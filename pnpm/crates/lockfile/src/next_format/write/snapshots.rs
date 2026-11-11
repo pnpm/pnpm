@@ -220,15 +220,74 @@ impl<'a> Snapshots<'a> {
     /// peers the package's snapshots bind differently, as `target` binds
     /// them. `None` when nothing tells the snapshot apart.
     pub(super) fn naming_bindings(&self, target: &PackageKey) -> Option<NamedBindings> {
+        self.naming_bindings_in(target, &mut HashSet::new())
+    }
+
+    fn naming_bindings_in(
+        &self,
+        target: &PackageKey,
+        visiting: &mut HashSet<PackageKey>,
+    ) -> Option<NamedBindings> {
         let &(package, index) = self.index.get(target)?;
+        if !visiting.insert(target.clone()) {
+            return None;
+        }
         let snapshot = &self.by_package[package].1[index];
         let varying = &self.varying[package];
         let peers: NamedBindings = snapshot
             .bindings()
             .filter(|(name, _)| varying.contains(*name))
-            .map(|(name, reference)| (name.to_string(), without_groups(reference)))
+            .map(|(name, reference)| {
+                let version = without_groups(reference);
+                let nested = self
+                    .binding_needs_nested(package, name, reference)
+                    .then(|| reference.resolve(name))
+                    .flatten()
+                    .and_then(|target| self.naming_bindings_in(&target, visiting));
+                let reference = match nested {
+                    Some(peers) => NextRef::Named { version, peers },
+                    None => NextRef::Plain(version),
+                };
+                (name.to_string(), reference)
+            })
             .collect();
-        (!peers.is_empty()).then_some(peers)
+        visiting.remove(target);
+        (!varying.is_empty()).then_some(peers)
+    }
+
+    /// Nested discriminators must also be written on the bindings they identify.
+    pub(super) fn mark_nested_bindings(&self, explicit: &mut Explicit) {
+        for snapshot in self.by_package.iter().flat_map(|(_, snapshots)| snapshots) {
+            let Some(bindings) = self.naming_bindings(snapshot.key) else { continue };
+            for name in snapshot
+                .binding_names()
+                .filter(|name| {
+                    bindings
+                        .get(&name.to_string())
+                        .is_some_and(|reference| reference.peers().is_some())
+                })
+            {
+                explicit.mark_snapshot_reference(snapshot.key, name);
+            }
+        }
+    }
+
+    fn binding_needs_nested(
+        &self,
+        package: usize,
+        name: &PkgName,
+        reference: &SnapshotDepRef,
+    ) -> bool {
+        let version = without_groups(reference);
+        self.by_package[package].1
+            .iter()
+            .any(|candidate| {
+                candidate
+                    .bindings()
+                    .any(|(bound, other)| {
+                        bound == name && other != reference && without_groups(other) == version
+                    })
+            })
     }
 
     pub(super) fn sections(
@@ -344,7 +403,7 @@ fn varying_bindings(snapshots: &[Snapshot<'_>]) -> HashSet<PkgName> {
     for snapshot in snapshots {
         for (name, reference) in snapshot.bindings() {
             let (bound, count) = values.entry(name).or_default();
-            bound.insert(without_groups(reference));
+            bound.insert(reference.clone());
             *count += 1;
         }
     }

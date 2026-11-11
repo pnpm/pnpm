@@ -13,7 +13,7 @@ use pnpm_resolving_deps_resolver::{
     ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
     directory_package_dir, local_directory_child_specs,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
 pub(super) fn check_local_dep_children_freshness(
@@ -64,22 +64,28 @@ pub(super) fn check_recorded_local_targets(
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
-    let catalog_child_aliases = if dep.declared_by_path {
-        HashSet::new()
+    let child_catalogs: HashMap<_, _> = if dep.declared_by_path {
+        HashMap::new()
     } else {
         pnpm_resolving_deps_resolver::manifest_child_specs(local_manifest.value(), dep.name)
             .map_err(|_| dep.outdated())?
             .into_iter()
-            .filter(|child| parse_catalog_protocol(&child.bare_specifier).is_some())
-            .map(|child| child.alias)
+            .filter_map(|child| {
+                parse_catalog_protocol(&child.bare_specifier)
+                    .map(|catalog| (child.alias.clone(), catalog.to_string()))
+            })
             .collect()
     };
     for child in &children {
         if child.optional && !check.config.optional {
             continue;
         }
-        if (catalog_child_aliases.contains(&child.alias)
-            && !catalog_child_is_fresh(check, dep, snapshot, child))
+        if (child_catalogs
+            .get(&child.alias)
+            .is_some_and(|catalog| {
+                !recorded_catalog_spec_matches(check, dep, &child.alias, catalog)
+                    .unwrap_or_else(|| catalog_child_is_fresh(check, dep, snapshot, child))
+            }))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
         {
             return Err(dep.outdated());
@@ -87,6 +93,24 @@ pub(super) fn check_recorded_local_targets(
         check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
     }
     Ok(())
+}
+
+fn recorded_catalog_spec_matches(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
+    alias: &str,
+    catalog: &str,
+) -> Option<bool> {
+    let recorded = check.lockfile.catalogs
+        .as_ref()?
+        .get(catalog)?
+        .get(alias)?;
+    Some(
+        dep.catalogs
+            .get(catalog)
+            .and_then(|entries| entries.get(alias))
+            == Some(&recorded.specifier),
+    )
 }
 
 pub(super) fn catalog_child_is_fresh(

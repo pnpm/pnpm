@@ -529,3 +529,49 @@ fn a_workspace_version_that_is_not_semver_agrees_across_layouts() {
         assert!(scenario.frozen_install_passes(&[]), "shared lockfile: {shared_lockfile}");
     }
 }
+
+#[test]
+fn recorded_directory_specs_accept_deduplicated_optional_peer_also_in_dependencies() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("autoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: true\ndedupeInjectedDeps: false\n");
+    let dependency = "@pnpm.e2e/foo";
+    write_manifest_value(
+        &fixture.workspace,
+        &json!({
+            "name": "root",
+            "dependencies": { dependency: "100.0.0", "shared": "workspace:*" },
+            "dependenciesMeta": { "shared": { "injected": true } },
+        }),
+    );
+    let shared = fixture.project("shared", "shared", ManifestDeps::default());
+    write_manifest_value(
+        &shared,
+        &json!({
+            "name": "shared", "version": "1.0.0",
+            "dependencies": { dependency: "100.0.0" },
+            "peerDependencies": { dependency: "^100.0.0" },
+            "peerDependenciesMeta": { dependency: { "optional": true } },
+        }),
+    );
+    let app = fixture.project("app", "app", ManifestDeps::default());
+    write_manifest_value(
+        &app,
+        &json!({
+            "name": "app", "version": "1.0.0",
+            "dependencies": { "shared": "workspace:*" },
+            "dependenciesMeta": { "shared": { "injected": true } },
+        }),
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    let frozen =
+        fixture.command_at(&fixture.workspace, ["install", "--lockfile-only", "--frozen-lockfile"]);
+    assert!(
+        !frozen.status.success(),
+        "the legacy check cannot recover the children owner's peer split",
+    );
+    fixture.append_workspace_yaml("lockfile:\n  format: v13\n");
+    fixture.run(["install", "--lockfile-only", "--no-frozen-lockfile"]);
+    let frozen =
+        fixture.command_at(&fixture.workspace, ["install", "--lockfile-only", "--frozen-lockfile"]);
+    assert_success(&frozen);
+}

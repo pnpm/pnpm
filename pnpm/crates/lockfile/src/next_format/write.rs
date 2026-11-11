@@ -30,6 +30,7 @@ pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFor
         patched_dependencies: lockfile.patched_dependencies.as_ref(),
     };
     let mut explicit = Explicit::default();
+    snapshots.mark_nested_bindings(&mut explicit);
     for _ in 0..MAX_ROUNDS {
         let sections = snapshots.sections(lockfile, &explicit)?;
         let Some(rebuilt) = read::Rebuilt::of(&sections, context) else {
@@ -88,9 +89,9 @@ impl Explicit {
     }
 }
 
-/// Fails unless `restored` equals the lockfile's own sections, as written:
-/// an importer's `specifiers` is the resolver's working copy and never
-/// reaches the file, so it does not count.
+/// Checks keys and dependency edges. Unbound peer names are derived from the
+/// final dependency graph. Importer `specifiers` are a working copy that is
+/// never written.
 pub(super) fn check_round_trip(
     lockfile: &Lockfile,
     restored: &RestoredSections,
@@ -122,19 +123,14 @@ pub(super) fn check_round_trip(
     Ok(())
 }
 
-/// Equal, with `transitivePeerDependencies` compared as a set.
+/// Bound peers are part of the snapshot key. Unbound peer metadata is derived
+/// from the final graph, which may differ from the resolver's cycle-cut walk.
 fn same_entry(left: &SnapshotEntry, right: &SnapshotEntry) -> bool {
-    let sorted = |entry: &SnapshotEntry| {
-        let mut names = entry.transitive_peer_dependencies.clone().unwrap_or_default();
-        names.sort();
-        names
-    };
     left.id == right.id
         && left.dependencies == right.dependencies
         && left.optional_dependencies == right.optional_dependencies
         && left.patched == right.patched
         && left.optional == right.optional
-        && sorted(left) == sorted(right)
 }
 
 pub(super) fn children(entry: &SnapshotEntry) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {

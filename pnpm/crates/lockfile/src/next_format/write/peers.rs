@@ -122,11 +122,8 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
     }
 }
 
-/// The children of `key` that are bound as its own peers: those whose
-/// provider is in the key's peer groups. A dependency's provider never is,
-/// because a peer below it would bind to the dependency itself. A hashed
-/// suffix names no providers, so there every child whose name the package
-/// declares as a peer counts.
+/// Non-transitive children whose providers appear in the peer groups.
+/// A hashed suffix uses the package's declared peers as candidates.
 pub(super) fn own_peer_names<'a>(
     key: &PackageKey,
     entry: &'a SnapshotEntry,
@@ -136,13 +133,28 @@ pub(super) fn own_peer_names<'a>(
         return HashSet::new();
     }
     let segments = provider_segments(&key.suffix);
-    let declared = packages
-        .and_then(|packages| packages.get(&key.without_peer()))
-        .and_then(|metadata| metadata.peer_dependencies.as_ref());
+    let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
+    let declared = metadata.and_then(|metadata| metadata.peer_dependencies.as_ref());
     children(entry)
-        .filter(|(alias, reference)| match &segments {
-            Some(segments) => names_provider(segments, alias, reference),
-            None => declared.is_some_and(|declared| declared.contains_key(&alias.to_string())),
+        .filter(|(alias, _)| {
+            !entry.transitive_peer_dependencies
+                .as_ref()
+                .is_some_and(|names| names.contains(&alias.to_string()))
+        })
+        .filter(|(alias, reference)| {
+            if let Some(segments) = &segments {
+                return names_provider(segments, alias, reference);
+            }
+            let name = alias.to_string();
+            let optional_peer = metadata
+                .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
+                .and_then(|peers| peers.get(&name))
+                .is_some_and(|peer| peer.optional);
+            declared.is_some_and(|declared| declared.contains_key(&name))
+                && (!optional_peer
+                    || entry.optional_dependencies
+                        .as_ref()
+                        .is_some_and(|deps| deps.contains_key(*alias)))
         })
         .map(|(alias, _)| alias)
         .collect()

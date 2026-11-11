@@ -3,48 +3,19 @@ use super::{
     MissingPeerInfo, NodeId, ResolveResult, ResolvedPackage, peer_segment_names, pkg_name_version,
 };
 
-/// Merge one record's graph node into the depPath-keyed graph. Records that
-/// share a depPath collapse onto one entry, the shallowest — and among equals
-/// the earliest walked — one supplying the node's own fields while the rest
-/// still contribute their peers, optional children and child edges.
+/// Records arrive in walk order, with their shared minimum depth already set.
+/// The first supplies the payload; later records contribute edges and peers.
 pub(super) fn insert_graph_node(
     graph: &mut DependenciesGraph,
-    graph_order: &mut HashMap<DepPath, u64>,
-    mut candidate: DependenciesGraphNode,
-    order: u64,
+    candidate: DependenciesGraphNode,
     transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
 ) {
-    let dep_path = candidate.dep_path.clone();
-    match graph.entry(dep_path.clone()) {
+    match graph.entry(candidate.dep_path.clone()) {
         std::collections::hash_map::Entry::Vacant(entry) => {
-            graph_order.insert(dep_path, order);
             entry.insert(candidate);
         }
         std::collections::hash_map::Entry::Occupied(mut entry) => {
-            let existing = entry.get();
-            let existing_order = graph_order
-                .get(&dep_path)
-                .copied()
-                .unwrap_or(order);
-            let replace = candidate.depth < existing.depth
-                || (candidate.depth == existing.depth && order < existing_order);
-            if !replace {
-                let existing = entry.get_mut();
-                merge_additional_edges(existing, candidate, transitive_by_dep_path);
-                return;
-            }
-            let edges = &mut candidate.edges;
-            edges.transitive_peer_dependencies.extend(
-                existing.edges.transitive_peer_dependencies.iter().cloned(),
-            );
-            edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
-            merge_preferred_child_edges(
-                &mut candidate,
-                existing.edges.children.clone(),
-                transitive_by_dep_path,
-            );
-            graph_order.insert(dep_path, order);
-            entry.insert(candidate);
+            merge_additional_edges(entry.get_mut(), candidate, transitive_by_dep_path);
         }
     }
 }

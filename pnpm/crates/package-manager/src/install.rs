@@ -1,4 +1,6 @@
 pub(crate) mod state_options;
+#[cfg(test)]
+pub(crate) mod tests;
 
 pub use deploy_manifest::apply_deploy_manifest_hook;
 pub(crate) use deploy_manifest::apply_deploy_manifest_hook_to_arc;
@@ -148,9 +150,6 @@ use workspace_state::{
     build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
-
-#[cfg(test)]
-mod tests;
 
 /// Run the lockfile verification fan-out to completion, blocking the
 /// caller on the verdict. Used by the install paths that have no fetch
