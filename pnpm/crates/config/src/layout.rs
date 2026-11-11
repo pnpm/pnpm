@@ -144,7 +144,6 @@ impl Config {
         if dir == pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(project_dir)) {
             let had_pin = self.lockfile_dir.is_some();
             self.lockfile_dir = None;
-            self.explicit_settings.remove("lockfileDir");
             if had_pin {
                 self.anchor_lockfile_paths(project_dir);
             }

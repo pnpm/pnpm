@@ -377,7 +377,7 @@ pub fn lockfile_dir_equal_to_project_dir_keeps_the_default_lockfile_layout() {
         let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
         assert_eq!(config.lockfile_dir, None, "yaml: {yaml}");
-        assert!(!config.explicit_settings.contains_key("lockfileDir"), "yaml: {yaml}");
+        assert!(config.explicit_settings.contains_key("lockfileDir"), "yaml: {yaml}");
         assert_eq!(config.shares_one_lockfile(), shares_one_lockfile, "yaml: {yaml}");
         assert_eq!(config.lockfile_dir_for(tmp.path()), tmp.path(), "yaml: {yaml}");
     }

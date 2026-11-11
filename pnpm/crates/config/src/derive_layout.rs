@@ -131,7 +131,6 @@ impl Config {
             });
         if lockfile_dir_is_default {
             self.lockfile_dir = None;
-            self.explicit_settings.remove("lockfileDir");
         }
 
         // A pinned `lockfileDir` moves the root `node_modules` and the
