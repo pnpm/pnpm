@@ -603,9 +603,12 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     let auth = AuthState::in_memory();
     let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth.clone());
     let id = auth.users.provision_user("alice").await.unwrap();
-    let caller_expires = chrono::Utc::now().timestamp().cast_unsigned() + 3600;
+    let caller_expires = chrono::Utc::now().timestamp() + 3600;
     let (caller, _) = auth.tokens
-        .issue_token(&id, pnpr_auth::NewToken::new().with_expires_at(Some(caller_expires)))
+        .issue_token(
+            &id,
+            pnpr_auth::NewToken::new().with_expires_at(Some(caller_expires.cast_unsigned() * 1000)),
+        )
         .await
         .unwrap();
     let create = |payload: Value| {
@@ -623,12 +626,9 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     for payload in [json!({}), json!({ "expires": 30 })] {
         let (status, body) = create(payload).await;
         assert_eq!(status, StatusCode::OK, "{body}");
-        assert_eq!(
-            rfc3339_unix_seconds(body["expires"].as_str().unwrap()),
-            caller_expires.cast_signed(),
-        );
+        assert_eq!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()), caller_expires);
     }
     let (status, body) = create(json!({ "expires_in": 60 })).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()) < caller_expires.cast_signed());
+    assert!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()) < caller_expires);
 }

@@ -137,8 +137,9 @@ async fn credential_limits(
     let raw = credential.ok_or_else(unsupported)?;
     if let Some(expires) = state.inner.identity.oidc.session_expires(raw) {
         const MILLIS_PER_SECOND: u64 = 1_000;
-        let expires_at =
-            u64::try_from(expires).ok().and_then(|seconds| seconds.checked_mul(MILLIS_PER_SECOND));
+        let expires_at = u64::try_from(expires)
+            .ok()
+            .and_then(|seconds| seconds.checked_mul(MILLIS_PER_SECOND));
         return Ok(CredentialLimits { cidr_whitelist: Vec::new(), expires_at });
     }
     let record =
