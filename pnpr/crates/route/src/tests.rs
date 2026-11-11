@@ -439,13 +439,13 @@ fn a_resolution_through_an_alias_an_earlier_one_skips_replays() {
 
     assert!(
         hook.authorize("https://npm.corp.example/lodash", Some("lodash"))
-            .is_some()
+            .is_some(),
     );
     assert!(
         footprint
             .lock()
             .unwrap()
-            .allows(&context, &user("alice"))
+            .allows(&context, &user("alice")),
     );
 }
 
