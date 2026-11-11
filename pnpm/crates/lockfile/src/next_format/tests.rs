@@ -1,6 +1,6 @@
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::{fmt::Write as _, path::Path};
 
 fn parse(yaml: &str) -> Lockfile {
     Lockfile::parse(yaml, Path::new("pnpm-lock.yaml"))
@@ -1381,5 +1381,82 @@ snapshots:
     {
         *reference = crate::SnapshotDepRef::Alias(format!("child@1.0.0{target}").parse().unwrap());
     }
+    written_and_read(&lockfile);
+}
+
+#[test]
+fn mixed_hashed_peer_groups_with_many_providers_round_trip() {
+    let hashed = |segment| crate::PeerBindings::Explicit(vec![segment]).to_suffix(3).unwrap();
+    let nested = hashed("nested@1.0.0".to_string());
+    let cycle = hashed("root@1.0.0".to_string());
+    let groups = (0..8)
+        .map(|index| {
+            if index == 7 {
+                format!("provider-{index}@1.0.0")
+            } else {
+                format!("provider-{index}@1.0.0{nested}")
+            }
+        })
+        .collect();
+    let suffix = crate::PeerBindings::Explicit(groups).to_suffix(3).unwrap();
+    let mut declarations = String::new();
+    let mut dependencies = String::new();
+    let mut packages = String::new();
+    let mut snapshots = String::new();
+    for index in 0..8 {
+        let (peer, version, provider_suffix) = if index == 7 {
+            ("root", format!("1.0.0{suffix}"), &cycle)
+        } else {
+            ("nested", "1.0.0".to_string(), &nested)
+        };
+        writeln!(declarations, "      provider-{index}: '*'").unwrap();
+        writeln!(dependencies, "      provider-{index}: 1.0.0{provider_suffix}").unwrap();
+        write!(
+            packages,
+            r"  provider-{index}@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      {peer}: '*'
+",
+        )
+        .unwrap();
+        write!(
+            snapshots,
+            r"  provider-{index}@1.0.0{provider_suffix}:
+    dependencies:
+      {peer}: {version}
+",
+        )
+        .unwrap();
+    }
+    let lockfile = parse(&format!(
+        r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      root:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  root@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+{declarations}      own: '*'
+{packages}  own@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+  nested@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+snapshots:
+  root@1.0.0{suffix}:
+    dependencies:
+{dependencies}      own: 1.0.0
+{snapshots}  own@1.0.0: {{}}
+  nested@1.0.0: {{}}
+",
+    ));
     written_and_read(&lockfile);
 }
