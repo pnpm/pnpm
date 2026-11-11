@@ -27,6 +27,7 @@ impl RunningExecution {
                 Some(if *separate_process_group { -pid } else { pid })
             }
             Self::Group { leader } => i32::try_from(*leader).ok().map(|leader| -leader),
+            #[cfg(feature = "shell-emulator")]
             Self::Emulated(_) => None,
         }
     }

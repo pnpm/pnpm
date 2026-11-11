@@ -41,7 +41,8 @@ fn run(args: &CliArgs) -> Result<(), String> {
         .iter()
         .map(|&lto| measure(args, lto, &site))
         .collect::<Result<Vec<_>, _>>()?;
-    let report = Report { target, measurements };
+    let probe_features = if args.no_default_features { "no-default-features" } else { "default" };
+    let report = Report { target, probe_features: probe_features.to_string(), measurements };
     let json = if args.json.is_some() || args.compare.is_some() {
         Some(serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?)
     } else {

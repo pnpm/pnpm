@@ -13,6 +13,7 @@ pub struct SizeChange {
 #[derive(Deserialize)]
 struct SizeReport {
     target: String,
+    probe_features: String,
     measurements: Vec<SizeMeasurement>,
 }
 
@@ -91,6 +92,10 @@ pub fn render_comparison(current: &str, baseline: &str) -> Result<String, String
             baseline.target, current.target,
         ));
     }
+    let feature_summary = format!(
+        "Baseline features: `{}`; current features: `{}`\n\n",
+        baseline.probe_features, current.probe_features,
+    );
     let current_sizes: Vec<_> = current.measurements
         .iter()
         .map(|measurement| (measurement.lto, measurement.stripped_size))
@@ -100,7 +105,8 @@ pub fn render_comparison(current: &str, baseline: &str) -> Result<String, String
         .map(|measurement| (measurement.lto, measurement.stripped_size))
         .collect();
     let changes = compare_sizes(&current_sizes, &baseline_sizes)?;
-    let mut output = String::from(
+    let mut output = feature_summary;
+    output.push_str(
         "| LTO | Baseline | Current | Change | Change % |\n| --- | ---: | ---: | ---: | ---: |\n",
     );
     for change in changes {
@@ -184,8 +190,10 @@ mod tests {
 
     #[test]
     fn rejects_reports_for_different_targets() {
-        let current = r#"{"target":"aarch64-apple-darwin","measurements":[]}"#;
-        let baseline = r#"{"target":"x86_64-unknown-linux-gnu","measurements":[]}"#;
+        let current =
+            r#"{"target":"aarch64-apple-darwin","probe_features":"default","measurements":[]}"#;
+        let baseline =
+            r#"{"target":"x86_64-unknown-linux-gnu","probe_features":"default","measurements":[]}"#;
         assert_eq!(
             super::render_comparison(current, baseline),
             Err("cannot compare reports for different targets: x86_64-unknown-linux-gnu and aarch64-apple-darwin".to_string()),
@@ -194,11 +202,11 @@ mod tests {
 
     #[test]
     fn comparison_uses_stripped_size_from_json_reports() {
-        let current = r#"{"target":"x86_64-unknown-linux-gnu","measurements":[{"lto":"thin","stripped_size":90}]}"#;
-        let baseline = r#"{"target":"x86_64-unknown-linux-gnu","measurements":[{"lto":"thin","stripped_size":100}]}"#;
+        let current = r#"{"target":"x86_64-unknown-linux-gnu","probe_features":"no-default-features","measurements":[{"lto":"thin","stripped_size":90}]}"#;
+        let baseline = r#"{"target":"x86_64-unknown-linux-gnu","probe_features":"default","measurements":[{"lto":"thin","stripped_size":100}]}"#;
         assert_eq!(
             super::render_comparison(current, baseline).unwrap(),
-            "| LTO | Baseline | Current | Change | Change % |\n| --- | ---: | ---: | ---: | ---: |\n| thin | 100 | 90 | -10 | -10.00% |\n",
+            "Baseline features: `default`; current features: `no-default-features`\n\n| LTO | Baseline | Current | Change | Change % |\n| --- | ---: | ---: | ---: | ---: |\n| thin | 100 | 90 | -10 | -10.00% |\n",
         );
     }
 }

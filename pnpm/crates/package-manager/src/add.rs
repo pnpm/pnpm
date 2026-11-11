@@ -40,6 +40,7 @@ use pipe_trait::Pipe;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolverError;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
@@ -173,8 +174,14 @@ pub enum AddError {
 
     /// Resolving a `node@runtime:<spec>` selector against the Node.js
     /// release index (to pin the manifest to the picked version) failed.
+    #[cfg(feature = "runtime-provisioning")]
     #[diagnostic(transparent)]
     ResolveRuntimeSpec(#[error(source)] NodeResolverError),
+
+    #[cfg(not(feature = "runtime-provisioning"))]
+    #[display("Runtime provisioning is not enabled in this build")]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_PROVISIONING_UNAVAILABLE))]
+    RuntimeProvisioningUnavailable,
 
     /// A `jsr:` add selector that names no package, an unscoped one, or
     /// one npm would reject. Kept as the diagnostic the parser raised, so

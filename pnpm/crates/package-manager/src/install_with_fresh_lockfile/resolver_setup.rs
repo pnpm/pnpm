@@ -8,10 +8,16 @@
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
-use pnpm_config::{Config, Tool};
+use pnpm_config::Config;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_config::Tool;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_bun_resolver::BunResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_lockfile::DeclaredRegistryPrefixes;
 use pnpm_resolving_default_resolver::DefaultResolver;
@@ -333,6 +339,7 @@ impl ResolverChainInputs<'_> {
         }
     }
 
+    #[cfg(feature = "runtime-provisioning")]
     fn node_resolver(&self) -> NodeResolver {
         let mut node_resolver = NodeResolver::new_with_auth(
             Arc::clone(self.fetching.http_client),
@@ -414,7 +421,10 @@ impl ResolverChainInputs<'_> {
             Box::new(self.git_resolver()),
             Box::new(self.tarball_resolver()),
             Box::new(LocalSchemeResolver::new(local_ctx)),
-            Box::new(self.node_resolver()),
+        ]);
+        #[cfg(feature = "runtime-provisioning")]
+        chain.extend([
+            Box::new(self.node_resolver()) as Box<dyn Resolver>,
             Box::new(DenoResolver::new(
                 Arc::clone(self.fetching.http_client),
                 Arc::clone(npm_resolver),
@@ -427,8 +437,10 @@ impl ResolverChainInputs<'_> {
                 Arc::clone(self.fetching.http_client),
                 self.config.tls.strict_ssl.unwrap_or(true),
             )),
-            Box::new(self.named_registry_resolver(caches)),
-            Box::new(LocalPathResolver::new(local_ctx)),
+        ]);
+        chain.extend([
+            Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>,
+            Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>,
         ]);
         chain
     }

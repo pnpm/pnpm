@@ -10,10 +10,14 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["shell-emulator"]
+shell-emulator = ["pnpm-executor/shell-emulator"]
+
 [dependencies]
 pnpm-cmd-shim = { workspace = true }
 pnpm-diagnostics = { workspace = true }
-pnpm-executor = { workspace = true }
+pnpm-executor = { workspace = true, default-features = false }
 pnpm-fs = { workspace = true }
 pnpm-fs-packlist = { workspace = true }
 pnpm-git-utils = { workspace = true }

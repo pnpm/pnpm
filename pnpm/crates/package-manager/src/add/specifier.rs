@@ -14,7 +14,9 @@ use crate::{
     runtime_specifier::{node_runtime_version_spec, runtime_save_specifier},
 };
 use pnpm_catalogs_types::Catalogs;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::LogEvent;
@@ -346,6 +348,7 @@ pub(super) fn listing_catalog_name<'a>(
     Some(catalog_name)
 }
 
+#[cfg(feature = "runtime-provisioning")]
 pub(super) async fn resolve_node_runtime_specifier(
     version_spec: &str,
     prev_specifier: Option<&str>,
@@ -365,6 +368,15 @@ pub(super) async fn resolve_node_runtime_specifier(
         .resolve_save_specifier(version_spec, prev_specifier)
         .await
         .map_err(AddError::ResolveRuntimeSpec)
+}
+
+#[cfg(not(feature = "runtime-provisioning"))]
+pub(super) async fn resolve_node_runtime_specifier(
+    _version_spec: &str,
+    _prev_specifier: Option<&str>,
+    _inputs: &AddResolveInputs<'_, '_>,
+) -> Result<String, AddError> {
+    Err(AddError::RuntimeProvisioningUnavailable)
 }
 /// Split a `pacquet add` argument into its package name and optional
 /// `@<version>` part. The version separator is the first `@` at or after

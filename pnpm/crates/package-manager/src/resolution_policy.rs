@@ -3,13 +3,19 @@
 //! versions (`minimumReleaseAge` and `resolutionMode` included).
 
 use chrono::{DateTime, Utc};
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_config::Tool;
 use pnpm_config::{
-    Config, NeedsFullMetadataFor, ResolutionMode, Tool,
+    Config, NeedsFullMetadataFor, ResolutionMode,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_bun_resolver::BunResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
+#[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::DefaultResolver;
@@ -138,6 +144,7 @@ impl PickPolicy {
 ///
 /// Returns an error when the configured named-registry prefixes cannot be
 /// merged into an unambiguous resolver map.
+#[cfg_attr(not(feature = "runtime-provisioning"), allow(clippy::needless_pass_by_value))]
 pub fn create_configured_registry_resolver(
     config: &Config,
     http_client: Arc<ThrottledClient>,
@@ -147,17 +154,24 @@ pub fn create_configured_registry_resolver(
     let named = create_configured_named_registry_resolver(config, &npm, policy)?;
     let registry_resolver: Arc<dyn Resolver> =
         Arc::new(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]));
-    let node_resolver = create_configured_node_resolver(config, Arc::clone(&http_client));
-    Ok(DefaultResolver::new(vec![
-        Box::new(Arc::clone(&registry_resolver)) as Box<dyn Resolver>,
-        Box::new(node_resolver),
-        Box::new(DenoResolver::new(Arc::clone(&http_client), Arc::clone(&registry_resolver))),
-        Box::new(
+    let chain: Vec<Box<dyn Resolver>> = vec![Box::new(Arc::clone(&registry_resolver))];
+    #[cfg(feature = "runtime-provisioning")]
+    let chain = {
+        let mut chain = chain;
+        let node_resolver = create_configured_node_resolver(config, Arc::clone(&http_client));
+        chain.push(Box::new(node_resolver));
+        chain.push(Box::new(DenoResolver::new(
+            Arc::clone(&http_client),
+            Arc::clone(&registry_resolver),
+        )));
+        chain.push(Box::new(
             BunResolver::new(Arc::clone(&http_client), Arc::clone(&registry_resolver))
                 .with_mirror(config.tool_mirror(Tool::Bun)),
-        ),
-        Box::new(YarnResolver::new(http_client, config.tls.strict_ssl.unwrap_or(true))),
-    ]))
+        ));
+        chain.push(Box::new(YarnResolver::new(http_client, config.tls.strict_ssl.unwrap_or(true))));
+        chain
+    };
+    Ok(DefaultResolver::new(chain))
 }
 
 fn create_configured_named_registry_resolver(
@@ -200,6 +214,7 @@ fn create_configured_named_registry_resolver(
     })
 }
 
+#[cfg(feature = "runtime-provisioning")]
 fn create_configured_node_resolver(
     config: &Config,
     http_client: Arc<ThrottledClient>,

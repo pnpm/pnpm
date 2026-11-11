@@ -10,8 +10,12 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["shell-emulator"]
+shell-emulator = ["pnpm-git-fetcher/shell-emulator"]
+
 [dependencies]
-pnpm-git-fetcher = { workspace = true }
+pnpm-git-fetcher = { workspace = true, default-features = false }
 pnpm-git-utils = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }

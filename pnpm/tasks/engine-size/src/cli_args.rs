@@ -44,6 +44,10 @@ pub struct CliArgs {
     /// Compare the report against a JSON report produced by an earlier run.
     #[clap(long)]
     pub compare: Option<PathBuf>,
+
+    /// Build the probe without its default capability features.
+    #[clap(long)]
+    pub no_default_features: bool,
 }
 
 impl CliArgs {

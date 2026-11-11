@@ -10,6 +10,10 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["shell-emulator"]
+shell-emulator = ["pnpm-executor/shell-emulator", "pnpm-git-fetcher/shell-emulator"]
+
 [dependencies]
 pnpm-package-name = { workspace = true }
 pnpm-catalogs-protocol-parser = { workspace = true }
@@ -21,9 +25,9 @@ pnpm-config = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
-pnpm-executor = { workspace = true }
+pnpm-executor = { workspace = true, default-features = false }
 pnpm-fs = { workspace = true }
-pnpm-git-fetcher = { workspace = true }
+pnpm-git-fetcher = { workspace = true, default-features = false }
 pnpm-graph-hasher = { workspace = true }
 pnpm-hooks = { workspace = true }
 pnpm-lockfile = { workspace = true }

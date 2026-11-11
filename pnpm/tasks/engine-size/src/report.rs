@@ -10,6 +10,7 @@ use std::fmt::Write as _;
 #[derive(Debug, Serialize)]
 pub struct Report {
     pub target: String,
+    pub probe_features: String,
     pub measurements: Vec<Measurement>,
 }
 
@@ -24,7 +25,10 @@ pub struct Measurement {
 
 impl Report {
     pub fn to_markdown(&self, top: usize) -> String {
-        let mut out = format!("# Engine size\n\nTarget: `{}`\n\n", self.target);
+        let mut out = format!(
+            "# Engine size\n\nTarget: `{}`\nProbe features: `{}`\n\n",
+            self.target, self.probe_features,
+        );
         out.push_str("| LTO | Stripped size | Code (symbols) | `pnpm_*` code | Cold install | Warm install |\n");
         out.push_str("| --- | ---: | ---: | ---: | ---: | ---: |\n");
         for measurement in &self.measurements {

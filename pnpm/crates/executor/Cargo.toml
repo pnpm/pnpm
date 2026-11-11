@@ -10,6 +10,10 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["shell-emulator"]
+shell-emulator = ["dep:deno_task_shell"]
+
 [dependencies]
 pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
@@ -42,7 +46,7 @@ tempfile = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 which = { workspace = true }
-deno_task_shell = { workspace = true }
+deno_task_shell = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["net", "process", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]

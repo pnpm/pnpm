@@ -8,11 +8,13 @@ just engine-size                                          # sizes only
 just engine-size --registry https://registry.npmjs.org/   # sizes and install timings
 just engine-size --json target/main.json                  # save a baseline
 just engine-size --compare target/main.json               # report the size delta
+just engine-size --no-default-features                    # measure a reduced probe
 ```
 
 `--help` lists the other options. `--json <path>` also writes the report as
-JSON. `--compare <path>` compares stripped sizes with another JSON report and
-requires both reports to use the same target and LTO modes.
+JSON. `--compare <path>` compares stripped sizes with another JSON report,
+requires both reports to use the same target and LTO modes, and prints each
+probe's feature profile.
 
 The pull request size workflow publishes the baseline and candidate reports.
 Reviewers accept intentional growth when the pull request explains the size
