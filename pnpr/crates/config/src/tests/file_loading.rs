@@ -612,3 +612,11 @@ fn unresolved_secret_in_a_flow_mapping_is_rejected() {
     let config = Config::from_yaml_str(&with_default, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
 }
+
+#[test]
+fn optional_nonsecret_variables_in_flow_mappings_remain_optional() {
+    let yaml = r#"{ storage: ${PNPR_TEST_UNRESOLVED_VAR_123}./store, cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123:-fallback}, cacheTag: example } }"#;
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.storage.hosted_dir.ends_with("store"));
+    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
+}

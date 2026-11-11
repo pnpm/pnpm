@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use pnpm_env_replace::{EnvVar, env_replace_lossy};
+use pnpm_env_replace::{EnvVar, env_replace_lossy, placeholder_ranges};
 use pnpr_error::RegistryError;
 use sha2::{Digest, Sha256};
 
@@ -251,10 +251,7 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
 }
 
 pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), RegistryError> {
-    let Ok(val) = serde_saphyr::from_str::<serde_json::Value>(raw) else {
-        // Without a parsed tree, any unresolved variable may belong to a secret.
-        return check_secret_env_field::<Sys>("unparsed configuration", raw);
-    };
+    let Some(val) = parse_unexpanded_config(raw) else { return Ok(()) };
     if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
     {
         check_secret_env_field::<Sys>("cloudflareCdn.apiToken", token)?;
@@ -266,6 +263,52 @@ pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), Reg
     validate_database_secrets::<Sys>(&val)?;
     validate_registry_secrets::<Sys>(&val)?;
     Ok(())
+}
+
+fn parse_unexpanded_config(raw: &str) -> Option<serde_json::Value> {
+    if let Ok(value) = serde_saphyr::from_str(raw) {
+        return Some(value);
+    }
+    // Flow mappings reject unquoted braces inside environment placeholders.
+    let mut prefix = "__pnpr_env_".to_string();
+    while raw.contains(&prefix) {
+        prefix.push('_');
+    }
+    let mut masked = raw.to_string();
+    let mut placeholders = Vec::new();
+    for (index, range) in placeholder_ranges(raw)
+        .into_iter()
+        .enumerate()
+        .rev()
+    {
+        let marker = format!("{prefix}{index}__");
+        placeholders.push((marker.clone(), &raw[range.clone()]));
+        masked.replace_range(range, &marker);
+    }
+    let mut value = serde_saphyr::from_str(&masked).ok()?;
+    restore_env_placeholders(&mut value, &placeholders);
+    Some(value)
+}
+
+fn restore_env_placeholders(value: &mut serde_json::Value, placeholders: &[(String, &str)]) {
+    match value {
+        serde_json::Value::String(text) => {
+            for (marker, placeholder) in placeholders {
+                *text = text.replace(marker, placeholder);
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                restore_env_placeholders(value, placeholders);
+            }
+        }
+        serde_json::Value::Object(values) => {
+            for value in values.values_mut() {
+                restore_env_placeholders(value, placeholders);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn check_secret_env_field<Sys: EnvVar>(field: &str, raw_val: &str) -> Result<(), RegistryError> {
