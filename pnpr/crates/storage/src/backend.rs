@@ -120,6 +120,9 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>>;
 
+    /// Whether `namespace` holds at least one record.
+    async fn has_any_record(&self, namespace: &str) -> Result<bool>;
+
     /// Write a record where nothing is stored yet, reporting `false` when the
     /// key is taken.
     async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool>;
