@@ -11,8 +11,9 @@
 //! pnpm died, and the watchdog kills every group still named, as the
 //! signal would have had the children stayed in pnpm's group.
 //!
-//! One watchdog serves every group of a pnpm process. It starts with the
-//! first group, so a command that creates none starts no `sh`.
+//! One watchdog serves every group of a pnpm process. It starts before the
+//! first group's leader is spawned, so a command that creates no group
+//! starts no `sh`.
 //!
 //! Windows needs none of this: the Job Object in [`crate::job_control`]
 //! ends the children when pnpm does.
@@ -55,6 +56,15 @@ for group in $groups; do kill -9 -"$group"; done"#;
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
 
+/// Start the watchdog unless one runs already. A child runs from the moment
+/// it is spawned, so starting the watchdog before the first group's leader
+/// keeps [`watch`] down to one write, rather than leaving that group
+/// unwatched for as long as a `sh` takes to spawn. Returns `false` when there
+/// is no `sh` to watch with.
+pub(super) fn start() -> io::Result<bool> {
+    lock().start()
+}
+
 /// Watch the process group led by `leader` until [`release`] is called for
 /// it, killing the group should pnpm die first. Returns `false` when there
 /// is no `sh` to watch with, which leaves the group on its own.
@@ -85,6 +95,17 @@ pub(super) struct GroupWatch {
 impl GroupWatch {
     pub(super) const fn new() -> Self {
         Self { watchdog: None, leaders: Vec::new(), shell_missing: false }
+    }
+
+    /// See [`start`].
+    pub(super) fn start(&mut self) -> io::Result<bool> {
+        if self.shell_missing {
+            return Ok(false);
+        }
+        if self.watchdog.is_some() {
+            return Ok(true);
+        }
+        self.start_watchdog()
     }
 
     /// See [`watch`].

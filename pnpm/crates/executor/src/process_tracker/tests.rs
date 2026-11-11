@@ -66,6 +66,25 @@ fn one_watchdog_watches_every_process_group() {
     assert_eq!(watchdogs.len(), 1, "one watchdog should watch all three groups");
 }
 
+/// A watchdog started ahead of the first group watches that group and every
+/// later one without a second `sh`.
+#[test]
+fn a_watchdog_started_ahead_of_its_groups_watches_them() {
+    let mut watch = GroupWatch::new();
+    assert!(watch.start().expect("start the watchdog"), "`sh` is available");
+    assert!(watch.start().expect("start the watchdog again"), "`sh` is available");
+    let mut leader = spawn_group_leader();
+    assert!(watch.watch(leader.id()).expect("watch the group"), "`sh` is available");
+    assert_eq!(watchdogs().len(), 1, "a running watchdog should not be started again");
+
+    drop(watch);
+
+    assert!(
+        exits_within(&mut leader, Duration::from_secs(10)),
+        "the group should have been killed once its watchdog lost pnpm",
+    );
+}
+
 /// Dropping the watch closes the watchdog's pipe the way pnpm's death does.
 /// Every group still watched is killed, past one that has exited already,
 /// and a released group is left alone.
