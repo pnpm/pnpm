@@ -93,19 +93,7 @@ pub(super) fn apply_hook_delta(
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     if delta.get("lockfileDir").is_some() {
-        let project_dir = config.dir.clone();
-        let lockfile_dir = config.lockfile_dir
-            .clone()
-            .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
-        config.pin_lockfile_dir(&lockfile_dir, &project_dir);
-        if config.lockfile_dir.is_none() {
-            let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
-            config.anchor_lockfile_paths(&default_lockfile_dir);
-        }
-        config.refresh_node_path_after_lockfile_dir_change::<Host>(
-            hook_node_path,
-            hook_node_options,
-        );
+        apply_lockfile_dir_change(config, hook_node_path, hook_node_options);
     }
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;
@@ -114,6 +102,23 @@ pub(super) fn apply_hook_delta(
     }
     apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;
     Ok(())
+}
+
+fn apply_lockfile_dir_change(
+    config: &mut Config,
+    hook_node_path: Option<Option<String>>,
+    hook_node_options: Option<Option<String>>,
+) {
+    let project_dir = config.dir.clone();
+    let lockfile_dir = config.lockfile_dir
+        .clone()
+        .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
+    config.pin_lockfile_dir(&lockfile_dir, &project_dir);
+    if config.lockfile_dir.is_none() {
+        let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
+        config.anchor_lockfile_paths(&default_lockfile_dir);
+    }
+    config.refresh_node_path_after_lockfile_dir_change::<Host>(hook_node_path, hook_node_options);
 }
 
 fn changed_extra_env_value(input: &Value, current: &Value, key: &str) -> Option<Option<String>> {
