@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Installs using a pnpr server now reject responses that do not confirm the requested resolution and verification policies. Upgrade the pnpr server before upgrading pnpm.
+Installs now fail when a pnpr server does not confirm the requested resolution and verification policies. Upgrade the pnpr server before upgrading pnpm.

@@ -10,7 +10,6 @@ use super::{
 use applied_policies::assert_applied_policies;
 use futures_util::StreamExt as _;
 
-
 /// Read the response body as NDJSON, handing each non-empty line to
 /// `on_line` until one of them settles the stream. `None` when the stream
 /// ended without a terminal frame.
