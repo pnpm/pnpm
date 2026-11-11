@@ -384,6 +384,50 @@ pub fn lockfile_dir_equal_to_project_dir_keeps_the_default_lockfile_layout() {
 }
 
 #[test]
+pub fn lockfile_dir_equal_to_workspace_root_does_not_reanchor_env_paths() {
+    static WORKSPACE_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    struct HostWithDefaultLockfileDirEnv;
+    impl EnvVar for HostWithDefaultLockfileDirEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_LOCKFILE_DIR" => WORKSPACE_DIR
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned()),
+                "PNPM_CONFIG_VIRTUAL_STORE_DIR" => Some("cache".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithDefaultLockfileDirEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithDefaultLockfileDirEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithDefaultLockfileDirEnv);
+    host_current_dir!(HostWithDefaultLockfileDirEnv);
+
+    let tmp = tempdir().unwrap();
+    let project_dir = tmp.path().join("packages/app");
+    fs::create_dir_all(&project_dir).expect("create project directory");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
+    WORKSPACE_DIR
+        .set(tmp.path().to_path_buf())
+        .expect("set workspace directory");
+
+    let config =
+        Config::new().current::<HostWithDefaultLockfileDirEnv>(&project_dir).expect("loads");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, Some(project_dir.join("cache")));
+}
+
+#[test]
 pub fn package_map_settings_load_from_env() {
     struct HostWithPackageMapEnv;
     impl EnvVar for HostWithPackageMapEnv {

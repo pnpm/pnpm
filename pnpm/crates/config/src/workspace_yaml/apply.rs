@@ -155,11 +155,8 @@ impl WorkspaceSettings {
         if let Some(v) = self.global_virtual_store_dir.take() {
             config.global_virtual_store_dir = resolve(base_dir, &v);
         }
-        // Last of the path-valued settings: pinning the lockfile dir
-        // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
-        // must see whatever this layer set.
         if let Some(v) = self.lockfile_dir.take() {
-            config.pin_lockfile_dir(&resolve(base_dir, &v));
+            config.set_lockfile_dir(&resolve(base_dir, &v));
         }
         if let Some(v) = self.store_dir.take() {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));

@@ -126,13 +126,8 @@ impl Config {
         let lockfile_dir_is_default = self.lockfile_dir
             .as_ref()
             .is_some_and(|lockfile_dir| {
-                let default_lockfile_dir = if self.shared_workspace_lockfile {
-                    self.workspace_dir.as_deref().unwrap_or(start_dir)
-                } else {
-                    start_dir
-                };
                 pnpm_fs::lexical_normalize(lockfile_dir)
-                    == pnpm_fs::lexical_normalize(default_lockfile_dir)
+                    == pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(start_dir))
             });
         if lockfile_dir_is_default {
             self.lockfile_dir = None;
