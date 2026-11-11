@@ -230,6 +230,7 @@ fn conflicting_non_semver_peer_ranges_are_not_joined() {
         ["npm:b@^1", "npm:b@^2"],
         ["latest", "next"],
         ["file:../lib 1.0.0", "file:../lib 2.0.0"],
+        ["file:../a 1.0.0", "file:../b 1.0.0"],
         ["../a 1.0.0", "../b 2.0.0"],
         [r"..\a", r"..\b"],
     ] {

@@ -208,13 +208,16 @@ pub(super) fn merge_ranges(
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
+    if !unique.iter().all(|range| is_registry_peer_specifier(range)) {
+        return None;
+    }
     if let Some(intersection) = intersect_ranges(&unique) {
         return Some(intersection);
     }
     if auto_install_peers_from_highest_match
         && unique
             .iter()
-            .all(|range| is_registry_peer_specifier(range) && Range::parse(range).is_ok())
+            .all(|range| Range::parse(range).is_ok())
     {
         return Some(ranges.join(" || "));
     }

@@ -58,6 +58,7 @@ test.each([
   ['npm:b@^1', 'npm:b@^2'],
   ['latest', 'next'],
   ['file:../lib 1.0.0', 'file:../lib 2.0.0'],
+  ['file:../a 1.0.0', 'file:../b 1.0.0'],
   ['../a 1.0.0', '../b 2.0.0'],
   ['..\\a', '..\\b'],
 ])('does not join conflicting non-semver peer ranges %s and %s', (first, second) => {
