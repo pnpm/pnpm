@@ -444,7 +444,7 @@ fn owners_token_rejected_outside_npm() {
         );
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("only npm records package owners");
-        assert!(err.to_string().contains("does not record package owners"), "{eco}: {err}");
+        assert!(err.to_string().contains("do not record package owners"), "{eco}: {err}");
     }
 }
 

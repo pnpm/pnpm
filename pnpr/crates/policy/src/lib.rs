@@ -16,7 +16,7 @@
 //! registry's live [`TeamDirectory`], so evaluation needs only the caller's
 //! identity.
 
-pub use access::{AccessList, AccessToken, Identity, Membership};
+pub use access::{AccessList, AccessToken, Identity, Membership, records_package_owners};
 pub use package_rules::{PackageRules, RuleOverride};
 pub use teams::{Team, TeamDirectory, Teams};
 

@@ -2,6 +2,16 @@ use super::TeamDirectory;
 use pnpr_registry::Ecosystem;
 use std::sync::Arc;
 
+/// Whether `ecosystem`'s packages record maintainers. Where they do not,
+/// `$owners` admits nobody.
+#[must_use]
+pub fn records_package_owners(ecosystem: Ecosystem) -> bool {
+    match ecosystem {
+        Ecosystem::Npm => true,
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => false,
+    }
+}
+
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessToken {
@@ -68,15 +78,14 @@ impl AccessList {
     }
 
     /// The registry-level `publish` default for a registry serving
-    /// `ecosystem`. Only npm packages record maintainers, so elsewhere
-    /// `$owners` would admit nobody.
+    /// `ecosystem`: `$owners` where [`records_package_owners`] holds,
+    /// `$authenticated` elsewhere.
     #[must_use]
     pub fn publish_default(ecosystem: Ecosystem) -> Self {
-        match ecosystem {
-            Ecosystem::Npm => Self::from_tokens(["$owners"]),
-            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => {
-                Self::from_tokens(["$authenticated"])
-            }
+        if records_package_owners(ecosystem) {
+            Self::from_tokens(["$owners"])
+        } else {
+            Self::from_tokens(["$authenticated"])
         }
     }
 

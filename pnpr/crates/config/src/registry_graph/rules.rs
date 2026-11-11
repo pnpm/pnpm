@@ -1,6 +1,6 @@
 use super::super::{
     AccessList, AccessSpec, Ecosystem, IndexMap, PackageAccess, PackagePattern, PackageRule,
-    PackageRules, RegistryError, TeamDirectory,
+    PackageRules, RegistryError, TeamDirectory, check_owners_supported,
 };
 
 /// Compile a `registries:` entry's registry-level `access:` value, naming the
@@ -79,7 +79,7 @@ fn compile_package_rule(
     let key = pattern.to_string();
     let key = key.as_str();
     validate_unpublish_supported(registry, ecosystem, key, rule)?;
-    let compiled = PackageRule {
+    let rule = PackageRule {
         pattern: pattern.clone(),
         access: compile_rule_access_list(
             registry,
@@ -103,29 +103,11 @@ fn compile_package_rule(
             teams,
         )?,
     };
-    validate_owners_supported(registry, ecosystem, key, &compiled)?;
-    Ok(compiled)
-}
-
-fn validate_owners_supported(
-    registry: &str,
-    ecosystem: Ecosystem,
-    key: &str,
-    rule: &PackageRule,
-) -> Result<(), RegistryError> {
-    let references_owners = [&rule.publish, &rule.unpublish]
-        .into_iter()
-        .flatten()
-        .any(AccessList::references_owners);
-    if ecosystem != Ecosystem::Npm && references_owners {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "registry {registry:?} serves {ecosystem}, which does not record package owners; \
-                 `$owners` in the {key:?} rule is invalid",
-            ),
-        });
-    }
-    Ok(())
+    check_owners_supported(ecosystem, [rule.publish.as_ref(), rule.unpublish.as_ref()])
+        .map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!("registry {registry:?}: {key:?} has an invalid rule: {reason}"),
+        })?;
+    Ok(rule)
 }
 
 pub(super) fn build_rules(
