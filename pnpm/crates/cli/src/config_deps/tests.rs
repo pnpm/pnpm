@@ -32,6 +32,46 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
     }
 }
 
+#[tokio::test]
+async fn update_config_lockfile_dir_reanchors_install_paths() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = 'custom'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    let lockfile_dir = root.path().join("custom");
+    assert_eq!(config.lockfile_dir, Some(lockfile_dir.clone()));
+    assert_eq!(config.modules_dir, lockfile_dir.join("node_modules"));
+    assert_eq!(config.install_state_dir, lockfile_dir.join("node_modules/.pnpm"));
+}
+
+#[tokio::test]
+async fn update_config_lockfile_dir_restores_default_workspace_paths() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "lockfileDir: custom\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.modules_dir, root.path().join("node_modules"));
+    assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
+}
+
 /// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
 /// default a source had turned off.
 #[tokio::test]

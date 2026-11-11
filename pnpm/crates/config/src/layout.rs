@@ -163,7 +163,8 @@ impl Config {
             let had_pin = self.lockfile_dir.is_some();
             self.lockfile_dir = None;
             if had_pin {
-                self.anchor_lockfile_paths(project_dir);
+                let default_dir = self.default_lockfile_dir_for(project_dir).to_path_buf();
+                self.anchor_lockfile_paths(&default_dir);
             }
             return;
         }
