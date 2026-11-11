@@ -273,10 +273,7 @@ fn user_from_row(mut row: Row) -> Result<StoredScimUser> {
     let deprovisions = decode_non_negative("deprovisions", row.get(3)?)?;
     let attributes_raw: String = row.get(4)?;
     let generation = decode_positive("generation", row.get(5)?)?;
-    let attributes: Map<String, Value> = serde_json::from_str(&attributes_raw)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("the stored SCIM user {user_id:?} is unreadable: {err}"),
-        })?;
+    let attributes = decode_attributes(&user_id, &attributes_raw)?;
     Ok(StoredScimUser { user_id, active, deprovisions, attributes, generation })
 }
 
@@ -292,7 +289,7 @@ fn status_from_row(mut row: Row) -> Result<ScimStatus> {
         ScimLifecycle::Inactive | ScimLifecycle::Removed => false,
     };
     let attributes_raw: String = row.get(5)?;
-    let attributes: Map<String, Value> = serde_json::from_str(&attributes_raw)?;
+    let attributes = decode_attributes(&user_id, &attributes_raw)?;
     let external_id = attributes
         .get("externalId")
         .and_then(Value::as_str)
@@ -343,4 +340,11 @@ fn decode_positive(field: &str, value: i64) -> Result<u64> {
 
 fn corrupt(detail: &str) -> RegistryError {
     RegistryError::Internal { reason: format!("the stored SCIM directory is unreadable: {detail}") }
+}
+
+fn decode_attributes(user_id: &str, raw: &str) -> Result<Map<String, Value>> {
+    serde_json::from_str(raw)
+        .map_err(|err| RegistryError::Internal {
+            reason: format!("the stored SCIM user {user_id:?} is unreadable: {err}"),
+        })
 }

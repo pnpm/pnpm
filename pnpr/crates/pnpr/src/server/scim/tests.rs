@@ -148,7 +148,12 @@ async fn provisioned_subjects_follow_scim_lifecycle_and_reload() {
     let body: serde_json::Value =
         serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
     let user_id = body["id"].as_str().unwrap();
-    assert_eq!(super::resolve_subject(&state, "subject-one").unwrap(), user_id);
+    assert_eq!(super::resolve_subject(&state, "subject-one").unwrap().as_ref(), user_id);
+    let binding = super::resolve_subject(&state, "subject-one").unwrap();
+    let subjects = &state.inner.identity.managed.scim.as_ref().unwrap().subjects;
+    assert!(subjects.try_write().is_err());
+    drop(binding);
+    assert!(subjects.try_write().is_ok());
     let directory = super::ScimState::default();
     assert!(super::reload_directory(&state, &directory).await);
     assert_eq!(
@@ -230,4 +235,23 @@ async fn schema_advertises_case_sensitive_external_ids() {
     assert_eq!(attribute["type"], "string");
     assert_eq!(attribute["required"], false);
     assert_eq!(attribute["caseExact"], true);
+}
+
+#[test]
+fn pathless_patches_reject_ambiguous_external_id_aliases_before_writing() {
+    for alias in ["ExternalID", "urn:ietf:params:scim:schemas:core:2.0:User:externalId"] {
+        let (_, mut user) = super::resources::parse_user(&json!({
+            "userName": "example-user", "externalId": "original-subject",
+        }))
+        .unwrap();
+        let values = json!({ "externalId": "subject-one", alias: "subject-two" });
+        let patch = json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:PatchOp"],
+            "Operations": [{ "op": "replace", "value": values }],
+        });
+        assert!(apply_patch(&mut user, &patch).is_err());
+        assert_eq!(user.attributes["externalId"], "original-subject");
+        let resource = json!({ "userName": "example-user", "externalId": "subject-one", alias: "subject-two" });
+        assert!(super::resources::parse_user(&resource).is_err());
+    }
 }

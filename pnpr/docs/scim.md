@@ -50,8 +50,8 @@ immutable ID. No per-user `login.users` entries are needed. Login names and
 email addresses are not used for matching.
 
 Only one provider may enable `login.scim`, and it cannot also declare
-`login.users`. The subject must match exactly one provisioned user with an
-active account. Missing subjects, duplicate matches, and deactivated or deleted
+`login.users`. The subject must match exactly one provisioned user, counting inactive users
+too. That user must be active to sign in. Missing subjects, duplicate matches, and deactivated or deleted
 users cannot sign in. Subjects are case-sensitive and are not trimmed.
 `externalId` must be a nonempty string when supplied; `PUT` or `PATCH` can
 change or remove it. Other replicas see changes on their next directory reload.

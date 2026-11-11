@@ -19,15 +19,15 @@ pub(super) fn verify_workload(
 }
 
 /// Bind verified login claims to an account and its session team grants.
-pub(super) fn bound_user(
+pub(super) fn bound_user<SubjectBinding: AsRef<str>>(
     config: &OidcProvider,
     token: &CoreIdToken,
-    resolve_subject: impl FnOnce(&str) -> Result<String>,
-) -> Result<SessionUser> {
+    resolve_subject: impl FnOnce(&str) -> Result<SubjectBinding>,
+) -> Result<(SessionUser, Option<SubjectBinding>)> {
     let payload = token_payload(&token.to_string())?;
     validate_claims(config, &payload)?;
     let login = config.login.as_ref().ok_or_else(rejected)?;
-    let user_id = if login.scim {
+    let subject_binding = if login.scim {
         let subject = payload
             .get("sub")
             .and_then(Value::as_str)
@@ -39,12 +39,17 @@ pub(super) fn bound_user(
         {
             return Err(rejected());
         }
-        resolve_subject(subject)?
+        Some(resolve_subject(subject)?)
+    } else {
+        None
+    };
+    let user_id = if let Some(binding) = &subject_binding {
+        binding.as_ref().to_string()
     } else {
         unique_binding(login.users.iter(), &payload)?.user_id.clone()
     };
     let teams = super::groups::granted_teams(login, &payload);
-    Ok(SessionUser { user_id, teams })
+    Ok((SessionUser { user_id, teams }, subject_binding))
 }
 
 pub(super) fn token_verifier(

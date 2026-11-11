@@ -4,7 +4,7 @@ use pnpr_error::{RegistryError, Result};
 use pnpr_storage::metadata::ScimStatus;
 use std::{
     collections::{BTreeSet, HashMap},
-    sync::PoisonError,
+    sync::{PoisonError, RwLockReadGuard},
 };
 
 #[derive(Debug, Default)]
@@ -46,16 +46,30 @@ impl SubjectDirectory {
     }
 }
 
-pub(in super::super) fn resolve_subject(state: &AppState, subject: &str) -> Result<String> {
+/// Holds the directory read lock through session creation. Binding updates take
+/// its write lock before revoking sessions.
+pub(in super::super) struct SubjectBinding<'state> {
+    _directory: RwLockReadGuard<'state, SubjectDirectory>,
+    user_id: String,
+}
+
+impl AsRef<str> for SubjectBinding<'_> {
+    fn as_ref(&self) -> &str {
+        &self.user_id
+    }
+}
+
+pub(in super::super) fn resolve_subject<'state>(
+    state: &'state AppState,
+    subject: &str,
+) -> Result<SubjectBinding<'state>> {
     let scim = state.inner.identity.managed.scim.as_ref().ok_or_else(rejected)?;
-    let user_id = scim.subjects
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .resolve(subject)?;
+    let directory = scim.subjects.read().unwrap_or_else(PoisonError::into_inner);
+    let user_id = directory.resolve(subject)?;
     if super::is_deprovisioned(state, &user_id)? {
         return Err(rejected());
     }
-    Ok(user_id)
+    Ok(SubjectBinding { _directory: directory, user_id })
 }
 
 pub(in super::super) fn validate_oidc(config: &Config) -> Result<()> {

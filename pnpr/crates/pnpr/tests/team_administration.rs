@@ -398,3 +398,29 @@ async fn only_members_and_admins_can_read_teams() {
         StatusCode::NOT_FOUND,
     );
 }
+
+#[tokio::test]
+async fn artifact_references_block_team_deletion_only_in_their_registry() {
+    for field in ["access", "publish"] {
+        let dir = TempDir::new().unwrap();
+        let yaml = CONFIG.replace("access: [team:readers]", "access: $authenticated")
+            .replace("  main:\n", "  other:\n    type: hosted\n    namespace: other\n    teamsManagedBy: api\n    teams:\n      readers: { name: readers, members: [] }\n  main:\n");
+        let (access, publish) = if field == "access" {
+            ("team:local:readers", "$authenticated")
+        } else {
+            ("$authenticated", "team:local:readers")
+        };
+        let yaml = format!(
+            "{yaml}artifacts:\n  owners:\n    example:\n      access: {access}\n      publish: {publish}\n",
+        );
+        let app = app_router(load_config_with(dir.path(), &yaml)).await;
+        let root = add_user(&app, "root").await;
+        let (status, _) =
+            send(&app, "DELETE", "/npm/~other/-/team/acme/readers", Some(&root), None).await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, error) =
+            send(&app, "DELETE", "/npm/~local/-/team/acme/readers", Some(&root), None).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert!(error.to_string().contains("artifacts.owners"));
+    }
+}

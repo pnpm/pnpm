@@ -91,6 +91,7 @@ fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), Registr
             let values = value
                 .and_then(Value::as_object)
                 .ok_or_else(|| invalid("an operation without a path needs an object value"))?;
+            let _ = external_id_key(values)?;
             values
                 .iter()
                 .try_for_each(|(path, value)| set(user, path, Some(value)))
@@ -105,10 +106,7 @@ fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), Registr
 
 /// Set or, with `None`, remove the attribute at `path`.
 fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), RegistryError> {
-    let path = path
-        .strip_prefix(USER_SCHEMA)
-        .map(|rest| rest.trim_start_matches(':'))
-        .unwrap_or(path);
+    let path = user_attribute_path(path);
     if path.contains('[') {
         return Ok(());
     }
@@ -220,20 +218,29 @@ fn invalid(reason: &str) -> RegistryError {
     RegistryError::BadRequest { reason: reason.to_string() }
 }
 
-fn normalize_external_id(attributes: &mut Map<String, Value>) -> Result<(), RegistryError> {
-    let keys: Vec<_> = attributes
-        .keys()
-        .filter(|key| key.eq_ignore_ascii_case("externalId"))
-        .cloned()
-        .collect();
-    if keys.len() > 1 {
+fn user_attribute_path(path: &str) -> &str {
+    path.strip_prefix(USER_SCHEMA)
+        .map(|rest| rest.trim_start_matches(':'))
+        .unwrap_or(path)
+}
+
+fn external_id_key(attributes: &Map<String, Value>) -> Result<Option<String>, RegistryError> {
+    let mut entries = attributes
+        .iter()
+        .filter(|(key, _)| user_attribute_path(key).eq_ignore_ascii_case("externalId"));
+    let Some((key, value)) = entries.next() else { return Ok(None) };
+    if entries.next().is_some() {
         return Err(invalid("externalId must appear only once"));
     }
-    if let Some(key) = keys.first() {
-        let value = attributes.remove(key).expect("attribute exists");
-        if value.as_str().is_none_or(str::is_empty) {
-            return Err(invalid("externalId must be a nonempty string"));
-        }
+    if value.as_str().is_none_or(str::is_empty) {
+        return Err(invalid("externalId must be a nonempty string"));
+    }
+    Ok(Some(key.clone()))
+}
+
+fn normalize_external_id(attributes: &mut Map<String, Value>) -> Result<(), RegistryError> {
+    if let Some(key) = external_id_key(attributes)? {
+        let value = attributes.remove(&key).expect("attribute exists");
         attributes.insert("externalId".to_string(), value);
     }
     Ok(())

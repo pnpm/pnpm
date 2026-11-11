@@ -103,6 +103,14 @@ impl AccessList {
             .any(|token| matches!(token, AccessToken::Team { id, .. } if id == team))
     }
 
+    /// Whether this list names `team` in the given live directory.
+    #[must_use]
+    pub fn references_team_in(&self, team: &str, directory: &TeamDirectory) -> bool {
+        self.0.iter().any(|token| {
+            matches!(token, AccessToken::Team { id, directory: bound } if id == team && bound == directory)
+        })
+    }
+
     /// Whether the access list admits every caller regardless of identity.
     #[must_use]
     pub fn admits_every_identity(&self) -> bool {

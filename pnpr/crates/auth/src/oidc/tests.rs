@@ -448,7 +448,9 @@ async fn rejects_expired_state_and_wrong_nonce() {
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     assert!(
         state
-            .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
+            .finish("example", &start.state, &start.browser_secret, "code", |_| Err::<String, _>(
+                rejected()
+            ))
             .await
             .is_err(),
     );
@@ -464,7 +466,9 @@ async fn rejects_expired_state_and_wrong_nonce() {
     let expired_cookie = state.seal_login(&login).unwrap();
     assert!(
         state
-            .finish("example", &start.state, &expired_cookie, "code", |_| Err(rejected()))
+            .finish("example", &start.state, &expired_cookie, "code", |_| Err::<String, _>(
+                rejected()
+            ))
             .await
             .is_err(),
     );
@@ -492,7 +496,9 @@ async fn selects_client_secret_post_from_discovery() {
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     state
-        .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
+        .finish("example", &start.state, &start.browser_secret, "code", |_| {
+            Err::<String, _>(rejected())
+        })
         .await
         .unwrap();
     task.abort();
@@ -527,12 +533,16 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
             .is_empty(),
     );
     state
-        .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
+        .finish("example", &start.state, &start.browser_secret, "code", |_| {
+            Err::<String, _>(rejected())
+        })
         .await
         .unwrap();
     assert!(
         state
-            .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
+            .finish("example", &start.state, &start.browser_secret, "code", |_| Err::<String, _>(
+                rejected()
+            ))
             .await
             .is_err(),
     );
@@ -577,27 +587,25 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example", LoginReturn::Token).await.unwrap();
-    let first =
-        state.finish(
-            "example",
-            &start.state,
-            &start.browser_secret,
-            "invalid",
-            |_| Err(rejected()),
-        );
-    let concurrent = state.finish(
-        "example",
-        &start.state,
-        &start.browser_secret,
-        "invalid",
-        |_| Err(rejected()),
-    );
+    let first = state.finish("example", &start.state, &start.browser_secret, "invalid", |_| {
+        Err::<String, _>(rejected())
+    });
+    let concurrent =
+        state.finish("example", &start.state, &start.browser_secret, "invalid", |_| {
+            Err::<String, _>(rejected())
+        });
     let (first, concurrent) = tokio::join!(first, concurrent);
     assert!(first.is_err());
     assert!(concurrent.is_err());
     assert!(
         state
-            .finish("example", &start.state, &start.browser_secret, "invalid", |_| Err(rejected()))
+            .finish(
+                "example",
+                &start.state,
+                &start.browser_secret,
+                "invalid",
+                |_| Err::<String, _>(rejected())
+            )
             .await
             .is_err(),
     );
@@ -632,7 +640,13 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     let permits = state.exchanges.try_acquire_many(16).unwrap();
     assert!(
         state
-            .finish("example", &start.state, &start.browser_secret, "invalid", |_| Err(rejected()))
+            .finish(
+                "example",
+                &start.state,
+                &start.browser_secret,
+                "invalid",
+                |_| Err::<String, _>(rejected())
+            )
             .await
             .is_err(),
     );
@@ -646,7 +660,9 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     state
-        .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
+        .finish("example", &start.state, &start.browser_secret, "code", |_| {
+            Err::<String, _>(rejected())
+        })
         .await
         .unwrap();
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
