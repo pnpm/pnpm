@@ -120,7 +120,10 @@ fn optional_peer_supplies_child(
             .get(&child.alias)
             .is_some_and(|peer| peer.optional)
         && recorded_child(snapshot, &child.alias, RecordedDeps::Optional)
-            .is_some_and(|recorded| recorded_child_satisfies_spec(check, dep, child, recorded))
+            .is_some_and(|recorded| {
+                implicit_workspace_target_satisfies(dep, child, recorded)
+                    .unwrap_or_else(|| recorded_child_satisfies_spec(check, dep, child, recorded))
+            })
 }
 
 fn recorded_catalog_spec_matches(

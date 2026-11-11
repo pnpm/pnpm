@@ -511,6 +511,27 @@ fn frozen_check_accepts_injected_catalog_optional_peer_dependency() {
     assert!(
         super::fixture::Fixture::new(&workspace, settings).frozen_check(&stale, settings).is_err(),
     );
+
+    let fixture = super::fixture::Fixture::new(&workspace, settings);
+    let provider_dir = fixture.root.path().join("provider");
+    std::fs::create_dir(&provider_dir).unwrap();
+    for (key, snapshot) in stale.snapshots.as_mut().unwrap() {
+        if key.name.to_string() == "shared"
+            && let Some(reference) = snapshot.optional_dependencies
+                .as_mut()
+                .and_then(|dependencies| dependencies.get_mut(&"p1".parse().unwrap()))
+        {
+            *reference = "file:provider".parse().unwrap();
+        }
+    }
+    for (version, fresh) in [("1.0.0", true), ("2.0.0", false)] {
+        std::fs::write(
+            provider_dir.join("package.json"),
+            serde_json::json!({ "name": "p1", "version": version }).to_string(),
+        )
+        .unwrap();
+        assert_eq!(fixture.frozen_check(&stale, settings).is_ok(), fresh, "{version}");
+    }
 }
 
 #[test]
