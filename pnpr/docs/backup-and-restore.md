@@ -44,7 +44,14 @@ Why this order keeps both archives and the transparency log consistent:
 To back up while pnpr is stopped, stop pnpr and any scheduled `pnpr gc` jobs first so the archive includes a consistent SQLite database and its `-wal` file:
 
 ```sh
-tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage users.json tokens.db*
+(
+  cd /var/lib/pnpr || exit 1
+  set -- storage
+  for f in users.json tokens.db tokens.db-wal tokens.db-shm; do
+    [ -e "$f" ] && set -- "$@" "$f"
+  done
+  tar -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" "$@"
+)
 ```
 
 The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
@@ -62,7 +69,12 @@ With filesystem snapshots, follow the [snapshot order](#snapshot-order):
    For a `sqlite:` `database.url`, pass the path that URL names. For a PostgreSQL, MySQL, or libSQL `database.url`, take a provider snapshot or record a point-in-time recovery timestamp ($T_{\text{db}}$) instead.
 3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$), resume publishes, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage and `users.json`:
    ```sh
-   tar --exclude='storage/.metadata' --exclude='tokens.db*' -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /mnt/pnpr-snap storage users.json
+   (
+     cd /mnt/pnpr-snap || exit 1
+     set -- storage
+     [ -e users.json ] && set -- "$@" users.json
+     tar --exclude='storage/.metadata' --exclude='tokens.db*' -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" "$@"
+   )
    ```
 4. Unmount and release the filesystem snapshot, then resume scheduled `pnpr gc` jobs and unpublishes.
 

@@ -48,7 +48,14 @@ pub async fn migrate_local_to_s3(
             migrate_namespace(&src, &tgt, options, &mut report).await?;
         }
     }
-    migrate_transparency_logs(&source, &target, options, &mut report).await?;
+    migrate_transparency_logs(
+        &source,
+        &target,
+        config.release_records.log_signing_key.as_deref(),
+        options,
+        &mut report,
+    )
+    .await?;
 
     Ok(report)
 }
@@ -210,6 +217,7 @@ async fn verify_uploaded_archive(
 async fn migrate_transparency_logs(
     source: &Storage,
     target: &Storage,
+    signer: Option<&pnpm_transparency_log::NoteSigner>,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
@@ -218,7 +226,7 @@ async fn migrate_transparency_logs(
         .await
         .map_err(|err| miette::miette!("failed to list source transparency-log records: {err}"))?;
     for key in keys {
-        migrate_log_record(source, target, &key, options, report).await?;
+        migrate_log_record(source, target, &key, signer, options, report).await?;
     }
     Ok(())
 }
@@ -227,6 +235,7 @@ async fn migrate_log_record(
     source: &Storage,
     target: &Storage,
     key: &str,
+    signer: Option<&pnpm_transparency_log::NoteSigner>,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
@@ -243,7 +252,7 @@ async fn migrate_log_record(
         return Ok(());
     }
     target
-        .store_log_record_copy(key, &bytes)
+        .store_log_record_copy(key, &bytes, signer)
         .await
         .map_err(|err| {
             miette::miette!("failed to store transparency-log record '{key}' on target: {err}")
