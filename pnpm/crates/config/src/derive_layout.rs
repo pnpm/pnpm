@@ -31,11 +31,14 @@ impl Config {
         }
     }
 
-    pub fn refresh_node_path_after_lockfile_dir_change<Sys>(&mut self, preserve_node_path: bool)
-    where
+    pub fn refresh_node_path_after_lockfile_dir_change<Sys>(
+        &mut self,
+        hook_node_path: Option<Option<String>>,
+        hook_node_options: Option<Option<String>>,
+    ) where
         Sys: EnvVar,
     {
-        if !preserve_node_path
+        if hook_node_path.is_none()
             && cfg!(any(unix, target_os = "wasi"))
             && self.prefer_symlinked_executables == Some(true)
         {
@@ -47,6 +50,12 @@ impl Config {
             );
         }
         self.apply_global_virtual_store_node_path::<Sys>();
+        if let Some(node_path) = hook_node_path {
+            set_extra_env_value(&mut self.extra_env, "NODE_PATH", node_path);
+        }
+        if let Some(node_options) = hook_node_options {
+            set_extra_env_value(&mut self.extra_env, "NODE_OPTIONS", node_options);
+        }
     }
 
     /// The directory layout and environment every spawned process sees,
@@ -262,5 +271,13 @@ impl Config {
             extra_env.insert("NODE_OPTIONS".to_string(), node_options);
         }
         extra_env
+    }
+}
+
+fn set_extra_env_value(extra_env: &mut HashMap<String, String>, key: &str, value: Option<String>) {
+    if let Some(value) = value {
+        extra_env.insert(key.to_string(), value);
+    } else {
+        extra_env.remove(key);
     }
 }

@@ -67,8 +67,8 @@ pub(super) fn apply_hook_delta(
     base_dir: &Path,
 ) -> Result<()> {
     let delta = filter_hook_delta(config, config_delta(input, current));
-    let node_path_changed =
-        input.pointer("/extraEnv/NODE_PATH") != current.pointer("/extraEnv/NODE_PATH");
+    let hook_node_path = changed_extra_env_value(input, current, "NODE_PATH");
+    let hook_node_options = changed_extra_env_value(input, current, "NODE_OPTIONS");
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
@@ -102,7 +102,10 @@ pub(super) fn apply_hook_delta(
             let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
             config.anchor_lockfile_paths(&default_lockfile_dir);
         }
-        config.refresh_node_path_after_lockfile_dir_change::<Host>(node_path_changed);
+        config.refresh_node_path_after_lockfile_dir_change::<Host>(
+            hook_node_path,
+            hook_node_options,
+        );
     }
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;
@@ -111,6 +114,18 @@ pub(super) fn apply_hook_delta(
     }
     apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;
     Ok(())
+}
+
+fn changed_extra_env_value(input: &Value, current: &Value, key: &str) -> Option<Option<String>> {
+    let before = input
+        .get("extraEnv")
+        .and_then(|env| env.get(key))
+        .and_then(Value::as_str);
+    let after = current
+        .get("extraEnv")
+        .and_then(|env| env.get(key))
+        .and_then(Value::as_str);
+    (before != after).then(|| after.map(str::to_owned))
 }
 
 /// Apply the routing a hook rewrote under the `registriesByScope` /
