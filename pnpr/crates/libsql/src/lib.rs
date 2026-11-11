@@ -194,7 +194,8 @@ pub fn is_transaction_conflict(error: &LibsqlError) -> bool {
 /// does not know its baton. The server ran nothing of that request, and the
 /// connection cannot send another. libsql does not expose Hrana's error type,
 /// so the response is read from the message.
-pub(crate) fn is_stale_stream(error: &RegistryError) -> bool {
+#[must_use]
+pub fn is_stale_stream(error: &RegistryError) -> bool {
     let RegistryError::Libsql(LibsqlError::Hrana(error)) = error else {
         return false;
     };
