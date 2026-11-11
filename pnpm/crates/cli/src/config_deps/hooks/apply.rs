@@ -13,6 +13,8 @@ struct HookExecutionChanges {
 struct LockfileDirPathsBeforeHook {
     lockfile_dir: Option<PathBuf>,
     node_path_dirs: [PathBuf; 2],
+    hook_node_path: Option<Option<String>>,
+    hook_node_options: Option<Option<String>>,
 }
 
 /// `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
@@ -72,9 +74,8 @@ pub(super) fn apply_hook_delta(
     base_dir: &Path,
 ) -> Result<()> {
     let delta = filter_hook_delta(config, config_delta(input, current));
-    let hook_node_path = changed_extra_env_value(input, current, "NODE_PATH");
-    let hook_node_options = changed_extra_env_value(input, current, "NODE_OPTIONS");
-    let lockfile_dir_paths_before_hook = lockfile_dir_paths_before_hook(config, &delta);
+    let lockfile_dir_paths_before_hook =
+        lockfile_dir_paths_before_hook(config, input, current, &delta);
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
@@ -83,10 +84,6 @@ pub(super) fn apply_hook_delta(
     if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
         return Ok(());
     }
-    let changed_store_dir = delta
-        .get("storeDir")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
     let execution_changes = hook_execution_changes(&delta)?;
     apply_registry_routing_changes(config, &delta)?;
 
@@ -99,23 +96,18 @@ pub(super) fn apply_hook_delta(
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     if let Some(paths_before_hook) = lockfile_dir_paths_before_hook {
-        apply_lockfile_dir_change(config, paths_before_hook, hook_node_path, hook_node_options);
+        apply_lockfile_dir_change(config, paths_before_hook);
     }
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;
     if delta.get("shamefullyHoist").is_some() || config.cli_settings.contains("shamefullyHoist") {
         config.apply_shamefully_hoist_derivation();
     }
-    apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;
+    apply_hook_store_dir_change(config, &delta, base_dir)?;
     Ok(())
 }
 
-fn apply_lockfile_dir_change(
-    config: &mut Config,
-    paths_before_hook: LockfileDirPathsBeforeHook,
-    hook_node_path: Option<Option<String>>,
-    hook_node_options: Option<Option<String>>,
-) {
+fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDirPathsBeforeHook) {
     let project_dir = config.dir.clone();
     let lockfile_dir = config.lockfile_dir
         .clone()
@@ -130,8 +122,8 @@ fn apply_lockfile_dir_change(
     }
     config.refresh_node_path_after_lockfile_dir_change::<Host>(
         [&paths_before_hook.node_path_dirs[0], &paths_before_hook.node_path_dirs[1]],
-        hook_node_path,
-        hook_node_options,
+        paths_before_hook.hook_node_path,
+        paths_before_hook.hook_node_options,
     );
 }
 
@@ -149,6 +141,8 @@ fn changed_extra_env_value(input: &Value, current: &Value, key: &str) -> Option<
 
 fn lockfile_dir_paths_before_hook(
     config: &Config,
+    input: &Value,
+    current: &Value,
     delta: &Value,
 ) -> Option<LockfileDirPathsBeforeHook> {
     delta
@@ -159,7 +153,17 @@ fn lockfile_dir_paths_before_hook(
                 config.install_state_dir.join("node_modules"),
                 config.modules_dir.clone(),
             ],
+            hook_node_path: changed_extra_env_value(input, current, "NODE_PATH"),
+            hook_node_options: changed_extra_env_value(input, current, "NODE_OPTIONS"),
         })
+}
+
+fn apply_hook_store_dir_change(config: &mut Config, delta: &Value, base_dir: &Path) -> Result<()> {
+    let changed_store_dir = delta
+        .get("storeDir")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)
 }
 
 /// Apply the routing a hook rewrote under the `registriesByScope` /
