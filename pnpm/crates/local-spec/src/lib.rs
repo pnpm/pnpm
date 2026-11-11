@@ -95,9 +95,8 @@ impl LocalSpec {
     }
 
     /// Parse a `workspace:` specifier naming a path, such as
-    /// `workspace:./packages/foo`, whose path is written from `base_dir`.
-    /// Only the `workspace:.` shape is claimed: it is the only one the
-    /// resolver reads as a path rather than as a version range.
+    /// `workspace:./packages/foo` or an absolute path, whose relative path
+    /// is written from `base_dir`.
     #[must_use]
     pub fn parse_workspace_path(specifier: &str, base_dir: &Path) -> Option<Self> {
         pnpm_workspace_spec::is_workspace_path_specifier(specifier)
@@ -110,12 +109,11 @@ impl LocalSpec {
             })
     }
 
-    /// Whether [`Self::render`] needs a `consumer_dir` to produce a
-    /// specifier the resolver reads as a path. A `workspace:` path is read
-    /// as one only while it is relative.
+    /// Whether [`Self::render`] needs a `consumer_dir` to re-anchor a
+    /// relative `workspace:` path.
     #[must_use]
     pub fn needs_consumer_dir(&self) -> bool {
-        self.protocol == Some(LocalSpecProtocol::Workspace)
+        self.protocol == Some(LocalSpecProtocol::Workspace) && self.specified_via_relative_path
     }
 
     /// `pkg_path` has already been through [`normalize_specifier`], so
@@ -161,7 +159,9 @@ impl LocalSpec {
         let path = if path.is_empty() { ".".to_string() } else { path };
         match self.protocol {
             None => without_protocol(path),
-            Some(LocalSpecProtocol::Workspace) if !path.starts_with('.') => {
+            Some(LocalSpecProtocol::Workspace)
+                if !path.starts_with('.') && !names_its_own_location(&path) =>
+            {
                 format!("{}./{path}", LocalSpecProtocol::Workspace.as_str())
             }
             Some(protocol) => format!("{}{path}", protocol.as_str()),

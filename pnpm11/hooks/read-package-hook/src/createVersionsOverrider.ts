@@ -389,9 +389,11 @@ function resolveCatalogSpecifier (catalogs: Catalogs | undefined, alias: string,
 
 function resolveOverriddenBareSpecifier (versionOverride: VersionOverride, dir: string | undefined): string {
   const { localTarget } = versionOverride
-  // Rendered absolute, a `workspace:` path would read as a version range.
-  if (localTarget == null || (localTarget.protocol === 'workspace:' && dir == null)) {
+  if (localTarget == null) {
     return versionOverride.newBareSpecifier
+  }
+  if (localTarget.protocol === 'workspace:' && dir == null) {
+    return `workspace:${normalizePath(localTarget.absolutePath)}`
   }
   return `${localTarget.protocol}${resolveLocalOverride(localTarget, dir)}`
 }

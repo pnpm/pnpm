@@ -759,6 +759,51 @@ test('a workspace path override names the workspace directory when workspace pac
 })
 
 test.each([
+  false,
+  true,
+])('a workspace path override applies to a dependency of a registry package (injectWorkspacePackages: %s)', async (injectWorkspacePackages) => {
+  const projects = [
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'packages/deep/consumer',
+      package: {
+        name: 'consumer',
+        dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+      },
+    },
+    {
+      location: 'packages/target',
+      package: { name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0' },
+    },
+  ]
+  preparePackages(projects)
+  fs.writeFileSync('packages/target/index.js', 'module.exports = "target"\n')
+
+  await mutateModules(projects.map(({ location }): MutatedProject => ({
+    mutation: 'install',
+    rootDir: path.resolve(location) as ProjectRootDir,
+  })), {
+    ...testDefaults({
+      allProjects: projects.map((project): ProjectOptions => ({
+        buildIndex: 0,
+        manifest: project.package,
+        rootDir: path.resolve(project.location) as ProjectRootDir,
+      })),
+    }),
+    injectWorkspacePackages,
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 'workspace:./packages/target',
+    },
+  })
+
+  const indirectDep = 'node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'
+  expect(fs.readFileSync(path.join(indirectDep, 'index.js'), 'utf8')).toBe('module.exports = "target"\n')
+})
+
+test.each([
   'file:./packages/target',
   'workspace:./packages/target',
 ])('a relative override path %s resolves from the workspace root for a project with its own lockfile', async (overrideSpec) => {

@@ -502,7 +502,7 @@ test('createVersionsOverrider() overrides dependencies with workspace relative p
   })
 })
 
-test('createVersionsOverrider() keeps a workspace relative path as declared for a package without a directory', () => {
+test('createVersionsOverrider() anchors a workspace relative path for a package without a directory', () => {
   const overrider = createVersionsOverrider([
     {
       targetPkg: {
@@ -521,7 +521,7 @@ test('createVersionsOverrider() keeps a workspace relative path as declared for 
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: 'workspace:./packages/qar',
+      qar: `workspace:${path.join(process.cwd(), 'packages/qar').replaceAll(path.sep, '/')}`,
     },
   })
 })
