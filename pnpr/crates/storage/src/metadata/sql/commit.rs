@@ -262,13 +262,19 @@ fn apply_packument(
     {
         super::removed::record_package(commit.transaction, commit.key, &row.state, principal)?;
     }
-    let state = serde_json::to_vec(&rows.state)?;
-    let mut changed = stored.row
-        .as_ref()
-        .is_none_or(|row| row.state != state);
-    if changed {
-        commit.write_state(&state)?;
-    }
+    let mut changed = if !stored.versions.is_empty() && rows.versions.is_empty() {
+        commit.delete_state()?;
+        true
+    } else {
+        let state = serde_json::to_vec(&rows.state)?;
+        let changed = stored.row
+            .as_ref()
+            .is_none_or(|row| row.state != state);
+        if changed {
+            commit.write_state(&state)?;
+        }
+        changed
+    };
     changed |= apply_versions(commit, stored.versions, &stored.removed, rows.versions, records)?;
     changed |= apply_tags(commit, &stored.tags, &rows.tags, principal)?;
     Ok(changed)

@@ -247,4 +247,35 @@ impl PackageMetadata {
         })
         .await
     }
+
+    /// The names of every package that has at least one published version,
+    /// sorted.
+    pub(crate) async fn published_package_names(&self) -> Result<Vec<String>> {
+        let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
+        self.database.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
+            let rows = match ecosystem {
+                Ecosystem::Npm => connection.query(
+                    "SELECT p.name FROM packages p
+                         WHERE p.catalog = ?1 AND p.ecosystem = ?2
+                           AND EXISTS (
+                               SELECT 1 FROM versions v
+                               WHERE v.catalog = p.catalog
+                                 AND v.ecosystem = p.ecosystem
+                                 AND v.name = p.name
+                                 AND v.revision_key = ?3
+                           )
+                         ORDER BY p.name",
+                    params![catalog, ecosystem.as_str(), super::packument::ORDINARY],
+                )?,
+                Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => connection.query(
+                    "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
+                    params![catalog, ecosystem.as_str()],
+                )?,
+            };
+            rows.into_iter()
+                .map(|mut row| row.get(0))
+                .collect()
+        })
+        .await
+    }
 }

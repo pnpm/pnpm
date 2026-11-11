@@ -737,6 +737,32 @@ async fn removing_versions_and_packages(db: Db) {
     let republished = packument("pkg", &["3.0.0"]);
     write(&storage, "pkg", &republished).await;
     assert_eq!(read(&storage, "pkg").await, republished);
+    assert_eq!(storage.hosted_published_package_names().await.unwrap(), vec!["pkg".to_string()]);
+    write(&storage, "pkg", &json!({ "name": "pkg", "versions": {}, "dist-tags": {} })).await;
+    assert_eq!(row_count(&storage, "packages").await, 0);
+    assert!(
+        storage
+            .read_hosted_document(&npm("pkg"))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        storage
+            .hosted_package_names()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    write(&storage, "empty-pkg", &json!({ "name": "empty-pkg", "versions": {} })).await;
+    assert_eq!(storage.hosted_package_names().await.unwrap(), vec!["empty-pkg".to_string()]);
+    assert!(
+        storage
+            .hosted_published_package_names()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 async fn row_count(storage: &Storage, table: &'static str) -> i64 {
