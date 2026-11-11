@@ -8,7 +8,7 @@ use pnpr_auth::oidc::{LoginReturn, OidcState, WebLoginPoll};
 use serde::Deserialize;
 use serde_json::json;
 
-use std::{fmt::Write as _, net::IpAddr};
+use std::net::IpAddr;
 
 use super::{
     AppState, TargetRegistry, not_found,
@@ -16,6 +16,9 @@ use super::{
     private_no_cache,
 };
 
+use pages::{PROVIDER_UNAVAILABLE, UNUSABLE_CODE, code_page, provider_page};
+
+mod pages;
 #[cfg(test)]
 mod tests;
 
@@ -133,7 +136,9 @@ pub(crate) async fn post_v1_login_device(
     let oidc = &state.inner.identity.oidc;
     let provider = match (form.provider, providers.as_slice()) {
         (None, [only]) => only.name.clone(),
-        (None, _) if oidc.is_pending_web_login(&code) => return provider_page(&providers, &code),
+        (None, _) if oidc.is_pending_web_login(&code) => {
+            return provider_page(StatusCode::OK, &providers, &code, None);
+        }
         (None, _) => return code_page(StatusCode::BAD_REQUEST, Some(UNUSABLE_CODE)),
         (Some(provider), _)
             if providers
@@ -144,7 +149,7 @@ pub(crate) async fn post_v1_login_device(
         }
         (Some(_), _) => return bad_request("unknown sign-in provider"),
     };
-    sign_in_with_code(oidc, &provider, &code).await
+    sign_in_with_code(oidc, &providers, &provider, &code).await
 }
 
 /// Refuse a code submission that did not come from pnpr's own page, or that
@@ -167,21 +172,35 @@ fn admit_device_request(
 }
 
 /// Claim the web login that `code` belongs to and send the browser to
-/// `provider`. A sign-in that cannot start releases the claim.
-async fn sign_in_with_code(oidc: &OidcState, provider: &str, code: &str) -> Response {
+/// `provider`. A sign-in that cannot start releases the claim and shows the
+/// page the user submitted again, so the same code can be retried.
+async fn sign_in_with_code(
+    oidc: &OidcState,
+    providers: &[&pnpr_config::oidc::OidcProvider],
+    provider: &str,
+    code: &str,
+) -> Response {
     let Some(login_id) = oidc.claim_web_login(code) else {
         return code_page(StatusCode::BAD_REQUEST, Some(UNUSABLE_CODE));
     };
     let returns_to = LoginReturn::Cli { login_id: login_id.clone() };
-    redirect_to_provider(oidc, provider, returns_to).await
-        .unwrap_or_else(|err| {
+    match redirect_to_provider(oidc, provider, returns_to).await {
+        Ok(redirect) => redirect,
+        Err(error) => {
             oidc.release_web_login(&login_id);
-            protect(err.into_response())
-        })
+            tracing::warn!(%error, provider, "web login could not start the provider sign-in");
+            match providers {
+                [_] => code_page(StatusCode::BAD_GATEWAY, Some(PROVIDER_UNAVAILABLE)),
+                _ => provider_page(
+                    StatusCode::BAD_GATEWAY,
+                    providers,
+                    code,
+                    Some(PROVIDER_UNAVAILABLE),
+                ),
+            }
+        }
+    }
 }
-
-const UNUSABLE_CODE: &str =
-    "That code is unknown, expired, or already used. Run the login command again.";
 
 #[derive(Default)]
 struct DeviceForm {
@@ -242,67 +261,4 @@ pub(crate) async fn get_v1_login_poll(
 
 fn bad_request(reason: &str) -> Response {
     protect(pnpr_error::RegistryError::BadRequest { reason: reason.to_string() }.into_response())
-}
-
-fn html_page(status: StatusCode, body: &str) -> Response {
-    let html = format!(
-        r#"<!doctype html>
-<html>
-<head><title>Sign In - pnpr</title><meta charset="utf-8"></head>
-<body>
-  <h1>Command-line sign-in</h1>
-{body}
-</body>
-</html>"#,
-    );
-    protect((status, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response())
-}
-
-fn code_page(status: StatusCode, error: Option<&str>) -> Response {
-    let error = error
-        .map(|error| format!("  <p><strong>{}</strong></p>\n", escape_html(error)))
-        .unwrap_or_default();
-    html_page(
-        status,
-        &format!(
-            r#"  <p>Enter the code that your terminal shows. If you did not start a sign-in from a terminal, close this page.</p>
-{error}  <form method="post">
-    <p><label>Code <input name="code" required autofocus autocomplete="off" autocapitalize="characters" spellcheck="false"></label></p>
-    <p><button type="submit">Continue</button></p>
-  </form>"#,
-        ),
-    )
-}
-
-/// The second page, for a pnpr with several OIDC login providers: the code
-/// was accepted, and the user picks where to sign in. Only the browser that
-/// typed the code receives it back here.
-fn provider_page(providers: &[&pnpr_config::oidc::OidcProvider], code: &str) -> Response {
-    let mut buttons = String::new();
-    for provider in providers {
-        let name = escape_html(&provider.name);
-        let _ = write!(
-            buttons,
-            r#"
-    <p><button type="submit" name="provider" value="{name}">Sign in with {name}</button></p>"#,
-        );
-    }
-    let code = escape_html(code);
-    html_page(
-        StatusCode::OK,
-        &format!(
-            r#"  <p>Choose where you sign in.</p>
-  <form method="post">
-    <input type="hidden" name="code" value="{code}">{buttons}
-  </form>"#,
-        ),
-    )
-}
-
-fn escape_html(raw: &str) -> String {
-    raw.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }
