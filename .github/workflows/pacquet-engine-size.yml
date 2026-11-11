@@ -1,0 +1,73 @@
+name: Pacquet Engine Size
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
+      - 'pnpm/tasks/engine-size/**'
+      - 'pnpm/tasks/engine-size-probe/**'
+      - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'justfile'
+      - '.cargo/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/install-crates/**'
+      - '.github/workflows/pacquet-engine-size.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ${{ vars.INTEGRATED_BENCHMARK_RUNNER || 'blacksmith-8vcpu-ubuntu-2404' }}
+    timeout-minutes: 90
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: $/.github/actions/rustup
+        with:
+          shared-key: engine-size
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
+      - name: Install just
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: just
+
+      - name: Measure main
+        run: just engine-size --json target/engine-size-main.json > /dev/null
+
+      - name: Checkout pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          clean: false
+          persist-credentials: false
+
+      - name: Measure pull request
+        run: just engine-size --json target/engine-size-pr.json --compare target/engine-size-main.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pacquet-engine-size-${{ github.event.pull_request.number }}
+          path: |
+            target/engine-size-main.json
+            target/engine-size-pr.json
+          if-no-files-found: error

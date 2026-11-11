@@ -6,10 +6,17 @@ embeds it links it.
 ```sh
 just engine-size                                          # sizes only
 just engine-size --registry https://registry.npmjs.org/   # sizes and install timings
+just engine-size --json target/main.json                  # save a baseline
+just engine-size --compare target/main.json               # report the size delta
 ```
 
 `--help` lists the other options. `--json <path>` also writes the report as
-JSON.
+JSON. `--compare <path>` compares stripped sizes with another JSON report and
+requires both reports to use the same target and LTO modes.
+
+The pull request size workflow publishes the baseline and candidate reports.
+Reviewers accept intentional growth when the pull request explains the size
+delta and its installation performance tradeoff.
 
 ## What it measures
 

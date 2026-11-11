@@ -40,6 +40,10 @@ pub struct CliArgs {
     /// Also write the report as JSON to this path.
     #[clap(long)]
     pub json: Option<PathBuf>,
+
+    /// Compare the report against a JSON report produced by an earlier run.
+    #[clap(long)]
+    pub compare: Option<PathBuf>,
 }
 
 impl CliArgs {
@@ -66,7 +70,7 @@ pub fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, Serialize, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum Lto {
     Thin,

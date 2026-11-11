@@ -10,6 +10,7 @@
 mod attribution;
 mod build;
 mod cli_args;
+mod compare;
 mod install_timing;
 mod report;
 mod sections;
@@ -41,11 +42,27 @@ fn run(args: &CliArgs) -> Result<(), String> {
         .map(|&lto| measure(args, lto, &site))
         .collect::<Result<Vec<_>, _>>()?;
     let report = Report { target, measurements };
-    if let Some(path) = &args.json {
-        let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+    let json = if args.json.is_some() || args.compare.is_some() {
+        Some(serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?)
+    } else {
+        None
+    };
+    let baseline = args.compare
+        .as_ref()
+        .map(|path| {
+            let contents = read(path)?;
+            std::str::from_utf8(&contents)
+                .map(str::to_owned)
+                .map_err(|error| format!("read {}: {error}", path.display()))
+        })
+        .transpose()?;
+    if let (Some(path), Some(json)) = (&args.json, &json) {
         fs::write(path, json).map_err(|error| format!("write {}: {error}", path.display()))?;
     }
     println!("{}", report.to_markdown(args.top));
+    if let (Some(json), Some(baseline)) = (&json, &baseline) {
+        println!("\n## Change from baseline\n\n{}", compare::render_comparison(json, baseline)?);
+    }
     Ok(())
 }
 
