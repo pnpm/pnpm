@@ -34,8 +34,8 @@ impl Umask {
     /// The bits as the platform's `mode_t`, for a caller that makes the
     /// `umask` call itself.
     ///
-    /// Infallible because every way of building this type drops the bits
-    /// above [`MASKABLE_BITS`], which every platform's `mode_t` represents.
+    /// Infallible because [`Umask::from_mask`] drops every bit above the
+    /// permission triples, which every platform's `mode_t` represents.
     #[cfg(unix)]
     #[must_use]
     pub const fn narrow(self) -> libc::mode_t {
