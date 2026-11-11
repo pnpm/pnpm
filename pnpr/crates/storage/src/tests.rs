@@ -152,10 +152,10 @@ async fn each_namespace_stores_an_archive_under_its_key() {
         keys.push(promoted.artifact.blob.key());
     }
     assert_eq!(keys[0], keys[1], "the same bytes have one key");
-    for org in ["", "npm~internal"] {
+    for namespace in ["", "npm~internal"] {
         let path = crate::layout::local_archive_path(
             &tmp.path().join("storage"),
-            org,
+            namespace,
             pnpr_package_name::Ecosystem::Npm,
             &keys[0],
         );
@@ -164,22 +164,24 @@ async fn each_namespace_stores_an_archive_under_its_key() {
 }
 
 #[tokio::test]
-async fn an_org_named_like_a_package_is_its_own_namespace() {
+async fn a_namespace_named_like_a_package_is_isolated() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let org = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
+    let named = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
     storage
         .write_hosted_document_if_current(&pkg("acme"), b"{}", None, None)
         .await
         .unwrap();
-    org.write_hosted_document_if_current(&pkg("tool"), b"{}", None, None).await
+    named
+        .write_hosted_document_if_current(&pkg("tool"), b"{}", None, None)
+        .await
         .unwrap();
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme"]);
     storage
         .remove_package(&pkg("acme"), None)
         .await
         .unwrap();
-    assert_eq!(org.hosted_package_names().await.unwrap(), ["tool"]);
+    assert_eq!(named.hosted_package_names().await.unwrap(), ["tool"]);
 }
 
 #[tokio::test]

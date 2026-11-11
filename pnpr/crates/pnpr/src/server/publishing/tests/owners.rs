@@ -65,7 +65,7 @@ async fn a_publish_admitted_for_a_new_name_is_refused_once_another_account_claim
     state.inner.storage
         .sql_metadata()
         .commit_publication(
-            &target.org,
+            &target.namespace,
             vec![BatchDocument {
                 ecosystem: Ecosystem::Npm,
                 name: "race-pkg".to_string(),
@@ -81,7 +81,7 @@ async fn a_publish_admitted_for_a_new_name_is_refused_once_another_account_claim
         .await
         .unwrap();
 
-    let err = stage_publish(&state, bob, "2026-01-01T00:00:00.000Z", Some(&target.org))
+    let err = stage_publish(&state, bob, "2026-01-01T00:00:00.000Z", Some(&target.namespace))
         .await
         .err()
         .expect("bob does not maintain the package alice claimed");

@@ -73,7 +73,7 @@ fn oci_document(name: &str, digests: &[&str], tags: &[(&str, &str)]) -> Vec<u8> 
 }
 
 async fn cargo_versions_normalize_and_yank_in_place(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Cargo);
+    let storage = storage(&db).for_hosted("acme", Ecosystem::Cargo);
     let name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
     let initial = cargo_document("serde", &[("1.0.0", false), ("1.0.1", false)]);
     assert_eq!(
@@ -133,7 +133,7 @@ async fn cargo_versions_normalize_and_yank_in_place(db: Db) {
 }
 
 async fn pypi_removed_filenames_remain_reserved_after_package_removal(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Pypi);
+    let storage = storage(&db).for_hosted("acme", Ecosystem::Pypi);
     let name = CanonicalPackageName::parse("requests", Ecosystem::Pypi).unwrap();
     let initial = pypi_document(
         "requests",
@@ -179,7 +179,7 @@ async fn pypi_removed_filenames_remain_reserved_after_package_removal(db: Db) {
 }
 
 async fn oci_manifests_and_tags_round_trip_and_clear(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Oci);
+    let storage = storage(&db).for_hosted("acme", Ecosystem::Oci);
     let name = CanonicalPackageName::parse("acme/app", Ecosystem::Oci).unwrap();
     let d1 = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
     let d2 = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
@@ -234,7 +234,7 @@ async fn oci_manifests_and_tags_round_trip_and_clear(db: Db) {
 async fn package_state_version_from_newer_format_is_refused(db: Db) {
     let npm_storage = storage(&db);
     write(&npm_storage, "pkg", &packument("pkg", &["1.0.0"])).await;
-    let cargo_storage = storage(&db).for_hosted("org", Ecosystem::Cargo);
+    let cargo_storage = storage(&db).for_hosted("acme", Ecosystem::Cargo);
     let cargo_name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
     cargo_storage
         .write_hosted_document_if_current(
@@ -272,7 +272,7 @@ async fn package_state_version_from_newer_format_is_refused(db: Db) {
 }
 
 async fn cargo_yank_accepts_canonical_defaults_added_by_protocol_round_trip(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Cargo);
+    let storage = storage(&db).for_hosted("acme", Ecosystem::Cargo);
     let name = CanonicalPackageName::parse("minimal", Ecosystem::Cargo).unwrap();
     let minimal = serde_json::to_vec(&json!({
         "formatVersion": 1,
@@ -324,7 +324,7 @@ async fn cargo_yank_accepts_canonical_defaults_added_by_protocol_round_trip(db: 
 }
 
 async fn pypi_yank_accepts_canonical_defaults_added_by_protocol_round_trip(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Pypi);
+    let storage = storage(&db).for_hosted("acme", Ecosystem::Pypi);
     let name = CanonicalPackageName::parse("demo", Ecosystem::Pypi).unwrap();
     let minimal = serde_json::to_vec(&json!({
         "formatVersion": 2,

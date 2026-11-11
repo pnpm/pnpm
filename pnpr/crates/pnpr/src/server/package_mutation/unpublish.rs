@@ -27,7 +27,7 @@ pub(crate) async fn delete_package(
         Err(response) => return response,
     };
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let storage = hosted_storage(state, Some(&target.org));
+    let storage = hosted_storage(state, Some(&target.namespace));
 
     let removed = match storage.remove_package(&name, identity.user_id()).await {
         Ok(removed) => removed,
@@ -65,7 +65,7 @@ pub(crate) async fn delete_tarball(
         Err(response) => return response,
     };
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let storage = hosted_storage(state, Some(&target.org));
+    let storage = hosted_storage(state, Some(&target.namespace));
     match package_exists(&storage, &name).await {
         Ok(true) => {}
         Ok(false) => return RegistryError::NotFound.into_response(),
@@ -95,7 +95,7 @@ async fn resolve_and_authorize_unpublish(
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Unpublish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await
     {

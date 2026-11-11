@@ -68,7 +68,7 @@ storage: '{storage}'
 registries:
   local:
     type: hosted
-    org: ''
+    namespace: ''
     teamsManagedBy: api
     rulesManagedBy: api
     teams:

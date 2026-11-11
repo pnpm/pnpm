@@ -3,9 +3,9 @@
 //! `<base>/<name>/<version>+r<revision>/evidence`
 //! ([release records](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-release-records.md#client-protocol)).
 //!
-//! A registry address serves the log of the one hosted organization it
+//! A registry address serves the log of the one hosted namespace it
 //! reaches. Its checkpoint and hash tiles are read by anyone who may read a
-//! package of that organization, for consistency checks. Its entry bundles
+//! package of that namespace, for consistency checks. Its entry bundles
 //! name every logged package, so only a caller who may read every package
 //! the log holds gets them; anyone else gets the same not-found for every
 //! bundle, whatever it holds. A record's reader gets the record's own entry,
@@ -116,22 +116,22 @@ fn bytes_response(body: Vec<u8>, content_type: &'static str) -> Response {
 }
 
 /// The log a registry address serves: the npm log of the one hosted
-/// organization the addressed registry reaches. A registry that reaches
+/// namespace the addressed registry reaches. A registry that reaches
 /// none, or several, has no log.
 fn registry_log(state: &AppState, registry: Option<&str>) -> Option<LogId> {
     let target = addressed_registry(state, registry, Ecosystem::Npm)?;
     let routing = &state.inner.config.routing;
-    let mut orgs = routing.registries
+    let mut namespaces = routing.registries
         .sources(&target, Ecosystem::Npm)
         .into_iter()
         .filter_map(|source| routing.hosted.get(source))
-        .map(|hosted| hosted.org.as_str());
-    let org = orgs.next()?;
-    if orgs.any(|other| other != org) {
+        .map(|hosted| hosted.namespace.as_str());
+    let namespace = namespaces.next()?;
+    if namespaces.any(|other| other != namespace) {
         return None;
     }
     state.inner.config.release_records.log_signing_key.as_ref()?;
-    Some(LogId { catalog: org.to_string(), ecosystem: Ecosystem::Npm })
+    Some(LogId { namespace: namespace.to_string(), ecosystem: Ecosystem::Npm })
 }
 
 /// What one caller may read of a log.
@@ -144,12 +144,12 @@ struct LogReaders {
 
 impl LogReaders {
     /// What `identity` may read of `log`, by the rules of every hosted
-    /// registry of its organization.
+    /// registry of its namespace.
     fn of(state: &AppState, log: &LogId, identity: &Identity) -> Self {
         let hosted: Vec<&HostedConfig> = state.inner.config.routing.hosted
             .iter()
             .filter(|(name, hosted)| {
-                hosted.org == log.catalog
+                hosted.namespace == log.namespace
                     && state.inner.config.routing.registries.ecosystem(name) == Some(log.ecosystem)
             })
             .map(|(_, hosted)| hosted)
@@ -197,7 +197,7 @@ async fn record_evidence(
         Ok(logged) => logged,
         Err(response) => return response,
     };
-    let log = LogId { catalog: logged.org.clone(), ecosystem: Ecosystem::Npm };
+    let log = LogId { namespace: logged.namespace.clone(), ecosystem: Ecosystem::Npm };
     let inclusion = match wait_for_inclusion(state, &log, logged.index).await {
         Ok(Some(inclusion)) => inclusion,
         Ok(None) => return proof_pending(),
@@ -211,7 +211,7 @@ async fn record_evidence(
         Ok(None) => return retry_later("the record's metadata is changing; retry"),
         Err(err) => return err.into_response(),
     };
-    match sigstore_bundle(state, &logged.org, &logged.name, &logged.version).await {
+    match sigstore_bundle(state, &logged.namespace, &logged.name, &logged.version).await {
         Ok(sigstore) => evidence_response(&logged.digest, &inclusion, &statements, sigstore),
         Err(err) => err.into_response(),
     }
@@ -232,7 +232,7 @@ async fn registry_statements(
     let Some(key) = state.inner.config.release_records.statement_signing_key.as_ref() else {
         return Ok(Some(Vec::new()));
     };
-    let bytes = super::hosted_storage(state, Some(&logged.org))
+    let bytes = super::hosted_storage(state, Some(&logged.namespace))
         .read_release_record(&logged.name, &logged.version, 0)
         .await?;
     let Some(bytes) = bytes else { return Ok(None) };
@@ -252,7 +252,7 @@ async fn registry_statements(
 
 /// A logged release record of a hosted version.
 struct LoggedRecord {
-    org: String,
+    namespace: String,
     name: CanonicalPackageName,
     version: String,
     /// The index of its log entry.
@@ -278,7 +278,7 @@ async fn logged_record(
     else {
         return Err(not_found());
     };
-    let org = hosted_read_namespace(state, identity, &source, name.as_str())
+    let namespace = hosted_read_namespace(state, identity, &source, name.as_str())
         .map_err(IntoResponse::into_response)?;
     if super::ensure_osv_allowed(state, &name, version).is_err() {
         return Err(not_found());
@@ -287,9 +287,9 @@ async fn logged_record(
         return Err(not_found());
     }
     let database = state.inner.storage.sql_metadata();
-    let entry = database.release_record_entry(&name, &org, version).await;
+    let entry = database.release_record_entry(&name, &namespace, version).await;
     let (index, digest) = entry.map_err(IntoResponse::into_response)?.ok_or_else(not_found)?;
-    Ok(LoggedRecord { org, name, version: version.to_string(), index, digest })
+    Ok(LoggedRecord { namespace, name, version: version.to_string(), index, digest })
 }
 
 /// The inclusion proof of entry `index`, waiting a bounded time for an
@@ -335,13 +335,13 @@ fn retry_later(reason: &'static str) -> Response {
 /// The Sigstore bundle published with `version`, as it was published.
 async fn sigstore_bundle(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     name: &CanonicalPackageName,
     version: &str,
 ) -> pnpr_error::Result<Option<serde_json::Value>> {
     let filename = name.sigstore_name_for_version(version);
     let Some((body, _)) =
-        super::hosted_storage(state, Some(org)).open_hosted_blob(name, &filename).await?
+        super::hosted_storage(state, Some(namespace)).open_hosted_blob(name, &filename).await?
     else {
         return Ok(None);
     };

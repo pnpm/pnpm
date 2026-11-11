@@ -55,20 +55,25 @@ pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<Gc
     let registries = selected_registries(config, options)?;
     let storage = Storage::from_config(&config.storage)?;
     let mut report = GcReport::default();
-    for (org, ecosystem) in registries {
-        let view = storage.for_hosted(&org, ecosystem);
+    for (namespace, ecosystem) in registries {
+        let view = storage.for_hosted(&namespace, ecosystem);
         let collection = Collection {
             storage: &view,
             manifest_limit: config.http.oci.max_manifest_bytes,
             lease: config.gc.lease,
         };
-        let span = tracing::info_span!(target: "pnpr::audit", "archive collection", org = %org, ecosystem = %ecosystem);
+        let span = tracing::info_span!(
+            target: "pnpr::audit",
+            "archive collection",
+            namespace = %namespace,
+            ecosystem = %ecosystem,
+        );
         report.add(collection.run(options).instrument(span).await?);
     }
     Ok(report)
 }
 
-/// The `(org, ecosystem)` namespaces of the registries `options` selects,
+/// The `(namespace, ecosystem)` slices of the registries `options` selects,
 /// each once.
 fn selected_registries(config: &Config, options: &GcOptions) -> Result<Vec<(String, Ecosystem)>> {
     let names: Vec<&String> = if options.registries.is_empty() {
@@ -88,15 +93,15 @@ fn selected_registries(config: &Config, options: &GcOptions) -> Result<Vec<(Stri
             .ok_or_else(|| RegistryError::BadRequest {
                 reason: format!("{name:?} is not a concrete registry"),
             })?;
-        let namespace = (hosted.org.clone(), ecosystem);
-        if !selected.contains(&namespace) {
-            selected.push(namespace);
+        let slice = (hosted.namespace.clone(), ecosystem);
+        if !selected.contains(&slice) {
+            selected.push(slice);
         }
     }
     Ok(selected)
 }
 
-/// One `(org, ecosystem)` namespace being collected.
+/// One `(namespace, ecosystem)` slice being collected.
 pub(crate) struct Collection<'storage> {
     /// The namespace's view of the hosted store.
     pub(crate) storage: &'storage Storage,

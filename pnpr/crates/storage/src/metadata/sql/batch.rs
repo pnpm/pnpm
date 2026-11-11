@@ -1,11 +1,11 @@
-//! One write transaction of a hosted catalog, committed under the catalog's
-//! next generation.
+//! One write transaction of a hosted namespace, committed under the
+//! namespace's next generation.
 
 pub(super) use super::adapter::WriteTransaction;
 use super::{
     PackageKey,
     adapter::{Connection, Query, Row},
-    advance_catalog,
+    advance_namespace,
     commit::Commit,
     to_column, to_generation,
 };
@@ -14,10 +14,10 @@ use pnpr_error::{RegistryError, Result};
 use std::cell::RefCell;
 
 /// A write transaction that commits every package it changes under one new
-/// generation of its catalog, or nothing.
+/// generation of its namespace, or nothing.
 pub(super) struct Batch<'conn> {
     transaction: WriteTransaction<'conn>,
-    catalog: String,
+    namespace: String,
     generation: u64,
     cdn_enabled: bool,
     /// The packages the batch changed.
@@ -33,14 +33,14 @@ impl<'conn> Batch<'conn> {
     /// same round trip, and their rows are returned.
     pub(super) fn begin_with(
         connection: &'conn dyn Connection,
-        catalog: &str,
+        namespace: &str,
         reads: &[Query<'_>],
     ) -> Result<(Self, Vec<Vec<Row>>)> {
         let transaction = WriteTransaction::begin(connection)?;
         let mut queries = vec![Query::new(
-            "SELECT COALESCE((SELECT generation FROM catalogs WHERE catalog = ?1), 0),
+            "SELECT COALESCE((SELECT generation FROM namespaces WHERE namespace = ?1), 0),
              EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)",
-            params![catalog],
+            params![namespace],
         )];
         queries.extend_from_slice(reads);
         let mut results = transaction.query_all(&queries)?.into_iter();
@@ -60,7 +60,7 @@ impl<'conn> Batch<'conn> {
         }
         let batch = Self {
             transaction,
-            catalog: catalog.to_string(),
+            namespace: namespace.to_string(),
             generation: current + 1,
             cdn_enabled,
             touched: Vec::new(),
@@ -77,13 +77,13 @@ impl<'conn> Batch<'conn> {
         self.generation
     }
 
-    pub(super) fn catalog(&self) -> &str {
-        &self.catalog
+    pub(super) fn namespace(&self) -> &str {
+        &self.namespace
     }
 
-    /// The writes to one package of the batch's catalog.
+    /// The writes to one package of the batch's namespace.
     pub(super) fn package<'batch>(&'batch self, key: &'batch PackageKey) -> Commit<'batch> {
-        debug_assert_eq!(key.catalog, self.catalog, "a batch writes one catalog");
+        debug_assert_eq!(key.namespace, self.namespace, "a batch writes one namespace");
         Commit {
             transaction: self.transaction(),
             key,
@@ -128,14 +128,14 @@ impl<'conn> Batch<'conn> {
             if self.cdn_enabled && key.ecosystem == pnpr_package_name::Ecosystem::Npm {
                 super::cdn::enqueue(&*self.transaction, &key.name)?;
             }
-            let (catalog, ecosystem, name) = key.params();
+            let (namespace, ecosystem, name) = key.params();
             self.transaction.execute(
                 "UPDATE packages SET generation = ?4
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-                params![catalog, ecosystem, name, generation],
+                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+                params![namespace, ecosystem, name, generation],
             )?;
         }
-        advance_catalog(&*self.transaction, &self.catalog, self.generation)?;
+        advance_namespace(&*self.transaction, &self.namespace, self.generation)?;
         self.transaction.commit()?;
         Ok(Some(self.generation))
     }

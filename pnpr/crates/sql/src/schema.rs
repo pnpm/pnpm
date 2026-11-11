@@ -1,7 +1,7 @@
 //! Numbered forward-only schema migrations for pnpr's metadata and auth tables.
 //!
-//! A package is keyed by `(catalog, ecosystem, name)`: the organization
-//! namespace it is hosted in, its ecosystem, and its canonical name. Every key
+//! A package is keyed by `(namespace, ecosystem, name)`: the hosted storage
+//! namespace, its ecosystem, and its canonical name. Every key
 //! column is `NOT NULL`, so no nullable column can weaken a uniqueness
 //! constraint.
 //!

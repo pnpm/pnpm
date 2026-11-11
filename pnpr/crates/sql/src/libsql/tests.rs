@@ -55,7 +55,7 @@ fn classify_sql_distinguishes_reads_transactions_rollbacks_and_writes() {
     assert_eq!(classify_sql("ROLLBACK TRANSACTION"), StepKind::Rollback);
     assert_eq!(classify_sql("ROLLBACK TO sp"), StepKind::Read);
     assert_eq!(classify_sql("ROLLBACK TRANSACTION TO sp"), StepKind::Read);
-    assert_eq!(classify_sql("UPDATE catalogs SET generation = 1"), StepKind::Write);
+    assert_eq!(classify_sql("UPDATE namespaces SET generation = 1"), StepKind::Write);
 }
 
 #[test]

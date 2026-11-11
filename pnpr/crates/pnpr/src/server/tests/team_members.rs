@@ -15,7 +15,7 @@ async fn a_large_roster_uses_one_targeted_bulk_account_lookup() {
         .chain(["retired".to_string()])
         .collect();
     let yaml = format!(
-        "storage: '{}'\nauth:\n  admins: [alice]\nregistries:\n  local:\n    type: hosted\n    org: ''\n    teams:\n      readers:\n        name: readers\n        members: [{}]\ndefaultRegistry: local\n",
+        "storage: '{}'\nauth:\n  admins: [alice]\nregistries:\n  local:\n    type: hosted\n    namespace: ''\n    teams:\n      readers:\n        name: readers\n        members: [{}]\ndefaultRegistry: local\n",
         directory
             .path()
             .join("storage")

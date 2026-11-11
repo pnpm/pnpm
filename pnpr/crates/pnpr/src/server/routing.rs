@@ -290,10 +290,13 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     let mut router = staged_archive_routes(router, "")
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
-        .route("/-/publications/{org}", get(super::publications::serve_member_publication))
-        .route("/-/publications/{org}/{publication}", get(super::publications::serve_publication))
+        .route("/-/publications/{namespace}", get(super::publications::serve_member_publication))
         .route(
-            "/-/publications/{org}/{publication}/notes",
+            "/-/publications/{namespace}/{publication}",
+            get(super::publications::serve_publication),
+        )
+        .route(
+            "/-/publications/{namespace}/{publication}/notes",
             get(super::publications::serve_publication_note)
                 .put(super::publications::serve_publication_note)
                 .delete(super::publications::serve_publication_note)

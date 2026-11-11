@@ -3,7 +3,7 @@ pub(super) mod variants;
 
 pub(super) use atomic::{
     PublishReceipt, add_npm_notices, commit_publication, publication_name, publication_request,
-    publish_committed_response, replayed_outcome, single_catalog,
+    publish_committed_response, replayed_outcome, single_namespace,
 };
 pub(super) use attachments::{
     StagedBase, StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
@@ -52,11 +52,11 @@ use super::{
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
 pub(super) enum PublishTarget {
-    /// Write into the hosted registry `source`'s storage namespace `org`.
+    /// Write into the hosted registry `source`'s storage `namespace`.
     /// The source name is carried so the write's `publish`/`unpublish`
     /// authorization can consult that registry's `packages:` rules.
-    Hosted { source: String, org: String },
-    /// The resolved target is not a hosted org; reject with this reason.
+    Hosted { source: String, namespace: String },
+    /// The resolved target is not a hosted registry; reject with this reason.
     Reject(String),
     /// The resolved upstream registry denies this caller; answer with the
     /// same response its reads give (a 403), before any rejection that would
@@ -93,7 +93,9 @@ pub(super) fn resolve_publish_target_for(
     match resolve_ecosystem_source(state, &target, ecosystem, package) {
         RegistrySource::Hosted(registry) => {
             match hosted_gate(state, identity, &registry, package) {
-                HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
+                HostedGate::Allowed(namespace) => {
+                    PublishTarget::Hosted { source: registry, namespace }
+                }
                 HostedGate::MaskNotFound => PublishTarget::NotFound,
                 HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
@@ -221,25 +223,25 @@ async fn publish_attempt(
     let (validated, target) =
         validate_publish_doc(state, identity, registry, name, incoming).await?;
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
-    if let Some(replayed) = replayed_outcome(state, &target.org, request.as_ref()).await? {
+    if let Some(replayed) = replayed_outcome(state, &target.namespace, request.as_ref()).await? {
         return Ok(replayed);
     }
-    stage_and_commit(state, identity, validated, &target.org, (notes, request)).await
+    stage_and_commit(state, identity, validated, &target.namespace, (notes, request)).await
 }
 
-/// Stage one validated publish into `org` and commit it, then give back the
+/// Stage one validated publish into `namespace` and commit it, then give back the
 /// staged archives it claimed.
 async fn stage_and_commit(
     state: &AppState,
     identity: &Identity,
     validated: ValidatedPublish,
-    org: &str,
+    namespace: &str,
     (notes, request): (PublishNotes, Option<PublicationRequest>),
 ) -> Result<Response, RegistryError> {
     let storage = &state.inner.storage;
     let references =
         StagedReferences::check(storage, identity, validated.staged_integrities()).await?;
-    let staged = stage_publish(state, validated, &now_iso(), Some(org)).await?;
+    let staged = stage_publish(state, validated, &now_iso(), Some(namespace)).await?;
     let receipt = commit_publication(state, vec![staged], notes, request).await?;
     references.release(storage).await;
     Ok(publish_committed_response(&receipt))

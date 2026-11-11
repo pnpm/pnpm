@@ -10,7 +10,7 @@ use pnpr_error::{RegistryError, Result};
 use sha2::{Digest as _, Sha512};
 
 use super::{
-    ACTIVE_PUBLICATION_EXPIRY, OrgAccess, PUBLICATION_RENEWAL_INTERVAL, SharedArtifactStore,
+    ACTIVE_PUBLICATION_EXPIRY, OwnerAccess, PUBLICATION_RENEWAL_INTERVAL, SharedArtifactStore,
     artifact_operation_id, bad_request, owner_key, protocol_error, publisher_owner_key,
     staged_record_path,
 };
@@ -49,7 +49,7 @@ impl SharedArtifactStore {
     /// `None` when it is not stored or `caller` may not read it.
     pub async fn blob_size(
         &self,
-        caller: &(impl OrgAccess + ?Sized),
+        caller: &(impl OwnerAccess + ?Sized),
         owner: &OwnerScope,
         integrity: &str,
     ) -> Result<Option<u64>> {
@@ -74,7 +74,7 @@ impl SharedArtifactStore {
     /// references it has time to arrive.
     pub async fn store_blob<StreamError: Display>(
         &self,
-        caller: &(impl OrgAccess + ?Sized),
+        caller: &(impl OwnerAccess + ?Sized),
         owner: &OwnerScope,
         integrity: &str,
         size: u64,

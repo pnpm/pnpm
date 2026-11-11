@@ -104,8 +104,8 @@ struct Candidates {
 impl Candidates {
     async fn load(notes: &NotesTarget) -> Result<Self, RegistryError> {
         let NotesTarget { database, name, target } = notes;
-        let noted = database.noted_versions(name, &target.org).await?;
-        let published = database.noted_publications(name, &target.org).await?;
+        let noted = database.noted_versions(name, &target.namespace).await?;
+        let published = database.noted_publications(name, &target.namespace).await?;
         Ok(Self { noted: noted.into_iter().collect(), published: published.into_iter().collect() })
     }
 
@@ -147,7 +147,7 @@ impl Candidates {
         version: &str,
     ) -> Result<Option<(Value, bool)>, RegistryError> {
         let note = if self.noted.contains(version) {
-            notes.database.version_note(&notes.name, &notes.target.org, version).await?
+            notes.database.version_note(&notes.name, &notes.target.namespace, version).await?
         } else {
             None
         };
@@ -179,7 +179,7 @@ async fn publication_link(
     if let Some(link) = links.get(&id) {
         return Ok(link.clone());
     }
-    let link = match notes.database.publication(&notes.target.org, &id.to_string()).await? {
+    let link = match notes.database.publication(&notes.target.namespace, &id.to_string()).await? {
         Some(publication) => {
             readable_publication_note(state, identity, &notes.database, publication).await?
         }
@@ -241,9 +241,9 @@ fn entry_json(
         }
     }
     if let Some(link) = link {
-        let org = if link.org.is_empty() { "-" } else { &link.org };
+        let namespace = if link.namespace.is_empty() { "-" } else { &link.namespace };
         let reference = json!({
-            "org": org,
+            "namespace": namespace,
             "id": link.id.to_string(),
             "name": link.name,
             "initialDigest": link.initial_digest,

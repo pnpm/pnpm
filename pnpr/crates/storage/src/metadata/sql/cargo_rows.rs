@@ -45,19 +45,19 @@ struct IncomingCargoVersion {
 }
 
 pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT version, position, yanked, entry FROM cargo_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
+            namespace,
             ecosystem,
             name,
         ),
         query!(
             "SELECT version FROM removed_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
@@ -118,17 +118,17 @@ fn clear_crate(
 ) -> Result<bool> {
     let Some(current) = row else { return Ok(false) };
     removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
-         SELECT catalog, ecosystem, name, version, ?4 FROM cargo_versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+         SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, to_column(commit.generation)],
+        params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
-        "DELETE FROM cargo_versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM cargo_versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -167,11 +167,11 @@ fn update_yanked(
     if was_yanked == is_yanked {
         return Ok(false);
     }
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
         "UPDATE cargo_versions SET yanked = ?5
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![catalog, ecosystem, name, version, i64::from(is_yanked)],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version, i64::from(is_yanked)],
     )?;
     Ok(true)
 }
@@ -181,12 +181,12 @@ fn insert_cargo_version(
     item: &IncomingCargoVersion,
     position: i64,
 ) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let entry = serde_json::to_string(&item.entry)?;
     commit.transaction.execute(
-        "INSERT INTO cargo_versions (catalog, ecosystem, name, version, position, yanked, entry)
+        "INSERT INTO cargo_versions (namespace, ecosystem, name, version, position, yanked, entry)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![catalog, ecosystem, name, &item.version, position, i64::from(item.yanked), entry,],
+        params![namespace, ecosystem, name, &item.version, position, i64::from(item.yanked), entry,],
     )
 }
 
@@ -202,25 +202,25 @@ fn remove_dropped_versions(
     if let Some(current) = row {
         removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     }
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let keys: Vec<&str> = dropped
         .keys()
         .map(String::as_str)
         .collect();
     let versions = super::blobs::json_array(&keys);
     commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
+        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
          SELECT ?1, ?2, ?3, value, ?5
          FROM (SELECT value FROM json_each(?4)) AS removed
          WHERE value != ''
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, &versions, to_column(commit.generation)],
+        params![namespace, ecosystem, name, &versions, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
         "DELETE FROM cargo_versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
            AND version IN (SELECT value FROM json_each(?4))",
-        params![catalog, ecosystem, name, &versions],
+        params![namespace, ecosystem, name, &versions],
     )?;
     Ok(true)
 }
@@ -312,15 +312,15 @@ fn canonicalize_cargo_dep(dep: &mut Map<String, Value>) {
 }
 
 pub(super) fn view_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     query!(
         "SELECT v.yanked, v.entry FROM cargo_versions v
-         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
+         WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
          ORDER BY v.position",
-        catalog,
+        namespace,
         ecosystem,
         name,
         unless,

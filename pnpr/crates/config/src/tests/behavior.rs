@@ -51,7 +51,7 @@ fn null_defaulted_aggregate_config_fields_use_defaults() {
     let configs = [
         "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  users: null\n  tokens: null\n",
         "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n",
-        "artifacts:\n  orgs: null\n  quota: null\n",
+        "artifacts:\n  owners: null\n  quota: null\n",
         "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      workloads: null\n      login:\n        users:\n          - {subject: sub, userId: alice, claims: null}\n",
     ];
 

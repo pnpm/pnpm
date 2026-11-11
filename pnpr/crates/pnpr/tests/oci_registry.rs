@@ -56,7 +56,7 @@ fn oci_config(storage: PathBuf, hosted_access: &str) -> Config {
         Ecosystem::Oci,
         HostedSource {
             name: "images",
-            org: "images",
+            namespace: "images",
             access: hosted_access,
             packages: &["acme/*"],
         },

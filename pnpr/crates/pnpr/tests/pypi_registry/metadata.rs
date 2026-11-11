@@ -201,7 +201,7 @@ async fn hosted_wheel_metadata_is_persisted_advertised_and_served_verbatim() {
         pnpr::Ecosystem::Pypi,
         super::common::HostedSource {
             name: "internal",
-            org: "python",
+            namespace: "python",
             access: "$authenticated",
             packages: &["demo-pkg"],
         },

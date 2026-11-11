@@ -41,7 +41,7 @@ pub(super) async fn put_publish(
 /// [`Self::stage`] as one package of a cross-ecosystem batch.
 pub(in super::super) struct CratePublication {
     pub(super) key: CanonicalPackageName,
-    pub(super) org: String,
+    pub(super) namespace: String,
     pub(super) filename: String,
     pub(super) entry: IndexEntry,
     pub(super) description: Option<String>,
@@ -66,7 +66,7 @@ pub(in super::super) async fn validate_crate_publish(
 /// spending anything on the archive.
 pub(in super::super) struct CrateTarget {
     pub(super) key: CanonicalPackageName,
-    pub(super) org: String,
+    pub(super) namespace: String,
 }
 
 pub(in super::super) fn authorize_crate_publish(
@@ -79,15 +79,15 @@ pub(in super::super) fn authorize_crate_publish(
         .validate()
         .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
     let key = CanonicalPackageName::parse(&metadata.name, ECOSYSTEM)?;
-    let (source, org) =
+    let (source, namespace) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, key.as_str()) {
-            PublishTarget::Hosted { source, org } => (source, org),
+            PublishTarget::Hosted { source, namespace } => (source, namespace),
             PublishTarget::Reject(reason) => return Err(RegistryError::PublishRejected { reason }),
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
     authorize(state, identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)?;
-    Ok(CrateTarget { key, org })
+    Ok(CrateTarget { key, namespace })
 }
 
 /// Check the archive against the metadata it was published with, and build
@@ -97,7 +97,7 @@ pub(in super::super) async fn verify_crate_archive(
     metadata: PublishMetadata,
     archive: Bytes,
 ) -> Result<CratePublication, RegistryError> {
-    let CrateTarget { key, org } = target;
+    let CrateTarget { key, namespace } = target;
     let (name, version) = (metadata.name.clone(), metadata.vers.clone());
     let checked = tokio::task::spawn_blocking(move || {
         validate_crate_archive(&archive, &name, &version)
@@ -111,7 +111,7 @@ pub(in super::super) async fn verify_crate_archive(
     let description = bounded_description(metadata.description.as_deref());
     Ok(CratePublication {
         key,
-        org,
+        namespace,
         filename,
         entry: metadata.into_index_entry(cksum),
         description,
@@ -124,9 +124,9 @@ impl CratePublication {
         &self.key
     }
 
-    /// The organization whose catalog the crate is published into.
-    pub(in super::super) fn org(&self) -> &str {
-        &self.org
+    /// The hosted namespace the crate is published into.
+    pub(in super::super) fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     /// The one-version document this publish contributes, which merges into
@@ -144,7 +144,7 @@ impl CratePublication {
     pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
         store_hosted_artifact(
             state,
-            &self.org,
+            &self.namespace,
             &self.key,
             &self.filename,
             &self.archive,
@@ -162,7 +162,7 @@ impl CratePublication {
     ) -> Result<StagedPublish, RegistryError> {
         stage_hosted_artifact(
             state,
-            &self.org,
+            &self.namespace,
             &self.key,
             &self.filename,
             &self.archive,
@@ -247,7 +247,7 @@ pub(super) async fn set_yanked(
     }
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let outcome = state.inner.storage
-        .for_hosted(&target.org, ECOSYSTEM)
+        .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
             update_crate_yank_status(existing, &key, version, yanked)
         })

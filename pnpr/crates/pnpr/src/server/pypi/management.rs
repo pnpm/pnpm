@@ -107,7 +107,7 @@ async fn update_file(
     }
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     state.inner.storage
-        .for_hosted(&target.org, ECOSYSTEM)
+        .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
             update_document(existing, &key, filename, yanked.as_ref())
         })

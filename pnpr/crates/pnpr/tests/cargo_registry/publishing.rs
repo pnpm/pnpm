@@ -69,7 +69,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, archive);
 
-    // Storage layout: the hosted org namespace, keyed by the lowercase name.
+    // Storage layout: the hosted namespace, keyed by the lowercase name.
     assert_eq!(
         pnpr_fixtures::read_hosted_file(
             tmp.path(),

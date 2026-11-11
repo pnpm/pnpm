@@ -253,7 +253,7 @@ async fn serve_staged_publish(
 
     let stage_id = generate_stage_id();
     let record = staged_record(&validated, identity, registry, &stage_id);
-    if let Err(err) = validate_staged_publish_name(state, validated, &target.org).await {
+    if let Err(err) = validate_staged_publish_name(state, validated, &target.namespace).await {
         return err.into_response();
     }
 
@@ -453,7 +453,7 @@ async fn authorize_staged(
         &RegistrySource::Hosted(target.source),
         name.as_str(),
         Action::Publish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await
 }

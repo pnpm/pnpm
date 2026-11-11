@@ -88,20 +88,20 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     async fn list_top_level_dirs(&self) -> Result<Vec<String>>;
 
     /// A view rooted under `segment`, giving a hosted registry its own
-    /// namespace so two orgs hosting the same `name@version` never collide.
+    /// slice so two namespaces hosting the same `name@version` never collide.
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend>;
 
     /// A view that decodes package directories and object keys with
     /// `ecosystem`'s [`crate::layout::package_segments`] rules.
     fn with_ecosystem(&self, ecosystem: Ecosystem) -> Arc<dyn HostedBackend>;
 
-    /// What separates this backend's objects from another organization's.
+    /// What separates this backend's objects from another hosted slice's.
     ///
-    /// Two views with the same namespace address the same objects, and two
-    /// with different ones never do. It names an organization where the local
-    /// scratch root cannot: on the object-store backend every organization
-    /// stages through one directory, so a scratch path alone says nothing
-    /// about who owns what is in it.
+    /// Two views with the same prefix address the same objects, and two with
+    /// different ones never do. It names a namespace where the local scratch
+    /// root cannot: on the object-store backend every namespace stages
+    /// through one directory, so a scratch path alone says nothing about who
+    /// owns what is in it.
     fn namespace(&self) -> String;
 
     /// The local directory this backend stages blobs in. Local even when the
@@ -154,7 +154,7 @@ pub enum HostedDocumentVersion {
     /// construction, so there is nothing to compare against.
     Unversioned,
     ObjectVersion(UpdateVersion),
-    /// The catalog generation that last changed the package, from a
+    /// The namespace generation that last changed the package, from a
     /// metadata backend that tracks generations.
     Generation(u64),
 }

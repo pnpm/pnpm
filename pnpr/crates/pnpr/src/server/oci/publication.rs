@@ -20,7 +20,7 @@ use std::collections::HashSet;
 
 pub(in crate::server) struct OciPublication {
     pub(super) key: CanonicalPackageName,
-    org: String,
+    namespace: String,
     bytes: Bytes,
     manifest: Manifest,
     pub(super) digest: Digest,
@@ -36,7 +36,7 @@ pub(in crate::server) fn authorize_publication(
     let key = CanonicalPackageName::parse(name, Ecosystem::Oci)
         .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "not a valid repository name"))?;
     match resolve_publish_target_for(state, identity, registry, Ecosystem::Oci, key.as_str()) {
-        PublishTarget::Hosted { source, org } => {
+        PublishTarget::Hosted { source, namespace } => {
             authorize(
                 state,
                 identity,
@@ -44,7 +44,7 @@ pub(in crate::server) fn authorize_publication(
                 key.as_str(),
                 Action::Publish,
             )?;
-            Ok((key, org))
+            Ok((key, namespace))
         }
         PublishTarget::Denied(err) => Err(err.into()),
         PublishTarget::Reject(reason) => Err(Refusal::new(ErrorCode::Denied, reason)),
@@ -78,16 +78,16 @@ impl OciPublication {
         }
         let manifest = Manifest::parse(&bytes, content_type)
             .map_err(|err| Refusal::new(ErrorCode::ManifestInvalid, err.to_string()))?;
-        Ok(Self { key: target.0, org: target.1, bytes, manifest, digest, reference })
+        Ok(Self { key: target.0, namespace: target.1, bytes, manifest, digest, reference })
     }
 
     pub(in crate::server) fn key(&self) -> &CanonicalPackageName {
         &self.key
     }
 
-    /// The organization whose catalog the image is published into.
-    pub(in crate::server) fn org(&self) -> &str {
-        &self.org
+    /// The hosted namespace the image is published into.
+    pub(in crate::server) fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     pub(super) fn subject(&self) -> Option<Digest> {
@@ -95,7 +95,7 @@ impl OciPublication {
     }
 
     pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
-        let storage = state.inner.storage.for_hosted(&self.org, Ecosystem::Oci);
+        let storage = state.inner.storage.for_hosted(&self.namespace, Ecosystem::Oci);
         // The blobs the manifest references are read with the document, and
         // the commit is refused if a reclaim takes one of them after this.
         let referenced = self.referenced_digests()?;
@@ -117,9 +117,17 @@ impl OciPublication {
         let addition = self.document_addition(children.clone());
         let filename = self.digest.blob_filename();
         let artifact = HostedArtifact { filename: &filename, bytes: &self.bytes, references };
-        stage_hosted_artifact_on(state, &self.org, &self.key, artifact, base, &refuse, addition)
-            .await
-            .map_err(Into::into)
+        stage_hosted_artifact_on(
+            state,
+            &self.namespace,
+            &self.key,
+            artifact,
+            base,
+            &refuse,
+            addition,
+        )
+        .await
+        .map_err(Into::into)
     }
     fn document_addition(&self, children: Vec<Digest>) -> ImageDocument {
         let mut addition = ImageDocument::new(self.key.as_str());

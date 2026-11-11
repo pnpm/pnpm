@@ -1,4 +1,4 @@
-pub use artifact_identity::{OrgAccess, OrgGrant};
+pub use artifact_identity::{OwnerAccess, OwnerGrant};
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
 
 mod publication_quota;
@@ -235,7 +235,7 @@ impl SharedArtifactStore {
 
     pub async fn resolve(
         &self,
-        caller: &(impl OrgAccess + ?Sized),
+        caller: &(impl OwnerAccess + ?Sized),
         body: &[u8],
     ) -> Result<ResolveArtifactsResponse> {
         let request: ResolveArtifactsRequest = serde_json::from_slice(body)
@@ -271,7 +271,7 @@ impl SharedArtifactStore {
     /// not stored or `caller` may not read it.
     pub async fn read_blob(
         &self,
-        caller: &(impl OrgAccess + ?Sized),
+        caller: &(impl OwnerAccess + ?Sized),
         owner: &OwnerScope,
         integrity: &str,
     ) -> Result<Option<ArtifactBlob>> {
@@ -298,7 +298,7 @@ impl SharedArtifactStore {
 
     async fn resolve_candidate(
         &self,
-        caller: &(impl OrgAccess + ?Sized),
+        caller: &(impl OwnerAccess + ?Sized),
         candidate: &ArtifactCandidate,
         budget: &mut ResolveBudget,
     ) -> Result<Option<ResolvedArtifact>> {
@@ -353,7 +353,7 @@ pub fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
 }
 
 fn prepare_publication(
-    caller: &(impl OrgAccess + ?Sized),
+    caller: &(impl OwnerAccess + ?Sized),
     request: &PublishArtifactRequest,
 ) -> Result<PreparedPublication> {
     let validated = request.validate().map_err(|err| protocol_error(&err))?;

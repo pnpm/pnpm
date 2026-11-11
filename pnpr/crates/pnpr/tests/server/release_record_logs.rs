@@ -21,7 +21,7 @@ use tempfile::TempDir;
 const LOG_SIGNING_KEY: &str =
     "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
 
-/// The origin of the `acme` organization's npm log.
+/// The origin of the `acme` namespace's npm log.
 const ORIGIN: &str = "PeterNeumann/npm/~acme";
 
 /// A hosted `acme` registry with `SQLite` metadata and a log signing key, the
@@ -222,10 +222,10 @@ async fn entry_bundles_are_read_only_by_who_may_read_every_package() {
     assert_eq!(decode_bundle(&body_bytes(bundle.into_body()).await).unwrap().len(), 2);
 }
 
-/// A hosted registry serves its organization's log, also when addressed by
-/// name, and a registry that reaches no organization serves none.
+/// A hosted registry serves its namespace's log, also when addressed by
+/// name, and a registry that reaches no namespace serves none.
 #[tokio::test]
-async fn a_log_is_served_only_where_one_organization_is_reached() {
+async fn a_log_is_served_only_where_one_namespace_is_reached() {
     let (_tmp, app, token) = setup(Vec::new()).await;
     publish(&app, &token, "@acme/widget", "1.0.0").await;
     let evidence = get(&app, "/npm/~acme/@acme%2Fwidget/1.0.0+r0/evidence", None).await;

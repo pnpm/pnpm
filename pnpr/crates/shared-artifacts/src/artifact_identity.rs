@@ -19,56 +19,59 @@ pub(super) fn scope_name(path: &ObjectPath) -> Option<&str> {
     parent.ends_with("/scopes").then_some(name)
 }
 
-/// Which organizations' artifacts a caller may read and publish. The server
-/// decides from the organizations it declares; the store asks before every
+/// Which artifact owners a caller may read and publish. The server decides
+/// from the owners `artifacts.owners` declares; the store asks before every
 /// lookup, download, and publication.
-pub trait OrgAccess: Sync {
+pub trait OwnerAccess: Sync {
     /// The caller's name, for the error a refused request reports.
     fn username(&self) -> &str;
-    fn may_read(&self, org: &str) -> bool;
-    fn may_publish(&self, org: &str) -> bool;
+    fn may_read(&self, owner: &str) -> bool;
+    fn may_publish(&self, owner: &str) -> bool;
 }
 
-/// Which of an organization's grants a request needs: `Read` takes its
+/// Which of an artifact owner's grants a request needs: `Read` takes its
 /// access grant, `Publish` its publish grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OrgGrant {
+pub enum OwnerGrant {
     Read,
     Publish,
 }
 
-impl OrgGrant {
-    /// Whether `caller` holds this grant on `org`.
-    fn allows(self, caller: &(impl OrgAccess + ?Sized), org: &str) -> bool {
+impl OwnerGrant {
+    /// Whether `caller` holds this grant on `owner`.
+    fn allows(self, caller: &(impl OwnerAccess + ?Sized), owner: &str) -> bool {
         match self {
-            OrgGrant::Read => caller.may_read(org),
-            OrgGrant::Publish => caller.may_publish(org),
+            OwnerGrant::Read => caller.may_read(owner),
+            OwnerGrant::Publish => caller.may_publish(owner),
         }
     }
 }
 
-/// The storage key of what `org` owns.
-pub(super) fn org_key(org: &str) -> String {
-    digest_segment(OwnerScope::organization(org).namespace().as_bytes())
+/// The storage key of what `owner` owns.
+pub(super) fn org_key(owner: &str) -> String {
+    digest_segment(OwnerScope::organization(owner).namespace().as_bytes())
 }
 
 /// The storage key of `owner`, when `caller` may read what it owns.
-pub(super) fn owner_key(caller: &(impl OrgAccess + ?Sized), owner: &OwnerScope) -> Result<String> {
-    authorized_owner_key(caller, owner, OrgGrant::Read)
+pub(super) fn owner_key(
+    caller: &(impl OwnerAccess + ?Sized),
+    owner: &OwnerScope,
+) -> Result<String> {
+    authorized_owner_key(caller, owner, OwnerGrant::Read)
 }
 
 /// The storage key of `owner`, when `caller` may publish what it owns.
 pub(super) fn publisher_owner_key(
-    caller: &(impl OrgAccess + ?Sized),
+    caller: &(impl OwnerAccess + ?Sized),
     owner: &OwnerScope,
 ) -> Result<String> {
-    authorized_owner_key(caller, owner, OrgGrant::Publish)
+    authorized_owner_key(caller, owner, OwnerGrant::Publish)
 }
 
 fn authorized_owner_key(
-    caller: &(impl OrgAccess + ?Sized),
+    caller: &(impl OwnerAccess + ?Sized),
     owner: &OwnerScope,
-    grant: OrgGrant,
+    grant: OwnerGrant,
 ) -> Result<String> {
     if let OwnerScope::Organization { name } = owner
         && grant.allows(caller, name)
@@ -78,8 +81,8 @@ fn authorized_owner_key(
     Err(RegistryError::Forbidden {
         user: caller.username().to_string(),
         action: match grant {
-            OrgGrant::Read => "access shared artifacts owned by",
-            OrgGrant::Publish => "publish shared artifacts owned by",
+            OwnerGrant::Read => "access shared artifacts owned by",
+            OwnerGrant::Publish => "publish shared artifacts owned by",
         },
         resource: owner.namespace(),
     })

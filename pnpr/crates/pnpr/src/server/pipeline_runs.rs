@@ -1,8 +1,8 @@
 use super::{
-    AppState, AuthedCaller, CallerOrgs, Path, RegistryError, Response, State, StatusCode, header,
+    AppState, AuthedCaller, CallerOwners, Path, RegistryError, Response, State, StatusCode, header,
     not_found, private_no_cache,
 };
-use pnpr_shared_artifacts::OrgGrant;
+use pnpr_shared_artifacts::OwnerGrant;
 
 use axum::response::IntoResponse;
 
@@ -14,7 +14,7 @@ pub(super) async fn serve_publish_pipeline_run(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "pipeline run publication") {
+    let caller = match CallerOwners::new(&state, &identity, "pipeline run publication") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -29,7 +29,8 @@ pub(super) async fn serve_publish_pipeline_run(
             );
         }
     };
-    if let Err(error) = caller.authorize(&run.org, OrgGrant::Publish, "publish pipeline runs to") {
+    if let Err(error) = caller.authorize(&run.org, OwnerGrant::Publish, "publish pipeline runs to")
+    {
         return private_no_cache(error.into_response());
     }
     private_no_cache(
@@ -52,13 +53,13 @@ pub(super) async fn serve_list_pipeline_runs(
     AuthedCaller(identity): AuthedCaller,
     uri: axum::http::Uri,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "pipeline runs") {
+    let caller = match CallerOwners::new(&state, &identity, "pipeline runs") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
     let query = parse_pipeline_run_query(uri.query().unwrap_or_default());
     if let Some(org) = &query.org
-        && let Err(error) = caller.authorize(org, OrgGrant::Read, "read pipeline runs of")
+        && let Err(error) = caller.authorize(org, OwnerGrant::Read, "read pipeline runs of")
     {
         return private_no_cache(error.into_response());
     }
@@ -106,8 +107,8 @@ pub(super) async fn serve_get_pipeline_run(
     AuthedCaller(identity): AuthedCaller,
     Path((org, workspace, run_id)): Path<(String, String, String)>,
 ) -> Response {
-    let authorized = CallerOrgs::new(&state, &identity, "pipeline runs")
-        .and_then(|caller| caller.authorize(&org, OrgGrant::Read, "read pipeline runs of"));
+    let authorized = CallerOwners::new(&state, &identity, "pipeline runs")
+        .and_then(|caller| caller.authorize(&org, OwnerGrant::Read, "read pipeline runs of"));
     if let Err(error) = authorized {
         return private_no_cache(error.into_response());
     }

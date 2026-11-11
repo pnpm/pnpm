@@ -57,7 +57,7 @@ registries:
   crates:
     type: hosted
     ecosystem: cargo
-    org: crates
+    namespace: crates
     packages:
       my-crate: {}
   crates-io:
@@ -68,7 +68,7 @@ registries:
   python:
     type: hosted
     ecosystem: pypi
-    org: python
+    namespace: python
     packages:
       my-package: {}
   pypi-org:
@@ -106,8 +106,8 @@ Each target must serve the selected ecosystem. A default does not change a
 registry's ecosystem or storage namespace.
 
 Hosted registries use the [default storage namespace](storage.md#layout) when
-`org` is omitted. Set `org` to choose another namespace. Two hosted registries
-of the same ecosystem cannot share an `org` namespace.
+`namespace` is omitted. Set `namespace` to choose another namespace. Two hosted
+registries of the same ecosystem cannot share a `namespace`.
 
 ## Cargo
 
@@ -246,15 +246,16 @@ the version-conflict check all run up front, and any entry that fails one of the
 aborts the whole batch before a byte is written.
 
 **A batch that passes its checks is committed as one transaction.** It commits
-as one generation of its org, so it lands whole or leaves nothing behind, and a
-read sees the whole release or none of it:
+as one generation of its namespace, so it lands whole or leaves nothing behind,
+and a read sees the whole release or none of it:
 
 - Losing a write race, to another writer publishing the same file between the
   check and the commit, fails the whole batch with `409`, and nothing is
   published. The bytes that won the slot are someone else's published release,
   and overwriting them would be the worse outcome. Republishing the batch after
   bumping the conflicting version completes the release.
-- Every entry must belong to the same org. A batch that spans orgs is refused.
+- Every entry must belong to the same namespace. A batch that spans namespaces
+  is refused.
 - A retry gets the original response back while none of its published npm versions
   have been unpublished and none of its published OCI manifests have been deleted
   by digest. Retrying cannot restore an unpublished npm version. After deletion
@@ -267,9 +268,9 @@ read sees the whole release or none of it:
   publish. A caller whose permission was revoked since gets `403` and can
   read the outcome from the publication or the package.
 - The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
-  field in the body names it. The name must be unique within the org, at most
-  214 bytes long, and not a decimal number, which would read as a publication
-  id.
+  field in the body names it. The name must be unique within the namespace, at
+  most 214 bytes long, and not a decimal number, which would read as a
+  publication id.
   See [publication endpoints](endpoints.md#publication-endpoints).
 - A top-level `"notes"` field is the publication's release note, and a
   `"notes"` field in an npm, Cargo, or Python entry is the note of the version

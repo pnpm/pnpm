@@ -90,12 +90,12 @@ async fn serve_accepted_record(
     let name = CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm).ok()?;
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
     let RegistrySource::Hosted(source) = &resolved_source else { return None };
-    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
-        Ok(org) => org,
+    let namespace = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(namespace) => namespace,
         Err(err) => return Some(err.into_response()),
     };
     let stored = state.inner.storage
-        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
         .read_release_record(&name, version, revision)
         .await;
     let record = match stored {
@@ -182,10 +182,10 @@ async fn read_hosted_version_packument(
     name: &CanonicalPackageName,
     version_or_tag: &str,
 ) -> Result<Option<Value>, RegistryError> {
-    let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+    let namespace = hosted_read_namespace(state, identity, source, name.as_str())?;
     let requested = version_or_tag.to_string();
     let lookup = state.inner.storage
-        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
         .lookup_in_hosted_document(name, move |bytes| {
             let packument: Value = serde_json::from_slice(bytes)?;
             let resolved = resolve_version_or_tag(&packument, &requested);
@@ -211,9 +211,9 @@ async fn read_hosted_record_packument(
     name: &CanonicalPackageName,
     version: &str,
 ) -> Result<Option<Value>, RegistryError> {
-    let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+    let namespace = hosted_read_namespace(state, identity, source, name.as_str())?;
     let manifest = state.inner.storage
-        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
         .read_hosted_version(name, version)
         .await?;
     let Some(manifest) = manifest else { return Ok(None) };

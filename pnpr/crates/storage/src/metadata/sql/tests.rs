@@ -417,22 +417,21 @@ async fn an_identical_write_commits_no_generation(db: Db) {
     assert_eq!(generation(&storage, "pkg").await, first);
 }
 
-async fn generations_advance_per_catalog(db: Db) {
+async fn generations_advance_per_namespace(db: Db) {
     let storage = storage(&db);
-    let org_a = storage.for_hosted("org-a", Ecosystem::Npm);
-    let org_b = storage.for_hosted("org-b", Ecosystem::Npm);
-    write(&org_a, "one", &packument("one", &["1.0.0"])).await;
-    write(&org_a, "two", &packument("two", &["1.0.0"])).await;
-    write(&org_b, "one", &packument("one", &["1.0.0"])).await;
-    let token = |catalog: &str, value| Some(Generation { catalog: catalog.to_string(), value });
-    assert_eq!(generation(&org_a, "one").await, token("org-a", 1));
-    assert_eq!(generation(&org_a, "two").await, token("org-a", 2));
-    assert_eq!(generation(&org_b, "one").await, token("org-b", 1));
-    assert_eq!(token("org-b", 1).unwrap().to_string(), "org-b:1");
+    let ns_a = storage.for_hosted("ns-a", Ecosystem::Npm);
+    let ns_b = storage.for_hosted("ns-b", Ecosystem::Npm);
+    write(&ns_a, "one", &packument("one", &["1.0.0"])).await;
+    write(&ns_a, "two", &packument("two", &["1.0.0"])).await;
+    write(&ns_b, "one", &packument("one", &["1.0.0"])).await;
+    let token =
+        |namespace: &str, value| Some(Generation { namespace: namespace.to_string(), value });
+    assert_eq!(generation(&ns_a, "one").await, token("ns-a", 1));
+    assert_eq!(generation(&ns_a, "two").await, token("ns-a", 2));
+    assert_eq!(generation(&ns_b, "one").await, token("ns-b", 1));
+    assert_eq!(token("ns-b", 1).unwrap().to_string(), "ns-b:1");
     assert!(
-        org_a
-            .read_hosted_document(&npm("other"))
-            .await
+        ns_a.read_hosted_document(&npm("other")).await
             .unwrap()
             .is_none(),
     );
@@ -578,7 +577,7 @@ async fn tag_moves_are_recorded(db: Db) {
             (Some("1.0.0"), None, Some("bob")),
         ],
     );
-    let generation = Some(Generation { catalog: String::new(), value: 2 });
+    let generation = Some(Generation { namespace: String::new(), value: 2 });
     assert_eq!(unchanged, TagUpdate::Committed { generation, moved: false });
     let missing = storage
         .change_dist_tag(&npm("absent"), set)
@@ -835,7 +834,7 @@ conformance! {
     a_packument_reads_back_as_written,
     an_accepted_version_cannot_change,
     an_identical_write_commits_no_generation,
-    generations_advance_per_catalog,
+    generations_advance_per_namespace,
     a_write_from_a_stale_read_conflicts,
     a_tag_change_reuses_every_fragment,
     a_deprecation_rerenders_one_fragment,

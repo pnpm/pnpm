@@ -242,7 +242,7 @@ fn explicit_ecosystems_scope_defaults_and_hosted_storage() {
     let mut yaml = String::from("registries:\n");
     for ecosystem in Ecosystem::all() {
         write!(yaml,
-            "  {ecosystem}-internal:\n    type: hosted\n    ecosystem: {ecosystem}\n    org: internal\n  {ecosystem}-main:\n    type: router\n    sources: [{ecosystem}-internal]\n",
+            "  {ecosystem}-internal:\n    type: hosted\n    ecosystem: {ecosystem}\n    namespace: internal\n  {ecosystem}-main:\n    type: router\n    sources: [{ecosystem}-internal]\n",
         ).unwrap();
     }
     yaml.push_str("defaultRegistry:\n  npm: npm-main\n  cargo: cargo-main\n  pypi: pypi-main\n  oci: oci-main\n");
@@ -253,7 +253,7 @@ fn explicit_ecosystems_scope_defaults_and_hosted_storage() {
         let router = format!("{ecosystem}-main");
         assert_eq!(config.routing.registries.default_for(ecosystem), Some(router.as_str()));
         assert_eq!(config.routing.registries.sources(&router, ecosystem), [key.as_str()]);
-        assert_eq!(config.routing.hosted[&key].org, "internal");
+        assert_eq!(config.routing.hosted[&key].namespace, "internal");
         for resolution in [
             config.routing.registries.resolve(&key, ecosystem, "demo"),
             config.routing.registries.resolve(&router, ecosystem, "demo"),

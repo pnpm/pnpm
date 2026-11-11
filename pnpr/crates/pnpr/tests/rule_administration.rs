@@ -23,7 +23,7 @@ auth:
 registries:
   local:
     type: hosted
-    org: \"\"
+    namespace: \"\"
     rulesManagedBy: api
     teams:
       readers: { name: readers, members: [carol] }
@@ -33,7 +33,7 @@ registries:
       '**': {}
   fixed:
     type: hosted
-    org: fixed
+    namespace: fixed
     packages:
       '@fixed/*': {}
   main:
@@ -402,7 +402,7 @@ async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
 }
 
 #[tokio::test]
-async fn making_default_ecosystem_and_org_explicit_preserves_rules() {
+async fn making_default_ecosystem_and_namespace_explicit_preserves_rules() {
     let dir = TempDir::new().unwrap();
     let app1 = app_router(load_config(dir.path())).await;
     let root = add_user(&app1, "root").await;
@@ -418,7 +418,7 @@ registries:
   local:
     type: hosted
     ecosystem: npm
-    org: \"\"
+    namespace: \"\"
     rulesManagedBy: api
     teams:
       readers: { name: readers, members: [carol] }
@@ -428,7 +428,7 @@ registries:
       '**': {}
   fixed:
     type: hosted
-    org: fixed
+    namespace: fixed
     packages:
       '@fixed/*': {}
   main:

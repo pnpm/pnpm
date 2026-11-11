@@ -13,7 +13,7 @@ scrollback of whichever machine ran them.
 pipeline:
   enabled: true
 artifacts:
-  orgs:
+  owners:
     acme:
       access: [<workload-account-id>, <account-id-1>, <account-id-2>]
       publish: <workload-account-id>
@@ -22,7 +22,7 @@ artifacts:
 A run is recorded under the organization the client's
 [`remoteCache.org`](https://pnpm.io/settings/build#remotecache) names, which must be one the
 server declares under
-[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces).
+[`artifacts.owners`](configuration.md#registry-resolver-and-artifact-surfaces).
 `access` decides who may list and read the organization's runs, `publish` who
 may submit one. An organization nobody may access is invisible rather than
 forbidden: a listing filters to what the caller can see, and a read of an

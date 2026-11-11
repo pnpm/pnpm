@@ -115,7 +115,7 @@ async fn is_package_owner(
     state: &AppState,
     identity: &Identity,
     package: &str,
-    org: Option<&str>,
+    namespace: Option<&str>,
     action: Action,
 ) -> Result<bool, RegistryError> {
     let Some(username) = identity.user_id() else {
@@ -129,7 +129,7 @@ async fn is_package_owner(
     else {
         return Ok(false);
     };
-    let storage = crate::server::hosted_storage(state, org);
+    let storage = crate::server::hosted_storage(state, namespace);
     // An authorization check reads the current document, never a replica's
     // copy that may predate a maintainer's removal.
     if let Some(stored) = storage.read_hosted_document_for_update(&canonical).await? {
@@ -151,7 +151,7 @@ pub(in crate::server) async fn authorize_package(
     source: &RegistrySource,
     package: &str,
     action: Action,
-    org: Option<&str>,
+    namespace: Option<&str>,
 ) -> Result<(), RegistryError> {
     let rules = source_rules(state, source).snapshot();
     let list = permission_list(&rules, package, action);
@@ -159,7 +159,7 @@ pub(in crate::server) async fn authorize_package(
         return Ok(());
     }
     if list.references_owners() && identity.is_authenticated() {
-        let is_owner = is_package_owner(state, identity, package, org, action).await?;
+        let is_owner = is_package_owner(state, identity, package, namespace, action).await?;
         if list.allows_with_context(identity, is_owner) {
             return Ok(());
         }
