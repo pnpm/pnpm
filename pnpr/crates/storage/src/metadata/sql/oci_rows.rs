@@ -4,7 +4,9 @@
 use super::{
     PackageKey,
     adapter::{Connection, Query, Row},
-    cargo_rows::{bad_request, check_format_version, take_optional_string},
+    cargo_rows::{
+        bad_request, check_format_version, insert_owners, take_optional_string, take_owners,
+    },
     commit::{Commit, PackageRow, parse_json},
     removed, to_column, to_generation,
 };
@@ -18,6 +20,8 @@ pub(super) const OCI_STATE_VERSION: u32 = 1;
 #[derive(Serialize, Deserialize)]
 struct OciEnvelope {
     name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    owners: Vec<String>,
 }
 
 pub(super) struct StoredOci {
@@ -79,9 +83,10 @@ pub(super) fn apply(
     row: Option<&PackageRow>,
     mut stored: StoredOci,
     bytes: &[u8],
+    principal: Option<&str>,
 ) -> Result<bool> {
     let Some(incoming) = decompose(commit.key, bytes)? else {
-        return clear_repository(commit, row, &stored);
+        return clear_repository(commit, row, &stored, principal);
     };
     validate_incoming(&stored, &incoming)?;
     let mut changed = commit.write_envelope(row, incoming.state_version, &incoming.envelope)?;
@@ -95,10 +100,10 @@ fn clear_repository(
     commit: &Commit<'_>,
     row: Option<&PackageRow>,
     stored: &StoredOci,
+    principal: Option<&str>,
 ) -> Result<bool> {
-    if row.is_none() {
-        return Ok(false);
-    }
+    let Some(current) = row else { return Ok(false) };
+    removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     removed::record_removed_oci_digests(
         commit.transaction,
         commit.key,
@@ -239,9 +244,11 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<OciRows>> {
     let state_version = check_format_version(key, &doc, OCI_STATE_VERSION)?;
     let name =
         take_optional_string(&mut doc, "name")?.unwrap_or_else(|| key.name.clone());
+    let owners = take_owners(&mut doc)?;
     let manifests = parse_manifests(doc.remove("manifests"))?;
     let tags = parse_tags(doc.remove("tags"))?;
-    Ok(Some(OciRows { state_version, envelope: OciEnvelope { name }, manifests, tags }))
+    let envelope = OciEnvelope { name, owners };
+    Ok(Some(OciRows { state_version, envelope, manifests, tags }))
 }
 
 fn parse_manifests(raw: Option<Value>) -> Result<BTreeMap<String, IncomingManifest>> {
@@ -385,5 +392,6 @@ pub(super) fn assemble(
     rendered.insert("name".to_string(), Value::String(envelope.name));
     rendered.insert("manifests".to_string(), Value::Array(manifests));
     rendered.insert("tags".to_string(), Value::Array(tags));
+    insert_owners(&mut rendered, envelope.owners);
     Ok(serde_json::to_vec(&rendered)?)
 }
