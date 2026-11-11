@@ -182,7 +182,9 @@ impl Config {
         if lockfile_dir_is_default {
             self.lockfile_dir = None;
             let default_dir = self.default_lockfile_dir_for(start_dir).to_path_buf();
-            self.anchor_lockfile_paths(&default_dir);
+            if pnpm_fs::lexical_normalize(&default_dir) == pnpm_fs::lexical_normalize(start_dir) {
+                self.anchor_lockfile_paths(&default_dir);
+            }
         }
 
         // A pinned `lockfileDir` moves the root `node_modules` and the
