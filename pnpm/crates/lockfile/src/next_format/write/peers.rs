@@ -8,6 +8,9 @@ use crate::{
 };
 use std::collections::{HashMap, HashSet};
 
+mod candidates;
+use candidates::ProviderCandidates;
+
 /// The transitive peers of `key` whose providers its peer groups name, and the
 /// names left for [`ProviderFinder`].
 ///
@@ -66,6 +69,7 @@ pub(super) struct ProviderFinder<'a, 'own> {
     own_peers: &'own HashMap<&'a PackageKey, HashSet<&'a PkgName>>,
     /// `None` while a lookup is in progress, which ends a dependency cycle.
     found: HashMap<(&'a PackageKey, &'a str), Option<&'a SnapshotDepRef>>,
+    candidates: HashMap<&'a str, ProviderCandidates<'a>>,
 }
 
 impl<'a, 'own> ProviderFinder<'a, 'own> {
@@ -73,7 +77,7 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         own_peers: &'own HashMap<&'a PackageKey, HashSet<&'a PkgName>>,
     ) -> Self {
-        ProviderFinder { snapshots, own_peers, found: HashMap::new() }
+        ProviderFinder { snapshots, own_peers, found: HashMap::new(), candidates: HashMap::new() }
     }
 
     pub(super) fn provider_below(
@@ -82,36 +86,15 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         name: &'a str,
         matches: impl Fn(&SnapshotDepRef) -> bool,
     ) -> Option<&'a SnapshotDepRef> {
-        self.first_provider_below(key, name)
-            .filter(|reference| matches(reference))
-            .or_else(|| self.matching_provider_below(key, name, matches))
-    }
-
-    fn matching_provider_below(
-        &self,
-        key: &'a PackageKey,
-        name: &'a str,
-        matches: impl Fn(&SnapshotDepRef) -> bool,
-    ) -> Option<&'a SnapshotDepRef> {
-        let mut pending = vec![key];
-        let mut visited = HashSet::new();
-        while let Some(key) = pending.pop() {
-            if !visited.insert(key) {
-                continue;
-            }
-            let entry = &self.snapshots[key];
-            if let Some((_, reference)) = children(entry)
-                .find(|(alias, reference)| {
-                    self.own_peers[key].contains(alias)
-                        && alias.to_string() == name
-                        && matches(reference)
-                })
-            {
-                return Some(reference);
-            }
-            pending.extend(self.children_needing_peer(key, name));
+        if let Some(reference) =
+            self.first_provider_below(key, name).filter(|reference| matches(reference))
+        {
+            return Some(reference);
         }
-        None
+        if !self.candidates.contains_key(name) {
+            self.candidates.insert(name, ProviderCandidates::of(self, name));
+        }
+        self.candidates[name].matching(key, matches)
     }
 
     fn first_provider_below(
