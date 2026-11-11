@@ -26,11 +26,11 @@ fn target_dir_resolves_a_relative_path_against_the_current_dir() {
 #[test]
 fn compare_accepts_a_baseline_report_path() {
     let args = CliArgs::try_parse_from(["engine-size", "--compare", "target/main.json"]).unwrap();
-    assert_eq!(args.compare, Some(Path::new("target/main.json").to_path_buf()));
+    assert_eq!(args.report.compare, Some(Path::new("target/main.json").to_path_buf()));
 }
 
 #[test]
 fn no_default_features_disables_the_probe_capabilities() {
     let args = CliArgs::try_parse_from(["engine-size", "--no-default-features"]).unwrap();
-    assert!(args.no_default_features);
+    assert!(args.report.no_default_features);
 }

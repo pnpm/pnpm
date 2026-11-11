@@ -38,7 +38,7 @@ pub fn build_probe(
     command
         .current_dir(workspace_root())
         .args(["build", "--locked", "--release"]);
-    if args.no_default_features {
+    if args.report.no_default_features {
         command.arg("--no-default-features");
     }
     let status = command
