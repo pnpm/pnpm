@@ -74,15 +74,7 @@ pub(super) fn apply_hook_delta(
     let delta = filter_hook_delta(config, config_delta(input, current));
     let hook_node_path = changed_extra_env_value(input, current, "NODE_PATH");
     let hook_node_options = changed_extra_env_value(input, current, "NODE_OPTIONS");
-    let lockfile_dir_paths_before_hook = delta
-        .get("lockfileDir")
-        .map(|_| LockfileDirPathsBeforeHook {
-            lockfile_dir: config.lockfile_dir.clone(),
-            node_path_dirs: [
-                config.install_state_dir.join("node_modules"),
-                config.modules_dir.clone(),
-            ],
-        });
+    let lockfile_dir_paths_before_hook = lockfile_dir_paths_before_hook(config, &delta);
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
@@ -153,6 +145,21 @@ fn changed_extra_env_value(input: &Value, current: &Value, key: &str) -> Option<
         .and_then(|env| env.get(key))
         .and_then(Value::as_str);
     (before != after).then(|| after.map(str::to_owned))
+}
+
+fn lockfile_dir_paths_before_hook(
+    config: &Config,
+    delta: &Value,
+) -> Option<LockfileDirPathsBeforeHook> {
+    delta
+        .get("lockfileDir")
+        .map(|_| LockfileDirPathsBeforeHook {
+            lockfile_dir: config.lockfile_dir.clone(),
+            node_path_dirs: [
+                config.install_state_dir.join("node_modules"),
+                config.modules_dir.clone(),
+            ],
+        })
 }
 
 /// Apply the routing a hook rewrote under the `registriesByScope` /
