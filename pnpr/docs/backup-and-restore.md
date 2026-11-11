@@ -26,7 +26,7 @@ A pnpr instance stores two categories of data:
 
 A publish writes archives to hosted storage before committing metadata in the database. Transparency log entry bundles, hash tiles, and checkpoints live under `.transparency-log/` in hosted storage, sequenced from the database's log entries. Managed databases and object stores cannot be snapshotted at one atomic instant. Online backups must therefore make hosted storage at least as recent as the metadata database:
 
-1. **Pause scheduled `pnpr gc` jobs and package unpublishes** until both backups finish. Garbage collection and unpublish operations reclaim unmapped archives immediately, which could delete an archive still referenced by the database snapshot.
+1. **Pause scheduled `pnpr gc` jobs and package unpublishes, and let any running ones finish** before starting step 2. Garbage collection and unpublish operations reclaim unmapped archives immediately, which could delete an archive still referenced by the database snapshot.
 2. **Back up the metadata database first.** Record the backup timestamp ($T_{\text{db}}$) when using point-in-time recovery.
 3. **Pause publishes, let in-flight log integration finish, and capture hosted storage second** ($T_{\text{storage}} \ge T_{\text{db}}$). Waiting for integration ensures a signed checkpoint covers every entry bundle written after $T_{\text{db}}$.
 4. **Resume publishes, `pnpr gc`, and package unpublishes** once the storage snapshot or S3 restore timestamp is recorded.
@@ -53,7 +53,7 @@ To back up while pnpr runs, your storage volume must provide point-in-time files
 
 With filesystem snapshots, follow the [snapshot order](#snapshot-order):
 
-1. Pause scheduled `pnpr gc` jobs and block package unpublishes.
+1. Pause scheduled `pnpr gc` jobs and block package unpublishes, then wait for any running `pnpr gc` or unpublish operations to finish.
 2. Back up the SQLite metadata database (and `tokens.db`, when configured) first with SQLite's backup API:
    ```sh
    sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
@@ -105,7 +105,7 @@ With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparenc
 
 ### Coordinated backup
 
-1. Pause scheduled `pnpr gc` jobs, and block package unpublishes until step 3 finishes.
+1. Pause scheduled `pnpr gc` jobs and block package unpublishes until step 3 finishes. Wait for any running `pnpr gc` or unpublish operations to complete before step 2.
 2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the metadata database (`database.url`).
 3. Pause publishes, wait for background log integration to finish, and record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
 4. Resume publishes, scheduled `pnpr gc` jobs, and package unpublishes.

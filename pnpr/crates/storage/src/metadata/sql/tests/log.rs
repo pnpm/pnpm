@@ -502,12 +502,13 @@ async fn unauthenticated_bundles_and_missing_prior_bundles_are_refused(db: Db) {
         .unwrap();
     assert_eq!(verified.unwrap().tree_head.size, 2);
 
-    publish(&storage, "acme", "core", &versions(4..260)).await;
+    publish(&storage, "acme", "core", &versions(4..600)).await;
     let integrate_fut = storage.integrate_log(&log, &signer);
     let reconcile_fut = storage.reconcile_log(&log, Some(&signer));
-    let (_, concurrent) = tokio::join!(integrate_fut, reconcile_fut);
+    let (integrated, concurrent) = tokio::join!(integrate_fut, reconcile_fut);
+    assert_eq!(integrated.unwrap().size, 600);
     concurrent.unwrap();
-    storage.integrate_log(&log, &signer).await.unwrap();
+    assert_eq!(storage.integrate_log(&log, &signer).await.unwrap().size, 600);
     storage.root.remove_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000").await.unwrap();
     let missing_err = storage
         .reconcile_log(&log, Some(&signer))

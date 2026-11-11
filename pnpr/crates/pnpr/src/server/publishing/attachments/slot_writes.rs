@@ -6,10 +6,158 @@ use super::{
         stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
         verification::read_archive, verify_and_write, write_sigstore_bundle,
     },
-    AttachmentKind, PendingAttachment, RegistryError, TarDerivation, TarballStorage, Value,
+    AttachmentKind, CanonicalPackageName, PendingAttachment, PreparedAttachment, PublishedTar,
+    RegistryError, Storage, TarDerivation, TarballStorage, Value, WrittenAttachments,
+    cleanup_tmp_slots, variants,
 };
+use crate::server::staged_archives::claim_staged_archive;
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
+/// Write every attachment into its reserved blob slot. A failure removes
+/// the slots written so far, so a bad upload leaves no on-disk artifact.
+///
+/// `storage` comes with the principal publishing, whose staged archives an
+/// attachment may reference.
+pub(in super::super) async fn write_attachment_slots(
+    (storage, claimant): (&Storage, Option<&str>),
+    name: &CanonicalPackageName,
+    prepared: Vec<PreparedAttachment>,
+    tarballs: TarballStorage,
+    decodes: &Arc<Semaphore>,
+) -> Result<WrittenAttachments, RegistryError> {
+    let mut written = WrittenAttachments {
+        slots: Vec::with_capacity(prepared.len()),
+        tars: Vec::new(),
+        variants: Vec::new(),
+    };
+    for attachment in prepared {
+        match write_attachment_slot((storage, claimant), name, attachment, tarballs, decodes).await
+        {
+            Ok((slot, tar)) => {
+                written.slots.push(slot);
+                match tar.map(variants::split_variant) {
+                    Some(Ok(variant)) => written.variants.push(variant),
+                    Some(Err(tar)) => written.tars.push(tar),
+                    None => {}
+                }
+            }
+            Err(err) => {
+                cleanup_tmp_slots(written.slots).await;
+                return Err(err);
+            }
+        }
+    }
+    Ok(written)
+}
+
+/// Stream-decode, verify and write one tarball into a reserved slot, and
+/// derive the tar a `.tgz` decodes to and the manifest inputs it holds. A
+/// mismatch, a missing integrity field, or a `.tgz` that does not decode in
+/// full to a readable package archive fails with a 400. Under
+/// [`TarballStorage::Tar`] the slot holds the tar. A tarball holds a permit
+/// from `decodes` until its tar is read.
+pub(in super::super) async fn write_attachment_slot(
+    (storage, claimant): (&Storage, Option<&str>),
+    name: &CanonicalPackageName,
+    prepared: PreparedAttachment,
+    tarballs: TarballStorage,
+    decodes: &Arc<Semaphore>,
+) -> Result<(pnpr_storage::BlobSlot, Option<PublishedTar>), RegistryError> {
+    // A staged archive is read before a slot is reserved: one that is missing
+    // or expired fails the publish with nothing to clean up.
+    let (staged, permit) = staged_bytes((storage, claimant), &prepared.attachment, decodes).await?;
+    let slot_storage = match (tarballs, prepared.kind) {
+        (TarballStorage::Tar, AttachmentKind::Tarball) => TarballStorage::Tar,
+        _ => TarballStorage::Tgz,
+    };
+    let blob = match slot_storage {
+        TarballStorage::Tar => name.tar_name_for_version(&prepared.version),
+        TarballStorage::Tgz => prepared.canonical.clone(),
+    };
+    let slot = storage.reserve_hosted_blob(name, &blob).await?.for_version(&prepared.version);
+    let (slot, derived) = write_under_permit(
+        slot,
+        slot_storage,
+        (prepared.attachment, staged),
+        prepared.kind,
+        prepared.dist,
+        (decodes, permit),
+    )
+    .await?;
+    let Some(derived) = derived else { return Ok((slot, None)) };
+    if let Some(tgz_integrity) = &derived.tgz_integrity {
+        let recorded = record_published_tar(storage, name, tgz_integrity, &derived, slot_storage);
+        if let Err(err) = recorded.await {
+            slot.abandon().await;
+            return Err(err);
+        }
+    }
+    Ok((slot, Some(published_tar(prepared.version, prepared.variant_tag, derived))))
+}
+
+async fn staged_bytes(
+    (storage, claimant): (&Storage, Option<&str>),
+    attachment: &PendingAttachment,
+    decodes: &Arc<Semaphore>,
+) -> Result<(Option<Vec<u8>>, Option<OwnedSemaphorePermit>), RegistryError> {
+    let Some(integrity) = attachment.staged_integrity() else { return Ok((None, None)) };
+    let permit =
+        Arc::clone(decodes).acquire_owned().await.expect("the decode semaphore is never closed");
+    let bytes = claim_staged_archive(storage, claimant, &attachment.filename, integrity).await?;
+    Ok((Some(bytes), Some(permit)))
+}
+
+fn published_tar(
+    version: String,
+    variant_tag: Option<String>,
+    derived: TarDerivation,
+) -> PublishedTar {
+    let variant = variant_tag.map(|tag| {
+        let tgz = derived.tgz_integrity.as_deref();
+        variants::variant_tar(tag, &derived.integrity, tgz, &derived.archive)
+    });
+    let TarDerivation {
+        tgz_integrity,
+        integrity,
+        inspection,
+        archive,
+    } = derived;
+    PublishedTar {
+        version,
+        tgz_integrity,
+        integrity,
+        inspection,
+        archive,
+        variant,
+        generated: false,
+    }
+}
+
+async fn record_published_tar(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    tgz_integrity: &str,
+    derived: &TarDerivation,
+    slot_storage: TarballStorage,
+) -> Result<(), RegistryError> {
+    let inspection = &derived.inspection;
+    let derived = pnpr_storage::DerivedTar::new(
+        derived.integrity.to_string(),
+        inspection.requires_build,
+        inspection.file_count,
+        inspection.unpacked_size,
+    )
+    .with_bins(inspection.bins.clone());
+    let Err(err) = storage.record_tar_integrity(name, tgz_integrity, derived).await else {
+        return Ok(());
+    };
+    tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
+    match slot_storage {
+        TarballStorage::Tar => Err(err),
+        TarballStorage::Tgz => Ok(()),
+    }
+}
 
 /// Where an attachment is written, and where its tar is encoded to when the
 /// registry stores tars.
