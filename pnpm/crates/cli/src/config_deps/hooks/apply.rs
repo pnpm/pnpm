@@ -15,6 +15,7 @@ struct LockfileDirPathsBeforeHook {
     node_path_dirs: [PathBuf; 2],
     hook_node_path: Option<Option<String>>,
     hook_node_options: Option<Option<String>>,
+    hook_modules_dir: Option<PathBuf>,
     modules_dir_changed: bool,
 }
 
@@ -76,7 +77,7 @@ pub(super) fn apply_hook_delta(
 ) -> Result<()> {
     let delta = filter_hook_delta(config, config_delta(input, current));
     let lockfile_dir_paths_before_hook =
-        lockfile_dir_paths_before_hook(config, input, current, &delta);
+        lockfile_dir_paths_before_hook(config, input, current, &delta, base_dir);
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
@@ -122,6 +123,9 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
     if config.lockfile_dir.is_none() {
         config.modules_dir = modules_dir;
+        if let Some(hook_modules_dir) = paths_before_hook.hook_modules_dir.as_ref() {
+            config.modules_dir.clone_from(hook_modules_dir);
+        }
         config.configured_virtual_store_dir = configured_virtual_store_dir;
         config.install_state_dir = install_state_dir;
     }
@@ -159,6 +163,7 @@ fn lockfile_dir_paths_before_hook(
     input: &Value,
     current: &Value,
     delta: &Value,
+    base_dir: &Path,
 ) -> Option<LockfileDirPathsBeforeHook> {
     delta
         .get("lockfileDir")
@@ -170,6 +175,10 @@ fn lockfile_dir_paths_before_hook(
             ],
             hook_node_path: changed_extra_env_value(input, current, "NODE_PATH"),
             hook_node_options: changed_extra_env_value(input, current, "NODE_OPTIONS"),
+            hook_modules_dir: delta
+                .get("modulesDir")
+                .and_then(Value::as_str)
+                .map(|modules_dir| pnpm_fs::lexical_normalize(&base_dir.join(modules_dir))),
             modules_dir_changed: delta.get("modulesDir").is_some(),
         })
 }
