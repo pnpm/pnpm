@@ -14,11 +14,11 @@ repository.workspace = true
 pnpm-crypto-hash = { workspace = true }
 pnpm-crypto-shasums-file = { workspace = true }
 pnpm-config = { workspace = true }
-pnpm-deps-restorer = { workspace = true }
+pnpm-deps-restorer = { workspace = true, features = ["shell-emulator"] }
 pnpm-detect-libc = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
-pnpm-git-fetcher = { workspace = true }
+pnpm-git-fetcher = { workspace = true, features = ["shell-emulator"] }
 pnpm-install-coordinator = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }

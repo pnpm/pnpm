@@ -33,9 +33,9 @@ pnpm-engine-pm-yarn-resolver = { workspace = true }
 pnpm-engine-runtime-node-resolver = { workspace = true }
 pnpm-pnpr-client = { workspace = true }
 pnpm-env-installer = { workspace = true }
-pnpm-executor = { workspace = true }
+pnpm-executor = { workspace = true, features = ["shell-emulator"] }
 pnpm-fs = { workspace = true }
-pnpm-git-fetcher = { workspace = true }
+pnpm-git-fetcher = { workspace = true, features = ["shell-emulator"] }
 pnpm-github-actions = { workspace = true }
 pnpm-global = { workspace = true }
 pnpm-graph-hasher = { workspace = true }
@@ -58,7 +58,7 @@ pnpm-default-reporter = { workspace = true }
 pnpm-deps-inspection = { workspace = true }
 pnpm-deps-inspection-peers = { workspace = true }
 pnpm-deps-path = { workspace = true }
-pnpm-deps-restorer = { workspace = true }
+pnpm-deps-restorer = { workspace = true, features = ["shell-emulator"] }
 pnpm-pack = { workspace = true }
 pnpm-publish = { workspace = true }
 pnpm-python-resolver = { workspace = true }
@@ -70,8 +70,8 @@ pnpm-registry = { workspace = true }
 pnpm-release-notes = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-deps-resolver = { workspace = true }
-pnpm-resolving-default-resolver = { workspace = true }
-pnpm-resolving-git-resolver = { workspace = true }
+pnpm-resolving-default-resolver = { workspace = true, features = ["runtime-provisioning", "shell-emulator"] }
+pnpm-resolving-git-resolver = { workspace = true, features = ["shell-emulator"] }
 pnpm-resolving-local-resolver = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }

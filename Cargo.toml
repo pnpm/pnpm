@@ -71,15 +71,15 @@ pnpm-config = { path = "pnpm/crates/config" }
 pnpm-config-dir = { path = "pnpm/crates/config-dir" }
 pnpm-config-parse-overrides = { path = "pnpm/crates/config-parse-overrides" }
 pnpm-default-reporter = { path = "pnpm/crates/default-reporter" }
-pnpm-executor = { path = "pnpm/crates/executor" }
+pnpm-executor = { path = "pnpm/crates/executor", default-features = false }
 pnpm-exportable-manifest = { path = "pnpm/crates/exportable-manifest" }
 pnpm-directory-fetcher = { path = "pnpm/crates/directory-fetcher" }
-pnpm-git-fetcher = { path = "pnpm/crates/git-fetcher" }
+pnpm-git-fetcher = { path = "pnpm/crates/git-fetcher", default-features = false }
 pnpm-global = { path = "pnpm/crates/global" }
 pnpm-deps-inspection = { path = "pnpm/crates/deps-inspection" }
 pnpm-deps-inspection-peers = { path = "pnpm/crates/deps-inspection-peers" }
 pnpm-deps-path = { path = "pnpm/crates/deps-path" }
-pnpm-deps-restorer = { path = "pnpm/crates/deps-restorer" }
+pnpm-deps-restorer = { path = "pnpm/crates/deps-restorer", default-features = false }
 pnpm-detect-libc = { path = "pnpm/crates/detect-libc" }
 pnpm-diagnostics = { path = "pnpm/crates/diagnostics" }
 pnpm-graph-hasher = { path = "pnpm/crates/graph-hasher" }
@@ -92,9 +92,9 @@ pnpm-store-dir = { path = "pnpm/crates/store-dir" }
 pnpm-reporter = { path = "pnpm/crates/reporter" }
 pnpm-patching = { path = "pnpm/crates/patching" }
 pnpm-real-hoist = { path = "pnpm/crates/real-hoist" }
-pnpm-resolving-default-resolver = { path = "pnpm/crates/resolving-default-resolver" }
+pnpm-resolving-default-resolver = { path = "pnpm/crates/resolving-default-resolver", default-features = false }
 pnpm-resolving-deps-resolver = { path = "pnpm/crates/resolving-deps-resolver" }
-pnpm-resolving-git-resolver = { path = "pnpm/crates/resolving-git-resolver" }
+pnpm-resolving-git-resolver = { path = "pnpm/crates/resolving-git-resolver", default-features = false }
 pnpm-resolving-jsr-specifier-parser = { path = "pnpm/crates/resolving-jsr-specifier-parser" }
 pnpm-resolving-local-resolver = { path = "pnpm/crates/resolving-local-resolver" }
 pnpm-resolving-npm-resolver = { path = "pnpm/crates/resolving-npm-resolver" }

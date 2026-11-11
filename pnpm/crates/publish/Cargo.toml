@@ -14,7 +14,7 @@ repository.workspace = true
 pnpm-package-name = { workspace = true }
 pnpm-release-record = { workspace = true }
 pnpm-diagnostics = { workspace = true }
-pnpm-executor = { workspace = true }
+pnpm-executor = { workspace = true, features = ["shell-emulator"] }
 pnpm-git-utils = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-network-web-auth = { workspace = true }

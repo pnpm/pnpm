@@ -25,9 +25,9 @@ pnpm-config = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
-pnpm-executor = { workspace = true, default-features = false }
+pnpm-executor = { workspace = true }
 pnpm-fs = { workspace = true }
-pnpm-git-fetcher = { workspace = true, default-features = false }
+pnpm-git-fetcher = { workspace = true }
 pnpm-graph-hasher = { workspace = true }
 pnpm-hooks = { workspace = true }
 pnpm-lockfile = { workspace = true }

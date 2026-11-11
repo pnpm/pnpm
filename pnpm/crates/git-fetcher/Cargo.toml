@@ -17,7 +17,7 @@ shell-emulator = ["pnpm-executor/shell-emulator"]
 [dependencies]
 pnpm-cmd-shim = { workspace = true }
 pnpm-diagnostics = { workspace = true }
-pnpm-executor = { workspace = true, default-features = false }
+pnpm-executor = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-fs-packlist = { workspace = true }
 pnpm-git-utils = { workspace = true }
