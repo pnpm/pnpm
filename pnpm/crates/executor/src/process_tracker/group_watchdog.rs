@@ -102,14 +102,10 @@ impl GroupWatch {
         if self.shell_missing {
             return Ok(false);
         }
-        if let Some(watchdog) = &mut self.watchdog {
-            match watchdog.process.try_wait() {
-                Ok(None) => return Ok(true),
-                Ok(Some(_)) => {}
-                // Reaped by someone else, so its pid may name another process
-                // by now: drop the handle rather than let the replacement kill it.
-                Err(_) => self.watchdog = None,
-            }
+        if let Some(watchdog) = &mut self.watchdog
+            && watchdog.is_running()
+        {
+            return Ok(true);
         }
         self.start_watchdog()
     }
@@ -151,11 +147,13 @@ impl GroupWatch {
     /// Start a watchdog over every group in [`Self::leaders`], replacing
     /// one that died.
     fn start_watchdog(&mut self) -> io::Result<bool> {
-        if let Some(mut dead) = self.watchdog.take() {
+        if let Some(mut replaced) = self.watchdog.take()
+            && replaced.is_running()
+        {
             // pnpm still holds its pipe, so a watchdog that is only refusing
             // writes would never see end of input and could not be reaped.
-            let _ = dead.process.kill();
-            let _ = dead.process.wait();
+            let _ = replaced.process.kill();
+            let _ = replaced.process.wait();
         }
         let Some(mut watchdog) = GroupWatchdog::spawn()? else {
             self.shell_missing = true;
@@ -204,6 +202,13 @@ impl GroupWatchdog {
         };
         let lifeline = process.stdin.take().expect("the watchdog's stdin is piped");
         Ok(Some(Self { process, lifeline }))
+    }
+
+    /// Whether the watchdog has not exited. One reaped elsewhere, such as
+    /// under an inherited ignored `SIGCHLD`, counts as exited: its pid may
+    /// name another process by now, so it must not be signalled.
+    fn is_running(&mut self) -> bool {
+        matches!(self.process.try_wait(), Ok(None))
     }
 
     fn watch(&mut self, leader: u32) -> io::Result<()> {
