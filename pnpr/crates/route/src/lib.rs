@@ -385,6 +385,12 @@ impl RouteContext {
     /// legitimately plain HTTP.
     #[must_use]
     pub fn allows_registry(&self, url: &str) -> bool {
+        if url
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte == b'\\')
+        {
+            return false;
+        }
         let fetch = nerf_dart(url);
         if fetch.is_empty() {
             return false;

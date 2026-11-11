@@ -167,6 +167,10 @@ fn allows_registry_is_a_default_deny_allowlist() {
     // (here pnpr's own `/~corp/` endpoint prefix) onto a sibling path.
     assert!(!context.allows_registry(&format!("{}/~corp/../admin", config.http.public_url)));
     assert!(!context.allows_registry("https://npm.corp.example/../etc"));
+    for path in [r"npm\~corp/widget", "npm/~co\trp/widget", "npm/~co\nrp/widget"] {
+        assert!(!context.allows_registry(&format!("{}/{path}", config.http.public_url)));
+    }
+
     assert!(!context.allows_registry(&format!(
         "{}/npm/~denied/%2e%2e/~corp/widget",
         config.http.public_url
