@@ -116,6 +116,13 @@ pub(super) fn pin_locked_version(
     }
 }
 
+/// Whether a reopened edge returns its locked runtime as it is. See
+/// [`crate::LockedRuntimeReuse`].
+pub(super) fn keeps_locked_runtime(ctx: &TreeCtx, current_pkg: &CurrentPkg) -> bool {
+    ctx.workspace.reuse.runtimes == crate::LockedRuntimeReuse::Keep
+        && matches!(current_pkg.resolution, LockfileResolution::Variations(_))
+}
+
 /// Whether an edge stays on the version the lockfile recorded
 /// for it. A deduplication target and an edge a `pacquet update` reaches
 /// re-pick through the preferred versions instead.

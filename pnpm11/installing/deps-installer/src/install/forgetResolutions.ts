@@ -38,7 +38,10 @@ export function forgetResolutionsOfPrevWantedDeps (
 export function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): void {
   if ((wantedLockfile.importers != null) && !isEmpty(wantedLockfile.importers)) {
     wantedLockfile.importers = mapValues(
-      ({ dependencies: _dependencies, devDependencies: _devDependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
+      ({ dependencies, devDependencies, optionalDependencies, ...rest }) => ({
+        ...rest,
+        ...keptRuntimeResolutions({ dependencies, devDependencies, optionalDependencies }),
+      }),
       wantedLockfile.importers)
   }
 
@@ -48,9 +51,30 @@ export function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileOb
   // are always used.
   if ((wantedLockfile.packages != null) && !isEmpty(wantedLockfile.packages)) {
     wantedLockfile.packages = mapValues(
-      ({ dependencies: _dependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
+      ({ dependencies, optionalDependencies, ...rest }) => ({
+        ...rest,
+        ...keptRuntimeResolutions({ dependencies, optionalDependencies }),
+      }),
       wantedLockfile.packages)
   }
+}
+
+// Runtimes (`node@runtime:...`) are not deduplicated against other versions,
+// and their resolver reuses a locked entry only when it is still recorded.
+// Keeping them lets deduplication leave a locked runtime alone, as an
+// install does.
+function keptRuntimeResolutions<Group extends string> (
+  groups: Partial<Record<Group, Record<string, string> | undefined>>
+): Partial<Record<Group, Record<string, string>>> {
+  const kept: Partial<Record<Group, Record<string, string>>> = {}
+  for (const [group, deps] of Object.entries(groups) as Array<[Group, Record<string, string> | undefined]>) {
+    if (deps == null) continue
+    const runtimes = Object.fromEntries(Object.entries(deps).filter(([, ref]) => ref.startsWith('runtime:')))
+    if (!isEmpty(runtimes)) {
+      kept[group] = runtimes
+    }
+  }
+  return kept
 }
 
 /**

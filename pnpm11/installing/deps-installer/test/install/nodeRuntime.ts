@@ -484,3 +484,20 @@ test('installing Node.js runtime from a range union', async () => {
   })
   project.isExecutable('.bin/node')
 })
+
+// https://github.com/pnpm/pnpm/issues/17984
+test('dedupe keeps the locked Node.js runtime when it still satisfies the range', async () => {
+  const project = prepareEmpty()
+  await install({ dependencies: { node: 'runtime:22.0.0' } }, testDefaults({ lockfileOnly: true }))
+
+  const lockfile = project.readLockfile()
+  lockfile.importers['.'].dependencies!.node.specifier = 'runtime:22'
+  writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+
+  await install({ dependencies: { node: 'runtime:22' } }, testDefaults({ dedupe: true, lockfileOnly: true }))
+
+  expect(project.readLockfile().importers['.'].dependencies?.node).toStrictEqual({
+    specifier: 'runtime:22',
+    version: 'runtime:22.0.0',
+  })
+})
