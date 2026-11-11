@@ -134,7 +134,9 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
     preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
 }
 
-fn is_registry_peer_specifier(range: &str) -> bool {
+/// `false` for a path or a protocol-prefixed locator. `node_semver` parses
+/// some of those, such as `file:../lib 1.0.0`, as ranges.
+pub(crate) fn is_registry_peer_specifier(range: &str) -> bool {
     !range.contains([':', '/', '\\'])
 }
 

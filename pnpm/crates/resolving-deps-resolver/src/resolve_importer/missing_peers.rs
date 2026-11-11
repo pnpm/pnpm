@@ -1,4 +1,5 @@
 use super::{BTreeMap, BTreeSet, HashMap, HashSet, MissingPeer, MissingPeerInfo};
+use crate::peer_provider::is_registry_peer_specifier;
 use node_semver::Range;
 use std::borrow::Cow;
 
@@ -213,7 +214,7 @@ pub(super) fn merge_ranges(
     if auto_install_peers_from_highest_match
         && unique
             .iter()
-            .all(|range| Range::parse(range).is_ok())
+            .all(|range| is_registry_peer_specifier(range) && Range::parse(range).is_ok())
     {
         return Some(ranges.join(" || "));
     }

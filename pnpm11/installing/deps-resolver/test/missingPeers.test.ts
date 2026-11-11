@@ -7,6 +7,7 @@ test.each([
   'file:../b',
   'link:../b',
   '../b',
+  '..\\b',
   './b',
   '/packages/b',
   '~/b',
@@ -56,6 +57,9 @@ test.each([
   ['^1.0.0', 'file:../b'],
   ['npm:b@^1', 'npm:b@^2'],
   ['latest', 'next'],
+  ['file:../lib 1.0.0', 'file:../lib 2.0.0'],
+  ['../a 1.0.0', '../b 2.0.0'],
+  ['..\\a', '..\\b'],
 ])('does not join conflicting non-semver peer ranges %s and %s', (first, second) => {
   for (const autoInstallPeersFromHighestMatch of [false, true]) {
     expect(mergePkgsDeps([

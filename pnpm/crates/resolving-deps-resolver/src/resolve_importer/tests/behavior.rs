@@ -27,6 +27,7 @@ fn merged_peer_locators_survive_preferred_registry_versions() {
         "file:../b",
         "link:../b",
         "../b",
+        r"..\b",
         "./b",
         "/packages/b",
         "~/b",
@@ -228,6 +229,9 @@ fn conflicting_non_semver_peer_ranges_are_not_joined() {
         ["^1.0.0", "file:../b"],
         ["npm:b@^1", "npm:b@^2"],
         ["latest", "next"],
+        ["file:../lib 1.0.0", "file:../lib 2.0.0"],
+        ["../a 1.0.0", "../b 2.0.0"],
+        [r"..\a", r"..\b"],
     ] {
         for highest_match in [false, true] {
             assert_eq!(merge_ranges(&ranges, highest_match), None, "{ranges:?}");

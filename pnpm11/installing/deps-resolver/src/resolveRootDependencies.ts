@@ -411,7 +411,7 @@ async function resolvePendingDetachedPeers (hoisting: PeerHoisting, index: numbe
     })
     detachedPeers.versions.set(key, manifest?.version ?? null)
     if (manifest?.version != null) {
-      detachedPeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest))
+      detachedPeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest, hoisting.ctx.catalogResolver))
     }
   }))
 }
