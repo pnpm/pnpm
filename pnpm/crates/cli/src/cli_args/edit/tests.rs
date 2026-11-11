@@ -131,8 +131,12 @@ fn package_resolution_rejects_external_links_and_accepts_external_virtual_store(
     let error = super::resolve_package_dir(&modules, &["unsafe".to_owned()], &store).unwrap_err();
     assert!(error.to_string().contains("outside the expected"), "{error}");
     let package = store.join("package");
-    fs::create_dir_all(package.join("node_modules/@scope/child")).unwrap();
-    symlink(&package, modules.join("safe")).unwrap();
+    let package_modules = package.join("node_modules");
+    let safe_buffer = package_modules.join("@scope/child");
+    let safe = package_modules.join("safe");
+    fs::create_dir_all(&safe_buffer).unwrap();
+    fs::create_dir_all(&safe).unwrap();
+    symlink(&safe, modules.join("safe")).unwrap();
     assert_eq!(
         super::resolve_package_dir(
             &modules,
@@ -140,6 +144,36 @@ fn package_resolution_rejects_external_links_and_accepts_external_virtual_store(
             &store
         )
         .unwrap(),
-        dunce::canonicalize(package.join("node_modules/@scope/child")).unwrap(),
+        dunce::canonicalize(safe_buffer).unwrap(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn package_resolution_prefers_active_workspace_member_modules() {
+    use std::os::unix::fs::symlink;
+    let root = tempdir().unwrap();
+    let workspace_modules = root.path().join("node_modules");
+    let member_modules = root.path().join("packages/app/node_modules");
+    let store = root.path().join("store");
+    let workspace_package = store.join("workspace-package");
+    let member_package = store.join("member-package");
+    fs::create_dir_all(&workspace_modules).unwrap();
+    fs::create_dir_all(&member_modules).unwrap();
+    fs::create_dir_all(&store).unwrap();
+    fs::create_dir_all(&workspace_package).unwrap();
+    fs::create_dir_all(&member_package).unwrap();
+    symlink(&workspace_package, workspace_modules.join("foo")).unwrap();
+    symlink(&member_package, member_modules.join("foo")).unwrap();
+
+    assert_eq!(
+        super::resolve_package_dir_with_fallback(
+            &member_modules,
+            Some(&workspace_modules),
+            &["foo".to_owned()],
+            &store,
+        )
+        .unwrap(),
+        dunce::canonicalize(member_package).unwrap(),
     );
 }

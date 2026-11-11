@@ -33,11 +33,17 @@ impl EditArgs {
                 "Cannot edit dependencies in a shared virtual store",
             ));
         }
-        let modules_dir = dunce::canonicalize(&state.config.modules_dir)
-            .into_diagnostic()
-            .wrap_err("Failed to canonicalize modules directory")?;
-        let real_pkg_path =
-            resolve_package_dir(&modules_dir, &parts, state.config.virtual_store_dir())?;
+        let modules_dir_name = state.config.modules_dir
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+        let project_modules_dir = state.project_dir().join(modules_dir_name);
+        let workspace_modules_dir = dunce::canonicalize(&state.config.modules_dir).ok();
+        let real_pkg_path = resolve_package_dir_with_fallback(
+            &project_modules_dir,
+            workspace_modules_dir.as_deref(),
+            &parts,
+            state.config.virtual_store_dir(),
+        )?;
 
         let editor = self.pick_editor(&state);
         let project_root =
@@ -146,10 +152,23 @@ fn resolve_package_dir(
     parts: &[String],
     virtual_store_dir: &Path,
 ) -> miette::Result<PathBuf> {
-    let mut current_dir = modules_dir.to_path_buf();
+    let modules_dir = dunce::canonicalize(modules_dir)
+        .into_diagnostic()
+        .wrap_err("Failed to canonicalize modules directory")?;
+    let virtual_store_dir =
+        dunce::canonicalize(virtual_store_dir).unwrap_or_else(|_| virtual_store_dir.to_path_buf());
+    let mut current_dir = modules_dir.clone();
     for (i, part) in parts.iter().enumerate() {
         let candidate = if i == 0 {
             current_dir.join(part)
+        } else if current_dir.starts_with(&virtual_store_dir) {
+            // pnpm's isolated layout puts a package and its dependency links
+            // beside one another in `<slot>/node_modules`, not under the
+            // package directory itself.
+            current_dir
+                .parent()
+                .unwrap_or(&current_dir)
+                .join(part)
         } else {
             current_dir.join("node_modules").join(part)
         };
@@ -161,8 +180,23 @@ fn resolve_package_dir(
             .into_diagnostic()
             .wrap_err_with(|| format!("Failed to canonicalize path '{}'", candidate.display()))?;
     }
-    verify_package_path_within_tree(&current_dir, modules_dir, virtual_store_dir)?;
+    verify_package_path_within_tree(&current_dir, &modules_dir, &virtual_store_dir)?;
     Ok(current_dir)
+}
+
+fn resolve_package_dir_with_fallback(
+    project_modules_dir: &Path,
+    workspace_modules_dir: Option<&Path>,
+    parts: &[String],
+    virtual_store_dir: &Path,
+) -> miette::Result<PathBuf> {
+    resolve_package_dir(project_modules_dir, parts, virtual_store_dir)
+        .or_else(|_| {
+            let modules_dir = workspace_modules_dir.ok_or_else(|| {
+                miette!("Failed to canonicalize modules directory")
+            })?;
+            resolve_package_dir(modules_dir, parts, virtual_store_dir)
+        })
 }
 
 fn verify_package_path_within_tree(
