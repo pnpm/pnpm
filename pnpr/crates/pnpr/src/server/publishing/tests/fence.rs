@@ -24,13 +24,17 @@ fn state(temp: &TempDir) -> AppState {
     state_and_router(config, AuthState::in_memory(), None).unwrap().0
 }
 
-fn images(state: &AppState) -> Storage {
+pub(super) fn images(state: &AppState) -> Storage {
     state.inner.storage.for_hosted("", Ecosystem::Oci)
 }
 
 /// Upload `bytes` as an image blob of `repository`, as a finished upload
 /// maps it.
-async fn put_blob(storage: &Storage, repository: &CanonicalPackageName, bytes: &[u8]) -> Digest {
+pub(super) async fn put_blob(
+    storage: &Storage,
+    repository: &CanonicalPackageName,
+    bytes: &[u8],
+) -> Digest {
     let digest = Digest::of(bytes);
     let slot = storage
         .reserve_hosted_blob(repository, &digest.blob_filename())
@@ -71,7 +75,7 @@ async fn has_blob(storage: &Storage, repository: &CanonicalPackageName, digest: 
         .is_some()
 }
 
-fn manifest(layer: &Digest) -> Bytes {
+pub(super) fn manifest(layer: &Digest) -> Bytes {
     Bytes::from(
         serde_json::to_vec(&json!({
             "schemaVersion": 2,
@@ -84,11 +88,21 @@ fn manifest(layer: &Digest) -> Bytes {
 }
 
 fn push(repository: &CanonicalPackageName, bytes: Bytes) -> OciPublication {
+    push_as(repository, bytes, "publisher")
+}
+
+/// A push of `bytes` by `publisher`, admitted as if `publisher` had passed
+/// the checks before the package lock.
+pub(super) fn push_as(
+    repository: &CanonicalPackageName,
+    bytes: Bytes,
+    publisher: &str,
+) -> OciPublication {
     let target = OciTarget {
         key: repository.clone(),
         namespace: String::new(),
         registry: "local".to_string(),
-        publisher: pnpr_policy::Identity::user("publisher"),
+        publisher: pnpr_policy::Identity::user(publisher),
     };
     OciPublication::new(
         target,

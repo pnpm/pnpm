@@ -122,9 +122,8 @@ pub struct ImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
-    /// The account IDs that may publish to this repository. The first publish
-    /// claims it; empty for one stored before owners were recorded, which
-    /// only admins may publish to.
+    /// The account IDs that may publish to this repository, recorded by its first
+    /// publish. When empty, only admins may publish to it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub owners: Vec<String>,
 }

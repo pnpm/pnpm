@@ -110,8 +110,7 @@ async fn grant_one_scope(
         &source,
         &mut GrantActions { name: name.as_str(), actions, readonly: grant.readonly, allowed },
     )
-    .await;
-    Ok(())
+    .await
 }
 
 async fn extend_granted_actions(
@@ -119,7 +118,7 @@ async fn extend_granted_actions(
     identity: &Identity,
     source: &RegistrySource,
     grant: &mut GrantActions<'_>,
-) {
+) -> Result<(), RegistryError> {
     for action in grant.actions.split(',') {
         if grant.allowed
             .iter()
@@ -128,31 +127,33 @@ async fn extend_granted_actions(
             continue;
         }
         let granted = GrantAction { name: grant.name, action, readonly: grant.readonly };
-        if grant_action(state, identity, source, &granted).await {
+        if grant_action(state, identity, source, &granted).await? {
             grant.allowed.push(action.to_string());
         }
     }
+    Ok(())
 }
 
 /// Whether the caller may perform `action` on the repository. Reading it is
-/// required for every action, so an unreadable repository grants nothing.
+/// required for every action, so an unreadable repository grants nothing. A
+/// denial omits the action; a failure to read the owners fails the request.
 async fn grant_action(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
     grant: &GrantAction<'_>,
-) -> bool {
+) -> Result<bool, RegistryError> {
     let operation = match grant.action {
         "pull" => Action::Access,
         "push" => Action::Publish,
         "delete" => Action::Unpublish,
-        _ => return false,
+        _ => return Ok(false),
     };
     if grant.action != "pull" && grant.readonly {
-        return false;
+        return Ok(false);
     }
     if authorize(state, identity, source, grant.name, Action::Access).is_err() {
-        return false;
+        return Ok(false);
     }
     let namespace = match source {
         RegistrySource::Hosted(registry) => state.inner.config.routing.hosted
@@ -160,7 +161,9 @@ async fn grant_action(
             .map(|hosted| hosted.namespace.as_str()),
         _ => None,
     };
-    authorize_package(state, identity, source, grant.name, operation, namespace)
-        .await
-        .is_ok()
+    match authorize_package(state, identity, source, grant.name, operation, namespace).await {
+        Ok(()) => Ok(true),
+        Err(RegistryError::Forbidden { .. } | RegistryError::Unauthenticated { .. }) => Ok(false),
+        Err(err) => Err(err),
+    }
 }

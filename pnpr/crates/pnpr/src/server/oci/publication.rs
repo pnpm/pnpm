@@ -3,7 +3,7 @@ use super::{
     now_millis,
 };
 use crate::server::{
-    Action, AppState, Identity, RegistrySource, authorize_package,
+    Action, AppState, Identity, RegistrySource, authorize_continuation, authorize_package,
     documents::{HostedArtifact, HostedTarget, stage_hosted_artifact_on},
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
 };
@@ -45,21 +45,38 @@ pub(in crate::server) async fn authorize_publication(
     registry: Option<&str>,
     name: &str,
 ) -> Result<OciTarget, Refusal> {
+    let target = publication_target(state, identity, registry, name)?;
+    let hosted = RegistrySource::Hosted(target.registry.clone());
+    let (key, namespace) = (target.key.as_str(), Some(target.namespace.as_str()));
+    authorize_package(state, identity, &hosted, key, Action::Publish, namespace).await?;
+    Ok(target)
+}
+
+/// The repository a later request of an upload session writes to. The
+/// request that opened the session passed [`authorize_publication`].
+pub(in crate::server) fn continue_publication(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    name: &str,
+) -> Result<OciTarget, Refusal> {
+    let target = publication_target(state, identity, registry, name)?;
+    let hosted = RegistrySource::Hosted(target.registry.clone());
+    authorize_continuation(state, identity, &hosted, target.key.as_str(), Action::Publish)?;
+    Ok(target)
+}
+
+/// The hosted repository a push of `name` lands on, before any `publish` check.
+fn publication_target(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    name: &str,
+) -> Result<OciTarget, Refusal> {
     let key = CanonicalPackageName::parse(name, Ecosystem::Oci)
         .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "not a valid repository name"))?;
     match resolve_publish_target_for(state, identity, registry, Ecosystem::Oci, key.as_str()) {
         PublishTarget::Hosted { source, namespace } => {
-            let hosted = RegistrySource::Hosted(source.clone());
-            let namespace_name = Some(namespace.as_str());
-            authorize_package(
-                state,
-                identity,
-                &hosted,
-                key.as_str(),
-                Action::Publish,
-                namespace_name,
-            )
-            .await?;
             Ok(OciTarget { key, namespace, registry: source, publisher: identity.clone() })
         }
         PublishTarget::Denied(err) => Err(err.into()),

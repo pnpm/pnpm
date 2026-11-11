@@ -326,7 +326,8 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             supported_version: Document::FORMAT_VERSION,
         });
     }
-    claim_ownership(state, target, key, &mut document, stored.is_some())?;
+    let recorded = stored.is_some() || restore_owners(&storage, key, &mut document).await?;
+    claim_ownership(state, target, key, &mut document, recorded)?;
     refuse(&document)?;
     document.merge(addition);
 
@@ -350,21 +351,39 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     })
 }
 
+/// Give a package being published again after its removal the owners its
+/// tombstone kept. Returns whether there were any.
+async fn restore_owners<Document: HostedDocument>(
+    storage: &Storage,
+    key: &CanonicalPackageName,
+    document: &mut Document,
+) -> Result<bool, RegistryError> {
+    let Some(tombstone) = storage.read_tombstone(key).await? else {
+        return Ok(false);
+    };
+    if tombstone.maintainers.is_empty() {
+        return Ok(false);
+    }
+    *document.owners_mut() = tombstone.maintainers;
+    Ok(true)
+}
+
 /// Admit the publisher against the owners `document` records, as read under
-/// the package lock, and record the publisher as the owner of a new package.
+/// the package lock. A package with no owner record yet takes the publisher
+/// as its owner.
 fn claim_ownership<Document: HostedDocument>(
     state: &AppState,
     target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     document: &mut Document,
-    stored: bool,
+    recorded: bool,
 ) -> Result<(), RegistryError> {
     let ownership =
-        if stored { Ownership::Owners(document.owners()) } else { Ownership::Unclaimed };
+        if recorded { Ownership::Owners(document.owners()) } else { Ownership::Unclaimed };
     let source = RegistrySource::Hosted(target.registry.to_string());
     let package = (key.as_str(), &ownership);
     authorize_with_ownership(state, target.publisher, &source, package, Action::Publish)?;
-    if !stored && let Some(owner) = target.publisher.user_id() {
+    if !recorded && let Some(owner) = target.publisher.user_id() {
         document.owners_mut().push(owner.to_string());
     }
     Ok(())

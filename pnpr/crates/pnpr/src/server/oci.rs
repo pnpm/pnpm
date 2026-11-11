@@ -19,7 +19,9 @@ pub(super) mod tokens;
 
 pub(super) use response::{Refusal, error};
 
-pub(super) use publication::{OciPublication, OciTarget, authorize_publication};
+pub(super) use publication::{
+    OciPublication, OciTarget, authorize_publication, continue_publication,
+};
 
 mod response;
 use response::{
@@ -359,6 +361,11 @@ impl Request {
     /// allowed to publish it.
     async fn publish_target(&self, name: &str) -> Result<OciTarget, Refusal> {
         authorize_publication(&self.state, &self.identity, self.registry.as_deref(), name).await
+    }
+
+    /// [`Self::publish_target`] for a later request of an upload session.
+    fn session_target(&self, name: &str) -> Result<OciTarget, Refusal> {
+        continue_publication(&self.state, &self.identity, self.registry.as_deref(), name)
     }
 
     /// The hosted repository `name` addresses, with the storage this caller

@@ -74,10 +74,11 @@ pub(super) fn record_package(
     principal: Option<&str>,
 ) -> Result<()> {
     let maintainers = if key.ecosystem == Ecosystem::Npm {
-        let state: Value = serde_json::from_slice(state)?;
-        maintainer_ids(&state)
+        maintainer_ids(&serde_json::from_slice(state)?)
     } else {
-        Vec::new()
+        // Other ecosystems' documents are opaque here; one that does not
+        // parse records no owners.
+        serde_json::from_slice(state).map_or_else(|_| Vec::new(), |state| owner_ids(&state))
     };
     let maintainers = serde_json::to_string(&maintainers)?;
     let (namespace, ecosystem, name) = key.params();
@@ -178,6 +179,21 @@ pub(super) fn record_removed_oci_digests<'digests>(
            generation = excluded.generation",
         params![namespace, name, removed, to_column(generation)],
     )
+}
+
+/// The `owners` a crate, project, or image document records.
+fn owner_ids(state: &Value) -> Vec<String> {
+    state
+        .get("owners")
+        .and_then(Value::as_array)
+        .map(|owners| {
+            owners
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn maintainer_ids(state: &Value) -> Vec<String> {

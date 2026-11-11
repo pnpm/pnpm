@@ -245,3 +245,47 @@ async fn only_the_owner_pushes_to_a_claimed_repository() {
         assert_eq!(claims["scopes"]["acme/app"], serde_json::json!(granted), "{caller}");
     }
 }
+
+#[tokio::test]
+async fn deleting_every_image_keeps_the_repository_owned() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$owners"]));
+    let auth = AuthState::in_memory();
+    let alice = crate::tokens::issue_token(&auth, "alice").await;
+    let bob = crate::tokens::issue_token(&auth, "bob").await;
+    let app = router_with_auth(config, auth);
+    let alice = format!("Basic {}", STANDARD.encode(format!("alice:{alice}")));
+    let bob = format!("Basic {}", STANDARD.encode(format!("bob:{bob}")));
+    let digest = push_image(&app, &alice, "acme/app", "1.0").await;
+    let delete = Request::delete(format!("/v2/acme/app/manifests/{digest}"))
+        .header(header::AUTHORIZATION, &alice)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(delete)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+
+    let blob = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &bob)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(blob)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
+    push_image(&app, &alice, "acme/app", "1.0").await;
+}

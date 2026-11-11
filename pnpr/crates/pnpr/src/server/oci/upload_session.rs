@@ -88,7 +88,7 @@ impl Request {
 
     /// `PATCH`/`PUT`/`GET`/`DELETE /v2/<name>/blobs/uploads/<id>`.
     pub(super) async fn upload(&self, name: &str, id: &str, body: Body) -> Response {
-        let (key, namespace) = match self.publish_target(name).await {
+        let (key, namespace) = match self.session_target(name) {
             Ok(target) => (target.key, target.namespace),
             Err(refusal) => return refusal.respond(),
         };

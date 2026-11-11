@@ -117,9 +117,8 @@ pub struct ProjectDocument {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     /// Filenames permanently reserved after an administrator deletes them.
     pub deleted_files: BTreeSet<String>,
-    /// The account IDs that may publish to this project. The first publish
-    /// claims it; empty for one stored before owners were recorded, which
-    /// only admins may publish to.
+    /// The account IDs that may publish to this project, recorded by its first
+    /// publish. When empty, only admins may publish to it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub owners: Vec<String>,
 }

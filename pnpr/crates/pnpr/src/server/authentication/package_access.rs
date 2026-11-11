@@ -50,6 +50,24 @@ pub(in crate::server) fn authorize(
     Err(denial(identity, package, action))
 }
 
+/// [`authorize`] for a request that continues work an owner-checked request
+/// started, such as a later request of an upload session. `$owners` admits
+/// any signed-in caller here, so the check reads no document.
+pub(in crate::server) fn authorize_continuation(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    package: &str,
+    action: Action,
+) -> Result<(), RegistryError> {
+    let rules = source_rules(state, source).snapshot();
+    let list = permission_list(&rules, package, action);
+    if list.allows_with_context(identity, identity.is_authenticated()) {
+        return Ok(());
+    }
+    Err(denial(identity, package, action))
+}
+
 /// Who owns a package, as its document records it.
 pub(in crate::server) enum Ownership<'owners> {
     /// No document: a publish claims the name.

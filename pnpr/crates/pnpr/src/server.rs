@@ -156,7 +156,7 @@ mod tests;
 use self::{
     authentication::{
         Action, AuthedCaller, Ownership, authenticate, authorize, authorize_against_packument,
-        authorize_package, authorize_with_ownership,
+        authorize_continuation, authorize_package, authorize_with_ownership,
     },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
