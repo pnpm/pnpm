@@ -383,3 +383,19 @@ async fn a_publish_held_for_approval_carries_its_archive() {
     assert_eq!(refused.status, StatusCode::BAD_REQUEST);
     assert!(refused.text.contains("inline"), "{}", refused.text);
 }
+
+#[tokio::test]
+async fn an_upstream_only_proxy_refuses_archive_staging() {
+    let tmp = TempDir::new().unwrap();
+    let mut proxy_config = config(tmp.path());
+    proxy_config.routing.hosted.clear();
+    let app = router(proxy_config);
+    let alice = token_of(&app, "alice").await;
+    let archive = npm_tgz("staged", "1.0.0", b"payload");
+    let path = staging_path(&sri_sha512(&archive));
+
+    let put = blob(&app, "PUT", &path, Some(&alice), Some(&archive)).await;
+    assert_eq!(put.status, StatusCode::NOT_FOUND);
+    let head = blob(&app, "HEAD", &path, Some(&alice), None).await;
+    assert_eq!(head.status, StatusCode::NOT_FOUND);
+}
