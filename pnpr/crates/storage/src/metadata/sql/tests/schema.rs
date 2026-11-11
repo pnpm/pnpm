@@ -772,13 +772,10 @@ mod mysql_recovery {
     }
 
     async fn assert_initialized(db: &Db, generation: i64) {
+        assert_eq!(super::marker(db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
         let adapter = db.adapter();
         tokio::task::spawn_blocking(move || {
             adapter.read(ReadSource::Primary, &mut |connection| {
-                let version = connection
-                    .query_one(&format!("SELECT version FROM {MARKER}"), params![])?
-                    .get::<i64>(0)?;
-                assert_eq!(version, SCHEMA_VERSION);
                 let stored = connection
                     .query_one("SELECT generation FROM record_generation", params![])?
                     .get::<i64>(0)?;
