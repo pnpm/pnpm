@@ -100,10 +100,10 @@ pub struct UserAccount {
 }
 
 /// The outcome of [`AuthState::put_user`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UserPut {
     Created,
-    PasswordChanged,
+    PasswordChanged { user_id: String },
 }
 
 impl std::fmt::Debug for AuthState {
@@ -143,7 +143,7 @@ impl AuthState {
                     return Ok(None);
                 };
                 match self.change_password(&id, password).await? {
-                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
+                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged { user_id: id })),
                     // Another caller removed the user between the two calls.
                     PasswordChange::NoSuchUser => Ok(None),
                 }
@@ -356,13 +356,16 @@ pub trait UserBackend: Send + Sync {
 
     /// Replace a password only while its hash still equals the verified credential.
     /// Returns false when the account or its credential has changed.
+    /// Backends without conditional writes reject the operation.
     async fn set_password_if_current(
         &self,
         _user_id: &str,
         _password: &str,
         _expected_hash: &str,
     ) -> Result<bool> {
-        Ok(false)
+        Err(RegistryError::BadRequest {
+            reason: "Password changes are not supported by this account backend".to_string(),
+        })
     }
 
     /// Remove password credentials without changing the account ID or login name.

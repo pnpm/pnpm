@@ -187,3 +187,124 @@ async fn imported_sha_passwords_support_token_creation_and_profile_changes() {
             .is_none(),
     );
 }
+
+struct FailedPostUpdateLookup {
+    users: Arc<UserStore>,
+    has_updated: std::sync::atomic::AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl UserBackend for FailedPostUpdateLookup {
+    async fn add_or_login(
+        &self,
+        name: &str,
+        password: &str,
+    ) -> pnpr::Result<(pnpr::UpsertOutcome, String)> {
+        self.users.add_or_login(name, password).await
+    }
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        self.users.list_users().await
+    }
+    async fn password_hash(&self, name: &str) -> pnpr::Result<Option<String>> {
+        self.users.password_hash(name).await
+    }
+    async fn create_user(&self, name: &str, password: &str) -> pnpr::Result<pnpr::UserCreation> {
+        self.users.create_user(name, password).await
+    }
+    async fn set_password(&self, id: &str, password: &str) -> pnpr::Result<pnpr::PasswordChange> {
+        let changed = self.users.set_password(id, password).await?;
+        self.has_updated.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(changed)
+    }
+    async fn clear_password(&self, id: &str) -> pnpr::Result<pnpr::PasswordChange> {
+        self.users.clear_password(id).await
+    }
+    async fn delete_user(&self, id: &str) -> pnpr::Result<pnpr::UserRemoval> {
+        self.users.delete_user(id).await
+    }
+    async fn provision_user(&self, name: &str) -> pnpr::Result<String> {
+        self.users.provision_user(name).await
+    }
+    async fn account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
+        if name == "example-user" && self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(pnpr::RegistryError::StorageUnavailable {
+                reason: "account lookup failed".to_string(),
+            });
+        }
+        self.users.account_id(name).await
+    }
+    async fn account_name(&self, id: &str) -> pnpr::Result<Option<String>> {
+        self.users.account_name(id).await
+    }
+    async fn rename_user(&self, id: &str, name: &str) -> pnpr::Result<()> {
+        self.users.rename_user(id, name).await
+    }
+}
+
+#[tokio::test]
+async fn an_admin_password_change_keeps_the_id_without_a_second_account_lookup() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(UserStore::in_memory());
+    users.create_user("root", "secret123").await.unwrap();
+    users.create_user("example-user", "old-password").await.unwrap();
+    let id = users
+        .account_id("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    let root_id = users
+        .account_id("root")
+        .await
+        .unwrap()
+        .unwrap();
+    let backend = Arc::new(FailedPostUpdateLookup {
+        users: Arc::clone(&users),
+        has_updated: std::sync::atomic::AtomicBool::new(false),
+    });
+    let tokens = Arc::new(TokenStore::in_memory());
+    let token = tokens.issue(&root_id).await.unwrap();
+    let auth = AuthState { users: Arc::clone(&backend) as Arc<dyn UserBackend>, tokens };
+    let app = account_router(load_config(&dir), auth).await;
+    let (status, result) = send(
+        &app,
+        "PUT",
+        "/-/pnpr/v0/admin/users/example-user",
+        Some(&token),
+        Some(json!({ "password": "new-password" })),
+    )
+    .await;
+    assert_eq!(status, axum::http::StatusCode::OK);
+    assert_eq!(result["id"], id);
+    assert!(backend.account_id("example-user").await.is_err());
+    assert!(users.add_or_login("example-user", "new-password").await.is_ok());
+}
+
+#[tokio::test]
+async fn a_custom_backend_reports_unsupported_password_changes() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(UserStore::in_memory());
+    users.create_user("example-user", "old-password").await.unwrap();
+    let id = users
+        .account_id("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    let backend = FailedPostUpdateLookup {
+        users: Arc::clone(&users),
+        has_updated: std::sync::atomic::AtomicBool::new(false),
+    };
+    let tokens = Arc::new(TokenStore::in_memory());
+    let token = tokens.issue(&id).await.unwrap();
+    let auth = AuthState { users: Arc::new(backend), tokens };
+    let app = account_router(load_config(&dir), auth).await;
+    let update = json!({ "password": { "old": "old-password", "new": "new-password" } });
+    let (status, result) = send(&app, "POST", "/-/npm/v1/user", Some(&token), Some(update)).await;
+    assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
+    assert!(
+        result["error"]
+            .as_str()
+            .unwrap()
+            .contains("not supported"),
+    );
+    assert!(users.add_or_login("example-user", "old-password").await.is_ok());
+}

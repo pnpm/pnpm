@@ -82,9 +82,16 @@ async fn put_user(
         if let Err(error) = &updated {
             state.inner.identity.oidc.revoke_committed_password_sessions(error);
         }
-        let (status, action) = match updated? {
-            Some(UserPut::Created) => (StatusCode::CREATED, "user.create"),
-            Some(UserPut::PasswordChanged) => (StatusCode::OK, "user.password_update"),
+        let (status, action, id) = match updated? {
+            Some(UserPut::Created) => (
+                StatusCode::CREATED,
+                "user.create",
+                state.inner.identity.auth.users.account_id(&path.user).await?,
+            ),
+            Some(UserPut::PasswordChanged { user_id }) => {
+                state.inner.identity.oidc.revoke_user_sessions(&user_id);
+                (StatusCode::OK, "user.password_update", Some(user_id))
+            }
             None => return Err(RegistryError::NotFound),
         };
         let actor = identity.username().unwrap_or("-");
@@ -95,10 +102,6 @@ async fn put_user(
             user = %path.user,
             "admin action performed on user",
         );
-        let id = state.inner.identity.auth.users.account_id(&path.user).await?;
-        if let Some(id) = &id {
-            state.inner.identity.oidc.revoke_user_sessions(id);
-        }
         Ok(json_response(status, &json!({ "id": id, "name": path.user })))
     };
     respond(result.await)
