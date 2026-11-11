@@ -209,7 +209,7 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
         let buffer = read_full_request(&mut socket).await;
         let request_str = String::from_utf8_lossy(&buffer);
         if request_str.starts_with("GET /-/pnpr HTTP/") {
-            let body = r#"{"pnpr":{"versions":[0,1],"fixLockfile":[0,1]}}"#;
+            let body = r#"{"pnpr":{"protocols":{"resolver":{"versions":[0,1],"features":["projectTransforms","fixLockfile"]}}}}"#;
             let resp = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len(),

@@ -172,12 +172,11 @@ async fn authenticated_resolve_preserves_git_dependencies() {
         .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
         .await
         .unwrap();
-    assert_eq!(
+    assert!(
         response
             .headers()
             .get("pnpr-project-transforms")
-            .and_then(|value| value.to_str().ok()),
-        Some("1"),
+            .is_none(),
     );
     let (status, body) = drain_resolve_response(response).await;
 
@@ -238,15 +237,8 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [0],
-                "artifacts": [],
-                "pipeline": [],
-                "fixLockfile": [0],
-                "ecosystems": ["npm", "cargo", "pypi"],
-                "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 0,
                         "versions": [0],
                         "features": [
                             "fixLockfile",
@@ -256,34 +248,41 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
                             "errorCodes",
                             "acceptedLockfileFormats"
                         ],
-                        "ecosystems": ["npm", "cargo", "pypi"]
+                        "ecosystems": ["npm", "cargo", "pypi"],
+                        "experimental": false
                     },
                     "artifacts": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "compilerCache": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "pipeline": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "publish": {
-                        "version": 0,
                         "versions": [],
-                        "pnpmPublish": []
+                        "features": [],
+                        "experimental": false
+                    },
+                    "pnpmPublish": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false
+                    },
+                    "records": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false,
+                        "manifestProfiles": []
                     }
-                },
-                "features": {
-                    "registries": true,
-                    "admin": false,
-                    "scim": false,
-                    "signIn": false
-                },
-                "records": [],
-                "manifestProfiles": []
+                }
             }
         }),
     );
@@ -465,52 +464,45 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [],
-                "artifacts": [],
-                "pipeline": [],
-                "fixLockfile": [],
-                "ecosystems": [],
-                "publish": [0],
                 "protocols": {
                     "resolver": {
-                        "version": 0,
                         "versions": [],
-                        "features": [
-                            "fixLockfile",
-                            "verifyLockfile",
-                            "projectTransforms",
-                            "policyEcho",
-                            "errorCodes",
-                            "acceptedLockfileFormats"
-                        ],
-                        "ecosystems": []
+                        "features": [],
+                        "ecosystems": [],
+                        "experimental": false
                     },
                     "artifacts": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "compilerCache": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "pipeline": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "publish": {
-                        "version": 0,
                         "versions": [0],
-                        "pnpmPublish": [1]
+                        "features": [],
+                        "experimental": false
+                    },
+                    "pnpmPublish": {
+                        "versions": [1],
+                        "features": [],
+                        "experimental": false
+                    },
+                    "records": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false,
+                        "manifestProfiles": []
                     }
-                },
-                "features": {
-                    "registries": true,
-                    "admin": false,
-                    "scim": false,
-                    "signIn": false
-                },
-                "records": [],
-                "manifestProfiles": []
+                }
             }
         }),
     );

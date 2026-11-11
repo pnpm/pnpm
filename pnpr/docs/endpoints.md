@@ -97,14 +97,45 @@ Every request routes through the registry graph:
 
 ## pnpr protocol endpoints
 
-The capability handshake is served when any of the four surfaces is enabled.
-Each protocol advertises its versions independently, so resolver-only and
-artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
+The capability handshake is served when any protocol surface is enabled. It is
+also available relative to each npm registry base, at `/npm/-/pnpr` and
+`/npm/~<name>/-/pnpr`. The `POST` endpoints require a valid pnpr
 `Authorization` header.
+
+The response has one capability map, `pnpr.protocols`. Clients must ignore
+unknown keys and unknown feature names. A missing protocol or an empty
+`versions` array means unsupported. Features apply to the advertised versions;
+disabled protocols advertise no features. Clients must select a version they
+support before using its features.
+
+| Protocol | Versions when enabled | Features and metadata |
+| --- | --- | --- |
+| `resolver` | `[0]` | `features`: `fixLockfile`, `verifyLockfile`, `projectTransforms`, `policyEcho`, `errorCodes`, `acceptedLockfileFormats`. `ecosystems` lists accepted package ecosystems. |
+| `publish` | `[0]` | Cross-ecosystem publish transaction. |
+| `pnpmPublish` | `[1]` | npm batch publish document format. |
+| `records` | `[1]` | Enabled when release record signing is configured. `manifestProfiles` lists supported install manifest profiles. |
+| `artifacts` | `[0]` | Experimental shared artifacts. |
+| `compilerCache` | `[0]` | Experimental compiler cache. |
+| `pipeline` | `[0]` | Experimental pipeline run records. |
+
+Every entry includes `versions`, `features`, and `experimental`. The artifacts,
+compiler cache, and pipeline protocols set `experimental: true`; their contracts
+may change. All pnpr surfaces remain experimental before 1.0.
+
+The supported HTTP protocol path remains `/v0/`, including after pnpr 1.0.
+Version numbers identify wire contracts, independently of the server release.
+There is no `/v1/` alias or deprecated path. A future incompatible contract must
+use a new path and advertise its version alongside the old one during a
+documented deprecation window. The `pnpmPublish` and `records` numbers identify
+document formats, rather than HTTP path versions.
+
+Project-transform support is advertised by the resolver's `projectTransforms`
+feature. Clients check it before sending a request that needs those transforms.
+Resolve responses no longer carry a separate capability header.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/pnpr` | Capability handshake. Returns `versions` for resolver protocols, `fixLockfile` for resolver versions that support lockfile repair, `ecosystems` for the ecosystems the resolver serves, `artifacts` for shared-artifact protocols, `publish` for the cross-ecosystem publish transaction, and `pipeline` for pipeline run records. Each version list is `[0]` when its surface is enabled and `[]` otherwise. `records` is `[1]` when hosted registries log their [release records](#release-record-logs), with the profiles they derive them under in `manifestProfiles`, and `[]` otherwise. A 404 means every surface is off. |
+| `GET` | `/-/pnpr` | Capability handshake returning `pnpr.protocols`. A 404 means every surface is off. |
 | `POST` | `/-/pnpr/v0/resolve` | Resolves one project or workspace against the registries and policy sent by the client. Returns `application/x-ndjson` frames. |
 | `POST` | `/-/pnpr/v0/verify-lockfile` | Verifies an existing lockfile under the client's registry and policy settings without resolving again. Returns `application/x-ndjson` frames. |
 
@@ -170,7 +201,7 @@ These belong to no single ecosystem, so they sit on the server root.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `PUT` | `/-/pnpr/v0/publish` | [Publish packages of any ecosystem](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) in one transaction. Advertised as `publish: [0]` in the handshake. |
+| `PUT` | `/-/pnpr/v0/publish` | [Publish packages of any ecosystem](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) in one transaction. Advertised as `protocols.publish.versions: [0]` in the handshake. |
 | `PUT` | `/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` | [Stages one release archive](ecosystems.md#staged-archives) for the caller, streamed from the request body, ahead of the publish that references it. Also under `/npm/`. Answers `201` when stored, `200` when the caller had it staged already, which renews it. Needs a signed-in caller and a `Content-Length` of at most 100 MiB. The archive is stored only if its bytes match the integrity. Only the caller can claim it, for 24 hours after its last upload. |
 | `HEAD` | `/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` | Whether the caller has the archive staged with at least an hour left, with its size as `Content-Length`. |
 | `GET` | `/-/pnpr/v0/registries` | The [registry directory](discovery.md#the-registry-directory): the named registries, ecosystem endpoints, and routing order the caller may see. |

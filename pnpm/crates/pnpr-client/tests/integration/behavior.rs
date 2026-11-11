@@ -71,7 +71,7 @@ async fn artifact_handshake_is_independent_from_the_resolver_protocol() {
         .mock("GET", "/-/pnpr")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"pnpr":{"versions":[],"artifacts":[0]}}"#)
+        .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
         .create_async()
         .await;
 

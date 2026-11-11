@@ -25,52 +25,45 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [],
-                "artifacts": [0],
-                "pipeline": [],
-                "fixLockfile": [],
-                "ecosystems": [],
-                "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 0,
                         "versions": [],
-                        "features": [
-                            "fixLockfile",
-                            "verifyLockfile",
-                            "projectTransforms",
-                            "policyEcho",
-                            "errorCodes",
-                            "acceptedLockfileFormats"
-                        ],
-                        "ecosystems": []
+                        "features": [],
+                        "ecosystems": [],
+                        "experimental": false
                     },
                     "artifacts": {
-                        "version": 0,
-                        "versions": [0]
+                        "versions": [0],
+                        "features": [],
+                        "experimental": true
                     },
                     "compilerCache": {
-                        "version": 0,
-                        "versions": [0]
+                        "versions": [0],
+                        "features": [],
+                        "experimental": true
                     },
                     "pipeline": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "publish": {
-                        "version": 0,
                         "versions": [],
-                        "pnpmPublish": []
+                        "features": [],
+                        "experimental": false
+                    },
+                    "pnpmPublish": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false
+                    },
+                    "records": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false,
+                        "manifestProfiles": []
                     }
-                },
-                "features": {
-                    "registries": true,
-                    "admin": false,
-                    "scim": false,
-                    "signIn": false
-                },
-                "records": [],
-                "manifestProfiles": []
+                }
             }
         }),
     );

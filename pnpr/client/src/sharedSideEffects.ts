@@ -120,9 +120,10 @@ export async function pnprSupportsSharedSideEffects (
   })
   if (response.statusCode < 200 || response.statusCode >= 300) return false
   const parsed = JSON.parse(response.body.toString('utf8')) as {
-    pnpr?: { artifacts?: unknown }
+    pnpr?: { protocols?: { artifacts?: { versions?: unknown } } }
   }
-  return Array.isArray(parsed.pnpr?.artifacts) && parsed.pnpr.artifacts.includes(0)
+  const versions = parsed.pnpr?.protocols?.artifacts?.versions
+  return Array.isArray(versions) && versions.includes(0)
 }
 
 export async function resolveSharedSideEffects (

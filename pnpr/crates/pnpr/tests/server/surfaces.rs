@@ -59,52 +59,45 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [],
-                "artifacts": [],
-                "pipeline": [0],
-                "fixLockfile": [],
-                "ecosystems": [],
-                "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 0,
                         "versions": [],
-                        "features": [
-                            "fixLockfile",
-                            "verifyLockfile",
-                            "projectTransforms",
-                            "policyEcho",
-                            "errorCodes",
-                            "acceptedLockfileFormats"
-                        ],
-                        "ecosystems": []
+                        "features": [],
+                        "ecosystems": [],
+                        "experimental": false
                     },
                     "artifacts": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "compilerCache": {
-                        "version": 0,
-                        "versions": []
+                        "versions": [],
+                        "features": [],
+                        "experimental": true
                     },
                     "pipeline": {
-                        "version": 0,
-                        "versions": [0]
+                        "versions": [0],
+                        "features": [],
+                        "experimental": true
                     },
                     "publish": {
-                        "version": 0,
                         "versions": [],
-                        "pnpmPublish": []
+                        "features": [],
+                        "experimental": false
+                    },
+                    "pnpmPublish": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false
+                    },
+                    "records": {
+                        "versions": [],
+                        "features": [],
+                        "experimental": false,
+                        "manifestProfiles": []
                     }
-                },
-                "features": {
-                    "registries": true,
-                    "admin": false,
-                    "scim": false,
-                    "signIn": false
-                },
-                "records": [],
-                "manifestProfiles": []
+                }
             }
         }),
     );
@@ -594,6 +587,31 @@ async fn unsupported_npm_package_endpoints_explain_the_refusal() {
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
             let body = body_json(response.into_body()).await;
             assert_eq!(body["error"], "unsupported_route");
+        }
+    }
+}
+
+#[tokio::test]
+async fn capability_handshake_is_available_at_every_npm_base() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://upstream.invalid", tmp.path().to_path_buf()));
+    let mut expected = None;
+    for path in ["/-/pnpr", "/npm/-/pnpr", "/npm/~hosted/-/pnpr"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        let body = body_json(response.into_body()).await;
+        if let Some(expected) = &expected {
+            assert_eq!(&body, expected, "{path}");
+        } else {
+            expected = Some(body);
         }
     }
 }

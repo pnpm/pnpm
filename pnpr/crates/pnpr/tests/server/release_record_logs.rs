@@ -186,9 +186,9 @@ async fn a_record_is_proven_by_its_evidence() {
     }
 
     let capabilities = body_json(get(&app, "/-/pnpr", None).await.into_body()).await;
-    assert_eq!(capabilities["pnpr"]["records"], serde_json::json!([1]));
+    assert_eq!(capabilities["pnpr"]["protocols"]["records"]["versions"], serde_json::json!([1]));
     assert_eq!(
-        capabilities["pnpr"]["manifestProfiles"],
+        capabilities["pnpr"]["protocols"]["records"]["manifestProfiles"],
         serde_json::json!(["npm-install-manifest/1"]),
     );
 }
