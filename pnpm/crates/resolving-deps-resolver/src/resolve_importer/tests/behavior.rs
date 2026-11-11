@@ -2,6 +2,76 @@ use super::{
     DepPath, DependencyGroup, HashMap, Mutex, ResolveResult, StubResolver, assert_eq, default_opts,
     fake_manifest, fake_result, merge_ranges, resolve_importer,
 };
+use crate::{HoistPeersOptions, MissingPeerInfo, hoist_peers};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+};
+use std::{collections::BTreeMap, path::Path};
+
+#[test]
+fn merged_peer_locators_survive_preferred_registry_versions() {
+    let preferred = PreferredVersions::from_iter([(
+        "b".to_string(),
+        BTreeMap::from([
+            ("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
+            (
+                "2.0.0".to_string(),
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Version,
+                    weight: 1000,
+                }),
+            ),
+        ]),
+    )]);
+    for range in [
+        "file:../b",
+        "link:../b",
+        "../b",
+        r"..\b",
+        "./b",
+        "/packages/b",
+        "~/b",
+        "npm:other@1.0.0",
+        "workspace:*",
+        "workspace:other@^1",
+        "http://example.test/b.tgz",
+        "https://example.test/b.tgz",
+        "git+https://example.test/b.git",
+        "git+ssh://git@example.test/b.git",
+        "github:example/b",
+        "gitlab:example/b",
+        "bitbucket:example/b",
+        "example/b",
+        "catalog:default",
+        "work:^1.0.0",
+        "work:other@1.0.0",
+    ] {
+        for auto_install_peers_from_highest_match in [false, true] {
+            let merged = merge_ranges(&[range, range], auto_install_peers_from_highest_match)
+                .expect("identical peer locators merge");
+            for auto_install_peers in [false, true] {
+                let opts = HoistPeersOptions {
+                    auto_install_peers,
+                    all_preferred_versions: &preferred,
+                    workspace_root_deps: &[],
+                    override_bare_specifier: None,
+                    project_dir: Path::new("/workspace"),
+                    resolved_versions: &HashMap::default(),
+                };
+                let hoisted = hoist_peers(
+                    &opts,
+                    &[("b".to_string(), MissingPeerInfo { range: merged.clone() })],
+                );
+                assert_eq!(
+                    hoisted.get("b").map(String::as_str),
+                    auto_install_peers.then_some(range),
+                    "range={range}, highest_match={auto_install_peers_from_highest_match}, auto_install={auto_install_peers}",
+                );
+                assert_eq!(hoisted.len(), usize::from(auto_install_peers));
+            }
+        }
+    }
+}
 
 #[tokio::test]
 async fn does_not_hoist_when_disabled() {
@@ -147,6 +217,84 @@ fn repeated_scheme_specifier_stays_verbatim() {
         merge_ranges(&["workspace:^", "workspace:^"], false).as_deref(),
         Some("workspace:^"),
     );
+}
+
+#[test]
+fn conflicting_non_semver_peer_ranges_are_not_joined() {
+    for ranges in [
+        ["file:../packages/b", "file:../libs/b"],
+        ["link:../b", "link:../c"],
+        ["../b", "../c"],
+        ["file:../b", "^1.0.0"],
+        ["^1.0.0", "file:../b"],
+        ["npm:b@^1", "npm:b@^2"],
+        ["latest", "next"],
+        ["file:../lib 1.0.0", "file:../lib 2.0.0"],
+        ["file:../a 1.0.0", "file:../b 1.0.0"],
+        ["../a 1.0.0", "../b 2.0.0"],
+        [r"..\a", r"..\b"],
+    ] {
+        for highest_match in [false, true] {
+            assert_eq!(merge_ranges(&ranges, highest_match), None, "{ranges:?}");
+        }
+    }
+}
+
+#[test]
+fn repeated_non_semver_peer_ranges_stay_verbatim() {
+    for range in ["file:../b", "link:../b", "../b", "npm:b@^1", "latest"] {
+        for highest_match in [false, true] {
+            assert_eq!(merge_ranges(&[range, range], highest_match).as_deref(), Some(range));
+        }
+    }
+}
+
+#[tokio::test]
+async fn conflicting_path_peers_stay_missing_without_resolution() {
+    for ranges in [
+        ["file:../packages/b", "file:../libs/b", "file:../other/b"],
+        ["file:../b", "^1.0.0", "^2.0.0"],
+        ["^1.0.0", "file:../b", "^2.0.0"],
+        ["npm:a@1", "npm:b@1", "npm:c@1"],
+    ] {
+        let mut table = HashMap::default();
+        for (name, range) in ["consumer-a", "consumer-c", "consumer-d"].into_iter().zip(ranges) {
+            table.insert(
+                (name.to_string(), "1.0.0".to_string()),
+                fake_result(
+                    name,
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": name,
+                        "version": "1.0.0",
+                        "peerDependencies": { "b": range },
+                    }),
+                ),
+            );
+        }
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "consumer-a": "1.0.0",
+            "consumer-c": "1.0.0",
+            "consumer-d": "1.0.0",
+        }));
+        let mut opts = default_opts();
+        opts.peers.auto_install_peers_from_highest_match = true;
+        let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
+
+        assert!(!result.peers_result.direct_dependencies_by_alias.contains_key("b"));
+        assert_eq!(result.peers_result.peer_dependency_issues.missing["b"].len(), 3);
+        assert!(
+            resolver.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|(name, _)| name != "b"),
+            "{ranges:?}",
+        );
+    }
 }
 
 #[tokio::test]

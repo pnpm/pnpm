@@ -8,7 +8,7 @@ import { getHoistableRootDeps } from './hoistableRootDeps.js'
 import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { getImporterLockedPeerVersions } from './lockedPeerVersions.js'
-import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
+import { filterMissingPeers, mergeMissingPeersOfImporter, mergePkgsDeps } from './missingPeers.js'
 import {
   acceptsOptionalPeerCandidate,
   type CandidatePeers,
@@ -192,10 +192,7 @@ function collectMissingPeersOfImporter (
     parentPkgAliases[pkgAddress.alias] = true
   }
   if (ctx.autoInstallPeers) {
-    importerResult.missingPeers = mergePkgsDeps([
-      importerResult.missingPeers,
-      collectMissingRequiredPeers(ctx, importerResult.pkgAddresses),
-    ], ctx)
+    importerResult.missingPeers = mergeMissingPeersOfImporter(ctx, importerResult)
   }
   const { missingOptionalPeers, missingRequiredPeers } = partitionMissingPeers(importerResult.missingPeers, parentPkgAliases)
   if (ctx.autoInstallPeers) {
@@ -414,7 +411,7 @@ async function resolvePendingDetachedPeers (hoisting: PeerHoisting, index: numbe
     })
     detachedPeers.versions.set(key, manifest?.version ?? null)
     if (manifest?.version != null) {
-      detachedPeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest))
+      detachedPeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest, hoisting.ctx.catalogResolver))
     }
   }))
 }

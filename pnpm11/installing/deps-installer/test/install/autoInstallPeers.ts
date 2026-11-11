@@ -83,6 +83,74 @@ test('do not auto install when there is no common peer dependency range intersec
   ])
 })
 
+test.each([false, true])('installs identical file peers without synthesizing a range (highest match: %s)', async (autoInstallPeersFromHighestMatch) => {
+  const project = prepareEmpty()
+  const range = `file:${path.resolve('provider')}`
+  for (const name of ['consumer-a', 'consumer-b', 'provider']) {
+    fs.mkdirSync(name)
+    fs.writeFileSync(`${name}/package.json`, JSON.stringify({
+      name: name === 'provider' ? 'peer' : name,
+      version: '1.0.0',
+      ...(name === 'provider' ? {} : { peerDependencies: { peer: range } }),
+    }))
+  }
+  await install({
+    dependencies: { 'consumer-a': 'file:consumer-a', 'consumer-b': 'file:consumer-b' },
+  }, testDefaults({ autoInstallPeers: true, autoInstallPeersFromHighestMatch, lockfileOnly: true }))
+
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots).filter((key) => key.startsWith('peer@'))).toStrictEqual([
+    'peer@file:provider',
+  ])
+  for (const name of ['consumer-a', 'consumer-b']) {
+    expect(lockfile.snapshots[`${name}@file:${name}(peer@file:provider)`].dependencies?.peer).toBe('file:provider')
+  }
+})
+
+test('leaves conflicting file peers missing in highest-match mode', async () => {
+  const project = prepareEmpty()
+  for (const name of ['consumer-a', 'consumer-b']) {
+    fs.mkdirSync(name)
+    fs.writeFileSync(`${name}/package.json`, JSON.stringify({
+      name,
+      version: '1.0.0',
+      peerDependencies: { peer: `file:${path.resolve(name, 'provider')}` },
+    }))
+  }
+  await install({
+    dependencies: { 'consumer-a': 'file:consumer-a', 'consumer-b': 'file:consumer-b' },
+  }, testDefaults({ autoInstallPeers: true, autoInstallPeersFromHighestMatch: true, lockfileOnly: true }))
+
+  expect(Object.keys(project.readLockfile().snapshots).sort()).toStrictEqual([
+    'consumer-a@file:consumer-a',
+    'consumer-b@file:consumer-b',
+  ])
+})
+
+test('installs a peer that consumers request through equivalent catalog references in highest-match mode', async () => {
+  const project = prepareEmpty()
+  for (const [name, range] of [['consumer-a', 'catalog:'], ['consumer-b', 'catalog:default']]) {
+    fs.mkdirSync(name)
+    fs.writeFileSync(`${name}/package.json`, JSON.stringify({
+      name,
+      version: '1.0.0',
+      peerDependencies: { '@pnpm.e2e/peer-c': range },
+    }))
+  }
+  await install({
+    dependencies: { 'consumer-a': 'file:consumer-a', 'consumer-b': 'file:consumer-b' },
+  }, testDefaults({
+    autoInstallPeers: true,
+    autoInstallPeersFromHighestMatch: true,
+    catalogs: { default: { '@pnpm.e2e/peer-c': '^1.0.0' } },
+    lockfileOnly: true,
+  }))
+
+  expect(Object.keys(project.readLockfile().snapshots).filter((key) => key.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    '@pnpm.e2e/peer-c@1.0.1',
+  ])
+})
+
 test('auto install latest when there is no common peer dependency range intersection', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
   const project = prepareEmpty()

@@ -1,5 +1,6 @@
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { pickBy } from 'ramda'
+import semver from 'semver'
 
 import { safeIntersect } from './mergePeers.js'
 import type {
@@ -33,11 +34,27 @@ type PeerGraphContext = Pick<ResolutionContext, 'childrenByParentId' | 'autoInst
 
 type PeerGraphRoot = Pick<PkgAddress, 'alias' | 'pkgId'>
 
+export function mergeMissingPeersOfImporter (
+  ctx: PeerGraphContext,
+  { missingPeers, pkgAddresses }: { missingPeers: MissingPeers, pkgAddresses: PeerGraphRoot[] }
+): MissingPeers {
+  const opts = {
+    autoInstallPeersFromHighestMatch: ctx.autoInstallPeersFromHighestMatch,
+    conflicts: new Set<string>(),
+  }
+  const requiredPeers = collectMissingRequiredPeers(ctx, pkgAddresses, opts.conflicts)
+  return mergePkgsDeps([
+    missingPeers,
+    requiredPeers,
+  ], opts)
+}
+
 // Shared child resolution can omit peers supplied by another importer's ancestors.
 // Discover required peers from the graph without waiting on child-resolution promises.
 export function collectMissingRequiredPeers (
   ctx: PeerGraphContext,
-  roots: PeerGraphRoot[]
+  roots: PeerGraphRoot[],
+  conflicts?: Set<string>
 ): MissingPeers {
   const { packages, peerNames, providedAliases } = indexRequiredPeers(ctx, roots)
   const missingPeers: MissingPeers[] = []
@@ -48,7 +65,7 @@ export function collectMissingRequiredPeers (
     if (!providedAliases.has(peerName)) continue
     missingPeers.push(...findRequestsOfPeerNotProvidedByParent(packages, roots, peerName))
   }
-  return mergePkgsDeps(missingPeers, ctx)
+  return mergePkgsDeps(missingPeers, { autoInstallPeersFromHighestMatch: ctx.autoInstallPeersFromHighestMatch, conflicts })
 }
 
 function indexRequiredPeers (ctx: PeerGraphContext, roots: PeerGraphRoot[]): PeerGraph {
@@ -158,14 +175,17 @@ export async function startResolvingPeers (
   }
 }
 
-export function mergePkgsDeps (pkgsDeps: MissingPeers[], opts: { autoInstallPeersFromHighestMatch: boolean }): MissingPeers {
+export function mergePkgsDeps (pkgsDeps: MissingPeers[], opts: { autoInstallPeersFromHighestMatch: boolean, conflicts?: Set<string> }): MissingPeers {
   const mergedPkgDeps = {} as MissingPeers
   for (const [name, { ranges, optional }] of Object.entries(groupPeerRanges(pkgsDeps))) {
-    const intersection = safeIntersect(ranges)
+    if (opts.conflicts?.has(name)) continue
+    const intersection = safeIntersect(ranges) ?? (ranges.every((range) => range === ranges[0]) ? ranges[0] : null)
     if (intersection) {
       mergedPkgDeps[name] = { range: intersection, optional }
-    } else if (opts.autoInstallPeersFromHighestMatch) {
+    } else if (opts.autoInstallPeersFromHighestMatch && ranges.every((range) => semver.validRange(range) !== null)) {
       mergedPkgDeps[name] = { range: ranges.join(' || '), optional }
+    } else {
+      opts.conflicts?.add(name)
     }
   }
   return mergedPkgDeps
