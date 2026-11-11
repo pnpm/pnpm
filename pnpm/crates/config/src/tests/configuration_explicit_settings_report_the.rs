@@ -384,6 +384,26 @@ pub fn lockfile_dir_equal_to_project_dir_keeps_the_default_lockfile_layout() {
 }
 
 #[test]
+pub fn lockfile_dir_equal_to_a_dedicated_project_keeps_its_default_paths() {
+    let tmp = tempdir().unwrap();
+    let workspace = tmp.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: packages/app\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(&project).expect("loads");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.modules_dir, project.join("node_modules"));
+    assert_eq!(config.install_state_dir, project.join("node_modules/.pnpm"));
+    assert!(!config.shares_one_lockfile());
+}
+
+#[test]
 pub fn lockfile_dir_equal_to_workspace_root_does_not_reanchor_env_paths() {
     static WORKSPACE_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     struct HostWithDefaultLockfileDirEnv;
