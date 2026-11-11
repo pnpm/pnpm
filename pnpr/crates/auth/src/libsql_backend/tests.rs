@@ -778,3 +778,9 @@ async fn libsql_password_policy_applies_to_registration_and_login() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     crate::validation::tests::assert_password_policy(&*backend).await;
 }
+
+#[tokio::test]
+async fn password_updates_preserve_a_concurrent_admin_reset() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::password_login::tests::assert_password_update_keeps_concurrent_resets(&*backend).await;
+}

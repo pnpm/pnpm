@@ -1,3 +1,5 @@
+mod verification;
+
 use std::{path::Path, time::Duration};
 use tempfile::TempDir;
 

@@ -19,10 +19,9 @@ pub(super) async fn post_upload(
     request: Request,
 ) -> Response {
     if matches!(identity, Identity::Anonymous) {
-        return private_no_cache(
-            RegistryError::Unauthenticated { resource: "Python uploads".to_string() }
-                .into_response(),
-        );
+        return private_no_cache(super::upload_errors::response(RegistryError::Unauthenticated {
+            resource: "Python uploads".to_string(),
+        }));
     }
     let body = match Bytes::from_request(request, &state).await {
         Ok(body) => body,
@@ -31,7 +30,7 @@ pub(super) async fn post_upload(
     let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body).await
     {
         Ok(()) => StatusCode::OK.into_response(),
-        Err(err) => err.into_response(),
+        Err(err) => super::upload_errors::response(err),
     };
     private_no_cache(response)
 }

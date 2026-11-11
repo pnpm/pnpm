@@ -236,3 +236,51 @@ fn rate_limiter_caps_account_attempts_across_client_ips() {
             .is_ok(),
     );
 }
+
+#[test]
+fn one_client_ip_cannot_exhaust_the_default_account_limit() {
+    let limiter = LoginRateLimiter::default();
+    let attacker = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1));
+    for _ in 0..5 {
+        assert!(
+            limiter
+                .check(Some(attacker), "alice")
+                .is_ok(),
+        );
+        limiter.record_failure(Some(attacker), "alice");
+    }
+    assert!(
+        limiter
+            .check(Some(attacker), "alice")
+            .is_err(),
+    );
+    let owner = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 2));
+    assert!(
+        limiter
+            .check(Some(owner), "alice")
+            .is_ok(),
+    );
+}
+
+#[test]
+fn distributed_failures_exhaust_the_default_account_limit() {
+    let limiter = LoginRateLimiter::default();
+    for suffix in 1..=10 {
+        let client = IpAddr::V4(Ipv4Addr::new(192, 0, 2, suffix));
+        for _ in 0..5 {
+            assert!(
+                limiter
+                    .check(Some(client), "alice")
+                    .is_ok(),
+            );
+            limiter.record_failure(Some(client), "alice");
+        }
+    }
+    let next = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 11));
+    assert!(
+        limiter
+            .check(Some(next), "alice")
+            .is_err(),
+    );
+    assert!(limiter.check(Some(next), "bob").is_ok());
+}

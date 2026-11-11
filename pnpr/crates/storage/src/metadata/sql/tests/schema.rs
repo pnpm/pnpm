@@ -830,17 +830,35 @@ mod mysql_recovery {
 async fn an_open_database_refuses_a_schema_advanced_by_another_server() {
     let temp = tempfile::TempDir::new().unwrap();
     let path = temp.path().join("metadata.sqlite");
-    let metadata = SqlMetadata::open_sqlite(&path).unwrap();
+    let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
     let writer = rusqlite::Connection::open(&path).unwrap();
     writer
         .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [SCHEMA_VERSION + 1])
         .unwrap();
-    *metadata.schema_check.lock().unwrap() = None;
+    metadata.schema_monitor.expire();
     let error = metadata
         .ensure_schema()
         .unwrap_err()
         .to_string();
     assert!(error.contains("Upgrade pnpr"), "{error}");
+    writer
+        .execute("DELETE FROM schema_migrations WHERE version = ?1", [SCHEMA_VERSION + 1])
+        .unwrap();
+    assert_eq!(
+        metadata
+            .check_schema()
+            .await
+            .unwrap_err()
+            .to_string(),
+        error,
+    );
+    assert_eq!(
+        metadata
+            .ensure_schema()
+            .unwrap_err()
+            .to_string(),
+        error,
+    );
 }
 
 #[tokio::test]
@@ -855,4 +873,33 @@ async fn fresh_migration_records_have_application_times() {
         })
         .unwrap();
     assert_eq!(count, SCHEMA_VERSION);
+}
+
+#[tokio::test]
+async fn an_unreadable_schema_remains_refused_after_a_failed_runtime_probe() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let path = temp.path().join("metadata.sqlite");
+    let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
+    let writer = rusqlite::Connection::open(&path).unwrap();
+    writer
+        .execute("DROP TABLE schema_migrations", [])
+        .unwrap();
+    metadata.schema_monitor.expire();
+    let error = metadata
+        .ensure_schema()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("no such table"), "{error}");
+    assert!(matches!(metadata.ensure_schema(), Err(RegistryError::StorageUnavailable { .. })));
+    writer
+        .execute(schema::MARKER_TABLE, [])
+        .unwrap();
+    assert_eq!(
+        metadata
+            .check_schema()
+            .await
+            .unwrap_err()
+            .to_string(),
+        error,
+    );
 }

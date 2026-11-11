@@ -768,6 +768,20 @@ fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache(
     let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
     let config: serde_json::Value = serde_saphyr::from_str(&yaml).unwrap();
     let cache = Path::new(config["cache"].as_str().unwrap());
+    let server = super::server_config::cold_revision_mock_command(
+        "HEAD",
+        Path::new("pnpr"),
+        temp.path(),
+        4873,
+        "http://127.0.0.1:4873",
+        "http://127.0.0.1:4874",
+    );
+    let args: Vec<_> = server.get_args().collect();
+    let selected_cache = args
+        .windows(2)
+        .find(|pair| pair[0] == "--cache")
+        .unwrap()[1];
+    assert_eq!(Path::new(selected_cache), cache);
     let metadata = storage.join(".metadata/metadata.sqlite");
     fs::create_dir_all(metadata.parent().unwrap()).unwrap();
     fs::create_dir_all(cache).unwrap();

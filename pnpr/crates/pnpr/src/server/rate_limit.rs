@@ -44,7 +44,7 @@ pub(crate) struct LoginRateLimiter {
 
 impl Default for LoginRateLimiter {
     fn default() -> Self {
-        Self::new(Duration::from_mins(1), 5, 20, 5)
+        Self::new(Duration::from_mins(1), 5, 20, 50)
     }
 }
 
@@ -135,10 +135,14 @@ impl LoginRateLimiter {
             )?;
             self.check_key(&inner.map, &RateLimitKey::Ip(ip_address), self.max_ip_attempts, now)?;
         }
+        let max_user_attempts = match client_ip {
+            Some(_) => self.max_user_attempts,
+            None => self.max_user_attempts.min(self.max_ip_user_attempts),
+        };
         self.check_key(
             &inner.map,
             &RateLimitKey::User(username.to_string()),
-            self.max_user_attempts,
+            max_user_attempts,
             now,
         )?;
 

@@ -77,24 +77,34 @@ pub(super) async fn create_token(
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, &username) {
         return super::user_accounts::login_throttled_response(state, retry_after);
     }
-    let request = match payload::parse_and_validate_token_request(body, token_store_unix_seconds())
-    {
-        Ok(req) => req,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) = verify_caller_password(state, client_ip, &username, request.password()).await
-    {
-        return err.into_response();
+    let _permit = state.inner.identity.login_concurrency.acquire().await;
+    if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, &username) {
+        return super::user_accounts::login_throttled_response(state, retry_after);
     }
-    let new_token = match request.into_new_token(token_store_unix_seconds()) {
-        Ok(token) => token,
-        Err(err) => return err.into_response(),
-    };
+    create_verified_token(state, client_ip, identity, body).await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+async fn create_verified_token(
+    state: &AppState,
+    client_ip: Option<IpAddr>,
+    identity: &Identity,
+    body: &[u8],
+) -> Result<Response, RegistryError> {
+    let username = identity.username().expect("authenticated caller");
+    let request = payload::parse_and_validate_token_request(body, token_store_unix_seconds())?;
+    let verified_hash =
+        verify_caller_password(state, client_ip, username, request.password()).await?;
+    let new_token = request.into_new_token(token_store_unix_seconds())?;
     let user_id = identity.user_id().expect("authenticated caller");
-    match state.inner.identity.auth.tokens.issue_token(user_id, new_token).await {
-        Ok((raw, record)) => json_response(StatusCode::OK, &create_token_response(&raw, &record)),
-        Err(err) => err.into_response(),
-    }
+    let (raw, record) = state.inner.identity.auth.issue_token_if_credential_current(
+        username,
+        user_id,
+        &verified_hash,
+        new_token,
+    )
+    .await?;
+    Ok(json_response(StatusCode::OK, &create_token_response(&raw, &record)))
 }
 
 pub(super) async fn verify_caller_password(
@@ -102,27 +112,48 @@ pub(super) async fn verify_caller_password(
     client_ip: Option<IpAddr>,
     username: &str,
     password: Option<&str>,
-) -> Result<(), RegistryError> {
-    if let Some(hash) = state.inner.identity.auth.users.password_hash(username).await?
-        && hash != pnpr_auth::NO_PASSWORD_HASH
-    {
-        let Some(password) = password else {
+) -> Result<String, RegistryError> {
+    let hash = state.inner.identity.auth.users
+        .password_hash(username)
+        .await?
+        .ok_or_else(|| RegistryError::Unauthenticated {
+            resource: "password verification".to_string(),
+        })?;
+    if let Err(error) = verify_password_hash(username, password, &hash).await {
+        if matches!(error, RegistryError::Unauthenticated { .. }) {
             state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
-            return Err(RegistryError::Unauthenticated {
-                resource: "password required for token creation".to_string(),
-            });
-        };
-        let _permit = state.inner.identity.login_concurrency.acquire().await;
-        let valid = pnpr_auth::verify_bcrypt(password.to_string(), hash).await?;
-        if !valid {
-            state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
-            return Err(RegistryError::Unauthenticated {
-                resource: "password verification".to_string(),
-            });
         }
+        return Err(error);
     }
     state.inner.identity.login_rate_limiter.record_success(client_ip, username);
-    Ok(())
+    Ok(hash)
+}
+
+async fn verify_password_hash(
+    username: &str,
+    password: Option<&str>,
+    hash: &str,
+) -> Result<(), RegistryError> {
+    if hash == pnpr_auth::NO_PASSWORD_HASH {
+        return Ok(());
+    }
+    let password = password.ok_or_else(|| RegistryError::Unauthenticated {
+        resource: "password required for token creation".to_string(),
+    })?;
+    match pnpr_auth::verify_returning_user(
+        username,
+        password,
+        hash.to_string(),
+        pnpr_auth::DEFAULT_BCRYPT_COST,
+    )
+    .await
+    {
+        Ok(_) => Ok(()),
+        Err(RegistryError::Unauthenticated { .. }) => {
+            Err(RegistryError::Unauthenticated { resource: "password verification".to_string() })
+        }
+        Err(error) => Err(error),
+    }
 }
 
 fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
@@ -295,3 +326,6 @@ pub(super) fn token_timestamp_millis(seconds: u64) -> i64 {
 fn token_store_unix_seconds() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
+
+#[cfg(test)]
+mod tests;

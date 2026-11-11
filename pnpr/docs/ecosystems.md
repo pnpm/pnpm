@@ -182,6 +182,11 @@ pip install --index-url https://pnpr.example.com/pypi/simple/ my-package
 twine upload --repository-url https://pnpr.example.com/pypi/legacy/ dist/*
 ```
 
+Upload errors include the reason in the HTTP/1 status line, so twine displays
+it without `--verbose`. Long reasons and reasons containing non-ASCII or
+control characters remain in the response body. HTTP/2 carries the reason
+only in the body.
+
 Use `__token__` as the username and a pnpr token as the password, the PyPI
 convention.
 

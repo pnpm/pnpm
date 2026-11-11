@@ -59,6 +59,7 @@ mod reclaims;
 mod records;
 mod removed;
 mod render;
+mod schema_monitor;
 mod staged;
 mod tags;
 mod transactions;
@@ -76,7 +77,7 @@ use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
     path::Path,
     sync::{Arc, Mutex, OnceLock, PoisonError},
-    time::{Duration, Instant},
+    time::Instant,
 };
 use transactions::Freshness;
 
@@ -90,7 +91,8 @@ pub struct SqlMetadata {
     schema: OnceLock<()>,
     /// Held while the schema is checked, so concurrent first operations
     /// check it once.
-    schema_check: Mutex<Option<Instant>>,
+    schema_check: Mutex<()>,
+    schema_monitor: schema_monitor::SchemaMonitor,
     cache: cache::RenderCache,
 }
 
@@ -188,7 +190,8 @@ impl SqlMetadata {
             adapter,
             name,
             schema: OnceLock::new(),
-            schema_check: Mutex::new(None),
+            schema_check: Mutex::new(()),
+            schema_monitor: schema_monitor::SchemaMonitor::default(),
             cache: cache::RenderCache::default(),
         }
     }
@@ -198,22 +201,22 @@ impl SqlMetadata {
     /// newer release, and a pre-1.0 database without `schema_migrations`;
     /// the operator wipes pnpr's tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
-        let mut checked = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
         if self.schema.get().is_some() {
-            if checked.is_some_and(|checked| checked.elapsed() < Duration::from_secs(1)) {
-                return Ok(());
+            self.schema_monitor.result()?;
+            if self.schema_monitor.claim() {
+                self.schema_monitor.probe(&*self.adapter, &self.name);
             }
-            self.adapter.read(adapter::ReadSource::Primary, &mut |connection| {
-                schema::check_current(connection, &self.name)
-            })?;
-            *checked = Some(Instant::now());
-            return Ok(());
+            return self.schema_monitor.result();
+        }
+        let _initializing = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
+        if self.schema.get().is_some() {
+            return self.schema_monitor.result();
         }
         if let Some(stored) = schema::prepare_adapter_with_steps(&*self.adapter, schema::STEPS)? {
             return Err(schema::refused_error(&self.name, &stored));
         }
+        self.schema_monitor.checked();
         let _ = self.schema.set(());
-        *checked = Some(Instant::now());
         // A replica bootstrapped before the schema existed lacks its tables.
         // One that cannot sync now is left stale, and its reads sync first or
         // go to the primary.
@@ -223,18 +226,21 @@ impl SqlMetadata {
         Ok(())
     }
 
-    /// Check that the primary database schema is supported, with a bounded cached result.
+    /// Refuse a known incompatible schema and schedule at most one primary probe.
+    /// Requests retain the last compatible result while that probe is pending.
     pub async fn check_schema(self: &Arc<Self>) -> Result<()> {
-        if self.schema_check
-            .try_lock()
-            .is_ok_and(|checked| {
-                checked.is_some_and(|checked| checked.elapsed() < Duration::from_secs(1))
-            })
-        {
-            return Ok(());
+        self.schema_monitor.result()?;
+        if self.schema.get().is_none() {
+            let metadata = Arc::clone(self);
+            return tokio::task::spawn_blocking(move || metadata.ensure_schema()).await?;
         }
-        let metadata = Arc::clone(self);
-        tokio::task::spawn_blocking(move || metadata.ensure_schema()).await?
+        if self.schema_monitor.claim() {
+            let metadata = Arc::clone(self);
+            tokio::task::spawn_blocking(move || {
+                metadata.schema_monitor.probe(&*metadata.adapter, &metadata.name);
+            });
+        }
+        self.schema_monitor.result()
     }
 
     /// What rendering has done since the database was opened.

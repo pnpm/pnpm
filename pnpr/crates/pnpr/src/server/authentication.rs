@@ -124,7 +124,7 @@ pub(super) async fn authenticate(
         Ok(header) => header.map(str::to_owned),
         Err(err) => return err.into_response(),
     };
-    if let Err(error) = state.inner.storage.sql_metadata().check_schema().await {
+    if let Err(error) = check_request_schema(&state, request.uri().path()).await {
         return error.into_response();
     }
     super::managed_state::refresh_managed_state(&state).await;
@@ -161,6 +161,18 @@ pub(super) async fn authenticate(
     let mut response = next.run(request).await;
     response.extensions_mut().insert(caller);
     token_failure_response(response, header.as_deref())
+}
+
+async fn check_request_schema(state: &AppState, path: &str) -> Result<(), RegistryError> {
+    if path == "/-/live"
+        || path
+            .strip_prefix("/~")
+            .and_then(|path| path.split_once('/'))
+            .is_some_and(|(registry, tail)| !registry.is_empty() && tail == "-/live")
+    {
+        return Ok(());
+    }
+    state.inner.storage.sql_metadata().check_schema().await
 }
 
 fn token_failure_response(mut response: Response, header: Option<&str>) -> Response {

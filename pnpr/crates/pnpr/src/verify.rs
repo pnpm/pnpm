@@ -244,13 +244,11 @@ async fn verify_version_attestation(
 
     let filename = canonical.sigstore_name_for_version(ver);
 
-    let opened = ctx.storage
-        .open_hosted_blob(canonical, &filename)
-        .await
-        .map_err(|err| miette::miette!("error opening attestation for '{pkg_name}': {err}"))?;
-
-    if opened.is_none() {
-        ctx.report.missing_blobs.push(format!("{pkg_name}@{ver} attestation: {filename}"));
+    match read_blob(ctx, canonical, &filename).await? {
+        BlobRead::Missing => {
+            ctx.report.missing_blobs.push(format!("{pkg_name}@{ver} attestation: {filename}"));
+        }
+        BlobRead::Read(_) | BlobRead::Corrupt => {}
     }
     Ok(())
 }

@@ -50,10 +50,20 @@ Files with the same bytes, of one package or of several, share one stored
 archive.
 
 pnpr verifies a hosted archive before starting its first download response.
-Unchanged archives reuse that verification. A first download from object storage
-uses temporary disk space under the cache while pnpr checks the complete archive,
-including when the client requested only a byte range. Corrupted archives return
-`503 Service Unavailable`.
+Unchanged archives reuse that verification when the operating system provides a
+reliable file change timestamp. On Windows, pnpr reads and hashes the complete
+archive before every download, including partial downloads.
+A first download from object storage uses temporary disk space under the cache
+while pnpr checks the complete archive, including when the client requested only
+a byte range. pnpr verifies at most four object-store downloads in parallel. A
+request waiting more than five seconds for verification returns `503 Service
+Unavailable`.
+
+Temporary download files share a 1 GiB budget, reserved in 1 MiB units until
+the response finishes or disconnects. A file larger than 1 GiB reserves the
+whole budget and can download when no other temporary download file remains.
+Requests that cannot reserve space return `503 Service Unavailable`
+immediately. Corrupted archives also return `503 Service Unavailable`.
 
 `<incarnation>` counts the times the bytes were stored, from `1`. Bytes a
 [reclaim](cli.md#gc) removed and a later publish stores again take the next
@@ -147,9 +157,11 @@ deletions do not retain earlier text for restoration.
 pnpr creates its metadata and auth tables in an empty database and records each
 applied migration step in `schema_migrations`, starting with step `1` for the
 1.0 schema. Its `applied_at` column holds Unix seconds, or `0` for steps applied
-before pnpr recorded application times. Running servers recheck the primary
-database version before operations at most once per second and refuse a
-version newer than they support.
+before pnpr recorded application times. Running servers probe the primary
+database version at most once per second.
+Requests use the last compatible result while a probe runs or the primary is
+unreachable. After a probe detects a version newer than the server supports,
+that server refuses further requests except liveness probes until it restarts.
 
 When pnpr opens a database at an older numbered version, it
 takes the database write lock and runs each pending migration step in order.

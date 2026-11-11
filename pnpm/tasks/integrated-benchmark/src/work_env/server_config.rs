@@ -130,6 +130,8 @@ pub(super) fn cold_revision_mock_command(
         .arg(&config_path)
         .arg("--storage")
         .arg(&cold_storage)
+        .arg("--cache")
+        .arg(cold_storage.join("cache"))
         .arg("--listen")
         .arg(format!("127.0.0.1:{mock_port}"))
         .arg("--public-url")

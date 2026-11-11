@@ -98,6 +98,26 @@ impl LibsqlAuth {
         }
     }
 
+    pub(super) async fn replace_password_hash_if_current(
+        &self,
+        user_id: &str,
+        expected_hash: &str,
+        hash: &str,
+    ) -> Result<bool> {
+        let updated = retry_database_conflicts(|| {
+            self.pool.write(|conn| async move {
+                Ok::<_, RegistryError>(conn.execute(
+                    "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3 AND bcrypt_hash <> '!'",
+                    params![hash, user_id, expected_hash],
+                ).await?)
+            })
+        }).await?;
+        if updated > 0 {
+            self.sync_replica().await?;
+        }
+        Ok(updated > 0)
+    }
+
     pub(super) async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move { remove_user_in_transaction(&conn, user_id).await })

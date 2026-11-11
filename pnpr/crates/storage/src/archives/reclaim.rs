@@ -93,7 +93,8 @@ impl Storage {
             .await
     }
 
-    /// Remove the keys of `reclaiming` and record them gone.
+    /// Remove the keys of `reclaiming` and record them gone. Returns only
+    /// keys from `reclaiming`.
     async fn remove_reclaiming(
         &self,
         reclaiming: Vec<BlobRef>,

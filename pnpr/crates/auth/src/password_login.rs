@@ -1,4 +1,10 @@
-use crate::{AuthState, DEFAULT_BCRYPT_COST, UpsertOutcome, htpasswd::verify_returning_user};
+#[cfg(test)]
+pub(crate) mod tests;
+
+use crate::{
+    AuthState, DEFAULT_BCRYPT_COST, NewToken, TokenRecord, UpsertOutcome,
+    htpasswd::verify_returning_user,
+};
 use pnpr_error::{RegistryError, Result};
 
 impl AuthState {
@@ -19,6 +25,24 @@ impl AuthState {
         Ok((outcome, id, token))
     }
 
+    /// Issue a token only while the credential verified by the caller remains current.
+    pub async fn issue_token_if_credential_current(
+        &self,
+        username: &str,
+        user_id: &str,
+        expected_hash: &str,
+        token: NewToken,
+    ) -> Result<(String, TokenRecord)> {
+        let issued = self.tokens.issue_token(user_id, token).await?;
+        let current = self.users.password_hash(username).await;
+        if matches!(&current, Ok(Some(hash)) if hash == expected_hash) {
+            return Ok(issued);
+        }
+        self.tokens.revoke_by_raw(&issued.0).await?;
+        let _ = current?;
+        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+    }
+
     async fn check_login_password(
         &self,
         username: &str,
@@ -35,6 +59,3 @@ impl AuthState {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

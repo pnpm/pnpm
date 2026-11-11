@@ -4,7 +4,6 @@ use super::super::{
     tokens::verify_caller_password,
 };
 use axum::{body::Bytes, extract::Extension, http::StatusCode, response::IntoResponse};
-use pnpr_auth::PasswordChange;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -32,6 +31,12 @@ pub(crate) async fn post_profile(
     {
         return private_no_cache(super::login_throttled_response(&state, retry_after));
     }
+    let _permit = state.inner.identity.login_concurrency.acquire().await;
+    if let Some(username) = identity.username()
+        && let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, username)
+    {
+        return private_no_cache(super::login_throttled_response(&state, retry_after));
+    }
     private_no_cache(
         update_password(&state, &identity, client_ip, &body).await
             .unwrap_or_else(IntoResponse::into_response),
@@ -47,14 +52,24 @@ async fn update_password(
     let username = require_caller(identity, "password change")?;
     let update: ProfileUpdate = serde_json::from_value(parse_json_body(body)?)
         .map_err(|error| RegistryError::BadRequest { reason: error.to_string() })?;
-    verify_caller_password(state, client_ip, &username, Some(&update.password.old)).await?;
-    let user_id = identity.user_id().expect("authenticated caller");
-    match state.inner.identity.auth.change_password(user_id, &update.password.new).await? {
-        PasswordChange::Changed => {
-            state.inner.identity.oidc.revoke_user_sessions(user_id);
-            tracing::info!(target: "pnpr::audit", action = "user.password_update", actor = %username, user = %username, "account password changed");
-            Ok(json_response(StatusCode::OK, &json!({ "name": username })))
-        }
-        PasswordChange::NoSuchUser => Err(RegistryError::NotFound),
+    let verified_hash =
+        verify_caller_password(state, client_ip, &username, Some(&update.password.old)).await?;
+    if verified_hash == pnpr_auth::NO_PASSWORD_HASH {
+        return Err(RegistryError::Unauthenticated { resource: "a password account".to_string() });
     }
+    let user_id = identity.user_id().expect("authenticated caller");
+    if !state.inner.identity.auth.change_password_if_current(
+        user_id,
+        &update.password.new,
+        &verified_hash,
+    )
+    .await?
+    {
+        return Err(RegistryError::Unauthenticated {
+            resource: "the current password".to_string(),
+        });
+    }
+    state.inner.identity.oidc.revoke_user_sessions(user_id);
+    tracing::info!(target: "pnpr::audit", action = "user.password_update", actor = %username, user = %username, "account password changed");
+    Ok(json_response(StatusCode::OK, &json!({ "name": username })))
 }

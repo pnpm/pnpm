@@ -16,9 +16,36 @@ async fn cached_authentication_does_not_bypass_a_newer_database_schema() {
     let connection = rusqlite::Connection::open(database).unwrap();
     connection.execute("INSERT INTO schema_migrations (version) SELECT MAX(version) + 1 FROM schema_migrations", []).unwrap();
     tokio::time::sleep(Duration::from_millis(1100)).await;
-    let response = app
-        .oneshot(signed(Method::GET, "/-/whoami", "test-token"))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let response = app
+                .clone()
+                .oneshot(signed(Method::GET, "/-/whoami", "test-token"))
+                .await
+                .unwrap();
+            if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                break;
+            }
+            assert_eq!(response.status(), StatusCode::OK);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    for path in ["/-/live", "/~local/-/live"] {
+        let response = app
+            .clone()
+            .oneshot(signed(Method::GET, path, "test-token"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+    for path in ["/-/ready", "/~local/-/ready"] {
+        let response = app
+            .clone()
+            .oneshot(signed(Method::GET, path, "test-token"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
 }

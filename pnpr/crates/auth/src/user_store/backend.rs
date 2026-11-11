@@ -141,6 +141,31 @@ impl UserBackend for UserStore {
         self.replace_password_hash(user_id, hash).await
     }
 
+    async fn set_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        crate::validation::validate_password(password)?;
+        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
+        let (id, expected) = (user_id.to_string(), expected_hash.to_string());
+        self.update(move |users| {
+            let Some(stored) = users
+                .values_mut()
+                .find(|account| account.id == id)
+            else {
+                return Ok(Change::Keep(false));
+            };
+            if stored.password_hash != expected || expected == crate::DELETED_USER_HASH {
+                return Ok(Change::Keep(false));
+            }
+            stored.password_hash = hash;
+            Ok(Change::Write(true))
+        })
+        .await
+    }
+
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
         self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH.to_string()).await
     }

@@ -19,50 +19,45 @@ pub(crate) enum Fingerprint {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct FileIdentity {
+pub(crate) enum FileIdentity {
     #[cfg(unix)]
-    device: u64,
-    #[cfg(unix)]
-    inode: u64,
-    #[cfg(unix)]
-    changed: (i64, i64),
+    Unix { device: u64, inode: u64, changed: (i64, i64) },
     #[cfg(not(unix))]
-    created: Option<SystemTime>,
+    Unavailable,
 }
 
+#[cfg(unix)]
 fn file_identity(metadata: &std::fs::Metadata) -> FileIdentity {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        FileIdentity {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-            changed: (metadata.ctime(), metadata.ctime_nsec()),
-        }
+    use std::os::unix::fs::MetadataExt;
+    FileIdentity::Unix {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        changed: (metadata.ctime(), metadata.ctime_nsec()),
     }
-    #[cfg(not(unix))]
-    {
-        FileIdentity { created: metadata.created().ok() }
-    }
+}
+
+#[cfg(not(unix))]
+fn file_identity(_metadata: &std::fs::Metadata) -> FileIdentity {
+    FileIdentity::Unavailable
 }
 
 impl FileIdentity {
+    #[cfg(unix)]
     fn has_stable_timestamp(&self, now: SystemTime) -> bool {
-        #[cfg(unix)]
-        {
-            let Ok(seconds) = u64::try_from(self.changed.0) else { return false };
-            let Ok(nanoseconds) = u32::try_from(self.changed.1) else { return false };
-            let Some(changed) =
-                std::time::UNIX_EPOCH.checked_add(Duration::new(seconds, nanoseconds))
-            else {
-                return false;
-            };
-            timestamp_is_stable(changed, now)
-        }
-        #[cfg(not(unix))]
-        {
-            self.created.is_none_or(|created| timestamp_is_stable(created, now))
-        }
+        let Self::Unix { changed, .. } = self;
+        let Ok(seconds) = u64::try_from(changed.0) else { return false };
+        let Ok(nanoseconds) = u32::try_from(changed.1) else { return false };
+        let Some(changed) = std::time::UNIX_EPOCH.checked_add(Duration::new(seconds, nanoseconds))
+        else {
+            return false;
+        };
+        timestamp_is_stable(changed, now)
+    }
+
+    #[cfg(not(unix))]
+    fn has_stable_timestamp(&self, _now: SystemTime) -> bool {
+        let Self::Unavailable = self;
+        false
     }
 }
 
@@ -95,12 +90,33 @@ fn cache() -> &'static Mutex<BoundedCache<String, Fingerprint>> {
     CACHE.get_or_init(Mutex::default)
 }
 
-pub(crate) fn is_verified(key: &str, fingerprint: &Fingerprint) -> bool {
+pub(crate) fn cached_fingerprint(key: &str) -> Option<Fingerprint> {
     cache()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&key.to_string())
+        .cloned()
+}
+
+pub(crate) fn is_verified(key: &str, fingerprint: &Fingerprint) -> bool {
+    let mut cache = cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    cached_fingerprint_matches(&mut cache, key, fingerprint)
+}
+
+fn cached_fingerprint_matches(
+    cache: &mut BoundedCache<String, Fingerprint>,
+    key: &str,
+    fingerprint: &Fingerprint,
+) -> bool {
+    let key = key.to_string();
+    if !cache
+        .get(&key)
         .is_some_and(|cached| cached == fingerprint)
+    {
+        return false;
+    }
+    cache.insert(key, fingerprint.clone(), 1, MAX_ENTRIES);
+    true
 }
 
 pub(crate) fn remember(key: String, fingerprint: Fingerprint) {
@@ -108,13 +124,21 @@ pub(crate) fn remember(key: String, fingerprint: Fingerprint) {
     cache.insert(key, fingerprint, 1, MAX_ENTRIES);
 }
 
-pub(crate) async fn verify_file(mut file: fs::File, key: &str) -> Result<fs::File> {
-    let Some((expected, _)) = parse_blob_key(key) else { return Ok(file) };
+pub(crate) async fn verify_file(file: fs::File, key: &str) -> Result<fs::File> {
+    verify_file_with_guard(file, key, ()).await.map(|(file, ())| file)
+}
+
+pub(crate) async fn verify_file_with_guard<Guard: Send + 'static>(
+    file: fs::File,
+    key: &str,
+    guard: Guard,
+) -> Result<(fs::File, Guard)> {
+    let Some((expected, _)) = parse_blob_key(key) else { return Ok((file, guard)) };
     static VERIFIERS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
     let permit = VERIFIERS.acquire().await.expect("verification semaphore remains open");
     let key = key.to_string();
     let mut reader = file.into_std().await;
-    reader = tokio::task::spawn_blocking(move || {
+    let (reader, guard) = tokio::task::spawn_blocking(move || {
         let _permit = permit;
         let ecosystem = match expected
             .as_str()
@@ -129,11 +153,10 @@ pub(crate) async fn verify_file(mut file: fs::File, key: &str) -> Result<fs::Fil
             return Err(RegistryError::CorruptArchive { key });
         }
         reader.seek(SeekFrom::Start(0))?;
-        Ok(reader)
+        Ok((reader, guard))
     })
     .await??;
-    file = fs::File::from_std(reader);
-    Ok(file)
+    Ok((fs::File::from_std(reader), guard))
 }
 
 pub(crate) async fn verified_local_file(

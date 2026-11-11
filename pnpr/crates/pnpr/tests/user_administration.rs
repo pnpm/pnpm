@@ -737,3 +737,5 @@ async fn full_registration_does_not_disclose_account_existence() {
         assert_eq!(payload["error"], format!("Authentication required for user {username:?}"));
     }
 }
+
+mod password_updates;

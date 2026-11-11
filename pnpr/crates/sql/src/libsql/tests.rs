@@ -1,9 +1,12 @@
 use super::{
-    SyncStart, SyncState,
+    LibsqlAdapter, SyncStart, SyncState,
     statements::{
         StepKind, StreamState, TxStatus, classify_sql, script_transition, step_transition,
     },
 };
+use crate::adapter::Adapter;
+use pnpr_config::LibsqlSettings;
+use pnpr_error::RegistryError;
 use std::time::Duration;
 
 const BOUND: Duration = Duration::from_hours(1);
@@ -97,4 +100,31 @@ fn step_and_script_transitions_track_autocommit_and_staged_writes() {
         ),
         StreamState::Committed,
     );
+}
+
+#[test]
+fn unavailable_primary_errors_exclude_invalid_schema_and_protocol_errors() {
+    let adapter = LibsqlAdapter::new(LibsqlSettings {
+        url: "http://127.0.0.1:8080".to_string(),
+        auth_token: None,
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    });
+    for message in [
+        "http error: `connection reset`",
+        "api error: `status=503 Service Unavailable, body=busy`",
+        "api error: `status=429 Too Many Requests, body=busy`",
+    ] {
+        let error = RegistryError::Libsql(libsql::Error::Hrana(message.into()));
+        assert!(adapter.is_unavailable(&error), "{error}");
+    }
+    for message in [
+        "api error: `SQLite failure: no such table: schema_migrations`",
+        "api error: `status=401 Unauthorized, body=unauthorized`",
+        "json error: `malformed response`",
+    ] {
+        let error = RegistryError::Libsql(libsql::Error::Hrana(message.into()));
+        assert!(!adapter.is_unavailable(&error), "{error}");
+    }
 }

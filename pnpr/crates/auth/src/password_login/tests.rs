@@ -128,3 +128,78 @@ async fn password_login_accepts_a_credential_upgraded_during_verification() {
             .unwrap()
     ));
 }
+
+#[tokio::test]
+async fn token_creation_rejects_a_credential_reset_during_issuance() {
+    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let (_, id) = users.add_or_login("example-user", "old-password").await.unwrap();
+    let verified_hash = users
+        .password_hash("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    let tokens = Arc::new(DelayedTokens {
+        tokens: TokenStore::in_memory(),
+        started: Notify::new(),
+        resume: Notify::new(),
+    });
+    let auth = Arc::new(AuthState { users, tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend> });
+    let issuance = {
+        let auth = Arc::clone(&auth);
+        let id = id.clone();
+        tokio::spawn(async move {
+            auth.issue_token_if_credential_current(
+                "example-user",
+                &id,
+                &verified_hash,
+                NewToken::default(),
+            )
+            .await
+        })
+    };
+    tokens.started.notified().await;
+    auth.change_password(&id, "new-password").await.unwrap();
+    tokens.resume.notify_one();
+    let error = issuance.await.unwrap().unwrap_err();
+    assert_eq!(error.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+    assert!(
+        tokens
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+pub(crate) async fn assert_password_update_keeps_concurrent_resets(users: &dyn UserBackend) {
+    users.create_user("example-user", "initial-password").await.unwrap();
+    let id = users
+        .account_id("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    let verified_hash = users
+        .password_hash("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    users.set_password(&id, "admin-reset-password").await.unwrap();
+    assert!(
+        !users.set_password_if_current(&id, "attacker-password", &verified_hash).await.unwrap(),
+    );
+    assert!(users.add_or_login("example-user", "admin-reset-password").await.is_ok());
+    assert!(users.add_or_login("example-user", "attacker-password").await.is_err());
+    let current = users
+        .password_hash("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(users.set_password_if_current(&id, "changed-password", &current).await.unwrap());
+    assert!(users.add_or_login("example-user", "changed-password").await.is_ok());
+}
+
+#[tokio::test]
+async fn local_password_updates_preserve_a_concurrent_admin_reset() {
+    let users = UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4);
+    assert_password_update_keeps_concurrent_resets(&users).await;
+}

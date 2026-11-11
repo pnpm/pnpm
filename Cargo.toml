@@ -173,6 +173,7 @@ home = { version = "0.5.12" }
 http = { version = "1.5.0" }
 http-0-2 = { package = "http", version = "0.2.12" }
 httpdate = { version = "1.0.3" }
+hyper = { version = "1.12.0", default-features = false, features = ["http1"] }
 hyper-0-14 = { package = "hyper", version = "0.14.32", default-features = false, features = ["client", "runtime"] }
 # Orders packed paths the way JavaScript's `localeCompare(b, 'en')` does, so
 # pnpm 12 and pnpm 11 write a tarball's entries in the same order. ICU4X 2.2

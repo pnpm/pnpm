@@ -15,7 +15,7 @@ pub(crate) mod validation;
 
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
-    verify_bcrypt, write_atomic,
+    verify_bcrypt, verify_returning_user, write_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
@@ -27,7 +27,7 @@ pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
 mod password_login;
-use htpasswd::{hash_bcrypt, verify_returning_user};
+use htpasswd::hash_bcrypt;
 
 mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};
@@ -158,6 +158,20 @@ impl AuthState {
             self.revoke_all_tokens(user_id).await?;
         }
         Ok(outcome)
+    }
+
+    /// Change a verified password without overwriting a concurrent reset.
+    pub async fn change_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        let changed = self.users.set_password_if_current(user_id, password, expected_hash).await?;
+        if changed {
+            self.revoke_all_tokens(user_id).await?;
+        }
+        Ok(changed)
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
@@ -319,6 +333,17 @@ pub trait UserBackend: Send + Sync {
 
     /// Replace the password of the account identified by `user_id`.
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange>;
+
+    /// Replace a password only while its hash still equals the verified credential.
+    /// Returns false when the account or its credential has changed.
+    async fn set_password_if_current(
+        &self,
+        _user_id: &str,
+        _password: &str,
+        _expected_hash: &str,
+    ) -> Result<bool> {
+        Ok(false)
+    }
 
     /// Remove password credentials without changing the account ID or login name.
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange>;
