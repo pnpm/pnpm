@@ -366,6 +366,69 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
         restarted_after_marker.database.store_binding().await.unwrap(),
         crate::metadata::sql::StoreBinding::Bound(candidate),
     );
+
+    // 3. Initializer A creates pending claim N for store X, initializer B shares N and writes a
+    // marker to store Y, and a conflicting marker lands in store X before A writes its marker.
+    // A's failure does not erase N, so B can still confirm store Y.
+    let race_dir = TempDir::new().unwrap();
+    let shared_db = pnpr_config::MetadataBackend::Sqlite(race_dir.path().join("shared.sqlite"));
+    let store_x = race_dir.path().join("store-x");
+    let store_y = race_dir.path().join("store-y");
+    let init_a = Storage::new(
+        &HostedStoreConfig::Fs,
+        store_x.clone(),
+        race_dir.path().join("cache-a"),
+        &shared_db,
+    )
+    .unwrap();
+    let init_b = Storage::new(
+        &HostedStoreConfig::Fs,
+        store_y.clone(),
+        race_dir.path().join("cache-b"),
+        &shared_db,
+    )
+    .unwrap();
+    let race_nonce = crate::layout::new_store_id();
+    assert_eq!(
+        init_a.database.begin_store_claim(race_nonce.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(race_nonce.clone()),
+    );
+    assert_eq!(
+        init_b.database
+            .begin_store_claim(crate::layout::new_store_id())
+            .await
+            .unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(race_nonce.clone()),
+    );
+    let candidate_b = format!("{}{}", &race_nonce[..16], &crate::layout::new_store_id()[..16]);
+    fs::create_dir_all(&store_y).await.unwrap();
+    fs::write(
+        store_y.join("layout.json"),
+        serde_json::to_vec(&crate::layout::LayoutMarker {
+            layout: crate::layout::LAYOUT_VERSION,
+            store_id: Some(candidate_b.clone()),
+        })
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    fs::create_dir_all(&store_x).await.unwrap();
+    fs::write(
+        store_x.join("layout.json"),
+        serde_json::to_vec(&crate::layout::LayoutMarker {
+            layout: crate::layout::LAYOUT_VERSION,
+            store_id: Some(crate::layout::new_store_id()),
+        })
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert!(init_a.claim_and_write_layout_marker().await.is_err());
+    init_b.ensure_hosted_layout().await.unwrap();
+    assert_eq!(
+        init_b.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(candidate_b),
+    );
 }
 
 #[tokio::test]

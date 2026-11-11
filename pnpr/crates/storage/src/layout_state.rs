@@ -87,7 +87,7 @@ impl Storage {
                 return self.confirm_claimed_marker(pending_nonce, store_id).await;
             }
             (HostedLayout::Unmarked { has_data: false }, StoreBinding::Pending(_)) => {
-                return self.write_hosted_layout_marker().await;
+                return self.claim_and_write_layout_marker().await;
             }
             _ => {}
         }
@@ -97,7 +97,7 @@ impl Storage {
         ) {
             return Ok(());
         }
-        self.write_hosted_layout_marker().await
+        self.claim_and_write_layout_marker().await
     }
 
     /// Check that this pnpr can read the hosted store and that its `store_id`
@@ -152,21 +152,20 @@ impl Storage {
     /// metadata database to its `store_id`. Only for an empty store and
     /// database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
+        self.ensure_hosted_layout().await
+    }
+
+    pub(crate) async fn claim_and_write_layout_marker(&self) -> Result<()> {
         let candidate_nonce = new_store_id();
-        match self.database.begin_store_claim(candidate_nonce.clone()).await? {
+        match self.database.begin_store_claim(candidate_nonce).await? {
             StoreClaim::Pending(pending_nonce) => {
-                let created_claim = pending_nonce == candidate_nonce;
-                self.write_or_confirm_pending_marker(&pending_nonce, created_claim).await
+                self.write_or_confirm_pending_marker(&pending_nonce).await
             }
             StoreClaim::Bound(bound_id) => self.verify_bound_store(&bound_id).await,
         }
     }
 
-    async fn write_or_confirm_pending_marker(
-        &self,
-        pending_nonce: &str,
-        created_claim: bool,
-    ) -> Result<()> {
+    async fn write_or_confirm_pending_marker(&self, pending_nonce: &str) -> Result<()> {
         let candidate = claimed_store_id(pending_nonce);
         let marker = serde_json::to_vec(&LayoutMarker {
             layout: LAYOUT_VERSION,
@@ -178,9 +177,6 @@ impl Storage {
         let existing_id = self.require_existing_marker_store_id().await?;
         if marker_matches_pending_claim(&existing_id, pending_nonce) {
             return self.confirm_claimed_marker(pending_nonce, &existing_id).await;
-        }
-        if created_claim {
-            let _ = self.database.clear_pending_store_claim(pending_nonce.to_string()).await;
         }
         Err(unmarked_database_error(&existing_id))
     }

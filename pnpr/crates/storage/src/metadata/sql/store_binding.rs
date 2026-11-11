@@ -57,15 +57,6 @@ impl SqlMetadata {
             .await
     }
 
-    /// Remove `pending:<pending_nonce>` when the hosted store is already bound
-    /// to another database.
-    pub(crate) async fn clear_pending_store_claim(
-        self: &Arc<Self>,
-        pending_nonce: String,
-    ) -> Result<()> {
-        self.write(move |connection| clear_pending_store_claim(connection, &pending_nonce)).await
-    }
-
     /// Synchronous confirmed claim for test fixture setup.
     pub(crate) fn claim_store_id_sync(&self, candidate: &str) -> Result<String> {
         self.run_write(|connection| claim_store_id(connection, candidate))
@@ -148,15 +139,6 @@ fn confirm_store_claim(
         params![store_id, pending.as_str()],
     )?;
     read_store_binding(connection)
-}
-
-fn clear_pending_store_claim(connection: &dyn Connection, pending_nonce: &str) -> Result<()> {
-    let pending = format!("{PENDING_PREFIX}{pending_nonce}");
-    connection.execute(
-        "DELETE FROM hosted_store WHERE singleton = 1 AND store_id = ?1",
-        params![pending.as_str()],
-    )?;
-    Ok(())
 }
 
 fn claim_store_id(connection: &dyn Connection, candidate: &str) -> Result<String> {
