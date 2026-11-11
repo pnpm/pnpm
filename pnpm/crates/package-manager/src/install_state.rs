@@ -8,8 +8,8 @@ pub(crate) mod settings;
 pub(crate) mod timestamps;
 pub(crate) mod validation;
 pub(crate) use local_file_deps::{
-    FrozenLocalTarballCheck, frozen_local_tarballs_to_verify, has_local_file_dep_requiring_install,
-    has_local_file_override, has_local_file_package_extension,
+    FrozenLocalTarballCheck, LocalFileDependencyStatus, frozen_local_tarballs_to_verify,
+    has_local_file_override, has_local_file_package_extension, local_file_dependency_status,
 };
 pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
 pub(crate) use settings::{

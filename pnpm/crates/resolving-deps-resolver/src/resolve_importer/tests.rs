@@ -75,6 +75,7 @@ fn peer_declaring_metadata<const PEERS: usize>(
     use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PackageMetadata};
 
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: "consumer".to_string(),
         }),

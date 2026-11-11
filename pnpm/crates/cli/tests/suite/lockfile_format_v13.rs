@@ -418,3 +418,327 @@ fn git_merge_adding_workspace_project_and_bumping_adjacent_project_merges_cleanl
         },
     );
 }
+
+#[test]
+fn directory_input_record_rejects_a_range_edit_that_keeps_the_locked_version() {
+    for format in ["v9", "v13"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
+        fs::create_dir(workspace.join("local")).expect("create directory dependency");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("lockfile:\n  format: {format}\n"),
+        )
+        .expect("write config");
+        fs::write(
+            workspace.join("package.json"),
+            json!({
+                "name": "consumer", "dependencies": { "local": "file:./local" }
+            })
+            .to_string(),
+        )
+        .expect("write consumer");
+        let local = workspace.join("local/package.json");
+        fs::write(
+            &local,
+            json!({ "name": "local", "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            }})
+            .to_string(),
+        )
+        .expect("write directory manifest");
+        pacquet_in(&workspace)
+            .with_args(["install", "--reporter=silent"])
+            .assert()
+            .success();
+        let lockfile_path = workspace.join("pnpm-lock.yaml");
+        let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
+        assert_eq!(original.contains(r#""specifiers""#), format == "v13", "{original}");
+        fs::write(
+            &local,
+            json!({ "name": "local", "dependencies": {
+                "@pnpm.e2e/foo": "^100.0.0"
+            }})
+            .to_string(),
+        )
+        .expect("change declared range");
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove modules");
+        let output = pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--reporter=append-only"])
+            .output()
+            .expect("run frozen install");
+        assert_eq!(output.status.success(), format == "v9", "{output:?}");
+        pacquet_in(&workspace)
+            .with_args(["install", "--no-frozen-lockfile", "--reporter=silent"])
+            .assert()
+            .success();
+        let updated = fs::read_to_string(&lockfile_path).expect("read updated lockfile");
+        assert_eq!(updated != original, format == "v13", "{updated}");
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove modules again");
+        pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--reporter=silent"])
+            .assert()
+            .success();
+        if format == "v13" {
+            let mut legacy = pnpm_lockfile::Lockfile::parse(&updated, &lockfile_path)
+                .expect("parse v13 lockfile")
+                .expect("lockfile content");
+            for metadata in legacy.packages
+                .as_mut()
+                .expect("packages")
+                .values_mut()
+            {
+                metadata.specifiers = None;
+            }
+            let legacy_text = legacy.to_yaml_string().expect("write legacy directory entry");
+            fs::write(&lockfile_path, &legacy_text).expect("save lockfile without input records");
+            fs::remove_dir_all(workspace.join("node_modules"))
+                .expect("remove modules for fallback");
+            pacquet_in(&workspace)
+                .with_args(["install", "--frozen-lockfile", "--reporter=silent"])
+                .assert()
+                .success();
+            assert_eq!(
+                fs::read_to_string(&lockfile_path).expect("read fallback lockfile"),
+                legacy_text,
+            );
+            fs::write(
+                &local,
+                json!({ "name": "local", "dependencies": {
+                    "@pnpm.e2e/foo": "100.1.0"
+                }})
+                .to_string(),
+            )
+            .expect("change a legacy entry's dependency");
+            pacquet_in(&workspace)
+                .with_args(["install", "--frozen-lockfile", "--reporter=append-only"])
+                .assert()
+                .failure();
+        }
+        drop(root);
+    }
+}
+
+#[test]
+fn directory_input_matrix() {
+    for hook in ["none", "extensions", "pnpmfile"] {
+        for location in ["workspace", "workspace-path", "file", "publish"] {
+            for (layout, selection) in [
+                (LockfileLayout::Shared, Selection::Filtered),
+                (LockfileLayout::Shared, Selection::All),
+                (LockfileLayout::PerProject, Selection::Filtered),
+                (LockfileLayout::PerProject, Selection::All),
+            ] {
+                directory_input_case(hook, location, layout, selection);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum LockfileLayout {
+    Shared,
+    PerProject,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Selection {
+    Filtered,
+    All,
+}
+
+fn directory_input_case(hook: &str, location: &str, layout: LockfileLayout, selection: Selection) {
+    eprintln!("hook={hook} location={location} layout={layout:?} selection={selection:?}");
+    let shared = matches!(layout, LockfileLayout::Shared);
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
+    let directory = match location {
+        "workspace" | "publish" => "packages/local",
+        "workspace-path" => "external/local",
+        "file" => "../external/local",
+        _ => unreachable!(),
+    };
+    let spec = match location {
+        "workspace" | "publish" => "workspace:*",
+        "workspace-path" => "workspace:../../external/local",
+        "file" => "file:../../../external/local",
+        _ => unreachable!(),
+    };
+    let mut config = format!(
+        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {shared}\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    );
+    if hook == "extensions" {
+        config.push_str("packageExtensions:\n  'local@*':\n    dependencies:\n      '@pnpm.e2e/bar': '100.0.0'\n");
+    }
+    fs::write(workspace.join("pnpm-workspace.yaml"), config).expect("write workspace config");
+    if hook == "pnpmfile" {
+        fs::write(workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { readPackage(pkg) { if (pkg.name === 'local') pkg.dependencies['@pnpm.e2e/bar'] = '100.0.0'; return pkg } } }\n")
+            .expect("write package hook");
+    }
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write root");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create consumer");
+    fs::write(
+        app.join("package.json"),
+        json!({
+            "name": "app", "dependencies": { "local": spec }
+        })
+        .to_string(),
+    )
+    .expect("write consumer");
+    let local = workspace.join(directory);
+    fs::create_dir_all(&local).expect("create local package");
+    let mut manifest = json!({
+        "name": "local", "version": "1.0.0", "dependencies": { "@pnpm.e2e/foo": "100.0.0" }
+    });
+    if location == "publish" {
+        manifest["publishConfig"] = json!({ "directory": "dist" });
+        fs::create_dir(local.join("dist")).expect("create publish directory");
+    }
+    fs::write(local.join("package.json"), manifest.to_string()).expect("write local manifest");
+    let selection = match selection {
+        Selection::Filtered => vec!["--filter", "app"],
+        Selection::All => Vec::new(),
+    };
+    pacquet_in(&workspace)
+        .with_args(&selection)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let lockfile_path = match layout {
+        LockfileLayout::Shared => workspace.join("pnpm-lock.yaml"),
+        LockfileLayout::PerProject => app.join("pnpm-lock.yaml"),
+    };
+    let original = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    assert!(original.contains(r#""specifiers""#), "{original}");
+    if hook != "none" {
+        let lockfile = pnpm_lockfile::Lockfile::parse(&original, &lockfile_path)
+            .expect("parse lockfile")
+            .expect("lockfile content");
+        let metadata = lockfile.packages
+            .as_ref()
+            .expect("packages")
+            .values()
+            .find(|metadata| {
+                matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+            })
+            .expect("directory package");
+        assert_eq!(
+            metadata.specifiers
+                .as_ref()
+                .expect("recorded inputs")
+                .dependencies
+                .as_ref()
+                .expect("dependencies")
+                .get("@pnpm.e2e/bar")
+                .map(String::as_str),
+            Some("100.0.0"),
+        );
+    }
+    pacquet_in(&workspace)
+        .with_args(&selection)
+        .with_args(["install", "--frozen-lockfile", "--reporter=silent"])
+        .assert()
+        .success();
+    manifest["dependencies"]["@pnpm.e2e/foo"] = json!("^100.0.0");
+    fs::write(local.join("package.json"), manifest.to_string()).expect("edit local range");
+    pacquet_in(&workspace)
+        .with_args(&selection)
+        .with_args(["install", "--frozen-lockfile", "--reporter=append-only"])
+        .assert()
+        .failure();
+    pacquet_in(&workspace)
+        .with_args(&selection)
+        .with_args(["install", "--no-frozen-lockfile", "--reporter=silent"])
+        .assert()
+        .success();
+    assert_ne!(fs::read_to_string(&lockfile_path).expect("read changed lockfile"), original);
+    pacquet_in(&workspace)
+        .with_args(&selection)
+        .with_args(["install", "--frozen-lockfile", "--reporter=silent"])
+        .assert()
+        .success();
+    drop(root);
+}
+
+#[test]
+fn recorded_directory_inputs_still_check_workspace_target_versions() {
+    for spec in ["workspace:^1", "^1"] {
+        recorded_directory_target_case(spec);
+    }
+}
+
+fn recorded_directory_target_case(spec: &str) {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "lockfile:\n  format: v13\npackages:\n  - 'packages/*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\nlinkWorkspacePackages: deep\n",
+    )
+    .expect("write workspace config");
+    for (directory, manifest) in [
+        (".", json!({ "name": "root", "dependencies": { "local": "workspace:*" } })),
+        (
+            "packages/local",
+            json!({ "name": "local", "version": "1.0.0", "dependencies": { "host": spec } }),
+        ),
+        ("packages/host", json!({ "name": "host", "version": "1.0.0" })),
+    ] {
+        let directory = workspace.join(directory);
+        fs::create_dir_all(&directory).expect("create project");
+        fs::write(directory.join("package.json"), manifest.to_string()).expect("write project");
+    }
+    pacquet_in(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    fs::write(
+        workspace.join("packages/host/package.json"),
+        json!({ "name": "host", "version": "2.0.0" }).to_string(),
+    )
+    .expect("change target version");
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=append-only"])
+        .assert()
+        .failure();
+    drop(root);
+}
+
+#[test]
+fn recorded_inputs_cover_a_directory_beneath_a_registry_package() {
+    let fixture = crate::_utils::WorkspaceFixture::new();
+    fixture.append_workspace_yaml("lockfile:\n  format: v13\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\npackageExtensions:\n  '@pnpm.e2e/pkg-with-1-dep':\n    dependencies:\n      local: workspace:./local\n");
+    fixture.write_root_manifest(
+        "root",
+        crate::_utils::ManifestDeps {
+            prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+            ..crate::_utils::ManifestDeps::default()
+        },
+    );
+    let local = fixture.workspace.join("local");
+    fs::create_dir(&local).expect("create nested directory");
+    let manifest_path = local.join("package.json");
+    fs::write(
+        &manifest_path,
+        json!({ "name": "local", "version": "1.0.0", "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0"
+        }})
+        .to_string(),
+    )
+    .expect("write directory manifest");
+    pacquet_in(&fixture.workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    fs::write(
+        &manifest_path,
+        json!({ "name": "local", "version": "1.0.0", "dependencies": {
+            "@pnpm.e2e/foo": "^100.0.0"
+        }})
+        .to_string(),
+    )
+    .expect("change nested directory range");
+    pacquet_in(&fixture.workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=append-only"])
+        .assert()
+        .failure();
+}

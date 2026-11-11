@@ -15,6 +15,7 @@ mod injected_manifest;
 mod nested;
 mod package;
 mod peers;
+mod recorded;
 mod scope;
 mod spec;
 
@@ -29,6 +30,7 @@ use pnpm_lockfile::StalenessReason;
 use spec::SpecDirs;
 use std::path::Path;
 
+#[derive(Clone, Copy)]
 struct LocalDepContext<'a> {
     name: &'a str,
     /// See [`is_declared_by_path`].

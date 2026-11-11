@@ -16,6 +16,7 @@ pub(crate) fn package_metadata(
     let manifest = result.package.manifest.as_deref();
     let TarballUrlOptions { registry, server_type } = tarball_url_options;
     Ok(PackageMetadata {
+        specifiers: None,
         resolution: result.resolution.to_lockfile_form(
             name,
             version,
