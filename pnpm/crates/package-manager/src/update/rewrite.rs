@@ -267,18 +267,8 @@ fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> St
     {
         // The selector may name the protocol itself (`pnpm update node@tool:22`).
         let requested = strip_tool_protocol(requested).unwrap_or(requested);
-        let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
         let Some(selector) = node_runtime_version_spec(alias, previous) else {
-            if let Ok(version) = Version::parse(requested)
-                && let Some(declared_range) = strip_tool_protocol(previous)
-            {
-                let range = match infer_range_spec_style(declared_range) {
-                    Some(style) => format!("{}{version}", style.range_prefix()),
-                    None => requested.to_string(),
-                };
-                return format!("{RUNTIME_PROTOCOL}{range}");
-            }
-            return as_requested();
+            return rewrite_runtime_without_node_resolver(requested, previous);
         };
         // A selector naming a release channel the resolver does not know keeps its
         // text, so the rejection still names the declaration that was written.
@@ -286,7 +276,7 @@ fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> St
             return previous.to_string();
         }
         let Ok(version) = Version::parse(requested) else {
-            return as_requested();
+            return format!("{RUNTIME_PROTOCOL}{requested}");
         };
         format!(
             "{RUNTIME_PROTOCOL}{}",
@@ -296,6 +286,21 @@ fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> St
                 Some(previous)
             ),
         )
+    }
+}
+
+#[cfg(feature = "runtime-provisioning")]
+fn rewrite_runtime_without_node_resolver(requested: &str, previous: &str) -> String {
+    if let Ok(version) = Version::parse(requested)
+        && let Some(declared_range) = strip_tool_protocol(previous)
+    {
+        let range = match infer_range_spec_style(declared_range) {
+            Some(style) => format!("{}{version}", style.range_prefix()),
+            None => requested.to_string(),
+        };
+        format!("{RUNTIME_PROTOCOL}{range}")
+    } else {
+        format!("{RUNTIME_PROTOCOL}{requested}")
     }
 }
 /// The declaration an update that does not save may write: only a version the

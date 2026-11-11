@@ -7,16 +7,12 @@
 //! opened here and lent to both.
 
 use super::InstallWithFreshLockfileError;
+#[cfg(feature = "runtime-provisioning")]
+mod runtime_resolvers;
 use crate::{PrefetchContext, PrefetchingResolver};
 use pnpm_config::Config;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
-#[cfg(feature = "runtime-provisioning")]
-use pnpm_engine_pm_yarn_resolver::YarnResolver;
-#[cfg(feature = "runtime-provisioning")]
-use pnpm_engine_runtime_bun_resolver::BunResolver;
-#[cfg(feature = "runtime-provisioning")]
-use pnpm_engine_runtime_deno_resolver::DenoResolver;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_lockfile::DeclaredRegistryPrefixes;
@@ -423,21 +419,7 @@ impl ResolverChainInputs<'_> {
             Box::new(LocalSchemeResolver::new(local_ctx)),
         ]);
         #[cfg(feature = "runtime-provisioning")]
-        chain.extend([
-            Box::new(self.node_resolver()) as Box<dyn Resolver>,
-            Box::new(DenoResolver::new(
-                Arc::clone(self.fetching.http_client),
-                Arc::clone(npm_resolver),
-            )),
-            Box::new(
-                BunResolver::new(Arc::clone(self.fetching.http_client), Arc::clone(npm_resolver))
-                    .with_mirror(self.config.tool_mirror(Tool::Bun)),
-            ),
-            Box::new(YarnResolver::new(
-                Arc::clone(self.fetching.http_client),
-                self.config.tls.strict_ssl.unwrap_or(true),
-            )),
-        ]);
+        chain.extend(runtime_resolvers::runtime_resolvers(self, npm_resolver));
         chain.extend([
             Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>,
             Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>,
