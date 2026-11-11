@@ -9,9 +9,12 @@ async fn create_and_poll_pending_web_login() {
     assert!(!tokens.poll_token.is_empty());
     assert_ne!(tokens.browser_session_id, tokens.poll_token);
 
-    assert!(state.is_valid_web_login(&tokens.browser_session_id));
-    assert!(!state.is_valid_web_login(&tokens.poll_token));
-    assert!(!state.is_valid_web_login("unknown_session"));
+    assert_eq!(
+        state.pending_web_login_code(&tokens.browser_session_id),
+        Some(tokens.confirmation_code.clone()),
+    );
+    assert!(state.pending_web_login_code(&tokens.poll_token).is_none());
+    assert!(state.pending_web_login_code("unknown_session").is_none());
 
     assert_eq!(state.poll_web_login(&tokens.poll_token), WebLoginPoll::Pending);
     // Polling with browser session id must not work
@@ -29,7 +32,7 @@ async fn fulfill_and_poll_ready_consumes_session() {
         .expect("fulfilled");
 
     // Once fulfilled, it is no longer pending validation
-    assert!(!state.is_valid_web_login(&tokens.browser_session_id));
+    assert!(state.pending_web_login_code(&tokens.browser_session_id).is_none());
 
     // First poll consumes the session and returns Ready
     assert_eq!(
@@ -66,7 +69,7 @@ async fn expired_session_fails_validation_and_polling() {
         }
     }
 
-    assert!(!state.is_valid_web_login(&tokens.browser_session_id));
+    assert!(state.pending_web_login_code(&tokens.browser_session_id).is_none());
     assert!(state.fulfill_web_login(&tokens.browser_session_id, "token".to_string()).is_err());
     assert_eq!(state.poll_web_login(&tokens.poll_token), WebLoginPoll::NotFound);
 }
@@ -86,6 +89,7 @@ async fn max_entries_enforced() {
                     state: WebLoginState::Pending,
                     expires: now + WEB_LOGIN_TTL.as_secs() as i64,
                     poll_hash: poll_hash.clone(),
+                    confirmation_code: "BCDF-GHJK".to_string(),
                 },
             );
             logins.poll_to_browser.insert(poll_hash, browser_hash);
@@ -94,4 +98,21 @@ async fn max_entries_enforced() {
 
     // Creating another session when full returns unavailable
     assert!(state.create_web_login().is_err());
+}
+
+#[tokio::test]
+async fn confirmation_codes_use_the_documented_shape() {
+    let state = OidcState::new(&[], "https://registry.example").unwrap();
+    let code = state.create_web_login().expect("session created").confirmation_code;
+    let groups: Vec<&str> = code.split('-').collect();
+    assert_eq!(groups.len(), 2, "{code}");
+    for group in groups {
+        assert_eq!(group.len(), 4, "{code}");
+        assert!(
+            group
+                .bytes()
+                .all(|byte| super::CONFIRMATION_CODE_ALPHABET.contains(&byte)),
+            "{code}",
+        );
+    }
 }

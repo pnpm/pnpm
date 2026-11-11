@@ -31,6 +31,12 @@ impl IpNetwork {
         Ok(Self { address, prefix })
     }
 
+    /// Whether every address of `other` is in this network.
+    #[must_use]
+    pub fn covers(&self, other: &IpNetwork) -> bool {
+        other.prefix >= self.prefix && self.contains(other.address)
+    }
+
     /// An IPv4-mapped IPv6 address belongs to the network of its IPv4 form.
     #[must_use]
     pub fn contains(&self, address: IpAddr) -> bool {

@@ -772,14 +772,15 @@ resolver-only server that exposes no registry surface.
 | Method | Path | Description |
 | --- | --- | --- |
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
-| `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
+| `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Shows the login's confirmation code, which `/-/v1/login` also sends in an `npm-notice` header, with a sign-in button per OIDC provider. |
+| `POST` | `/-/v1/login/start?session=<session>&provider=<provider>` | Confirms the login from the page above and redirects to the OIDC provider. pnpr refuses a request that the browser does not mark as same-origin. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
 | `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration. Passwords must contain at least 8 characters and at most 71 bytes. Returns a bearer token. |
 | `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
 | `POST` | `/-/npm/v1/user` | Change the authenticated user's password. Accepts `{"password":{"old":"current-password","new":"new-password"}}`. Revokes the account's existing bearer tokens. Also revokes browser sessions on the serving replica. |
-| `POST` | `/-/npm/v1/tokens` | Creates a bearer token for the authenticated caller after verifying `password`. Accepts `readonly` (`true` or `false`) or `packages_and_scopes_permission` (`"read-only"` or `"read-write"`), `cidr_whitelist`, `name`, `expires` (positive integer days or an RFC 3339 timestamp), and `expires_in` (positive integer seconds). Unsupported package, scope, organization, and stage-only restrictions return `400`. |
+| `POST` | `/-/npm/v1/tokens` | Creates a bearer token for the authenticated caller after verifying `password`. For a passwordless account, the token expires no later than the calling session or token and stays within its CIDR whitelist. Accepts `readonly` (`true` or `false`) or `packages_and_scopes_permission` (`"read-only"` or `"read-write"`), `cidr_whitelist`, `name`, `expires` (positive integer days or an RFC 3339 timestamp), and `expires_in` (positive integer seconds). Unsupported package, scope, organization, and stage-only restrictions return `400`. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |
 | `DELETE` | `/-/npm/v1/tokens/token/{key}` | Revokes one of the caller's tokens by listing-side token key. |
 | `DELETE` | `/-/user/token/{token}` | npm logout endpoint. Revokes the raw bearer token in the path when it belongs to the authenticated caller. |

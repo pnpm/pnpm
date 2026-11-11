@@ -1,5 +1,6 @@
 use crate::server::{
-    AuthedCaller, TargetRegistry, state_and_router, tokens::create_token,
+    AuthedCaller, TargetRegistry, state_and_router,
+    tokens::{Caller, create_token},
     user_accounts::post_profile,
 };
 use axum::{body::Bytes, extract::State, http::StatusCode, response::Response};
@@ -21,16 +22,17 @@ async fn queued_verification_is_throttled(route: VerificationRoute) {
     let (state, _) = state_and_router(config, AuthState::in_memory(), None).unwrap();
     let permits = state.inner.identity.login_concurrency.acquire_many(8).await.unwrap();
     let identity = Identity::user("example-user");
+    let caller = Caller { identity: &identity, credential: None };
     let mut request: Pin<Box<dyn Future<Output = Response> + Send>> = match route {
         VerificationRoute::Profile => Box::pin(post_profile(
             State(state.clone()),
-            AuthedCaller(identity),
+            AuthedCaller(identity.clone()),
             TargetRegistry(None),
             None,
             Bytes::from_static(br#"{"password":{"old":"wrong","new":"new-password"}}"#),
         )),
         VerificationRoute::Token => {
-            Box::pin(create_token(&state, None, &identity, br#"{"password":"wrong"}"#))
+            Box::pin(create_token(&state, None, &caller, br#"{"password":"wrong"}"#))
         }
     };
     std::future::poll_fn(|context| {

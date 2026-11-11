@@ -40,7 +40,6 @@ pub(super) fn routes(ui_served: bool) -> Router<AppState> {
 pub(super) struct LoginQuery {
     #[serde(rename = "return")]
     returns_to: Option<String>,
-    session: Option<String>,
 }
 
 async fn login(
@@ -53,18 +52,19 @@ async fn login(
         None => LoginReturn::Token,
         Some("ui") if ui_served => LoginReturn::Ui,
         Some("ui") => return bad_request("this pnpr does not serve the web UI"),
-        Some("cli") => {
-            let Some(session) = query.session.as_deref() else {
-                return bad_request("session query parameter required for return=cli");
-            };
-            if !is_valid_state(session) || !state.inner.identity.oidc.is_valid_web_login(session) {
-                return bad_request("invalid or expired web login session");
-            }
-            LoginReturn::Cli { session: session.to_string() }
-        }
         Some(_) => return bad_request("return must be ui"),
     };
-    let response = match state.inner.identity.oidc.start(&provider, returns_to).await {
+    redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to).await
+}
+
+/// Send the browser to `provider` to sign in. Only this browser can finish
+/// the sign-in, because the callback requires the cookie set here.
+pub(super) async fn redirect_to_provider(
+    oidc: &OidcState,
+    provider: &str,
+    returns_to: LoginReturn,
+) -> Response {
+    let response = match oidc.start(provider, returns_to).await {
         Ok(start) => with_cookie(
             Redirect::to(&start.url).into_response(),
             &format!(

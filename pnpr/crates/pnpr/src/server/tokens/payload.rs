@@ -50,12 +50,20 @@ impl TokenExpiry {
     }
 }
 
+/// What the credential that calls the token API may pass on to a token it
+/// creates without a password.
+pub(super) struct CredentialLimits {
+    pub(super) cidr_whitelist: Vec<String>,
+    pub(super) expires_at: Option<u64>,
+}
+
 pub(super) struct ValidatedTokenRequest {
     password: Option<String>,
     access: TokenAccess,
     cidr_whitelist: Vec<String>,
     name: Option<String>,
     expiry: TokenExpiry,
+    latest_expiry: Option<u64>,
     kind: Option<String>,
 }
 
@@ -64,8 +72,28 @@ impl ValidatedTokenRequest {
         self.password.as_deref()
     }
 
+    /// Narrow the request to `limits`. Without a requested CIDR whitelist the
+    /// token takes the caller's. A requested network outside the caller's
+    /// whitelist is refused. The token expires no later than the caller's
+    /// credential.
+    pub(super) fn within(mut self, limits: CredentialLimits) -> Result<Self, RegistryError> {
+        if !limits.cidr_whitelist.is_empty() {
+            if self.cidr_whitelist.is_empty() {
+                self.cidr_whitelist = limits.cidr_whitelist;
+            } else {
+                check_cidr_whitelist_within(&self.cidr_whitelist, &limits.cidr_whitelist)?;
+            }
+        }
+        self.latest_expiry = limits.expires_at;
+        Ok(self)
+    }
+
     pub(super) fn into_new_token(self, now: u64) -> Result<pnpr_auth::NewToken, RegistryError> {
-        let expires_at = self.expiry.resolve(now)?;
+        let requested_expiry = self.expiry.resolve(now)?;
+        let expires_at = match (requested_expiry, self.latest_expiry) {
+            (Some(requested), Some(latest)) => Some(requested.min(latest)),
+            (requested, latest) => requested.or(latest),
+        };
         let readonly = match self.access {
             TokenAccess::ReadOnly => true,
             TokenAccess::ReadWrite => false,
@@ -128,6 +156,7 @@ pub(super) fn parse_and_validate_token_request(
         cidr_whitelist,
         name: payload.name,
         expiry,
+        latest_expiry: None,
         kind: payload.kind,
     })
 }
@@ -193,6 +222,32 @@ fn validate_cidr_whitelist(whitelist: &[String]) -> Result<(), RegistryError> {
         if pnpr_config::IpNetwork::parse(entry.trim()).is_err() {
             return Err(RegistryError::BadRequest {
                 reason: format!("invalid CIDR whitelist entry: {entry}"),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn check_cidr_whitelist_within(
+    requested: &[String],
+    allowed: &[String],
+) -> Result<(), RegistryError> {
+    let allowed: Vec<_> = allowed
+        .iter()
+        .filter_map(|entry| pnpr_config::IpNetwork::parse(entry.trim()).ok())
+        .collect();
+    for entry in requested {
+        let inside = pnpr_config::IpNetwork::parse(entry.trim())
+            .is_ok_and(|network| {
+                allowed
+                    .iter()
+                    .any(|outer| outer.covers(&network))
+            });
+        if !inside {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "CIDR whitelist entry {entry} is outside the calling token's CIDR whitelist",
+                ),
             });
         }
     }

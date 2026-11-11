@@ -17,6 +17,7 @@ pub(super) struct WebLoginEntry {
     pub(super) state: WebLoginState,
     pub(super) expires: i64,
     pub(super) poll_hash: String,
+    pub(super) confirmation_code: String,
 }
 
 #[derive(Default)]
@@ -39,11 +40,13 @@ impl WebLogins {
     }
 }
 
-/// The two secrets issued for a CLI web login flow.
+/// The two secrets issued for a CLI web login flow, and the code that both
+/// the CLI and the confirmation page show.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebLoginTokens {
     pub browser_session_id: String,
     pub poll_token: String,
+    pub confirmation_code: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +61,7 @@ impl OidcState {
     pub fn create_web_login(&self) -> Result<WebLoginTokens> {
         let browser_session_id = random_secret()?;
         let poll_token = random_secret()?;
+        let confirmation_code = random_confirmation_code()?;
         let now = Utc::now().timestamp();
         let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         logins.prune(now);
@@ -69,22 +73,27 @@ impl OidcState {
         let poll_hash = super::super::sha256_hex(poll_token.as_bytes());
         logins.entries.insert(
             browser_hash.clone(),
-            WebLoginEntry { state: WebLoginState::Pending, expires, poll_hash: poll_hash.clone() },
+            WebLoginEntry {
+                state: WebLoginState::Pending,
+                expires,
+                poll_hash: poll_hash.clone(),
+                confirmation_code: confirmation_code.clone(),
+            },
         );
         logins.poll_to_browser.insert(poll_hash, browser_hash);
-        Ok(WebLoginTokens { browser_session_id, poll_token })
+        Ok(WebLoginTokens { browser_session_id, poll_token, confirmation_code })
     }
 
-    /// Checks if a web login session exists, is unexpired, and is still pending.
-    pub fn is_valid_web_login(&self, session_id: &str) -> bool {
+    /// The confirmation code of a web login session that exists, is
+    /// unexpired, and is still pending.
+    pub fn pending_web_login_code(&self, session_id: &str) -> Option<String> {
         let now = Utc::now().timestamp();
         let hash = super::super::sha256_hex(session_id.as_bytes());
         let logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
         logins.entries
             .get(&hash)
-            .is_some_and(|entry| {
-                entry.expires > now && matches!(entry.state, WebLoginState::Pending)
-            })
+            .filter(|entry| entry.expires > now && matches!(entry.state, WebLoginState::Pending))
+            .map(|entry| entry.confirmation_code.clone())
     }
 
     /// Fulfills a pending web login session with the issued session token.
@@ -133,4 +142,26 @@ impl OidcState {
             WebLoginPoll::NotFound
         }
     }
+}
+
+/// Letters without vowels or look-alike pairs, as RFC 8628 section 6.1
+/// suggests for codes a person compares or types.
+const CONFIRMATION_CODE_ALPHABET: &[u8; 20] = b"BCDFGHJKLMNPQRSTVWXZ";
+
+/// Eight letters from [`CONFIRMATION_CODE_ALPHABET`], split as `XXXX-XXXX`.
+fn random_confirmation_code() -> Result<String> {
+    // The largest multiple of the alphabet size that fits in a byte. Rejecting
+    // bytes at or above it keeps every letter equally likely.
+    const UNBIASED_LIMIT: u8 = 240;
+    let mut letters = String::with_capacity(8);
+    while letters.len() < 8 {
+        let mut byte = [0u8; 1];
+        getrandom::fill(&mut byte).map_err(|_| unavailable())?;
+        if byte[0] < UNBIASED_LIMIT {
+            let index = usize::from(byte[0]) % CONFIRMATION_CODE_ALPHABET.len();
+            letters.push(char::from(CONFIRMATION_CODE_ALPHABET[index]));
+        }
+    }
+    let (first, second) = letters.split_at(4);
+    Ok(format!("{first}-{second}"))
 }

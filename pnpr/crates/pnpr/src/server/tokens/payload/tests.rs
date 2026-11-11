@@ -2,7 +2,8 @@ use pnpr_error::RegistryError;
 use serde_json::{Value, json};
 
 use super::{
-    MAX_TOKEN_TIMESTAMP_MILLIS, MILLIS_PER_DAY, MILLIS_PER_SECOND, TokenAccess, TokenExpiry,
+    CredentialLimits, MAX_TOKEN_TIMESTAMP_MILLIS, MILLIS_PER_DAY, MILLIS_PER_SECOND, TokenAccess,
+    TokenExpiry,
     parse_and_validate_token_request,
 };
 
@@ -174,4 +175,59 @@ fn rejects_invalid_past_conflicting_and_overflowing_expiries() {
     ] {
         assert_bad_request(&payload);
     }
+}
+
+fn within(
+    request: &Value,
+    cidr_whitelist: &[&str],
+    expires_at: Option<u64>,
+) -> Result<pnpr_auth::NewToken, RegistryError> {
+    let limits = CredentialLimits {
+        cidr_whitelist: cidr_whitelist
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        expires_at,
+    };
+    parse_json(request)?.within(limits)?.into_new_token(FIXED_NOW)
+}
+
+#[test]
+fn a_token_inherits_the_callers_cidr_whitelist() {
+    let token = within(&json!({}), &["10.1.0.0/16"], None).unwrap();
+    assert_eq!(token.cidr_whitelist, ["10.1.0.0/16"]);
+    let token =
+        within(&json!({ "cidr_whitelist": ["10.1.2.0/24"] }), &["10.1.0.0/16"], None).unwrap();
+    assert_eq!(token.cidr_whitelist, ["10.1.2.0/24"]);
+    let token = within(&json!({ "cidr_whitelist": ["10.1.2.0/24"] }), &[], None).unwrap();
+    assert_eq!(token.cidr_whitelist, ["10.1.2.0/24"]);
+}
+
+#[test]
+fn a_token_cannot_widen_the_callers_cidr_whitelist() {
+    for wider in [json!(["10.0.0.0/8"]), json!(["10.1.2.0/24", "192.168.0.1"])] {
+        let request = json!({ "cidr_whitelist": wider });
+        assert!(
+            matches!(
+                within(&request, &["10.1.0.0/16"], None),
+                Err(RegistryError::BadRequest { .. }),
+            ),
+            "{request}",
+        );
+    }
+}
+
+#[test]
+fn a_token_expires_no_later_than_the_caller() {
+    let latest = FIXED_NOW + 3600 * MILLIS_PER_SECOND;
+    assert_eq!(within(&json!({}), &[], Some(latest)).unwrap().expires_at, Some(latest));
+    assert_eq!(
+        within(&json!({ "expires": 1 }), &[], Some(latest)).unwrap().expires_at,
+        Some(latest),
+    );
+    assert_eq!(
+        within(&json!({ "expires_in": 60 }), &[], Some(latest)).unwrap().expires_at,
+        Some(FIXED_NOW + 60 * MILLIS_PER_SECOND),
+    );
+    assert_eq!(within(&json!({}), &[], None).unwrap().expires_at, None);
 }

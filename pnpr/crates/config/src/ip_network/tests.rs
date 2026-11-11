@@ -60,3 +60,15 @@ fn parse_trusted_proxies_rejects_invalid_entries() {
     assert!(super::parse_trusted_proxies(["not-an-ip"]).is_err());
     assert!(super::parse_trusted_proxies(["10.0.0.0/33"]).is_err());
 }
+
+#[test]
+fn a_network_covers_only_the_networks_inside_it() {
+    let network = |raw: &str| IpNetwork::parse(raw).unwrap();
+    let office = network("10.1.0.0/16");
+    assert!(office.covers(&network("10.1.0.0/16")));
+    assert!(office.covers(&network("10.1.2.0/24")));
+    assert!(office.covers(&network("10.1.2.3")));
+    assert!(!office.covers(&network("10.0.0.0/8")));
+    assert!(!office.covers(&network("10.2.0.0/24")));
+    assert!(!office.covers(&network("fd00::/64")));
+}

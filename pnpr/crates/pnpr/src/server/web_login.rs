@@ -1,10 +1,10 @@
 use axum::{
     Json,
     extract::{Path, Query, State},
-    http::{StatusCode, header},
-    response::{IntoResponse, Redirect, Response},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
 };
-use pnpr_auth::oidc::WebLoginPoll;
+use pnpr_auth::oidc::{LoginReturn, WebLoginPoll};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -12,13 +12,22 @@ use std::fmt::Write as _;
 
 use super::{
     AppState, TargetRegistry, not_found,
-    oidc::{is_valid_state, protect},
+    oidc::{is_valid_state, protect, redirect_to_provider},
     private_no_cache,
 };
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Deserialize)]
 pub(crate) struct StartQuery {
     session: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ConfirmQuery {
+    session: String,
+    provider: String,
 }
 
 #[derive(Deserialize)]
@@ -78,9 +87,17 @@ pub(crate) async fn post_v1_login(
     };
     let (login_url, done_url) =
         build_login_urls(&state.inner.config.http.public_url, registry.as_deref(), &tokens);
+    let notice = format!("Sign in only if the browser shows the code {}", tokens.confirmation_code);
+    let Ok(notice) = HeaderValue::from_str(&notice) else {
+        return pnpr_error::RegistryError::Internal {
+            reason: "invalid web login confirmation code".to_string(),
+        }
+        .into_response();
+    };
     private_no_cache(
         (
             StatusCode::ACCEPTED,
+            [("npm-notice", notice)],
             Json(json!({
                 "loginUrl": login_url,
                 "doneUrl": done_url,
@@ -90,37 +107,85 @@ pub(crate) async fn post_v1_login(
     )
 }
 
-/// `GET /-/v1/login/start?session={session}`: browser entry point for web login.
+/// `GET /-/v1/login/start?session={session}`: browser entry point for web
+/// login. Shows the session's confirmation code, which the CLI also prints,
+/// and a button per OIDC provider that confirms the sign-in.
 pub(crate) async fn get_v1_login_start(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
     Query(query): Query<StartQuery>,
 ) -> Response {
-    if !is_valid_state(&query.session)
-        || !state.inner.identity.oidc.is_valid_web_login(&query.session)
-    {
+    let Some(code) = pending_confirmation_code(&state, &query.session) else {
         return bad_request("invalid or expired login session");
-    }
-    let providers: Vec<_> = state.inner.config.identity.auth.oidc
-        .iter()
-        .filter(|provider| provider.login.is_some())
-        .collect();
+    };
+    let providers = login_providers(&state);
     if providers.is_empty() {
         return not_found();
     }
-    let public_url = state.inner.config.http.public_url.trim_end_matches('/');
-    if providers.len() == 1 {
-        let redirect_url = format!(
-            "{public_url}/-/oidc/{}/login?return=cli&session={}",
-            providers[0].name, query.session,
-        );
-        return protect(Redirect::to(&redirect_url).into_response());
-    }
-    let html = render_provider_picker(&providers, &query.session, public_url);
+    let html = render_confirmation_page(&providers, &query.session, &code);
     protect(
         (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response(
         ),
     )
+}
+
+/// `POST /-/v1/login/start?session={session}&provider={provider}`: the user
+/// confirmed the sign-in on the page [`get_v1_login_start`] served. Starts
+/// the provider sign-in that completes the CLI session.
+pub(crate) async fn post_v1_login_start(
+    State(state): State<AppState>,
+    TargetRegistry(_): TargetRegistry,
+    Query(query): Query<ConfirmQuery>,
+    headers: HeaderMap,
+) -> Response {
+    if !is_same_origin_request(&headers, &state.inner.config.http.public_url) {
+        return bad_request("confirm the sign-in on the page that shows its code");
+    }
+    if pending_confirmation_code(&state, &query.session).is_none() {
+        return bad_request("invalid or expired login session");
+    }
+    if !login_providers(&state)
+        .iter()
+        .any(|provider| provider.name == query.provider)
+    {
+        return bad_request("unknown sign-in provider");
+    }
+    redirect_to_provider(
+        &state.inner.identity.oidc,
+        &query.provider,
+        LoginReturn::Cli { session: query.session },
+    )
+    .await
+}
+
+fn pending_confirmation_code(state: &AppState, session: &str) -> Option<String> {
+    if !is_valid_state(session) {
+        return None;
+    }
+    state.inner.identity.oidc.pending_web_login_code(session)
+}
+
+fn login_providers(state: &AppState) -> Vec<&pnpr_config::oidc::OidcProvider> {
+    state.inner.config.identity.auth.oidc
+        .iter()
+        .filter(|provider| provider.login.is_some())
+        .collect()
+}
+
+/// Whether a browser sent the request from one of pnpr's own pages. Another
+/// site can submit a form to pnpr, but cannot make the browser report it as
+/// same-origin.
+fn is_same_origin_request(headers: &HeaderMap, public_url: &str) -> bool {
+    if let Some(site) = headers.get("sec-fetch-site") {
+        return site == "same-origin";
+    }
+    let Some(origin) = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+    url::Url::parse(public_url).is_ok_and(|url| url.origin().ascii_serialization() == origin)
 }
 
 /// `GET /-/v1/login/poll/{session}`: poll for granted CLI token.
@@ -147,26 +212,34 @@ fn bad_request(reason: &str) -> Response {
     protect(pnpr_error::RegistryError::BadRequest { reason: reason.to_string() }.into_response())
 }
 
-fn render_provider_picker(
+fn render_confirmation_page(
     providers: &[&pnpr_config::oidc::OidcProvider],
     session: &str,
-    public_url: &str,
+    code: &str,
 ) -> String {
-    let mut list = String::new();
+    let mut buttons = String::new();
     for provider in providers {
-        let name = escape_html(&provider.name);
+        let action = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("session", session)
+            .append_pair("provider", &provider.name)
+            .finish();
         let _ = write!(
-            list,
-            r#"<li><a href="{public_url}/-/oidc/{name}/login?return=cli&amp;session={session}">Sign in with {name}</a></li>"#,
+            buttons,
+            r#"<form method="post" action="?{}"><button type="submit">Sign in with {}</button></form>"#,
+            escape_html(&action),
+            escape_html(&provider.name),
         );
     }
+    let code = escape_html(code);
     format!(
         r#"<!doctype html>
 <html>
-<head><title>Sign In - pnpr</title><meta charset="utf-8"></head>
+<head><title>Confirm Sign In - pnpr</title><meta charset="utf-8"></head>
 <body>
-  <h1>Select an identity provider</h1>
-  <ul>{list}</ul>
+  <h1>Confirm command-line sign-in</h1>
+  <p>A command-line tool asked to sign in to this registry. Continue only if you started the sign-in and your terminal shows this code:</p>
+  <p><strong>{code}</strong></p>
+  {buttons}
 </body>
 </html>"#,
     )

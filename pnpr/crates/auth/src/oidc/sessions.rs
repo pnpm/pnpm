@@ -59,6 +59,16 @@ impl OidcState {
         Err(rejected())
     }
 
+    /// When the unexpired browser session `raw` expires, in Unix seconds.
+    pub fn session_expires(&self, raw: &str) -> Option<i64> {
+        let now = Utc::now().timestamp();
+        let sessions = self.browser.sessions.lock().expect("OIDC session mutex poisoned");
+        sessions
+            .get(&super::super::sha256_hex(raw.as_bytes()))
+            .map(|session| session.expires)
+            .filter(|expires| *expires > now)
+    }
+
     pub fn revoke_session(&self, raw: &str) -> bool {
         self.browser.sessions
             .lock()

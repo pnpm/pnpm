@@ -166,6 +166,7 @@ async fn polling_done_url_before_and_after_fulfillment() {
         )
         .await
         .unwrap();
+    let code = notice_code(&response);
     let body = body_json(response.into_body()).await;
     let login_url = body["loginUrl"].as_str().unwrap();
     let done_url = body["doneUrl"].as_str().unwrap();
@@ -200,23 +201,25 @@ async fn polling_done_url_before_and_after_fulfillment() {
         .unwrap();
     assert_eq!(browser_poll_response.status(), StatusCode::NOT_FOUND);
 
-    // 4. Start web login redirects to company provider with browser_session
+    // 4. The start page asks to confirm the code the CLI printed
+    let start_path = login_url.strip_prefix("https://registry.example").unwrap();
     let start_response = app
         .clone()
         .oneshot(
-            Request::get(login_url.strip_prefix("https://registry.example").unwrap())
+            Request::get(start_path)
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    assert_eq!(start_response.status(), StatusCode::SEE_OTHER);
-    let location = start_response.headers()[header::LOCATION].to_str().unwrap();
-    assert_eq!(
-        location,
-        format!(
-            "https://registry.example/-/oidc/company/login?return=cli&session={browser_session}"
-        ),
+    assert_eq!(start_response.status(), StatusCode::OK);
+    let html = String::from_utf8(body_bytes(start_response.into_body()).await).unwrap();
+    assert!(html.contains(&format!("<strong>{code}</strong>")), "{html}");
+    assert!(
+        html.contains(&format!(
+            r#"<form method="post" action="?session={browser_session}&amp;provider=company">"#,
+        )),
+        "{html}",
     );
 
     // 5. Poll on unknown session returns 404
@@ -264,7 +267,7 @@ async fn post_v1_login_rate_limits_excessive_requests() {
 }
 
 #[tokio::test]
-async fn start_with_multiple_providers_renders_picker() {
+async fn start_with_multiple_providers_offers_each_provider() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_multiple_login_providers(&storage));
 
@@ -295,8 +298,8 @@ async fn start_with_multiple_providers_renders_picker() {
     let html = String::from_utf8(body_bytes(start_response.into_body()).await).unwrap();
     assert!(html.contains("Sign in with google"));
     assert!(html.contains("Sign in with okta"));
-    assert!(html.contains("/-/oidc/google/login?return=cli&amp;session="));
-    assert!(html.contains("/-/oidc/okta/login?return=cli&amp;session="));
+    assert!(html.contains(r#"&amp;provider=google">"#));
+    assert!(html.contains(r#"&amp;provider=okta">"#));
 }
 
 #[tokio::test]
@@ -328,7 +331,7 @@ async fn invalid_sessions_are_rejected() {
         .unwrap();
     assert_eq!(login_response.status(), StatusCode::BAD_REQUEST);
 
-    // Missing session parameter on provider login with return=cli
+    // A provider sign-in cannot complete a CLI session without the confirmation
     let missing_session_response = app
         .oneshot(
             Request::get("/-/oidc/company/login?return=cli")
@@ -338,4 +341,112 @@ async fn invalid_sessions_are_rejected() {
         .await
         .unwrap();
     assert_eq!(missing_session_response.status(), StatusCode::BAD_REQUEST);
+}
+
+fn notice_code(response: &axum::response::Response) -> String {
+    let notice = response.headers()["npm-notice"].to_str().unwrap();
+    notice
+        .strip_prefix("Sign in only if the browser shows the code ")
+        .unwrap()
+        .to_string()
+}
+
+async fn start_login(app: &axum::Router) -> (String, String) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/-/v1/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let code = notice_code(&response);
+    let body = body_json(response.into_body()).await;
+    let session = body["loginUrl"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("https://registry.example/-/v1/login/start?session=")
+        .unwrap()
+        .to_string();
+    (session, code)
+}
+
+fn confirm(
+    session: &str,
+    provider: &str,
+    site: Option<&str>,
+    origin: Option<&str>,
+) -> Request<Body> {
+    let mut request =
+        Request::post(format!("/-/v1/login/start?session={session}&provider={provider}"));
+    if let Some(site) = site {
+        request = request.header("sec-fetch-site", site);
+    }
+    if let Some(origin) = origin {
+        request = request.header(header::ORIGIN, origin);
+    }
+    request.body(Body::empty()).unwrap()
+}
+
+#[tokio::test]
+async fn post_v1_login_prints_the_confirmation_code() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let (_, code) = start_login(&app).await;
+    let (first, second) = code.split_once('-').unwrap();
+    assert_eq!((first.len(), second.len()), (4, 4), "{code}");
+}
+
+#[tokio::test]
+async fn a_cli_session_cannot_be_bound_to_a_provider_sign_in_without_confirmation() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let (session, _) = start_login(&app).await;
+
+    let direct = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/-/oidc/company/login?return=cli&session={session}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(direct.status(), StatusCode::BAD_REQUEST);
+
+    for request in [
+        confirm(&session, "company", Some("cross-site"), None),
+        confirm(&session, "company", Some("same-site"), Some("https://registry.example")),
+        confirm(&session, "company", None, Some("https://attacker.example")),
+        confirm(&session, "company", None, Some("null")),
+        confirm(&session, "company", None, None),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
+    }
+}
+
+#[tokio::test]
+async fn confirming_rejects_unknown_providers_and_sessions() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let (session, _) = start_login(&app).await;
+    for request in [
+        confirm(&session, "github", Some("same-origin"), None),
+        confirm(&session, "unknown", Some("same-origin"), None),
+        confirm("unknown_session", "company", Some("same-origin"), None),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
 }

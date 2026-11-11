@@ -117,13 +117,20 @@ CLI opens the browser to sign in and polls until authentication completes. If no
 OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
 to username and password authentication (`/-/user/org.couchdb.user:{name}`).
 
+Before it sends the browser to the provider, pnpr shows a confirmation code
+and asks the user to continue only if the terminal shows the same code. pnpr
+sends the code to the CLI in an `npm-notice` header, which `pnpm login` prints.
+The confirmation keeps a login link someone else started from signing you in
+silently through an existing provider session.
+
 A passwordless account can create personal access tokens while signed in.
 These are separate account credentials. They carry the account's ordinary
-permissions, not the session's provider-group memberships, and use the expiry
-requested through the token API. Without an expiry, they remain valid until
-revoked, including after browser logout or session expiry. SCIM deactivation
-revokes both kinds of credential. Accounts with a password must provide it to
-create a personal access token.
+permissions, not the session's provider-group memberships. They expire no
+later than the session or token that created them, and inherit its CIDR
+whitelist when the request names none. A requested CIDR network outside the
+caller's whitelist is refused. SCIM deactivation revokes both kinds of
+credential. Accounts with a password must provide it to create a personal
+access token, and their tokens use the requested expiry and CIDR whitelist.
 
 An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
 
