@@ -312,7 +312,8 @@ the bucket and the database, which the
 [S3 backend supports](storage.md#concurrent-writers), but each one has its own
 upstream cache.
 
-**The Worker caches nothing.** If you add a cache, store only `GET`
+The Worker above caches nothing. For caching, see
+[CDN cache with push invalidation](#cdn-cache-with-push-invalidation). If you add a cache, store only `GET`
 responses without `private`, `no-store`, or `no-cache` in `Cache-Control`.
 A login answers with a new token and is marked only `no-cache`. With
 [CORS](configuration.md#cors) on, pnpr's answer depends on the request's
@@ -391,7 +392,9 @@ cloudflareCdn:
 
 Choose a `cacheTag` unique to this registry deployment within the zone. All
 servers sharing a database must use the same zone and tag. The database records
-that destination when invalidation is first enabled. Set
+that destination when invalidation is first enabled. Changing the zone or tag
+for an existing database is not supported. A mismatch is logged and prevents
+purge delivery from that server; cached entries still expire. Set
 `CLOUDFLARE_ZONE_ID` as a Worker variable and store `CLOUDFLARE_PURGE_TOKEN` as a
 Worker secret. Add both to the Worker's `Env` interface and to the container's
 `envVars`, following the other credentials in the example above.

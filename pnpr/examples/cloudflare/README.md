@@ -61,7 +61,7 @@ ETags and lists of validators.
 Tarballs always pass through, including revision URLs such as
 `widget@1.0.0+r1` and `/-/tarballs/sha512/` URLs. Their bytes may be immutable,
 but access can change after an unpublish, a rule change, or a vulnerability
-check. Do not add an edge cache that serves them without checking access.
+check. Use this pass-through option when every read must check access.
 
 When replacing a Worker that cached tarballs or served fresh and stale metadata
 without revalidation, remove its cache lookup paths. Purge any separate CDN

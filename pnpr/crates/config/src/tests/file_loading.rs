@@ -498,6 +498,10 @@ registries:
 #[test]
 fn secret_bearing_fields_reject_unresolved_env_vars() {
     let cases = [
+        (
+            "cloudflareCdn.apiToken",
+            "cloudflareCdn:\n  apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
         ("secret", "secret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         ("secrets.cache", "secrets:\n  cache: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         ("secrets.oci", "secrets:\n  oci: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),

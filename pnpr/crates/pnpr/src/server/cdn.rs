@@ -3,6 +3,16 @@ use pnpr_config::CloudflareCdnConfig;
 use pnpr_storage::{Storage, metadata::CdnInvalidation};
 use std::{sync::Arc, time::Duration};
 
+pub(super) fn public_response(mut response: axum::response::Response) -> axum::response::Response {
+    use axum::http::{HeaderValue, header};
+    if response.status().is_success() && !response.headers().contains_key(header::CACHE_CONTROL) {
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"));
+    }
+    response
+}
+
 const RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
 pub(super) fn start(state: &AppState) -> Result<(), RegistryError> {
@@ -24,8 +34,8 @@ pub(super) fn start(state: &AppState) -> Result<(), RegistryError> {
             if !enabled {
                 enabled = subscribe(&storage, &config).await;
             }
-            if enabled && deliver(&storage, &client, &config).await.is_err() {
-                tracing::error!("CDN purge failed; pending invalidations will be retried");
+            if enabled && let Err(reason) = deliver(&storage, &client, &config).await {
+                tracing::error!(%reason, "CDN purge failed; pending invalidations will be retried");
             }
             tokio::time::sleep(RETRY_INTERVAL).await;
         }
@@ -48,11 +58,11 @@ async fn deliver(
     storage: &Storage,
     client: &reqwest::Client,
     config: &CloudflareCdnConfig,
-) -> Result<(), ()> {
+) -> Result<(), String> {
     let pending = storage
         .pending_cdn_invalidations()
         .await
-        .map_err(|_| ())?;
+        .map_err(|_| "could not read pending CDN invalidations".to_string())?;
     if pending.is_empty() {
         return Ok(());
     }
@@ -63,7 +73,7 @@ async fn deliver(
     storage
         .acknowledge_cdn_invalidations(pending)
         .await
-        .map_err(|_| ())
+        .map_err(|_| "could not acknowledge CDN invalidations".to_string())
 }
 
 fn purge_tags(config: &CloudflareCdnConfig, pending: &[CdnInvalidation]) -> Vec<String> {
@@ -84,28 +94,30 @@ async fn purge(
     endpoint: &str,
     token: &str,
     tags: Vec<String>,
-) -> Result<(), ()> {
+) -> Result<(), String> {
     let response = client
         .post(endpoint)
         .bearer_auth(token)
         .json(&serde_json::json!({ "tags": tags }))
         .send()
         .await
-        .map_err(|_| ())?;
+        .map_err(|error| format!("Cloudflare request failed: {}", error.without_url()))?;
     if !response.status().is_success() {
-        return Err(());
+        return Err(format!("Cloudflare returned HTTP {}", response.status()));
     }
     #[derive(serde::Deserialize)]
     struct Purged {
         success: bool,
     }
-    let body = pnpm_network::read_limited_body(response, 64 * 1024).await.map_err(|_| ())?;
+    let body = pnpm_network::read_limited_body(response, 64 * 1024).await
+        .map_err(|_| "could not read Cloudflare response".to_string())?;
     if body.truncated {
-        return Err(());
+        return Err("Cloudflare response exceeded 64 KiB".to_string());
     }
-    let result: Purged = serde_json::from_slice(&body.bytes).map_err(|_| ())?;
+    let result: Purged =
+        serde_json::from_slice(&body.bytes).map_err(|_| "invalid Cloudflare response".to_string())?;
     if !result.success {
-        return Err(());
+        return Err("Cloudflare rejected the purge".to_string());
     }
     Ok(())
 }

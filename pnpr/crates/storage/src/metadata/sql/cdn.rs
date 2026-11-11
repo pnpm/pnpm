@@ -85,7 +85,7 @@ impl SqlMetadata {
     async fn pending_cdn_invalidations(self: &Arc<Self>) -> Result<Vec<CdnInvalidation>> {
         self.read(String::new(), Freshness::Current, |connection, _| {
             connection.query(
-                "SELECT name, generation FROM registry_records WHERE kind = ?1 ORDER BY generation LIMIT 30",
+                "SELECT name, generation FROM registry_records WHERE kind = ?1 ORDER BY name LIMIT 30",
                 params![PENDING],
             )?.into_iter().map(|mut row| {
                 Ok(CdnInvalidation { package: row.get(0)?, generation: row.get(1)? })

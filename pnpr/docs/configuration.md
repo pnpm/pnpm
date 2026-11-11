@@ -1059,7 +1059,9 @@ empty credentials or per-process secrets when an environment variable is unset.
 ## cloudflareCdn
 
 Optional global CDN invalidation for a registry served through a Cloudflare zone.
-Set `zoneId`, `apiToken`, and a deployment-specific `cacheTag`. The API token needs
+`zoneId` must contain 32 hexadecimal characters. `apiToken` must be nonempty
+and contain no whitespace. `cacheTag` accepts 1 to 100 ASCII letters, digits,
+hyphens, or underscores. The API token needs
 Cache Purge permission for that zone. Use environment substitution for the token.
 
 See [CDN cache with push invalidation](cloudflare.md#cdn-cache-with-push-invalidation)

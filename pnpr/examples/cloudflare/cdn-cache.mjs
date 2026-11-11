@@ -9,7 +9,8 @@ const CODING = 'x-pnpr-cdn-coding'
 export async function fetchWithCdnCache (request, { cache, cacheTag, fetchFromRegistry, waitUntil, now = Date.now }) {
   const route = cacheRoute(request)
   if (!route || bypassesCache(request) || request.headers.has('authorization') || request.headers.has('cookie')) {
-    return fetchFromRegistry(request)
+    const response = await fetchFromRegistry(request)
+    return new globalThis.URL(request.url).pathname.startsWith('/npm/') ? downstream(response) : response
   }
   const key = new globalThis.URL(request.url)
   key.searchParams.set('__pnpr_cdn', `v1-${route.variant?.name ?? 'tar'}`)
@@ -23,7 +24,7 @@ export async function fetchWithCdnCache (request, { cache, cacheTag, fetchFromRe
   }
   const started = now()
   const response = await fetchFromRegistry(request)
-  if (!canStore(response, route)) return response
+  if (!canStore(response, route)) return downstream(response)
   const expires = started + cacheLifetime(response)
   const tags = `${cacheTag},${cacheTag}-${await packageDigest(route.name)}`
   if (now() < expires) {
@@ -35,10 +36,14 @@ export async function fetchWithCdnCache (request, { cache, cacheTag, fetchFromRe
 function cacheLifetime (response) {
   const directives = (response.headers.get('cache-control') ?? '').toLowerCase().split(',').map(value => value.trim())
   const lifetimes = directives.filter(value => value.startsWith('max-age=') || value.startsWith('s-maxage='))
-    .map(value => Number(value.split('=')[1].replaceAll('"', '')) * 1000)
-  const age = Number(response.headers.get('age') ?? 0) * 1000
+    .map(value => deltaSeconds(value.slice(value.indexOf('=') + 1)))
+  const age = deltaSeconds(response.headers.get('age') ?? '0')
   if (!Number.isFinite(age) || age < 0 || lifetimes.some(value => !Number.isFinite(value) || value < 0)) return 0
   return Math.max(0, Math.min(RETENTION_MS, ...lifetimes) - age)
+}
+
+function deltaSeconds (value) {
+  return /^(?:\d+|"\d+")$/.test(value) ? Number(value.replaceAll('"', '')) * 1000 : Number.NaN
 }
 
 function canStore (response, route) {
@@ -71,7 +76,7 @@ function downstream (response) {
   for (const name of [CODING, EXPIRES, 'cache-tag', 'age']) headers.delete(name)
   // Caches outside this Worker cannot participate in tag invalidation.
   headers.set('cache-control', 'no-store')
-  return new globalThis.Response(response.body, { headers, encodeBody: 'manual' })
+  return new globalThis.Response(response.body, { status: response.status, statusText: response.statusText, headers, encodeBody: 'manual' })
 }
 
 function cacheRoute (request) {

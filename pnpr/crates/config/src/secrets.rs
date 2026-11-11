@@ -254,6 +254,10 @@ pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), Reg
     let Ok(val) = serde_saphyr::from_str::<serde_json::Value>(raw) else {
         return Ok(());
     };
+    if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
+    {
+        check_secret_env_field::<Sys>("cloudflareCdn.apiToken", token)?;
+    }
     validate_root_secrets::<Sys>(&val)?;
     validate_release_record_secrets::<Sys>(&val)?;
     validate_s3_secrets::<Sys>(&val)?;

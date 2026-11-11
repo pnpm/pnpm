@@ -128,10 +128,30 @@ test('compressed bytes survive storage and internal headers stay private', async
   for (const header of ['cache-tag', 'x-pnpr-cdn-expires', 'x-pnpr-cdn-coding']) assert.equal(response.headers.get(header), null)
 })
 
-for (const headers of [{ 'cache-control': 'public, max-age=0' }, { 'cache-control': 'public, max-age=300', age: '300' }, { 'cache-control': 'public', 'set-cookie': 'secret=value' }]) {
+for (const headers of [{ 'cache-control': 'public, max-age=0' }, { 'cache-control': 'public, max-age=1e3' }, { 'cache-control': 'public, s-maxage=0x10' }, { 'cache-control': 'public, max-age=300', age: '300' }, { 'cache-control': 'public', 'set-cookie': 'secret=value' }]) {
   test(`does not retain expired or cookie-bearing responses: ${JSON.stringify(headers)}`, async () => {
     const setup = fixture()
     await setup.get('/npm/widget', {}, { fetchFromRegistry: async () => new globalThis.Response('body', { headers: { ...headers, 'content-type': 'application/json' } }) })
+    assert.equal(setup.entries.size, 0)
+  })
+}
+
+for (const [path, headers, status] of [
+  ['/npm/widget?example=true', {}, 200],
+  ['/npm/widget', { 'if-none-match': '"example"' }, 304],
+  ['/npm/widget', { range: 'bytes=0-2' }, 206],
+  ['/npm/widget', { authorization: 'Bearer example' }, 403],
+  ['/npm/widget', { accept: 'application/vnd.pnpr.install-v2+json' }, 200],
+]) {
+  test(`bypassed responses prevent downstream caching and preserve status: ${status} ${path}`, async () => {
+    const setup = fixture()
+    const response = await setup.get(path, headers, { fetchFromRegistry: async () => new globalThis.Response(status === 304 ? null : 'body', {
+      status, headers: { 'cache-control': 'public, max-age=3600', etag: '"example"', 'content-range': 'bytes 0-2/4' },
+    }) })
+    assert.equal(response.status, status)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(response.headers.get('etag'), '"example"')
+    assert.equal(response.headers.get('content-range'), 'bytes 0-2/4')
     assert.equal(setup.entries.size, 0)
   })
 }
