@@ -245,7 +245,7 @@ fn force_symlink_inner(
     let Ok(existing) = read_symlink_dir(link) else {
         return replace_unreadable_occupant(target, link, tried, create_symlink, initial_err);
     };
-    if existing_symlink_up_to_date(target, link, &existing) {
+    if existing_link_reusable(target, link, &existing) {
         return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
     }
     // The unlink below already reported this link gone once, and the create
@@ -337,4 +337,4 @@ mod absolute;
 mod replace;
 mod reuse;
 use replace::{TriedOnce, replace_unreadable_occupant};
-use reuse::{existing_symlink_up_to_date, force_symlink};
+use reuse::{existing_link_reusable, force_symlink};

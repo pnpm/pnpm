@@ -32,12 +32,14 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
 pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
-    is_unc_path(path) || drive_letter(path).is_some_and(|drive| mapped_drive(drive).is_some())
+    is_unc_path(path)
+        || drive_letter(path).is_some_and(|drive| is_mapped_drive(drive) == Some(true))
 }
 
 /// [`is_on_network_drive`], with whether each drive letter is mapped looked
 /// up once per process. An install asks this for every link it writes, and
-/// the drive mappings don't change during one.
+/// the drive mappings don't change during one. A lookup that fails says
+/// nothing about the drive, so it isn't cached.
 #[cfg(windows)]
 pub(crate) fn is_on_network_drive_cached(path: &Path) -> bool {
     use std::sync::atomic::{AtomicU8, Ordering};
@@ -59,11 +61,40 @@ pub(crate) fn is_on_network_drive_cached(path: &Path) -> bool {
     match slot.load(Ordering::Relaxed) {
         LOCAL => false,
         NETWORK => true,
-        _ => {
-            let network = mapped_drive(drive).is_some();
-            slot.store(if network { NETWORK } else { LOCAL }, Ordering::Relaxed);
-            network
-        }
+        _ => match is_mapped_drive(drive) {
+            Some(network) => {
+                slot.store(if network { NETWORK } else { LOCAL }, Ordering::Relaxed);
+                network
+            }
+            None => false,
+        },
+    }
+}
+
+/// Whether drive `letter` is mapped to a network share, or `None` when
+/// Windows can't tell. A persistent mapping that is disconnected counts as
+/// mapped: the first access through it reconnects it.
+#[cfg(windows)]
+fn is_mapped_drive(letter: char) -> Option<bool> {
+    use windows_sys::Win32::{
+        Foundation::{
+            ERROR_BAD_DEVICE, ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NO_NETWORK,
+            ERROR_NOT_CONNECTED, NO_ERROR,
+        },
+        NetworkManagement::WNet::WNetGetConnectionW,
+    };
+
+    let drive_name = [letter as u16, u16::from(b':'), 0];
+    let mut remote_name = [0u16; 260];
+    let mut length = remote_name.len() as u32;
+    // SAFETY: The buffers are writable for the lengths passed to WNetGetConnectionW.
+    let result = unsafe {
+        WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
+    };
+    match result {
+        NO_ERROR | ERROR_MORE_DATA | ERROR_CONNECTION_UNAVAIL => Some(true),
+        ERROR_NOT_CONNECTED | ERROR_BAD_DEVICE | ERROR_NO_NETWORK => Some(false),
+        _ => None,
     }
 }
 
