@@ -54,7 +54,7 @@ test('workspace aliases, workspace paths, and link dependencies produce sorted r
   ])
 })
 
-test('references exclude packages without tsconfigs, outside links, and known cycles', async t => {
+test('references exclude packages without tsconfigs, outside links, and known cycles under any alias', async t => {
   const workspaceDir = await createWorkspace(t, 'v13')
   await writeJson(workspaceDir, 'packages/no-types/package.json', { name: 'no-types' })
   await writeJson(workspaceDir, 'packages/library/package.json', { name: '@pnpm/store.controller' })
@@ -65,6 +65,9 @@ test('references exclude packages without tsconfigs, outside links, and known cy
     name: '@pnpm/fetching.git-fetcher',
     dependencies: {
       '@pnpm/store.controller': 'workspace:*',
+      store: 'workspace:@pnpm/store.controller@*',
+      'store-path': 'workspace:../library',
+      'store-link': 'link:../library',
       'no-types': 'workspace:*',
       outside: `link:${outsideDir}`,
     },

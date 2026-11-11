@@ -292,7 +292,8 @@ function findTypeScriptReferences ({
     .flatMap(([depName, spec]) => {
       const linkedPkgDir = resolveLinkedPackageDir({ depName, spec, dir, workspacePackageDirs })
       if (linkedPkgDir == null || linkedPkgDir === dir || !isSubdir(workspaceDir, linkedPkgDir) ||
-        !fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) || isExcludedTypeScriptReference(depName, manifest.name)) return []
+        !fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) ||
+        isExcludedTypeScriptReference({ linkedPkgDir, projectName: manifest.name, workspacePackageDirs })) return []
       return [normalizePath(path.relative(dir, linkedPkgDir))]
     })
     .sort()
@@ -311,13 +312,22 @@ function resolveLinkedPackageDir ({ depName, spec, dir, workspacePackageDirs }: 
   return workspacePackageDirs.get(workspaceSpec.alias ?? depName)
 }
 
-function isExcludedTypeScriptReference (dependencyName: string, projectName: string | undefined): boolean {
-  return dependencyName === '@pnpm/store.controller' && [
-    '@pnpm/fetching.git-fetcher',
-    '@pnpm/fetching.tarball-fetcher',
-    '@pnpm/installing.package-requester',
-  ].includes(projectName ?? '') ||
-    dependencyName === 'pnpm' && projectName === '@pnpm/lockfile.make-dedicated-lockfile'
+// References that would close a project-reference cycle, keyed by the target package.
+const EXCLUDED_TYPESCRIPT_REFERENCES: Array<{ target: string, dependents: string[] }> = [
+  {
+    target: '@pnpm/store.controller',
+    dependents: ['@pnpm/fetching.git-fetcher', '@pnpm/fetching.tarball-fetcher', '@pnpm/installing.package-requester'],
+  },
+  { target: 'pnpm', dependents: ['@pnpm/lockfile.make-dedicated-lockfile'] },
+]
+
+function isExcludedTypeScriptReference ({ linkedPkgDir, projectName, workspacePackageDirs }: {
+  linkedPkgDir: string
+  projectName: string | undefined
+  workspacePackageDirs: Map<string, string>
+}): boolean {
+  return EXCLUDED_TYPESCRIPT_REFERENCES.some(({ target, dependents }) =>
+    workspacePackageDirs.get(target) === linkedPkgDir && dependents.includes(projectName ?? ''))
 }
 
 function getTestReferences ({ context, tsConfig, dir, testDir, manifest }: {
