@@ -83,6 +83,24 @@ fn a_watchdog_started_ahead_of_its_groups_watches_them() {
     );
 }
 
+#[test]
+fn starting_replaces_a_watchdog_that_died() {
+    let mut watch = GroupWatch::new();
+    assert!(watch.start().expect("start the watchdog"), "`sh` is available");
+    let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
+    // SAFETY: `dead` is this process's own child, the watchdog started
+    // above; it is killed and reaped here before `start` replaces it.
+    unsafe {
+        libc::kill(dead, libc::SIGKILL);
+        libc::waitpid(dead, ptr::null_mut(), 0);
+    }
+
+    assert!(watch.start().expect("restart the watchdog"), "`sh` is available");
+    let replacements = watchdogs();
+    assert_eq!(replacements.len(), 1, "a replacement should be running: {replacements:?}");
+    assert_ne!(replacements[0], dead);
+}
+
 /// Dropping the watch closes the watchdog's pipe the way pnpm's death does.
 /// Every group still watched is killed, past one that has exited already,
 /// and a released group is left alone.

@@ -56,7 +56,7 @@ for group in $groups; do kill -9 -"$group"; done"#;
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
 
-/// Start the watchdog unless one runs already. A child runs from the moment
+/// Start the watchdog unless one is running, replacing one that exited. A child runs from the moment
 /// it is spawned, so starting the watchdog before the first group's leader
 /// keeps [`watch`] down to one write, rather than leaving that group
 /// unwatched for as long as a `sh` takes to spawn. Returns `false` when there
@@ -102,7 +102,9 @@ impl GroupWatch {
         if self.shell_missing {
             return Ok(false);
         }
-        if self.watchdog.is_some() {
+        if let Some(watchdog) = &mut self.watchdog
+            && matches!(watchdog.process.try_wait(), Ok(None))
+        {
             return Ok(true);
         }
         self.start_watchdog()
