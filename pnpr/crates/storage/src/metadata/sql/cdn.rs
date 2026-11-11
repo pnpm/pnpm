@@ -58,9 +58,9 @@ impl Storage {
         .await
     }
 
-    /// Read a bounded batch from the primary; a failed delivery leaves it pending.
-    pub async fn pending_cdn_invalidations(&self) -> Result<Vec<CdnInvalidation>> {
-        self.database.pending_cdn_invalidations().await
+    /// Read a bounded batch after `after`, wrapping to the first name at the end.
+    pub async fn pending_cdn_invalidations(&self, after: &str) -> Result<Vec<CdnInvalidation>> {
+        self.database.pending_cdn_invalidations(after.to_string()).await
     }
 
     /// Acknowledge only the delivered generations, retaining concurrent changes.
@@ -82,12 +82,17 @@ impl Storage {
 }
 
 impl SqlMetadata {
-    async fn pending_cdn_invalidations(self: &Arc<Self>) -> Result<Vec<CdnInvalidation>> {
-        self.read(String::new(), Freshness::Current, |connection, _| {
-            connection.query(
-                "SELECT name, generation FROM registry_records WHERE kind = ?1 ORDER BY name LIMIT 30",
-                params![PENDING],
-            )?.into_iter().map(|mut row| {
+    async fn pending_cdn_invalidations(
+        self: &Arc<Self>,
+        after: String,
+    ) -> Result<Vec<CdnInvalidation>> {
+        self.read(String::new(), Freshness::Current, move |connection, _| {
+            let query = "SELECT name, generation FROM registry_records WHERE kind = ?1 AND name > ?2 ORDER BY name LIMIT 30";
+            let mut rows = connection.query(query, params![PENDING, &after])?;
+            if rows.is_empty() && !after.is_empty() {
+                rows = connection.query(query, params![PENDING, ""])?;
+            }
+            rows.into_iter().map(|mut row| {
                 Ok(CdnInvalidation { package: row.get(0)?, generation: row.get(1)? })
             }).collect()
         }).await
