@@ -246,7 +246,18 @@ async fn corrupted_archives_are_rejected_before_full_or_partial_reads() {
         served(&storage, &name, "example-package-1.0.0.tgz").await.as_deref(),
         Some(b"original".as_slice()),
     );
-    tokio::fs::write(path_of(&tmp, &blob), b"tampered").await.unwrap();
+    let path = path_of(&tmp, &blob);
+    let modified = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+    tokio::fs::write(&path, b"tampered").await.unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(modified))
+        .unwrap();
     assert!(storage.open_hosted_blob(&name, "example-package-1.0.0.tgz").await.is_err());
     assert!(
         storage

@@ -4,11 +4,13 @@ use pnpr_package_name::Ecosystem;
 use std::{
     io::{Seek, SeekFrom},
     sync::{Mutex, OnceLock},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use tokio::fs;
 
 const MAX_ENTRIES: usize = 4096;
+// Recent writes can share one filesystem timestamp tick.
+const LOCAL_TIMESTAMP_STABILITY: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Fingerprint {
@@ -44,7 +46,41 @@ fn file_identity(metadata: &std::fs::Metadata) -> FileIdentity {
     }
 }
 
+impl FileIdentity {
+    fn has_stable_timestamp(&self, now: SystemTime) -> bool {
+        #[cfg(unix)]
+        {
+            let Ok(seconds) = u64::try_from(self.changed.0) else { return false };
+            let Ok(nanoseconds) = u32::try_from(self.changed.1) else { return false };
+            let Some(changed) =
+                std::time::UNIX_EPOCH.checked_add(Duration::new(seconds, nanoseconds))
+            else {
+                return false;
+            };
+            timestamp_is_stable(changed, now)
+        }
+        #[cfg(not(unix))]
+        {
+            self.created.is_none_or(|created| timestamp_is_stable(created, now))
+        }
+    }
+}
+
+fn timestamp_is_stable(timestamp: SystemTime, now: SystemTime) -> bool {
+    now.duration_since(timestamp)
+        .is_ok_and(|age| age >= LOCAL_TIMESTAMP_STABILITY)
+}
+
 impl Fingerprint {
+    fn has_stable_timestamps(&self, now: SystemTime) -> bool {
+        match self {
+            Self::Local { modified, identity, .. } => {
+                timestamp_is_stable(*modified, now) && identity.has_stable_timestamp(now)
+            }
+            Self::Remote { .. } => true,
+        }
+    }
+
     pub(crate) fn local(metadata: &std::fs::Metadata) -> Result<Self> {
         Ok(Self::Local {
             size: metadata.len(),
@@ -74,9 +110,12 @@ pub(crate) fn remember(key: String, fingerprint: Fingerprint) {
 
 pub(crate) async fn verify_file(mut file: fs::File, key: &str) -> Result<fs::File> {
     let Some((expected, _)) = parse_blob_key(key) else { return Ok(file) };
+    static VERIFIERS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+    let permit = VERIFIERS.acquire().await.expect("verification semaphore remains open");
     let key = key.to_string();
     let mut reader = file.into_std().await;
     reader = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
         let ecosystem = match expected
             .as_str()
             .split_once('-')
@@ -103,7 +142,8 @@ pub(crate) async fn verified_local_file(
     cache_key: String,
 ) -> Result<fs::File> {
     let fingerprint = Fingerprint::local(&file.metadata().await?)?;
-    if is_verified(&cache_key, &fingerprint) {
+    let has_stable_timestamps = fingerprint.has_stable_timestamps(SystemTime::now());
+    if has_stable_timestamps && is_verified(&cache_key, &fingerprint) {
         return Ok(file);
     }
     let file = verify_file(file, key).await?;
@@ -112,7 +152,9 @@ pub(crate) async fn verified_local_file(
             reason: format!("stored archive {key:?} changed during verification"),
         });
     }
-    remember(cache_key, fingerprint);
+    if has_stable_timestamps {
+        remember(cache_key, fingerprint);
+    }
     Ok(file)
 }
 
