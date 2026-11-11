@@ -277,6 +277,7 @@ impl SeededStoreInstall {
 
             dir_clone_cache: None,
 
+            rebuild: None,
             link_concurrency_probe: None,
         }
         .run::<SilentReporter>()

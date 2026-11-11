@@ -53,9 +53,17 @@ impl CreateVirtualStore<'_> {
             linker: crate::ModuleLinkerContext { kind: NodeLinker::Isolated, ..self.ctx.linker },
             ..self.ctx.clone()
         };
+        let rebuild = self.rebuild;
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
         let (mut fetched, prefetch) = installer.run_retaining::<Report>(snapshots, check).await?;
-        prepare_loaded_packages(&mut selected, snapshots, packages, &mut fetched, installer.ctx)?;
+        prepare_loaded_packages(
+            &mut selected,
+            snapshots,
+            packages,
+            &mut fetched,
+            installer.ctx,
+            rebuild,
+        )?;
         installer.ctx = &materialize_context;
         installer.entries.snapshots = (!selected.is_empty()).then_some(&selected);
         installer.fetching.cas_prefetch = prefetch;
@@ -103,6 +111,7 @@ struct CachedBuildInputs<'a> {
     config: &'a pnpm_config::Config,
     allow_build_policy: &'a crate::AllowBuildPolicy,
     engine_name: Option<&'a str>,
+    rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 impl CachedBuildInputs<'_> {
@@ -148,6 +157,12 @@ impl CachedBuildInputs<'_> {
             return None;
         }
         let snapshots = self.snapshots?;
+        if self.rebuild.is_some_and(|rebuild| {
+            rebuild.selects_snapshot(key) && !rebuild.skip_if_has_side_effects_cache
+        }) {
+            retain_dependency_closure(self.selected, snapshots, vec![key.clone()]);
+            return None;
+        }
         if immutable_download(self.fetched.cas_paths_by_pkg_id.as_ref()?, key).is_none() {
             retain_dependency_closure(self.selected, snapshots, vec![key.clone()]);
             return None;
@@ -188,6 +203,7 @@ fn prepare_loaded_packages(
     packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     fetched: &mut CreateVirtualStoreOutput,
     context: &crate::InstallContext<'_>,
+    rebuild: Option<&crate::RebuildOptions>,
 ) -> Result<(), CreateVirtualStoreError> {
     let mut cached_builds = retain_cached_builds(CachedBuildInputs {
         selected,
@@ -197,6 +213,7 @@ fn prepare_loaded_packages(
         config: context.config,
         allow_build_policy: context.allow_build_policy,
         engine_name: context.linker.layout.engine_name(),
+        rebuild,
     });
     retain_native_addon_packages(selected, snapshots, fetched);
     retain_build_misses(selected, snapshots, fetched, &cached_builds);

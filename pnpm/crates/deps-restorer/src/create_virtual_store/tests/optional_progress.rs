@@ -124,6 +124,7 @@ async fn install_unfetchable_optional_dependency(progress_reported: &SharedRepor
 
         dir_clone_cache: None,
 
+        rebuild: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

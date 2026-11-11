@@ -156,6 +156,7 @@ impl<'a> OnDiskInputs<'a> {
             importers: &self.projects.materialization_lockfile.importers,
 
             dir_clone_cache: self.store.dir_clone_cache,
+            rebuild: None,
             // Share the resolve-time prefetcher's in-flight downloads with
             // the cold batch. The `PrefetchingResolver` streams each
             // tarball into `tarball_mem_cache`; the cold

@@ -187,6 +187,7 @@ impl ColdMemCacheBatch {
 
             dir_clone_cache: None,
 
+            rebuild: None,
             link_concurrency_probe: Some(probe),
         }
         .run_with_check::<SilentReporter>(check)
@@ -514,6 +515,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
 
         dir_clone_cache: None,
 
+        rebuild: None,
         link_concurrency_probe: Some(&probe),
     }
     .run::<SilentReporter>()

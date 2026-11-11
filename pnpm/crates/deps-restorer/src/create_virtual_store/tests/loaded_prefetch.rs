@@ -170,6 +170,7 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
         current_entries: LockfileEntries::default(),
         importers: &HashMap::new(),
         dir_clone_cache: None,
+        rebuild: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

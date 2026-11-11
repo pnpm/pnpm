@@ -259,6 +259,9 @@ pub struct CreateVirtualStore<'a> {
     /// when [`crate::DirCloneCache::eligible`] holds. Threaded into
     /// every slot link that passes `dir_clone_cacheable`.
     pub dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
+    /// Forced rebuild selection, so loaded-linker cache planning can
+    /// materialize selected packages before deciding to reuse side effects.
+    pub rebuild: Option<&'a crate::RebuildOptions>,
     #[cfg(test)]
     pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,

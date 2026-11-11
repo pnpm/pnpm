@@ -158,6 +158,7 @@ async fn shared_store_context_materializes_a_warm_package() {
 
         dir_clone_cache: None,
 
+        rebuild: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

@@ -140,6 +140,7 @@ impl<'a> FrozenInputs<'a> {
             importers: install.importers(),
 
             dir_clone_cache,
+            rebuild: install.prior.rebuild,
 
             #[cfg(test)]
             link_concurrency_probe: None,
