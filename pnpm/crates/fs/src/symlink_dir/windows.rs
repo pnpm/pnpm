@@ -108,6 +108,33 @@ pub(super) fn is_symlink_on_network_share(link: &Path) -> bool {
 
 pub(super) const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
 
+/// [`fs::read_link`] for a junction only: it fails for a true symlink or
+/// any other entry, with the same open and reparse read.
+///
+/// `junction::get_target` strips only the `\??\` prefix, so a junction to
+/// `\\server\share\…`, held as `\??\UNC\server\share\…`, comes back as
+/// `UNC\server\share\…`. That is turned back into the UNC path, which is
+/// what [`fs::read_link`] returns for it.
+pub(super) fn read_junction_target(link: &Path) -> io::Result<PathBuf> {
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::{OsStrExt as _, OsStringExt as _},
+    };
+
+    let target = junction::get_target(link)?;
+    let wide: Vec<u16> = target
+        .as_os_str()
+        .encode_wide()
+        .collect();
+    let unc_prefix: Vec<u16> = r"UNC\".encode_utf16().collect();
+    let Some(rest) = wide.strip_prefix(unc_prefix.as_slice()) else {
+        return Ok(target);
+    };
+    let mut unc: Vec<u16> = r"\\".encode_utf16().collect();
+    unc.extend_from_slice(rest);
+    Ok(PathBuf::from(OsString::from_wide(&unc)))
+}
+
 /// The reparse tag of `path` itself, or `None` when it isn't a reparse
 /// point or can't be read. The standard library reports a junction and a
 /// symlink alike as a symlink, so the tag is the only way to tell them apart.
