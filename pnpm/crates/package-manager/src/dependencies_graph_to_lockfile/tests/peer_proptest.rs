@@ -7,8 +7,10 @@
 mod counterexamples;
 mod fast_update;
 mod fixture;
+mod graph;
 mod hashed_cycles;
 mod model;
+mod moving_providers;
 
 use std::{collections::BTreeMap, sync::Arc};
 

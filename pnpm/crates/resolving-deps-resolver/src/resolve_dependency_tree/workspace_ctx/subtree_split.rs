@@ -220,6 +220,8 @@ struct LevelCandidate {
     depth: i32,
     parent_path: AncestorPkgIds,
     scope: Arc<ParentPkgAliases>,
+    /// The current level's aliases become visible only to the next level.
+    children_scope: Arc<ParentPkgAliases>,
 }
 
 /// Whether any descendant in `pkg_id`'s recorded subtree that this walk's
@@ -283,6 +285,12 @@ fn push_recorded_children(
             .chain(std::iter::once(Arc::clone(parent_id)))
             .collect(),
     );
+    let children_scope = parent_scope.extend(
+        recorded.edges
+            .iter()
+            .map(|edge| edge.alias.clone())
+            .collect(),
+    );
     for edge in recorded.edges.iter() {
         if next_path
             .iter()
@@ -295,6 +303,7 @@ fn push_recorded_children(
             depth: parent_depth + 1,
             parent_path: Arc::clone(&next_path),
             scope: Arc::clone(parent_scope),
+            children_scope: Arc::clone(&children_scope),
         });
     }
 }
@@ -356,17 +365,11 @@ fn check_split_winner(
         return true;
     }
     if let Some(child_recorded) = recorded {
-        let child_scope = cand.scope.extend(
-            child_recorded.edges
-                .iter()
-                .map(|edge| edge.alias.clone())
-                .collect(),
-        );
         push_recorded_children(
             &cand.pkg_id,
             cand.depth,
             &cand.parent_path,
-            &child_scope,
+            &cand.children_scope,
             &child_recorded,
             next_level,
         );

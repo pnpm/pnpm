@@ -1,6 +1,4 @@
-mod graph;
-
-use super::{Reuse, config, fixture::Fixture, in_order, model, resolve_with};
+use super::{Reuse, config, fixture::Fixture, graph, in_order, model, resolve_with};
 
 use pnpm_lockfile::{Lockfile, LockfileFormat};
 use proptest::prelude::*;

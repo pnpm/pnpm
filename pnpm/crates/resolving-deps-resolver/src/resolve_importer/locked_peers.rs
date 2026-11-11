@@ -1,4 +1,5 @@
 use super::{Arc, DependencyGroup, HashMap, HashSet, TreeCtx};
+use crate::resolve_dependency_tree::{DependencySpec, direct_dep_specifier_unchanged};
 use hashed_suffix::hashed_peer_keys;
 use pnpm_lockfile::{PeerBindings, PkgName};
 
@@ -10,22 +11,44 @@ pub(super) struct LockedPeers {
 }
 
 impl LockedPeers {
-    pub(super) fn of(ctx: &TreeCtx, importer_id: &str) -> Self {
+    pub(super) fn of(ctx: &TreeCtx, importer_id: &str, wanted: &[DependencySpec]) -> Self {
         let workspace = ctx.workspace();
         let lockfile = workspace.wanted_lockfile().map(AsRef::as_ref);
         let versions = match lockfile {
             Some(lockfile) if !lockfile.importers.contains_key(importer_id) => {
                 workspace.unlisted_importer_locked_peers(|| all_locked_peer_versions(lockfile))
             }
-            _ => Arc::new(importer_locked_peer_versions(lockfile, importer_id)),
+            Some(lockfile) => {
+                let retained = retained_dependency_names(lockfile, importer_id, wanted);
+                Arc::new(importer_locked_peer_versions(Some(lockfile), importer_id, |name| {
+                    retained.contains(name)
+                }))
+            }
+            None => Arc::default(),
         };
         Self { versions }
     }
 }
 
+fn retained_dependency_names(
+    lockfile: &pnpm_lockfile::Lockfile,
+    importer_id: &str,
+    wanted: &[DependencySpec],
+) -> HashSet<PkgName> {
+    let importer = lockfile.importers.get(importer_id);
+    wanted
+        .iter()
+        .filter(|dep| {
+            direct_dep_specifier_unchanged(lockfile, importer, &dep.alias, &dep.bare_specifier)
+        })
+        .filter_map(|dep| dep.alias.parse().ok())
+        .collect()
+}
+
 pub(super) fn importer_locked_peer_versions(
     wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
     importer_id: &str,
+    is_retained: impl Fn(&PkgName) -> bool,
 ) -> HashMap<String, HashSet<String>> {
     let Some(lockfile) = wanted_lockfile else {
         return HashMap::default();
@@ -40,6 +63,9 @@ pub(super) fn importer_locked_peer_versions(
         DependencyGroup::Optional,
         DependencyGroup::Dev,
     ]) {
+        if !is_retained(alias) {
+            continue;
+        }
         let Some(key) = dependency.version.resolved_key(alias) else {
             continue;
         };

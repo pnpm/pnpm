@@ -25,6 +25,7 @@
 
 mod fast_update;
 mod harness;
+mod moving_providers;
 
 use harness::{Harness, Move, Project, project};
 

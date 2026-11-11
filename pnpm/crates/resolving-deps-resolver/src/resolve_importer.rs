@@ -214,7 +214,7 @@ impl SeededImporter {
     {
         let seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
         let (ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
-        let locked = LockedPeers::of(&ctx, importer_id);
+        let locked = LockedPeers::of(&ctx, importer_id, &seeds.initial_wanted);
         record_changed_direct_deps(&ctx, importer_id, &seeds.initial_wanted);
         Ok(Self { importer_id: importer_id.to_string(), ctx, seeds, locked, settings })
     }
