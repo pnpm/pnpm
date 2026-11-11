@@ -108,7 +108,7 @@ async fn update_config_default_lockfile_dir_rederives_state_after_modules_dir_ch
         .expect("write workspace settings");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { config.modulesDir = 'custom_modules'; config.lockfileDir = config.workspaceDir + '/.'; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { config.modulesDir = 'custom_modules'; config.lockfileDir = config.workspaceDir + '/.'; throw new Error(JSON.stringify({ modulesDir: config.modulesDir, lockfileDir: config.lockfileDir, keys: Object.keys(config) })) } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(&project).expect("load configuration");
