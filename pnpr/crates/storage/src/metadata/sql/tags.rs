@@ -5,7 +5,7 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::{ORDINARY, PackumentRows, TIME},
+    packument::{PackumentRows, TIME},
     to_column,
 };
 use crate::{
@@ -141,21 +141,18 @@ fn tag_target_query<'query>(
     match change.target.as_deref() {
         Some(target) => query!(
             "SELECT version FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4
-               AND version = ?5 LIMIT 1",
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4 LIMIT 1",
             catalog,
             ecosystem,
             name,
-            ORDINARY,
             target,
         ),
         None => query!(
             "SELECT version FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4 LIMIT 1",
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 LIMIT 1",
             catalog,
             ecosystem,
             name,
-            ORDINARY,
         ),
     }
 }

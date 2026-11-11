@@ -18,8 +18,6 @@ pub(super) const README_FILENAME: &str = "readmeFilename";
 /// The key of the profile in an `_archiveManifest` record.
 const PROFILE: &str = "profile";
 
-/// The revision key of a version outside the registry revision protocol.
-pub(super) const ORDINARY: &str = "ordinary";
 /// The interpretation profile of a manifest as the publish request stated it,
 /// for a version that records no other.
 pub(super) const SUBMITTED_PROFILE: &str = "submitted";

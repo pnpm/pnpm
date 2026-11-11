@@ -12,9 +12,7 @@ use super::{
     adapter::{Connection, Query, Row},
     cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
     commit::{PackageRow, package_row_from, package_row_query, parse_json, parse_optional_json},
-    packument::{
-        DEPRECATED, Interpretation, ORDINARY, README, README_FILENAME, TAGS, TIME, VERSIONS,
-    },
+    packument::{DEPRECATED, Interpretation, README, README_FILENAME, TAGS, TIME, VERSIONS},
     tags::tags_from_rows,
     to_column, to_generation,
 };
@@ -115,17 +113,16 @@ fn version_entries_query<'query>(key: &'query PackageKey, unless: &'query i64) -
     query!(
         "SELECT v.version, v.published_at, a.generation, m.profile
          FROM versions v
-         JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
+         JOIN accepted_manifests m USING (catalog, ecosystem, name, version)
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4
+         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?5)
+             WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
          ORDER BY v.version",
         catalog,
         ecosystem,
         name,
-        ORDINARY,
         unless,
     )
 }
@@ -158,7 +155,6 @@ fn version_entries_from(key: &PackageKey, rows: Vec<Row>) -> Result<Vec<VersionE
             let fragment = FragmentKey {
                 package: key.clone(),
                 version: version.clone(),
-                revision_key: ORDINARY.to_string(),
                 profile: row.get(3)?,
                 representation: Representation::Full,
                 renderer: RENDERER_VERSION,
@@ -186,15 +182,13 @@ pub(super) fn read_version(
     let (catalog, ecosystem, name) = key.params();
     let row = snapshot.query_optional(
         "SELECT profile FROM accepted_manifests
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-           AND revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![catalog, ecosystem, name, version],
     )?;
     let Some(mut row) = row else { return Ok(None) };
     let fragment_key = FragmentKey {
         package: key.clone(),
         version: version.to_string(),
-        revision_key: ORDINARY.to_string(),
         profile: row.get(0)?,
         representation: Representation::Accepted,
         renderer: RENDERER_VERSION,
@@ -247,27 +241,25 @@ fn fragment_query(key: &FragmentKey) -> Query<'_> {
         return query!(
             "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM accepted_manifests
              WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-               AND revision_key = ?5 AND profile = ?6",
+               AND profile = ?5",
             catalog,
             ecosystem,
             name,
             &key.version,
-            &key.revision_key,
             &key.profile,
         );
     }
     query!(
         "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
          FROM accepted_manifests m
-         LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
+         LEFT JOIN readmes r USING (catalog, ecosystem, name, version)
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
          WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
-           AND m.revision_key = ?5 AND m.profile = ?6",
+           AND m.profile = ?5",
         catalog,
         ecosystem,
         name,
         &key.version,
-        &key.revision_key,
         &key.profile,
     )
 }

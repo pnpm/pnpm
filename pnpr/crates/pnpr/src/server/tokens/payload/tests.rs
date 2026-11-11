@@ -2,11 +2,11 @@ use pnpr_error::RegistryError;
 use serde_json::{Value, json};
 
 use super::{
-    MAX_TOKEN_TIMESTAMP_SECONDS, SECONDS_PER_DAY, TokenAccess, TokenExpiry,
+    MAX_TOKEN_TIMESTAMP_MILLIS, MILLIS_PER_DAY, MILLIS_PER_SECOND, TokenAccess, TokenExpiry,
     parse_and_validate_token_request,
 };
 
-const FIXED_NOW: u64 = 1_700_000_000;
+const FIXED_NOW: u64 = 1_700_000_000_000;
 
 fn parse_json(value: &Value) -> Result<super::ValidatedTokenRequest, RegistryError> {
     let bytes = serde_json::to_vec(value).expect("serialize test payload");
@@ -135,24 +135,24 @@ fn rejects_granular_package_scope_org_and_unknown_fields() {
 #[test]
 fn interprets_expires_as_days_or_rfc3339_and_expires_in_as_seconds() {
     let seven_days = parse_json(&json!({ "expires": 7 })).unwrap();
-    assert_eq!(seven_days.expiry, TokenExpiry::AfterSeconds(7 * SECONDS_PER_DAY));
-    assert_eq!(
-        seven_days.expiry.resolve(FIXED_NOW).unwrap(),
-        Some(FIXED_NOW + 7 * SECONDS_PER_DAY),
-    );
+    assert_eq!(seven_days.expiry, TokenExpiry::AfterMillis(7 * MILLIS_PER_DAY));
+    assert_eq!(seven_days.expiry.resolve(FIXED_NOW).unwrap(), Some(FIXED_NOW + 7 * MILLIS_PER_DAY));
 
     let string_days = parse_json(&json!({ "expires": "30" })).unwrap();
-    assert_eq!(string_days.expiry, TokenExpiry::AfterSeconds(30 * SECONDS_PER_DAY));
+    assert_eq!(string_days.expiry, TokenExpiry::AfterMillis(30 * MILLIS_PER_DAY));
 
     let rfc3339 = parse_json(&json!({ "expires": "2030-01-01T00:00:00Z" })).unwrap();
-    assert_eq!(rfc3339.expiry, TokenExpiry::AtTimestamp(1_893_456_000));
+    assert_eq!(rfc3339.expiry, TokenExpiry::AtTimestamp(1_893_456_000_000));
 
-    let max_rfc3339 = parse_json(&json!({ "expires": "9999-12-31T23:59:59Z" })).unwrap();
-    assert_eq!(max_rfc3339.expiry, TokenExpiry::AtTimestamp(MAX_TOKEN_TIMESTAMP_SECONDS));
+    let max_rfc3339 = parse_json(&json!({ "expires": "9999-12-31T23:59:59.999Z" })).unwrap();
+    assert_eq!(max_rfc3339.expiry, TokenExpiry::AtTimestamp(MAX_TOKEN_TIMESTAMP_MILLIS));
 
     let seconds = parse_json(&json!({ "expires_in": 120 })).unwrap();
-    assert_eq!(seconds.expiry, TokenExpiry::AfterSeconds(120));
-    assert_eq!(seconds.expiry.resolve(FIXED_NOW).unwrap(), Some(FIXED_NOW + 120));
+    assert_eq!(seconds.expiry, TokenExpiry::AfterMillis(120 * MILLIS_PER_SECOND));
+    assert_eq!(
+        seconds.expiry.resolve(FIXED_NOW).unwrap(),
+        Some(FIXED_NOW + 120 * MILLIS_PER_SECOND),
+    );
 }
 
 #[test]

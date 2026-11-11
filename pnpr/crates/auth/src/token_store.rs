@@ -5,6 +5,7 @@ pub(super) use pnpm_crypto_hash::create_hex_hash_bytes as sha256_hex;
 use super::{
     AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
     Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
+    validation::token_timestamp_to_sql,
 };
 use sqlite::{delete_token, init_tokens_schema, insert_token, load_all_tokens};
 use std::fmt::Write as _;
@@ -82,6 +83,7 @@ pub struct NewToken {
     pub readonly: bool,
     pub cidr_whitelist: Vec<String>,
     pub name: Option<String>,
+    /// Expiration timestamp in milliseconds since the Unix epoch.
     pub expires_at: Option<u64>,
     pub scopes: Option<Vec<String>>,
     pub kind: Option<String>,
@@ -143,11 +145,14 @@ pub struct TokenRecord {
     /// Current owner name, resolved by an account join rather than stored with the token.
     pub(crate) owner_name: Option<String>,
     pub user_id: String,
+    /// Creation timestamp in milliseconds since the Unix epoch.
     pub created_at: u64,
+    /// Last-used timestamp in milliseconds since the Unix epoch.
     pub last_used_at: u64,
     pub readonly: bool,
     pub cidr_whitelist: Vec<String>,
     pub name: Option<String>,
+    /// Expiration timestamp in milliseconds since the Unix epoch.
     pub expires_at: Option<u64>,
     pub scopes: Option<Vec<String>>,
     pub kind: Option<String>,
@@ -301,7 +306,7 @@ impl TokenBackend for TokenStore {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, user_id);
         let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds();
+        let now = unix_millis();
         let record = TokenRecord {
             owner_name: None,
             user_id: user_id.to_string(),
@@ -332,7 +337,7 @@ impl TokenBackend for TokenStore {
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        let now = unix_seconds();
+        let now = unix_millis();
         let Some(record) = inner.tokens.get(&token_hash) else {
             return Ok(None);
         };
@@ -355,11 +360,12 @@ impl TokenBackend for TokenStore {
         };
         if should_persist && let Some(path) = self.persist.clone() {
             let key = key.to_string();
+            let sql_now = token_timestamp_to_sql(now);
             tokio::task::spawn_blocking(move || -> Result<()> {
                 let conn = Connection::open(&path)?;
                 conn.execute(
                     "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
-                    rusqlite::params![now as i64, key],
+                    rusqlite::params![sql_now, key],
                 )?;
                 Ok(())
             })
@@ -462,6 +468,10 @@ pub(super) fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
-pub(super) fn unix_seconds() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_secs())
+/// Current application time in milliseconds since the Unix epoch.
+#[must_use]
+pub fn unix_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
 }

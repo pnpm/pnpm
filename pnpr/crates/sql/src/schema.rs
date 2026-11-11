@@ -3,8 +3,7 @@
 //! A package is keyed by `(catalog, ecosystem, name)`: the organization
 //! namespace it is hosted in, its ecosystem, and its canonical name. Every key
 //! column is `NOT NULL`, so no nullable column can weaken a uniqueness
-//! constraint. `revision_key` is `ordinary` for a version outside the registry
-//! revision protocol.
+//! constraint.
 //!
 //! [`STEPS`] lists the numbered migrations starting with step `1`, the 1.0
 //! schema. [`prepare`] acquires the database write lock, inspects [`MARKER`]
@@ -30,7 +29,7 @@ pub(crate) fn retry_delay(attempt: u32) -> Duration {
 }
 
 /// The latest schema version this pnpr creates and reads (`STEPS.len()`).
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 1;
 
 /// The table recording each applied migration step (`1..=SCHEMA_VERSION`).
 pub const MARKER: &str = "schema_migrations";
@@ -42,7 +41,7 @@ pub const LEGACY_MARKER: &str = "schema_version";
 pub const LEGACY_AUTH_MARKER: &str = "auth_schema_migrations";
 
 /// The statement that creates the [`MARKER`] table on `SQLite` and `libSQL`.
-pub const MARKER_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL DEFAULT 0) STRICT";
+pub const MARKER_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL) STRICT";
 
 /// The tables and indexes created by step 1.
 pub const TABLES: &str = include_str!("schema/tables.sql");
@@ -56,7 +55,7 @@ pub const TABLES: &str = include_str!("schema/tables.sql");
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
-pub const STEPS: &[Step] = &[step_1, step_2, step_3];
+pub const STEPS: &[Step] = &[step_1];
 
 const _: () = assert!(
     SCHEMA_VERSION > 0 && STEPS.len() == SCHEMA_VERSION.cast_unsigned() as usize,
@@ -72,41 +71,15 @@ pub fn step_1(connection: &dyn Connection) -> Result<()> {
     Ok(())
 }
 
-fn step_2(connection: &dyn Connection) -> Result<()> {
-    connection.execute_ddl("CREATE INDEX IF NOT EXISTS registry_records_by_generation ON registry_records (kind, generation)")
-}
-
-fn step_3(connection: &dyn Connection) -> Result<()> {
-    let mut rows = connection.query("SELECT * FROM schema_migrations", params![])?;
-    if rows
-        .first_mut()
-        .is_some_and(|row| row.len() == 1)
-    {
-        let column_type = if connection.schema_marker().is_some() { "BIGINT" } else { "INTEGER" };
-        connection.execute_ddl(&format!(
-            "ALTER TABLE schema_migrations ADD COLUMN applied_at {column_type} NOT NULL DEFAULT 0",
-        ))?;
-    }
-    Ok(())
-}
-
 fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
-    connection.execute("INSERT INTO schema_migrations (version) VALUES (?1)", params![version])?;
-    let row = connection.query_one(
-        "SELECT * FROM schema_migrations WHERE version = ?1",
-        params![version],
-    )?;
-    if row.len() == 1 {
-        return Ok(());
-    }
     let applied_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
+        .as_millis();
     let applied_at = i64::try_from(applied_at).unwrap_or(i64::MAX);
     connection.execute(
-        "UPDATE schema_migrations SET applied_at = ?1 WHERE version = ?2",
-        params![applied_at, version],
+        "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
+        params![version, applied_at],
     )
 }
 

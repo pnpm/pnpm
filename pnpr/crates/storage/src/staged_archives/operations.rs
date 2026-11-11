@@ -2,7 +2,7 @@
 
 use super::{
     STAGE_ATTEMPTS, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
-    incarnation_for_upload, is_claimable, object, unix_now,
+    incarnation_for_upload, is_claimable, unix_now,
 };
 use crate::{
     RegistryError, Result, Storage,
@@ -15,7 +15,7 @@ impl Storage {
     /// uploads only what is missing.
     pub async fn staged_archive_size(&self, key: &StagedArchiveKey<'_>) -> Result<Option<u64>> {
         let now = unix_now();
-        let Some(record) = self.database.staged_record(key.id()?).await? else {
+        let Some(record) = self.database.staged_record(key.id()).await? else {
             return Ok(None);
         };
         let remaining = STAGED_ARCHIVE_MAX_AGE.saturating_sub(super::age(&record, now));
@@ -38,7 +38,7 @@ impl Storage {
         size: u64,
     ) -> Result<bool> {
         let now = unix_now();
-        let (_, written) = self.database.change_staged_record(key.id()?, move |stored| {
+        let (_, written) = self.database.change_staged_record(key.id(), move |stored| {
             if stored.is_some_and(|stored| is_claimable(stored, now)) {
                 return None;
             }
@@ -53,7 +53,7 @@ impl Storage {
     /// it is still incomplete: one a concurrent upload of the same bytes
     /// completed meanwhile stands.
     pub async fn release_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
-        self.database.change_staged_record(key.id()?, |stored| {
+        self.database.change_staged_record(key.id(), |stored| {
             let stored = stored.filter(|stored| stored.state == StagedState::Incomplete)?;
             Some(StagedRecord { staged_at: 0, ..*stored })
         })
@@ -61,7 +61,7 @@ impl Storage {
         Ok(())
     }
 
-    /// Stage `bytes`, which the caller has verified against `key`'s digest,
+    /// Stage `bytes`, which the caller has verified against `key`'s identity,
     /// for `key`'s principal, and renew the archive when it is staged
     /// already. `Ok(false)` when its bytes were stored already.
     pub async fn stage_archive(&self, key: &StagedArchiveKey<'_>, bytes: Vec<u8>) -> Result<bool> {
@@ -81,14 +81,14 @@ impl Storage {
         let size = bytes.len() as u64;
         for _ in 0..STAGE_ATTEMPTS {
             let incarnation = self.allocate_staged_archive(key, size, now).await?;
-            let name = object(key.digest, incarnation);
+            let name = key.blob_id.key(incarnation);
             let created = self.root.create_record(&key.namespace(), &name, &bytes).await?;
             if self.complete_staged_archive(key, (incarnation, size), now).await? {
                 return Ok(created);
             }
         }
         Err(RegistryError::DocumentWriteConflict {
-            package: format!("staged archive {}", key.digest),
+            package: format!("staged archive {}", key.blob_id),
         })
     }
 
@@ -100,7 +100,7 @@ impl Storage {
         size: u64,
         now: u64,
     ) -> Result<u64> {
-        let (stored, written) = self.database.change_staged_record(key.id()?, move |stored| {
+        let (stored, written) = self.database.change_staged_record(key.id(), move |stored| {
             if stored.is_some_and(|stored| stored.state != StagedState::Gone) {
                 return None;
             }
@@ -124,7 +124,7 @@ impl Storage {
         let current = move |stored: &StagedRecord| {
             stored.incarnation == incarnation && stored.state != StagedState::Gone
         };
-        let (stored, written) = self.database.change_staged_record(key.id()?, move |stored| {
+        let (stored, written) = self.database.change_staged_record(key.id(), move |stored| {
             let stored = stored.filter(|stored| current(stored))?;
             let newer = stored.state == StagedState::Complete && stored.staged_at >= now;
             (!newer).then_some(StagedRecord {
@@ -143,7 +143,7 @@ impl Storage {
         &self,
         key: &StagedArchiveKey<'_>,
     ) -> Result<Option<u64>> {
-        let record = self.database.staged_record(key.id()?).await?;
+        let record = self.database.staged_record(key.id()).await?;
         Ok(record
             .filter(|record| is_claimable(record, unix_now()))
             .map(|record| record.size))
@@ -154,7 +154,7 @@ impl Storage {
     /// its principal and the sweep collects it. Only the record that was read
     /// is retired, so an upload renewing the archive meanwhile keeps it.
     pub async fn retire_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
-        let Some(record) = self.database.staged_record(key.id()?).await? else { return Ok(()) };
+        let Some(record) = self.database.staged_record(key.id()).await? else { return Ok(()) };
         self.retire_record(key, record).await
     }
 
@@ -165,7 +165,7 @@ impl Storage {
         key: &StagedArchiveKey<'_>,
         record: StagedRecord,
     ) -> Result<()> {
-        self.database.change_staged_record(key.id()?, move |stored| {
+        self.database.change_staged_record(key.id(), move |stored| {
             (stored == Some(&record) && record.state != StagedState::Gone).then_some(StagedRecord {
                 staged_at: 0,
                 state: StagedState::Incomplete,
@@ -182,13 +182,13 @@ impl Storage {
     /// removing them leaves, is retired, so the publisher's next upload
     /// stores the bytes again instead of finding them staged.
     pub async fn read_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<Option<Vec<u8>>> {
-        let Some(record) = self.database.staged_record(key.id()?).await? else {
+        let Some(record) = self.database.staged_record(key.id()).await? else {
             return Ok(None);
         };
         if !is_claimable(&record, unix_now()) {
             return Ok(None);
         }
-        let name = object(key.digest, record.incarnation);
+        let name = key.blob_id.key(record.incarnation);
         let archive = self.root.read_record(&key.namespace(), &name).await?;
         if archive.is_none() {
             self.retire_record(key, record).await?;

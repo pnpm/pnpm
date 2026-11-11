@@ -24,7 +24,7 @@ use axum::{
 use futures_util::StreamExt as _;
 use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
 use pnpr_error::RegistryError;
-use pnpr_storage::{StagedArchiveKey, Storage};
+use pnpr_storage::{BlobId, StagedArchiveKey, Storage};
 use sha2::{Digest as _, Sha512};
 use std::{
     collections::HashMap,
@@ -151,8 +151,8 @@ pub(super) async fn serve_head_blob(
     }
     let result = async {
         let principal = principal(&caller.0)?;
-        let digest = query_digest(&uri)?;
-        state.inner.storage.staged_archive_size(&StagedArchiveKey { principal, digest: &digest })
+        let blob_id = query_blob_id(&uri)?;
+        state.inner.storage.staged_archive_size(&StagedArchiveKey { principal, blob_id: &blob_id })
             .await
     }
     .await;
@@ -192,10 +192,10 @@ async fn stage_archive(
 ) -> Result<bool, RegistryError> {
     let principal = principal(identity)?;
     let integrity = query_integrity(uri)?;
-    let digest = archive_digest(&integrity)?;
+    let blob_id = archive_blob_id(&integrity)?;
     let size = declared_size(headers)?;
     let storage = &state.inner.storage;
-    let key = StagedArchiveKey { principal, digest: &digest };
+    let key = StagedArchiveKey { principal, blob_id: &blob_id };
     // The principal's own permit first, so its uploads queue behind each
     // other rather than taking every permit of the server.
     let _principal_upload = state.inner.locks
@@ -351,9 +351,9 @@ pub(super) async fn claim_staged_archive(
         ))
     };
     let principal = claimant.ok_or_else(not_staged)?;
-    let digest = archive_digest(integrity)?;
+    let blob_id = archive_blob_id(integrity)?;
     storage
-        .read_staged_archive(&StagedArchiveKey { principal, digest: &digest })
+        .read_staged_archive(&StagedArchiveKey { principal, blob_id: &blob_id })
         .await?
         .ok_or_else(not_staged)
 }
@@ -363,7 +363,7 @@ pub(super) async fn claim_staged_archive(
 #[derive(Default)]
 pub(super) struct StagedReferences {
     principal: Option<String>,
-    digests: Vec<String>,
+    blob_ids: Vec<BlobId>,
 }
 
 impl StagedReferences {
@@ -405,28 +405,28 @@ impl StagedReferences {
         }
         // Each distinct archive is looked up once, and counted once per
         // reference.
-        let mut references: HashMap<String, u64> = HashMap::new();
+        let mut references: HashMap<BlobId, u64> = HashMap::new();
         for integrity in integrities {
             *references
-                .entry(archive_digest(integrity)?)
+                .entry(archive_blob_id(integrity)?)
                 .or_default() += 1;
         }
         let mut total = 0_u64;
-        for (digest, count) in &references {
-            let key = StagedArchiveKey { principal, digest };
+        for (blob_id, count) in &references {
+            let key = StagedArchiveKey { principal, blob_id };
             // One that is missing is reported, with its attachment, when it
             // is claimed.
             let size = storage.claimable_staged_archive_size(&key).await?.unwrap_or(0);
             total = total.saturating_add(size.saturating_mul(*count));
         }
-        let digests = references.into_keys().collect();
+        let blob_ids = references.into_keys().collect();
         if total > limit {
             return Err(bad_request(format!(
                 "the publish references {total} bytes of staged archives, more than the {limit} \
                  one publish may take",
             )));
         }
-        Ok(Self { principal: Some(principal.to_string()), digests })
+        Ok(Self { principal: Some(principal.to_string()), blob_ids })
     }
 
     /// Retire the archives the committed request claimed, so they stop
@@ -434,8 +434,8 @@ impl StagedReferences {
     /// expires anyway.
     pub(super) async fn release(self, storage: &Storage) {
         let Some(principal) = self.principal.as_deref() else { return };
-        for digest in &self.digests {
-            let key = StagedArchiveKey { principal, digest };
+        for blob_id in &self.blob_ids {
+            let key = StagedArchiveKey { principal, blob_id };
             if let Err(error) = storage.retire_staged_archive(&key).await {
                 tracing::warn!(%error, "a claimed staged archive was not retired");
             }
@@ -453,9 +453,11 @@ pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {
         })
 }
 
-/// The hex SHA-512 digest a staged archive with `integrity` is stored under.
-pub(super) fn archive_digest(integrity: &str) -> Result<String, RegistryError> {
-    blob_id(integrity).map_err(|err| bad_request(err.to_string()))
+/// The hosted-store identity a staged archive with `integrity` is stored under.
+pub(super) fn archive_blob_id(integrity: &str) -> Result<BlobId, RegistryError> {
+    let digest = blob_id(integrity).map_err(|err| bad_request(err.to_string()))?;
+    BlobId::parse(&format!("sha512-{digest}"))
+        .ok_or_else(|| bad_request(format!("invalid staged archive integrity {integrity:?}")))
 }
 
 /// Whether a blob request names a shared artifact's owner.
@@ -473,8 +475,8 @@ fn query_integrity(uri: &Uri) -> Result<String, RegistryError> {
     }
 }
 
-fn query_digest(uri: &Uri) -> Result<String, RegistryError> {
-    archive_digest(&query_integrity(uri)?)
+fn query_blob_id(uri: &Uri) -> Result<BlobId, RegistryError> {
+    archive_blob_id(&query_integrity(uri)?)
 }
 
 fn query_pairs(uri: &Uri) -> url::form_urlencoded::Parse<'_> {

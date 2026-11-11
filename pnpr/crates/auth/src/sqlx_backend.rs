@@ -11,7 +11,7 @@ use super::{
     DEFAULT_BCRYPT_COST, NewToken, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome,
     UserBackend, UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash,
     sha256_hex,
-    token_store::{mint_token, unix_seconds},
+    token_store::{mint_token, unix_millis},
     verify_returning_user, with_auth_timeout,
 };
 mod request_pool;
@@ -36,7 +36,7 @@ pub(crate) struct SqlAuth<Db> {
     timeout: Duration,
 }
 
-const CAP_RECONCILE_INTERVAL_SECS: u64 = 60;
+const CAP_RECONCILE_INTERVAL_MILLIS: u64 = 60_000;
 
 impl<Db> SqlAuth<Db> {
     fn new(db: Db, max_users: MaxUsers, timeout: Duration) -> Self {
@@ -74,12 +74,12 @@ impl<Db> SqlAuth<Db> {
     where
         Db: AuthSqlBackend,
     {
-        let now = unix_seconds();
+        let now = unix_millis();
         let next = self.next_cap_reconcile_at.load(Ordering::Relaxed);
         if now < next {
             return Ok(false);
         }
-        let updated_next = now.saturating_add(CAP_RECONCILE_INTERVAL_SECS);
+        let updated_next = now.saturating_add(CAP_RECONCILE_INTERVAL_MILLIS);
         if self.next_cap_reconcile_at
             .compare_exchange(next, updated_next, Ordering::Relaxed, Ordering::Relaxed)
             .is_err()
@@ -348,7 +348,7 @@ where
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, user_id);
         let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds();
+        let now = unix_millis();
         let record = TokenRecord {
             owner_name: None,
             user_id: user_id.to_string(),
@@ -377,7 +377,7 @@ where
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
-        let now = unix_seconds();
+        let now = unix_millis();
         match record {
             Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r.user_id)),
             _ => Ok(None),
@@ -387,7 +387,7 @@ where
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
-        let now = unix_seconds();
+        let now = unix_millis();
         match record {
             Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r)),
             _ => Ok(None),

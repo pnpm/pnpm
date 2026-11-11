@@ -149,7 +149,7 @@ The SQLite and libSQL metadata tables use rowid storage for package state,
 accepted manifests, READMEs, release records, and log entries. Large payloads
 stay out of the interior pages used to look up their keys.
 
-Metadata timestamps use milliseconds since the Unix epoch and the server's
+SQL timestamps use milliseconds since the Unix epoch and the server's
 application clock. Package publication times must use RFC 3339. Responses
 render them in UTC with millisecond precision.
 
@@ -160,9 +160,8 @@ deletions do not retain earlier text for restoration.
 
 pnpr creates its metadata and auth tables in an empty database and records each
 applied migration step in `schema_migrations`, starting with step `1` for the
-1.0 schema. Its `applied_at` column holds Unix seconds, or `0` for steps applied
-before pnpr recorded application times. Running servers probe the primary
-database version at most once per second.
+1.0 schema. Its `applied_at` column holds milliseconds since the Unix epoch.
+Running servers probe the primary database version at most once per second.
 Requests use the last compatible result while a probe runs or the primary is
 unreachable. After a probe detects a version newer than the server supports,
 that server refuses further requests except liveness probes until it restarts.

@@ -54,15 +54,22 @@ pub(super) fn claim_query<'query>(
                          SELECT 1 FROM publication_members AS member
                          WHERE member.catalog = outcome.catalog
                            AND member.publication = outcome.publication
-                           AND EXISTS (
-                               SELECT 1 FROM removed_versions AS removed
-                               WHERE removed.catalog = member.catalog
-                                 AND removed.ecosystem = member.ecosystem
-                                 AND removed.name = member.name
-                                 AND removed.version = member.version
-                                 AND (member.ecosystem != 'oci'
-                                      OR removed.revision_key = member.artifact)
-                                 AND removed.generation > outcome.generation
+                           AND (
+                               (member.ecosystem != 'oci' AND EXISTS (
+                                   SELECT 1 FROM removed_versions AS removed
+                                   WHERE removed.catalog = member.catalog
+                                     AND removed.ecosystem = member.ecosystem
+                                     AND removed.name = member.name
+                                     AND removed.version = member.version
+                                     AND removed.generation > outcome.generation
+                               ))
+                               OR (member.ecosystem = 'oci' AND EXISTS (
+                                   SELECT 1 FROM removed_oci_manifests AS removed
+                                   WHERE removed.catalog = member.catalog
+                                     AND removed.name = member.name
+                                     AND removed.artifact = member.artifact
+                                     AND removed.generation > outcome.generation
+                               ))
                            )
                      )
               FROM publication_outcomes AS outcome

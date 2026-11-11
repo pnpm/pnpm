@@ -221,7 +221,7 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
             }
             for version in 1..=SCHEMA_VERSION {
                 transaction.execute(
-                    &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
+                    &format!("INSERT INTO {MARKER} (version, applied_at) VALUES (?1, 1)"),
                     params![version],
                 )?;
             }
@@ -273,7 +273,10 @@ fn step_3_rust_data_fix(connection: &dyn Connection) -> Result<()> {
 }
 
 fn insert_v1_fixture_rows(connection: &dyn Connection) -> Result<()> {
-    connection.execute(&format!("INSERT INTO {MARKER} (version) VALUES (1)"), params![])?;
+    connection.execute(
+        &format!("INSERT INTO {MARKER} (version, applied_at) VALUES (1, 1)"),
+        params![],
+    )?;
     connection.execute(
         "UPDATE record_generation SET generation = 5 WHERE singleton = 1",
         params![],
@@ -536,7 +539,8 @@ async fn a_matching_version_opens(db: Db) {
 async fn a_future_version_is_refused(db: Db) {
     open(&db).await.unwrap();
     let future = SCHEMA_VERSION + 1;
-    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES ({future})")]).await;
+    execute(&db, &[&format!("INSERT INTO {MARKER} (version, applied_at) VALUES ({future}, 1)")])
+        .await;
     let reason = refused(&db).await;
     assert!(reason.contains(&format!("holds schema version {future},")), "{reason}");
     assert!(!reason.contains("Pre-1.0"), "{reason}");
@@ -613,8 +617,14 @@ async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
 
 async fn an_unreadable_schema_migrations_table_is_refused(db: Db) {
     open(&db).await.unwrap();
-    execute(&db, &[&format!("INSERT INTO {MARKER} (version) VALUES ({})", SCHEMA_VERSION + 2)])
-        .await;
+    execute(
+        &db,
+        &[&format!(
+            "INSERT INTO {MARKER} (version, applied_at) VALUES ({}, 1)",
+            SCHEMA_VERSION + 2,
+        )],
+    )
+    .await;
     let reason = refused(&db).await;
     assert!(reason.contains(&format!("holds an unreadable {MARKER} table,")), "{reason}");
     assert!(!reason.contains("Pre-1.0"), "{reason}");
@@ -671,6 +681,7 @@ fn every_schema_table_is_known() {
     assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
     assert!(tables.contains(&"catalogs".to_string()));
     assert!(tables.contains(&"notes".to_string()));
+    assert!(tables.contains(&"removed_oci_manifests".to_string()));
     assert!(!tables.contains(&"note_history".to_string()));
     assert!(tables.contains(&"users".to_string()));
     assert!(tables.contains(&"tokens".to_string()));
@@ -833,7 +844,10 @@ async fn an_open_database_refuses_a_schema_advanced_by_another_server() {
     let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
     let writer = rusqlite::Connection::open(&path).unwrap();
     writer
-        .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [SCHEMA_VERSION + 1])
+        .execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 1)",
+            [SCHEMA_VERSION + 1],
+        )
         .unwrap();
     metadata.schema_monitor.expire();
     let error = metadata
@@ -865,14 +879,16 @@ async fn an_open_database_refuses_a_schema_advanced_by_another_server() {
 async fn fresh_migration_records_have_application_times() {
     let temp = tempfile::TempDir::new().unwrap();
     let path = temp.path().join("metadata.sqlite");
+    let before = crate::publish::now_millis();
     SqlMetadata::open_sqlite(&path).unwrap();
+    let after = crate::publish::now_millis();
     let connection = rusqlite::Connection::open(&path).unwrap();
-    let count: i64 = connection
-        .query_row("SELECT COUNT(*) FROM schema_migrations WHERE applied_at > 0", [], |row| {
+    let applied_at: i64 = connection
+        .query_row("SELECT applied_at FROM schema_migrations WHERE version = 1", [], |row| {
             row.get(0)
         })
         .unwrap();
-    assert_eq!(count, SCHEMA_VERSION);
+    assert!((before..=after).contains(&applied_at), "{applied_at} not in {before}..={after}");
 }
 
 #[tokio::test]
@@ -892,7 +908,7 @@ async fn a_confirmed_malformed_schema_remains_refused_after_a_runtime_probe() {
     assert!(error.contains("incompatible with this pnpr"), "{error}");
     assert!(matches!(metadata.ensure_schema(), Err(RegistryError::StorageUnavailable { .. })));
     writer
-        .execute("INSERT INTO schema_migrations (version) VALUES (1)", [])
+        .execute("INSERT INTO schema_migrations (version, applied_at) VALUES (1, 1)", [])
         .unwrap();
     assert_eq!(
         metadata

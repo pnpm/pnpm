@@ -35,7 +35,7 @@ pub(super) fn remove_package(
 ) -> Result<Option<Vec<BlobId>>> {
     let (catalog, ecosystem, name) = key.params();
     let mapped = query!(
-        "SELECT DISTINCT integrity FROM artifact_blobs
+        "SELECT DISTINCT blob_id FROM artifact_blobs
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
         catalog,
         ecosystem,
@@ -98,8 +98,8 @@ pub(super) fn record_removed_package(
     record_oci_manifests(connection, key, generation, state, b"")?;
     let (catalog, ecosystem, name) = key.params();
     connection.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
+        "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
+         SELECT catalog, ecosystem, name, version, ?4 FROM versions
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
          ON CONFLICT DO NOTHING",
         params![catalog, ecosystem, name, to_column(generation)],
@@ -156,17 +156,16 @@ pub(super) fn record_oci_manifests(
     if removed.is_empty() {
         return Ok(());
     }
-    let (catalog, ecosystem, name) = key.params();
+    let (catalog, _, name) = key.params();
     let removed = super::blobs::json_array(&removed);
     connection.execute(
-        "INSERT INTO removed_versions
-           (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT ?1, ?2, ?3, '', value, ?5
-         FROM (SELECT value FROM json_each(?4)) AS removed
+        "INSERT INTO removed_oci_manifests (catalog, name, artifact, generation)
+         SELECT ?1, ?2, value, ?4
+         FROM (SELECT value FROM json_each(?3)) AS removed
          WHERE value != ''
-         ON CONFLICT (catalog, ecosystem, name, version, revision_key) DO UPDATE SET
+         ON CONFLICT (catalog, name, artifact) DO UPDATE SET
            generation = excluded.generation",
-        params![catalog, ecosystem, name, removed, to_column(generation)],
+        params![catalog, name, removed, to_column(generation)],
     )
 }
 
@@ -212,8 +211,8 @@ fn read_package(connection: &dyn Connection, key: &PackageKey) -> Result<Option<
     let maintainers: String = row.get(0)?;
     let unpublished_versions = connection
         .query(
-            "SELECT DISTINCT version FROM removed_versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version != '' ORDER BY version",
+            "SELECT version FROM removed_versions
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY version",
             params![catalog, ecosystem, name],
         )?
         .into_iter()
