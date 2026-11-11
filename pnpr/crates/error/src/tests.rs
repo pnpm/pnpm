@@ -390,3 +390,38 @@ fn database_cause_urls_redact_driver_query_credentials() {
     assert!(!message.contains("example-secret"), "{message}");
     assert!(!message.contains("example-user"), "{message}");
 }
+
+#[test]
+fn committed_password_errors_preserve_the_cause_and_account_identity() {
+    let original = RegistryError::UpstreamUnavailable {
+        upstream: "example-registry".to_string(),
+        retry_after: Duration::from_secs(5),
+    };
+    let expected_status = original.status_code();
+    let expected_public = original.public_message();
+    let expected_kind = original.log_kind();
+    let committed = RegistryError::PasswordChangeCommitted {
+        user_id: "example-account".to_string(),
+        source: Box::new(original),
+    };
+    assert_eq!(committed.status_code(), expected_status);
+    assert_eq!(committed.public_message(), expected_public);
+    assert_eq!(committed.log_kind(), expected_kind);
+    assert!(committed.is_transient_upstream_error());
+    assert_eq!(committed.committed_password_user(), Some("example-account"));
+    let shared = RegistryError::Shared(std::sync::Arc::new(committed));
+    assert_eq!(shared.committed_password_user(), Some("example-account"));
+}
+
+#[test]
+fn committed_password_errors_redact_the_original_server_failure() {
+    let error = RegistryError::PasswordChangeCommitted {
+        user_id: "example-account".to_string(),
+        source: Box::new(RegistryError::Internal {
+            reason: "failed at https://example-user:private-secret@example.test".to_string(),
+        }),
+    };
+    assert_eq!(error.public_message(), "Internal Server Error");
+    assert!(!error.log_message().contains("private-secret"));
+    assert!(error.log_message().contains("Password change committed"));
+}

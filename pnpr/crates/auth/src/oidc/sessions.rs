@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Mutex};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    MAX_ENTRIES, OidcState, Result, SESSION_PREFIX, SessionUser, Utc, handoffs::Handoff,
-    random_secret, rejected, unavailable, web_login::WebLogins,
+    MAX_ENTRIES, OidcState, RegistryError, Result, SESSION_PREFIX, SessionUser, Utc,
+    handoffs::Handoff, random_secret, rejected, unavailable, web_login::WebLogins,
 };
 
 /// Browser sign-ins on this process: the sessions pnpr issued, the
@@ -74,6 +74,14 @@ impl OidcState {
         let before = sessions.len();
         sessions.retain(|_, session| session.user.user_id != user_id);
         before - sessions.len()
+    }
+
+    /// Revoke browser sessions when a failed password operation still committed.
+    pub fn revoke_committed_password_sessions(&self, error: &RegistryError) -> usize {
+        error
+            .committed_password_user()
+            .map(|user_id| self.revoke_user_sessions(user_id))
+            .unwrap_or(0)
     }
 
     pub(super) fn issue_session(

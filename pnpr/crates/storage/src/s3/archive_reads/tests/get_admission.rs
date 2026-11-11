@@ -10,10 +10,12 @@ use object_store::{
 use pnpr_package_name::Ecosystem;
 use std::{
     fmt,
+    future::Future,
     sync::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 use tokio::sync::Semaphore;
 
@@ -132,31 +134,22 @@ async fn cold_gets_wait_for_admission_and_warm_gets_use_one_conditional_request(
                 .unwrap()
         }));
     }
-    request_started
-        .acquire_many(5)
-        .await
-        .unwrap()
-        .forget();
-    backend.started
-        .acquire_many(4)
-        .await
-        .unwrap()
-        .forget();
+    complete_before_deadline(request_started.acquire_many(5)).await.unwrap().forget();
+    complete_before_deadline(backend.started.acquire_many(4)).await.unwrap().forget();
     assert_eq!(backend.gets.load(Ordering::SeqCst), 4);
     backend.resume.add_permits(5);
     for task in tasks {
-        let (body, _) = task.await.unwrap();
-        assert!(!to_bytes(body, usize::MAX).await.unwrap().is_empty());
+        let (body, _) = complete_before_deadline(task).await.unwrap();
+        assert!(!complete_before_deadline(to_bytes(body, usize::MAX)).await.unwrap().is_empty());
     }
     assert_eq!(backend.gets.load(Ordering::SeqCst), 5);
     let key = BlobId::of_bytes(Ecosystem::Npm, b"payload-0").key(1);
     backend.resume.add_permits(1);
-    let (body, _) = store
-        .open_archive(&key)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(to_bytes(body, usize::MAX).await.unwrap(), b"payload-0".as_slice());
+    let (body, _) = complete_before_deadline(store.open_archive(&key)).await.unwrap().unwrap();
+    assert_eq!(
+        complete_before_deadline(to_bytes(body, usize::MAX)).await.unwrap(),
+        b"payload-0".as_slice(),
+    );
     assert_eq!(backend.gets.load(Ordering::SeqCst), 6);
     assert!(backend.conditions.lock().unwrap()[5].is_some());
 
@@ -165,9 +158,16 @@ async fn cold_gets_wait_for_admission_and_warm_gets_use_one_conditional_request(
         .await
         .unwrap();
     backend.resume.add_permits(2);
-    assert!(store.open_archive(&key).await.is_err());
+    assert!(complete_before_deadline(store.open_archive(&key)).await.is_err());
     assert_eq!(backend.gets.load(Ordering::SeqCst), 8);
     let conditions = backend.conditions.lock().unwrap();
     assert!(conditions[6].is_some());
     assert!(conditions[7].is_none());
+}
+
+async fn complete_before_deadline<Output>(
+    operation: impl Future<Output = Output> + Send,
+) -> Output {
+    tokio::time::timeout(Duration::from_secs(30), operation).await
+        .expect("controlled object-store operation timed out")
 }

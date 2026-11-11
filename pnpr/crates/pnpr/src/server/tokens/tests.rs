@@ -10,22 +10,28 @@ use pnpr_policy::Identity;
 use std::{future::Future, pin::Pin, task::Poll};
 use tempfile::TempDir;
 
-async fn queued_verification_is_throttled(is_profile: bool) {
+enum VerificationRoute {
+    Profile,
+    Token,
+}
+
+async fn queued_verification_is_throttled(route: VerificationRoute) {
     let temp = TempDir::new().unwrap();
     let config = Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     let (state, _) = state_and_router(config, AuthState::in_memory(), None).unwrap();
     let permits = state.inner.identity.login_concurrency.acquire_many(8).await.unwrap();
     let identity = Identity::user("example-user");
-    let mut request: Pin<Box<dyn Future<Output = Response> + Send>> = if is_profile {
-        Box::pin(post_profile(
+    let mut request: Pin<Box<dyn Future<Output = Response> + Send>> = match route {
+        VerificationRoute::Profile => Box::pin(post_profile(
             State(state.clone()),
             AuthedCaller(identity),
             TargetRegistry(None),
             None,
             Bytes::from_static(br#"{"password":{"old":"wrong","new":"new-password"}}"#),
-        ))
-    } else {
-        Box::pin(create_token(&state, None, &identity, br#"{"password":"wrong"}"#))
+        )),
+        VerificationRoute::Token => {
+            Box::pin(create_token(&state, None, &identity, br#"{"password":"wrong"}"#))
+        }
     };
     std::future::poll_fn(|context| {
         assert!(
@@ -48,10 +54,10 @@ async fn queued_verification_is_throttled(is_profile: bool) {
 
 #[tokio::test]
 async fn queued_profile_requests_recheck_the_limit_before_verifying_passwords() {
-    queued_verification_is_throttled(true).await;
+    queued_verification_is_throttled(VerificationRoute::Profile).await;
 }
 
 #[tokio::test]
 async fn queued_token_requests_recheck_the_limit_before_verifying_passwords() {
-    queued_verification_is_throttled(false).await;
+    queued_verification_is_throttled(VerificationRoute::Token).await;
 }

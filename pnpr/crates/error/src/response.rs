@@ -28,6 +28,9 @@ impl RegistryError {
             | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
             RegistryError::Shared(inner) => inner.is_transient_upstream_error(),
+            RegistryError::PasswordChangeCommitted { source, .. } => {
+                source.is_transient_upstream_error()
+            }
             _ => false,
         }
     }
@@ -36,6 +39,7 @@ impl RegistryError {
         match self {
             RegistryError::UpstreamUnavailable { retry_after, .. } => Some(*retry_after),
             RegistryError::Shared(inner) => inner.retry_after(),
+            RegistryError::PasswordChangeCommitted { source, .. } => source.retry_after(),
             _ => None,
         }
     }
@@ -78,6 +82,7 @@ impl RegistryError {
             RegistryError::TooManyRequests { .. } => "too_many_requests",
             RegistryError::RequestTimeout { .. } => "request_timeout",
             RegistryError::Shared(inner) => inner.log_kind(),
+            RegistryError::PasswordChangeCommitted { source, .. } => source.log_kind(),
             _ => self.storage_log_kind(),
         }
     }
@@ -164,6 +169,9 @@ impl RegistryError {
         if let RegistryError::Shared(inner) = self {
             return inner.public_message();
         }
+        if let RegistryError::PasswordChangeCommitted { source, .. } = self {
+            return source.public_message();
+        }
         if let RegistryError::UpstreamUnavailable { .. } = self {
             return self.to_string();
         }
@@ -214,6 +222,7 @@ impl RegistryError {
             RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
             RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::Shared(inner) => inner.status_code(),
+            RegistryError::PasswordChangeCommitted { source, .. } => source.status_code(),
             _ => self.storage_status_code(),
         }
     }

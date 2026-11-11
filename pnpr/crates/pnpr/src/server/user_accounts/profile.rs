@@ -58,13 +58,16 @@ async fn update_password(
         return Err(RegistryError::Unauthenticated { resource: "a password account".to_string() });
     }
     let user_id = identity.user_id().expect("authenticated caller");
-    if !state.inner.identity.auth.change_password_if_current(
+    let changed = state.inner.identity.auth.change_password_if_current(
         user_id,
         &update.password.new,
         &verified_hash,
     )
-    .await?
-    {
+    .await;
+    if let Err(error) = &changed {
+        state.inner.identity.oidc.revoke_committed_password_sessions(error);
+    }
+    if !changed? {
         return Err(RegistryError::Unauthenticated {
             resource: "the current password".to_string(),
         });

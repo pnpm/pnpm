@@ -78,12 +78,15 @@ async fn put_user(
     let result = async {
         require_admin(&state, &identity, "manage", format!("user {:?}", path.user))?;
         let password = parse_password(&body)?;
-        let (status, action) =
-            match state.inner.identity.auth.put_user(&path.user, &password).await? {
-                Some(UserPut::Created) => (StatusCode::CREATED, "user.create"),
-                Some(UserPut::PasswordChanged) => (StatusCode::OK, "user.password_update"),
-                None => return Err(RegistryError::NotFound),
-            };
+        let updated = state.inner.identity.auth.put_user(&path.user, &password).await;
+        if let Err(error) = &updated {
+            state.inner.identity.oidc.revoke_committed_password_sessions(error);
+        }
+        let (status, action) = match updated? {
+            Some(UserPut::Created) => (StatusCode::CREATED, "user.create"),
+            Some(UserPut::PasswordChanged) => (StatusCode::OK, "user.password_update"),
+            None => return Err(RegistryError::NotFound),
+        };
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",

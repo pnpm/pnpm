@@ -91,7 +91,7 @@ impl LibsqlAuth {
         })
         .await?;
         if updated > 0 {
-            self.sync_replica().await?;
+            self.sync_after_password_change(user_id).await?;
             Ok(PasswordChange::Changed)
         } else {
             Ok(PasswordChange::NoSuchUser)
@@ -113,9 +113,17 @@ impl LibsqlAuth {
             })
         }).await?;
         if updated > 0 {
-            self.sync_replica().await?;
+            self.sync_after_password_change(user_id).await?;
         }
         Ok(updated > 0)
+    }
+
+    async fn sync_after_password_change(&self, user_id: &str) -> Result<()> {
+        self.sync_replica().await
+            .map_err(|source| RegistryError::PasswordChangeCommitted {
+                user_id: user_id.to_string(),
+                source: Box::new(source),
+            })
     }
 
     pub(super) async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {

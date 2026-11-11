@@ -153,11 +153,11 @@ impl AuthState {
 
     /// Replace a password and revoke every bearer token for the account.
     pub async fn change_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
-        let outcome = self.users.set_password(user_id, password).await?;
-        if matches!(outcome, PasswordChange::Changed) {
-            self.revoke_all_tokens(user_id).await?;
-        }
-        Ok(outcome)
+        let outcome = self.users.set_password(user_id, password).await;
+        self.revoke_after_password_change(user_id, outcome, |change| {
+            matches!(change, PasswordChange::Changed)
+        })
+        .await
     }
 
     /// Change a verified password without overwriting a concurrent reset.
@@ -167,11 +167,31 @@ impl AuthState {
         password: &str,
         expected_hash: &str,
     ) -> Result<bool> {
-        let changed = self.users.set_password_if_current(user_id, password, expected_hash).await?;
-        if changed {
-            self.revoke_all_tokens(user_id).await?;
+        let outcome = self.users.set_password_if_current(user_id, password, expected_hash).await;
+        self.revoke_after_password_change(user_id, outcome, |changed| *changed).await
+    }
+
+    async fn revoke_after_password_change<Outcome: Send>(
+        &self,
+        user_id: &str,
+        outcome: Result<Outcome>,
+        changed: impl FnOnce(&Outcome) -> bool + Send,
+    ) -> Result<Outcome> {
+        let committed = match &outcome {
+            Ok(outcome) => changed(outcome),
+            Err(error) => error.committed_password_user().is_some(),
+        };
+        if committed && let Err(source) = self.revoke_all_tokens(user_id).await {
+            if let Err(original) = &outcome {
+                tracing::error!(error = %source.log_message(), "Revoking tokens after a committed password change failed");
+                tracing::error!(error = %original.log_message(), "The password change also failed to refresh its replica");
+            }
+            return Err(RegistryError::PasswordChangeCommitted {
+                user_id: user_id.to_string(),
+                source: Box::new(source),
+            });
         }
-        Ok(changed)
+        outcome
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
