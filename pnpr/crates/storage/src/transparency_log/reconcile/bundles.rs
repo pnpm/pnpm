@@ -2,9 +2,50 @@
 
 use crate::transparency_log::{ImportedLogEntry, LogId, StoredCheckpoint};
 use pnpm_release_record::{LogEntry, RecordIdentity};
-use pnpm_transparency_log::{TilePath, decode_bundle};
+use pnpm_transparency_log::{TILE_WIDTH, TilePath, decode_bundle};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
+use std::collections::HashSet;
+
+pub(super) fn check_prior_full_bundle_keys(
+    log: &LogId,
+    start_bundle: u64,
+    keys: Vec<String>,
+) -> Result<()> {
+    let present: HashSet<u64> = keys
+        .into_iter()
+        .filter_map(|key| format!("tile/entries/{key}").parse::<TilePath>().ok())
+        .filter_map(|path| match path {
+            TilePath::Entries { index, width: TILE_WIDTH } if index < start_bundle => Some(index),
+            TilePath::Hashes { .. } | TilePath::Entries { .. } => None,
+        })
+        .collect();
+    for index in 0..start_bundle {
+        if !present.contains(&index) {
+            let path = TilePath::Entries { index, width: TILE_WIDTH };
+            return Err(RegistryError::Internal {
+                reason: format!("the stored entry bundle {path} of the log {log} is missing"),
+            });
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn max_partial_width_of_keys(
+    index: u64,
+    prefix: &str,
+    keys: Vec<String>,
+) -> Option<u32> {
+    keys.into_iter()
+        .filter_map(|name| format!("{prefix}/{name}").parse::<TilePath>().ok())
+        .filter_map(|path| match path {
+            TilePath::Entries { index: found, width } if found == index && width < TILE_WIDTH => {
+                Some(width)
+            }
+            TilePath::Hashes { .. } | TilePath::Entries { .. } => None,
+        })
+        .max()
+}
 
 pub(super) fn check_authenticated_bound(
     log: &LogId,

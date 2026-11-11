@@ -486,7 +486,27 @@ async fn unauthenticated_bundles_and_missing_prior_bundles_are_refused(db: Db) {
     );
     storage.root.remove_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000.p/4").await.unwrap();
 
-    publish(&storage, "acme", "core", &versions(2..260)).await;
+    // Once entries 2..4 are sequenced in SQL, an in-flight bundle `000.p/4`
+    // written before its checkpoint is authenticated by SQL and reconciles.
+    publish(&storage, "acme", "core", &versions(2..4)).await;
+    let sequenced_entries = storage
+        .sql_metadata()
+        .log_entries(&log, 0..4)
+        .await
+        .unwrap();
+    let in_flight_bundle = pnpm_transparency_log::encode_bundle(&sequenced_entries).unwrap();
+    overwrite_log_record(&storage, "npm/~acme/tile/entries/000.p/4", &in_flight_bundle).await;
+    let verified = storage
+        .reconcile_log(&log, Some(&signer))
+        .await
+        .unwrap();
+    assert_eq!(verified.unwrap().tree_head.size, 2);
+
+    publish(&storage, "acme", "core", &versions(4..260)).await;
+    let integrate_fut = storage.integrate_log(&log, &signer);
+    let reconcile_fut = storage.reconcile_log(&log, Some(&signer));
+    let (_, concurrent) = tokio::join!(integrate_fut, reconcile_fut);
+    concurrent.unwrap();
     storage.integrate_log(&log, &signer).await.unwrap();
     storage.root.remove_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000").await.unwrap();
     let missing_err = storage

@@ -226,14 +226,6 @@ impl Store {
         }
     }
 
-    pub(super) async fn has_record(&self, namespace: &str, key: &str) -> Result<bool> {
-        match fs::metadata(self.record_path(namespace, key)).await {
-            Ok(meta) => Ok(meta.is_file()),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
     pub(super) async fn has_any_record(&self, namespace: &str) -> Result<bool> {
         let mut root = self.root.clone();
         root.extend(namespace.split('/'));

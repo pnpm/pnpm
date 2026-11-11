@@ -28,13 +28,13 @@ A publish writes archives to hosted storage before committing metadata in the da
 
 1. **Pause scheduled `pnpr gc` jobs and package unpublishes** until both backups finish. Garbage collection and unpublish operations reclaim unmapped archives immediately, which could delete an archive still referenced by the database snapshot.
 2. **Back up the metadata database first.** Record the backup timestamp ($T_{\text{db}}$) when using point-in-time recovery.
-3. **Back up hosted storage second** (or record an S3 restore timestamp $T_{\text{storage}} \ge T_{\text{db}}$ with S3 Bucket Versioning enabled).
-4. **Resume `pnpr gc` and package unpublishes** after both backups complete.
+3. **Pause publishes, let in-flight log integration finish, and capture hosted storage second** ($T_{\text{storage}} \ge T_{\text{db}}$). Waiting for integration ensures a signed checkpoint covers every entry bundle written after $T_{\text{db}}$.
+4. **Resume publishes, `pnpr gc`, and package unpublishes** once the storage snapshot or S3 restore timestamp is recorded.
 
 Why this order keeps both archives and the transparency log consistent:
 
 - Every archive referenced at $T_{\text{db}}$ was uploaded before $T_{\text{db}}$ and stays in hosted storage at $T_{\text{storage}}$ while `pnpr gc` and unpublishes are paused.
-- If publishes reached `.transparency-log/` between $T_{\text{db}}$ and $T_{\text{storage}}$, pnpr re-imports their log entries from the stored entry bundles before serving or accepting publishes. Those rolled-back versions are marked removed so their version numbers cannot be reused, and new publishes extend the same Merkle tree without forking the log.
+- If publishes reached `.transparency-log/` between $T_{\text{db}}$ and $T_{\text{storage}}$, their signed checkpoint authenticates the stored entry bundles. pnpr re-imports those entries before serving, marks rolled-back npm versions removed so they cannot be reused, and extends the same Merkle tree.
 - Never restore hosted storage to an **older** state than the metadata database ($T_{\text{storage}} < T_{\text{db}}$). An older store lacks archives and integrated log tiles that the database already references. pnpr refuses to start or sign checkpoints when `.transparency-log/` lacks entry bundles for its tree or diverges from the database's log.
 
 ## Local filesystem storage
@@ -60,7 +60,7 @@ With filesystem snapshots, follow the [snapshot order](#snapshot-order):
    sqlite3 /var/lib/pnpr/tokens.db ".backup /mnt/backups/pnpr-tokens-$(date +%Y%m%d).db"
    ```
    With `database.url`, pass the path that URL names.
-3. Take a point-in-time snapshot of `/var/lib/pnpr` second ($T_{\text{storage}} \ge T_{\text{db}}$) and mount it read-only at `/mnt/pnpr-snap`. Archive hosted storage and `users.json` from `/mnt/pnpr-snap`, excluding the SQLite files backed up in step 2:
+3. Pause publishes and wait for background log integration to finish, then take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$). Resume publishes once the snapshot exists, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage and `users.json`:
    ```sh
    tar --exclude='storage/.metadata' --exclude='tokens.db*' -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /mnt/pnpr-snap storage users.json
    ```
@@ -79,8 +79,9 @@ An export does not include transparency logs, unpublished versions, former maint
 To restore local filesystem storage:
 
 1. Stop all running pnpr instances and scheduled `pnpr gc` jobs.
-2. Restore hosted storage and auth files into their configured paths:
+2. Move aside or remove any existing `storage` directory so newer files written after the backup, such as later log bundles, do not remain. Extract hosted storage and auth files into `/var/lib/pnpr`:
    ```sh
+   rm -rf /var/lib/pnpr/storage
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
 3. Restore the SQLite databases when they were backed up separately (`<storage>/.metadata/metadata.sqlite` by default or the path `database.url` names, plus `tokens.db` when configured). Delete any `-wal` and `-shm` files at each destination path first so SQLite does not replay another copy's write-ahead log. Copy the `.sqlite` and `tokens.db` backups into place, and confirm the storage archive came from the same offline backup or a snapshot captured **after** the metadata backup.
@@ -100,14 +101,14 @@ With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparenc
 
 - **S3 Bucket Versioning**: Enable versioning on the bucket so deleted or overwritten objects can be restored to a chosen timestamp.
 - **Cross-Region Replication**: For disaster recovery across regions, enable S3 bucket replication.
-- **Lifecycle rules**: Do not set lifecycle expiration on active objects in hosted storage or `.transparency-log/`.
+- **Lifecycle rules**: Do not set lifecycle expiration on active objects in hosted storage or `.transparency-log/`. Retain noncurrent object versions and delete markers across your full backup retention window so `pnpr gc` and unpublishes stay recoverable.
 
 ### Coordinated backup
 
 1. Pause scheduled `pnpr gc` jobs, and block package unpublishes until step 3 finishes.
 2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the metadata database (`database.url`).
-3. Record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
-4. Resume scheduled `pnpr gc` jobs and package unpublishes.
+3. Pause publishes, wait for background log integration to finish, and record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
+4. Resume publishes, scheduled `pnpr gc` jobs, and package unpublishes.
 
 ### Restore
 

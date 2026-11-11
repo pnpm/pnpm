@@ -167,8 +167,9 @@ pub(super) fn import_entries(
     let current = verify_import_overlap(&*transaction, log, start, imported)?;
     let end = start + u64::try_from(imported.len()).unwrap_or_default();
     if current < end {
-        insert_imported_entries(&*transaction, log, start, current, imported)?;
-        record_reimported_npm_versions(&*transaction, log, imported)?;
+        let skip = usize::try_from(current - start).unwrap_or(imported.len());
+        insert_imported_entries(&*transaction, log, current, &imported[skip..])?;
+        record_reimported_npm_versions(&*transaction, log, &imported[skip..])?;
     }
     transaction.commit()
 }
@@ -208,12 +209,10 @@ fn verify_import_overlap(
 fn insert_imported_entries(
     transaction: &dyn Connection,
     log: &LogId,
-    start: u64,
     current: u64,
     imported: &[ImportedLogEntry],
 ) -> Result<()> {
-    let skip = usize::try_from(current - start).unwrap_or(imported.len());
-    for (offset, item) in imported[skip..].iter().enumerate() {
+    for (offset, item) in imported.iter().enumerate() {
         let index = current + u64::try_from(offset).unwrap_or_default();
         transaction.execute(
             "INSERT INTO log_entries (catalog, ecosystem, idx, entry) VALUES (?1, ?2, ?3, ?4)",

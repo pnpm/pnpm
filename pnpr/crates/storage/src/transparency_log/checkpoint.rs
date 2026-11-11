@@ -8,7 +8,7 @@ use pnpm_transparency_log::{
 use pnpr_error::{RegistryError, Result};
 
 /// A log's latest checkpoint as it is stored, and the tree head it signs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StoredCheckpoint {
     /// The signed note.
     pub note: Vec<u8>,
@@ -17,7 +17,7 @@ pub struct StoredCheckpoint {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum CheckpointStatus {
-    Published,
+    Published(Option<StoredCheckpoint>),
     BehindStored(TreeHead),
 }
 
@@ -60,7 +60,7 @@ impl Storage {
         signer: &NoteSigner,
     ) -> Result<Option<CheckpointStatus>> {
         let Some(stored) = current else {
-            return Ok((tree_head.size == 0).then_some(CheckpointStatus::Published));
+            return Ok((tree_head.size == 0).then_some(CheckpointStatus::Published(None)));
         };
         verify_stored_checkpoint(log, stored, Some(signer))?;
         if stored.tree_head.size > tree_head.size {
@@ -74,7 +74,7 @@ impl Storage {
                     ),
                 });
             }
-            return Ok(Some(CheckpointStatus::Published));
+            return Ok(Some(CheckpointStatus::Published(Some(stored.clone()))));
         }
         if prior_head.is_none_or(|prior| {
             prior.size != stored.tree_head.size
@@ -112,7 +112,10 @@ impl Storage {
                 }
             };
             if written {
-                return Ok(CheckpointStatus::Published);
+                return Ok(CheckpointStatus::Published(Some(StoredCheckpoint {
+                    note: note.to_vec(),
+                    tree_head: tree_head.clone(),
+                })));
             }
             current = self.log_checkpoint(log).await?;
             if let Some(status) = self.check_checkpoint_before_write(

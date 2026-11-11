@@ -157,10 +157,6 @@ impl HostedBackend for Store {
         Store::read_record(self, namespace, key).await
     }
 
-    async fn has_record(&self, namespace: &str, key: &str) -> Result<bool> {
-        Store::has_record(self, namespace, key).await
-    }
-
     async fn has_any_record(&self, namespace: &str) -> Result<bool> {
         Store::has_any_record(self, namespace).await
     }

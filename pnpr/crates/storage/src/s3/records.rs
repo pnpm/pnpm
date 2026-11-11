@@ -90,14 +90,6 @@ impl S3Store {
         }
     }
 
-    pub async fn has_record(&self, namespace: &str, key: &str) -> Result<bool> {
-        match self.store.head(&self.record_key(namespace, key)).await {
-            Ok(_) => Ok(true),
-            Err(object_store::Error::NotFound { .. }) => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
     pub async fn has_any_record(&self, namespace: &str) -> Result<bool> {
         let scope = format!("{}{namespace}/", self.prefix);
         let prefix = ObjectPath::from(scope.as_str());

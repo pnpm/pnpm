@@ -12,11 +12,15 @@
 //! refusing forked logs.
 
 use super::AppState;
-use pnpm_transparency_log::{NoteSigner, TreeHead};
+use pnpm_transparency_log::NoteSigner;
 use pnpr_config::Config;
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
-use pnpr_storage::{Storage, metadata::SqlMetadata, transparency_log::LogId};
+use pnpr_storage::{
+    Storage,
+    metadata::SqlMetadata,
+    transparency_log::{LogId, StoredCheckpoint},
+};
 use std::{
     collections::HashMap,
     sync::{
@@ -29,7 +33,7 @@ use std::{
 pub(super) struct LogIntegrationState {
     locks: Mutex<HashMap<LogId, Arc<tokio::sync::Mutex<()>>>>,
     recovered: AtomicBool,
-    reconciled: Mutex<HashMap<LogId, Option<TreeHead>>>,
+    reconciled: Mutex<HashMap<LogId, Option<StoredCheckpoint>>>,
 }
 
 impl LogIntegrationState {
@@ -42,19 +46,24 @@ impl LogIntegrationState {
         )
     }
 
-    fn reconciled_head(&self, log: &LogId) -> Option<Option<TreeHead>> {
+    fn matching_checkpoint(
+        &self,
+        log: &LogId,
+        current: Option<&StoredCheckpoint>,
+    ) -> Option<Option<StoredCheckpoint>> {
         self.reconciled
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(log)
+            .filter(|cached| cached.as_ref() == current)
             .cloned()
     }
 
-    fn mark_reconciled(&self, log: LogId, head: Option<TreeHead>) {
+    fn mark_reconciled(&self, log: LogId, checkpoint: Option<StoredCheckpoint>) {
         self.reconciled
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(log, head);
+            .insert(log, checkpoint);
     }
 
     fn unmark_reconciled(&self, log: &LogId) {
@@ -82,7 +91,8 @@ pub(super) async fn reconcile_configured_logs(storage: &Storage, config: &Config
 /// Ensure `log` has been reconciled against `.transparency-log/` on this
 /// instance before a publish sequences new entries into it.
 pub(super) async fn ensure_reconciled(state: &AppState, log: &LogId) -> Result<()> {
-    if state.inner.locks.logs.reconciled_head(log).is_some() {
+    let current = state.inner.storage.log_checkpoint(log).await?;
+    if state.inner.locks.logs.matching_checkpoint(log, current.as_ref()).is_some() {
         return Ok(());
     }
     let lock = state.inner.locks.logs.lock_for(log);
@@ -95,11 +105,13 @@ async fn ensure_reconciled_locked(
     state: &AppState,
     log: &LogId,
     key: Option<&NoteSigner>,
-) -> Result<Option<TreeHead>> {
-    if let Some(verified) = state.inner.locks.logs.reconciled_head(log) {
+) -> Result<Option<StoredCheckpoint>> {
+    let current = state.inner.storage.log_checkpoint(log).await?;
+    if let Some(verified) = state.inner.locks.logs.matching_checkpoint(log, current.as_ref()) {
         return Ok(verified);
     }
-    if key.is_none() && !state.inner.storage.has_stored_log(log).await? {
+    state.inner.locks.logs.unmark_reconciled(log);
+    if key.is_none() && current.is_none() && !state.inner.storage.has_stored_log(log).await? {
         state.inner.locks.logs.mark_reconciled(log.clone(), None);
         return Ok(None);
     }
@@ -183,8 +195,8 @@ async fn integrate_one_log(state: &AppState, log: &LogId, key: &NoteSigner) -> b
     let _guard = lock.lock().await;
     let outcome = async {
         let verified = ensure_reconciled_locked(state, log, Some(key)).await?;
-        let head = state.inner.storage.integrate_reconciled_log(log, key, verified).await?;
-        state.inner.locks.logs.mark_reconciled(log.clone(), (head.size > 0).then_some(head));
+        let (_, stored) = state.inner.storage.integrate_reconciled_log(log, key, verified).await?;
+        state.inner.locks.logs.mark_reconciled(log.clone(), stored);
         Ok::<_, pnpr_error::RegistryError>(())
     }
     .await;

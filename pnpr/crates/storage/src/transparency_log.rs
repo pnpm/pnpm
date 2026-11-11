@@ -138,7 +138,8 @@ impl Storage {
     /// or with the one integration computes.
     pub async fn integrate_log(&self, log: &LogId, key: &NoteSigner) -> Result<TreeHead> {
         let verified = self.reconcile_log(log, Some(key)).await?;
-        self.integrate_reconciled_log(log, key, verified).await
+        let (head, _) = self.integrate_reconciled_log(log, key, verified).await?;
+        Ok(head)
     }
 
     /// Integrate every entry of `log` sequenced after its integrated tree, once
@@ -148,8 +149,8 @@ impl Storage {
         &self,
         log: &LogId,
         key: &NoteSigner,
-        mut verified_checkpoint: Option<TreeHead>,
-    ) -> Result<TreeHead> {
+        mut verified_checkpoint: Option<StoredCheckpoint>,
+    ) -> Result<(TreeHead, Option<StoredCheckpoint>)> {
         let signer = log.signer(key)?;
         let origin = signer.verifier_key().name().to_string();
         let database = self.sql_metadata();
@@ -159,20 +160,20 @@ impl Storage {
             let head = integrated_head(log, &origin, state.head)?;
             check_sequenced_at_least_head(log, sequenced, head.size)?;
             if sequenced == head.size {
-                if let CheckpointStatus::BehindStored(stored) =
-                    self.publish_checkpoint(log, None, &head, &signer).await?
-                {
-                    verified_checkpoint = self.reconcile_behind_stored(
-                        log,
-                        key,
-                        sequenced,
-                        verified_checkpoint,
-                        stored,
-                    )
-                    .await?;
-                    continue;
+                match self.publish_checkpoint(log, None, &head, &signer).await? {
+                    CheckpointStatus::Published(stored) => return Ok((head, stored)),
+                    CheckpointStatus::BehindStored(stored) => {
+                        verified_checkpoint = self.reconcile_behind_stored(
+                            log,
+                            key,
+                            sequenced,
+                            verified_checkpoint,
+                            stored,
+                        )
+                        .await?;
+                        continue;
+                    }
                 }
-                return Ok(head);
             }
             let end = sequenced.min(head.size + INTEGRATION_BATCH);
             let entries = database.log_entries(log, head.size..end).await?;
@@ -193,10 +194,14 @@ impl Storage {
         log: &LogId,
         key: &NoteSigner,
         sequenced: u64,
-        verified: Option<TreeHead>,
+        verified: Option<StoredCheckpoint>,
         stored: TreeHead,
-    ) -> Result<Option<TreeHead>> {
-        if verified.as_ref() == Some(&stored) && sequenced >= stored.size {
+    ) -> Result<Option<StoredCheckpoint>> {
+        if verified
+            .as_ref()
+            .is_some_and(|checkpoint| checkpoint.tree_head == stored)
+            && sequenced >= stored.size
+        {
             return Ok(verified);
         }
         self.catch_up_with_stored_checkpoint(log, key, stored.size).await
@@ -207,7 +212,7 @@ impl Storage {
         log: &LogId,
         key: &NoteSigner,
         stored_size: u64,
-    ) -> Result<Option<TreeHead>> {
+    ) -> Result<Option<StoredCheckpoint>> {
         let verified = self.reconcile_log(log, Some(key)).await?;
         let sequenced = self.sql_metadata().log_size(log).await?;
         if sequenced < stored_size {

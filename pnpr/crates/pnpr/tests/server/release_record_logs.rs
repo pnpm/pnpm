@@ -422,21 +422,10 @@ async fn prepare_storage_and_publish_refuse_a_forked_transparency_log() {
     let donor_checkpoint = std::fs::read(donor_tmp.path().join(checkpoint_subpath)).unwrap();
     std::fs::write(target_tmp.path().join(checkpoint_subpath), &donor_checkpoint).unwrap();
 
-    // A live server whose background integration hits the forked checkpoint
-    // invalidates its reconciliation cache so later publishes also fail closed.
-    publish(&target_app, &target_token, "@acme/widget", "1.0.1").await;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    let mut next_patch = 2_u32;
-    loop {
-        let version = format!("1.0.{next_patch}");
-        next_patch += 1;
-        let status = publish_status(&target_app, &target_token, "@acme/widget", &version).await;
-        if status == StatusCode::INTERNAL_SERVER_ERROR {
-            break;
-        }
-        assert!(std::time::Instant::now() < deadline, "live publish never rechecked forked log");
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    }
+    // A live server rechecks the stored checkpoint note before sequencing a
+    // publish, so the very next publish fails closed without committing.
+    let live_status = publish_status(&target_app, &target_token, "@acme/widget", "1.0.1").await;
+    assert_eq!(live_status, StatusCode::INTERNAL_SERVER_ERROR);
     drop(target_app);
 
     let startup_err = pnpr::prepare_storage(&target_config).await.unwrap_err();
