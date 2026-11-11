@@ -243,13 +243,36 @@ impl RouteContext {
     }
 
     /// The descriptor package qualifier for a proxied fetch: `Some(package)`
-    /// only when the upstream's rules explicitly refine this name's access,
-    /// so the cache descriptor re-checks that refinement on replay. Names
-    /// the registry-level gate alone covers stay registry-scoped, keeping
-    /// the common footprint one descriptor per alias.
+    /// only when the name steers alias selection, so the cache descriptor
+    /// re-checks it on replay. That is when the upstream's rules explicitly
+    /// refine this name's access, or when an earlier alias on the same origin
+    /// does not claim it (a package-less replay would select that alias).
+    /// Other names stay registry-scoped, keeping the common footprint one
+    /// descriptor per alias.
     fn alias_package_qualifier(&self, alias: &str, package: Option<&str>) -> Option<String> {
-        let (package, rules) = (package?, self.upstream_rules.get(alias)?);
-        rules.access_is_explicit(package).then(|| package.to_string())
+        let package = package?;
+        let refined = self.upstream_rules
+            .get(alias)
+            .is_some_and(|rules| rules.access_is_explicit(package));
+        (refined || self.earlier_alias_skips(alias, package)).then(|| package.to_string())
+    }
+
+    /// Whether an alias ahead of `alias` in selection order matches its
+    /// origin but does not claim `package`.
+    fn earlier_alias_skips(&self, alias: &str, package: &str) -> bool {
+        let Some(selected) = self.aliases
+            .iter()
+            .find(|candidate| candidate.name == alias)
+        else {
+            return false;
+        };
+        self.aliases
+            .iter()
+            .take_while(|candidate| candidate.name != alias)
+            .any(|candidate| {
+                selected.origin.starts_with(&candidate.origin)
+                    && !self.upstream_claims(&candidate.name, package)
+            })
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a

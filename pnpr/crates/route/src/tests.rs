@@ -396,12 +396,10 @@ fn upstream_credential_is_bounded_by_its_packages_claim() {
         ),
         proxied,
     );
-    // A name outside the claim gets no credential on the upstream's origin.
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
         RouteClass::Public,
     );
-    // Nor does a cached resolution replay one for it.
     let descriptor = |package: &str| PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: corp_credential(),
@@ -409,9 +407,46 @@ fn upstream_credential_is_bounded_by_its_packages_claim() {
     };
     assert!(context.allows_descriptor(&user("alice"), &descriptor("@corp/tool")));
     assert!(!context.allows_descriptor(&user("alice"), &descriptor("lodash")));
-    // Nor through pnpr's own `/~corp/` endpoint.
     let endpoint = format!("{}/npm/~corp/lodash", config.http.public_url);
     assert_eq!(context.classify(&user("alice"), &endpoint, Some("lodash")), RouteClass::Public);
+}
+
+#[test]
+fn a_resolution_through_an_alias_an_earlier_one_skips_replays() {
+    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+
+    let mut config = base_config();
+    for name in ["scoped", "fallback"] {
+        config.routing.upstreams.insert(
+            name.to_string(),
+            upstream_with_access("https://npm.corp.example/", "$authenticated"),
+        );
+    }
+    let patterns =
+        vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).expect("test pattern parses")];
+    config.routing.registries = Registries::new(
+        std::iter::once(("scoped".to_string(), Registry::Upstream { patterns })).collect(),
+        None,
+    );
+    let context = Arc::new(RouteContext::from_config(&config));
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        Arc::clone(&context),
+        user("alice"),
+        Arc::clone(&footprint),
+        Arc::from(b"secret".as_slice()),
+    );
+
+    assert!(
+        hook.authorize("https://npm.corp.example/lodash", Some("lodash"))
+            .is_some()
+    );
+    assert!(
+        footprint
+            .lock()
+            .unwrap()
+            .allows(&context, &user("alice"))
+    );
 }
 
 #[test]
