@@ -44,12 +44,15 @@ async fn drop_database(
     match backend {
         DatabaseBackend::Postgres => {
             let pool = sqlx::PgPool::connect(admin_url).await?;
-            sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)")).execute(&pool).await?;
+            sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {db_name} WITH (FORCE)")))
+                .execute(&pool)
+                .await?;
             pool.close().await;
         }
         DatabaseBackend::Mysql => {
             let pool = sqlx::MySqlPool::connect(admin_url).await?;
-            sqlx::query(&format!("DROP DATABASE {db_name}")).execute(&pool).await?;
+            sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {db_name}"))).execute(&pool)
+                .await?;
             pool.close().await;
         }
     }
@@ -60,7 +63,10 @@ pub async fn create_postgres_database(admin_url: &str, scheme: &str) -> TestData
     let tmp = TempDir::new().unwrap();
     let db_name = unique_db_name("release_pg", &tmp);
     let pool = sqlx::PgPool::connect(admin_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_name}")))
+        .execute(&pool)
+        .await
+        .unwrap();
     pool.close().await;
 
     let base = admin_url.rsplit_once('/').expect("postgres admin URL has database path").0;
@@ -77,7 +83,10 @@ pub async fn create_mysql_database(admin_url: &str) -> TestDatabase {
     let tmp = TempDir::new().unwrap();
     let db_name = unique_db_name("release_my", &tmp);
     let pool = sqlx::MySqlPool::connect(admin_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_name}")))
+        .execute(&pool)
+        .await
+        .unwrap();
     pool.close().await;
 
     let base = admin_url.rsplit_once('/').expect("mysql admin URL has database path").0;

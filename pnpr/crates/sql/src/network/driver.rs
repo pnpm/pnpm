@@ -179,14 +179,14 @@ macro_rules! driver {
 
                 fn rows(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
                     let (sql, params) = self.dialect.statement(sql, params)?;
-                    self.fetch(&sql, params)?
+                    self.fetch(sql, params)?
                         .iter()
                         .map(|row| decode_row(row, 0))
                         .collect()
                 }
 
-                fn fetch(&self, sql: &str, params: Vec<Param<'_>>) -> Result<Vec<$row>> {
-                    let mut query = sqlx::query(sql);
+                fn fetch(&self, sql: String, params: Vec<Param<'_>>) -> Result<Vec<$row>> {
+                    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql));
                     for param in params {
                         query = match param {
                             Param::Null => query.bind(Option::<String>::None),
@@ -295,7 +295,7 @@ macro_rules! driver {
                     }
                     let (sql, params) = self.dialect.batch(queries)?;
                     let mut results = vec![Vec::new(); queries.len()];
-                    for row in self.fetch(&sql, params)? {
+                    for row in self.fetch(sql, params)? {
                         let index: i64 = row.try_get(0)?;
                         results[usize::try_from(index).expect("batch index")].push(decode_row(
                             &row, 1,
@@ -310,7 +310,7 @@ macro_rules! driver {
                         .block_on(async {
                             tokio::time::timeout(
                                 self.timeout,
-                                sqlx::raw_sql(sql).execute(&mut **connection),
+                                sqlx::raw_sql(sqlx::AssertSqlSafe(sql)).execute(&mut **connection),
                             )
                             .await
                         })

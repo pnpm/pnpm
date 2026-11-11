@@ -22,13 +22,15 @@ async fn drop_database(server: &str, database: &str) -> Result<()> {
     #[cfg(feature = "backend-postgres")]
     if server.starts_with("postgres:") || server.starts_with("postgresql:") {
         let pool = sqlx::PgPool::connect(&format!("{server}/postgres")).await?;
-        sqlx::query(&format!("DROP DATABASE {database} WITH (FORCE)")).execute(&pool).await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {database} WITH (FORCE)")))
+            .execute(&pool)
+            .await?;
         pool.close().await;
     }
     #[cfg(feature = "backend-mysql")]
     if server.starts_with("mysql:") {
         let pool = sqlx::MySqlPool::connect(&format!("{server}/mysql")).await?;
-        sqlx::query(&format!("DROP DATABASE {database}")).execute(&pool).await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {database}"))).execute(&pool).await?;
         pool.close().await;
     }
     Ok(())

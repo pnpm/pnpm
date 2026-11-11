@@ -1247,7 +1247,10 @@ async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
             .to_ascii_lowercase(),
     );
     let admin_pool = sqlx::PgPool::connect(&base_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_name}")))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
     let db_url = format!("{}/{db_name}", base_url.rsplit_once('/').unwrap().0);
     let settings = pnpr_config::SqlBackendSettings {
         url: db_url.clone(),
@@ -1288,7 +1291,7 @@ async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
         .unwrap();
     assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {db_name} WITH (FORCE)")))
         .execute(&admin_pool)
         .await
         .unwrap();
@@ -1312,7 +1315,10 @@ async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
             .to_ascii_lowercase(),
     );
     let admin_pool = sqlx::MySqlPool::connect(&base_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_name}")))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
     let db_url = format!("{}/{db_name}", base_url.rsplit_once('/').unwrap().0);
     let settings = pnpr_config::SqlBackendSettings {
         url: db_url.clone(),
@@ -1351,6 +1357,9 @@ async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
         .unwrap();
     assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {db_name}")))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
     admin_pool.close().await;
 }

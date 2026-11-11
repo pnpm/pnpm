@@ -17,7 +17,10 @@ async fn user_and_token_writes_share_one_connection() {
     let admin = pnpr_sql::postgres_pool(&settings).unwrap();
     let directory = tempfile::TempDir::new().unwrap();
     let database = super::super::tests::test_database_name(&directory);
-    sqlx::query(&format!("CREATE DATABASE {database}")).execute(&*admin).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {database}")))
+        .execute(&*admin)
+        .await
+        .unwrap();
     settings.url = format!("{}/{database}", settings.url.rsplit_once('/').unwrap().0);
     super::super::tests::assert_startup_uses_one_connection(&settings, |settings| async move {
         super::PostgresAuth::connect(&settings, pnpr_config::MaxUsers::Unlimited).await
@@ -29,5 +32,8 @@ async fn user_and_token_writes_share_one_connection() {
         .unwrap();
     super::super::tests::assert_network_auth_roundtrip(auth).await;
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE {database}")).execute(&*admin).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {database}")))
+        .execute(&*admin)
+        .await
+        .unwrap();
 }
