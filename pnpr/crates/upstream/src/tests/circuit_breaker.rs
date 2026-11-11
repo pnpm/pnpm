@@ -175,7 +175,9 @@ async fn body_timeouts_do_not_open_the_circuit() {
         );
         assert!(upstream.ensure_available().is_ok());
         let result = upstream.fetch_document("document", None, 2048).await;
-        assert!(matches!(result, Err(RegistryError::UpstreamResponse { .. })));
+        assert!(
+            matches!(result, Err(RegistryError::Upstream { source, .. }) if source.is_timeout()),
+        );
         assert!(upstream.ensure_available().is_ok());
         let result = upstream.fetch_search("text=example").await;
         assert!(matches!(result, Err(RegistryError::UpstreamResponse { .. })));

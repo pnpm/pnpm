@@ -417,3 +417,32 @@ async fn get_keys_forwards_request() {
     assert!(matches!(res, FetchOutcome::Ok(bytes) if bytes == br#"{"keys":[]}"#));
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn packument_body_limit_accepts_exact_size_and_rejects_overflow() {
+    for (chunked, size) in [(false, 16), (false, 17), (true, 16), (true, 17)] {
+        let mut server = mockito::Server::new_async().await;
+        let mut mock = server.mock("GET", "/example").with_status(200);
+        let chunk = move |writer: &mut dyn std::io::Write| writer.write_all(&vec![b' '; size]);
+        if chunked {
+            mock = mock.with_chunked_body(chunk);
+        } else {
+            mock = mock.with_body(vec![b' '; size]);
+        }
+        let mock = mock.create_async().await;
+        let mut config = pnpr_config::UpstreamConfig::with_defaults(server.url(), HeaderMap::new());
+        config.requests.max_packument_size = 16;
+        let client = super::Upstream::new("example", &config);
+        let name =
+            CanonicalPackageName::parse("example", pnpr_package_name::Ecosystem::Npm).unwrap();
+        let result = client.fetch_packument(&name, &CacheValidators::default()).await;
+        if size == 16 {
+            assert!(matches!(result, Ok(PackumentFetch::Modified(body)) if body.bytes.len() == 16));
+        } else {
+            assert!(
+                matches!(result, Err(RegistryError::UpstreamResponse { reason, .. }) if reason.contains("16-byte limit")),
+            );
+        }
+        mock.assert_async().await;
+    }
+}

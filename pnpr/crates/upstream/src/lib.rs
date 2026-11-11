@@ -239,15 +239,8 @@ impl Upstream {
             return Ok(PackumentFetch::NotModified);
         }
         let response = self.checked(response, &url).await?;
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|source| {
-                self.record_body_failure(&source);
-                RegistryError::Upstream { url: url.clone(), source }
-            })?;
-        self.breaker.record_success();
-        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
+        let bytes = self.read_document_body(response, &url, self.http.max_packument_size).await?;
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes }))
     }
 
     /// Send the tarball request and return a [`ThrottledResponse`]. Use its
@@ -352,20 +345,29 @@ impl Upstream {
         }
         let response = self.checked(response, url).await?;
         let final_url = response.url().to_string();
+        let bytes = self.read_document_body(response, url, limit).await?;
+        Ok(FetchOutcome::Ok(FetchedDocument { bytes, url: final_url }))
+    }
+
+    async fn read_document_body(
+        &self,
+        response: reqwest::Response,
+        url: &str,
+        limit: usize,
+    ) -> Result<Vec<u8>> {
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.record_body_failure(&err);
-                RegistryError::UpstreamResponse { url: url.to_string(), reason: err.to_string() }
+                RegistryError::Upstream { url: url.to_string(), source: err }
             })?;
+        self.breaker.record_success();
         if body.truncated {
-            self.breaker.record_success();
             return Err(RegistryError::UpstreamResponse {
                 url: url.to_string(),
                 reason: format!("response body exceeds the {limit}-byte limit"),
             });
         }
-        self.breaker.record_success();
-        Ok(FetchOutcome::Ok(FetchedDocument { bytes: body.bytes, url: final_url }))
+        Ok(body.bytes)
     }
 
     /// Fetch an artifact from the absolute URL an upstream's metadata

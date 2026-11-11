@@ -1,26 +1,35 @@
+pub(super) use background::{BackgroundIntegrity, schedule};
+pub(super) use refresh::refresh_cached_packument;
+
+mod background;
+mod cached;
+mod refresh;
+
 use super::{
     AppState, CanonicalPackageName, FetchOutcome, Integrity, RegistryError, Upstream,
     is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
     tarball_stream_error_for_package, timed, upstream_packuments::lock_upstream_package,
     upstream_tarballs::tarball_cache_name,
 };
+use futures_util::{StreamExt, stream};
 use serde_json::Value;
+
 use std::collections::HashSet;
 
 struct MissingIntegrityTarball {
     version: String,
     filename: String,
+    url: String,
     version_route: Option<String>,
     needs_integrity: bool,
     expected_shasum: Option<Integrity>,
 }
 
-/// A downloaded tarball and its computed integrity, not yet promoted into the
-/// cache nor written into the packument.
+/// A computed integrity and an optional downloaded blob awaiting publication.
 struct StagedPin {
     tarball: MissingIntegrityTarball,
     integrity: Integrity,
-    blob: pnpr_storage::SealedBlob,
+    blob: Option<pnpr_storage::SealedBlob>,
 }
 
 /// How many versions of one packument a single upstream fetch will download to
@@ -28,6 +37,7 @@ struct StagedPin {
 /// cap one client request fans out into a tarball fetch per version it
 /// declares unpinned.
 const MAX_PINNED_VERSIONS_PER_PACKUMENT: usize = 64;
+const MAX_CONCURRENT_PIN_DOWNLOADS: usize = 4;
 
 struct PackumentIntegrityResolver<'a> {
     state: &'a AppState,
@@ -121,7 +131,10 @@ impl PackumentIntegrityResolver<'_> {
     /// tarball cached under that name is evicted, so the tarball route fetches
     /// the version again and verifies it against the pin.
     async fn promote(&self, pin: StagedPin) {
-        let Err(err) = pin.blob.promote().await else {
+        let Some(blob) = pin.blob else {
+            return;
+        };
+        let Err(err) = blob.promote().await else {
             return;
         };
         tracing::warn!(
@@ -159,35 +172,34 @@ impl PackumentIntegrityResolver<'_> {
         &self,
         candidates: Vec<MissingIntegrityTarball>,
     ) -> Vec<StagedPin> {
-        let mut pins = Vec::new();
-        let mut candidates = candidates.into_iter();
-        for candidate in candidates.by_ref().take(MAX_PINNED_VERSIONS_PER_PACKUMENT) {
-            match self.stage_pin(&candidate).await {
-                Ok((blob, integrity)) => {
-                    pins.push(StagedPin { tarball: candidate, integrity, blob });
+        stream::iter(candidates.into_iter().take(MAX_PINNED_VERSIONS_PER_PACKUMENT))
+            .map(|candidate| async move {
+                match self.stage_pin(&candidate).await {
+                    Ok((blob, integrity)) => Some(StagedPin { tarball: candidate, integrity, blob }),
+                    Err(err) => {
+                        tracing::warn!(?err, package = %self.name.as_str(), version = %candidate.version, "leaving the version unpinned");
+                        None
+                    }
                 }
-                Err(err) => {
-                    tracing::warn!(
-                        ?err,
-                        package = %self.name.as_str(),
-                        version = %candidate.version,
-                        "leaving the version unpinned",
-                    );
-                }
-            }
-        }
-        let beyond_cap = candidates.count();
-        if beyond_cap > 0 {
-            tracing::warn!(
-                package = %self.name.as_str(),
-                beyond_cap,
-                "leaving versions past the cap unpinned",
-            );
-        }
-        pins
+            })
+            .buffer_unordered(MAX_CONCURRENT_PIN_DOWNLOADS)
+            .filter_map(|pin| async { pin })
+            .collect()
+            .await
     }
 
     async fn stage_pin(
+        &self,
+        candidate: &MissingIntegrityTarball,
+    ) -> Result<(Option<pnpr_storage::SealedBlob>, Integrity), RegistryError> {
+        if let Some(integrity) = self.cached_integrity(candidate).await? {
+            return Ok((None, integrity));
+        }
+        self.download_pin(candidate).await
+            .map(|(blob, integrity)| (Some(blob), integrity))
+    }
+
+    async fn download_pin(
         &self,
         candidate: &MissingIntegrityTarball,
     ) -> Result<(pnpr_storage::SealedBlob, Integrity), RegistryError> {
@@ -239,7 +251,9 @@ impl PackumentIntegrityResolver<'_> {
 
 async fn abandon(pins: Vec<StagedPin>) {
     for pin in pins {
-        pin.blob.abandon().await;
+        if let Some(blob) = pin.blob {
+            blob.abandon().await;
+        }
     }
 }
 
@@ -259,6 +273,8 @@ fn pin_still_applies(
     matches!(
         packument_tarball(manifest, name, &pinned.version),
         Ok(Some(current)) if current.needs_integrity
+            && current.url == pinned.url
+            && current.version_route == pinned.version_route
             && current.filename == pinned.filename
             && current.expected_shasum == pinned.expected_shasum,
     )
@@ -346,6 +362,7 @@ fn packument_tarball(
     Ok(Some(MissingIntegrityTarball {
         version: version.to_string(),
         filename,
+        url: tarball.to_string(),
         version_route,
         needs_integrity,
         expected_shasum,

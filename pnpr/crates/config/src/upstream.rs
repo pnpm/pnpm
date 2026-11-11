@@ -61,6 +61,9 @@ pub struct UpstreamRequestPolicy {
     /// pnpr buffers must arrive whole within it. Defaults to
     /// [`UpstreamConfig::DEFAULT_TIMEOUT`].
     pub timeout: Duration,
+    /// Maximum upstream packument body size in bytes.
+    /// Defaults to [`UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE`].
+    pub max_packument_size: usize,
     /// Consecutive failures before the upstream is treated as down
     /// (verdaccio's `max_fails`). Defaults to [`UpstreamConfig::DEFAULT_MAX_FAILS`].
     pub max_fails: u32,
@@ -71,6 +74,7 @@ pub struct UpstreamRequestPolicy {
 }
 
 impl UpstreamConfig {
+    pub const DEFAULT_MAX_PACKUMENT_SIZE: usize = 32 * 1024 * 1024;
     /// Verdaccio's `timeout` default (`30s`).
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Verdaccio's `max_fails` default (`2`).
@@ -89,6 +93,7 @@ impl UpstreamConfig {
             maxage: None,
             requests: UpstreamRequestPolicy {
                 timeout: Self::DEFAULT_TIMEOUT,
+                max_packument_size: Self::DEFAULT_MAX_PACKUMENT_SIZE,
                 max_fails: Self::DEFAULT_MAX_FAILS,
                 fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             },
@@ -158,6 +163,7 @@ pub(super) struct UpstreamConfigFile {
     /// value surfaces as a config error rather than a serde failure.
     pub(super) maxage: Option<Interval>,
     pub(super) timeout: Option<Interval>,
+    pub(super) max_packument_size: Option<super::ByteSize>,
     pub(super) max_fails: Option<u32>,
     pub(super) fail_timeout: Option<Interval>,
     pub(super) cache: Option<bool>,
@@ -316,6 +322,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         maxage,
         requests: UpstreamRequestPolicy {
             timeout,
+            max_packument_size: resolve_packument_limit(name, file.max_packument_size.as_ref())?,
             max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
             fail_timeout,
         },
@@ -443,4 +450,19 @@ fn resolve_upstream_token<Sys: EnvVar>(auth: &UpstreamAuthFile) -> Option<String
 
 fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
+}
+
+fn resolve_packument_limit(
+    name: &str,
+    value: Option<&super::ByteSize>,
+) -> Result<usize, RegistryError> {
+    let Some(value) = value else {
+        return Ok(UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
+    };
+    super::parse_byte_size(&value.0)
+        .and_then(|size| usize::try_from(size).ok())
+        .filter(|size| *size > 0)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("upstream {name:?} maxPackumentSize must be a positive byte size"),
+        })
 }

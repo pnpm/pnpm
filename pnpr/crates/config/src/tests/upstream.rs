@@ -459,6 +459,7 @@ fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
     // while the rest fall back to verdaccio's documented defaults.
     assert_eq!(upstream.maxage, None);
     assert_eq!(upstream.requests.timeout, UpstreamConfig::DEFAULT_TIMEOUT);
+    assert_eq!(upstream.requests.max_packument_size, UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
     assert_eq!(upstream.requests.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
     assert_eq!(upstream.requests.fail_timeout, UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
     assert!(upstream.cache);
@@ -549,4 +550,30 @@ registries:
     // A public upstream registry is reachable anonymously and carries no access
     // policy or upstream credential.
     assert!(config.routing.upstreams["corp"].access.is_none());
+}
+
+#[test]
+fn max_packument_size_is_resolved_and_validated() {
+    for (value, expected) in
+        [("2 MiB", Some(2 * 1024 * 1024)), ("17", Some(17)), ("0", None), ("invalid", None)]
+    {
+        let yaml = format!(
+            r"
+registries:
+  example:
+    type: upstream
+    url: https://registry.example.test
+    public: true
+    maxPackumentSize: {value}
+",
+        );
+        let result = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None);
+        match expected {
+            Some(expected) => assert_eq!(
+                result.unwrap().routing.upstreams["example"].requests.max_packument_size,
+                expected,
+            ),
+            None => assert!(result.is_err()),
+        }
+    }
 }

@@ -9,6 +9,7 @@ pub(super) struct UpstreamHttp {
     pub(super) headers: HeaderMap,
     /// The upstream's `timeout`. See [`crate::Deadline`] for what it bounds.
     pub(super) timeout: Duration,
+    pub(super) max_packument_size: usize,
 }
 
 impl UpstreamHttp {
@@ -18,6 +19,7 @@ impl UpstreamHttp {
             fetch_guard: None,
             headers: config.headers.clone(),
             timeout: config.requests.timeout,
+            max_packument_size: config.requests.max_packument_size,
         }
     }
 }

@@ -64,30 +64,6 @@ pub(super) async fn serve_authorized_upstream_tarball(
         return err.into_response();
     }
     let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
-    // Serve a cached hit before touching the packument: a cached entry was
-    // bound to a declared version and verified against `dist.integrity` when
-    // it was written, and the client re-verifies what it receives, so no
-    // re-bind or re-hash is needed. The packument load — and the full-document
-    // JSON parse in `expected_tarball_dist` — costs milliseconds per request
-    // for a large package and would dominate warm tarball serving.
-    //
-    // Deliberately, a hit is NOT re-bound against the packument as it stands
-    // *now*: a version unpublished since the write stays downloadable from
-    // this disposable mirror until the entry is wiped (registry-CDN
-    // semantics; resolution already stops offering it once the refreshed
-    // packument drops it), and a hostile packument rewrite — say, duplicate
-    // `dist.tarball` basenames — cannot retroactively poison bytes that were
-    // verified on the way in. The fail-closed bind below protects the *fetch*
-    // of new bytes; end-to-end SRI (the client's lockfile) is the authority
-    // on what it accepts. Only OSV screening needs the packument-resolved
-    // version first, so with OSV enabled the cache read waits for the bind
-    // below. A `cache: false` upstream skips the cache and streams through.
-    if upstream.caches()
-        && state.inner.osv_index.is_none()
-        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
-    {
-        return response;
-    }
     let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
     let TarballDist {
         version,
@@ -111,7 +87,6 @@ pub(super) async fn serve_authorized_upstream_tarball(
         unpacked_size,
     };
     if upstream.caches()
-        && state.inner.osv_index.is_some()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
     {
         schedule_cached_tarball_scan(state, tarball);
@@ -147,8 +122,7 @@ pub(super) fn tarball_cache_name(
 /// Where a served upstream tarball's bytes came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TarballOrigin {
-    /// The namespaced cache, verified when it was written but not against the
-    /// packument as it stands now.
+    /// The namespaced cache, verified when it was written.
     Cache,
     /// The upstream, verified against `dist.integrity` as it streams.
     Upstream,
@@ -195,7 +169,10 @@ pub(super) async fn bind_tarball_to_packument(
     let Some(packument) = packument else {
         return Ok(None);
     };
-    expected_tarball_dist(&packument, name, filename)
+    let name = name.clone();
+    let filename = filename.to_string();
+    state.inner.packuments.workers.run(move || expected_tarball_dist(&packument, &name, &filename))
+        .await?
 }
 
 /// Screen the version a canonical filename declares, so an advisory-blocked
