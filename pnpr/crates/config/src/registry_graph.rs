@@ -172,10 +172,7 @@ fn declares_tar_tarballs(name: &str, file: &RegistryFile) -> Result<bool, Regist
     let (tarballs, ecosystem) = match file {
         RegistryFile::Hosted(hosted) => (hosted.tarballs, hosted.ecosystem),
         RegistryFile::Upstream(upstream) => (upstream.tarballs, upstream.ecosystem),
-        RegistryFile::Router(router) => (
-            router.tarballs,
-            Ecosystem::all().find(|ecosystem| name.starts_with(&format!("{ecosystem}/"))),
-        ),
+        RegistryFile::Router(router) => (router.tarballs, None),
     };
     if tarballs != Some(TarballFormat::Tar) {
         return Ok(false);
