@@ -594,12 +594,18 @@ async fn unsupported_npm_package_endpoints_explain_the_refusal() {
 #[tokio::test]
 async fn npm_capability_handshakes_advertise_only_reachable_protocols() {
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    let mut config = Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873)),
+        tmp.path().to_path_buf(),
+    );
     config.features.resolver.enabled = true;
     config.features.artifacts.enabled = true;
     config.features.pipeline.enabled = true;
-    let app = router(config);
-    for base in ["", "/npm", "/npm/~hosted"] {
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
+    let auth = crate::tokens::seeded_auth(&config, &[("publisher", "password")]);
+    let token = crate::tokens::issue_token(&auth, "publisher").await;
+    let app = pnpr::router_with_auth(config, auth);
+    for (index, base) in ["", "/npm", "/npm/~local"].into_iter().enumerate() {
         let response = app
             .clone()
             .oneshot(
@@ -626,15 +632,21 @@ async fn npm_capability_handshakes_advertise_only_reachable_protocols() {
         }
         assert_eq!(protocols["publish"]["versions"], json!([0]));
         assert_eq!(protocols["pnpmPublish"]["versions"], json!([1]));
+        let package = format!("example-package-{index}");
+        let tarball = crate::npm::npm_tgz(&package, "1.0.0", b"package contents");
+        let document = crate::npm::publish_doc(&package, "1.0.0", &tarball);
         let response = app
             .clone()
             .oneshot(
                 Request::put(format!("{base}/-/pnpr/v0/publish"))
-                    .body(Body::empty())
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::from(json!({ "packages": [document] }).to_string()))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_ne!(response.status(), StatusCode::NOT_FOUND, "{base}");
+        assert_eq!(response.status(), StatusCode::CREATED, "{base}");
+        assert_eq!(body_json(response.into_body()).await["ok"], true);
     }
 }
