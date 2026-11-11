@@ -10,9 +10,12 @@ use super::{
 use crate::tokens::issue_token;
 use axum::Router;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use pnpm_release_record::{Envelope, PredicateType, RecordDigest, StoredRecord, verify_statement};
+use pnpm_release_record::{
+    ConflictMonitor, Envelope, LogEntry, PredicateType, RecordDigest, StoredRecord,
+    verify_statement,
+};
 use pnpm_transparency_log::{
-    CheckpointPolicy, Hash, KeySet, NoteSigner, decode_bundle, verify_inclusion,
+    CheckpointPolicy, Hash, KeySet, NoteSigner, decode_bundle, verify_consistency, verify_inclusion,
 };
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -66,7 +69,7 @@ async fn setup(rules: Vec<pnpr::PackageRule>) -> (TempDir, Router, String) {
     (tmp, app, token)
 }
 
-async fn publish(app: &Router, token: &str, package: &str, version: &str) {
+async fn publish_status(app: &Router, token: &str, package: &str, version: &str) -> StatusCode {
     let manifest = format!(r#"{{"name":"{package}","version":"{version}"}}"#);
     let tar = tar_of(&[("package/package.json", manifest.as_bytes())]);
     let request = hosted_publish_request(
@@ -76,12 +79,15 @@ async fn publish(app: &Router, token: &str, package: &str, version: &str) {
         &super::gzip(&tar),
         token,
     );
-    let response = app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
+        .unwrap()
+        .status()
+}
+
+async fn publish(app: &Router, token: &str, package: &str, version: &str) {
+    assert_eq!(publish_status(app, token, package, version).await, StatusCode::CREATED);
 }
 
 async fn get(app: &Router, uri: &str, token: Option<&str>) -> axum::response::Response {
@@ -280,4 +286,148 @@ async fn a_router_built_outside_a_runtime_recovers_its_log() {
         assert!(std::time::Instant::now() < deadline, "the log was never recovered");
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
+}
+
+async fn wait_for_checkpoint_size(app: &Router, min_size: u64) -> pnpm_transparency_log::TreeHead {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let response = get(app, "/npm/-/log/checkpoint", None).await;
+        if response.status() == StatusCode::OK {
+            let note = body_bytes(response.into_body()).await;
+            let tree_head = log_policy().verify(&note).unwrap().tree_head;
+            if tree_head.size >= min_size {
+                return tree_head;
+            }
+        }
+        assert!(std::time::Instant::now() < deadline, "checkpoint never reached {min_size}");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+/// Restoring an older `SQLite` database backup while keeping a newer
+/// `.transparency-log/` directory re-imports the bundled entries before new
+/// publishes sequence, blocks republishing those rolled-back versions, and
+/// extends the log with a consistent checkpoint.
+#[tokio::test]
+async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
+    let tmp = TempDir::new().unwrap();
+    let db_path = tmp.path().join("metadata.sqlite");
+    let db_backup = tmp.path().join("metadata.sqlite.backup");
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+
+    let app_initial = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
+    publish(&app_initial, &token, "@acme/widget", "1.0.0").await;
+    assert_eq!(wait_for_checkpoint_size(&app_initial, 1).await.size, 1);
+    drop(app_initial);
+    std::fs::copy(&db_path, &db_backup).unwrap();
+
+    let app_before_crash = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
+    publish(&app_before_crash, &token, "@acme/widget", "1.0.1").await;
+    publish(&app_before_crash, &token, "@acme/widget", "1.0.2").await;
+    let before_restore = wait_for_checkpoint_size(&app_before_crash, 3).await;
+    assert_eq!(before_restore.size, 3);
+    drop(app_before_crash);
+
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = tmp
+            .path()
+            .join(format!("metadata.sqlite{suffix}"));
+        let _ = std::fs::remove_file(sidecar);
+    }
+    std::fs::copy(&db_backup, &db_path).unwrap();
+
+    // Even without calling `prepare_storage` first, an immediate publish on a
+    // fresh router reconciles the log before committing.
+    let app_restored = router_with_auth(acme_config(tmp.path(), Vec::new()), auth);
+    assert_eq!(
+        publish_status(&app_restored, &token, "@acme/widget", "1.0.1").await,
+        StatusCode::FORBIDDEN,
+    );
+    publish(&app_restored, &token, "@acme/widget", "1.0.3").await;
+    let after_restore = wait_for_checkpoint_size(&app_restored, 4).await;
+    assert_eq!(after_restore.size, 4);
+
+    let evidence = body_json(
+        get(&app_restored, "/npm/@acme%2Fwidget/1.0.3+r0/evidence", None).await.into_body(),
+    )
+    .await;
+    assert_eq!(evidence["inclusion"]["index"].as_u64(), Some(3));
+    let inclusion_proof: Vec<Hash> = evidence["inclusion"]["proof"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hash| {
+            Hash(
+                STANDARD
+                    .decode(hash.as_str().unwrap())
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            )
+        })
+        .collect();
+
+    let tile =
+        body_bytes(get(&app_restored, "/npm/-/log/tile/0/000.p/4", None).await.into_body()).await;
+    let (chunks, remainder) = tile.as_chunks::<32>();
+    assert!(remainder.is_empty());
+    let leaves: Vec<Hash> = chunks
+        .iter()
+        .copied()
+        .map(Hash)
+        .collect();
+    assert_eq!(leaves.len(), 4);
+    let consistency = [inclusion_proof[0], leaves[3], inclusion_proof[1]];
+    verify_consistency(&consistency, &before_restore, &after_restore).unwrap();
+
+    let bundle =
+        body_bytes(get(&app_restored, "/npm/-/log/tile/entries/000.p/4", None).await.into_body())
+            .await;
+    let mut monitor = ConflictMonitor::default();
+    let decoded = decode_bundle(&bundle).unwrap();
+    assert_eq!(decoded.len(), 4);
+    verify_inclusion(&inclusion_proof, &after_restore, 3, decoded[3]).unwrap();
+    for (index, raw) in decoded.into_iter().enumerate() {
+        let entry = LogEntry::parse(raw).unwrap();
+        assert_eq!(monitor.observe(u64::try_from(index).unwrap(), &entry), None);
+    }
+}
+
+/// `prepare_storage` and publish commits fail closed when `.transparency-log/`
+/// holds a checkpoint from another history.
+#[tokio::test]
+async fn prepare_storage_and_publish_refuse_a_forked_transparency_log() {
+    let donor_tmp = TempDir::new().unwrap();
+    let donor_auth = AuthState::in_memory();
+    let donor_token = issue_token(&donor_auth, "alice").await;
+    let donor_app = router_with_auth(acme_config(donor_tmp.path(), Vec::new()), donor_auth);
+    publish(&donor_app, &donor_token, "@acme/other", "1.0.0").await;
+    assert_eq!(wait_for_checkpoint_size(&donor_app, 1).await.size, 1);
+    drop(donor_app);
+
+    let target_tmp = TempDir::new().unwrap();
+    let target_auth = AuthState::in_memory();
+    let target_token = issue_token(&target_auth, "alice").await;
+    let target_config = acme_config(target_tmp.path(), Vec::new());
+    pnpr::prepare_storage(&target_config).await.unwrap();
+    let target_app = router_with_auth(target_config.clone(), target_auth.clone());
+    publish(&target_app, &target_token, "@acme/widget", "1.0.0").await;
+    assert_eq!(wait_for_checkpoint_size(&target_app, 1).await.size, 1);
+    drop(target_app);
+
+    let checkpoint_subpath = ".transparency-log/npm/~acme/checkpoint";
+    let donor_checkpoint = std::fs::read(donor_tmp.path().join(checkpoint_subpath)).unwrap();
+    std::fs::write(target_tmp.path().join(checkpoint_subpath), &donor_checkpoint).unwrap();
+
+    let startup_err = pnpr::prepare_storage(&target_config).await.unwrap_err();
+    assert!(startup_err.to_string().contains("disagrees"));
+
+    let restarted = router_with_auth(target_config, target_auth);
+    let status = publish_status(&restarted, &target_token, "@acme/widget", "1.0.1").await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        std::fs::read(target_tmp.path().join(checkpoint_subpath)).unwrap(),
+        donor_checkpoint,
+    );
 }

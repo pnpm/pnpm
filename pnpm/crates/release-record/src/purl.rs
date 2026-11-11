@@ -114,6 +114,22 @@ impl Purl {
         rest.split_once('/').map_or(rest, |(purl_type, _)| purl_type)
     }
 
+    /// The npm package name and version this PURL names, or `None` for
+    /// another PURL type, a variant PURL, or a non-canonical spelling.
+    #[must_use]
+    pub fn npm_package(&self) -> Option<(String, String)> {
+        let parts = Components::parse(&self.0)?;
+        if parts.purl_type != "npm" || !parts.qualifiers.is_empty() {
+            return None;
+        }
+        let name = match parts.namespace.as_deref() {
+            Some(scope) => format!("{scope}/{}", parts.name),
+            None => parts.name,
+        };
+        let rebuilt = Purl::npm(&name, &parts.version).ok()?;
+        (rebuilt == *self).then_some((name, parts.version))
+    }
+
     /// Checks that an `npm`, `cargo`, or `pypi` PURL is exactly the one
     /// [`Purl::npm`], [`Purl::npm_variant`], [`Purl::cargo`], or
     /// [`Purl::pypi_file`] builds from its components, so one release has one

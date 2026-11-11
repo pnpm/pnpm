@@ -208,11 +208,12 @@ impl Store {
             .join(blob_segment(name.as_str(), filename))
     }
 
-    /// A record's path. The key's `/` separators become path components, so a
-    /// key never rides into a path as one string on a platform that would read
-    /// it differently.
+    /// A record's path. The namespace's and key's `/` separators become path
+    /// components, so neither rides into a path as one string on a platform
+    /// that would read it differently.
     pub(super) fn record_path(&self, namespace: &str, key: &str) -> PathBuf {
-        let mut path = self.root.join(namespace);
+        let mut path = self.root.clone();
+        path.extend(namespace.split('/'));
         path.extend(key.split('/'));
         path
     }
@@ -266,7 +267,8 @@ impl Store {
     }
 
     pub(super) async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
-        let root = self.root.join(namespace);
+        let mut root = self.root.clone();
+        root.extend(namespace.split('/'));
         let mut keys = Vec::new();
         let mut pending = vec![(root, String::new())];
         while let Some((dir, prefix)) = pending.pop() {
