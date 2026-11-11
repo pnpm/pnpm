@@ -83,8 +83,9 @@ pub(super) fn check_recorded_local_targets(
         if (child_catalogs
             .get(&child.alias)
             .is_some_and(|catalog| {
-                !recorded_catalog_spec_matches(check, dep, &child.alias, catalog)
-                    .unwrap_or_else(|| catalog_child_is_fresh(check, dep, snapshot, child))
+                recorded_catalog_spec_matches(check, dep, &child.alias, catalog) == Some(false)
+                    || !(catalog_child_is_fresh(check, dep, snapshot, child)
+                        || optional_peer_supplies_child(local_manifest, snapshot, child))
             }))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
         {
@@ -93,6 +94,15 @@ pub(super) fn check_recorded_local_targets(
         check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
     }
     Ok(())
+}
+
+fn optional_peer_supplies_child(
+    manifest: &PackageManifest,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    child: &DependencySpec,
+) -> bool {
+    declared_peer_dependencies(manifest.value()).get(&child.alias).is_some_and(|peer| peer.optional)
+        && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_some()
 }
 
 fn recorded_catalog_spec_matches(

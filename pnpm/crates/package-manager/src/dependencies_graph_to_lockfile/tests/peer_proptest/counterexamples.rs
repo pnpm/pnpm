@@ -437,12 +437,7 @@ fn v13_round_trip_preserves_missing_peer_in_dependency_cycle() {
         ..Default::default()
     };
     let result = super::resolve_with(&workspace, &[0], settings, Reuse::Fresh).unwrap();
-    let lockfile = super::lockfile_with_settings(&result, &workspace, settings);
-    assert_eq!(
-        lockfile.snapshots.as_ref().unwrap()[&"p2@1.0.0".parse().unwrap()]
-            .transitive_peer_dependencies,
-        Some(vec!["p1".to_string()]),
-    );
+    assert_v13_round_trip(&result, &workspace, settings);
 }
 
 #[test]
@@ -476,7 +471,7 @@ fn v13_round_trip_preserves_optional_peer_dependency_cycle() {
         ..Default::default()
     };
     let result = super::resolve_with(&workspace, &[0], settings, Reuse::Fresh).unwrap();
-    super::lockfile_with_settings(&result, &workspace, settings);
+    assert_v13_round_trip(&result, &workspace, settings);
 }
 
 #[test]
@@ -527,7 +522,7 @@ fn v13_round_trip_preserves_injected_peer_provider_variants() {
     };
     let result =
         super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
-    super::lockfile_with_settings(&result, &workspace, settings);
+    assert_v13_round_trip(&result, &workspace, settings);
 }
 
 #[test]
@@ -552,7 +547,7 @@ fn v13_round_trip_preserves_hashed_catalog_injected_peers() {
     };
     let result =
         super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
-    super::lockfile_with_settings(&result, &workspace, settings);
+    assert_v13_round_trip(&result, &workspace, settings);
 }
 
 #[test]
@@ -590,7 +585,7 @@ fn v13_round_trip_preserves_auto_installed_injected_peer_cycle() {
     };
     let result =
         super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
-    super::lockfile_with_settings(&result, &workspace, settings);
+    assert_v13_round_trip(&result, &workspace, settings);
 }
 
 #[test]
@@ -616,7 +611,7 @@ fn v13_round_trip_preserves_injected_transitive_peer_cycle() {
     };
     let result =
         super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
-    super::lockfile_with_settings(&result, &workspace, settings);
+    assert_v13_round_trip(&result, &workspace, settings);
 }
 
 #[test]
@@ -644,5 +639,59 @@ fn v13_round_trip_preserves_hashed_auto_installed_peer_diamond() {
     };
     let result =
         super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
-    super::lockfile_with_settings(&result, &workspace, settings);
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+fn assert_v13_round_trip(
+    result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
+    workspace: &Workspace,
+    settings: super::Settings,
+) {
+    let legacy = super::lockfile_with_settings(
+        result,
+        workspace,
+        super::Settings { format: pnpm_lockfile::LockfileFormat::V9, ..settings },
+    );
+    let next = super::lockfile_with_settings(result, workspace, settings);
+    assert_eq!(next.importers, legacy.importers);
+    assert_eq!(next.snapshots, legacy.snapshots);
+}
+
+#[test]
+fn frozen_check_rejects_stale_recorded_catalog_children() {
+    let workspace = Workspace {
+        packages: vec![vec![depending_on(1, 1), leaf()], vec![leaf(), leaf()]],
+        importers: vec![direct(1, 1)],
+    };
+    let settings = super::Settings {
+        catalogs: true,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    let lockfile = super::lockfile_with_settings(&result, &workspace, settings);
+    let fixture = super::fixture::Fixture::new(&workspace, settings);
+    fixture.frozen_check(&lockfile, settings).unwrap();
+    for version in [None, Some("2.0.0")] {
+        let mut stale = lockfile.clone();
+        let (_, shared) = stale.snapshots
+            .as_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|(key, _)| key.name.to_string() == "shared")
+            .unwrap();
+        let dependencies = shared.dependencies.as_mut().unwrap();
+        let alias = "p1".parse().unwrap();
+        match version {
+            Some(version) => {
+                dependencies.insert(alias, version.parse().unwrap());
+            }
+            None => {
+                dependencies.remove(&alias);
+            }
+        }
+        assert!(fixture.frozen_check(&stale, settings).is_err(), "stale child: {version:?}");
+    }
 }

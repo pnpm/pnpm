@@ -41,7 +41,11 @@ pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFor
             // and the key each snapshot gets. The entries themselves can
             // still read back differently, for a lockfile an older pnpm
             // wrote, so the whole sections are compared once.
-            check_round_trip(lockfile, &rebuilt.into_sections(&sections, context))?;
+            let restored = rebuilt.into_sections(&sections, context);
+            if explicit.mark_unbound_peer_names(lockfile, &restored) {
+                continue;
+            }
+            check_round_trip(lockfile, &restored)?;
             return Ok(sections);
         }
     }
@@ -53,9 +57,30 @@ pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFor
 pub(super) struct Explicit {
     snapshot_references: HashMap<PackageKey, HashSet<PkgName>>,
     importer_references: HashMap<String, HashSet<PkgName>>,
+    unbound_peer_names: HashSet<PackageKey>,
 }
 
 impl Explicit {
+    fn mark_unbound_peer_names(
+        &mut self,
+        lockfile: &Lockfile,
+        restored: &RestoredSections,
+    ) -> bool {
+        let mut marked = false;
+        for (key, entry) in lockfile.snapshots.iter().flatten() {
+            let Some(other) = restored.snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(key))
+            else {
+                continue;
+            };
+            if transitive_names(entry) != transitive_names(other) {
+                marked |= self.unbound_peer_names.insert(key.clone());
+            }
+        }
+        marked
+    }
+
     fn has_snapshot_reference(&self, key: &PackageKey, name: &PkgName) -> bool {
         self.snapshot_references
             .get(key)
@@ -89,9 +114,8 @@ impl Explicit {
     }
 }
 
-/// Checks keys and dependency edges. Unbound peer names are derived from the
-/// final dependency graph. Importer `specifiers` are a working copy that is
-/// never written.
+/// Checks the sections as written. Importer `specifiers` are a working copy
+/// that is never written.
 pub(super) fn check_round_trip(
     lockfile: &Lockfile,
     restored: &RestoredSections,
@@ -123,14 +147,22 @@ pub(super) fn check_round_trip(
     Ok(())
 }
 
-/// Bound peers are part of the snapshot key. Unbound peer metadata is derived
-/// from the final graph, which may differ from the resolver's cycle-cut walk.
+/// Equal, comparing transitive peer names as a set.
 fn same_entry(left: &SnapshotEntry, right: &SnapshotEntry) -> bool {
     left.id == right.id
         && left.dependencies == right.dependencies
         && left.optional_dependencies == right.optional_dependencies
         && left.patched == right.patched
         && left.optional == right.optional
+        && transitive_names(left) == transitive_names(right)
+}
+
+fn transitive_names(entry: &SnapshotEntry) -> HashSet<&str> {
+    entry.transitive_peer_dependencies
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect()
 }
 
 pub(super) fn children(entry: &SnapshotEntry) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {

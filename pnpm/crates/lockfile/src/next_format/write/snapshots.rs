@@ -16,8 +16,11 @@ use super::{
     },
 };
 use crate::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry};
+use naming::{BindingVariation, NamingBudget, binding_components, varying_bindings};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+
+mod naming;
 
 /// One snapshot of the lockfile, split into the next format's maps.
 pub(super) struct Snapshot<'a> {
@@ -98,8 +101,26 @@ impl Snapshot<'_> {
             optional_dependencies: non_empty(optional_dependencies),
             peer_dependencies: non_empty(peer_dependencies),
             transitive_peer_dependencies: non_empty(transitive),
+            unbound_peer_dependencies: explicit.unbound_peer_names
+                .contains(self.key)
+                .then(|| self.unbound_peer_names()),
             optional: self.entry.optional,
         }
+    }
+    fn unbound_peer_names(&self) -> Vec<String> {
+        let mut names: Vec<_> = self.entry.transitive_peer_dependencies
+            .iter()
+            .flatten()
+            .filter(|name| {
+                !self.transitive
+                    .iter()
+                    .any(|(bound, _)| bound.to_string() == **name)
+            })
+            .cloned()
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names
     }
 }
 
@@ -110,12 +131,13 @@ pub(super) struct Snapshots<'a> {
     index: HashMap<&'a PackageKey, (usize, usize)>,
     /// Per package, the peers its snapshots bind differently: the bindings
     /// that name one of them.
-    varying: Vec<HashSet<PkgName>>,
+    varying: Vec<BindingVariation>,
+    named: HashMap<&'a PackageKey, Option<NamedBindings>>,
+    components: HashMap<&'a PackageKey, usize>,
 }
 
 /// A snapshot's transitive peers: those its key names, and those left for
-/// [`ProviderFinder`]. A peer nothing provides is not written: the reader
-/// derives it from the `peerDependencies` of the packages below.
+/// [`ProviderFinder`].
 struct Transitive<'a> {
     named: Vec<(PkgName, SnapshotDepRef)>,
     unnamed: Vec<(PkgName, &'a str)>,
@@ -188,10 +210,12 @@ impl<'a> Snapshots<'a> {
                     transitive: transitive.named,
                 });
         }
-        Ok(Snapshots::from_groups(grouped))
+        Snapshots::from_groups(grouped)
     }
 
-    fn from_groups(grouped: HashMap<PackageKey, Vec<Snapshot<'a>>>) -> Self {
+    fn from_groups(
+        grouped: HashMap<PackageKey, Vec<Snapshot<'a>>>,
+    ) -> Result<Self, NextFormatError> {
         let mut by_package: Vec<(PackageKey, Vec<Snapshot<'a>>)> = grouped.into_iter().collect();
         by_package
             .par_iter_mut()
@@ -213,46 +237,24 @@ impl<'a> Snapshots<'a> {
             .par_iter()
             .map(|(_, snapshots)| varying_bindings(snapshots))
             .collect();
-        Snapshots { by_package, index, varying }
+        let components = binding_components(&by_package);
+        let mut snapshots =
+            Snapshots { by_package, index, varying, named: HashMap::new(), components };
+        for key in snapshots.index.keys().copied() {
+            let named = snapshots.naming_bindings_in(key, &mut NamingBudget::default())?;
+            snapshots.named.insert(key, named);
+        }
+        Ok(snapshots)
     }
 
     /// The bindings that name the snapshot `target` among its package's: the
     /// peers the package's snapshots bind differently, as `target` binds
     /// them. `None` when nothing tells the snapshot apart.
     pub(super) fn naming_bindings(&self, target: &PackageKey) -> Option<NamedBindings> {
-        self.naming_bindings_in(target, &mut HashSet::new())
-    }
-
-    fn naming_bindings_in(
-        &self,
-        target: &PackageKey,
-        visiting: &mut HashSet<PackageKey>,
-    ) -> Option<NamedBindings> {
-        let &(package, index) = self.index.get(target)?;
-        if !visiting.insert(target.clone()) {
-            return None;
-        }
-        let snapshot = &self.by_package[package].1[index];
-        let varying = &self.varying[package];
-        let peers: NamedBindings = snapshot
-            .bindings()
-            .filter(|(name, _)| varying.contains(*name))
-            .map(|(name, reference)| {
-                let version = without_groups(reference);
-                let nested = self
-                    .binding_needs_nested(package, name, reference)
-                    .then(|| reference.resolve(name))
-                    .flatten()
-                    .and_then(|target| self.naming_bindings_in(&target, visiting));
-                let reference = match nested {
-                    Some(peers) => NextRef::Named { version, peers },
-                    None => NextRef::Plain(version),
-                };
-                (name.to_string(), reference)
-            })
-            .collect();
-        visiting.remove(target);
-        (!varying.is_empty()).then_some(peers)
+        self.named
+            .get(target)
+            .cloned()
+            .flatten()
     }
 
     /// Nested discriminators must also be written on the bindings they identify.
@@ -270,24 +272,6 @@ impl<'a> Snapshots<'a> {
                 explicit.mark_snapshot_reference(snapshot.key, name);
             }
         }
-    }
-
-    fn binding_needs_nested(
-        &self,
-        package: usize,
-        name: &PkgName,
-        reference: &SnapshotDepRef,
-    ) -> bool {
-        let version = without_groups(reference);
-        self.by_package[package].1
-            .iter()
-            .any(|candidate| {
-                candidate
-                    .bindings()
-                    .any(|(bound, other)| {
-                        bound == name && other != reference && without_groups(other) == version
-                    })
-            })
     }
 
     pub(super) fn sections(
@@ -393,23 +377,5 @@ fn importer_mismatches<'l>(
                 })
                 .map(move |(alias, _)| (id.as_str(), alias))
         })
-        .collect()
-}
-
-/// The peers that `snapshots`, of one package, bind differently or not all
-/// bind.
-fn varying_bindings(snapshots: &[Snapshot<'_>]) -> HashSet<PkgName> {
-    let mut values: HashMap<&PkgName, (HashSet<SnapshotDepRef>, usize)> = HashMap::new();
-    for snapshot in snapshots {
-        for (name, reference) in snapshot.bindings() {
-            let (bound, count) = values.entry(name).or_default();
-            bound.insert(reference.clone());
-            *count += 1;
-        }
-    }
-    values
-        .into_iter()
-        .filter(|(_, (bound, count))| bound.len() > 1 || *count < snapshots.len())
-        .map(|(name, _)| name.clone())
         .collect()
 }
