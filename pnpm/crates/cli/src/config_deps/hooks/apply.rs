@@ -121,29 +121,47 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         config.lockfile_dir = None;
     }
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
-    if config.lockfile_dir.is_none() {
-        config.modules_dir = modules_dir;
-        if let Some(hook_modules_dir) = paths_before_hook.hook_modules_dir.as_ref() {
-            config.modules_dir.clone_from(hook_modules_dir);
-        }
-        config.configured_virtual_store_dir = configured_virtual_store_dir;
-        config.install_state_dir = install_state_dir;
-    }
-    if config.lockfile_dir.is_none() && paths_before_hook.modules_dir_changed {
-        if !config.explicit_settings.contains_key("virtualStoreDir")
-            || config.enable_global_virtual_store
-        {
-            config.install_state_dir = config.modules_dir.join(".pnpm");
-        }
-    } else if config.lockfile_dir.is_none() && paths_before_hook.lockfile_dir.is_some() {
-        let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
-        config.anchor_lockfile_paths(&default_lockfile_dir);
-    }
+    restore_default_lockfile_dir_paths(
+        config,
+        &paths_before_hook,
+        modules_dir,
+        configured_virtual_store_dir,
+        install_state_dir,
+    );
     config.refresh_node_path_after_lockfile_dir_change::<Host>(
         [&paths_before_hook.node_path_dirs[0], &paths_before_hook.node_path_dirs[1]],
         paths_before_hook.hook_node_path,
         paths_before_hook.hook_node_options,
     );
+}
+
+fn restore_default_lockfile_dir_paths(
+    config: &mut Config,
+    paths_before_hook: &LockfileDirPathsBeforeHook,
+    modules_dir: PathBuf,
+    configured_virtual_store_dir: Option<PathBuf>,
+    install_state_dir: PathBuf,
+) {
+    if config.lockfile_dir.is_some() {
+        return;
+    }
+    config.modules_dir = modules_dir;
+    if let Some(hook_modules_dir) = paths_before_hook.hook_modules_dir.as_ref() {
+        config.modules_dir.clone_from(hook_modules_dir);
+    }
+    config.configured_virtual_store_dir = configured_virtual_store_dir;
+    config.install_state_dir = install_state_dir;
+    if paths_before_hook.modules_dir_changed {
+        if !config.explicit_settings.contains_key("virtualStoreDir")
+            || config.enable_global_virtual_store
+        {
+            config.install_state_dir = config.modules_dir.join(".pnpm");
+        }
+    } else if paths_before_hook.lockfile_dir.is_some() {
+        let project_dir = config.dir.clone();
+        let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
+        config.anchor_lockfile_paths(&default_lockfile_dir);
+    }
 }
 
 fn changed_extra_env_value(input: &Value, current: &Value, key: &str) -> Option<Option<String>> {

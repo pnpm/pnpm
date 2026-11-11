@@ -120,6 +120,8 @@ async fn update_config_default_lockfile_dir_rederives_state_after_modules_dir_ch
     assert_eq!(
         config.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str),
         Some("custom_modules"),
+        "CLI settings: {:?}",
+        config.cli_settings,
     );
     assert_eq!(config.modules_dir, workspace.join("custom_modules"));
     assert_eq!(config.install_state_dir, workspace.join("custom_modules/.pnpm"));
