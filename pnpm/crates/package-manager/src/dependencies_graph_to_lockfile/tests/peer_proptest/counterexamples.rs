@@ -497,6 +497,20 @@ fn frozen_check_accepts_injected_catalog_optional_peer_dependency() {
         super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
     let lockfile = super::lockfile_with_settings(&result, &workspace, settings);
     super::fixture::Fixture::new(&workspace, settings).frozen_check(&lockfile, settings).unwrap();
+    let mut stale = lockfile.clone();
+    for (key, snapshot) in stale.snapshots.as_mut().unwrap() {
+        if key.name.to_string() == "shared"
+            && let Some(reference) = snapshot.optional_dependencies
+                .as_mut()
+                .and_then(|dependencies| dependencies.get_mut(&"p1".parse().unwrap()))
+        {
+            *reference = "2.0.0".parse().unwrap();
+        }
+    }
+    assert_ne!(stale.snapshots, lockfile.snapshots);
+    assert!(
+        super::fixture::Fixture::new(&workspace, settings).frozen_check(&stale, settings).is_err(),
+    );
 }
 
 #[test]

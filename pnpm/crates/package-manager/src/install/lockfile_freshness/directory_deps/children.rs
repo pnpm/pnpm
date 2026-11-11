@@ -74,7 +74,13 @@ pub(super) fn check_recorded_local_targets(
             .is_some_and(|catalog| {
                 recorded_catalog_spec_matches(check, dep, &child.alias, catalog) == Some(false)
                     || !(catalog_child_is_fresh(check, dep, snapshot, child)
-                        || optional_peer_supplies_child(check, local_manifest, snapshot, child))
+                        || optional_peer_supplies_child(
+                            check,
+                            dep,
+                            local_manifest,
+                            snapshot,
+                            child,
+                        ))
             }))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
         {
@@ -104,6 +110,7 @@ fn local_child_catalogs(
 
 fn optional_peer_supplies_child(
     check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
     manifest: &PackageManifest,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     child: &DependencySpec,
@@ -112,7 +119,8 @@ fn optional_peer_supplies_child(
         && declared_peer_dependencies(manifest.value())
             .get(&child.alias)
             .is_some_and(|peer| peer.optional)
-        && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_some()
+        && recorded_child(snapshot, &child.alias, RecordedDeps::Optional)
+            .is_some_and(|recorded| recorded_child_satisfies_spec(check, dep, child, recorded))
 }
 
 fn recorded_catalog_spec_matches(
@@ -268,10 +276,7 @@ fn child_is_fresh(
         {
             dep.declaration_assumed
         }
-        Some(recorded) => {
-            spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, &child.bare_specifier, recorded)
-                .unwrap_or(check.optional_exclusions.frozen_lockfile)
-        }
+        Some(recorded) => recorded_child_satisfies_spec(check, dep, child, recorded),
         // A child recorded as required has changed, not gone unresolved.
         None => {
             child.optional
@@ -279,6 +284,16 @@ fn child_is_fresh(
                 && recorded_child(snapshot, name, RecordedDeps::Required).is_none()
         }
     }
+}
+
+fn recorded_child_satisfies_spec(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
+    child: &DependencySpec,
+    recorded: &pnpm_lockfile::SnapshotDepRef,
+) -> bool {
+    spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, &child.alias, &child.bare_specifier, recorded)
+        .unwrap_or(check.optional_exclusions.frozen_lockfile)
 }
 
 /// Which of a snapshot's two dependency maps a child is recorded in.
