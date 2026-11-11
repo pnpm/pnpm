@@ -30,13 +30,13 @@ pub async fn migrate_local_to_s3(
 ) -> miette::Result<MigrateReport> {
     let (source, target) = init_source_and_target_storage(config, options)?;
     let mut report = MigrateReport { dry_run: options.dry_run, ..Default::default() };
-    source
+    let source_layout = source
         .check_hosted_layout()
         .await
         .map_err(|err| miette::miette!("source: {err}"))?;
     if !options.dry_run {
         target
-            .ensure_hosted_layout()
+            .ensure_migration_target_layout(&source_layout)
             .await
             .map_err(|err| miette::miette!("target: {err}"))?;
     }

@@ -185,11 +185,104 @@ async fn a_store_without_packages_gets_the_layout_marker() {
     fs::create_dir_all(tmp.path().join("storage/.team-rosters")).await.unwrap();
     storage.ensure_hosted_layout().await.unwrap();
     let marker = fs::read(tmp.path().join("storage/layout.json")).await.unwrap();
+    let parsed = serde_json::from_slice::<crate::layout::LayoutMarker>(&marker).unwrap();
+    assert_eq!(parsed.layout, crate::layout::LAYOUT_VERSION);
+    let store_id = parsed.store_id.expect("store_id written to layout.json");
+    assert_eq!(store_id.len(), 32);
+    assert!(
+        store_id
+            .chars()
+            .all(|ch| matches!(ch, '0'..='9' | 'a'..='f')),
+    );
     assert_eq!(
-        serde_json::from_slice::<crate::layout::LayoutMarker>(&marker).unwrap(),
-        crate::layout::LayoutMarker { layout: crate::layout::LAYOUT_VERSION },
+        storage.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(store_id.clone()),
     );
     storage.ensure_hosted_layout().await.unwrap();
+    let marker_after = fs::read(tmp.path().join("storage/layout.json")).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<crate::layout::LayoutMarker>(&marker_after).unwrap().store_id,
+        Some(store_id),
+    );
+}
+
+#[tokio::test]
+async fn mismatched_or_half_bound_store_and_database_are_refused() {
+    let tmp_a = TempDir::new().unwrap();
+    let storage_a = storage_in(&tmp_a);
+    storage_a.ensure_hosted_layout().await.unwrap();
+
+    let tmp_b = TempDir::new().unwrap();
+    let storage_b = storage_in(&tmp_b);
+    storage_b.ensure_hosted_layout().await.unwrap();
+
+    // Store A paired with database B: differing store_ids.
+    let cross = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp_a.path().join("storage"),
+        tmp_a.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp_b.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let err = cross
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("bound to store"), "{err}");
+    assert!(cross.ensure_hosted_layout().await.is_err());
+
+    // Populated store paired with an empty database.
+    let empty_db = TempDir::new().unwrap();
+    let store_only = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp_a.path().join("storage"),
+        tmp_a.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(empty_db.path().join("fresh.sqlite")),
+    )
+    .unwrap();
+    let err = store_only
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("no store_id in hosted_store"), "{err}");
+    assert!(store_only.ensure_hosted_layout().await.is_err());
+
+    // Bound database paired with an unmarked empty store.
+    let empty_store = TempDir::new().unwrap();
+    let db_only = Storage::new(
+        &HostedStoreConfig::Fs,
+        empty_store.path().join("storage"),
+        empty_store.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp_a.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let err = db_only
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("has no layout.json"), "{err}");
+    assert!(db_only.ensure_hosted_layout().await.is_err());
+
+    // Store with `{"layout": 2}` and no `store_id`.
+    let no_id = TempDir::new().unwrap();
+    fs::create_dir_all(no_id.path().join("storage")).await.unwrap();
+    fs::write(
+        no_id.path().join("storage/layout.json"),
+        format!(r#"{{"layout":{}}}"#, crate::layout::LAYOUT_VERSION),
+    )
+    .await
+    .unwrap();
+    let legacy_marker = storage_in(&no_id);
+    let err = legacy_marker
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("has no store_id"), "{err}");
+    assert!(legacy_marker.ensure_hosted_layout().await.is_err());
 }
 
 #[tokio::test]

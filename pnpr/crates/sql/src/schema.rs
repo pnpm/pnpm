@@ -197,7 +197,8 @@ pub fn refused_error(name: &str, stored: &Stored) -> RegistryError {
         | Stored::Unmarked => format!(
             "the database {name} holds {stored}, which is incompatible with this pnpr \
              (expects schema version {SCHEMA_VERSION}). Pre-1.0 databases without {MARKER} \
-             are not migrated; wipe pnpr's tables, and pnpr creates them afresh",
+             are not migrated; wipe pnpr's tables and its hosted store together, and pnpr \
+             creates them afresh",
         ),
     };
     RegistryError::InvalidConfig { reason }

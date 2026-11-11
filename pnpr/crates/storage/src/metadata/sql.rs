@@ -40,6 +40,7 @@ pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
 pub(crate) use records::RecordKey;
 pub(crate) use staged::{StagedEntry, StagedId};
+pub(crate) use store_binding::StoreBinding;
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
@@ -61,6 +62,7 @@ mod removed;
 mod render;
 mod schema_monitor;
 mod staged;
+mod store_binding;
 mod tags;
 mod transactions;
 mod versions;
@@ -199,7 +201,8 @@ impl SqlMetadata {
     /// Create the schema in an empty database, and apply pending numbered
     /// migration steps to one at an older version. Refuse a database from a
     /// newer release, and a pre-1.0 database without `schema_migrations`;
-    /// the operator wipes pnpr's tables, and pnpr creates them afresh.
+    /// the operator wipes pnpr's tables and its hosted store together, and
+    /// pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
             self.schema_monitor.result()?;

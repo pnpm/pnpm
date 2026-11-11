@@ -54,6 +54,11 @@ impl GcReport {
 pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<GcReport> {
     let registries = selected_registries(config, options)?;
     let storage = Storage::from_config(&config.storage)?;
+    if options.dry_run {
+        storage.check_hosted_layout().await?;
+    } else {
+        storage.ensure_hosted_layout().await?;
+    }
     let mut report = GcReport::default();
     for (org, ecosystem) in registries {
         let view = storage.for_hosted(&org, ecosystem);

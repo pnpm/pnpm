@@ -25,7 +25,7 @@ The hosted store has the same layout on disk and in a bucket:
 
 ```text
 <storage>/
-  layout.json                     marks the layout version
+  layout.json                     marks the layout version and store id
   default/<ecosystem>/            registries without an org
   orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
 <namespace>/archives/<shard>/<identity>.<incarnation>
@@ -74,7 +74,12 @@ archive, including blobs allowed by the [OCI size limit](configuration.md#oci).
 [reclaim](cli.md#gc) removed and a later publish stores again take the next
 incarnation, so a key is never written again once a reclaim may remove it.
 
-pnpr refuses to start on a store written by a newer pnpr, or on one in an
+When pnpr initializes an empty hosted store and metadata database, it writes a
+random `store_id` into `layout.json` and into the metadata database's
+`hosted_store` table. pnpr refuses to start, collect (`pnpr gc`), verify
+(`pnpr verify`), export (`pnpr export`), or migrate (`pnpr migrate-storage`)
+when `layout.json` and `hosted_store` hold different store IDs or when only one
+side holds one. It also refuses a store written by a newer pnpr, or one in an
 earlier layout, including the one pnpr used before `layout.json` existed: move
 to a fresh storage directory or bucket prefix, wipe pnpr's metadata tables, and
 republish. A cache in another layout is emptied on startup and refilled on
@@ -178,8 +183,10 @@ pnpr refuses a database from a newer release. It refuses a database whose
 some of pnpr's tables. It also refuses a pre-1.0 database without
 `schema_migrations` (such as one holding `schema_version`,
 `auth_schema_migrations`, or unmarked tables) before changing anything in it.
-To replace a pre-1.0 database, drop its pnpr tables or delete the SQLite file
-and its `-wal` and `-shm` files so pnpr creates the 1.0 schema afresh.
+To replace a pre-1.0 database, drop its pnpr tables (or delete the SQLite file
+and its `-wal` and `-shm` files) together with the hosted store, or move to a
+fresh storage directory or bucket prefix, so pnpr initializes both with a new
+store ID.
 
 ## PostgreSQL and MySQL metadata
 

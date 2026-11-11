@@ -108,7 +108,7 @@ impl SqlMetadata {
 
     /// Run the write `operation`, again from its start while the adapter
     /// reports a conflict it may clear.
-    fn run_write<Output>(
+    pub(super) fn run_write<Output>(
         &self,
         mut operation: impl FnMut(&dyn Connection) -> Result<Output>,
     ) -> Result<Output> {

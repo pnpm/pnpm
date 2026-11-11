@@ -396,3 +396,32 @@ pub struct MetadataRecord {
     pub bytes: Vec<u8>,
     pub generation: i64,
 }
+
+/// Mark the local hosted store at `root` as being in [`layout::LAYOUT_VERSION`]
+/// and bind its default `SQLite` metadata database to the same `store_id`.
+///
+/// # Errors
+///
+/// Writing the marker or binding the metadata database failed.
+pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
+    if !root.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("hosted store directory '{}' does not exist", root.display()),
+        ));
+    }
+    let existing = std::fs::read(root.join(layout::LAYOUT_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<layout::LayoutMarker>(&bytes).ok())
+        .and_then(|marker| marker.store_id)
+        .filter(|id| !id.is_empty());
+    let candidate = existing.unwrap_or_else(layout::new_store_id);
+    let database = metadata::SqlMetadata::open_sqlite(&pnpr_config::default_metadata_path(root))
+        .map_err(std::io::Error::other)?;
+    let (store_id, _) = database.claim_store_id_sync(&candidate).map_err(std::io::Error::other)?;
+    let marker = serde_json::to_vec(&layout::LayoutMarker {
+        layout: layout::LAYOUT_VERSION,
+        store_id: Some(store_id),
+    })?;
+    std::fs::write(root.join(layout::LAYOUT_FILE), marker)
+}

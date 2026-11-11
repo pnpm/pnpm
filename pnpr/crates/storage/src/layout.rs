@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! <root>/
-//!   layout.json                    {"layout": <LAYOUT_VERSION>}
+//!   layout.json                    {"layout": <LAYOUT_VERSION>, "store_id": "<hex>"}
 //!   default/<ecosystem>/           registries without an `org:`
 //!   orgs/<org>/<ecosystem>/        one namespace per (org, ecosystem)
 //!   .<record namespace>/           records every namespace shares
@@ -22,6 +22,8 @@
 //! of [`blob_segment`], so a name can never sit where an org, a namespace, a
 //! blob, or another name's child does, and an object key is byte for byte the
 //! local path.
+
+pub use crate::write_local_layout_marker;
 
 use pnpr_package_name::Ecosystem;
 use serde::{Deserialize, Serialize};
@@ -49,10 +51,25 @@ const VERSIONED_EXTENSIONS: [&str; 3] = [".tgz", ".sigstore", ".crate"];
 const ESCAPE: u8 = b'!';
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
-/// The marker at the root of a hosted store.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// The marker at the root of a hosted store or disposable cache.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LayoutMarker {
     pub layout: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_id: Option<String>,
+}
+
+/// A random 128-bit store identifier as 32 lowercase hex digits.
+#[must_use]
+pub fn new_store_id() -> String {
+    let mut random = [0_u8; 16];
+    getrandom::fill(&mut random).expect("OS random number generator");
+    let mut out = String::with_capacity(32);
+    for byte in random {
+        out.push(char::from(HEX[usize::from(byte >> 4)]));
+        out.push(char::from(HEX[usize::from(byte & 0xf)]));
+    }
+    out
 }
 
 /// The path segments of an `(org, ecosystem)` namespace, below the store root.
@@ -100,16 +117,6 @@ pub fn local_archive_path(root: &Path, org: &str, ecosystem: Ecosystem, key: &st
     path.extend(namespace_segments(org, ecosystem));
     path.extend(archive_object_path(key).split('/'));
     path
-}
-
-/// Mark the local hosted store at `root` as being in [`LAYOUT_VERSION`].
-///
-/// # Errors
-///
-/// Writing the marker failed.
-pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
-    let marker = serde_json::to_vec(&LayoutMarker { layout: LAYOUT_VERSION })?;
-    std::fs::write(root.join(LAYOUT_FILE), marker)
 }
 
 /// The directories of package `name` in `ecosystem` below `packages/`.

@@ -3,7 +3,8 @@
 
 use crate::{
     HostedBackend, Result, Storage,
-    layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker},
+    layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker, new_store_id},
+    metadata::sql::StoreBinding,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -14,10 +15,11 @@ use tokio::fs;
 const ROOT: &str = "";
 
 /// Which layout a hosted store is in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostedLayout {
-    /// [`LAYOUT_VERSION`].
-    Current,
+    /// [`LAYOUT_VERSION`], with the store's `store_id` when `layout.json`
+    /// names one.
+    Current { store_id: Option<String> },
     /// Marked with another layout version.
     Other(u32),
     /// No marker. `has_data` says whether anything but shared records is
@@ -53,7 +55,7 @@ impl Storage {
         if let Some(bytes) = self.root.read_record(ROOT, LAYOUT_FILE).await? {
             let marker = parse_marker(&bytes)?;
             return Ok(if marker.layout == LAYOUT_VERSION {
-                HostedLayout::Current
+                HostedLayout::Current { store_id: marker.store_id }
             } else {
                 HostedLayout::Other(marker.layout)
             });
@@ -66,47 +68,102 @@ impl Storage {
         Ok(HostedLayout::Unmarked { has_data })
     }
 
-    /// Check the hosted store's layout before anything writes it, writing the
-    /// marker into a store that holds no packages yet.
+    /// Check the hosted store's layout and database binding before anything
+    /// writes it, writing the marker and binding the metadata database when
+    /// both hold no packages yet.
     ///
     /// # Errors
     ///
     /// See [`Self::check_hosted_layout`].
     pub async fn ensure_hosted_layout(&self) -> Result<()> {
-        if self.check_hosted_layout().await? == HostedLayout::Current {
+        if matches!(self.check_hosted_layout().await?, HostedLayout::Current { store_id: Some(_) })
+        {
             return Ok(());
         }
         self.write_hosted_layout_marker().await
     }
 
-    /// Check that this pnpr can read the hosted store, without writing to it.
-    /// Returns the layout, which is [`HostedLayout::Current`] or an empty
-    /// unmarked store.
+    /// Check that this pnpr can read the hosted store and that its `store_id`
+    /// matches the metadata database, without writing to either. Returns the
+    /// layout, which is [`HostedLayout::Current`] with a matching `store_id`
+    /// or an empty unmarked store with an unbound database.
     ///
     /// # Errors
     ///
-    /// A store written by a newer pnpr, or one in an earlier layout.
+    /// A store written by a newer pnpr, one in an earlier layout, or a store
+    /// and metadata database whose `store_id`s differ or are present on only
+    /// one side.
     pub async fn check_hosted_layout(&self) -> Result<HostedLayout> {
+        let layout = self.hosted_layout().await?;
+        let binding = self.database.store_binding().await?;
+        verify_store_binding(layout, binding)
+    }
+
+    /// Prepare the target store of `migrate-storage` to receive the archives of
+    /// `source_layout`, which was checked against the shared metadata database.
+    ///
+    /// # Errors
+    ///
+    /// The target store is bound to another store id, holds data without a
+    /// marker, or uses another layout version.
+    pub async fn ensure_migration_target_layout(&self, source_layout: &HostedLayout) -> Result<()> {
+        let Some(store_id) = (match source_layout {
+            HostedLayout::Current { store_id: Some(store_id) } => Some(store_id.as_str()),
+            _ => None,
+        }) else {
+            return self.ensure_hosted_layout().await;
+        };
         match self.hosted_layout().await? {
-            HostedLayout::Unmarked { has_data: true } => Err(RegistryError::StorageUnavailable {
+            HostedLayout::Current { store_id: Some(target_id) } if target_id == store_id => Ok(()),
+            HostedLayout::Current { store_id: Some(target_id) } => {
+                Err(store_mismatch_error(&target_id, store_id))
+            }
+            HostedLayout::Current { store_id: None } => Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the hosted store has no {LAYOUT_FILE} and holds data in an earlier layout; this pnpr reads layout {LAYOUT_VERSION}",
+                    "the metadata database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
                 ),
             }),
+            HostedLayout::Unmarked { has_data: true } => Err(unmarked_with_data_error()),
             HostedLayout::Other(layout) => Err(other_layout_error(layout)),
-            layout => Ok(layout),
+            HostedLayout::Unmarked { has_data: false } => {
+                self.write_hosted_layout_marker_for(store_id).await
+            }
         }
     }
 
-    /// Mark the hosted store as being in [`LAYOUT_VERSION`]. Only for a store
-    /// that is.
+    /// Bind the metadata database and mark the hosted store as being in
+    /// [`LAYOUT_VERSION`]. Only for an empty store and database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
-        let marker = serde_json::to_vec(&LayoutMarker { layout: LAYOUT_VERSION })?;
+        let candidate = new_store_id();
+        let (store_id, claimed) = self.database.claim_store_id(candidate).await?;
+        let result = self.write_hosted_layout_marker_for(&store_id).await;
+        if result.is_err() && claimed {
+            let _ = self.database.unclaim_store_id(store_id).await;
+        }
+        result
+    }
+
+    async fn write_hosted_layout_marker_for(&self, store_id: &str) -> Result<()> {
+        let marker = serde_json::to_vec(&LayoutMarker {
+            layout: LAYOUT_VERSION,
+            store_id: Some(store_id.to_string()),
+        })?;
         if !self.root.create_record(ROOT, LAYOUT_FILE, &marker).await? {
             let current = self.root.read_record(ROOT, LAYOUT_FILE).await?.unwrap_or_default();
-            let layout = parse_marker(&current)?.layout;
-            if layout != LAYOUT_VERSION {
-                return Err(other_layout_error(layout));
+            let current = parse_marker(&current)?;
+            if current.layout != LAYOUT_VERSION {
+                return Err(other_layout_error(current.layout));
+            }
+            match current.store_id.as_deref() {
+                Some(current_id) if current_id == store_id => {}
+                Some(current_id) => return Err(store_mismatch_error(current_id, store_id)),
+                None => {
+                    return Err(RegistryError::StorageUnavailable {
+                        reason: format!(
+                            "the metadata database is bound to hosted store {store_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
+                        ),
+                    });
+                }
             }
         }
         Ok(())
@@ -136,8 +193,11 @@ impl Storage {
             }
         }
         fs::create_dir_all(root).await?;
-        crate::write_atomic(&marker, &serde_json::to_vec(&LayoutMarker { layout: LAYOUT_VERSION })?)
-            .await
+        crate::write_atomic(
+            &marker,
+            &serde_json::to_vec(&LayoutMarker { layout: LAYOUT_VERSION, store_id: None })?,
+        )
+        .await
     }
 }
 
@@ -154,10 +214,86 @@ pub(crate) fn namespace(
 }
 
 fn parse_marker(bytes: &[u8]) -> Result<LayoutMarker> {
-    serde_json::from_slice(bytes)
+    let marker: LayoutMarker = serde_json::from_slice(bytes)
         .map_err(|err| RegistryError::StorageUnavailable {
             reason: format!("the hosted store's {LAYOUT_FILE} is unreadable: {err}"),
-        })
+        })?;
+    if marker.store_id.as_deref() == Some("") {
+        return Err(RegistryError::StorageUnavailable {
+            reason: format!("the hosted store's {LAYOUT_FILE} holds an empty store_id"),
+        });
+    }
+    Ok(marker)
+}
+
+fn unmarked_with_data_error() -> RegistryError {
+    RegistryError::StorageUnavailable {
+        reason: format!(
+            "the hosted store has no {LAYOUT_FILE} and holds data in an earlier layout; this pnpr reads layout {LAYOUT_VERSION}",
+        ),
+    }
+}
+
+fn verify_store_binding(layout: HostedLayout, binding: StoreBinding) -> Result<HostedLayout> {
+    match (&layout, binding) {
+        (HostedLayout::Unmarked { has_data: true }, _) => Err(unmarked_with_data_error()),
+        (HostedLayout::Other(version), _) => Err(other_layout_error(*version)),
+        (HostedLayout::Current { store_id: None }, binding) => {
+            Err(missing_marker_id_error(binding))
+        }
+        (HostedLayout::Current { store_id: Some(store_id) }, StoreBinding::Bound(db_id))
+            if *store_id == db_id =>
+        {
+            Ok(layout)
+        }
+        (HostedLayout::Current { store_id: Some(store_id) }, StoreBinding::Bound(db_id)) => {
+            Err(store_mismatch_error(store_id, &db_id))
+        }
+        (HostedLayout::Current { store_id: Some(store_id) }, StoreBinding::Unmarked { .. }) => {
+            Err(RegistryError::StorageUnavailable {
+                reason: format!(
+                    "the hosted store's {LAYOUT_FILE} is bound to store {store_id}, but the metadata database has no store_id in hosted_store",
+                ),
+            })
+        }
+        (HostedLayout::Unmarked { has_data: false }, binding) => {
+            verify_unmarked_store(layout, binding)
+        }
+    }
+}
+
+fn missing_marker_id_error(binding: StoreBinding) -> RegistryError {
+    let reason = match binding {
+        StoreBinding::Bound(db_id) => format!(
+            "the metadata database is bound to hosted store {db_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
+        ),
+        StoreBinding::Unmarked { .. } => {
+            format!("the hosted store's {LAYOUT_FILE} has no store_id")
+        }
+    };
+    RegistryError::StorageUnavailable { reason }
+}
+
+fn verify_unmarked_store(layout: HostedLayout, binding: StoreBinding) -> Result<HostedLayout> {
+    match binding {
+        StoreBinding::Bound(db_id) => Err(RegistryError::StorageUnavailable {
+            reason: format!(
+                "the metadata database is bound to hosted store {db_id}, but the hosted store has no {LAYOUT_FILE}",
+            ),
+        }),
+        StoreBinding::Unmarked { has_data: true } => Err(RegistryError::StorageUnavailable {
+            reason: "the metadata database has no store_id in hosted_store and holds data from an earlier schema".to_string(),
+        }),
+        StoreBinding::Unmarked { has_data: false } => Ok(layout),
+    }
+}
+
+fn store_mismatch_error(store_id: &str, db_id: &str) -> RegistryError {
+    RegistryError::StorageUnavailable {
+        reason: format!(
+            "the hosted store's {LAYOUT_FILE} is bound to store {store_id}, but the metadata database is bound to store {db_id}",
+        ),
+    }
 }
 
 fn other_layout_error(layout: u32) -> RegistryError {

@@ -47,13 +47,16 @@ async fn referenced_blobs(
 
 fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
-    std::fs::create_dir_all(temp.path().join("store")).unwrap();
-    pnpr_storage::layout::write_local_layout_marker(&temp.path().join("store")).unwrap();
+    let store_dir = temp.path().join("store");
+    let db_path = temp.path().join("metadata.sqlite");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    pnpr_storage::layout::write_local_layout_marker(&store_dir).unwrap();
+    std::fs::copy(pnpr_config::default_metadata_path(&store_dir), &db_path).unwrap();
     let storage = Storage::new(
         &HostedStoreConfig::Fs,
-        temp.path().join("store"),
+        store_dir,
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+        &pnpr_config::MetadataBackend::Sqlite(db_path),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
@@ -493,4 +496,44 @@ async fn dry_run_matches_collection_for_shared_unreferenced_blobs() {
         collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(),
         (1, shared_bytes.len() as u64),
     );
+}
+
+#[tokio::test]
+async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intact() {
+    let (temp, storage) = setup();
+    let repository = name("acme/app");
+    let (manifest, layer) = retained_image(&storage, &repository).await;
+    let manifest_archive = archive_path(&temp, &storage, &repository, &manifest).await;
+    let layer_archive = archive_path(&temp, &storage, &repository, &layer).await;
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
+
+    // Point an empty database at the populated store.
+    let empty_db = Storage::new(
+        &HostedStoreConfig::Fs,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("empty.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci);
+    assert!(collect(&empty_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
+    assert!(collect(&empty_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
+
+    // Point a database bound to another store at the populated store.
+    let (other_temp, _other_storage) = setup();
+    let wrong_db = Storage::new(
+        &HostedStoreConfig::Fs,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(other_temp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci);
+    assert!(collect(&wrong_db, Duration::ZERO, true, MANIFEST_LIMIT).await.is_err());
+    assert!(collect(&wrong_db, Duration::ZERO, false, MANIFEST_LIMIT).await.is_err());
+    assert!(manifest_archive.exists());
+    assert!(layer_archive.exists());
 }
