@@ -117,9 +117,10 @@ CLI opens the browser to sign in and polls until authentication completes. If no
 OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
 to username and password authentication (`/-/user/org.couchdb.user:{name}`).
 
-Before it sends the browser to the provider, pnpr shows a confirmation code
-and asks the user to continue only if the terminal shows the same code. pnpr
-sends the code to the CLI in an `npm-notice` header, which `pnpm login` prints.
+Before it sends the browser to the provider, pnpr asks the user to confirm
+that they started the sign-in, and shows a confirmation code. pnpr sends the
+same code to the CLI in an `npm-notice` header, which `pnpm login` in pnpm 12 prints. A
+CLI that does not print the header shows no code.
 The confirmation keeps a login link someone else started from signing you in
 silently through an existing provider session.
 

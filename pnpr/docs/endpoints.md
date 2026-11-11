@@ -773,7 +773,7 @@ resolver-only server that exposes no registry surface.
 | --- | --- | --- |
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
 | `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Shows the login's confirmation code, which `/-/v1/login` also sends in an `npm-notice` header, with a sign-in button per OIDC provider. |
-| `POST` | `/-/v1/login/start?session=<session>&provider=<provider>` | Confirms the login from the page above and redirects to the OIDC provider. pnpr refuses a request that the browser does not mark as same-origin. |
+| `POST` | `/-/v1/login/start?session=<session>&provider=<provider>` | Confirms the login from the page above and redirects to the OIDC provider. pnpr refuses a request without `Sec-Fetch-Site: same-origin`, which current browsers send for a form on a pnpr page. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
 | `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration. Passwords must contain at least 8 characters and at most 71 bytes. Returns a bearer token. |
 | `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |

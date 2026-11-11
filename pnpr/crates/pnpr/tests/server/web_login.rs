@@ -214,7 +214,7 @@ async fn polling_done_url_before_and_after_fulfillment() {
         .unwrap();
     assert_eq!(start_response.status(), StatusCode::OK);
     let html = String::from_utf8(body_bytes(start_response.into_body()).await).unwrap();
-    assert!(html.contains(&format!("<strong>{code}</strong>")), "{html}");
+    assert!(html.contains(&format!("it must be <strong>{code}</strong>")), "{html}");
     assert!(
         html.contains(&format!(
             r#"<form method="post" action="?session={browser_session}&amp;provider=company">"#,
@@ -419,6 +419,7 @@ async fn a_cli_session_cannot_be_bound_to_a_provider_sign_in_without_confirmatio
         confirm(&session, "company", Some("cross-site"), None),
         confirm(&session, "company", Some("same-site"), Some("https://registry.example")),
         confirm(&session, "company", None, Some("https://attacker.example")),
+        confirm(&session, "company", None, Some("https://registry.example")),
         confirm(&session, "company", None, Some("null")),
         confirm(&session, "company", None, None),
     ] {

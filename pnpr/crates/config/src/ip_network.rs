@@ -31,12 +31,6 @@ impl IpNetwork {
         Ok(Self { address, prefix })
     }
 
-    /// Whether every address of `other` is in this network.
-    #[must_use]
-    pub fn covers(&self, other: &IpNetwork) -> bool {
-        other.prefix >= self.prefix && self.contains(other.address)
-    }
-
     /// An IPv4-mapped IPv6 address belongs to the network of its IPv4 form.
     #[must_use]
     pub fn contains(&self, address: IpAddr) -> bool {
@@ -55,6 +49,77 @@ impl IpNetwork {
             }
             _ => false,
         }
+    }
+}
+
+impl IpNetwork {
+    fn range(self) -> AddressRange {
+        let (family, address, width) = match self.address {
+            IpAddr::V4(address) => (Family::V4, u128::from(u32::from(address)), 32),
+            IpAddr::V6(address) => (Family::V6, u128::from(address), 128),
+        };
+        let host_bits = u32::from(width - self.prefix);
+        let host_mask = u128::MAX
+            .checked_shr(128 - host_bits)
+            .unwrap_or(0);
+        AddressRange { family, first: address & !host_mask, last: address | host_mask }
+    }
+}
+
+/// The addresses that at least one of several networks holds.
+#[derive(Debug, Default, Clone)]
+pub struct IpNetworkSet {
+    /// Disjoint, non-adjacent ranges, sorted by family and then first address.
+    ranges: Vec<AddressRange>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Family {
+    V4,
+    V6,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct AddressRange {
+    family: Family,
+    first: u128,
+    last: u128,
+}
+
+impl IpNetworkSet {
+    pub fn new(networks: impl IntoIterator<Item = IpNetwork>) -> Self {
+        let mut ranges: Vec<AddressRange> = networks
+            .into_iter()
+            .map(IpNetwork::range)
+            .collect();
+        ranges.sort_unstable();
+        let mut merged: Vec<AddressRange> = Vec::with_capacity(ranges.len());
+        for range in ranges {
+            match merged.last_mut() {
+                Some(last)
+                    if last.family == range.family
+                        && range.first <= last.last.saturating_add(1) =>
+                {
+                    last.last = last.last.max(range.last);
+                }
+                _ => merged.push(range),
+            }
+        }
+        Self { ranges: merged }
+    }
+
+    /// Whether every address of `network` is in the set, possibly spread
+    /// over several of its networks.
+    #[must_use]
+    pub fn covers(&self, network: &IpNetwork) -> bool {
+        let wanted = network.range();
+        let after = self.ranges.partition_point(|range| {
+            (range.family, range.first) <= (wanted.family, wanted.first)
+        });
+        after
+            .checked_sub(1)
+            .and_then(|index| self.ranges.get(index))
+            .is_some_and(|range| range.family == wanted.family && range.last >= wanted.last)
     }
 }
 

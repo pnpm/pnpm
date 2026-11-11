@@ -138,7 +138,7 @@ pub(crate) async fn post_v1_login_start(
     Query(query): Query<ConfirmQuery>,
     headers: HeaderMap,
 ) -> Response {
-    if !is_same_origin_request(&headers, &state.inner.config.http.public_url) {
+    if !is_same_origin_request(&headers) {
         return bad_request("confirm the sign-in on the page that shows its code");
     }
     if pending_confirmation_code(&state, &query.session).is_none() {
@@ -173,19 +173,13 @@ fn login_providers(state: &AppState) -> Vec<&pnpr_config::oidc::OidcProvider> {
 }
 
 /// Whether a browser sent the request from one of pnpr's own pages. Another
-/// site can submit a form to pnpr, but cannot make the browser report it as
-/// same-origin.
-fn is_same_origin_request(headers: &HeaderMap, public_url: &str) -> bool {
-    if let Some(site) = headers.get("sec-fetch-site") {
-        return site == "same-origin";
-    }
-    let Some(origin) = headers
-        .get(header::ORIGIN)
-        .and_then(|value| value.to_str().ok())
-    else {
-        return false;
-    };
-    url::Url::parse(public_url).is_ok_and(|url| url.origin().ascii_serialization() == origin)
+/// site can submit a form to pnpr, but cannot make the browser mark it
+/// same-origin. The page's `Referrer-Policy: no-referrer` makes browsers send
+/// `Origin: null`, so `Origin` cannot stand in for this header.
+fn is_same_origin_request(headers: &HeaderMap) -> bool {
+    headers
+        .get("sec-fetch-site")
+        .is_some_and(|site| site == "same-origin")
 }
 
 /// `GET /-/v1/login/poll/{session}`: poll for granted CLI token.
@@ -237,8 +231,8 @@ fn render_confirmation_page(
 <head><title>Confirm Sign In - pnpr</title><meta charset="utf-8"></head>
 <body>
   <h1>Confirm command-line sign-in</h1>
-  <p>A command-line tool asked to sign in to this registry. Continue only if you started the sign-in and your terminal shows this code:</p>
-  <p><strong>{code}</strong></p>
+  <p>A command-line tool asked to sign in to this registry. Continue only if you started the sign-in yourself.</p>
+  <p>If your terminal shows a code, it must be <strong>{code}</strong>.</p>
   {buttons}
 </body>
 </html>"#,

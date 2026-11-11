@@ -199,6 +199,13 @@ fn a_token_inherits_the_callers_cidr_whitelist() {
     let token =
         within(&json!({ "cidr_whitelist": ["10.1.2.0/24"] }), &["10.1.0.0/16"], None).unwrap();
     assert_eq!(token.cidr_whitelist, ["10.1.2.0/24"]);
+    let token = within(
+        &json!({ "cidr_whitelist": ["10.0.0.0/24"] }),
+        &["10.0.0.0/25", "10.0.0.128/25"],
+        None,
+    )
+    .unwrap();
+    assert_eq!(token.cidr_whitelist, ["10.0.0.0/24"]);
     let token = within(&json!({ "cidr_whitelist": ["10.1.2.0/24"] }), &[], None).unwrap();
     assert_eq!(token.cidr_whitelist, ["10.1.2.0/24"]);
 }

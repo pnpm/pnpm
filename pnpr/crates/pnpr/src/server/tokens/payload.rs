@@ -232,17 +232,14 @@ fn check_cidr_whitelist_within(
     requested: &[String],
     allowed: &[String],
 ) -> Result<(), RegistryError> {
-    let allowed: Vec<_> = allowed
-        .iter()
-        .filter_map(|entry| pnpr_config::IpNetwork::parse(entry.trim()).ok())
-        .collect();
+    let allowed = pnpr_config::IpNetworkSet::new(
+        allowed
+            .iter()
+            .filter_map(|entry| pnpr_config::IpNetwork::parse(entry.trim()).ok()),
+    );
     for entry in requested {
         let inside = pnpr_config::IpNetwork::parse(entry.trim())
-            .is_ok_and(|network| {
-                allowed
-                    .iter()
-                    .any(|outer| outer.covers(&network))
-            });
+            .is_ok_and(|network| allowed.covers(&network));
         if !inside {
             return Err(RegistryError::BadRequest {
                 reason: format!(

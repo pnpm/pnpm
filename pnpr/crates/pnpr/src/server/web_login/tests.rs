@@ -12,26 +12,22 @@ fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
 
 #[test]
 fn only_a_same_origin_form_submission_confirms_a_sign_in() {
-    let public_url = "https://registry.example/base/";
     let accepted = [
         headers(&[("sec-fetch-site", "same-origin")]),
         headers(&[("sec-fetch-site", "same-origin"), ("origin", "null")]),
-        headers(&[("origin", "https://registry.example")]),
     ];
     for request in accepted {
-        assert!(is_same_origin_request(&request, public_url), "{request:?}");
+        assert!(is_same_origin_request(&request), "{request:?}");
     }
     let refused = [
         HeaderMap::new(),
         headers(&[("sec-fetch-site", "cross-site")]),
         headers(&[("sec-fetch-site", "same-site")]),
         headers(&[("sec-fetch-site", "none")]),
-        headers(&[("sec-fetch-site", "cross-site"), ("origin", "https://registry.example")]),
-        headers(&[("origin", "https://attacker.example")]),
-        headers(&[("origin", "http://registry.example")]),
+        headers(&[("origin", "https://registry.example")]),
         headers(&[("origin", "null")]),
     ];
     for request in refused {
-        assert!(!is_same_origin_request(&request, public_url), "{request:?}");
+        assert!(!is_same_origin_request(&request), "{request:?}");
     }
 }

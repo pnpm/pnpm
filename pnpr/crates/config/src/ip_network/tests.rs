@@ -1,4 +1,4 @@
-use super::IpNetwork;
+use super::{IpNetwork, IpNetworkSet};
 use std::net::IpAddr;
 
 fn address(raw: &str) -> IpAddr {
@@ -62,13 +62,25 @@ fn parse_trusted_proxies_rejects_invalid_entries() {
 }
 
 #[test]
-fn a_network_covers_only_the_networks_inside_it() {
+fn a_network_set_covers_only_the_networks_inside_its_union() {
     let network = |raw: &str| IpNetwork::parse(raw).unwrap();
-    let office = network("10.1.0.0/16");
+    let office = IpNetworkSet::new([network("10.1.0.0/16")]);
     assert!(office.covers(&network("10.1.0.0/16")));
     assert!(office.covers(&network("10.1.2.0/24")));
     assert!(office.covers(&network("10.1.2.3")));
     assert!(!office.covers(&network("10.0.0.0/8")));
     assert!(!office.covers(&network("10.2.0.0/24")));
     assert!(!office.covers(&network("fd00::/64")));
+
+    let halves = IpNetworkSet::new([network("10.0.0.128/25"), network("10.0.0.0/25")]);
+    assert!(halves.covers(&network("10.0.0.0/24")));
+    assert!(!halves.covers(&network("10.0.0.0/23")));
+    let gap = IpNetworkSet::new([network("10.0.0.0/26"), network("10.0.0.128/25")]);
+    assert!(!gap.covers(&network("10.0.0.0/24")));
+
+    let everything = IpNetworkSet::new([network("0.0.0.0/0"), network("::/0")]);
+    assert!(everything.covers(&network("192.168.0.0/16")));
+    assert!(everything.covers(&network("fd00::/8")));
+    assert!(!IpNetworkSet::new([network("0.0.0.0/0")]).covers(&network("fd00::/8")));
+    assert!(!IpNetworkSet::default().covers(&network("10.0.0.1")));
 }
