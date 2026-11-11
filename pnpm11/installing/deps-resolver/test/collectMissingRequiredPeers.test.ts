@@ -1,7 +1,44 @@
 import { expect, test } from '@jest/globals'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 
+import { mergeMissingPeersOfImporter } from '../lib/missingPeers.js'
 import { collectMissingRequiredPeers, type PeerDependencies } from '../lib/resolveDependencies.js'
+
+test.each([
+  ['file:../a', 'file:../b', 'file:../c'],
+  ['npm:a@1', 'npm:b@1', 'npm:c@1'],
+  ['file:../a', 'file:../b', '^1'],
+  ['^1', 'file:../b', '^2'],
+])('a full-graph conflict suppresses a partial sibling range (%s, %s, %s)', (first, second, sibling) => {
+  const ctx = createGraph([
+    { id: 'group', children: ['consumer-a', 'consumer-b'] },
+    { id: 'consumer-a', peers: { peer: { version: first } } },
+    { id: 'consumer-b', peers: { peer: { version: second } } },
+    { id: 'sibling', peers: { peer: { version: sibling } } },
+  ])
+  ctx.autoInstallPeersFromHighestMatch = true
+  expect(mergeMissingPeersOfImporter(ctx, {
+    missingPeers: { peer: { range: sibling, optional: false } },
+    pkgAddresses: [root('group'), root('sibling')],
+  })).toStrictEqual({})
+})
+
+test('merging the full graph preserves compatible required and optional peers', () => {
+  const ctx = createGraph([
+    { id: 'consumer-a', peers: { peer: { version: '^1' } } },
+    { id: 'consumer-b', peers: { peer: { version: '^1.2' } } },
+  ])
+  expect(mergeMissingPeersOfImporter(ctx, {
+    missingPeers: {
+      peer: { range: '^1', optional: false },
+      other: { range: '^5', optional: true },
+    },
+    pkgAddresses: [root('consumer-a'), root('consumer-b')],
+  })).toStrictEqual({
+    peer: { range: '>=1.2.0 <2.0.0-0', optional: false },
+    other: { range: '>=5.0.0 <6.0.0-0', optional: true },
+  })
+})
 
 test('collects required peers through a dense dependency cycle', () => {
   const ids = Array.from({ length: 20 }, (_, index) => `pkg-${index}`)

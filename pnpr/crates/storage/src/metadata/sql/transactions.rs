@@ -4,7 +4,7 @@
 
 use super::{
     SqlMetadata,
-    adapter::{Connection, ReadSource},
+    adapter::{Connection, ReadSource, Snapshot},
     cache::RenderCache,
     catalog_generation,
 };
@@ -14,12 +14,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// How many times a write runs before a conflict it keeps meeting fails it.
-const WRITE_ATTEMPTS: u32 = 4;
+/// How long after its first run a write that keeps meeting conflicts still
+/// runs again.
+const WRITE_RETRY_DEADLINE: Duration = Duration::from_secs(10);
 
-/// The wait before the first rerun of a write that met a conflict, doubled
-/// per rerun.
+/// The longest wait before the first rerun of a write that met a conflict,
+/// doubled per rerun up to [`LAST_RETRY_DELAY`].
 const FIRST_RETRY_DELAY: Duration = Duration::from_millis(10);
+
+const LAST_RETRY_DELAY: Duration = Duration::from_millis(500);
 
 /// How current a read must be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,7 +39,7 @@ pub(super) enum Freshness {
 
 /// How a read of the replica went.
 enum ReplicaRead<Output> {
-    Read(Output),
+    Read(Output, Snapshot),
     /// The replica has not reached the generation the read requires.
     Behind,
     /// The replica failed where the primary may not; a sync would not help.
@@ -74,6 +77,35 @@ impl SqlMetadata {
             .await?
     }
 
+    /// [`Self::read`] at [`Freshness::Bounded`], reading the primary when a
+    /// lagging replica's answer does not satisfy `present`.
+    pub(super) async fn read_if<Output, Operation, Present>(
+        self: &Arc<Self>,
+        present: Present,
+        operation: Operation,
+    ) -> Result<Output>
+    where
+        Output: Send + 'static,
+        Present: Fn(&Output) -> bool + Send + 'static,
+        Operation: FnMut(&dyn Connection, &RenderCache) -> Result<Output> + Send + 'static,
+    {
+        let database = Arc::clone(self);
+        tokio::task::spawn_blocking(move || database.run_read_if(present, operation)).await?
+    }
+
+    /// [`Self::read`] at [`Freshness::Bounded`], reading the primary when a
+    /// lagging replica holds `None`.
+    pub(super) async fn read_present<Output, Operation>(
+        self: &Arc<Self>,
+        operation: Operation,
+    ) -> Result<Option<Output>>
+    where
+        Output: Send + 'static,
+        Operation: FnMut(&dyn Connection, &RenderCache) -> Result<Option<Output>> + Send + 'static,
+    {
+        self.read_if(Option::is_some, operation).await
+    }
+
     /// Run the write `operation`, again from its start while the adapter
     /// reports a conflict it may clear.
     fn run_write<Output>(
@@ -85,20 +117,25 @@ impl SqlMetadata {
     }
 
     /// Run `write`, again from its start while the adapter reports a conflict
-    /// it may clear, up to [`WRITE_ATTEMPTS`] runs spaced from
-    /// [`FIRST_RETRY_DELAY`]. `write` must be safe to run again.
+    /// it may clear and [`WRITE_RETRY_DEADLINE`] has not passed. Each rerun
+    /// waits a random part of a delay that doubles from
+    /// [`FIRST_RETRY_DELAY`], so writers that met each other do not meet
+    /// again. `write` must be safe to run again.
     pub(super) fn retry_conflicts<Output>(
         &self,
         mut write: impl FnMut() -> Result<Output>,
     ) -> Result<Output> {
+        let deadline = Instant::now() + WRITE_RETRY_DEADLINE;
         let mut delay = FIRST_RETRY_DELAY;
-        let mut attempt = 1;
         loop {
             match write() {
-                Err(error) if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) => {
-                    std::thread::sleep(delay);
-                    delay *= 2;
-                    attempt += 1;
+                Err(error) if self.adapter.is_retryable(&error) => {
+                    let wait = jittered(delay);
+                    if Instant::now() + wait > deadline {
+                        return Err(error);
+                    }
+                    std::thread::sleep(wait);
+                    delay = (delay * 2).min(LAST_RETRY_DELAY);
                 }
                 result => return result,
             }
@@ -141,14 +178,35 @@ impl SqlMetadata {
         let started = Instant::now();
         let behind = Some((catalog, required));
         match self.read_replica(behind, &mut operation)? {
-            ReplicaRead::Read(output) => return Ok(output),
+            ReplicaRead::Read(output, _) => return Ok(output),
             // A sync the first read made already counts.
             ReplicaRead::Behind if self.adapter.sync_replica(started).is_ok() => {
-                if let ReplicaRead::Read(output) = self.read_replica(behind, &mut operation)? {
+                if let ReplicaRead::Read(output, _) = self.read_replica(behind, &mut operation)? {
                     return Ok(output);
                 }
             }
             ReplicaRead::Behind | ReplicaRead::Failed => {}
+        }
+        self.read_primary(&mut operation)
+    }
+
+    /// Run `operation` on the replica while it is within its freshness bound,
+    /// and on the primary when a lagging replica's answer does not satisfy
+    /// `present`.
+    fn run_read_if<Output>(
+        &self,
+        present: impl Fn(&Output) -> bool,
+        mut operation: impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Output> {
+        self.ensure_schema()?;
+        if !self.adapter.has_replica() {
+            return self.read_primary(&mut operation);
+        }
+        match self.read_replica(None, &mut operation)? {
+            ReplicaRead::Read(output, Snapshot::Current) => return Ok(output),
+            ReplicaRead::Read(output, Snapshot::Lagging) if present(&output) => return Ok(output),
+            ReplicaRead::Read(_, Snapshot::Lagging) | ReplicaRead::Behind | ReplicaRead::Failed => {
+            }
         }
         self.read_primary(&mut operation)
     }
@@ -160,8 +218,8 @@ impl SqlMetadata {
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
     ) -> Result<ReplicaRead<Output>> {
         match self.read_once(ReadSource::Replica, required, operation) {
-            Ok(Some(output)) => Ok(ReplicaRead::Read(output)),
-            Ok(None) => Ok(ReplicaRead::Behind),
+            Ok((Some(output), snapshot)) => Ok(ReplicaRead::Read(output, snapshot)),
+            Ok((None, _)) => Ok(ReplicaRead::Behind),
             Err(error) if self.adapter.is_database_failure(&error) => {
                 tracing::warn!(%error, "a metadata read of the replica failed; reading the primary");
                 Ok(ReplicaRead::Failed)
@@ -174,7 +232,7 @@ impl SqlMetadata {
         &self,
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
     ) -> Result<Output> {
-        self.read_once(ReadSource::Primary, None, operation)?
+        self.read_once(ReadSource::Primary, None, operation)?.0
             .ok_or_else(|| RegistryError::Internal {
                 reason: "a metadata read of the primary did not run".to_string(),
             })
@@ -188,16 +246,16 @@ impl SqlMetadata {
         source: ReadSource,
         required: Option<(&str, u64)>,
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
-    ) -> Result<Option<Output>> {
+    ) -> Result<(Option<Output>, Snapshot)> {
         let mut output = None;
-        self.adapter.read(source, &mut |connection| {
+        let snapshot = self.adapter.read(source, &mut |connection| {
             connection.begin_read()?;
             let result = self.read_if_reached(connection, required, operation);
             let ended = if result.is_ok() { connection.commit() } else { connection.rollback() };
             output = result?;
             ended
         })?;
-        Ok(output)
+        Ok((output, snapshot))
     }
 
     /// Run `operation` on `connection` when it has reached `required`.
@@ -215,4 +273,12 @@ impl SqlMetadata {
         }
         operation(connection, &self.cache).map(Some)
     }
+}
+
+/// A random wait between half of `delay` and all of it.
+fn jittered(delay: Duration) -> Duration {
+    let half = delay / 2;
+    let random = getrandom::u64().unwrap_or_default();
+    let spread = u64::try_from(half.as_micros()).unwrap_or(u64::MAX).max(1);
+    half + Duration::from_micros(random % spread)
 }

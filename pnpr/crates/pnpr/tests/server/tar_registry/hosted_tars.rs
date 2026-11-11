@@ -177,8 +177,29 @@ async fn verify_checks_a_stored_tar_against_its_tar_integrity() {
     let report = pnpr::verify::verify_storage(&config, &options).await.unwrap();
     assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
     assert!(
-        report.corrupted_blobs[0].contains("tar integrity mismatch"),
+        report.corrupted_blobs[0].contains("failed integrity verification"),
         "{:?}",
         report.corrupted_blobs,
     );
+}
+
+#[tokio::test]
+async fn cdn_public_hosted_tar_downloads_are_cacheable() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let mut config = tar_acme_config(tmp.path().to_path_buf());
+    config.http.cloudflare_cdn = Some(pnpr_config::CloudflareCdnConfig {
+        zone_id: "0".repeat(32),
+        api_token: "test-token".into(),
+        cache_tag: "example".into(),
+    });
+    let app = router_with_auth(config, auth);
+    assert_eq!(publish(&app, &token, "1.0.0", &gzip(&widget_tar())).await, StatusCode::CREATED);
+    for encoding in [None, Some("zstd")] {
+        let response = get(&app, "/npm/@acme/widget@1.0.0", encoding).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/x-tar");
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "public, max-age=300");
+    }
 }

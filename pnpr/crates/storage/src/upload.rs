@@ -220,7 +220,6 @@ impl Storage {
     ) -> Result<()> {
         let remote = upload.remote.clone();
         let slot = self.stage_uploaded_blob(upload, name, filename).await?;
-        let _temp = tempfile::TempPath::try_from_path(slot.tmp_path.clone())?;
         if let Some(remote) = &remote {
             remote.prepare_completion(filename).await?;
         }
@@ -262,13 +261,11 @@ impl Storage {
         if let Some(parent) = slot.tmp_path.parent() {
             fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
         }
-        // Both paths are under the backend's local scratch root, so this is a
-        // rename rather than a copy through memory. A cross-device staging
-        // root is the one case that needs the copy.
-        if fs::rename(&upload.path, &slot.tmp_path).await.is_err() {
-            fs::copy(&upload.path, &slot.tmp_path).await.map_err(RegistryError::Io)?;
-            let _ = fs::remove_file(&upload.path).await;
-        }
+        let upload_path = upload.path.clone();
+        let slot = slot.run_blocking_write(move |slot_path| {
+            move_upload_into_slot(&upload_path, slot_path)
+        })
+        .await?;
         let _ = fs::remove_file(self.uploads_root().join(upload.repository_record())).await;
         Ok(slot)
     }
@@ -335,6 +332,21 @@ fn generate_upload_id() -> String {
             write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
             hex
         })
+}
+
+/// Reset `upload_path`'s modification time and move it into `slot_path` (with a
+/// cross-device copy fallback), so a chunked upload whose last `PATCH` predates
+/// the request timeout is not swept while promotion runs.
+fn move_upload_into_slot(upload_path: &Path, slot_path: &Path) -> std::io::Result<()> {
+    std::fs::File::options()
+        .write(true)
+        .open(upload_path)?
+        .set_times(std::fs::FileTimes::new().set_modified(std::time::SystemTime::now()))?;
+    if std::fs::rename(upload_path, slot_path).is_err() {
+        std::fs::copy(upload_path, slot_path)?;
+        let _ = std::fs::remove_file(upload_path);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@
 mod conformance;
 mod batched_reads;
 mod blobs;
+mod cdn;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
@@ -16,6 +17,7 @@ mod publications;
 mod reclaims;
 mod records;
 mod schema;
+mod schema_monitor;
 mod staged_failure;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod startup_timeout;
@@ -94,13 +96,19 @@ impl Db {
         #[cfg(feature = "backend-postgres")]
         if variable == "PNPR_TEST_POSTGRES_URL" {
             let pool = sqlx::PgPool::connect(&url).await.unwrap();
-            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+                .execute(&pool)
+                .await
+                .unwrap();
             pool.close().await;
         }
         #[cfg(feature = "backend-mysql")]
         if variable == "PNPR_TEST_MYSQL_URL" {
             let pool = sqlx::MySqlPool::connect(&url).await.unwrap();
-            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+                .execute(&pool)
+                .await
+                .unwrap();
             pool.close().await;
         }
         let database_url = format!("{}/{name}", url.rsplit_once('/').unwrap().0);
@@ -737,6 +745,32 @@ async fn removing_versions_and_packages(db: Db) {
     let republished = packument("pkg", &["3.0.0"]);
     write(&storage, "pkg", &republished).await;
     assert_eq!(read(&storage, "pkg").await, republished);
+    assert_eq!(storage.hosted_published_package_names().await.unwrap(), vec!["pkg".to_string()]);
+    write(&storage, "pkg", &json!({ "name": "pkg", "versions": {}, "dist-tags": {} })).await;
+    assert_eq!(row_count(&storage, "packages").await, 0);
+    assert!(
+        storage
+            .read_hosted_document(&npm("pkg"))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        storage
+            .hosted_package_names()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    write(&storage, "empty-pkg", &json!({ "name": "empty-pkg", "versions": {} })).await;
+    assert_eq!(storage.hosted_package_names().await.unwrap(), vec!["empty-pkg".to_string()]);
+    assert!(
+        storage
+            .hosted_published_package_names()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 async fn row_count(storage: &Storage, table: &'static str) -> i64 {

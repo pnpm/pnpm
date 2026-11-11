@@ -40,6 +40,7 @@ export const HASH_ALGORITHM = 'sha512'
 export { assertUnpackedSize, DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from './assertUnpackedSize.js'
 export { type BundledManifest } from '@pnpm/types'
 export { normalizeBundledManifest, parseJsonBufferSync }
+export { readManifestFromCafs } from './readManifestFromCafs.js'
 
 export {
   buildFileMapsFromIndex,

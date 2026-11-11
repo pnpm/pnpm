@@ -13,16 +13,13 @@ tokens, and package metadata across instances. Archives stay in the configured
 filesystem or S3 store. PostgreSQL and MySQL share one connection pool for auth
 and metadata, limited by `database.maxConnections`.
 
-Database drivers are Cargo-feature gated:
+pnpr supports these databases:
 
-| Backend | Config key | Cargo feature |
-| --- | --- | --- |
-| libsql / Turso | `database.url: libsql://…` | `backend-libsql` (enabled by default) |
-| PostgreSQL | `database.url: postgres://…` | `backend-postgres` |
-| MySQL | `database.url: mysql://…` | `backend-mysql` |
-
-For PostgreSQL or MySQL support, build pnpr with the matching Cargo feature, for
-example `cargo build -p pnpr --features backend-postgres`.
+| Backend | Config key |
+| --- | --- |
+| libsql / Turso | `database.url: libsql://…` |
+| PostgreSQL | `database.url: postgres://…` |
+| MySQL 8.0.19 or later | `database.url: mysql://…` |
 
 :::tip
 
@@ -120,10 +117,11 @@ non-negative cap to let new users register.
 Passwords must contain at least 8 characters and at most 71 bytes.
 This applies to registration, login, administrator-created accounts, and password changes.
 
-Account creation and renaming reject usernames with the same Unicode confusable
-skeleton as another account. Recreate pre-1.0 SQL auth databases that lack a
-`schema_migrations` table; databases at schema version `1` or later migrate
-automatically at startup (see
+Account creation and renaming reject usernames that mix Unicode scripts, contain
+restricted Unicode characters, or share a case- and accent-folded Unicode
+confusable skeleton with another account. Recreate pre-1.0 SQL auth databases
+that lack a `schema_migrations` table; databases at schema version `1` or later
+migrate automatically at startup (see
 [Schema migrations](storage.md#metadata-schema-changes)).
 
 ## Extensibility model
@@ -138,3 +136,10 @@ revokes its credentials, and frees its login name. A new account using that
 name receives a fresh ID. Team memberships and package ownership remain bound
 to the deleted ID. Deleted accounts are hidden from user lists and do not count
 toward `maxUsers`. See [Account and team identity](identity.md).
+
+## Changing passwords
+
+Use `npm profile set password` to change your password. Accounts provisioned
+without a password cannot use this command to enroll one. Changing a password,
+including an administrator reset, revokes the account's existing tokens.
+Sign in again after the change.

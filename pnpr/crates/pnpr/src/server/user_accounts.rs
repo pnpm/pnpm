@@ -1,6 +1,10 @@
+pub(crate) use profile::post_profile;
+
+mod profile;
+
 use super::{
     AppState, AuthedCaller, Body, Deserialize, Identity, Path, RegistryError, Response, State,
-    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response,
+    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response, parse_json_body,
     private_no_cache, require_caller,
 };
 use axum::response::IntoResponse;
@@ -114,7 +118,7 @@ pub(super) struct UserPath {
 /// * existing user, password matches → return 201 with `{ ok, token }`.
 /// * existing user, password wrong → 401.
 fn parse_registration_password(name: &str, body: &[u8]) -> Result<String, RegistryError> {
-    let body: Value = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+    let body: Value = parse_json_body(body)?;
     let body_name = body
         .get("name")
         .and_then(Value::as_str)
@@ -208,8 +212,14 @@ async fn log_in(
     {
         return Err(deprovisioned(name));
     }
-    let (outcome, id) = users.add_or_login(name, password).await?;
-    let token = state.inner.identity.auth.tokens.issue(&id).await?;
+    let (outcome, id, token) = match state.inner.identity.auth.password_login(name, password).await
+    {
+        Err(RegistryError::TooManyUsers { .. }) => {
+            pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
+        }
+        result => result?,
+    };
     if super::scim::is_deprovisioned(state, &id)? {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(deprovisioned(name));

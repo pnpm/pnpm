@@ -554,9 +554,12 @@ async fn audit_log_unpublish_and_dist_tags() {
     let publisher = login(&app, "aud_publisher", "password").await;
 
     // Publish package
-    let body = publish_doc("audit-unpub-pkg", "1.0.0", b"tarball-contents");
-    let (status, _) = send(&app, "PUT", "/npm/audit-unpub-pkg", Some(&publisher), Some(body)).await;
-    assert_eq!(status, StatusCode::CREATED);
+    for version in ["1.0.0", "2.0.0"] {
+        let body = publish_doc("audit-unpub-pkg", version, b"tarball-contents");
+        let (status, _) =
+            send(&app, "PUT", "/npm/audit-unpub-pkg", Some(&publisher), Some(body)).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
 
     // 1. package.dist_tag_set
     let (status, _) = send(

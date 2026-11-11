@@ -72,13 +72,15 @@ pub(super) fn describes(lock: &Lockfile, local: &[LocalProject]) -> Result<()> {
                 }
             }
             (Some(_), None) => {
-                bail!("the Python project `{}` is no longer a workspace source", package.name)
+                bail!("the Python project `{}` is no longer a workspace source", package.name);
             }
-            (None, Some(project)) => bail!(
-                "the Python distribution `{}` is now the workspace project at {}",
-                package.name,
-                project.root.display(),
-            ),
+            (None, Some(project)) => {
+                bail!(
+                    "the Python distribution `{}` is now the workspace project at {}",
+                    package.name,
+                    project.root.display(),
+                );
+            }
             (None, None) => {}
         }
     }
@@ -221,11 +223,13 @@ impl Workspace {
         match self.roots.get(name).map(Vec::as_slice) {
             None | Some([]) => Ok(None),
             Some([only]) => Ok(Some(only)),
-            Some([first, second, ..]) => bail!(
-                "two Python projects in this workspace declare `{name}`: {} and {}",
-                first.display(),
-                second.display(),
-            ),
+            Some([first, second, ..]) => {
+                bail!(
+                    "two Python projects in this workspace declare `{name}`: {} and {}",
+                    first.display(),
+                    second.display(),
+                );
+            }
         }
     }
 
@@ -340,7 +344,7 @@ impl Workspace {
              workspace declares from the index, because that installs different code under it.",
             member.display(),
             root.join("pyproject.toml").display(),
-        )
+        );
     }
 
     fn target(

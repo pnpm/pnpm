@@ -226,7 +226,8 @@ fn overridden_direct(
     let lockfile_root = crate::install::lockfile_root_dir(update.config, project_dir)
         .map_err(UpdateError::FindWorkspaceDir)?;
     let overrider =
-        VersionsOverrider::new(&parsed, update.config.root_project_manifest_dir(&lockfile_root));
+        VersionsOverrider::new(&parsed, update.config.root_project_manifest_dir(&lockfile_root))
+            .with_catalogs(catalogs);
     Ok(collect_overridden_direct(manifest, direct, &overrider))
 }
 

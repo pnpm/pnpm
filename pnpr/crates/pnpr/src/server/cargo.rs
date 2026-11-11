@@ -26,7 +26,10 @@ use super::{
     authorize,
     conditional_requests::is_not_modified,
     discovery_sources,
-    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
+    documents::{
+        lookup_in_hosted_document, read_hosted_document, stage_hosted_artifact,
+        store_hosted_artifact,
+    },
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
         load_upstream_document, mount_bases, registry_endpoint, registry_requires_auth,
@@ -74,6 +77,10 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates"), get(get_search))
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(
+                &format!("{base}/api/v1/crates/{{name}}/owners"),
+                get(unsupported_owners).put(unsupported_owners).delete(unsupported_owners),
+            )
+            .route(
                 &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),
                 get(get_download),
             )
@@ -81,6 +88,13 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"), put(put_unyank));
     }
     router
+}
+
+async fn unsupported_owners() -> Response {
+    json_response(
+        StatusCode::NOT_IMPLEMENTED,
+        &errors_json("cargo owner is not supported by this registry"),
+    )
 }
 
 /// `cargo search`'s default page size, which is also what crates.io returns
@@ -350,11 +364,14 @@ async fn download_hosted_crate(
     key: &CanonicalPackageName,
     version: &str,
 ) -> Result<Response, RegistryError> {
-    let document = read_hosted_document::<CrateDocument>(state, identity, source, key)
+    let requested = version.to_string();
+    let filename =
+        lookup_in_hosted_document(state, identity, source, key, move |document: &CrateDocument| {
+            document.version(&requested).map(|entry| crate_filename(&entry.name, &entry.vers))
+        })
         .await?
+        .found()
         .ok_or(RegistryError::NotFound)?;
-    let entry = document.version(version).ok_or(RegistryError::NotFound)?;
-    let filename = crate_filename(&entry.name, &entry.vers);
     serve_hosted_blob(state, identity, source, key, &filename).await
 }
 

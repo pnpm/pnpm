@@ -110,6 +110,17 @@ fn picks_already_available_prerelease_version() {
 }
 
 #[test]
+fn still_deduplicates_registry_tags_onto_preferred_versions() {
+    let preferred = preferred(&[("foo", &[("1.0.0", plain(VersionSelectorType::Version))])]);
+    for range in ["latest", "next"] {
+        assert_eq!(
+            hoist_peers(&opts(true, &preferred), &[missing("foo", range)]),
+            BTreeMap::from([("foo".to_string(), "1.0.0".to_string())]),
+        );
+    }
+}
+
+#[test]
 fn respects_peer_dep_range_when_preferred_versions_exist() {
     let preferred = preferred(&[(
         "chai",
@@ -233,7 +244,7 @@ fn leaves_a_workspace_peer_missing_without_auto_install_peers() {
 }
 
 #[test]
-fn dedupes_named_registry_peer_onto_a_preferred_version_that_satisfies_its_extracted_range() {
+fn preserves_named_registry_peer_specifiers_when_preferred_versions_exist() {
     let preferred = preferred(&[(
         "foo",
         &[
@@ -243,7 +254,7 @@ fn dedupes_named_registry_peer_onto_a_preferred_version_that_satisfies_its_extra
     )]);
     let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "work:^1.0.0")]);
     let mut expected = BTreeMap::new();
-    expected.insert("foo".to_string(), "1.0.0".to_string());
+    expected.insert("foo".to_string(), "work:^1.0.0".to_string());
     assert_eq!(result, expected);
 }
 
@@ -257,9 +268,7 @@ fn falls_back_to_raw_scheme_specifier_when_no_preferred_version_satisfies_its_ex
 }
 
 #[test]
-fn respects_a_merged_union_of_scheme_specifiers_instead_of_picking_the_highest() {
-    // `4.0.0` is the highest but satisfies neither `^2.0.0` nor `^3.0.0`, so a
-    // blind highest-version pick would be wrong; `3.0.0` is the highest match.
+fn preserves_registry_prefixes_in_merged_peer_specifiers() {
     let preferred = preferred(&[(
         "foo",
         &[
@@ -271,7 +280,7 @@ fn respects_a_merged_union_of_scheme_specifiers_instead_of_picking_the_highest()
     let result =
         hoist_peers(&opts(true, &preferred), &[missing("foo", "work:^2.0.0 || work:^3.0.0")]);
     let mut expected = BTreeMap::new();
-    expected.insert("foo".to_string(), "3.0.0".to_string());
+    expected.insert("foo".to_string(), "work:^2.0.0 || work:^3.0.0".to_string());
     assert_eq!(result, expected);
 }
 

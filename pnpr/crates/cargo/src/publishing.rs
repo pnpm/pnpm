@@ -317,8 +317,7 @@ pub(super) fn validate_crate_manifest<Reader: io::Read>(
     let mut manifest = String::new();
     entry.read_to_string(&mut manifest).map_err(CrateArchiveError::Read)?;
     let matches = toml::from_str::<toml::Value>(&manifest)
-        .ok()
-        .is_some_and(|manifest| {
+        .is_ok_and(|manifest| {
             let package = manifest.get("package");
             let field = |key| {
                 package

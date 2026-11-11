@@ -12,12 +12,14 @@ pub use backend_config::{
     TokensConfig, UsersConfig,
 };
 pub use byte_size::{ByteSize, parse_byte_size};
+pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;
+pub use pnpr_error::redact_connection_url;
 pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
@@ -43,6 +45,7 @@ mod backend_config;
 use backend_config::build_identity_config;
 
 mod byte_size;
+mod cdn;
 
 mod config_file;
 use config_file::{
@@ -220,6 +223,12 @@ pub struct HttpConfig {
     /// re-fetched from the resolved upstream. Ignored when no upstream
     /// matches.
     pub packument_ttl: Duration,
+    /// The largest tarball pnpr fetches from an upstream registry, in bytes.
+    /// pnpr spools each proxied tarball to disk while it verifies the
+    /// integrity, so this bounds the temporary disk each tarball takes. An
+    /// upstream tarball over it is refused. Sourced from the YAML
+    /// `maxTarballSize:` key; defaults to [`Self::DEFAULT_MAX_TARBALL_BYTES`].
+    pub max_tarball_bytes: u64,
     /// Reverse-proxy networks trusted to supply client IP headers.
     pub trusted_proxies: Vec<IpNetwork>,
     /// Which forwarding header to inspect when behind a trusted proxy.
@@ -232,10 +241,13 @@ pub struct HttpConfig {
     pub metrics: Option<MetricsConfig>,
     /// How pnpr's own package document is served.
     pub package_documents: PackageDocumentsConfig,
+    pub cloudflare_cdn: Option<CloudflareCdnConfig>,
 }
 
 impl HttpConfig {
     pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
+    /// 100 MiB, the size npm itself caps a published package at.
+    pub const DEFAULT_MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 
     /// The checks config loading applies to `metrics`, for a config built in
     /// code.

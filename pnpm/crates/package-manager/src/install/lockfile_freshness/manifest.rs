@@ -70,17 +70,7 @@ pub(crate) fn check_importer_satisfies(
     // override pass conceptually returns a new manifest
     // from the perspective of every consumer downstream of the
     // resolver.
-    let normalized_manifest = normalized_freshness_manifest(
-        check.manifest,
-        check.config,
-        check.workspace.packages.map(|packages| crate::WorkspaceLinks {
-            packages,
-            catalogs: check.workspace.catalogs,
-        }),
-        importer,
-        check.parsed_overrides,
-        check.lockfile_dir,
-    );
+    let normalized_manifest = normalized_freshness_manifest(check, importer);
     let manifest_for_freshness = normalized_manifest.as_ref();
 
     // Build the `ignoredOptionalDependencies` filter set: iterate
@@ -221,26 +211,30 @@ fn retain_in_freshness_manifest(
 }
 // Only overrides and excluded links require a clone; all other freshness checks borrow the manifest.
 pub(super) fn normalized_freshness_manifest<'a>(
-    manifest: &'a PackageManifest,
-    config: &Config,
-    workspace_links: Option<crate::WorkspaceLinks<'_>>,
+    check: &'a ImporterSatisfactionCheck<'a>,
     importer: &pnpm_lockfile::ProjectSnapshot,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    lockfile_dir: &Path,
 ) -> std::borrow::Cow<'a, PackageManifest> {
-    if parsed_overrides.is_none() && !config.exclude_links_from_lockfile {
-        return std::borrow::Cow::Borrowed(manifest);
+    if check.parsed_overrides.is_none() && !check.config.exclude_links_from_lockfile {
+        return std::borrow::Cow::Borrowed(check.manifest);
     }
-    let project_dir = manifest
+    let project_dir = check.manifest
         .path()
         .parent()
         .unwrap_or_else(|| Path::new("."));
-    let mut cloned = manifest.clone();
-    if let Some(parsed) = parsed_overrides {
-        crate::VersionsOverrider::new(parsed, config.root_project_manifest_dir(lockfile_dir))
-            .apply(&mut cloned, Some(project_dir));
+    let mut cloned = check.manifest.clone();
+    if let Some(parsed) = check.parsed_overrides {
+        crate::VersionsOverrider::new(
+            parsed,
+            check.config.root_project_manifest_dir(check.lockfile_dir),
+        )
+        .with_catalogs(check.workspace.catalogs)
+        .apply(&mut cloned, Some(project_dir));
     }
-    if config.exclude_links_from_lockfile {
+    if check.config.exclude_links_from_lockfile {
+        let workspace_links = check.workspace.packages.map(|packages| crate::WorkspaceLinks {
+            packages,
+            catalogs: check.workspace.catalogs,
+        });
         exclude_linked_dependencies(&mut cloned, workspace_links, Some(importer));
     }
     std::borrow::Cow::Owned(cloned)

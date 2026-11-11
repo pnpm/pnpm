@@ -290,6 +290,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     assert_eq!(page.status(), StatusCode::OK);
     assert_eq!(body_json(page.into_body()).await["files"][0]["filename"], WHEEL);
     let file = app
+        .clone()
         .oneshot(
             Request::get(format!("/pypi/files/demo-pkg/{WHEEL}"))
                 .body(Body::empty())
@@ -298,6 +299,19 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .await
         .unwrap();
     assert_eq!(body_bytes(file.into_body()).await, wheel.as_slice());
+    let metadata =
+        pnpr_pypi::archive::metadata_from_zip(wheel, WHEEL, pnpr_pypi::DistributionKind::Wheel)
+            .unwrap();
+    let sidecar = app
+        .oneshot(
+            Request::get(format!("/pypi/files/demo-pkg/{WHEEL}.metadata"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(sidecar.status(), StatusCode::OK);
+    assert_eq!(body_bytes(sidecar.into_body()).await, metadata);
 
     // One transaction, and it left nothing behind.
 }
@@ -632,4 +646,117 @@ async fn another_file_of_a_published_python_version_takes_no_publish_time_note()
         .await
         .unwrap();
     assert_eq!(accepted.status(), StatusCode::CREATED);
+}
+
+#[cfg(feature = "backend-libsql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unsynced_libsql_replica_serves_cargo_and_pypi_archives_from_the_primary() {
+    use object_store::{ObjectStore, memory::InMemory};
+    use pnpr::HostedStoreConfig;
+    use std::sync::Arc;
+
+    let tmp = TempDir::new().unwrap();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let (primary, address, server) =
+        pnpr_libsql::testing::serve_primary(tmp.path().join("primary.db")).await;
+    let instance = |name: &str| {
+        let mut config = tri_ecosystem_config(tmp.path().join(name));
+        config.storage.hosted_backend =
+            HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
+        config.storage.metadata =
+            pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+                url: format!("http://{address}"),
+                auth_token: None,
+                replica_path: Some(tmp.path().join(name).join("replica.db")),
+                sync_interval_secs: Some(3600),
+                max_connections: None,
+            });
+        router_with_auth(config, AuthState::in_memory())
+    };
+    let writer = instance("writer");
+    let reader = instance("reader");
+    let token = token_for(&writer, "alice").await;
+
+    let crate_v1 = crate_archive("demo", "1.0.0");
+    let wheel_v1 = crate::ecosystem::python_wheel("demo-pkg", "1.0.0");
+    let first = json!({
+        "packages": [
+            cargo_entry("demo", "1.0.0", &crate_v1),
+            pypi_entry("demo-pkg", "1.0.0", WHEEL, &wheel_v1),
+        ],
+    });
+    let published = writer
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &first, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
+    let bootstrap = reader
+        .clone()
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bootstrap.status(), StatusCode::OK);
+
+    let crate_v2 = crate_archive("demo", "2.0.0");
+    let wheel_v2 = crate::ecosystem::python_wheel("demo-pkg", "2.0.0");
+    let wheel_v2_name = "demo_pkg-2.0.0-py3-none-any.whl";
+    let second = json!({
+        "packages": [
+            cargo_entry("demo", "2.0.0", &crate_v2),
+            pypi_entry("demo-pkg", "2.0.0", wheel_v2_name, &wheel_v2),
+        ],
+    });
+    let published = writer
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &second, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
+
+    let crate_dl = reader
+        .clone()
+        .oneshot(
+            Request::get("/cargo/api/v1/crates/demo/2.0.0/download")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(crate_dl.status(), StatusCode::OK);
+    assert_eq!(body_bytes(crate_dl.into_body()).await, crate_v2);
+
+    let pypi_dl = reader
+        .clone()
+        .oneshot(
+            Request::get(format!("/pypi/files/demo-pkg/{wheel_v2_name}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pypi_dl.status(), StatusCode::OK);
+    assert_eq!(body_bytes(pypi_dl.into_body()).await, wheel_v2);
+
+    let pypi_metadata = reader
+        .clone()
+        .oneshot(
+            Request::get(format!("/pypi/files/demo-pkg/{wheel_v2_name}.metadata"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pypi_metadata.status(), StatusCode::OK);
+    assert_eq!(
+        pypi_metadata.headers()[axum::http::header::CONTENT_TYPE],
+        "text/plain; charset=utf-8",
+    );
+
+    drop(primary);
+    server.abort();
 }

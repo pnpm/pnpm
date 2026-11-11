@@ -282,6 +282,20 @@ where
         self.db.update_password_hash(user_id, &hash).await
     }
 
+    async fn set_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        crate::validation::validate_password(password)?;
+        if expected_hash == crate::DELETED_USER_HASH {
+            return Ok(false);
+        }
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.db.update_user_hash_if_current(user_id, expected_hash, &hash).await
+    }
+
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
         self.db.update_password_hash(user_id, crate::NO_PASSWORD_HASH).await
     }

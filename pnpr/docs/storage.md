@@ -49,6 +49,27 @@ its bytes, and a download of the file reads the bytes through that mapping.
 Files with the same bytes, of one package or of several, share one stored
 archive.
 
+pnpr verifies a hosted archive before starting its first download response.
+Unchanged archives reuse that verification when the operating system provides a
+reliable file change timestamp. On Windows, pnpr reads and hashes the complete
+archive before every download, including partial downloads.
+A first download from object storage uses temporary disk space under the cache
+while pnpr checks the complete archive, including when the client requested only
+a byte range. pnpr verifies at most four object-store downloads in parallel. A
+request waiting more than five seconds for verification returns `503 Service
+Unavailable`.
+
+Temporary download files share a 1 GiB admission threshold, reserved in 1 MiB
+units until the response finishes or disconnects. An archive larger than 1 GiB
+reserves the threshold exclusively and can use more than 1 GiB of disk space.
+The total size of these temporary files is bounded by the greater of 1 GiB and
+the largest active archive download. Requests that cannot reserve space return
+`503 Service Unavailable` immediately. Corrupted archives also return
+`503 Service Unavailable`.
+
+Provision the cache filesystem with enough free space for the largest published
+archive, including blobs allowed by the [OCI size limit](configuration.md#oci).
+
 `<incarnation>` counts the times the bytes were stored, from `1`. Bytes a
 [reclaim](cli.md#gc) removed and a later publish stores again take the next
 incarnation, so a key is never written again once a reclaim may remove it.
@@ -139,8 +160,15 @@ deletions do not retain earlier text for restoration.
 ### Schema migrations {#metadata-schema-changes}
 
 pnpr creates its metadata and auth tables in an empty database and records each
-applied migration step in the `schema_migrations` table, starting with step `1`
-for the 1.0 schema. When pnpr opens a database at an older numbered version, it
+applied migration step in `schema_migrations`, starting with step `1` for the
+1.0 schema. Its `applied_at` column holds Unix seconds, or `0` for steps applied
+before pnpr recorded application times. Running servers probe the primary
+database version at most once per second.
+Requests use the last compatible result while a probe runs or the primary is
+unreachable. After a probe detects a version newer than the server supports,
+that server refuses further requests except liveness probes until it restarts.
+
+When pnpr opens a database at an older numbered version, it
 takes the database write lock and runs each pending migration step in order.
 Steps run in one transaction on SQLite, libSQL, and PostgreSQL, and record
 their version in `schema_migrations` after completing on MySQL.
@@ -160,8 +188,9 @@ metadata, accounts, and tokens in the same shared database. Both work with a
 filesystem hosted store or S3. See [Shared database](auth-backends.md) for
 connection settings and the MySQL key-size limit.
 
-Publication writes commit atomically. Concurrent writers retry transaction
-conflicts, and each metadata read sees a committed snapshot.
+Publication writes commit atomically. Metadata writes from every pnpr instance
+on the database wait their turn on a database lock, and each metadata read sees
+a committed snapshot.
 
 ## Metadata in libSQL {#libsql-metadata}
 
@@ -194,6 +223,8 @@ file and pulls the primary's changes every `syncInterval`:
 
 - Package documents and listings are read from the replica. A change made
   through another pnpr instance shows up within `syncInterval`.
+- Archives and exact version metadata are read from the replica first, and
+  from the primary when the replica does not have them yet.
 - An instance always sees its own changes.
 - Permission checks, the reads a write depends on, and the response to a
   retried publish read the primary.
@@ -385,6 +416,7 @@ are in progress, another large publish returns `429 Too Many Requests`.
 ### Interruptions
 
 - **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no file maps, which are never served; [`pnpr gc`](cli.md#gc) removes them. A publish refused at its commit removes the incarnations it stored itself, unless another publish of the same bytes committed one of them in the meantime. It first records one a commit could still make live as gone, so that commit is refused rather than left pointing at nothing.
+- **Local staging files**: A publish that times out, disconnects, or fails removes its `<cache>/.staging/` file when it stops. Unclean exits leave files that startup, periodic background sweeps, and [`pnpr cache-gc`](cli.md#cache-gc) reclaim once older than [`requestTimeout`](configuration.md#requesttimeout) (`1h` when disabled).
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
 ### Operational recommendations

@@ -626,7 +626,7 @@ fn workspace_path_override_is_reanchored_against_pkg_dir() {
 }
 
 #[test]
-fn workspace_path_override_is_kept_as_declared_without_a_pkg_dir() {
+fn workspace_path_override_is_anchored_without_a_pkg_dir() {
     let overrides = parsed(&[("foo", "workspace:./packages/foo")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
@@ -637,7 +637,10 @@ fn workspace_path_override_is_kept_as_declared_without_a_pkg_dir() {
     }));
     overrider.apply(&mut manifest, None);
 
-    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("workspace:./packages/foo"));
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("workspace:/workspace/packages/foo"),
+    );
 }
 
 /// The shapes the resolver chain claims before the local resolver keep
@@ -795,4 +798,59 @@ fn wildcard_and_typed_overrides_respect_specificity() {
     }));
     overrider.apply(&mut mui_material, Some(Path::new("/workspace")));
     assert_eq!(dep_spec(&mui_material, "peerDependencies", "react"), Some("^18.2.0"));
+}
+
+#[test]
+fn version_scoped_override_matches_catalog_dependency_by_catalog_specifier() {
+    use super::DependencyGroup;
+    use std::collections::BTreeMap;
+
+    let mut catalogs = Catalogs::new();
+    catalogs.insert(
+        "default".to_string(),
+        BTreeMap::from([
+            ("ms".to_string(), "~2.1.0".to_string()),
+            ("foo".to_string(), "^1.1.0".to_string()),
+        ]),
+    );
+    catalogs.insert(
+        "legacy".to_string(),
+        BTreeMap::from([("ms".to_string(), "^1.0.0".to_string())]),
+    );
+    let overrides = parsed(&[("ms@^2.0.0", "2.1.1"), ("app>foo@^1.0.0", "1.2.3")]);
+    let overrider =
+        VersionsOverrider::new(&overrides, Path::new("/workspace")).with_catalogs(&catalogs);
+
+    let mut matching = manifest_from_value(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": {
+            "ms": "catalog:",
+            "foo": "catalog:",
+        },
+    }));
+    overrider.apply(&mut matching, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&matching, "dependencies", "ms"), Some("2.1.1"));
+    assert_eq!(dep_spec(&matching, "dependencies", "foo"), Some("1.2.3"));
+
+    let mut non_matching = manifest_from_value(json!({
+        "name": "other",
+        "version": "1.0.0",
+        "dependencies": {
+            "ms": "catalog:legacy",
+            "foo": "catalog:",
+        },
+    }));
+    overrider.apply(&mut non_matching, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&non_matching, "dependencies", "ms"), Some("catalog:legacy"));
+    assert_eq!(dep_spec(&non_matching, "dependencies", "foo"), Some("catalog:"));
+
+    let app_manifest = json!({ "name": "app", "version": "1.0.0" });
+    let matcher = overrider.dependency_matcher(&app_manifest);
+    assert!(matcher.matches(DependencyGroup::Prod, "ms", "catalog:"));
+    assert!(!matcher.matches(DependencyGroup::Prod, "ms", "catalog:legacy"));
+    assert!(matcher.matches(DependencyGroup::Prod, "foo", "catalog:"));
+
+    assert_eq!(undeclared(&overrider, "ms", "catalog:").as_deref(), Some("2.1.1"));
+    assert_eq!(undeclared(&overrider, "ms", "catalog:legacy"), None);
 }

@@ -236,3 +236,38 @@ fn etags_decide_when_either_observation_lacks_a_version_id() {
     assert!(same_object_version(&observed(Some("a"), Some("1")), &observed(Some("a"), None)));
     assert!(!same_object_version(&observed(Some("a"), Some("1")), &observed(Some("b"), None)));
 }
+
+#[tokio::test]
+async fn completing_or_aborting_an_upload_removes_the_session_record() {
+    use futures_util::TryStreamExt;
+    let disk = tempfile::TempDir::new().unwrap();
+    let backend = RemoteUploadStore::new(Arc::new(InMemory::new()), "", disk.path().into());
+    let repository = CanonicalPackageName::parse("app", Ecosystem::Oci).unwrap();
+    let upload = backend.begin(&repository).await.unwrap();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"layer").await.unwrap();
+    writer.finish().await.unwrap();
+    upload.remote
+        .as_ref()
+        .unwrap()
+        .close()
+        .await
+        .unwrap();
+    assert!(
+        backend
+            .read(upload.id())
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let upload = backend.begin(&repository).await.unwrap();
+    assert!(backend.abort(upload.id()).await.unwrap());
+    assert!(
+        backend.store
+            .list(None)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}

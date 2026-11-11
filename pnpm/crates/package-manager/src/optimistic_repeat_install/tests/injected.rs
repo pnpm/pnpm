@@ -48,16 +48,47 @@ fn injected_sibling_decision(
     shared_workspace_lockfile: bool,
     sibling_manifest: Option<&serde_json::Value>,
 ) -> Decision {
+    injected_sibling_decision_with_lockfile(shared_workspace_lockfile, sibling_manifest, LOCKFILE)
+}
+
+fn injected_sibling_decision_with_lockfile(
+    shared_workspace_lockfile: bool,
+    sibling_manifest: Option<&serde_json::Value>,
+    lockfile: &str,
+) -> Decision {
+    injected_sibling_decision_with_projects(
+        (shared_workspace_lockfile, sibling_manifest, lockfile),
+        &[],
+    )
+}
+
+/// An extra workspace project: its directory, the manifest the previous
+/// install recorded, and the manifest it declares now.
+type ExtraProject<'a> = (&'a str, serde_json::Value, serde_json::Value);
+
+/// [`injected_sibling_decision_with_lockfile`] with `extra_projects` in the
+/// workspace too.
+fn injected_sibling_decision_with_projects(
+    (shared_workspace_lockfile, sibling_manifest, lockfile): (
+        bool,
+        Option<&serde_json::Value>,
+        &str,
+    ),
+    extra_projects: &[ExtraProject<'_>],
+) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let sibling_dir = workspace_root.join("pkg-a");
     fs::create_dir_all(&sibling_dir).unwrap();
-    fs::write(workspace_root.join(Lockfile::FILE_NAME), LOCKFILE).unwrap();
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), lockfile).unwrap();
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.install_state_dir = config.modules_dir.join(".pnpm");
     config.inject_workspace_packages = true;
+    if lockfile.contains("'13.0'") {
+        config.lockfile_format = pnpm_lockfile::LockfileFormat::V13;
+    }
     config.shared_workspace_lockfile = shared_workspace_lockfile;
     fs::create_dir_all(&config.modules_dir).unwrap();
     // A fresh install links the injected `workspace:*` dependency.
@@ -71,7 +102,7 @@ fn injected_sibling_decision(
         isolated_included(),
         None,
     );
-    let projects = BTreeMap::from([
+    let mut projects = BTreeMap::from([
         (
             workspace_root.to_string_lossy().into_owned(),
             ProjectEntry {
@@ -89,6 +120,21 @@ fn injected_sibling_decision(
             },
         ),
     ]);
+    let extra_dirs: Vec<_> = extra_projects
+        .iter()
+        .map(|(dir, ..)| workspace_root.join(dir))
+        .collect();
+    for ((_, installed, _), dir) in extra_projects.iter().zip(&extra_dirs) {
+        fs::create_dir_all(dir).unwrap();
+        projects.insert(
+            dir.to_string_lossy().into_owned(),
+            ProjectEntry {
+                name: installed["name"].as_str().map(Into::into),
+                version: installed["version"].as_str().map(Into::into),
+                has_modules_dir: false,
+            },
+        );
+    }
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     let root_manifest = PackageManifest::from_value(
@@ -101,14 +147,28 @@ fn injected_sibling_decision(
     );
     let installed_sibling =
         PackageManifest::from_value(sibling_dir.join("package.json"), unchanged_sibling());
-    record_installed(
-        workspace_root,
-        config,
-        &[
-            (workspace_root.to_path_buf(), &root_manifest),
-            (sibling_dir.clone(), &installed_sibling),
-        ],
+    let manifests_of = |pick: for<'p> fn(&'p ExtraProject<'_>) -> &'p serde_json::Value| -> Vec<_> {
+        extra_projects
+            .iter()
+            .zip(&extra_dirs)
+            .map(|(project, dir)| {
+                PackageManifest::from_value(dir.join("package.json"), pick(project).clone())
+            })
+            .collect()
+    };
+    let installed_extra = manifests_of(|(_, installed, _)| installed);
+    let current_extra = manifests_of(|(_, _, current)| current);
+    let mut installed = vec![
+        (workspace_root.to_path_buf(), &root_manifest),
+        (sibling_dir.clone(), &installed_sibling),
+    ];
+    installed.extend(
+        extra_dirs
+            .iter()
+            .cloned()
+            .zip(&installed_extra),
     );
+    record_installed(workspace_root, config, &installed);
     let sibling_manifest = sibling_manifest.map(|manifest| {
         PackageManifest::from_value(sibling_dir.join("package.json"), manifest.clone())
     });
@@ -116,6 +176,7 @@ fn injected_sibling_decision(
     if let Some(sibling_manifest) = &sibling_manifest {
         project_manifests.push((sibling_dir, sibling_manifest));
     }
+    project_manifests.extend(extra_dirs.into_iter().zip(&current_extra));
     content_check_decision(&dir, config, true, &project_manifests)
 }
 
@@ -188,4 +249,51 @@ fn assert_skipped_for_local_file_dependency(decision: &Decision) {
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
         "expected Skipped(local file dependency), got {decision:?}",
     );
+}
+
+#[test]
+fn recorded_injected_inputs_allow_a_dedicated_lockfile_repeat_install() {
+    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'")
+        .replace("resolution: {directory: pkg-a, type: directory}",
+            "resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace}");
+    assert_eq!(
+        injected_sibling_decision_with_lockfile(false, Some(&unchanged_sibling()), &lockfile),
+        Decision::UpToDate,
+    );
+    let changed = serde_json::json!({ "name": "pkg-a", "version": "1.0.0", "dependencies": { "is-positive": "1.0.0" } });
+    let decision = injected_sibling_decision_with_lockfile(false, Some(&changed), &lockfile);
+    assert!(matches!(decision, Decision::Skipped { .. }), "{decision:?}");
+}
+
+/// No importer's directory walk reaches a workspace project that only a
+/// registry package injects. Its own importer entry still has to agree with
+/// its manifest.
+#[test]
+fn recorded_injected_inputs_do_not_vouch_for_a_changed_nested_project() {
+    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'")
+        .replace(
+            "  pkg-a: {}\n",
+            "  pkg-a:\n    dependencies:\n      bar:\n        specifier: 1.0.0\n        version: 1.0.0\n\n  pkg-b: {}\n",
+        )
+        .replace(
+            "  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n\nsnapshots:\n\n  pkg-a@file:pkg-a: {}\n",
+            "  bar@1.0.0:\n    resolution: {integrity: sha512-AAAA}\n\n  pkg-a@file:pkg-a:\n    resolution: {directory: pkg-a, type: directory}\n    specifiers: {manifestSource: workspace, dependencies: {bar: 1.0.0}}\n\n  pkg-b@file:pkg-b:\n    resolution: {directory: pkg-b, type: directory}\n    specifiers: {manifestSource: workspace}\n\nsnapshots:\n\n  bar@1.0.0:\n    dependencies:\n      pkg-b: file:pkg-b\n\n  pkg-a@file:pkg-a:\n    dependencies:\n      bar: 1.0.0\n\n  pkg-b@file:pkg-b: {}\n",
+        );
+    assert!(lockfile.contains("\n  pkg-b: {}\n"), "{lockfile}");
+    assert!(lockfile.contains("pkg-b: file:pkg-b"), "{lockfile}");
+    let sibling = serde_json::json!({
+        "name": "pkg-a",
+        "version": "1.0.0",
+        "dependencies": { "bar": "1.0.0" },
+    });
+    let pkg_b = serde_json::json!({ "name": "pkg-b", "version": "1.0.0" });
+    let changed = serde_json::json!({ "name": "pkg-b", "version": "1.0.0", "dependencies": { "is-positive": "1.0.0" } });
+    let decision = |current: &serde_json::Value| {
+        injected_sibling_decision_with_projects(
+            (false, Some(&sibling), &lockfile),
+            &[("pkg-b", pkg_b.clone(), current.clone())],
+        )
+    };
+    assert_eq!(decision(&pkg_b), Decision::UpToDate);
+    assert_skipped_for_local_file_dependency(&decision(&changed));
 }

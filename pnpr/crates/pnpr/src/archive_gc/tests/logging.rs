@@ -1,4 +1,4 @@
-use super::{MANIFEST_LIMIT, blob, collect, name, setup};
+use super::{MANIFEST_LIMIT, blob, collect, name, retained_image_with_layers, setup};
 use pnpr_package_name::Ecosystem;
 use std::time::Duration;
 
@@ -164,6 +164,40 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
         assert_eq!(event["fields"]["action"], "gc.remove_archive");
         assert_eq!(event["fields"]["actor"], "-");
     }
+}
+
+#[tokio::test]
+async fn dry_run_logs_only_archives_no_other_repository_keeps() {
+    let (temp, storage) = setup();
+    let app = name("example/app");
+    let worker = name("example/worker");
+    let shared_bytes = b"shared layer";
+    let app_image =
+        retained_image_with_layers(&storage, &app, b"app config", &[shared_bytes]).await;
+    retained_image_with_layers(&storage, &worker, b"worker config", &[shared_bytes]).await;
+    let shared_archive = storage
+        .hosted_blob_of(&worker, &app_image.layers[0].blob_filename())
+        .await
+        .unwrap()
+        .unwrap();
+    storage
+        .update_hosted_document_with_retry(&app, 1, None, |_| Ok(Some(Vec::new())))
+        .await
+        .unwrap();
+    let path = temp.path().join("gc.log");
+    let subscriber = log_subscriber(&path);
+    let _default = tracing::subscriber::set_default(subscriber);
+    assert_eq!(
+        collect(&storage, Duration::ZERO, true, MANIFEST_LIMIT).await.unwrap(),
+        (2, app_image.manifest_and_config_bytes),
+    );
+    let output = std::fs::read_to_string(&path).unwrap();
+    let unmapped = output
+        .lines()
+        .filter(|line| line.contains("unmapped archive"))
+        .count();
+    assert_eq!(unmapped, 2, "{output}");
+    assert!(!output.contains(&shared_archive.key()), "{output}");
 }
 
 fn log_subscriber(path: &std::path::Path) -> impl tracing::Subscriber + Send + Sync {

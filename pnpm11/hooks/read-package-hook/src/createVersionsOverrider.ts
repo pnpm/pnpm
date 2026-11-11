@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
 import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isTarballFilename } from '@pnpm/resolving.local-resolver'
@@ -13,6 +15,11 @@ import { isIntersectingRange } from './isIntersectingRange.js'
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 
 export interface CreateVersionsOverriderOptions {
+  /**
+   * Workspace catalogs used to dereference `catalog:` dependency specifiers
+   * when matching range-scoped overrides.
+   */
+  catalogs?: Catalogs
   /**
    * Populated with every declared semver range seen for packages that have a
    * convergence override, whether or not the override's version satisfied it.
@@ -40,12 +47,13 @@ export type DependencyOverrider = (name: string, bareSpecifier: string, dir?: st
  */
 export function createDependencyOverrider (
   overrides: VersionOverrideWithoutRawSelector[],
-  rootDir: string
+  rootDir: string,
+  catalogs?: Catalogs
 ): DependencyOverrider | undefined {
   const { genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
   if (genericVersionOverrides.length === 0 && convergeVersions.size === 0) return undefined
   return (name, bareSpecifier, dir) => {
-    const versionOverride = pickVersionOverride({ versionOverrides: [], genericVersionOverrides }, name, bareSpecifier)
+    const versionOverride = pickVersionOverride({ versionOverrides: [], genericVersionOverrides, catalogs }, name, bareSpecifier)
     if (versionOverride) {
       return versionOverride.newBareSpecifier === '-'
         ? '-'
@@ -83,7 +91,8 @@ export type OverriddenDependencyMatcher = (alias: string, bareSpecifier: string)
  */
 export function createOverriddenDependencyMatcher (
   overrides: VersionOverrideWithoutRawSelector[],
-  rootDir: string
+  rootDir: string,
+  catalogs?: Catalogs
 ): ((manifest: OverridableManifest) => OverriddenDependencyMatcher) | undefined {
   const { versionOverrides, genericVersionOverrides, convergeVersions } = splitOverrides(overrides, rootDir)
   if (versionOverrides.length === 0 && genericVersionOverrides.length === 0 && convergeVersions.size === 0) {
@@ -93,6 +102,7 @@ export function createOverriddenDependencyMatcher (
     const overridesForManifest = {
       versionOverrides: pickOverridesOfParent(versionOverrides, manifest),
       genericVersionOverrides,
+      catalogs,
     }
     return (alias, bareSpecifier) =>
       pickVersionOverride(overridesForManifest, alias, bareSpecifier) != null ||
@@ -120,6 +130,7 @@ export function createVersionsOverrider (
       clonedManifest.peerDependenciesMeta = { ...manifest.peerDependenciesMeta }
     }
     overrideDepsOfPkg({ manifest: clonedManifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
+      catalogs: opts?.catalogs,
       convergeVersions,
       convergeDeclaredRanges: opts?.convergeDeclaredRanges,
     })
@@ -247,6 +258,7 @@ function removeMetaOnlyPeers (
 }
 
 interface ConvergeOptions {
+  catalogs?: Catalogs
   convergeVersions: Map<string, string>
   convergeDeclaredRanges?: Map<string, Set<string>>
 }
@@ -263,7 +275,11 @@ function overrideDeps (
   peerDeps: Dependencies | undefined
 ): void {
   for (const [name, bareSpecifier] of Object.entries(peerDeps ?? deps)) {
-    const versionOverride = pickVersionOverride({ versionOverrides, genericVersionOverrides }, name, bareSpecifier)
+    const versionOverride = pickVersionOverride(
+      { versionOverrides, genericVersionOverrides, catalogs: convergeOpts.catalogs },
+      name,
+      bareSpecifier
+    )
     if (!versionOverride) {
       convergeDep(convergeOpts, { deps, peerDeps }, name, bareSpecifier)
     } else {
@@ -350,24 +366,34 @@ function convergeBareSpecifier (
 }
 
 function pickVersionOverride (
-  { versionOverrides, genericVersionOverrides }: {
+  { versionOverrides, genericVersionOverrides, catalogs }: {
     versionOverrides: VersionOverrideWithParent[]
     genericVersionOverrides: VersionOverride[]
+    catalogs?: Catalogs
   },
   name: string,
   bareSpecifier: string
 ): VersionOverride | undefined {
+  const effectiveSpecifier = resolveCatalogSpecifier(catalogs, name, bareSpecifier)
   const matches = (override: VersionOverride): boolean =>
-    override.targetPkg.name === name && isIntersectingRange(override.targetPkg.bareSpecifier, bareSpecifier)
+    override.targetPkg.name === name && isIntersectingRange(override.targetPkg.bareSpecifier, effectiveSpecifier)
   return pickMostSpecificVersionOverride(versionOverrides.filter(matches)) ??
     pickMostSpecificVersionOverride(genericVersionOverrides.filter(matches))
 }
 
+function resolveCatalogSpecifier (catalogs: Catalogs | undefined, alias: string, bareSpecifier: string): string {
+  if (catalogs == null || !bareSpecifier.startsWith('catalog:')) return bareSpecifier
+  const catalogResult = resolveFromCatalog(catalogs, { alias, bareSpecifier })
+  return catalogResult.type === 'found' ? catalogResult.resolution.specifier : bareSpecifier
+}
+
 function resolveOverriddenBareSpecifier (versionOverride: VersionOverride, dir: string | undefined): string {
   const { localTarget } = versionOverride
-  // Rendered absolute, a `workspace:` path would read as a version range.
-  if (localTarget == null || (localTarget.protocol === 'workspace:' && dir == null)) {
+  if (localTarget == null) {
     return versionOverride.newBareSpecifier
+  }
+  if (localTarget.protocol === 'workspace:' && dir == null) {
+    return `workspace:${normalizePath(localTarget.absolutePath)}`
   }
   return `${localTarget.protocol}${resolveLocalOverride(localTarget, dir)}`
 }

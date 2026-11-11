@@ -617,10 +617,10 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, fs::Metadat
 /// Only `sha512` is supported — pacquet always writes that algo in
 /// [`StoreDir::write_cas_file`]. Any other algo falls through to
 /// `false` ("treat as verification failure"), matching pnpm's own
-/// unknown-algo behaviour. An I/O error mid-read also falls through to
-/// `false` so the caller re-fetches rather than deciding on a partial
-/// hash.
-pub(super) fn file_content_matches_digest(path: &Path, digest: &str, algo: &str) -> bool {
+/// unknown-algo behaviour. An I/O error mid-read also returns `false`
+/// rather than accepting a partial hash.
+#[must_use]
+pub fn file_content_matches_digest(path: &Path, digest: &str, algo: &str) -> bool {
     if algo != "sha512" {
         return false;
     }

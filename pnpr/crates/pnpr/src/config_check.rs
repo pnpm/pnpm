@@ -37,8 +37,11 @@ pub struct ConfigCheckReport {
     pub surfaces: SurfaceSummary,
 }
 
-#[must_use]
-pub fn check_resolved_config(config: &Config, source: &ConfigSource) -> ConfigCheckReport {
+pub fn check_resolved_config(
+    config: &mut Config,
+    source: &ConfigSource,
+) -> pnpr_error::Result<ConfigCheckReport> {
+    crate::config_validation::validate_startup_config(config)?;
     let source_description = match source {
         ConfigSource::Cli(cli_path) => format!("--config {}", cli_path.display()),
         ConfigSource::DefaultPath(default_path) => {
@@ -47,7 +50,7 @@ pub fn check_resolved_config(config: &Config, source: &ConfigSource) -> ConfigCh
         ConfigSource::Bundled => "bundled default".to_string(),
     };
 
-    build_report(config, source_description)
+    Ok(build_report(config, source_description))
 }
 
 pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckReport> {
@@ -59,7 +62,7 @@ pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckRep
     let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().into_diagnostic()?;
     let overrides = FeatureOverrides::default();
     let auto_path = Config::auto_config_path();
-    let (config, source) = Config::resolve_with_overrides(
+    let (mut config, source) = Config::resolve_with_overrides(
         config_path,
         auto_path.as_deref(),
         default_listen,
@@ -68,7 +71,11 @@ pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckRep
     )
     .map_err(|err| miette::miette!("{err}"))?;
 
-    Ok(check_resolved_config(&config, &source))
+    check_resolved_config(&mut config, &source)
+        .map_err(|error| {
+            let message = error.log_message();
+            miette::miette!("{message}")
+        })
 }
 
 fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {

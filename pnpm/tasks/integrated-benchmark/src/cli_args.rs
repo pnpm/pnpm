@@ -452,13 +452,10 @@ impl BenchmarkScenario {
                 &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
                 &[SAVED_PACKAGE_JSON],
             ),
-            // Same as the frozen cold-cache + cold-store restore, but also wipe
-            // the per-revision mock's `cold-mock-storage` so the serving pnpr
-            // refetches (and streams) every tarball from the warm origin each
-            // iteration. (`cold-mock-storage` only exists under a `pnpr@<rev>`
-            // bench dir; it's a harmless no-op for the other ids.)
+            // Keep the running mock's metadata database while emptying its
+            // proxy cache, so each iteration refetches tarballs from the origin.
             Self::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup::new(
-                &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
+                &["node_modules", "store-dir", "cache-dir", "cold-mock-storage/cache"],
                 &[SAVED_LOCKFILE],
             ),
             Self::IsolatedFreshRestoreColdCacheColdStore => {

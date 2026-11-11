@@ -10,8 +10,19 @@ use crate::{
 use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::{Primary, serve_primary};
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::{
+    adapter::{Adapter, WriteTransaction},
+    libsql::LibsqlAdapter,
+};
 use serde_json::Value;
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{
+    net::SocketAddr,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 use tempfile::TempDir;
 
 /// A primary on a loopback port, and the directory its files live in.
@@ -385,4 +396,405 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a removal: {made:#?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unsynced_replica_reads_exact_versions_and_blobs_from_the_primary() {
+    use super::{
+        blobs::{id, tgz},
+        log::record_of,
+    };
+    use crate::metadata::{
+        BatchDocument, BlobFence, BlobRef, HostedLookup, PublicationRequest, PublishNotes,
+        ReleaseRecords,
+    };
+
+    let server = server().await;
+    let writer = server.instance(None, 60);
+    let (one, two) = (id(b"one"), id(b"two"));
+    let (record_v1, record_v2) = (record_of("pkg", "1.0.0"), record_of("pkg", "2.0.0"));
+    commit_version(&writer, &["1.0.0"], tgz("pkg", "1.0.0", &one, 1), &record_v1, "first").await;
+
+    let reader_db = server.instance(Some("reader"), 3600);
+    let reader = views(&reader_db);
+    assert_eq!(latest(&reader).await.as_deref(), Some("1.0.0"));
+    round_trips(&server);
+
+    assert_eq!(
+        reader
+            .artifact_blob(&npm("pkg"), "pkg-1.0.0.tgz")
+            .await
+            .unwrap(),
+        Some(BlobRef { id: one, incarnation: 1 }),
+    );
+    assert!(
+        reader
+            .read_version(&npm("pkg"), "1.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(
+        reader
+            .read_release_record(&npm("pkg"), "1.0.0", 0)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(record_v1.as_slice()),
+    );
+    assert!(
+        reader_db
+            .release_record_entry(&npm("pkg"), "", "1.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        reader_db
+            .publication("", "first")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(round_trips(&server).is_empty(), "hits stay on the replica");
+
+    let selects = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&selects);
+    let missing = reader
+        .lookup_in_view(&npm("pkg"), move |bytes| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let doc: Value = serde_json::from_slice(bytes)?;
+            Ok(doc["versions"].get("9.9.9").map(|_| ()))
+        })
+        .await
+        .unwrap();
+    assert_eq!(missing, HostedLookup::Missing);
+    assert_eq!(selects.load(Ordering::SeqCst), 1);
+
+    commit_version(
+        &writer,
+        &["1.0.0", "2.0.0"],
+        tgz("pkg", "2.0.0", &two, 1),
+        &record_v2,
+        "second",
+    )
+    .await;
+    round_trips(&server);
+
+    assert_eq!(latest(&reader).await.as_deref(), Some("1.0.0"));
+    assert!(round_trips(&server).is_empty(), "packument views stay on the replica");
+
+    assert_eq!(
+        reader
+            .artifact_blob(&npm("pkg"), "pkg-2.0.0.tgz")
+            .await
+            .unwrap(),
+        Some(BlobRef { id: two, incarnation: 1 }),
+    );
+    assert_eq!(round_trips(&server).len(), 1, "a blob miss reads the primary once");
+
+    assert!(
+        reader
+            .read_version(&npm("pkg"), "2.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(
+        reader
+            .read_release_record(&npm("pkg"), "2.0.0", 0)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(record_v2.as_slice()),
+    );
+    assert!(
+        reader_db
+            .release_record_entry(&npm("pkg"), "", "2.0.0")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        reader_db
+            .publication("", "second")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    let lookup = reader
+        .lookup_in_view(&npm("pkg"), |bytes| {
+            let doc: Value = serde_json::from_slice(bytes)?;
+            Ok(doc["versions"].get("2.0.0").map(|_| ()))
+        })
+        .await
+        .unwrap();
+    assert_eq!(lookup, HostedLookup::Found(()));
+
+    round_trips(&server);
+    assert_eq!(
+        reader
+            .artifact_blob(&npm("pkg"), "pkg-9.9.9.tgz")
+            .await
+            .unwrap(),
+        None,
+    );
+    assert_eq!(round_trips(&server).len(), 1, "an absent blob reads the primary once");
+
+    async fn commit_version(
+        database: &Arc<SqlMetadata>,
+        versions: &[&str],
+        artifact: crate::metadata::ArtifactBlob,
+        record: &[u8],
+        publication_name: &str,
+    ) {
+        let expected = views(database)
+            .read_for_update(&npm("pkg"))
+            .await
+            .unwrap()
+            .map(|d| d.version);
+        let latest_version = (*versions.last().unwrap()).to_string();
+        let mut doc = packument("pkg", versions);
+        for version in versions {
+            doc["versions"][*version]["_archiveManifest"] = serde_json::json!({
+                "profile": "npm-install-manifest/1",
+                "packageJson": "sha512-x",
+            });
+        }
+        let mut records = ReleaseRecords::new();
+        records.insert(latest_version, record.to_vec());
+        let document = BatchDocument {
+            ecosystem: Ecosystem::Npm,
+            name: "pkg".to_string(),
+            bytes: serde_json::to_vec(&doc).unwrap(),
+            expected,
+            principal: Some("alice".to_string()),
+            records,
+        };
+        let request = PublicationRequest {
+            principal: "alice".to_string(),
+            idempotency_key: format!("key:{publication_name}"),
+            request_digest: publication_name.to_string(),
+            name: Some(publication_name.to_string()),
+        };
+        let fence = BlobFence { artifacts: vec![artifact], references: Vec::new() };
+        database
+            .commit_fenced_publication(
+                "",
+                vec![document],
+                Vec::new(),
+                PublishNotes::default(),
+                Some(request),
+                fence,
+            )
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn metadata_writes_and_reads_retry_when_the_primary_expires_or_drops_a_stream() {
+    let server = server().await;
+    let writer = server.instance(None, 60);
+    let writer_views = views(&writer);
+
+    // Schema initialization runs in a two-round-trip transaction on first use;
+    // expiring its open stream before the DDL commit retries cleanly.
+    server.primary.expire_next_stream();
+    publish(&writer_views, &["1.0.0"]).await;
+    assert_eq!(server.primary.stale_stream_rejections(), 1);
+    assert_eq!(writer.catalog_generation("").await.unwrap(), 1);
+
+    // Expiring (`STREAM_EXPIRED`) or dropping (`Received an invalid baton`)
+    // a write's stream between its read batch and its commit batch reruns the
+    // transaction once without sending a wasted `ROLLBACK` on the dead stream.
+    server.primary.expire_next_stream();
+    publish(&writer_views, &["1.0.0", "2.0.0"]).await;
+    assert_eq!(server.primary.stale_stream_rejections(), 2);
+    assert_eq!(writer.catalog_generation("").await.unwrap(), 2);
+
+    server.primary.drop_next_stream();
+    publish(&writer_views, &["1.0.0", "2.0.0", "3.0.0"]).await;
+    assert_eq!(server.primary.stale_stream_rejections(), 3);
+    assert_eq!(writer.catalog_generation("").await.unwrap(), 3);
+
+    // Without `replicaPath`, a cold-cache view read takes two round trips on
+    // the primary; losing the stream before the second batch retries cleanly.
+    let expired_reader = server.instance(None, 60);
+    assert_eq!(expired_reader.catalog_generation("").await.unwrap(), 3);
+    server.primary.expire_next_stream();
+    assert_eq!(latest(&views(&expired_reader)).await.as_deref(), Some("3.0.0"));
+    assert_eq!(server.primary.stale_stream_rejections(), 4);
+
+    let dropped_reader = server.instance(None, 60);
+    assert_eq!(dropped_reader.catalog_generation("").await.unwrap(), 3);
+    server.primary.drop_next_stream();
+    assert_eq!(latest(&views(&dropped_reader)).await.as_deref(), Some("3.0.0"));
+    assert_eq!(server.primary.stale_stream_rejections(), 5);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
+    let server = server().await;
+    let instance = server.instance(None, 60);
+    publish(&views(&instance), &["1.0.0"]).await;
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 1);
+
+    let adapter = Arc::new(LibsqlAdapter::new(server.settings(None, 60)));
+
+    // A callback that already committed a transaction and then hits a stale
+    // stream in a second transaction must surface the error rather than
+    // replaying the first committed write.
+    let (tx_res, tx_calls) =
+        run_write_case(&adapter, &server.primary, committed_tx_then_expired_tx).await;
+    let tx_err = tx_res.unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&tx_err), "{tx_err:?}");
+    assert_eq!(tx_calls, 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 1);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 11);
+
+    // An autocommit write flushed in an earlier batch is equally irreversible.
+    let (auto_res, auto_calls) =
+        run_write_case(&adapter, &server.primary, flushed_autocommit_write_then_expired_tx).await;
+    let auto_err = auto_res.unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&auto_err), "{auto_err:?}");
+    assert_eq!(auto_calls, 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 2);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 21);
+
+    // An autocommit write held until `WriteTransaction::begin` shares its batch
+    // with `BEGIN IMMEDIATE` and still commits before the transaction starts.
+    let (batched_res, batched_calls) =
+        run_write_case(&adapter, &server.primary, batched_autocommit_write_then_expired_tx).await;
+    let batched_err = batched_res.unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&batched_err), "{batched_err:?}");
+    assert_eq!(batched_calls, 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 3);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 31);
+
+    // A multi-statement `execute_batch` script that commits a write before
+    // opening another transaction is also irreversible.
+    let (script_res, script_calls) =
+        run_write_case(&adapter, &server.primary, script_commit_then_expired_tx).await;
+    let script_err = script_res.unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&script_err), "{script_err:?}");
+    assert_eq!(script_calls, 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 4);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 41);
+
+    // A read-only `SELECT` in autocommit mode makes no durable change, so a
+    // stale stream in the transaction after it still replays the callback.
+    let (retry_res, retry_calls) =
+        run_write_case(&adapter, &server.primary, read_then_write_with_first_attempt_expired).await;
+    retry_res.unwrap();
+    assert_eq!(retry_calls, 2);
+    assert_eq!(server.primary.stale_stream_rejections(), 5);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 42);
+}
+
+async fn run_write_case(
+    adapter: &Arc<LibsqlAdapter>,
+    primary: &Arc<Primary>,
+    case: fn(&LibsqlAdapter, &Primary, &AtomicUsize) -> pnpr_error::Result<()>,
+) -> (pnpr_error::Result<()>, usize) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_run = Arc::clone(&calls);
+    let adapter = Arc::clone(adapter);
+    let primary = Arc::clone(primary);
+    let result = tokio::task::spawn_blocking(move || case(&adapter, &primary, &calls_run))
+        .await
+        .unwrap();
+    (result, calls.load(Ordering::SeqCst))
+}
+
+fn script_commit_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        connection.execute_batch(
+            "BEGIN; UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''; COMMIT; BEGIN",
+        )?;
+        primary.expire_next_stream();
+        connection.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        connection.commit()
+    })
+}
+
+fn committed_tx_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        let first = WriteTransaction::begin(connection)?;
+        first.execute("UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''", &[])?;
+        first.commit()?;
+        let second = WriteTransaction::begin(connection)?;
+        second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        primary.expire_next_stream();
+        second.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        second.commit()
+    })
+}
+
+fn flushed_autocommit_write_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        connection.execute(
+            "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+            &[],
+        )?;
+        connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        let second = WriteTransaction::begin(connection)?;
+        second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        primary.drop_next_stream();
+        second.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        second.commit()
+    })
+}
+
+fn batched_autocommit_write_then_expired_tx(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        connection.execute(
+            "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+            &[],
+        )?;
+        let tx = WriteTransaction::begin(connection)?;
+        tx.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        primary.expire_next_stream();
+        tx.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        tx.commit()
+    })
+}
+
+fn read_then_write_with_first_attempt_expired(
+    adapter: &LibsqlAdapter,
+    primary: &Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    adapter.write(&mut |connection| {
+        let attempt = calls.fetch_add(1, Ordering::SeqCst);
+        connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+
+        let tx = WriteTransaction::begin(connection)?;
+        tx.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        if attempt == 0 {
+            primary.expire_next_stream();
+        }
+        tx.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        tx.commit()
+    })
 }

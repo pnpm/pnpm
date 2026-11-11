@@ -312,7 +312,8 @@ the bucket and the database, which the
 [S3 backend supports](storage.md#concurrent-writers), but each one has its own
 upstream cache.
 
-**The Worker caches nothing.** If you add a cache, store only `GET`
+The Worker above caches nothing. For caching, see
+[CDN cache with push invalidation](#cdn-cache-with-push-invalidation). If you add a cache, store only `GET`
 responses without `private`, `no-store`, or `no-cache` in `Cache-Control`.
 A login answers with a new token and is marked only `no-cache`. With
 [CORS](configuration.md#cors) on, pnpr's answer depends on the request's
@@ -334,12 +335,13 @@ evaluate their validators. Put representation selectors in the cache key's path
 or query, never its fragment. When replacing a cache that mixed representations,
 use a new key namespace or purge its entries.
 
-A [revalidating metadata cache example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
-checks freshness and access with the registry on every read. It reuses stored
-metadata bodies after a `304`, forwards client validators unchanged, and leaves
-tarballs uncached. This avoids regional purges and missed mutation routes. Each
-read still needs an origin round trip. When replacing a caching Worker, remove
-its old metadata and tarball lookup paths and purge any separate CDN cache rules.
+For cache hits that do not contact the container, use the
+[CDN cache example](#cdn-cache-with-push-invalidation). It caches public npm
+metadata and package tarballs. Hosted package changes purge the package tag; access-rule
+changes purge the deployment tag. Access revocation is eventually consistent.
+
+The [revalidating metadata cache example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
+remains available when every read must check access and freshness at the registry.
 
 **Publishes go through the Worker**, so your plan's request body limit caps
 the size of a package you can publish. It also caps each OCI blob upload
@@ -369,6 +371,87 @@ Adding a custom domain to that Worker does not bypass its limit. Raising
 **There is no spending cap.** `max_instances` and `sleepAfter` bound what a
 forgotten deployment can cost. A budget alert in the dashboard emails you when
 projected spend crosses a threshold, but it does not stop anything.
+
+## CDN cache with push invalidation
+
+Use this option when a short delay after a publish, unpublish, or access change
+is acceptable. Anonymous cache hits do not wake or contact the container.
+Authenticated reads always reach pnpr. Previously downloaded public packages
+cannot be recalled from clients or third-party caches.
+
+Use a custom domain in a Cloudflare zone you control. Create an API token with
+Cache Purge permission for that zone. The token belongs to the container, not
+to clients. Add this to `pnpr.yaml`:
+
+```yaml
+cloudflareCdn:
+  zoneId: ${CLOUDFLARE_ZONE_ID}
+  apiToken: ${CLOUDFLARE_PURGE_TOKEN}
+  cacheTag: example-registry
+```
+
+Choose a `cacheTag` unique to this registry deployment within the zone. All
+servers sharing a database must use the same zone and tag. The database records
+that destination when invalidation is first enabled. Changing the zone or tag
+for an existing database is not supported. A mismatch is logged and prevents
+purge delivery from that server; cached entries still expire. Set
+`CLOUDFLARE_ZONE_ID` as a Worker variable and store `CLOUDFLARE_PURGE_TOKEN` as a
+Worker secret. Add both to the Worker's `Env` interface and to the container's
+`envVars`, following the other credentials in the example above.
+
+Copy `cache-policy.mjs` and `cdn-cache.mjs` from
+[the example directory](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
+into `src/`. Import the cache helper:
+
+```ts
+import { fetchWithCdnCache } from "./cdn-cache.mjs";
+```
+
+Add `ctx: ExecutionContext` as the third argument of the default export's
+`fetch` method. Replace its call to the container with:
+
+```ts
+const response = await fetchWithCdnCache(new Request(request, { headers }), {
+  cache: caches.default,
+  cacheTag: "example-registry",
+  fetchFromRegistry: (forwarded: Request) => getContainer(env.PNPR, "pnpr").fetch(forwarded),
+  waitUntil: (task: Promise<unknown>) => ctx.waitUntil(task),
+});
+```
+
+The tag must match `cloudflareCdn.cacheTag`. Keep the malformed-path check,
+forwarded client address, compression headers, and `encodeBody: "manual"`
+response wrapper from the original Worker.
+
+pnpr records package invalidations in the same database transaction as the
+change. A background task submits pending tags to Cloudflare every five seconds.
+A failed delivery remains pending across restarts. Package tags cover all
+registry aliases, full and abbreviated metadata, and package tarball URLs.
+Policy edits purge the deployment tag. Startup also queues that tag, covering
+configuration changes. Writes through another process sharing the database
+continue to record invalidations once this option has been enabled.
+
+The example caches only successful responses explicitly marked public. Queries,
+client validators, credentials, cookies, range requests, CORS requests, and
+install-v2 metadata bypass it. Content-addressed tarball URLs also bypass it
+because their paths do not identify a package to invalidate. Private responses
+never populate the cache. Upstream changes have no push notification and become
+visible through normal expiry and pnpr's upstream refresh policy.
+
+Each cache entry expires five minutes after its origin request began. The
+Worker never serves it stale, including during an origin outage. A response
+that arrives after a purge can still fill the cache, but its original expiry
+bounds that race. The same expiry bounds failed or delayed purges. Replica
+synchronization and upstream refresh delays remain additional sources of
+staleness. Responses served by this helper tell downstream caches not to store
+another copy.
+
+Cloudflare's purge API clears tags globally. `caches.default.delete()` only
+clears the data center processing that call. See
+[Cloudflare's Cache API purge documentation](https://developers.cloudflare.com/workers/reference/how-the-cache-works/#purge-assets-stored-with-the-cache-api).
+Remove the old Worker's metadata and tarball cache lookup paths when switching
+to this example, and purge any separate CDN cache rules. This helper uses a new
+cache-key namespace; it does not read the old entries.
 
 ## Non-browser clients blocked with error 1010
 

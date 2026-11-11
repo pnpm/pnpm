@@ -65,7 +65,9 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
                 ahead.while_reading(registry.fetch_source::<Reporter>(&name, &url)).await?;
             }
             Step::Backtrack(message) => {
-                let Some(alternative) = alternatives.pop() else { bail!("{message}") };
+                let Some(alternative) = alternatives.pop() else {
+                    bail!("{message}");
+                };
                 registry.resolution.packages = alternative;
                 ahead.backtracked();
             }

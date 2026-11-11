@@ -64,6 +64,8 @@ Validates the YAML configuration file and prints diagnostic details, including c
 pnpr config check
 ```
 
+Database validation checks the connection URL and options, token transport security, and whether this build supports the configured database driver. It does not connect to the database.
+
 ### verify
 
 Audits hosted package documents (`package.json`) against stored blobs. Inspects declared versions, resolves referenced tarballs and attestation blobs, checks for missing or corrupted files, and discovers orphaned blobs not referenced by any version.
@@ -230,14 +232,16 @@ Added in: v0.1.0-alpha.16
 
 Reclaims cached upstream tarballs and packuments, prunes orphaned namespaces
 left behind by per-process secrets or changed configurations, and enforces
-cache size and age limits.
+cache size and age limits. It also sweeps abandoned publish staging files under
+`<cache>/.staging/` older than [`requestTimeout`](configuration.md#requesttimeout)
+(or `1h` when request timeouts are disabled).
 
 | Flag | Description |
 | --- | --- |
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
 | `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. |
-| `--orphans-only` | Only prune orphaned upstream namespaces without evicting active cache entries. |
+| `--orphans-only` | Only prune orphaned upstream namespaces without sweeping publish staging files or evicting active cache entries. |
 
 ## Logging
 
@@ -281,7 +285,7 @@ pnpr --disable-registry
 pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`:
 
 1. **Ceases new connections**: The server stops accepting new incoming TCP connections on its listen address.
-2. **Drains in-flight requests**: Active requests and ongoing package transfers are allowed to complete cleanly before the process exits.
+2. **Drains in-flight requests**: Active requests and ongoing package transfers have up to 30 seconds to complete before the process exits.
 
 Configuration changes are applied via process restart rather than in-process reloading (such as SIGHUP). In container orchestrators (such as Kubernetes or Docker Swarm), use rolling deployments so the new replica's readiness probe (`GET /-/ready`) passes before the old replica receives `SIGTERM` and drains.
 

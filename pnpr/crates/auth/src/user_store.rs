@@ -1,8 +1,8 @@
 pub use import::{ImportMode, PasswordCollisions, PasswordImport};
 
 use super::{
-    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, hash_bcrypt, is_sha_hash, verify_returning_user,
-    write_atomic,
+    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, hash_bcrypt, is_sha_hash, sha256_hex,
+    verify_returning_user, write_atomic,
 };
 use pnpr_config::MaxUsers;
 use pnpr_error::RegistryError;
@@ -31,23 +31,43 @@ impl StoredAccount {
 fn parse_accounts(raw: &str) -> std::result::Result<Users, String> {
     let accounts: Users = serde_json::from_str(raw).map_err(|err| err.to_string())?;
     let mut ids = std::collections::HashSet::new();
+    let mut skeletons = HashMap::new();
     for (name, account) in &accounts {
-        if account.password_hash != crate::DELETED_USER_HASH {
-            crate::validation::validate_username(name).map_err(|err| err.to_string())?;
-        } else if name != &format!("deleted:{}", account.id) {
-            return Err("deleted accounts must use their generated names".to_string());
-        }
+        validate_stored_account(name, account, &mut skeletons)?;
         if account.id.is_empty() || !ids.insert(account.id.as_str()) {
             return Err("account IDs must be nonempty and unique".to_string());
         }
-        if account.password_hash != crate::DELETED_USER_HASH
-            && account.password_hash != crate::NO_PASSWORD_HASH
-            && !crate::htpasswd::is_supported_hash(&account.password_hash)
-        {
-            return Err(format!("unsupported password hash for {name:?}"));
-        }
     }
     Ok(accounts)
+}
+
+fn validate_stored_account<'a>(
+    name: &'a str,
+    account: &StoredAccount,
+    skeletons: &mut HashMap<String, &'a str>,
+) -> std::result::Result<(), String> {
+    if account.password_hash == crate::DELETED_USER_HASH {
+        if name != format!("deleted:{}", account.id) {
+            return Err("deleted accounts must use their generated names".to_string());
+        }
+        return Ok(());
+    }
+    crate::validation::validate_username(name)
+        .map_err(|err| format!("invalid username {name:?}: {err}"))?;
+    let skeleton = crate::validation::username_skeleton_hash(name);
+    if let Some(existing) = skeletons.insert(skeleton, name) {
+        return Err(format!(
+            "username {:?} is too similar to username {:?}",
+            existing.max(name),
+            existing.min(name),
+        ));
+    }
+    if account.password_hash != crate::NO_PASSWORD_HASH
+        && !crate::htpasswd::is_supported_hash(&account.password_hash)
+    {
+        return Err(format!("unsupported password hash for {name:?}"));
+    }
+    Ok(())
 }
 
 mod backend;
@@ -62,6 +82,7 @@ struct UserStoreState {
     active_count: u64,
     names_by_id: HashMap<String, String>,
     last_synced: Option<FileStamp>,
+    last_digest: Option<String>,
     synced_at: Option<std::time::SystemTime>,
 }
 
@@ -127,16 +148,16 @@ impl UserStore {
         let now = std::time::SystemTime::now();
         let stamp =
             std::fs::metadata(&path).ok().map(|metadata| FileStamp::from_metadata(&metadata));
-        let (users, last_synced) = match std::fs::read_to_string(&path) {
+        let (users, last_synced, last_digest) = match std::fs::read_to_string(&path) {
             Ok(raw) => {
                 let parsed = parse_accounts(&raw)
                     .map_err(|reason| RegistryError::InvalidUsersFile {
                         path: path.display().to_string(),
                         reason,
                     })?;
-                (parsed, stamp)
+                (parsed, stamp, Some(sha256_hex(raw.as_bytes())))
             }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => (HashMap::new(), None),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => (HashMap::new(), None, None),
             Err(err) => return Err(err.into()),
         };
         let synced_at = last_synced.as_ref().map(|_| now);
@@ -146,6 +167,7 @@ impl UserStore {
                 names_by_id: active_names_by_id(&users),
                 users,
                 last_synced,
+                last_digest,
                 synced_at,
             })),
             path: Some(path),
@@ -167,6 +189,7 @@ impl UserStore {
                 names_by_id: active_names_by_id(&users),
                 users,
                 last_synced: None,
+                last_digest: None,
                 synced_at: None,
             })),
             path,
@@ -199,6 +222,7 @@ impl UserStore {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 state.replace_users(Users::new());
                 state.last_synced = None;
+                state.last_digest = None;
                 state.synced_at = None;
                 return Ok(());
             }
@@ -215,12 +239,16 @@ impl UserStore {
             return Ok(());
         }
         let raw = std::fs::read_to_string(path)?;
-        let fresh = parse_accounts(&raw)
-            .map_err(|reason| RegistryError::InvalidUsersFile {
-                path: path.display().to_string(),
-                reason,
-            })?;
-        state.replace_users(fresh);
+        let digest = sha256_hex(raw.as_bytes());
+        if state.last_digest.as_deref() != Some(digest.as_str()) {
+            let fresh = parse_accounts(&raw)
+                .map_err(|reason| RegistryError::InvalidUsersFile {
+                    path: path.display().to_string(),
+                    reason,
+                })?;
+            state.replace_users(fresh);
+            state.last_digest = Some(digest);
+        }
         state.last_synced = Some(stamp);
         state.synced_at = Some(std::time::SystemTime::now());
         Ok(())
@@ -262,11 +290,20 @@ impl UserStore {
                 .clone());
         };
         match std::fs::read_to_string(path) {
-            Ok(raw) => parse_accounts(&raw)
-                .map_err(|reason| RegistryError::InvalidUsersFile {
-                    path: path.display().to_string(),
-                    reason,
-                }),
+            Ok(raw) => {
+                let digest = sha256_hex(raw.as_bytes());
+                {
+                    let guard = state.lock().unwrap_or_else(PoisonError::into_inner);
+                    if guard.last_digest.as_deref() == Some(digest.as_str()) {
+                        return Ok(guard.users.clone());
+                    }
+                }
+                parse_accounts(&raw)
+                    .map_err(|reason| RegistryError::InvalidUsersFile {
+                        path: path.display().to_string(),
+                        reason,
+                    })
+            }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
             Err(err) => Err(err.into()),
         }
@@ -276,14 +313,14 @@ impl UserStore {
 fn persist_users_to_disk(
     path: Option<&std::path::Path>,
     users: &Users,
-) -> Result<Option<FileStamp>> {
+) -> Result<Option<(Option<FileStamp>, String)>> {
     let Some(path) = path else {
         return Ok(None);
     };
     let bytes = serde_json::to_vec_pretty(users).map_err(RegistryError::Json)?;
     write_atomic(path, &bytes)?;
     let sync = std::fs::metadata(path).ok().map(|meta| FileStamp::from_metadata(&meta));
-    Ok(sync)
+    Ok(Some((sync, sha256_hex(&bytes))))
 }
 
 impl UserStore {
@@ -312,12 +349,15 @@ impl UserStore {
                 Change::Keep(out) => return Ok(out),
                 Change::Write(out) => out,
             };
-            let new_sync = persist_users_to_disk(path.as_deref(), &next)?;
+            let persisted = persist_users_to_disk(path.as_deref(), &next)?;
             let mut guard = state.lock().unwrap_or_else(PoisonError::into_inner);
             guard.replace_users(next);
-            if new_sync.is_some() {
-                guard.last_synced = new_sync;
-                guard.synced_at = Some(std::time::SystemTime::now());
+            if let Some((new_sync, digest)) = persisted {
+                guard.last_digest = Some(digest);
+                if new_sync.is_some() {
+                    guard.last_synced = new_sync;
+                    guard.synced_at = Some(std::time::SystemTime::now());
+                }
             }
             Ok(out)
         })

@@ -1,4 +1,4 @@
-pub use redact_url::redact_url_credentials;
+pub use redact_url::{redact_connection_url, redact_url_credentials};
 
 mod redact_url;
 #[cfg(feature = "server")]
@@ -11,6 +11,16 @@ use derive_more::{Display, Error, From};
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum RegistryError {
+    /// A password write committed, but credential cleanup or replica refresh failed.
+    #[display("Password change committed, but credential cleanup failed: {source}")]
+    #[from(skip)]
+    PasswordChangeCommitted {
+        #[error(not(source))]
+        user_id: String,
+        #[error(source)]
+        source: Box<RegistryError>,
+    },
+
     #[display("Upstream request to {url} failed: {source}")]
     #[cfg(feature = "server")]
     Upstream {
@@ -70,6 +80,13 @@ pub enum RegistryError {
         reason: String,
     },
 
+    #[display("Stored archive {key:?} failed integrity verification")]
+    #[from(skip)]
+    CorruptArchive {
+        #[error(not(source))]
+        key: String,
+    },
+
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
     #[from(skip)]
     TarballIntegrity {
@@ -102,8 +119,7 @@ pub enum RegistryError {
         filename: String,
     },
 
-    /// The YAML config could not be parsed. Startup-only — this never
-    /// surfaces over HTTP, but `Config` parsing shares this error type.
+    /// The server configuration or database schema is incompatible.
     #[display("Invalid config: {reason}")]
     #[from(skip)]
     InvalidConfig {
@@ -174,6 +190,13 @@ pub enum RegistryError {
     InvalidAttachment {
         #[error(not(source))]
         filename: String,
+        reason: String,
+    },
+
+    /// The addressed registry cannot accept the package. Maps to 403.
+    #[from(skip)]
+    PublishRejected {
+        #[error(not(source))]
         reason: String,
     },
 
@@ -415,9 +438,10 @@ pub enum RegistryError {
     #[display("libSQL database error: {_0}")]
     Libsql(libsql::Error),
 
-    /// SQL auth backend failure.
+    /// A failure of a `PostgreSQL` or `MySQL` database: the auth backend or
+    /// the metadata.
     #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-    #[display("Auth database error: {_0}")]
+    #[display("SQL database error: {_0}")]
     Sqlx(sqlx::Error),
 
     /// SQL auth backend operation timed out.
@@ -447,6 +471,18 @@ pub enum RegistryError {
     #[display("JSON error: {_0}")]
     #[cfg(feature = "server")]
     Json(serde_json::Error),
+}
+
+impl RegistryError {
+    /// The account whose password committed despite this error.
+    #[must_use]
+    pub fn committed_password_user(&self) -> Option<&str> {
+        match self {
+            Self::PasswordChangeCommitted { user_id, .. } => Some(user_id),
+            Self::Shared(inner) => inner.committed_password_user(),
+            _ => None,
+        }
+    }
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;

@@ -46,7 +46,11 @@ impl BlobId {
     /// The identity `ecosystem` gives the file at `path`, read in chunks.
     /// Blocking.
     pub fn of_file(ecosystem: Ecosystem, path: &Path) -> std::io::Result<Self> {
-        let mut file = std::fs::File::open(path)?;
+        Self::of_reader(ecosystem, std::fs::File::open(path)?)
+    }
+
+    /// The identity `ecosystem` gives bytes read in bounded chunks. Blocking.
+    pub(crate) fn of_reader(ecosystem: Ecosystem, mut file: impl Read) -> std::io::Result<Self> {
         let mut hasher = IntegrityOpts::new().algorithm(algorithm_of(ecosystem));
         let mut buffer = vec![0; 64 * 1024];
         loop {

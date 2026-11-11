@@ -46,14 +46,25 @@ impl HostedBackend for Store {
     }
 
     async fn open_archive(&self, key: &str) -> Result<Option<(Body, Option<u64>)>> {
-        Ok(open_file(&self.archive_path(key)).await?
-            .map(|(file, len)| (streaming::stream_file(file), Some(len))))
+        let Some((file, len)) = open_file(&self.archive_path(key)).await? else { return Ok(None) };
+        let cache_key = self
+            .archive_path(key)
+            .to_string_lossy()
+            .into_owned();
+        let file = crate::archive_verification::verified_local_file(file, key, cache_key).await?;
+        Ok(Some((streaming::stream_file(file), Some(len))))
     }
 
     async fn open_archive_range(&self, key: &str, range: &GetRange) -> Result<Option<RangedBlob>> {
-        let Some((mut file, size)) = open_file(&self.archive_path(key)).await? else {
+        let Some((file, size)) = open_file(&self.archive_path(key)).await? else {
             return Ok(None);
         };
+        let cache_key = self
+            .archive_path(key)
+            .to_string_lossy()
+            .into_owned();
+        let mut file =
+            crate::archive_verification::verified_local_file(file, key, cache_key).await?;
         let Ok(range) = range.as_range(size) else {
             return Ok(Some(RangedBlob::Unsatisfiable { size }));
         };

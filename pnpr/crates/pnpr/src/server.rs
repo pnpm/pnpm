@@ -199,10 +199,13 @@ use pnpr_upstream::{
     extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
     tarball_basename_for_package, version_route_tarball_version,
 };
-use serde::Deserialize;
+use serde::{
+    Deserialize, Deserializer,
+    de::{IgnoredAny, MapAccess, Visitor},
+};
 use serde_json::{Map, Value, json};
 use ssri::Integrity;
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, fmt, net::SocketAddr, sync::Arc, time::Duration};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
@@ -218,17 +221,14 @@ const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 /// sends it.
 const GENERATION_HEADER: &str = "pnpr-generation";
 
-/// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
-/// verification. This bounds per-request temporary disk usage for
-/// chunked or malicious upstream bodies.
-const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
-
 /// Cap publish bodies at 100 MiB. The default axum body limit is
 /// 2 MiB, far too small for a real package — npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
-/// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
+/// route, so future write endpoints inherit the same ceiling. The cap on a
+/// tarball fetched from an upstream is the configured
+/// [`pnpr_config::HttpConfig::max_tarball_bytes`] instead.
+const MAX_PUBLISH_BODY_BYTES: usize = 100 * 1024 * 1024;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
@@ -249,12 +249,21 @@ const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.
 const MAX_PIPELINE_RUN_BODY_BYTES: usize = 4 * 1024 * 1024;
+mod cdn;
 mod state;
 use state::AppInner;
 
 #[derive(Clone)]
 pub(super) struct AppState {
     pub(super) inner: Arc<AppInner>,
+}
+
+impl AppState {
+    /// The most bytes one tarball fetched from an upstream may hold. See
+    /// [`pnpr_config::HttpConfig::max_tarball_bytes`].
+    fn max_tarball_bytes(&self) -> u64 {
+        self.inner.config.http.max_tarball_bytes
+    }
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -294,12 +303,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 
 /// Fallible counterpart to [`router_with_auth`].
 pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::Result<Router> {
-    // Enforce the "at least one surface enabled" invariant for embedders
-    // that build and serve the router themselves rather than going through
-    // `serve`/`serve_listener`.
-    config.features.ensure_a_feature_is_enabled()?;
-    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
-    config.http.ensure_valid_metrics()?;
+    crate::config_validation::validate_startup_config(&mut config)?;
     let osv_index = load_active_osv_index(&config)?;
     router_with_auth_and_osv(config, auth, osv_index)
 }
@@ -427,6 +431,40 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Deserialize a client JSON request body, returning [`RegistryError::BadRequest`]
+/// on malformed input. [`RegistryError::Json`] answers `502 Bad Gateway` and is
+/// reserved for upstream and stored documents.
+fn parse_json_body<'a, Payload: Deserialize<'a>>(body: &'a [u8]) -> Result<Payload, RegistryError> {
+    serde_json::from_slice(body)
+        .map_err(|err| RegistryError::BadRequest { reason: format!("invalid request body: {err}") })
+}
+
+struct JsonObject;
+
+impl<'de> Deserialize<'de> for JsonObject {
+    fn deserialize<Input: Deserializer<'de>>(deserializer: Input) -> Result<Self, Input::Error> {
+        struct ObjectVisitor;
+
+        impl<'de> Visitor<'de> for ObjectVisitor {
+            type Value = JsonObject;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a JSON object")
+            }
+
+            fn visit_map<Access: MapAccess<'de>>(
+                self,
+                mut map: Access,
+            ) -> Result<Self::Value, Access::Error> {
+                while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+                Ok(JsonObject)
+            }
+        }
+
+        deserializer.deserialize_map(ObjectVisitor)
+    }
 }
 
 /// Mark a response as caller-scoped and uncacheable. Authenticated endpoints

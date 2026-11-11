@@ -87,7 +87,7 @@ async fn admins_create_accounts_past_the_registration_cap() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::FORBIDDEN));
+    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
 
     let body = json!({ "password": "first-password" });
     let (status, _) =
@@ -116,9 +116,11 @@ async fn a_new_password_replaces_the_old_one() {
     let path = "/-/pnpr/v0/admin/users/bob";
     send(&app, "PUT", path, Some(&root), Some(json!({ "password": "first-password" }))).await;
 
+    let old_token = login(&app, "bob", "first-password").await.unwrap();
     let (status, _) =
         send(&app, "PUT", path, Some(&root), Some(json!({ "password": "second-password" }))).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(whoami(&app, &old_token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
     assert!(login(&app, "bob", "second-password").await.is_ok());
 }
@@ -134,7 +136,7 @@ async fn removing_an_account_revokes_its_tokens() {
 
     assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
     assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
-    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::FORBIDDEN));
+    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
     assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NOT_FOUND);
 }
 
@@ -396,7 +398,9 @@ impl UserBackend for ReplacedDuringLogin {
 async fn an_old_password_gets_no_token_for_a_recreated_account() {
     let dir = TempDir::new().unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
-    let hashes = vec![Some("new hash".to_string()), Some("old hash".to_string())];
+    let old = bcrypt::hash("old-password", 4).unwrap();
+    let new = bcrypt::hash("new-password", 4).unwrap();
+    let hashes = vec![Some(new), Some(old)];
     let users = ReplacedDuringLogin {
         outcome: UpsertOutcome::LoggedIn,
         hashes: std::sync::Mutex::new(hashes),
@@ -603,3 +607,135 @@ async fn invalid_rename_payloads_are_client_errors() {
     }
     assert_eq!(crate::tokens::account_id(&app, "root", Some(&root)).await, Some(id));
 }
+
+#[tokio::test]
+async fn registration_and_rename_reject_lookalike_usernames() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret123").await.unwrap();
+    let app = account_router(load_config(&dir), auth).await;
+    let root = login(&app, "root", "secret123").await.unwrap();
+    assert!(login(&app, "cltest", "secret123").await.is_ok());
+    let cltest_id = crate::tokens::account_id(&app, "cltest", Some(&root)).await.unwrap();
+
+    for (encoded, decoded) in [
+        ("CLTEST", "CLTEST"),
+        ("Cltest", "Cltest"),
+        ("cLtest", "cLtest"),
+        ("clTest", "clTest"),
+        ("clt%C3%A9st", "clt\u{00e9}st"),
+        ("clte%CC%81st", "clte\u{0301}st"),
+        ("cl%D1%82est", "cl\u{0442}est"),
+    ] {
+        let register_path = format!("/-/user/org.couchdb.user:{encoded}");
+        let register_body =
+            json!({ "name": decoded, "password": "secret123", "type": "user", "roles": [] });
+        assert_eq!(
+            send(&app, "PUT", &register_path, None, Some(register_body)).await.0,
+            StatusCode::BAD_REQUEST,
+            "register {decoded:?}",
+        );
+        let admin_put_path = format!("/-/pnpr/v0/admin/users/{encoded}");
+        assert_eq!(
+            send(
+                &app,
+                "PUT",
+                &admin_put_path,
+                Some(&root),
+                Some(json!({ "password": "secret123" }))
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST,
+            "admin create {decoded:?}",
+        );
+    }
+
+    let (status, other) = send(
+        &app,
+        "PUT",
+        "/-/pnpr/v0/admin/users/other",
+        Some(&root),
+        Some(json!({ "password": "secret123" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let other_rename_path = format!("/-/pnpr/v0/admin/users/{}", other["id"].as_str().unwrap());
+    for lookalike in ["CLTEST", "Cltest", "clt\u{00e9}st", "clte\u{0301}st", "cl\u{0442}est"] {
+        assert_eq!(
+            send(
+                &app,
+                "PATCH",
+                &other_rename_path,
+                Some(&root),
+                Some(json!({ "name": lookalike }))
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST,
+            "rename other to {lookalike:?}",
+        );
+    }
+
+    let own_rename_path = format!("/-/pnpr/v0/admin/users/{cltest_id}");
+    assert_eq!(
+        send(&app, "PATCH", &own_rename_path, Some(&root), Some(json!({ "name": "Cltest" })))
+            .await
+            .0,
+        StatusCode::OK,
+    );
+    let (_, roster) = send(&app, "GET", "/-/pnpr/v0/admin/users", Some(&root), None).await;
+    let names: Vec<_> = roster["users"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Cltest", "other", "root"]);
+}
+
+#[tokio::test]
+async fn npm_profile_changes_password_and_revokes_tokens() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    let root = login(&app, "root", "secret123").await.unwrap();
+    let profile = "/-/npm/v1/user";
+    let wrong = json!({ "password": { "old": "incorrect", "new": "new-secret123" } });
+    assert_eq!(
+        send(&app, "POST", profile, None, Some(wrong.clone())).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(
+        send(&app, "POST", profile, Some(&root), Some(wrong)).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(whoami(&app, &root).await, StatusCode::OK);
+    let too_short = json!({ "password": { "old": "secret123", "new": "short" } });
+    assert_eq!(
+        send(&app, "POST", profile, Some(&root), Some(too_short)).await.0,
+        StatusCode::BAD_REQUEST,
+    );
+    assert_eq!(whoami(&app, &root).await, StatusCode::OK);
+    let update = json!({ "password": { "old": "secret123", "new": "new-secret123" } });
+    let (status, body) = send(&app, "POST", profile, Some(&root), Some(update)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["name"], "root");
+    assert_eq!(whoami(&app, &root).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(login(&app, "root", "secret123").await, Err(StatusCode::UNAUTHORIZED));
+    assert!(login(&app, "root", "new-secret123").await.is_ok());
+}
+
+#[tokio::test]
+async fn full_registration_does_not_disclose_account_existence() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    for username in ["root", "unknown"] {
+        let path = format!("/-/user/org.couchdb.user:{username}");
+        let body = json!({ "name": username, "password": "incorrect-password" });
+        let (status, payload) = send(&app, "PUT", &path, None, Some(body)).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(payload["error"], format!("Authentication required for user {username:?}"));
+    }
+}
+
+mod password_updates;

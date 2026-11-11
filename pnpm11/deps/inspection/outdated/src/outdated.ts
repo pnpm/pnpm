@@ -133,6 +133,7 @@ async function getOverriddenManifest (opts: OutdatedOptions): Promise<ProjectMan
   const overrides = opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
   if (overrides) {
     const readPackageHook = createReadPackageHook({
+      catalogs: opts.catalogs,
       lockfileDir: opts.lockfileDir,
       overrides: parseOverrides(overrides, opts.catalogs ?? {}),
     })

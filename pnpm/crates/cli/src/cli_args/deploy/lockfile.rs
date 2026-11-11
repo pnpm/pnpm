@@ -238,6 +238,7 @@ fn workspace_project_package_metadata(
         .map(|project| project.peer_blocks.clone())
         .unwrap_or_default();
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: relative_path(deploy_dir, package_dir),
         }),

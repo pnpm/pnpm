@@ -487,6 +487,7 @@ fn manifest(name: &str) -> PackageManifest {
 /// only the `packages:` key it is filed under matters.
 fn package_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: String::new(),
             integrity: None,

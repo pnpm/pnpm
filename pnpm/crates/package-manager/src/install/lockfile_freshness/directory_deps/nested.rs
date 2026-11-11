@@ -10,7 +10,8 @@ use super::{
     spec_dirs,
 };
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry,
+    DirectoryManifestSource, Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use std::collections::{HashMap, HashSet};
@@ -197,13 +198,6 @@ impl<'a> DirectoryPackages<'a> {
     }
 }
 
-/// Checks `nested` as the importer walk checks a directory package. The
-/// `file:` and `workspace:` declarations can read different manifests (see
-/// [`super::unhooked_manifest`]), and the lockfile does not record which one
-/// the parent used, so the snapshot must match both. Where they differ, a
-/// lockfile the resolver just wrote fails the check: the price of never
-/// accepting a stale one until the lockfile records the declaration
-/// (pnpm/tasks#228).
 pub(crate) fn check_nested_directory_package(
     check: &ImporterSatisfactionCheck<'_>,
     nested: &NestedDirectoryPackage,
@@ -219,18 +213,12 @@ pub(crate) fn check_nested_directory_package(
         .and_then(|snapshots| snapshots.get(&nested.key));
     let dir =
         pnpm_resolving_deps_resolver::directory_package_dir(check.lockfile_dir, &nested.directory);
-    let mut scope = nested.ancestor_aliases.clone();
-    scope.extend(
-        check.lockfile.importers
-            .get(check.importer_id)
-            .into_iter()
-            .flat_map(importer_aliases),
-    );
+    let scope = nested_scope(check, nested);
     let visited = Visited::new(check.lockfile);
-    let check_declared = |declared_by_path| {
+    let check_declared = |source| {
         let dep = LocalDepContext {
             name: &nested.alias,
-            declared_by_path,
+            declared_by_path: matches!(source, DirectoryManifestSource::Path),
             declaration_assumed: true,
             rel_path: &nested.directory,
             dir: &dir,
@@ -245,9 +233,39 @@ pub(crate) fn check_nested_directory_package(
             &mut visited.clone(),
         )
     };
-    let declared_as_workspace = false;
-    let declared_by_path = true;
-    check_declared(declared_as_workspace).and_then(|()| check_declared(declared_by_path))
+    check_directory_declarations(
+        pkg_meta.specifiers.as_ref().and_then(|recorded| recorded.manifest_source),
+        check_declared,
+    )
+}
+
+fn nested_scope(
+    check: &ImporterSatisfactionCheck<'_>,
+    nested: &NestedDirectoryPackage,
+) -> AliasScope {
+    let mut scope = nested.ancestor_aliases.clone();
+    scope.extend(
+        check.lockfile.importers
+            .get(check.importer_id)
+            .into_iter()
+            .flat_map(importer_aliases),
+    );
+    scope
+}
+
+/// Without a recorded source, the `file:` and `workspace:` declarations can
+/// read different manifests (see [`super::unhooked_manifest`]), so the
+/// snapshot must match both. Where they differ, a lockfile the resolver just
+/// wrote fails the check.
+fn check_directory_declarations(
+    source: Option<DirectoryManifestSource>,
+    check: impl Fn(DirectoryManifestSource) -> Result<(), FreshnessCheckError>,
+) -> Result<(), FreshnessCheckError> {
+    match source {
+        Some(source) => check(source),
+        None => check(DirectoryManifestSource::Workspace)
+            .and_then(|()| check(DirectoryManifestSource::Path)),
+    }
 }
 
 fn snapshot_dependencies(

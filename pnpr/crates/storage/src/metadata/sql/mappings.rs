@@ -83,6 +83,11 @@ impl SqlMetadata {
             let results = transaction.query_all(&read.queries(&catalog))?;
             let check = read.check(&mut results.into_iter())?;
             read.write(&*transaction, &catalog, &check)?;
+            for artifact in &fence.artifacts {
+                if artifact.ecosystem == Ecosystem::Npm {
+                    super::cdn::enqueue(&*transaction, &artifact.name)?;
+                }
+            }
             transaction.commit()
         })
         .await
@@ -212,6 +217,9 @@ fn unmap(
     let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
     let delete = format!("DELETE FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
     transaction.execute(&delete, params![catalog, ecosystem, name, any, exact])?;
+    if key.ecosystem == Ecosystem::Npm && !ids.is_empty() {
+        super::cdn::enqueue(&*transaction, &key.name)?;
+    }
     transaction.commit()?;
     Ok(Some(ids))
 }
@@ -226,7 +234,7 @@ impl super::PackageMetadata {
     ) -> Result<Option<crate::metadata::BlobRef>> {
         let key = self.key(name);
         let artifact = artifact.to_string();
-        self.database.read(self.catalog.clone(), Freshness::Bounded, move |connection, _| {
+        self.database.read_present(move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let row = connection.query_optional(
                 super::blobs::ARTIFACT,

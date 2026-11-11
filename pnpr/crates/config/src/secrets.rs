@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use pnpm_env_replace::{EnvVar, env_replace_lossy};
+use pnpm_env_replace::{EnvVar, env_replace_lossy, placeholder_ranges};
 use pnpr_error::RegistryError;
 use sha2::{Digest, Sha256};
 
@@ -251,16 +251,64 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
 }
 
 pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), RegistryError> {
-    let Ok(val) = serde_saphyr::from_str::<serde_json::Value>(raw) else {
-        return Ok(());
-    };
-    validate_root_secrets::<Sys>(&val)?;
-    validate_release_record_secrets::<Sys>(&val)?;
-    validate_s3_secrets::<Sys>(&val)?;
-    validate_auth_secrets::<Sys>(&val)?;
-    validate_database_secrets::<Sys>(&val)?;
-    validate_registry_secrets::<Sys>(&val)?;
+    if let Ok(value) = serde_saphyr::from_str(raw) {
+        return validate_secret_fields::<Sys>(&value);
+    }
+    let (expanded, _) = env_replace_lossy::<Sys>(raw);
+    let mut marker = "__pnpr_unresolved_env__".to_string();
+    while raw.contains(&marker) || expanded.contains(&marker) {
+        marker.push('_');
+    }
+    for range in placeholder_ranges(raw) {
+        let placeholder = &raw[range.clone()];
+        if env_replace_lossy::<Sys>(placeholder).1.is_empty() {
+            continue;
+        }
+        let mut marked = raw.to_string();
+        marked.replace_range(range, &marker);
+        let (expanded, _) = env_replace_lossy::<Sys>(&marked);
+        let Ok(mut value) = serde_saphyr::from_str(&expanded) else { continue };
+        restore_unresolved_placeholder(&mut value, &marker, placeholder);
+        validate_secret_fields::<Sys>(&value)?;
+    }
     Ok(())
+}
+
+fn validate_secret_fields<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
+    if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
+    {
+        check_secret_env_field::<Sys>("cloudflareCdn.apiToken", token)?;
+    }
+    validate_root_secrets::<Sys>(val)?;
+    validate_release_record_secrets::<Sys>(val)?;
+    validate_s3_secrets::<Sys>(val)?;
+    validate_auth_secrets::<Sys>(val)?;
+    validate_database_secrets::<Sys>(val)?;
+    validate_registry_secrets::<Sys>(val)?;
+    Ok(())
+}
+
+fn restore_unresolved_placeholder(value: &mut serde_json::Value, marker: &str, placeholder: &str) {
+    match value {
+        serde_json::Value::String(text) => {
+            // Resolved environment values are literal, not another substitution pass.
+            *text = text
+                .replace('\\', r"\\")
+                .replace("${", r"\${")
+                .replace(marker, placeholder);
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                restore_unresolved_placeholder(value, marker, placeholder);
+            }
+        }
+        serde_json::Value::Object(values) => {
+            for value in values.values_mut() {
+                restore_unresolved_placeholder(value, marker, placeholder);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn check_secret_env_field<Sys: EnvVar>(field: &str, raw_val: &str) -> Result<(), RegistryError> {

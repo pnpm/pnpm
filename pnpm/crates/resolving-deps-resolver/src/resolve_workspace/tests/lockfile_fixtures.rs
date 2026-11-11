@@ -39,6 +39,7 @@ pub(super) fn importer_scoped_update_lockfile(
         .collect();
     let metadata = || {
         PackageMetadata {
+            specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
@@ -178,6 +179,7 @@ pub(super) fn lockfile_with_package(key: &str) -> pnpm_lockfile::Lockfile {
     };
     let key: PkgNameVerPeer = key.parse().expect("parse package key");
     let metadata = PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{key}.tgz"),
             integrity: None,
@@ -251,6 +253,7 @@ pub(super) fn reuse_graph_lockfile(
     )]);
     let metadata = || {
         PackageMetadata {
+            specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
@@ -420,6 +423,7 @@ pub(super) fn reuse_steal_lockfile() -> pnpm_lockfile::Lockfile {
 
     let metadata = || {
         PackageMetadata {
+            specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()

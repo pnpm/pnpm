@@ -21,6 +21,7 @@ impl LibsqlAuth {
         user_ids: &[String],
     ) -> Result<Vec<crate::UserAccount>> {
         let ids = serde_json::to_string(user_ids)?;
+        let ids = ids.as_str();
         self.pool.read(|conn| async move {
             let rows = conn.query(
                 "SELECT id, username FROM users WHERE id IN (SELECT value FROM json_each(?1)) AND bcrypt_hash <> '!'",

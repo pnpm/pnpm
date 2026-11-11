@@ -82,7 +82,7 @@ async function fetchPackageMeta (
   fetchFromRegistry: FetchFromRegistry,
   { authHeader, packageName, packageUrl }: PackageMetaRequest
 ): Promise<PackageMeta> {
-  const getResponse = await fetchFromRegistry(packageUrl, {
+  const getResponse = await fetchFromRegistry(`${packageUrl}?write=true`, {
     authHeaderValue: authHeader,
     fullMetadata: true,
   })

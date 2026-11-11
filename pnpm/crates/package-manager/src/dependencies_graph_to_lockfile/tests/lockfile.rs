@@ -168,6 +168,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
+            lockfile_format: pnpm_lockfile::LockfileFormat::V9,
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             registries: &NPM_REGISTRIES,
@@ -211,6 +212,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
+            lockfile_format: pnpm_lockfile::LockfileFormat::V9,
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             registries: &NPM_REGISTRIES,
@@ -306,6 +308,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
                 resolution: pnpm_lockfile::ResolutionSettings::default(),
             },
             metadata_sources: crate::PackageMetadataSources {
+                lockfile_format: pnpm_lockfile::LockfileFormat::V9,
                 registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
                 registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
                 registries: &NPM_REGISTRIES,
@@ -411,6 +414,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
+            lockfile_format: pnpm_lockfile::LockfileFormat::V9,
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             registries: &NPM_REGISTRIES,
@@ -518,6 +522,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
+            lockfile_format: pnpm_lockfile::LockfileFormat::V9,
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             registries: &NPM_REGISTRIES,

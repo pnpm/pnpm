@@ -381,9 +381,9 @@ module.exports = {{
     let events = fs::read_to_string(events).expect("read pack events");
     let events = events.lines().collect::<Vec<_>>();
     assert_eq!(events.len(), 4);
-    for pair in events.chunks_exact(2) {
-        let project = pair[0].strip_suffix(":start").expect("start event");
-        assert_eq!(pair[1], format!("{project}:end"));
+    for [start, end] in events.as_chunks::<2>().0 {
+        let project = start.strip_suffix(":start").expect("start event");
+        assert_eq!(*end, format!("{project}:end"));
     }
     assert!(workspace.join("artifact.tgz").exists());
 

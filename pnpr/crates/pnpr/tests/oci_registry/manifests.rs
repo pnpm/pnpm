@@ -282,6 +282,120 @@ async fn an_index_child_must_be_a_manifest_this_repository_serves() {
 }
 
 #[tokio::test]
+async fn deleting_a_child_manifest_referenced_by_a_retained_index_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_allowing_deletes(&tmp);
+    let auth = basic(&token(&app).await);
+    let amd64 = push_image(&app, &auth, "acme/app", "amd64").await;
+    push_blob(&app, &auth, "acme/app", b"arm64-config").await;
+    let arm64_bytes = image_manifest("arm64-config", &["layer"]);
+    let arm64 = digest_of(&arm64_bytes);
+    let put_arm64 = Request::put(format!("/v2/acme/app/manifests/{arm64}"))
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(arm64_bytes.clone()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(put_arm64)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let index_bytes = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "manifests": [
+            { "digest": amd64, "size": image_manifest("config", &["layer"]).len() },
+            { "digest": arm64, "size": arm64_bytes.len() },
+        ],
+    }))
+    .unwrap();
+    let index_digest = digest_of(&index_bytes);
+    let put_index = Request::put("/v2/acme/app/manifests/v1")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
+        .body(Body::from(index_bytes))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(put_index)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let delete_child = || {
+        Request::delete(format!("/v2/acme/app/manifests/{arm64}"))
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::empty())
+            .unwrap()
+    };
+    let response = app
+        .clone()
+        .oneshot(delete_child())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["errors"][0]["code"], "DENIED");
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{arm64}")).await.status(),
+        StatusCode::OK,
+    );
+
+    // Removing the tag leaves the index retained, so its child is still protected.
+    let untag = Request::delete("/v2/acme/app/manifests/v1")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(untag)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(delete_child())
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
+
+    let delete_index = Request::delete(format!("/v2/acme/app/manifests/{index_digest}"))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(delete_index)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(delete_child())
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{arm64}")).await.status(),
+        StatusCode::NOT_FOUND,
+    );
+}
+
+#[tokio::test]
 async fn referrers_backfill_preexisting_manifests_on_both_backends() {
     for hosted_store in [
         pnpr::HostedStoreConfig::Fs,

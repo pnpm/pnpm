@@ -53,6 +53,43 @@ impl Dialect {
         }
     }
 
+    /// The statement that takes the database's write lock, a session lock
+    /// that returns `1` once held. Writers queue on it instead of failing
+    /// each other's serializable transactions. It is taken before `BEGIN`, so
+    /// the transaction's snapshot holds every commit made under it.
+    pub(super) fn lock_writes(self, timeout: Duration) -> String {
+        match self {
+            Self::Postgres => "SELECT 1 FROM pg_advisory_lock(70607833)".to_string(),
+            Self::Mysql => format!(
+                "SELECT GET_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())), {})",
+                timeout.as_secs_f64(),
+            ),
+        }
+    }
+
+    pub(super) fn unlock_writes(self) -> &'static str {
+        match self {
+            Self::Postgres => "SELECT pg_advisory_unlock(70607833)",
+            Self::Mysql => "DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
+        }
+    }
+
+    /// `COMMIT`, then [`Self::unlock_writes`] in the same round trip.
+    pub(super) fn commit_write(self) -> &'static str {
+        match self {
+            Self::Postgres => "COMMIT; SELECT pg_advisory_unlock(70607833)",
+            Self::Mysql => "COMMIT; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
+        }
+    }
+
+    /// `ROLLBACK`, then [`Self::unlock_writes`] in the same round trip.
+    pub(super) fn rollback_write(self) -> &'static str {
+        match self {
+            Self::Postgres => "ROLLBACK; SELECT pg_advisory_unlock(70607833)",
+            Self::Mysql => "ROLLBACK; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
+        }
+    }
+
     pub(super) fn table_names(self) -> &'static str {
         match self {
             Self::Postgres => {

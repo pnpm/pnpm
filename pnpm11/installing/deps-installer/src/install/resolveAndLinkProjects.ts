@@ -101,7 +101,7 @@ async function prepareProjectsForResolution (
   // and `createReadPackageHook` runs the overrides hook after `packageExtensions` and the
   // `readPackage` hooks, so the manifest that hook saw is the rewritten one. Asking the same
   // manifest keeps this answer and the override that was actually applied in agreement.
-  const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.overridesRootDir)
+  const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.overridesRootDir, opts.catalogs)
   if (overriddenDependencyMatcherFor != null) {
     for (const project of projects) {
       if (!project.updatePackageManifest) continue

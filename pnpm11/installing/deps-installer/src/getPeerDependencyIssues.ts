@@ -118,6 +118,7 @@ function createOverrideHooks (
   return {
     hooks: {
       readPackage: createReadPackageHook({
+        catalogs: opts.catalogs,
         ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
         lockfileDir,
         overrides,
@@ -126,6 +127,6 @@ function createOverrideHooks (
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
       }),
     },
-    overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir),
+    overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir, opts.catalogs),
   }
 }

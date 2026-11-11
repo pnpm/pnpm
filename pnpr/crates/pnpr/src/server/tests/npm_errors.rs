@@ -1,6 +1,6 @@
 use super::{
     Body, Method, RegistryError, Request, ServiceExt, StatusCode, TempDir, app_with_token, header,
-    record, signed, to_bytes,
+    record, signed, signed_json, to_bytes,
 };
 
 #[tokio::test]
@@ -177,6 +177,41 @@ async fn oversized_npm_publish_explains_the_body_limit() {
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(body["error"], "Publish request body exceeds the size limit");
+    assert_eq!(
+        body["error"],
+        "Publish request body exceeds the 100 MiB JSON limit; use staged archives for large tarballs",
+    );
     assert_eq!(body["error"], body["reason"]);
+}
+
+#[tokio::test]
+async fn malformed_json_request_bodies_return_bad_request() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "valid-token", record(false, &[]));
+    for (method, path, payload) in [
+        (Method::PUT, "/-/user/org.couchdb.user:alice", "{not-json"),
+        (Method::PUT, "/-/user/alice", "{not-json"),
+        (Method::PUT, "/npm/-/user/org.couchdb.user:alice", "{not-json"),
+        (Method::POST, "/-/npm/v1/tokens", "{not-json"),
+        (Method::POST, "/-/npm/v1/tokens", r#"{"readonly":"yes"}"#),
+        (Method::POST, "/npm/-/npm/v1/tokens", "{not-json"),
+        (Method::POST, "/npm/-/stage/package/example-package", "{not-json"),
+        (Method::PUT, "/npm/example-package", "{not-json"),
+        (Method::PUT, "/npm/@scope%2fexample-package", "{not-json"),
+        (Method::PUT, "/npm/example-package/-rev/1-0", "{not-json"),
+    ] {
+        let request = signed_json(method.clone(), path, "valid-token", payload);
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{method} {path} ({payload})");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json", "{path}");
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["error"], body["reason"], "{path}");
+        let message = body["error"].as_str().unwrap();
+        assert!(message.starts_with("Bad request: invalid request body:"), "{path}: {message}");
+    }
 }

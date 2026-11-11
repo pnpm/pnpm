@@ -3,6 +3,7 @@ mod compiler_cache;
 mod npm_errors;
 mod observability;
 mod oidc_groups;
+mod schema;
 mod team_members;
 mod web_ui;
 

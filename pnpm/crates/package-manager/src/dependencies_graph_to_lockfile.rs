@@ -139,6 +139,16 @@ pub enum DependenciesGraphToLockfileError {
         #[error(source)]
         source: Box<ParsePkgNameSuffixError<ParsePkgVerPeerError>>,
     },
+
+    #[display("Resolved directory dependency {dep_path:?} has no package manifest")]
+    DirectoryManifestMissing { dep_path: String },
+
+    #[display("Invalid specifiers in resolved directory dependency {dep_path:?}: {source}")]
+    DirectorySpecifiers {
+        dep_path: String,
+        #[error(source)]
+        source: Box<pnpm_resolving_deps_resolver::ResolveDependencyTreeError>,
+    },
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus

@@ -85,13 +85,14 @@ impl LibsqlAuth {
     /// [`DEFAULT_STARTUP_TIMEOUT`], within which a dial that times out is
     /// retried.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
-        let connector = pnpr_libsql::connector(settings, "backend.libsql")?;
+        let connector = pnpr_libsql::connector(settings, "database")?;
         let _startup_dials = connector.retry_timed_out_dials();
         with_auth_timeout(
             DEFAULT_STARTUP_TIMEOUT,
             Box::pin(Self::open(settings, max_users, connector)),
         )
         .await
+        .map_err(|error| pnpr_libsql::startup_error(settings, error))
     }
 
     async fn open(
@@ -125,10 +126,11 @@ impl LibsqlAuth {
         max_connections: u32,
         is_replica: bool,
     ) -> Result<Self> {
+        let pool = ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
+            RegistryError::AuthDatabaseTimeout
+        });
         let auth = Self {
-            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
-                RegistryError::AuthDatabaseTimeout
-            }),
+            pool: if is_replica { pool.replica() } else { pool },
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
@@ -240,6 +242,17 @@ impl UserBackend for LibsqlAuth {
 
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
         self.update_password(user_id, password).await
+    }
+
+    async fn set_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        crate::validation::validate_password(password)?;
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.replace_password_hash_if_current(user_id, expected_hash, &hash).await
     }
 
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
@@ -467,16 +480,8 @@ impl LibsqlAuth {
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-            self.pool.write(|conn| async move {
-                conn.execute(
-                    "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3",
-                    params![new_hash, id_ref, stored],
-                )
-                .await?;
-                Ok(())
-            })
-            .await?;
-            self.sync_replica().await?;
+            let (new_hash, stored) = (new_hash.as_str(), stored.as_str());
+            self.replace_password_hash_if_current(id_ref, stored, new_hash).await?;
         }
         Ok((outcome, id))
     }

@@ -139,15 +139,14 @@ pub fn base64_encode(input: &str) -> String {
 pub fn base64_encode_bytes(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    let mut chunks = bytes.chunks_exact(3);
-    for chunk in &mut chunks {
-        let n = (u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]);
+    let (chunks, remainder) = bytes.as_chunks::<3>();
+    for &[first, second, third] in chunks {
+        let n = (u32::from(first) << 16) | (u32::from(second) << 8) | u32::from(third);
         out.push(ALPHABET[((n >> 18) & 0x3f) as usize] as char);
         out.push(ALPHABET[((n >> 12) & 0x3f) as usize] as char);
         out.push(ALPHABET[((n >> 6) & 0x3f) as usize] as char);
         out.push(ALPHABET[(n & 0x3f) as usize] as char);
     }
-    let remainder = chunks.remainder();
     match remainder.len() {
         1 => {
             let n = u32::from(remainder[0]) << 16;

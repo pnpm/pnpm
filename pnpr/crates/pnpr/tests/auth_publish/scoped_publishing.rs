@@ -707,3 +707,83 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0", "1.0.0 must survive");
     assert_eq!(packument["versions"]["2.0.0"]["version"], "2.0.0", "2.0.0 must survive");
 }
+
+#[tokio::test]
+async fn unpublishing_last_version_removes_package_from_reads_and_search() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let body = publish_doc("@scope/last-ver", "1.0.0", b"bytes");
+    let publish = Request::put("/npm/@scope/last-ver")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let search_before = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/-/v1/search?text=last-ver")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search_before.status(), StatusCode::OK);
+    let search_before = body_json(search_before.into_body()).await;
+    assert_eq!(search_before["total"], json!(1));
+    assert_eq!(search_before["objects"][0]["package"]["name"], json!("@scope/last-ver"));
+    assert_eq!(search_before["objects"][0]["package"]["version"], json!("1.0.0"));
+    assert_eq!(search_before["objects"][0]["package"]["publisher"], json!({ "username": "alice" }));
+    assert_eq!(
+        search_before["objects"][0]["package"]["maintainers"],
+        json!([{ "username": "alice" }]),
+    );
+
+    let delete = Request::delete("/npm/@scope/last-ver@1.0.0")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(delete)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let packument = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/@scope/last-ver")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND);
+
+    let search_after = app
+        .oneshot(
+            Request::get("/npm/-/v1/search?text=last-ver")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search_after.status(), StatusCode::OK);
+    let search_after = body_json(search_after.into_body()).await;
+    assert_eq!(search_after["total"], json!(0));
+    assert_eq!(search_after["objects"], json!([]));
+}

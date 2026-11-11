@@ -127,7 +127,7 @@ pnpm-workspace-task-scheduler = { path = "pnpm/crates/workspace-task-scheduler" 
 pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpr = { path = "pnpr/crates/pnpr" }
+pnpr = { path = "pnpr/crates/pnpr", default-features = false, features = ["backend-libsql"] }
 pnpr-auth = { path = "pnpr/crates/auth" }
 pnpr-cargo = { path = "pnpr/crates/cargo" }
 pnpr-config = { path = "pnpr/crates/config" }
@@ -182,6 +182,7 @@ home = { version = "0.5.12" }
 http = { version = "1.5.0" }
 http-0-2 = { package = "http", version = "0.2.12" }
 httpdate = { version = "1.0.3" }
+hyper = { version = "1.12.0", default-features = false, features = ["http1"] }
 hyper-0-14 = { package = "hyper", version = "0.14.32", default-features = false, features = ["client", "runtime"] }
 # Orders packed paths the way JavaScript's `localeCompare(b, 'en')` does, so
 # pnpm 12 and pnpm 11 write a tarball's entries in the same order. ICU4X 2.2
@@ -201,7 +202,7 @@ gethostname = { version = "1.1.0" }
 getrandom = { version = "0.4.3" }
 miette = { version = "7.6.0", features = ["fancy"] }
 mimalloc = { version = "0.1.52" }
-napi = { version = "3.16.1", default-features = false, features = [
+napi = { version = "3.16.2", default-features = false, features = [
   "napi8",
   "object_indexmap",
   "serde-json",
@@ -209,9 +210,9 @@ napi = { version = "3.16.1", default-features = false, features = [
   "async",
 ] }
 napi-build = { version = "2.6.0" }
-napi-derive = { version = "3.7.0" }
+napi-derive = { version = "3.7.1" }
 num_cpus = { version = "1.17.0" }
-object = { version = "0.40.0", default-features = false, features = ["read", "std"] }
+object = { version = "0.41.0", default-features = false, features = ["read", "std"] }
 object_store = { version = "0.14.2", features = ["aws"] }
 open = { version = "5.4.5" }
 os_display = { version = "0.1.4" }
@@ -255,7 +256,7 @@ rustc-hash = { version = "2.1.3" }
 rustls = { version = "0.23.46", default-features = false, features = ["std"] }
 rustls-platform-verifier = { version = "0.7.1" }
 serde-saphyr = { version = "2.1.1" }
-sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2 = { version = "0.10.9" }
 sigstore-sign = { version = "0.16.0" }
@@ -286,7 +287,7 @@ tokio-rustls = { version = "0.26.6", default-features = false, features = ["tls1
 unicode-security = "0.1.3"
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
-webpki-root-certs = { version = "1.0.11" }
+webpki-root-certs = { version = "1.0.12" }
 windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",
   "Win32_System_JobObjects",
@@ -298,7 +299,7 @@ yamlpath = { version = "1.32.0" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.1" }
-zip = { version = "9.5.0", default-features = false, features = ["deflate"] }
+zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.3", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
@@ -378,11 +379,13 @@ struct_excessive_bools = "allow" # option structs mirror pnpm's
 fn_params_excessive_bools = "allow" # mirrors pnpm's option parameters
 match_same_arms = "allow" # arms kept explicit to mirror pnpm's switch cases
 unnecessary_wraps = "allow"
+unused_async_trait_impl = "allow" # fires on inherent methods, and its `future::ready` fix runs the body before the first poll
 unused_async = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
 similar_names = "allow" # names ported verbatim from pnpm
 items_after_statements = "allow"
 needless_continue = "allow"
 many_single_char_names = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
+assert_is_empty = "allow" # tests log the value before a bare `assert!`, as pnpm/CODE_STYLE_GUIDE.md asks
 map_unwrap_or = "allow" # its map_or/map_or_else suggestion puts the fallback before the value; the map/unwrap_or_else chain reads in evaluation order
 
 # nursery-group opt-outs (the group is experimental; these lints are either

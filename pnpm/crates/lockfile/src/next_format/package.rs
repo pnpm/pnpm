@@ -30,6 +30,8 @@ mod peers;
     )
 )]
 pub struct NextPackage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub specifiers: Option<crate::DeclaredSpecifiers>,
     /// The resolution without its integrity, and absent where it follows
     /// from the entry: a registry package without a revision, the common
     /// case, whose resolution is the integrity alone, and a directory
@@ -108,6 +110,8 @@ pub struct NextPackage {
 )]
 pub struct NextPackageOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub specifiers: Option<&'a crate::DeclaredSpecifiers>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub resolution: Option<std::borrow::Cow<'a, LockfileResolution>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub integrity: Option<&'a Integrity>,
@@ -176,6 +180,7 @@ impl<'a> NextPackageOut<'a> {
         };
         let (shared, snapshots) = hoist(snapshots);
         NextPackageOut {
+            specifiers: metadata.and_then(|metadata| metadata.specifiers.as_ref()),
             resolution,
             integrity,
             version: metadata.and_then(|metadata| metadata.version.as_ref()),
@@ -294,6 +299,7 @@ impl NextPackage {
             (Some(resolution), _) => resolution,
         };
         Ok(PackageMetadata {
+            specifiers: self.specifiers,
             resolution,
             version: self.version,
             engines: self.engines,

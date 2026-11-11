@@ -87,6 +87,7 @@ pub fn build_package_snapshot(
     }
 
     let metadata = PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(resolution),
         version: None,
         engines: None,

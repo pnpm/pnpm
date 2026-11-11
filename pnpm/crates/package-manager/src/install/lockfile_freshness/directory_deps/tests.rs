@@ -1,6 +1,6 @@
 use super::{
-    LocalDepContext, SpecDirs, dependency_manifests_by_dir, peers::check_recorded_peer_specs_match,
-    project_manifests_by_dir,
+    LocalDepContext, SpecDirs, children::catalog_child_is_fresh, dependency_manifests_by_dir,
+    peers::check_recorded_peer_specs_match, project_manifests_by_dir,
 };
 use crate::install::FreshnessCheckError;
 use pnpm_catalogs_resolver::CatalogResolutionError;
@@ -1286,4 +1286,161 @@ fn an_omitted_optional_catalog_child_of_a_path_declared_dependency_is_fresh() {
         false,
     );
     assert!(result.is_ok(), "resolution drops the optional child: {result:?}");
+}
+
+fn recorded_case(manifest: serde_json::Value, record: serde_json::Value) -> DirectoryDepCase {
+    let mut metadata = directory_metadata();
+    metadata["specifiers"] = record;
+    DirectoryDepCase {
+        manifest,
+        metadata,
+        snapshot: serde_json::json!({ "dependencies": { "child": "1.0.0" } }),
+        declaration: Declaration::default(),
+        frozen_lockfile: true,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    }
+}
+
+#[test]
+fn recorded_inputs_reject_changes_that_a_locked_version_still_satisfies() {
+    let record = serde_json::json!({ "dependencies": { "child": "1.0.0" } });
+    for manifest in [
+        serde_json::json!({ "dependencies": { "child": "^1.0.0" } }),
+        serde_json::json!({ "optionalDependencies": { "child": "1.0.0" } }),
+        serde_json::json!({ "dependencies": { "child": "1.0.0" }, "dependenciesMeta": { "child": { "injected": true } } }),
+        serde_json::json!({}),
+    ] {
+        let result = check_directory_dep(&recorded_case(manifest.clone(), record.clone()));
+        assert!(result.is_err(), "{manifest}: {result:?}");
+    }
+}
+
+#[test]
+fn recorded_workspace_catalog_children_reject_catalog_range_changes() {
+    let manifest = serde_json::json!({
+        "name": "lib",
+        "dependencies": { "child": "catalog:" },
+    });
+    let mut case =
+        recorded_case(manifest, serde_json::json!({ "dependencies": { "child": "catalog:" } }));
+    case.catalogs = Catalogs::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([("child".to_string(), "2.0.0".to_string())]),
+    )]);
+    case.declaration = Declaration { by_path: false, assumed: true };
+    let result = check_directory_dep(&case);
+    assert!(result.is_err(), "the changed catalog range must invalidate the snapshot: {result:?}");
+}
+
+#[test]
+fn recorded_catalog_ranges_accept_matching_injected_workspace_targets() {
+    assert!(catalog_child_matches_workspace_target("2.0.0"));
+    assert!(!catalog_child_matches_workspace_target("1.0.0"));
+}
+
+fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
+    let temp = tempfile::tempdir().expect("create workspace");
+    let workspace_dir = temp.path();
+    let local_dir = workspace_dir.join("packages/lib");
+    let target_dir = workspace_dir.join("packages/child");
+    std::fs::create_dir_all(&local_dir).expect("create directory dependency");
+    std::fs::create_dir_all(&target_dir).expect("create workspace target");
+    let local_manifest = PackageManifest::from_value(
+        local_dir.join("package.json"),
+        serde_json::json!({ "name": "lib" }),
+    );
+    let target_manifest = PackageManifest::from_value(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "child", "version": workspace_version }),
+    );
+    let manifests_by_dir =
+        HashMap::from([(pnpm_fs::lexical_normalize(&target_dir), &target_manifest)]);
+    let catalogs = Catalogs::new();
+    let registries = pnpm_lockfile::RegistryContext::default();
+    let mut config = pnpm_config::Config::new();
+    config.workspace_dir = Some(workspace_dir.to_path_buf());
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
+    let canonical_paths = Box::leak(Box::default());
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: workspace_dir,
+        manifest: &local_manifest,
+        importer_id: ".",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            directory_manifests: crate::install::DirectoryManifests::none(),
+            catalogs: &catalogs,
+            canonical_paths,
+            registries: &registries,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            frozen_lockfile: false,
+        },
+        parsed_overrides: None,
+    };
+    let dep = LocalDepContext {
+        name: "lib",
+        declared_by_path: false,
+        declaration_assumed: false,
+        rel_path: "packages/lib",
+        dir: &local_dir,
+        dirs: SpecDirs {
+            workspace_root: workspace_dir,
+            lockfile_dir: workspace_dir,
+            manifests_by_dir: &manifests_by_dir,
+            canonical_paths,
+            registries: &registries,
+        },
+        catalogs: &catalogs,
+    };
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "dependencies": { "child": "file:packages/child" },
+    }))
+    .expect("parse snapshot");
+    let child = pnpm_resolving_deps_resolver::DependencySpec {
+        alias: "child".to_string(),
+        bare_specifier: "2.0.0".to_string(),
+        optional: false,
+        injected: false,
+    };
+
+    catalog_child_is_fresh(&check, &dep, &snapshot, &child)
+}
+
+#[test]
+fn recorded_inputs_accept_unchanged_sources_without_interpreting_registry_resolutions() {
+    for specifier in [
+        "^1.0.0",
+        "npm:original@^1.0.0",
+        "https://example.invalid/archive.tgz",
+        "github:example/repository#commit",
+    ] {
+        let manifest = serde_json::json!({ "dependencies": { "child": specifier } });
+        let result = check_directory_dep(&recorded_case(manifest.clone(), manifest));
+        assert!(result.is_ok(), "{specifier}: {result:?}");
+    }
+}
+
+#[test]
+fn recorded_inputs_check_optional_peer_declarations_even_without_a_binding() {
+    let mut case = recorded_case(
+        serde_json::json!({ "peerDependencies": { "peer": "^1" },
+            "peerDependenciesMeta": { "peer": { "optional": true } }
+        }),
+        serde_json::json!({}),
+    );
+    case.metadata["peerDependencies"] = serde_json::json!({ "peer": "^1" });
+    case.metadata["peerDependenciesMeta"] = serde_json::json!({ "peer": { "optional": true } });
+    let unchanged = check_directory_dep(&case);
+    assert!(unchanged.is_ok(), "{unchanged:?}");
+    case.manifest["peerDependenciesMeta"] = serde_json::json!({});
+    let changed = check_directory_dep(&case);
+    assert!(changed.is_err(), "{changed:?}");
 }

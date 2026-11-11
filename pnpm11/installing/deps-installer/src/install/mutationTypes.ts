@@ -161,6 +161,7 @@ export type ImporterToUpdate = {
   id: ProjectId
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  hookOwnedAliases?: Set<string>
   isOverriddenDependency?: OverriddenDependencyMatcher
   modulesDir: string
   rootDir: ProjectRootDir

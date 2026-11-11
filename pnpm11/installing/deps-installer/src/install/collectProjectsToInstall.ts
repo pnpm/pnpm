@@ -15,8 +15,9 @@ export async function collectProjectsToInstall (run: MutationRun): Promise<Impor
     run,
     projectsToInstall: [],
     installedProjectIds: new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id)),
-    overriddenDependencyMatcherFor: createOverriddenDependencyMatcher(opts.parsedOverrides, opts.overridesRootDir),
+    overriddenDependencyMatcherFor: createOverriddenDependencyMatcher(opts.parsedOverrides, opts.overridesRootDir, opts.catalogs),
     applyOverrides: createReadPackageHook({
+      catalogs: opts.catalogs,
       ignoreCompatibilityDb: true,
       lockfileDir: opts.lockfileDir,
       overridesRootDir: opts.overridesRootDir,

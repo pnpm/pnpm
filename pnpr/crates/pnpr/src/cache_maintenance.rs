@@ -4,7 +4,10 @@
 //! secrets or removed/reconfigured upstreams, evicts stale cached entries
 //! exceeding TTL, and enforces cache size caps via LRU eviction.
 
+mod orphans;
+
 use crate::{Config, Result};
+use orphans::prune_orphaned_namespaces;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -75,6 +78,33 @@ pub fn active_cache_namespaces(config: &Config) -> HashSet<String> {
         .collect()
 }
 
+/// How long an archive staging file may stay untouched before it is swept:
+/// the HTTP request timeout when one is set, or
+/// [`pnpr_storage::INCOMPLETE_MAX_AGE`] when request timeouts are disabled.
+#[must_use]
+pub(crate) fn archive_staging_max_age(config: &Config) -> Duration {
+    config.http.request_timeout.unwrap_or(pnpr_storage::INCOMPLETE_MAX_AGE)
+}
+
+async fn sweep_staging_cache(
+    cache_dir: &Path,
+    max_age: Duration,
+    effect: CacheGcEffect,
+) -> pnpr_storage::TempSweep {
+    let base = pnpr_storage::cache_staging_tmp_base(cache_dir);
+    let result = match effect {
+        CacheGcEffect::Apply => pnpr_storage::sweep_stale_temps(&base, max_age).await,
+        CacheGcEffect::DryRun => pnpr_storage::count_stale_temps(&base, max_age).await,
+    };
+    match result {
+        Ok(sweep) => sweep,
+        Err(err) => {
+            tracing::warn!(error = %err, "sweeping publish staging files failed");
+            pnpr_storage::TempSweep::default()
+        }
+    }
+}
+
 /// Run a complete cache collection pass according to the given options.
 pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<CacheReport> {
     let active = active_cache_namespaces(config);
@@ -89,28 +119,47 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
         CacheGcScope::OrphansOnly => return Ok(report),
         CacheGcScope::Full => {}
     }
+    let staging = sweep_staging_cache(
+        &config.storage.cache_dir,
+        archive_staging_max_age(config),
+        options.effect,
+    )
+    .await;
+    report.files_evicted += staging.files;
+    report.bytes_reclaimed += staging.bytes;
     let max_age = options.max_age.or(config.storage.cache.max_age);
     let max_size = options.max_size.or(config.storage.cache.max_size);
     if max_age.is_some() || max_size.is_some() {
-        let ev = evict_active_cache(
+        evict_and_prune_active(
             &config.storage.cache_dir,
             &active,
-            max_age,
-            max_size,
+            (max_age, max_size),
             options.effect,
+            &mut report,
         )
         .await?;
-        report.files_evicted += ev.files_evicted;
-        report.bytes_reclaimed += ev.bytes_reclaimed;
-        let prunes_empty_dirs = match options.effect {
-            CacheGcEffect::Apply => ev.files_evicted > 0,
-            CacheGcEffect::DryRun => false,
-        };
-        if prunes_empty_dirs {
-            prune_empty_dirs(&config.storage.cache_dir, &active).await?;
-        }
     }
     Ok(report)
+}
+
+async fn evict_and_prune_active(
+    cache_dir: &Path,
+    active: &HashSet<String>,
+    (max_age, max_size): (Option<Duration>, Option<u64>),
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) -> Result<()> {
+    let ev = evict_active_cache(cache_dir, active, max_age, max_size, effect).await?;
+    report.files_evicted += ev.files_evicted;
+    report.bytes_reclaimed += ev.bytes_reclaimed;
+    let should_prune_empty_dirs = match effect {
+        CacheGcEffect::Apply => ev.files_evicted > 0,
+        CacheGcEffect::DryRun => false,
+    };
+    if should_prune_empty_dirs {
+        prune_empty_dirs(cache_dir, active).await?;
+    }
+    Ok(())
 }
 
 /// Evict cache entries on startup: cleans orphaned namespaces and enforces configured caps.
@@ -145,107 +194,6 @@ pub fn spawn_periodic_cache_eviction(config: &Config) {
             }
         }
     });
-}
-
-async fn prune_orphan_entry(
-    entry: &tokio::fs::DirEntry,
-    prefix: &str,
-    active: &HashSet<String>,
-    effect: CacheGcEffect,
-    report: &mut CacheReport,
-) -> Result<()> {
-    let Ok(file_type) = entry.file_type().await else {
-        return Ok(());
-    };
-    if !file_type.is_dir() || file_type.is_symlink() {
-        return Ok(());
-    }
-    let ns = format!("{prefix}/{}", entry.file_name().to_string_lossy());
-    if active.contains(&ns) {
-        return Ok(());
-    }
-    let (count, bytes) = count_dir_contents(&entry.path()).await?;
-    match effect {
-        CacheGcEffect::Apply => fs::remove_dir_all(entry.path()).await?,
-        CacheGcEffect::DryRun => {}
-    }
-    report.namespaces_removed += 1;
-    report.files_evicted += count;
-    report.bytes_reclaimed += bytes;
-    Ok(())
-}
-
-async fn prune_orphan_prefix(
-    cache_dir: &Path,
-    prefix: &str,
-    active: &HashSet<String>,
-    effect: CacheGcEffect,
-    report: &mut CacheReport,
-) {
-    let parent = cache_dir.join(prefix);
-    if let Ok(meta) = fs::symlink_metadata(&parent).await
-        && (meta.file_type().is_symlink() || !meta.is_dir())
-    {
-        return;
-    }
-    let Ok(mut entries) = fs::read_dir(&parent).await else {
-        return;
-    };
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        if let Err(err) = prune_orphan_entry(&entry, prefix, active, effect, report).await {
-            tracing::warn!(error = %err, path = %entry.path().display(), "orphan cache namespace cleanup failed");
-        }
-    }
-}
-
-/// Prune any namespaces under `~upstreams/` or `~public/` not present in `active`.
-async fn prune_orphaned_namespaces(
-    cache_dir: &Path,
-    active: &HashSet<String>,
-    effect: CacheGcEffect,
-    has_configured_secret: bool,
-) -> Result<CacheReport> {
-    let mut report = CacheReport::default();
-    if has_configured_secret {
-        prune_orphan_prefix(cache_dir, "~upstreams", active, effect, &mut report).await;
-    }
-    prune_orphan_prefix(cache_dir, "~public", active, effect, &mut report).await;
-    Ok(report)
-}
-
-async fn process_count_entry(
-    entry: &tokio::fs::DirEntry,
-    stack: &mut Vec<PathBuf>,
-    count: &mut usize,
-    bytes: &mut u64,
-) {
-    let Ok(ft) = entry.file_type().await else {
-        return;
-    };
-    if ft.is_dir() {
-        stack.push(entry.path());
-    } else if ft.is_file() {
-        *count += 1;
-        if let Ok(meta) = entry.metadata().await {
-            *bytes += meta.len();
-        }
-    }
-}
-
-/// Count regular files and total bytes in a directory tree.
-async fn count_dir_contents(path: &Path) -> Result<(usize, u64)> {
-    let mut count = 0;
-    let mut bytes = 0;
-    let mut stack = vec![path.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(mut entries) = fs::read_dir(&dir).await else {
-            continue;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            process_count_entry(&entry, &mut stack, &mut count, &mut bytes).await;
-        }
-    }
-    Ok((count, bytes))
 }
 
 /// Whether `path` may be counted as reclaimed: [`CacheGcEffect::Apply`]

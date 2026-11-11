@@ -2,7 +2,7 @@ use super::{
     Arc, Duration, Pools, Result, SqlBackendSettings, invalid_pool_size, timeout_millis,
     timeout_seconds,
 };
-use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
+use sqlx::{MySqlConnection, MySqlPool, mysql::MySqlPoolOptions};
 
 /// Share a pool for these settings within the current runtime.
 ///
@@ -34,17 +34,7 @@ pub fn options(
         }
         options = options.max_connections(max_connections);
     }
-    let timeout_sql = timeout_sql(session_timeout);
-    options = options.after_connect(move |conn, _meta| {
-        let timeout_sql = timeout_sql.clone();
-        Box::pin(async move {
-            sqlx::query("SET SESSION sql_mode = 'STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'")
-                .execute(&mut *conn)
-                .await?;
-            sqlx::query(&timeout_sql).execute(conn).await?;
-            Ok(())
-        })
-    });
+    options = options.after_connect(move |conn, _meta| Box::pin(configure(conn, session_timeout)));
     Ok(options.acquire_timeout(acquire_timeout))
 }
 
@@ -57,4 +47,15 @@ pub fn timeout_sql(timeout: Duration) -> String {
         timeout_seconds(timeout),
         timeout_seconds(timeout),
     )
+}
+
+pub(crate) async fn configure(
+    conn: &mut MySqlConnection,
+    timeout: Duration,
+) -> std::result::Result<(), sqlx::Error> {
+    sqlx::query("SET SESSION sql_mode = 'STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'")
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query(sqlx::AssertSqlSafe(timeout_sql(timeout))).execute(conn).await?;
+    Ok(())
 }

@@ -45,7 +45,7 @@ use pnpr_storage::{
 
 use super::{
     Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
-    authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
+    authorized_upstream, default_registry_target, hosted_gate, hosted_storage, parse_json_body,
     resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
     staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
 };
@@ -117,7 +117,7 @@ pub(super) fn resolve_publish_target_for(
         RegistrySource::Unclaimed => {
             if registry_visible_to_caller(state, identity, &target) {
                 PublishTarget::Reject(format!(
-                    "cannot publish {package:?} {context}: no registry's declared `patterns:` \
+                    "cannot publish {package:?} {context}: no registry's declared `packages:` \
                      claim this package name",
                 ))
             } else {
@@ -213,7 +213,7 @@ async fn publish_attempt(
     body: axum::body::Bytes,
 ) -> Result<Response, RegistryError> {
     let name = CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm)?;
-    let mut incoming: Value = serde_json::from_slice(&body)?;
+    let mut incoming: Value = parse_json_body(&body)?;
     drop(body);
     check_body_name(&name, &incoming)?;
     let request = publication_request(identity, &incoming, None, None, Some(&name));
@@ -327,7 +327,7 @@ pub(super) async fn commit_publishes(
 /// harmless beyond a small amount of disk.
 pub(super) async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::BlobSlot>) {
     for slot in slots {
-        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+        slot.abandon().await;
     }
 }
 

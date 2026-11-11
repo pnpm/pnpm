@@ -1,3 +1,18 @@
+/// Redact credentials in a database target, hiding malformed URLs entirely.
+#[must_use]
+pub fn redact_connection_url(raw: &str) -> String {
+    if numeric_port_authority_end(raw).is_some_and(|end| raw[end..].contains('@')) {
+        return "[redacted]".to_string();
+    }
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return "[redacted]".to_string();
+    };
+    redact_url_userinfo(&mut parsed);
+    redact_url_query(&mut parsed);
+    redact_url_fragment(&mut parsed);
+    parsed.to_string()
+}
+
 /// Rewrite every URL in `message` so its `user:pass@` userinfo and any
 /// sensitive query parameter render as `<redacted>`. Shared with the config
 /// layer, whose operator-supplied endpoints can carry either.
@@ -93,6 +108,11 @@ pub(super) fn redact_url_candidate(candidate: &str) -> Option<String> {
 /// An `@` that starts a path segment is taken for a scoped package name, so
 /// `http://localhost:4873/@scope/pkg` keeps its host.
 pub(super) fn find_password_parsed_as_port(candidate: &str) -> Option<usize> {
+    let authority_end = numeric_port_authority_end(candidate)?;
+    find_last_at_outside_segment_start(candidate, authority_end, candidate.len())
+}
+
+fn numeric_port_authority_end(candidate: &str) -> Option<usize> {
     let authority_start = candidate.find("://")? + 3;
     let authority_end = authority_start + candidate[authority_start..].find(['/', '?', '#'])?;
     let authority = &candidate[authority_start..authority_end];
@@ -100,7 +120,7 @@ pub(super) fn find_password_parsed_as_port(candidate: &str) -> Option<usize> {
     if authority.contains('@') || !port.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    find_last_at_outside_segment_start(candidate, authority_end, candidate.len())
+    Some(authority_end)
 }
 
 pub(super) fn find_last_at_outside_segment_start(
@@ -254,6 +274,9 @@ pub(super) fn is_sensitive_query_key(key: &str) -> bool {
     matches!(
         normalized.as_str(),
         "auth"
+            | "user"
+            | "username"
+            | "sslpassword"
             | "authtoken"
             | "password"
             | "passwd"
