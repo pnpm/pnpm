@@ -114,6 +114,9 @@ async fn set_user_password(
         let NewPassword { password } = parse_json_body(&body)?;
         validate_password(&password)?;
         let auth = &state.inner.identity.auth;
+        let Some(name) = auth.users.account_name(&path.id).await? else {
+            return Err(RegistryError::NotFound);
+        };
         let changed = auth.change_password(&path.id, &password).await;
         if let Err(error) = &changed {
             state.inner.identity.oidc.revoke_committed_password_sessions(error);
@@ -122,9 +125,6 @@ async fn set_user_password(
             return Err(RegistryError::NotFound);
         }
         state.inner.identity.oidc.revoke_user_sessions(&path.id);
-        let Some(name) = auth.users.account_name(&path.id).await? else {
-            return Err(RegistryError::NotFound);
-        };
         tracing::info!(
             target: "pnpr::audit",
             action = "user.password_update",

@@ -230,12 +230,17 @@ impl UserBackend for FailedPostUpdateLookup {
     async fn account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
         if self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(pnpr::RegistryError::StorageUnavailable {
-                reason: "account lookup failed".to_string(),
+                reason: "account id lookup failed".to_string(),
             });
         }
         self.users.account_id(name).await
     }
     async fn account_name(&self, id: &str) -> pnpr::Result<Option<String>> {
+        if self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(pnpr::RegistryError::StorageUnavailable {
+                reason: "account name lookup failed".to_string(),
+            });
+        }
         self.users.account_name(id).await
     }
     async fn rename_user(&self, id: &str, name: &str) -> pnpr::Result<()> {
@@ -244,7 +249,7 @@ impl UserBackend for FailedPostUpdateLookup {
 }
 
 #[tokio::test]
-async fn admin_create_and_password_change_keep_the_id_without_a_name_lookup() {
+async fn admin_create_and_password_change_do_not_query_account_after_commit() {
     let dir = TempDir::new().unwrap();
     let users = Arc::new(UserStore::in_memory());
     let pnpr::UserCreation::Created(root_id) =
@@ -271,7 +276,9 @@ async fn admin_create_and_password_change_keep_the_id_without_a_name_lookup() {
     assert_eq!(status, axum::http::StatusCode::CREATED);
     let id = created["id"].as_str().unwrap();
     assert!(backend.account_id("example-user").await.is_err());
+    assert!(backend.account_name(id).await.is_err());
 
+    backend.has_updated.store(false, std::sync::atomic::Ordering::SeqCst);
     let (status, result) = send(
         &app,
         "PUT",
@@ -282,6 +289,7 @@ async fn admin_create_and_password_change_keep_the_id_without_a_name_lookup() {
     .await;
     assert_eq!(status, axum::http::StatusCode::OK);
     assert_eq!(result, json!({ "id": id, "name": "example-user" }));
+    assert!(backend.account_name(id).await.is_err());
     assert!(users.add_or_login("example-user", "new-password").await.is_ok());
 }
 
