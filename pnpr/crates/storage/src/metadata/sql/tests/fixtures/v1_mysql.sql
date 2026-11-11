@@ -291,12 +291,6 @@ CREATE TABLE IF NOT EXISTS removed_packages (
     PRIMARY KEY (catalog, ecosystem, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
--- The hosted store this database describes, as `layout.json` names it.
-CREATE TABLE IF NOT EXISTS hosted_store (
-    singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
-    store_id VARBINARY(512) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-
 -- Generations stay unique after a record is removed and recreated.
 CREATE TABLE IF NOT EXISTS record_generation (
     singleton BIGINT PRIMARY KEY CHECK (singleton = 1),

@@ -297,12 +297,6 @@ CREATE TABLE IF NOT EXISTS removed_packages (
     PRIMARY KEY (catalog, ecosystem, name)
 ) STRICT, WITHOUT ROWID;
 
--- The hosted store this database describes, as `layout.json` names it.
-CREATE TABLE IF NOT EXISTS hosted_store (
-    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-    store_id TEXT NOT NULL
-) STRICT;
-
 -- Generations stay unique after a record is removed and recreated.
 CREATE TABLE IF NOT EXISTS record_generation (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),

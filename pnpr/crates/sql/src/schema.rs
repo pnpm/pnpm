@@ -30,7 +30,7 @@ pub(crate) fn retry_delay(attempt: u32) -> Duration {
 }
 
 /// The latest schema version this pnpr creates and reads (`STEPS.len()`).
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 
 /// The table recording each applied migration step (`1..=SCHEMA_VERSION`).
 pub const MARKER: &str = "schema_migrations";
@@ -56,7 +56,7 @@ pub const TABLES: &str = include_str!("schema/tables.sql");
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
-pub const STEPS: &[Step] = &[step_1, step_2, step_3];
+pub const STEPS: &[Step] = &[step_1, step_2, step_3, step_4];
 
 const _: () = assert!(
     SCHEMA_VERSION > 0 && STEPS.len() == SCHEMA_VERSION.cast_unsigned() as usize,
@@ -88,6 +88,21 @@ fn step_3(connection: &dyn Connection) -> Result<()> {
         ))?;
     }
     Ok(())
+}
+
+fn step_4(connection: &dyn Connection) -> Result<()> {
+    let ddl = match (connection.schema_marker().is_some(), connection.transactional_ddl()) {
+        (false, _) => {
+            "CREATE TABLE IF NOT EXISTS hosted_store (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL) STRICT"
+        }
+        (true, true) => {
+            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL)"
+        }
+        (true, false) => {
+            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id VARBINARY(512) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs"
+        }
+    };
+    connection.execute_ddl(ddl)
 }
 
 fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
@@ -359,7 +374,7 @@ fn inspect_marked(
     if max_version > target {
         return Ok(Inspection::Refused(Stored::FutureVersion(max_version)));
     }
-    if let Some(stored) = incomplete(has) {
+    if let Some(stored) = incomplete(max_version, has) {
         return Ok(Inspection::Refused(stored));
     }
     Ok(Inspection::Current(max_version))
@@ -402,9 +417,10 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 
 /// The tables a database marked with [`MARKER`] lacks, given whether it `has`
 /// each table.
-fn incomplete(has: impl Fn(&str) -> bool) -> Option<Stored> {
+fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
     let missing = table_names(TABLES)
         .into_iter()
+        .filter(|table| max_version >= 4 || table != "hosted_store")
         .filter(|table| !has(table))
         .collect::<Vec<_>>();
     (!missing.is_empty()).then_some(Stored::Incomplete(missing))

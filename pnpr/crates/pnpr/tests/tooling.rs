@@ -904,6 +904,22 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
         assert!(pnpr::prepare_storage(bad).await.is_err());
         assert!(collect_archives(bad, &gc_dry).await.is_err());
         assert!(collect_archives(bad, &gc_live).await.is_err());
+        assert!(
+            pnpr::run_command(
+                bad,
+                pnpr::Command::Gc { registry: Vec::new(), dry_run: true, min_age: Duration::ZERO },
+            )
+            .await
+            .is_err(),
+        );
+        assert!(
+            pnpr::run_command(
+                bad,
+                pnpr::Command::Gc { registry: Vec::new(), dry_run: false, min_age: Duration::ZERO },
+            )
+            .await
+            .is_err(),
+        );
         assert!(verify_storage(bad, &verify_opts).await.is_err());
         assert!(
             pnpr::run_command(
