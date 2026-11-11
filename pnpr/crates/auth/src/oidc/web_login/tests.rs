@@ -129,3 +129,15 @@ async fn a_released_claim_makes_the_code_work_again() {
     state.release_web_login(&login_id);
     assert!(state.claim_web_login(&tokens.user_code).is_none());
 }
+
+#[tokio::test]
+async fn checking_a_code_does_not_claim_it() {
+    let state = oidc();
+    let code = state.create_web_login().expect("session created").user_code;
+    assert!(state.is_pending_web_login(&code.to_lowercase()));
+    assert!(state.is_pending_web_login(&code));
+    assert!(!state.is_pending_web_login("BCDF-GHJK"));
+    assert!(!state.is_pending_web_login("not a code"));
+    assert!(state.claim_web_login(&code).is_some());
+    assert!(!state.is_pending_web_login(&code));
+}

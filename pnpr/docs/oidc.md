@@ -118,7 +118,8 @@ OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls b
 to username and password authentication (`/-/user/org.couchdb.user:{name}`).
 
 The CLI prints a code, and the browser page asks for it before sending the
-browser to the provider. pnpr sends the code in an `npm-notice` header, which
+browser to the provider. When several providers declare `login:`, a second
+page asks which one to sign in with. pnpr sends the code in an `npm-notice` header, which
 `pnpm login` and `npm login` print. A code works once and expires with the
 login after five minutes. Because the login page carries no secret, a link to
 it cannot sign anyone in through an existing provider session.

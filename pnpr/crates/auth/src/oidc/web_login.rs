@@ -104,6 +104,22 @@ impl OidcState {
         Ok(WebLoginTokens { poll_token, user_code: format!("{first}-{second}") })
     }
 
+    /// Whether `user_code` belongs to an unexpired login that no browser has
+    /// claimed yet. Spelled as [`Self::claim_web_login`] accepts it.
+    pub fn is_pending_web_login(&self, user_code: &str) -> bool {
+        let Some(letters) = normalize_user_code(user_code) else {
+            return false;
+        };
+        let now = Utc::now().timestamp();
+        let logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
+        logins.code_to_login
+            .get(&super::super::sha256_hex(letters.as_bytes()))
+            .and_then(|login_id| logins.entries.get(login_id))
+            .is_some_and(|entry| {
+                entry.expires > now && matches!(entry.state, WebLoginState::Pending)
+            })
+    }
+
     /// Claims the pending web login whose user code a browser entered,
     /// returning its login ID. Case, spaces, and dashes in `user_code` are
     /// ignored. A code can be claimed once.

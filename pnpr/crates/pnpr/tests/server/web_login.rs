@@ -130,15 +130,21 @@ async fn start_login_at(app: &axum::Router, path: &str) -> (String, String, Stri
     (code, url("loginUrl"), url("doneUrl"))
 }
 
-fn submit_code(code: &str, provider: &str, site: Option<&str>) -> Request<Body> {
+fn submit_code(code: &str, provider: Option<&str>, site: Option<&str>) -> Request<Body> {
     let mut request = Request::post("/-/v1/login/device")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
     if let Some(site) = site {
         request = request.header("sec-fetch-site", site);
     }
-    request
-        .body(Body::from(format!("code={code}&provider={provider}")))
-        .unwrap()
+    let body = match provider {
+        Some(provider) => format!("code={code}&provider={provider}"),
+        None => format!("code={code}"),
+    };
+    request.body(Body::from(body)).unwrap()
+}
+
+async fn html(response: axum::response::Response) -> String {
+    String::from_utf8(body_bytes(response.into_body()).await).unwrap()
 }
 
 #[tokio::test]
@@ -231,7 +237,7 @@ async fn post_v1_login_rate_limits_excessive_requests() {
 }
 
 #[tokio::test]
-async fn the_device_page_asks_for_the_code_and_offers_each_provider() {
+async fn the_device_page_asks_only_for_the_code() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_multiple_login_providers(&storage));
     let response = app
@@ -246,10 +252,44 @@ async fn the_device_page_asks_for_the_code_and_offers_each_provider() {
     assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
     assert_eq!(response.headers()["referrer-policy"], "no-referrer");
 
-    let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    let html = html(response).await;
     assert!(html.contains(r#"<input name="code""#), "{html}");
+    assert_eq!(html.matches("<button").count(), 1, "{html}");
+    assert!(html.contains(r#"<button type="submit">Continue</button>"#), "{html}");
+}
+
+#[tokio::test]
+async fn with_several_providers_an_accepted_code_leads_to_the_provider_choice() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_multiple_login_providers(&storage));
+    let (code, _, _) = start_login_at(&app, "/-/v1/login").await;
+
+    let wrong = app
+        .clone()
+        .oneshot(submit_code("BCDF-GHJK", None, Some("same-origin")))
+        .await
+        .unwrap();
+    assert_eq!(wrong.status(), StatusCode::BAD_REQUEST);
+    assert!(html(wrong).await.contains("That code is unknown, expired, or already used."));
+
+    let accepted = app
+        .clone()
+        .oneshot(submit_code(&code.to_lowercase(), None, Some("same-origin")))
+        .await
+        .unwrap();
+    assert_eq!(accepted.status(), StatusCode::OK);
+    assert!(!accepted.headers().contains_key(header::SET_COOKIE));
+    let html = html(accepted).await;
+    assert!(html.contains("Choose where you sign in."), "{html}");
     assert!(html.contains(r#"name="provider" value="google">Sign in with google<"#), "{html}");
     assert!(html.contains(r#"name="provider" value="okta">Sign in with okta<"#), "{html}");
+    assert!(html.contains(&format!(r#"name="code" value="{}""#, code.to_lowercase())), "{html}");
+
+    let again = app
+        .oneshot(submit_code(&code, None, Some("same-origin")))
+        .await
+        .unwrap();
+    assert_eq!(again.status(), StatusCode::OK, "checking the code must not claim it");
 }
 
 #[tokio::test]
@@ -260,7 +300,7 @@ async fn the_device_page_is_absent_without_oidc_login() {
         Request::get("/-/v1/login/device")
             .body(Body::empty())
             .unwrap(),
-        submit_code("BCDF-GHJK", "company", Some("same-origin")),
+        submit_code("BCDF-GHJK", Some("company"), Some("same-origin")),
     ] {
         assert_eq!(
             app.clone()
@@ -290,12 +330,12 @@ async fn a_cli_login_cannot_be_completed_without_the_typed_code() {
     assert_eq!(direct.status(), StatusCode::BAD_REQUEST);
 
     let wrong = app
-        .oneshot(submit_code("BCDF-GHJK", "company", Some("same-origin")))
+        .oneshot(submit_code("BCDF-GHJK", Some("company"), Some("same-origin")))
         .await
         .unwrap();
     assert_eq!(wrong.status(), StatusCode::BAD_REQUEST);
     assert!(!wrong.headers().contains_key(header::SET_COOKIE));
-    let html = String::from_utf8(body_bytes(wrong.into_body()).await).unwrap();
+    let html = html(wrong).await;
     assert!(html.contains("That code is unknown, expired, or already used."), "{html}");
 }
 
@@ -305,11 +345,11 @@ async fn the_code_is_accepted_only_from_a_same_origin_form_for_a_known_provider(
     let app = router(config_with_single_login_provider(&storage));
     let (code, _, _) = start_login_at(&app, "/-/v1/login").await;
     for request in [
-        submit_code(&code, "company", None),
-        submit_code(&code, "company", Some("cross-site")),
-        submit_code(&code, "company", Some("same-site")),
-        submit_code(&code, "github", Some("same-origin")),
-        submit_code(&code, "unknown", Some("same-origin")),
+        submit_code(&code, Some("company"), None),
+        submit_code(&code, Some("company"), Some("cross-site")),
+        submit_code(&code, Some("company"), Some("same-site")),
+        submit_code(&code, Some("github"), Some("same-origin")),
+        submit_code(&code, Some("unknown"), Some("same-origin")),
     ] {
         let response = app
             .clone()
@@ -328,13 +368,13 @@ async fn code_guesses_are_rate_limited() {
     for _ in 0..20 {
         let response = app
             .clone()
-            .oneshot(submit_code("BCDF-GHJK", "company", Some("same-origin")))
+            .oneshot(submit_code("BCDF-GHJK", Some("company"), Some("same-origin")))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
     let throttled = app
-        .oneshot(submit_code("BCDF-GHJK", "company", Some("same-origin")))
+        .oneshot(submit_code("BCDF-GHJK", Some("company"), Some("same-origin")))
         .await
         .unwrap();
     assert_eq!(throttled.status(), StatusCode::TOO_MANY_REQUESTS);
@@ -345,10 +385,10 @@ async fn a_sign_in_that_cannot_start_leaves_the_code_usable() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_single_login_provider(&storage));
     let (code, _, _) = start_login_at(&app, "/-/v1/login").await;
-    for _ in 0..2 {
+    for provider in [None, Some("company")] {
         let response = app
             .clone()
-            .oneshot(submit_code(&code, "company", Some("same-origin")))
+            .oneshot(submit_code(&code, provider, Some("same-origin")))
             .await
             .unwrap();
         assert!(response.status().is_server_error(), "{}", response.status());
