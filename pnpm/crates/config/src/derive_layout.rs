@@ -181,6 +181,8 @@ impl Config {
             .is_some_and(|lockfile_dir| self.lockfile_dir_is_default(lockfile_dir, start_dir));
         if lockfile_dir_is_default {
             self.lockfile_dir = None;
+            let default_dir = self.default_lockfile_dir_for(start_dir).to_path_buf();
+            self.anchor_lockfile_paths(&default_dir);
         }
 
         // A pinned `lockfileDir` moves the root `node_modules` and the
