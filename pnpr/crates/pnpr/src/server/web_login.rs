@@ -128,46 +128,60 @@ pub(crate) async fn post_v1_login_device(
     if providers.is_empty() {
         return not_found();
     }
-    if let Err(refusal) = admit_device_request(&state, &headers, client_ip, peer_addr) {
+    let (ip_address, peer_ip) = resolve_rate_limit_ips(client_ip, peer_addr);
+    if let Err(refusal) = admit_device_request(&state, &headers, ip_address, peer_ip) {
         return refusal;
     }
     let form = DeviceForm::parse(&body);
     let code = form.code.unwrap_or_default();
     let oidc = &state.inner.identity.oidc;
-    let provider = match (form.provider, providers.as_slice()) {
-        (None, [only]) => only.name.clone(),
-        (None, _) if oidc.is_pending_web_login(&code) => {
-            return provider_page(StatusCode::OK, &providers, &code, None);
-        }
-        (None, _) => return code_page(StatusCode::BAD_REQUEST, Some(UNUSABLE_CODE)),
+    if !oidc.is_pending_web_login(&code) {
+        state.inner.identity.login_rate_limiter.record_wrong_web_login_code(ip_address, peer_ip);
+        return code_page(StatusCode::BAD_REQUEST, Some(UNUSABLE_CODE));
+    }
+    match choose_provider(form.provider, &providers, &code) {
+        Ok(provider) => sign_in_with_code(oidc, &providers, &provider, &code).await,
+        Err(page) => page,
+    }
+}
+
+/// The provider to sign in with: the one the form names, or the only one
+/// configured. `Err` is the page to show instead, which asks for a provider
+/// when there are several and none was chosen.
+fn choose_provider(
+    chosen: Option<String>,
+    providers: &[&pnpr_config::oidc::OidcProvider],
+    code: &str,
+) -> Result<String, Response> {
+    match (chosen, providers) {
+        (None, [only]) => Ok(only.name.clone()),
+        (None, _) => Err(provider_page(StatusCode::OK, providers, code, None)),
         (Some(provider), _)
             if providers
                 .iter()
                 .any(|known| known.name == provider) =>
         {
-            provider
+            Ok(provider)
         }
-        (Some(_), _) => return bad_request("unknown sign-in provider"),
-    };
-    sign_in_with_code(oidc, &providers, &provider, &code).await
+        (Some(_), _) => Err(bad_request("unknown sign-in provider")),
+    }
 }
 
-/// Refuse a code submission that did not come from pnpr's own page, or that
-/// exceeds the web login rate limit.
+/// Refuse a code submission that did not come from pnpr's own page, or from
+/// a client that entered too many wrong codes.
 fn admit_device_request(
     state: &AppState,
     headers: &HeaderMap,
-    client_ip: ClientIpExtension,
-    peer_addr: PeerAddrExtension,
+    ip_address: Option<IpAddr>,
+    peer_ip: Option<IpAddr>,
 ) -> Result<(), Response> {
     if !is_same_origin_request(headers) {
         return Err(bad_request(
             "submit the code from the sign-in page, opened over HTTPS or on localhost",
         ));
     }
-    let (ip_address, peer_ip) = resolve_rate_limit_ips(client_ip, peer_addr);
     state.inner.identity.login_rate_limiter
-        .check_and_record_web_login(ip_address, peer_ip)
+        .check_web_login_code(ip_address, peer_ip)
         .map_err(|retry_after| super::user_accounts::login_throttled_response(state, retry_after))
 }
 

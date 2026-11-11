@@ -168,3 +168,18 @@ async fn a_sign_in_that_cannot_start_leaves_the_code_usable() {
         assert!(html.contains("The sign-in provider is not reachable."), "{html}");
     }
 }
+
+#[tokio::test]
+async fn accepted_codes_do_not_use_up_the_guess_limit() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_multiple_login_providers(&storage));
+    for _ in 0..15 {
+        let (code, _, _) = start_login_at(&app, "/-/v1/login").await;
+        let response = app
+            .clone()
+            .oneshot(submit_code(&code, None, Some("same-origin")))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+}

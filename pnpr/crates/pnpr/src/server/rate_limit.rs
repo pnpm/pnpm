@@ -14,6 +14,7 @@ enum RateLimitKey {
     IpUser(IpAddr, String),
     User(String),
     WebLogin(Option<IpAddr>),
+    WrongWebLoginCode(Option<IpAddr>),
 }
 
 const MAX_WEB_LOGIN_RECORDS: usize = 1024;
@@ -242,18 +243,57 @@ impl LoginRateLimiter {
         }
 
         for key in keys {
-            inner.map
-                .entry(key)
-                .and_modify(|record| {
-                    if now.duration_since(record.first_attempt) >= self.window {
-                        record.count = 1;
-                        record.first_attempt = now;
-                    } else {
-                        record.count += 1;
-                    }
-                })
-                .or_insert(AttemptRecord { count: 1, first_attempt: now });
+            self.count_attempt(&mut inner.map, key, now);
         }
+    }
+
+    fn count_attempt(
+        &self,
+        map: &mut HashMap<RateLimitKey, AttemptRecord>,
+        key: RateLimitKey,
+        now: Instant,
+    ) {
+        map.entry(key)
+            .and_modify(|record| {
+                if now.duration_since(record.first_attempt) >= self.window {
+                    record.count = 1;
+                    record.first_attempt = now;
+                } else {
+                    record.count += 1;
+                }
+            })
+            .or_insert(AttemptRecord { count: 1, first_attempt: now });
+    }
+
+    /// Refuse a web login code submission from a client that entered too many
+    /// codes that matched no pending login. Accepted codes do not count, so
+    /// people behind one address can sign in without throttling each other.
+    /// The client is identified as in [`Self::check_and_record_web_login`].
+    pub(crate) fn check_web_login_code(
+        &self,
+        client_ip: Option<IpAddr>,
+        peer_ip: Option<IpAddr>,
+    ) -> Result<(), u64> {
+        let now = Instant::now();
+        let inner = self.records.lock().unwrap();
+        let key = RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip));
+        self.check_key(&inner.map, &key, self.max_ip_attempts, now)
+    }
+
+    /// Count a web login code that matched no pending login.
+    pub(crate) fn record_wrong_web_login_code(
+        &self,
+        client_ip: Option<IpAddr>,
+        peer_ip: Option<IpAddr>,
+    ) {
+        let now = Instant::now();
+        let mut inner = self.records.lock().unwrap();
+        self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
+        self.count_attempt(
+            &mut inner.map,
+            RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)),
+            now,
+        );
     }
 
     /// Clear failure count for `(client_ip, username)` or `username` on successful authentication.
