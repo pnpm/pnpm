@@ -17,9 +17,17 @@ async fn prune_orphan_entry(
     if active.contains(&ns) {
         return Ok(());
     }
-    let (count, bytes) = count_dir_contents(&entry.path()).await?;
+    remove_orphan_dir(&entry.path(), effect, report).await
+}
+
+async fn remove_orphan_dir(
+    path: &Path,
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) -> Result<()> {
+    let (count, bytes) = count_dir_contents(path).await?;
     match effect {
-        CacheGcEffect::Apply => fs::remove_dir_all(entry.path()).await?,
+        CacheGcEffect::Apply => fs::remove_dir_all(path).await?,
         CacheGcEffect::DryRun => {}
     }
     report.namespaces_removed += 1;
@@ -51,16 +59,104 @@ async fn prune_orphan_prefix(
     }
 }
 
-/// Prune any namespaces under `~upstreams/` or `~public/` not present in `active`.
+/// Prune orphaned `~upstreams/` and `~public/` namespaces, and purge private
+/// resolver cache scopes when the cache secret rotated.
 pub(super) async fn prune_orphaned_namespaces(
     cache_dir: &Path,
     active: &HashSet<String>,
+    prune_private_resolver: bool,
     effect: CacheGcEffect,
 ) -> Result<CacheReport> {
     let mut report = CacheReport::default();
     prune_orphan_prefix(cache_dir, "~upstreams", active, effect, &mut report).await;
     prune_orphan_prefix(cache_dir, "~public", active, effect, &mut report).await;
+    if prune_private_resolver {
+        prune_private_resolver_scopes(cache_dir, effect, &mut report).await;
+    }
     Ok(report)
+}
+
+#[derive(Clone, Copy)]
+enum ScopeFilter {
+    All,
+    PrivateOnly,
+}
+
+async fn prune_private_resolver_scopes(
+    cache_dir: &Path,
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) {
+    let npm_private = cache_dir.join("resolver-cache/v12/metadata-private");
+    prune_child_dirs(&npm_private, ScopeFilter::All, effect, report).await;
+    for index_rel in ["resolver-cache/cargo-index", "resolver-cache/python-index"] {
+        prune_indexed_private_scopes(&cache_dir.join(index_rel), effect, report).await;
+    }
+}
+
+async fn prune_indexed_private_scopes(
+    index_root: &Path,
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) {
+    if !is_real_dir(index_root).await {
+        return;
+    }
+    let Ok(mut registries) = fs::read_dir(index_root).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = registries.next_entry().await {
+        if entry
+            .file_type()
+            .await
+            .is_ok_and(|ft| ft.is_dir() && !ft.is_symlink())
+        {
+            prune_child_dirs(&entry.path(), ScopeFilter::PrivateOnly, effect, report).await;
+        }
+    }
+}
+
+async fn prune_child_dirs(
+    parent: &Path,
+    filter: ScopeFilter,
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) {
+    if !is_real_dir(parent).await {
+        return;
+    }
+    let Ok(mut entries) = fs::read_dir(parent).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        prune_child_entry(&entry, filter, effect, report).await;
+    }
+}
+
+async fn prune_child_entry(
+    entry: &tokio::fs::DirEntry,
+    filter: ScopeFilter,
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) {
+    if !entry
+        .file_type()
+        .await
+        .is_ok_and(|ft| ft.is_dir() && !ft.is_symlink())
+    {
+        return;
+    }
+    if matches!(filter, ScopeFilter::PrivateOnly) && entry.file_name() == "public" {
+        return;
+    }
+    if let Err(err) = remove_orphan_dir(&entry.path(), effect, report).await {
+        tracing::warn!(error = %err, path = %entry.path().display(), "orphan resolver scope cleanup failed");
+    }
+}
+
+async fn is_real_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path).await
+        .is_ok_and(|meta| meta.is_dir() && !meta.file_type().is_symlink())
 }
 
 async fn process_count_entry(

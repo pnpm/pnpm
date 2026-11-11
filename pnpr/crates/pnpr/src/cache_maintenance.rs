@@ -15,7 +15,8 @@ use inventory::{
 };
 use orphans::prune_orphaned_namespaces;
 use sqlite::{
-    expire_verdict_rows, prune_store_index_digests, resolver_sqlite_bytes, trim_verdict_db_to_fit,
+    VerdictExpiry, expire_verdict_rows, prune_store_index_digests, resolver_sqlite_bytes,
+    trim_verdict_db_to_fit,
 };
 use std::{
     collections::HashSet,
@@ -53,7 +54,7 @@ pub enum CacheGcScope {
     /// whole cache directory.
     #[default]
     Full,
-    /// Prune orphaned upstream namespaces only, leaving active entries in place.
+    /// Prune orphaned upstream and resolver namespaces only, leaving active entries in place.
     OrphansOnly,
 }
 
@@ -84,6 +85,7 @@ struct EvictionState {
     retained_bytes: u64,
     non_evictable_bytes: u64,
     removed_cas_digests: HashSet<String>,
+    verdict_expiry: Option<VerdictExpiry>,
 }
 
 /// The set of active upstream and tar-variant cache namespaces.
@@ -123,29 +125,50 @@ async fn sweep_staging_cache(
     }
 }
 
+async fn should_prune_private_resolver_scopes(cache_dir: &Path, config: &Config) -> bool {
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    match fs::read_to_string(&marker).await {
+        Ok(stored) => {
+            let trimmed = stored.trim();
+            !trimmed.is_empty() && trimmed != fingerprint
+        }
+        Err(_) => !config.has_configured_secret,
+    }
+}
+
+async fn sync_configured_cache_marker(config: &Config, effect: CacheGcEffect) -> Result<()> {
+    if !config.has_configured_secret || !matches!(effect, CacheGcEffect::Apply) {
+        return Ok(());
+    }
+    let cache_dir = &config.storage.cache_dir;
+    if !fs::try_exists(cache_dir).await.unwrap_or(false) {
+        return Ok(());
+    }
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await
+}
+
 /// Run a complete cache collection pass according to the given options.
 pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<CacheReport> {
+    let cache_dir = &config.storage.cache_dir;
     let active = active_cache_namespaces(config);
+    let prune_private = should_prune_private_resolver_scopes(cache_dir, config).await;
     let mut report =
-        prune_orphaned_namespaces(&config.storage.cache_dir, &active, options.effect).await?;
-    match options.scope {
-        CacheGcScope::OrphansOnly => return Ok(report),
-        CacheGcScope::Full => {}
+        prune_orphaned_namespaces(cache_dir, &active, prune_private, options.effect).await?;
+    sync_configured_cache_marker(config, options.effect).await?;
+    if matches!(options.scope, CacheGcScope::OrphansOnly) {
+        return Ok(report);
     }
-    let staging = sweep_staging_cache(
-        &config.storage.cache_dir,
-        archive_staging_max_age(config),
-        options.effect,
-    )
-    .await;
+    let staging =
+        sweep_staging_cache(cache_dir, archive_staging_max_age(config), options.effect).await;
     report.files_evicted += staging.files;
     report.bytes_reclaimed += staging.bytes;
     let max_age = options.max_age.or(config.storage.cache.max_age);
     let max_size = options.max_size.or(config.storage.cache.max_size);
     if max_age.is_some() || max_size.is_some() {
-        let ev =
-            evict_and_prune_cache(&config.storage.cache_dir, max_age, max_size, options.effect)
-                .await?;
+        let ev = evict_and_prune_cache(cache_dir, max_age, max_size, options.effect).await?;
         report.files_evicted += ev.files_evicted;
         report.bytes_reclaimed += ev.bytes_reclaimed;
     }
@@ -213,7 +236,10 @@ async fn evict_file_if_expired(
     state: &mut EvictionState,
 ) {
     if is_cache_tmp_file(cache_dir, &file.path) {
-        if is_abandoned_tmp_age(file.age) && counts_as_removed(state.effect, &file.path).await {
+        if !pnpr_storage::is_active_blob_temp(&file.path)
+            && is_abandoned_tmp_age(file.age)
+            && counts_as_removed(state.effect, &file.path).await
+        {
             state.report.files_evicted += 1;
             state.report.bytes_reclaimed += file.size;
         } else {
@@ -253,9 +279,12 @@ async fn evict_cache(
         retained_bytes: 0,
         non_evictable_bytes: inv.non_evictable_bytes,
         removed_cas_digests: HashSet::new(),
+        verdict_expiry: None,
     };
     if let Some(ttl) = max_age {
-        state.report.bytes_reclaimed += expire_verdict_rows(cache_dir, ttl, effect).await;
+        let expiry = expire_verdict_rows(cache_dir, ttl, effect).await;
+        state.report.bytes_reclaimed += expiry.reclaimed_bytes;
+        state.verdict_expiry = Some(expiry);
     }
     for file in inv.files {
         evict_file_if_expired(cache_dir, file, max_age, &mut state).await;
@@ -275,7 +304,11 @@ async fn flush_removed_cas_digests(cache_dir: &Path, state: &mut EvictionState) 
 }
 
 async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionState) {
-    let sqlite_bytes = resolver_sqlite_bytes(cache_dir).await;
+    let dry_expired = match (state.effect, &state.verdict_expiry) {
+        (CacheGcEffect::DryRun, Some(exp)) => exp.reclaimed_bytes,
+        _ => 0,
+    };
+    let sqlite_bytes = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
     let mut total_size = state.non_evictable_bytes + sqlite_bytes + state.retained_bytes;
     if total_size <= limit {
         return;
@@ -291,11 +324,12 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
         }
     }
     flush_removed_cas_digests(cache_dir, state).await;
-    let updated_sqlite = resolver_sqlite_bytes(cache_dir).await;
+    let updated_sqlite = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
     let remaining_total = total_size.saturating_sub(sqlite_bytes).saturating_add(updated_sqlite);
     if remaining_total > limit {
+        let floor = state.verdict_expiry.as_ref().map(|exp| exp.cutoff_ms);
         state.report.bytes_reclaimed +=
-            trim_verdict_db_to_fit(cache_dir, remaining_total - limit, state.effect).await;
+            trim_verdict_db_to_fit(cache_dir, remaining_total - limit, floor, state.effect).await;
     }
 }
 

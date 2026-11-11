@@ -13,6 +13,7 @@ to the public npm registry:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+secret: replace-with-a-random-32-byte-secret
 
 auth:
   users:

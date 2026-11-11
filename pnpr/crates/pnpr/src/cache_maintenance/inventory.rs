@@ -14,8 +14,8 @@ enum DirPolicy {
 
 /// Walk `cache_dir` and classify regular files into eviction candidates and
 /// non-evictable live overhead (`layout.json`, `.cache-secret`, in-flight
-/// staging/replay uploads, and `shared-artifacts`). SQLite databases under
-/// `resolver-cache` and `resolver-store` are accounted separately.
+/// staging/replay/blob uploads, and `shared-artifacts`). SQLite databases
+/// under `resolver-cache` and `resolver-store` are accounted separately.
 pub(super) async fn inventory_cache_dir(cache_dir: &Path) -> Result<CacheInventory> {
     let mut inventory = CacheInventory { files: Vec::new(), non_evictable_bytes: 0 };
     let Ok(mut root_entries) = fs::read_dir(cache_dir).await else {
@@ -57,7 +57,7 @@ fn root_dir_policy(name: &OsStr) -> DirPolicy {
     };
     match raw {
         "lost+found" => DirPolicy::Skip,
-        ".staging" | ".publish-replay" | "shared-artifacts" => DirPolicy::CountOnly,
+        ".staging" | ".publish-replay" | ".uploads" | "shared-artifacts" => DirPolicy::CountOnly,
         _ => DirPolicy::Evictable,
     }
 }
@@ -166,10 +166,13 @@ fn is_sqlite_family(file: &str, base: &str) -> bool {
 }
 
 pub(super) fn is_cache_tmp_file(cache_dir: &Path, path: &Path) -> bool {
+    if pnpr_storage::is_atomic_write_temp_path(path) {
+        return true;
+    }
     if path
         .file_name()
         .and_then(OsStr::to_str)
-        .is_some_and(|name| name.starts_with(".tmp"))
+        .is_some_and(|name| name.starts_with(".tmp") || is_mirror_temp_name(name))
     {
         return true;
     }
@@ -185,6 +188,21 @@ pub(super) fn is_cache_tmp_file(cache_dir: &Path, path: &Path) -> bool {
         ["resolver-store", _, "files", file] => file.starts_with("stream"),
         _ => false,
     }
+}
+
+fn is_mirror_temp_name(name: &str) -> bool {
+    let Some(stem) = name.strip_suffix(".tmp") else {
+        return false;
+    };
+    let mut parts = stem.rsplitn(3, '.');
+    let (Some(counter), Some(pid), Some(base)) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    !base.is_empty()
+        && !pid.is_empty()
+        && pid.bytes().all(|byte| byte.is_ascii_digit())
+        && !counter.is_empty()
+        && counter.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 pub(super) fn cas_digest_of_store_file(cache_dir: &Path, path: &Path) -> Option<String> {

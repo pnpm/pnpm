@@ -31,6 +31,7 @@ pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
         storage.ensure_hosted_layout().await?;
         super::release_record_logs::reconcile_configured_logs(&storage, config).await?;
     }
+    claim_ephemeral_cache_dir(config).await?;
     storage.reset_cache_from_other_layout().await
 }
 
@@ -141,16 +142,40 @@ fn report_staged_archive_sweep(swept: usize) {
     }
 }
 
-async fn claim_cache_dir(config: &Config) -> pnpr_error::Result<()> {
+enum EphemeralMarkerState {
+    Created,
+    MatchedExisting,
+}
+
+async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
+    if config.has_configured_secret {
+        return Ok(());
+    }
     let cache_dir = &config.storage.cache_dir;
     tokio::fs::create_dir_all(cache_dir).await?;
     let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
     let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
-    if config.has_configured_secret {
-        return pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await;
+    match write_ephemeral_cache_marker(&marker, &fingerprint).await? {
+        EphemeralMarkerState::MatchedExisting => Ok(()),
+        EphemeralMarkerState::Created => {
+            if let Err(err) = ensure_only_ephemeral_entries(cache_dir).await {
+                let _ = tokio::fs::remove_file(&marker).await;
+                return Err(err);
+            }
+            Ok(())
+        }
     }
-    ensure_only_ephemeral_entries(cache_dir).await?;
-    write_ephemeral_cache_marker(&marker, &fingerprint).await
+}
+
+async fn write_configured_cache_marker(config: &Config) -> pnpr_error::Result<()> {
+    if !config.has_configured_secret {
+        return Ok(());
+    }
+    let cache_dir = &config.storage.cache_dir;
+    tokio::fs::create_dir_all(cache_dir).await?;
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await
 }
 
 async fn ensure_only_ephemeral_entries(cache_dir: &std::path::Path) -> pnpr_error::Result<()> {
@@ -167,7 +192,7 @@ async fn ensure_only_ephemeral_entries(cache_dir: &std::path::Path) -> pnpr_erro
 async fn write_ephemeral_cache_marker(
     marker: &std::path::Path,
     fingerprint: &str,
-) -> pnpr_error::Result<()> {
+) -> pnpr_error::Result<EphemeralMarkerState> {
     use tokio::io::AsyncWriteExt as _;
     match tokio::fs::OpenOptions::new()
         .write(true)
@@ -178,11 +203,15 @@ async fn write_ephemeral_cache_marker(
         Ok(mut file) => {
             file.write_all(fingerprint.as_bytes()).await?;
             file.flush().await?;
-            Ok(())
+            Ok(EphemeralMarkerState::Created)
         }
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
             let stored = tokio::fs::read_to_string(marker).await.unwrap_or_default();
-            if stored.trim() == fingerprint { Ok(()) } else { Err(persistent_cache_secret_error()) }
+            if stored.trim() == fingerprint {
+                Ok(EphemeralMarkerState::MatchedExisting)
+            } else {
+                Err(persistent_cache_secret_error())
+            }
         }
         Err(err) => Err(err.into()),
     }
@@ -220,10 +249,11 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
     crate::config_validation::validate_startup_config(&mut config)?;
-    claim_cache_dir(&config).await?;
+    claim_ephemeral_cache_dir(&config).await?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
+    write_configured_cache_marker(&config).await?;
     let listen = config.http.listen;
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
@@ -339,13 +369,15 @@ pub async fn serve_listener_with(
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
     crate::config_validation::validate_startup_config(&mut config)?;
-    claim_cache_dir(&config).await?;
+    claim_ephemeral_cache_dir(&config).await?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
+    write_configured_cache_marker(&config).await?;
+    crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let (state, app) = state_and_router(config, auth, osv_index)?;
     let metrics = bind_metrics_listener(state).await?;
     tracing::info!(%listen, "pnpr listening");

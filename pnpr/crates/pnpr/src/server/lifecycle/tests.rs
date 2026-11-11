@@ -270,4 +270,5 @@ async fn default_osv_dir_in_unmarked_hosted_store_passes_layout_check() {
     super::prepare_storage(&config).await.unwrap();
     assert!(storage_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists());
     assert!(osv_path.exists());
+    let _router = crate::try_router(config).unwrap();
 }

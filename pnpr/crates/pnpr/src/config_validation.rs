@@ -26,7 +26,7 @@ pub(crate) fn validate_startup_config(config: &mut Config) -> Result<()> {
     Ok(())
 }
 
-fn validate_cache_secret(config: &Config) -> Result<()> {
+pub(crate) fn validate_cache_secret(config: &Config) -> Result<()> {
     if config.has_configured_secret {
         return Ok(());
     }
@@ -47,16 +47,16 @@ fn validate_ephemeral_cache_dir(cache_dir: &Path, cache_secret: &[u8]) -> Result
     match fs::read_to_string(&marker) {
         Ok(stored) if stored.trim() == cache_secret_fingerprint(cache_secret) => return Ok(()),
         Ok(_) => return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
-        Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
-        Err(_) => return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+        Err(err) if err.kind() == ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
     }
-    let Ok(entries) = fs::read_dir(cache_dir) else {
-        return Ok(());
+    let entries = match fs::read_dir(cache_dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
     };
     for entry in entries {
-        let Ok(entry) = entry else {
-            return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
-        };
+        let entry = entry?;
         if entry.file_name() != "lost+found" {
             return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
         }

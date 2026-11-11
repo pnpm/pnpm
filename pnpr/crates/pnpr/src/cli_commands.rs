@@ -280,6 +280,7 @@ async fn run_cache_gc(
     max_age_secs: Option<u64>,
     scope: CacheGcScope,
 ) -> miette::Result<()> {
+    crate::config_validation::validate_cache_secret(config).map_err(|err| redacted_report(&err))?;
     let max_size = if let Some(raw) = max_size.as_deref() {
         Some(pnpr_config::parse_byte_size(raw).ok_or_else(|| {
             miette::miette!(

@@ -556,3 +556,242 @@ async fn cache_max_size_accounts_for_non_evictable_shared_artifacts_overhead() {
     assert!(!older_cache.exists(), "shared-artifacts bytes count toward cache.maxSize");
     assert!(newer_cache.exists());
 }
+
+#[tokio::test]
+async fn uploads_scratch_dir_is_preserved_and_counted_toward_max_size() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+
+    let upload_scratch = cache_dir.join(".uploads/chunk-1");
+    create_file_with_age(&upload_scratch, &vec![0xAA; 1200], Duration::from_hours(3));
+    let empty_uploads_sub = cache_dir.join(".uploads/empty-session");
+    std::fs::create_dir_all(&empty_uploads_sub).unwrap();
+
+    let older_cache = cache_dir.join("resolver-cache/v11/metadata-full/old.json");
+    create_file_with_age(&older_cache, &vec![0xBB; 600], Duration::from_mins(10));
+    let newer_cache = cache_dir.join("resolver-cache/v11/metadata-full/new.json");
+    create_file_with_age(&newer_cache, &vec![0xCC; 600], Duration::from_mins(1));
+
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::Apply,
+        max_size: Some(1900),
+        max_age: Some(Duration::from_hours(2)),
+        scope: CacheGcScope::Full,
+    };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.files_evicted, 1);
+    assert!(upload_scratch.exists(), ".uploads scratch must not be evicted before UPLOAD_MAX_AGE");
+    assert!(empty_uploads_sub.exists(), ".uploads dirs must not be pruned by cache eviction");
+    assert!(!older_cache.exists());
+    assert!(newer_cache.exists());
+}
+
+#[tokio::test]
+async fn rotating_secret_prunes_private_resolver_scopes_and_updates_marker() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let storage = tmp.path().join("storage");
+    let cache = tmp.path().join("cache");
+    std::fs::create_dir_all(&cache).unwrap();
+
+    let old_cfg_path = tmp.path().join("old.yaml");
+    std::fs::write(
+        &old_cfg_path,
+        format!(
+            "storage: {}\ncache: {}\nsecret: old-secret-32-bytes-long-0000001\n",
+            storage.display(),
+            cache.display(),
+        ),
+    )
+    .unwrap();
+    let old_config = Config::from_yaml(&old_cfg_path, listen, None).unwrap();
+    std::fs::write(
+        cache.join(pnpr_config::CACHE_SECRET_MARKER),
+        pnpr_config::cache_secret_fingerprint(&old_config.cache_secret),
+    )
+    .unwrap();
+
+    let npm_priv = cache.join("resolver-cache/v12/metadata-private/old-desc/pkg.jsonl");
+    let cargo_priv = cache.join("resolver-cache/cargo-index/reg1/old-desc/se/rd/serde");
+    let cargo_pub = cache.join("resolver-cache/cargo-index/reg1/public/se/rd/serde");
+    let py_priv = cache.join("resolver-cache/python-index/idx1/old-desc/pkg.json");
+    let py_pub = cache.join("resolver-cache/python-index/idx1/public/pkg.json");
+    for path in [&npm_priv, &cargo_priv, &cargo_pub, &py_priv, &py_pub] {
+        create_file_with_age(path, b"{}", Duration::from_secs(10));
+    }
+
+    let new_cfg_path = tmp.path().join("new.yaml");
+    std::fs::write(
+        &new_cfg_path,
+        format!(
+            "storage: {}\ncache: {}\nsecret: new-secret-32-bytes-long-0000002\n",
+            storage.display(),
+            cache.display(),
+        ),
+    )
+    .unwrap();
+    let new_config = Config::from_yaml(&new_cfg_path, listen, None).unwrap();
+
+    let dry_report = collect_cache(
+        &new_config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::DryRun,
+            max_size: None,
+            max_age: None,
+            scope: CacheGcScope::OrphansOnly,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(dry_report.namespaces_removed, 3);
+    assert!(npm_priv.exists(), "dry-run must keep files and old marker intact");
+
+    let apply_report = collect_cache(
+        &new_config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: None,
+            max_age: None,
+            scope: CacheGcScope::OrphansOnly,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(apply_report.namespaces_removed, 3);
+    assert!(!npm_priv.exists());
+    assert!(!cargo_priv.exists());
+    assert!(!py_priv.exists());
+    assert!(cargo_pub.exists(), "public cargo index stays intact across secret rotation");
+    assert!(py_pub.exists(), "public python index stays intact across secret rotation");
+    let stored_marker =
+        std::fs::read_to_string(cache.join(pnpr_config::CACHE_SECRET_MARKER)).unwrap();
+    assert_eq!(
+        stored_marker.trim(),
+        pnpr_config::cache_secret_fingerprint(&new_config.cache_secret),
+    );
+}
+
+#[tokio::test]
+async fn verdict_db_trim_does_not_wipe_all_rows_under_concurrent_wal_reader_and_dry_run_makes_no_shm()
+ {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    let verdict_db = cache_dir.join("resolver-cache/lockfile-verdicts.sqlite");
+    std::fs::create_dir_all(verdict_db.parent().unwrap()).unwrap();
+
+    let writer = Connection::open(&verdict_db).unwrap();
+    writer
+        .execute_batch(
+            "PRAGMA journal_mode = WAL;
+             CREATE TABLE lockfile_verdicts (
+                 hash TEXT PRIMARY KEY,
+                 policy TEXT NOT NULL,
+                 verified_at_ms INTEGER NOT NULL
+             );",
+        )
+        .unwrap();
+    let now_ms = i64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap();
+    let big_policy = format!(r#"{{"note":"{}"}}"#, "x".repeat(512));
+    for idx in 0..40_i64 {
+        writer
+            .execute(
+                "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+                rusqlite::params![
+                    format!("hash-{idx:04}"),
+                    &big_policy,
+                    now_ms - (40 - idx) * 1000
+                ],
+            )
+            .unwrap();
+    }
+    writer.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+    drop(writer);
+
+    let shm_path = cache_dir.join("resolver-cache/lockfile-verdicts.sqlite-shm");
+    assert!(!shm_path.exists());
+    let db_len = std::fs::metadata(&verdict_db).unwrap().len();
+    assert!(db_len > 20 * 1024);
+
+    let _dry = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::DryRun,
+            max_size: Some(db_len - 4096),
+            max_age: Some(Duration::from_secs(20)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(!shm_path.exists(), "dry-run must not create a -shm sidecar on a clean WAL DB");
+
+    let reader = Connection::open(&verdict_db).unwrap();
+    let read_tx = reader.unchecked_transaction().unwrap();
+    let initial_count: i64 = read_tx
+        .query_row("SELECT COUNT(*) FROM lockfile_verdicts", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(initial_count, 40);
+
+    let _apply = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: Some(db_len - 1024),
+            max_age: None,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    read_tx.finish().unwrap();
+    drop(reader);
+
+    let verify_conn = Connection::open(&verdict_db).unwrap();
+    let remaining: i64 = verify_conn
+        .query_row("SELECT COUNT(*) FROM lockfile_verdicts", [], |row| row.get(0))
+        .unwrap();
+    assert!(
+        remaining > 10 && remaining < 40,
+        "expected partial single-pass trim under concurrent WAL reader, got {remaining} rows",
+    );
+}
+
+#[tokio::test]
+async fn cli_cache_gc_rejects_unconfigured_secret_on_populated_persistent_cache() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let mut config = Config::from_default_yaml(tmp.path(), listen, None);
+    config.storage.hosted_dir = tmp.path().join("storage");
+    config.storage.cache_dir = tmp.path().join("cache");
+    config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(
+        pnpr_config::default_metadata_path(&config.storage.hosted_dir),
+    );
+
+    let active_file = config.storage.cache_dir.join("~upstreams/existing-secret/pkg/doc.json");
+    create_file_with_age(&active_file, b"{}", Duration::from_secs(10));
+
+    let err = pnpr::run_command(
+        &config,
+        pnpr::Command::CacheGc {
+            dry_run: false,
+            max_size: None,
+            max_age: None,
+            orphans_only: true,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        err.to_string().contains("`secret` or `secrets.cache` must be configured"),
+        "unexpected error: {err}",
+    );
+    assert!(active_file.exists(), "populated private cache must not be wiped on missing secret");
+}

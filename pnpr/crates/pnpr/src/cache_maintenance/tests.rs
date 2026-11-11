@@ -40,9 +40,21 @@ fn abandoned_tmp_identifies_stale_tmp_files() {
 fn cache_tmp_file_matches_proxy_and_resolver_store_temps() {
     let cache = Path::new("/cache");
     assert!(is_cache_tmp_file(cache, Path::new("/cache/~public/h/pkg/.tmp.99")));
+    assert!(is_cache_tmp_file(
+        cache,
+        &pnpr_storage::unique_tmp_path(Path::new("/cache/~public/h/pkg/document.json")),
+    ));
+    assert!(is_cache_tmp_file(
+        cache,
+        Path::new("/cache/resolver-cache/v12/metadata/registry.npmjs.org/pkg.jsonl.4321.7.tmp"),
+    ));
     assert!(is_cache_tmp_file(cache, Path::new("/cache/resolver-store/v11/tmp/_tmp_7_2")));
     assert!(is_cache_tmp_file(cache, Path::new("/cache/resolver-store/v11/files/stream_7_2")));
     assert!(!is_cache_tmp_file(cache, Path::new("/cache/resolver-store/v11/files/ab/cd1234")));
+    assert!(!is_cache_tmp_file(
+        cache,
+        Path::new("/cache/resolver-cache/v12/metadata/registry.npmjs.org/pkg.jsonl"),
+    ));
 }
 
 #[test]

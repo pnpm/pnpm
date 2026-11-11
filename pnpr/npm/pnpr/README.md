@@ -32,7 +32,9 @@ pnpm add -g @pnpm/pnpr@next,@pnpm/pnpr-ui@next
 
 ## Usage
 
-Start the server with the bundled default config:
+Start the server for a single ephemeral run with the bundled default config
+(configure `secret` in a `pnpr.yaml` file to reuse `.pnpr-cache` across
+restarts):
 
 ```sh
 pnpr
