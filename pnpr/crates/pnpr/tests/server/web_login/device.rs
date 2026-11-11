@@ -41,7 +41,7 @@ async fn with_several_providers_an_accepted_code_leads_to_the_provider_choice() 
         .await
         .unwrap();
     assert_eq!(wrong.status(), StatusCode::BAD_REQUEST);
-    assert!(html(wrong).await.contains("That code is unknown, expired, or already used."));
+    assert!(html(wrong).await.contains("That code does not match a pending sign-in."));
 
     let accepted = app
         .clone()
@@ -107,7 +107,7 @@ async fn a_cli_login_cannot_be_completed_without_the_typed_code() {
     assert_eq!(wrong.status(), StatusCode::BAD_REQUEST);
     assert!(!wrong.headers().contains_key(header::SET_COOKIE));
     let html = html(wrong).await;
-    assert!(html.contains("That code is unknown, expired, or already used."), "{html}");
+    assert!(html.contains("That code does not match a pending sign-in."), "{html}");
 }
 
 #[tokio::test]

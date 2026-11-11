@@ -12,8 +12,8 @@ use sha2::{Digest as _, Sha256};
 
 use super::super::oidc::protect;
 
-pub(super) const UNUSABLE_CODE: &str =
-    "That code is unknown, expired, or already used. Run the login command again.";
+pub(super) const UNUSABLE_CODE: &str = "That code does not match a pending sign-in. Check the code in your terminal and try again. \
+     If it expired or was already used, run the login command again.";
 pub(super) const PROVIDER_UNAVAILABLE: &str =
     "The sign-in provider is not reachable. Try again in a moment.";
 
