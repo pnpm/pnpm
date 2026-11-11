@@ -69,7 +69,7 @@ impl Config {
         {
             return;
         }
-        let Some(node_path) = self.extra_env.get("NODE_PATH") else { return };
+        let Some(node_path) = self.extra_env.get("NODE_PATH").cloned() else { return };
         let delimiter = if cfg!(windows) { ';' } else { ':' };
         let previous_paths =
             previous_dirs.map(|dir| pnpm_fs::lexical_normalize(dir).display().to_string());
