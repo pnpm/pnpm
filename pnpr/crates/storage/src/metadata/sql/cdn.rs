@@ -40,7 +40,7 @@ impl Storage {
             let transaction = WriteTransaction::begin(connection)?;
             transaction.execute(
                 "INSERT INTO registry_records (kind, name, generation, body)
-                 VALUES (?1, 'default', 0, ?2) ON CONFLICT (kind, name) DO NOTHING",
+                 VALUES (?1, 'default', 0, ?2) ON CONFLICT DO NOTHING",
                 params![SUBSCRIPTION, &target],
             )?;
             let mut registered = transaction.query_optional(
