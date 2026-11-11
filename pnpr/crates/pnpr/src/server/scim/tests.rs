@@ -107,7 +107,7 @@ fn external_id_is_case_insensitive_but_its_value_is_opaque() {
             super::resources::parse_user(&json!({
                 "userName": "example-user", "externalId": value,
             }))
-            .is_err()
+            .is_err(),
         );
     }
 }
@@ -157,7 +157,7 @@ async fn provisioned_subjects_follow_scim_lifecycle_and_reload() {
             .unwrap()
             .resolve("subject-one")
             .unwrap(),
-        user_id
+        user_id,
     );
     for active in [false, true] {
         let response = app.clone().oneshot(Request::builder()

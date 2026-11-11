@@ -94,21 +94,25 @@ async fn protocol_gates_use_the_resolved_identity() {
             "/pipeline",
             get(|| async { "ok" }).route_layer(middleware::from_fn(require_pipeline_caller)),
         );
+    let request_with_caller = |path: &str, caller: Option<Identity>| {
+        let mut request = Request::builder()
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        if let Some(caller) = caller {
+            request
+                .extensions_mut()
+                .insert(AuthedCaller(caller));
+        }
+        request
+    };
     for path in ["/resolve", "/artifacts", "/pipeline"] {
         for (caller, expected) in [
             (Some(Identity::user("account-one")), StatusCode::OK),
             (Some(Identity::Anonymous), StatusCode::UNAUTHORIZED),
             (None, StatusCode::INTERNAL_SERVER_ERROR),
         ] {
-            let mut request = Request::builder()
-                .uri(path)
-                .body(Body::empty())
-                .unwrap();
-            if let Some(caller) = caller {
-                request
-                    .extensions_mut()
-                    .insert(AuthedCaller(caller));
-            }
+            let request = request_with_caller(path, caller);
             let response = app
                 .clone()
                 .oneshot(request)

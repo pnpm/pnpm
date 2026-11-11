@@ -1,8 +1,7 @@
-use super::rejected;
 use super::{
     LoginReturn, MetadataFreshness, OidcState, SessionUser,
     groups::granted_teams,
-    token_payload, verify_workload,
+    rejected, token_payload, verify_workload,
     workload::{binding_matches, validate_times},
 };
 use axum::{
@@ -451,7 +450,7 @@ async fn rejects_expired_state_and_wrong_nonce() {
         state
             .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     assert!(
         state.browser.sessions
@@ -467,7 +466,7 @@ async fn rejects_expired_state_and_wrong_nonce() {
         state
             .finish("example", &start.state, &expired_cookie, "code", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     task.abort();
 }
@@ -535,7 +534,7 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
         state
             .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     task.abort();
 }
@@ -600,7 +599,7 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
         state
             .finish("example", &start.state, &start.browser_secret, "invalid", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
     assert!(
@@ -635,7 +634,7 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
         state
             .finish("example", &start.state, &start.browser_secret, "invalid", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     assert_eq!(*provider.token_requests.lock().unwrap(), 0);
     drop(permits);

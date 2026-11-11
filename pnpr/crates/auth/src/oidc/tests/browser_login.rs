@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    HashMap, LoginReturn, OidcLogin, OidcState, Url, Utc, config, groups, mock_provider, rejected,
+};
 
 #[tokio::test]
 async fn browser_login_binds_verified_subjects_through_scim() {
@@ -24,7 +26,7 @@ async fn browser_login_binds_verified_subjects_through_scim() {
         let session =
             state.finish("example", &start.state, &start.browser_secret, "code", |verified| {
                 assert_eq!(verified, subject);
-                if resolves { Ok("scim-account".to_string()) } else { Err(rejected()) }
+                resolves.then_some("scim-account".to_string()).ok_or_else(rejected)
             })
             .await;
         if resolves {
@@ -52,7 +54,7 @@ async fn browser_login_binds_verified_subjects_through_scim() {
                 panic!("unverified claims must not reach SCIM binding")
             })
             .await
-            .is_err()
+            .is_err(),
     );
     task.abort();
 }
@@ -108,7 +110,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         state
             .finish("example", &start.state, &start.browser_secret, "code", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     assert!(state.revoke_session(&session.token));
     assert!(state.session(&session.token).is_err());
@@ -117,7 +119,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         state
             .finish("example", &start.state, "other-browser", "code", |_| Err(rejected()))
             .await
-            .is_err()
+            .is_err(),
     );
     let query: HashMap<_, _> = Url::parse(&start.url)
         .unwrap()

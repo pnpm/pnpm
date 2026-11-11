@@ -1,6 +1,4 @@
 pub(super) use accounts::require_active_account;
-#[cfg(test)]
-pub(super) use credentials::bearer_credentials;
 pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
     Ownership, authorize, authorize_against_packument, authorize_continuation, authorize_package,
