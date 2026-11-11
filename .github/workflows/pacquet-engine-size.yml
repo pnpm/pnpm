@@ -59,10 +59,10 @@ jobs:
           persist-credentials: false
 
       - name: Test reduced shell emulator
-        run: cargo test --locked -p pnpm-executor --no-default-features
+        run: cargo test --locked -p pnpm-executor --no-default-features reports_when_shell_emulation_is_not_compiled_in
 
       - name: Test reduced runtime resolver
-        run: cargo test --locked -p pnpm-resolving-default-resolver --no-default-features
+        run: cargo test --locked -p pnpm-resolving-default-resolver --no-default-features unavailable_tool_tests
 
       - name: Measure pull request
         shell: bash
