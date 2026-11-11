@@ -21,8 +21,8 @@ auth:
     maxUsers: 1
 
 registries:
-  # Packages published to this server. The `packages:` map is this
-  # registry's namespace: only these names can live here.
+  # Packages published to this server. The `packages:` map claims the
+  # package names served here: only these names can live here.
   local:
     type: hosted
     packages:

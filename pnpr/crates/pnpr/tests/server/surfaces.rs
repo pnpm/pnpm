@@ -31,11 +31,11 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     config.features.registry.enabled = false;
     config.features.resolver.enabled = false;
     config.features.pipeline.enabled = true;
-    for (org, reader, writer) in
+    for (owner, reader, writer) in
         [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
     {
-        config.features.artifacts.orgs.insert(
-            org.to_string(),
+        config.features.artifacts.owners.insert(
+            owner.to_string(),
             pnpr_config::StorageAccess {
                 access: pnpr_policy::AccessList::from_tokens([reader]),
                 publish: pnpr_policy::AccessList::from_tokens([writer]),

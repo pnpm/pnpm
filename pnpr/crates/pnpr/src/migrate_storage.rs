@@ -51,10 +51,10 @@ pub async fn migrate_local_to_s3(
             .map_err(|err| miette::miette!("target: {err}"))?;
     }
 
-    for org in crate::export::configured_hosted_namespaces(config) {
+    for namespace in crate::export::configured_hosted_namespaces(config) {
         for ecosystem in Ecosystem::all() {
-            let src = source.for_hosted(&org, ecosystem);
-            let tgt = target.for_hosted(&org, ecosystem);
+            let src = source.for_hosted(&namespace, ecosystem);
+            let tgt = target.for_hosted(&namespace, ecosystem);
             migrate_namespace(&src, &tgt, options, &mut report).await?;
         }
     }

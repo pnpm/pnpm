@@ -33,7 +33,7 @@ pub struct NoteEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationRef {
-    pub org: String,
+    pub namespace: String,
     pub id: String,
     #[serde(default)]
     pub name: Option<String>,
@@ -41,13 +41,13 @@ pub struct PublicationRef {
     pub initial_digest: Option<String>,
     /// The publication note's URL, an absolute path on the server, as the
     /// `Link` header of the version route gives it. A client resolves it
-    /// against the registry URL rather than deriving it from `org` and
+    /// against the registry URL rather than deriving it from `namespace` and
     /// `id`, which would miss a pnpr served under a path prefix.
     #[serde(default)]
     pub url: Option<String>,
 }
 
-/// Whether `value` can be a publication `<org>`, identifier, or name: one
+/// Whether `value` can be a publication `<namespace>`, identifier, or name: one
 /// path segment of `[a-zA-Z0-9._+-]+`, never `.` or `..`.
 #[must_use]
 pub fn is_publication_segment(value: &str) -> bool {

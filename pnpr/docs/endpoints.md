@@ -80,11 +80,11 @@ Every request routes through the registry graph:
   name that no source claims is a definitive `404`. There is no fall-through
   to another origin. A matched source that is unavailable is an error, never a
   `404`.
-- A registry's declared namespace is enforced **on every path to it**: a read
-  of a name outside the namespace is a definitive `404` answered before
-  storage or the upstream is consulted (through a router, on the default
-  base, and at the registry's own `/~<name>/` URL alike), and an off-namespace
-  publish is rejected.
+- A registry's claimed [`packages:`](configuration.md#the-packages-map) patterns
+  are enforced **on every path to it**: a read of an unclaimed name is a
+  definitive `404` answered before storage or the upstream is consulted (through
+  a router, on the default base, and at the registry's own `/~<name>/` URL
+  alike), and a publish of an unclaimed name is rejected.
 - **Writes** (publish, dist-tags, unpublish) must resolve to a hosted
   registry; a write that routes to an upstream is rejected.
 - The serving registry's matching `packages:` rule is enforced on every read
@@ -194,7 +194,7 @@ of `resolver.enabled`. They serve
 the [shared side-effects cache](shared-side-effects-cache.md) proof of concept
 and, like the other `POST` resolver endpoints, require a pnpr `Authorization`
 header. Artifacts are owned by an organization, and
-[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces)
+[`artifacts.owners`](configuration.md#registry-resolver-and-artifact-surfaces)
 decides who may read and who may publish what each one owns.
 
 | Method | Path | Description |
@@ -222,13 +222,13 @@ These belong to no single ecosystem, so they sit on the server root.
 ### Publication endpoints {#publication-endpoints}
 
 Served from the hosted [metadata database](storage.md#sqlite-metadata), SQLite or libSQL.
-A publication is a commit that introduced packages. Its id is the org
-generation it committed. `<org>` is `-` for registries without an `org`.
+A publication is a commit that introduced packages. Its id is the namespace
+generation it committed. `<namespace>` is `-` for registries in the default namespace.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/publications/<org>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
-| `GET` | `/-/publications/<org>?member=npm:<name>@<version>` | The publication that introduced that npm version. `404` when the caller may not read the package. Members of other ecosystems record no version, so they cannot be looked up this way. |
+| `GET` | `/-/publications/<namespace>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
+| `GET` | `/-/publications/<namespace>?member=npm:<name>@<version>` | The publication that introduced that npm version. `404` when the caller may not read the package. Members of other ecosystems record no version, so they cannot be looked up this way. |
 
 ### Release note endpoints {#release-note-endpoints}
 
@@ -245,7 +245,7 @@ and a single npm publish document can carry its version note in a top-level
 | `GET` | `/npm/<name>/<version>/notes` | The version's note as `text/markdown`. `<version>` may be a dist-tag. `204` when only the version's publication has a note, with a `Link: <…>; rel="publication-notes"` header. A version published with a note carries `PNPR-Note-Initial-Digest`, the digest of the text it was published with, even after an edit or deletion. |
 | `PUT`, `DELETE` | `/npm/<name>/<version>/notes` | Replace or delete the version's note. Requires the package's `publish` rule. |
 | `GET` | `/npm/<name>/-/notes` | Every note of the package as JSON, newest version first, at most 100 entries and 1 MiB, with `"truncated": true` when more exist. A version whose publication has a note the caller may read names it in `publication`, whose `url` is the note's path on the server, including the path of `public_url`, as in the `Link` header of the version route. |
-| `GET`, `PUT`, `DELETE` | `/-/publications/<org>/<id-or-name>/notes` | The publication's note. Reading needs read access to every member, writing needs every member's `publish` rule. |
+| `GET`, `PUT`, `DELETE` | `/-/publications/<namespace>/<id-or-name>/notes` | The publication's note. Reading needs read access to every member, writing needs every member's `publish` rule. |
 
 A response that anyone may read is cached `public, max-age=300`. Any other is
 `private, no-store`. pnpr keeps every earlier text of a note for recovery.
@@ -452,10 +452,10 @@ callers gets `Cache-Control: private, no-store` for its records.
 ### Release record logs
 
 With [`releaseRecords.logSigningKey`](configuration.md#releaserecords), each
-hosted organization's release records are appended to a transparency log, in
+hosted namespace's release records are appended to a transparency log, in
 the [C2SP tiled log](https://c2sp.org/tlog-tiles) format Go's checksum database
-uses. A registry address serves the log of the one hosted organization it
-reaches, under `/-/log/`. A registry that reaches no hosted organization, or
+uses. A registry address serves the log of the one hosted namespace it
+reaches, under `/-/log/`. A registry that reaches no hosted namespace, or
 several, serves no log.
 
 - `/-/log/checkpoint` is the log's latest
@@ -465,9 +465,9 @@ several, serves no log.
   log's hash tiles and entry bundles. A tile never changes once written, so it
   is cached forever.
 
-Anyone who may read a package of the organization reads its checkpoint and
+Anyone who may read a package of the namespace reads its checkpoint and
 hash tiles. An entry bundle names every package logged with it, so only a
-caller who may read every package of the organization gets the entry bundles;
+caller who may read every package of the namespace gets the entry bundles;
 anyone else gets a 404 for every bundle. When some package is closed to
 anonymous callers, these responses are `Cache-Control: private, no-store`.
 

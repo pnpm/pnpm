@@ -86,10 +86,10 @@ fn variant_storage(
     else {
         return Err(not_found());
     };
-    let org = hosted_read_namespace(state, identity, &source, package.as_str())
+    let namespace = hosted_read_namespace(state, identity, &source, package.as_str())
         .map_err(IntoResponse::into_response)?;
     ensure_osv_allowed(state, &package, version).map_err(IntoResponse::into_response)?;
-    Ok((state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm), package))
+    Ok((state.inner.storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Npm), package))
 }
 
 /// The unpacked size of a hosted version's variant `tag`, when known, or

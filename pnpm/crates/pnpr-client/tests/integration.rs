@@ -100,7 +100,7 @@ async fn start_pnpr_inner(
     let reader_id = pnpr::UserBackend::account_id(&accounts, "reader").await.unwrap().unwrap();
     config.identity.auth.users.file = Some(accounts_path);
 
-    config.features.artifacts.orgs.insert(
+    config.features.artifacts.owners.insert(
         "pnpr-client".to_string(),
         pnpr::StorageAccess {
             access: pnpr::AccessList::from_tokens([&publisher_id, &reader_id]),

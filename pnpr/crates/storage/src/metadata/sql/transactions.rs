@@ -6,7 +6,7 @@ use super::{
     SqlMetadata,
     adapter::{Connection, ReadSource, Snapshot},
     cache::RenderCache,
-    catalog_generation,
+    namespace_generation,
 };
 use pnpr_error::{RegistryError, Result};
 use std::{
@@ -32,7 +32,7 @@ pub(super) enum Freshness {
     Current,
     /// A view a replica may serve while it is within its freshness bound.
     Bounded,
-    /// A view at this catalog generation or later, such as one a client
+    /// A view at this namespace generation or later, such as one a client
     /// sent as the minimum it has seen.
     AtLeast(u64),
 }
@@ -60,11 +60,11 @@ impl SqlMetadata {
         tokio::task::spawn_blocking(move || database.run_write(operation)).await?
     }
 
-    /// Run `operation`, which reads `catalog`, on the blocking pool in a read
+    /// Run `operation`, which reads `namespace`, on the blocking pool in a read
     /// transaction that meets `freshness`.
     pub(super) async fn read<Output, Operation>(
         self: &Arc<Self>,
-        catalog: String,
+        namespace: String,
         freshness: Freshness,
         operation: Operation,
     ) -> Result<Output>
@@ -73,7 +73,7 @@ impl SqlMetadata {
         Operation: FnMut(&dyn Connection, &RenderCache) -> Result<Output> + Send + 'static,
     {
         let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || database.run_read(&catalog, freshness, operation))
+        tokio::task::spawn_blocking(move || database.run_read(&namespace, freshness, operation))
             .await?
     }
 
@@ -157,11 +157,11 @@ impl SqlMetadata {
         })
     }
 
-    /// Run `operation`, which reads `catalog`, in one read transaction that
+    /// Run `operation`, which reads `namespace`, in one read transaction that
     /// meets `freshness`.
     fn run_read<Output>(
         &self,
-        catalog: &str,
+        namespace: &str,
         freshness: Freshness,
         mut operation: impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
     ) -> Result<Output> {
@@ -176,7 +176,7 @@ impl SqlMetadata {
             _ => return self.read_primary(&mut operation),
         };
         let started = Instant::now();
-        let behind = Some((catalog, required));
+        let behind = Some((namespace, required));
         match self.read_replica(behind, &mut operation)? {
             ReplicaRead::Read(output, _) => return Ok(output),
             // A sync the first read made already counts.
@@ -239,7 +239,7 @@ impl SqlMetadata {
     }
 
     /// Run `operation` once on `source` in one read transaction. `None` when
-    /// the source has not reached `required`, a catalog and the generation
+    /// the source has not reached `required`, a namespace and the generation
     /// it must be at, so the operation did not run.
     fn read_once<Output>(
         &self,
@@ -265,9 +265,9 @@ impl SqlMetadata {
         required: Option<(&str, u64)>,
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
     ) -> Result<Option<Output>> {
-        if let Some((catalog, generation)) = required
+        if let Some((namespace, generation)) = required
             && generation > 0
-            && catalog_generation(connection, catalog)? < generation
+            && namespace_generation(connection, namespace)? < generation
         {
             return Ok(None);
         }

@@ -25,15 +25,15 @@ The hosted store has the same layout on disk and in a bucket:
 
 ```text
 <storage>/
-  layout.json                     marks the layout version and store id
-  default/<ecosystem>/            registries without an org
-  orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
-<namespace>/archives/<shard>/<identity>.<incarnation>
+  layout.json                         marks the layout version and store id
+  default/<ecosystem>/                registries in the default namespace
+  namespaces/<namespace>/<ecosystem>/ one partition per namespace and ecosystem
+<partition>/archives/<shard>/<identity>.<incarnation>
 ```
 
 `<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry without
-an `org` uses `default/<ecosystem>/`. Set `org` explicitly to store its packages
-under `orgs/<org>/<ecosystem>/`. In an org name,
+a `namespace` uses `default/<ecosystem>/`. Set `namespace` explicitly to store
+its packages under `namespaces/<namespace>/<ecosystem>/`. In a namespace name,
 lowercase letters, digits, `.`, `_` and `-` are kept. Every other byte is
 written as `!` and two hex digits.
 
@@ -131,10 +131,11 @@ With SQL metadata:
   every move of a tag: when it moved, from which version to which, and who
   moved it. A publish, a document update, and a dist-tag change each record
   the user who made them.
-- Every change to an org's packages advances that org's generation. A hosted
-  npm package response, and the response to a dist-tag change, carry it in a
-  `pnpr-generation` header as `<org>:<generation>`, with an empty org for
-  registries without one. Generations of different orgs are unrelated.
+- Every change to a namespace's packages advances that namespace's generation.
+  A hosted npm package response, and the response to a dist-tag change, carry
+  it in a `pnpr-generation` header as `<namespace>:<generation>`, with an empty
+  namespace for registries in the default namespace. Generations of different
+  namespaces are unrelated.
 - pnpr renders package documents from the database and caches them by
   version, so a dist-tag change or a new release does not re-render the
   versions that did not change.

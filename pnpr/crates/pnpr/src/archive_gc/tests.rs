@@ -272,11 +272,11 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
 #[tokio::test]
 async fn collection_reaches_only_its_own_namespace() {
     let (_temp, storage) = setup();
-    let org = storage.for_hosted("other", Ecosystem::Oci);
-    blob(&org, &name("app"), b"private").await;
+    let other = storage.for_hosted("other", Ecosystem::Oci);
+    blob(&other, &name("app"), b"private").await;
     blob(&storage, &name("app"), b"orphan").await;
     assert_eq!(collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(), (1, 6));
-    assert_eq!(collect(&org, Duration::ZERO, true, MANIFEST_LIMIT).await.unwrap(), (1, 7));
+    assert_eq!(collect(&other, Duration::ZERO, true, MANIFEST_LIMIT).await.unwrap(), (1, 7));
 }
 
 #[tokio::test]

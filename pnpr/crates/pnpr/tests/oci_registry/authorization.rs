@@ -177,3 +177,115 @@ async fn oci_bearer_updates_parent_token_last_used_at() {
 
     crate::tokens::wait_for_last_use_after(&tokens, &raw_parent, aged).await;
 }
+
+#[tokio::test]
+async fn only_the_owner_pushes_to_a_claimed_repository() {
+    use base64::{
+        Engine as _,
+        engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+    };
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.http.oci.bearer_auth = true;
+    let auth = AuthState::in_memory();
+    let alice = crate::tokens::issue_token(&auth, "alice").await;
+    let bob = crate::tokens::issue_token(&auth, "bob").await;
+    let app = router_with_auth(config, auth);
+    let alice = format!("Basic {}", STANDARD.encode(format!("alice:{alice}")));
+    let bob = format!("Basic {}", STANDARD.encode(format!("bob:{bob}")));
+    push_image(&app, &alice, "acme/app", "1.0").await;
+
+    let blob = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &bob)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(blob)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
+    let manifest = Request::put("/v2/acme/app/manifests/2.0")
+        .header(header::AUTHORIZATION, &bob)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(super::image_manifest("config", &["layer"])))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(manifest)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
+
+    for (caller, granted) in [(&alice, vec!["pull", "push"]), (&bob, vec!["pull"])] {
+        let request = Request::get("/v2/token?scope=repository:acme/app:pull,push")
+            .header(header::AUTHORIZATION, caller)
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        let token = body["token"]
+            .as_str()
+            .unwrap()
+            .strip_prefix("pnpr_oci_")
+            .unwrap();
+        let payload = URL_SAFE_NO_PAD
+            .decode(token.split_once('.').unwrap().0)
+            .unwrap();
+        let claims: Value = serde_json::from_slice(&payload).unwrap();
+        assert_eq!(claims["scopes"]["acme/app"], serde_json::json!(granted), "{caller}");
+    }
+}
+
+#[tokio::test]
+async fn deleting_every_image_keeps_the_repository_owned() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$owners"]));
+    let auth = AuthState::in_memory();
+    let alice = crate::tokens::issue_token(&auth, "alice").await;
+    let bob = crate::tokens::issue_token(&auth, "bob").await;
+    let app = router_with_auth(config, auth);
+    let alice = format!("Basic {}", STANDARD.encode(format!("alice:{alice}")));
+    let bob = format!("Basic {}", STANDARD.encode(format!("bob:{bob}")));
+    let digest = push_image(&app, &alice, "acme/app", "1.0").await;
+    let delete = Request::delete(format!("/v2/acme/app/manifests/{digest}"))
+        .header(header::AUTHORIZATION, &alice)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(delete)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+
+    let blob = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &bob)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(blob)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
+    push_image(&app, &alice, "acme/app", "1.0").await;
+}

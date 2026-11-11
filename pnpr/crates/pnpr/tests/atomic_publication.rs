@@ -274,6 +274,8 @@ async fn a_batch_is_one_publication() {
     let publication = send(&app, "GET", "/-/publications/-/v2.0.0", &token, None).await;
     assert_eq!(publication.status, StatusCode::OK);
     assert_eq!(publication.body["id"], 1);
+    assert_eq!(publication.body["namespace"], "");
+    assert!(publication.body.get("org").is_none());
     assert_eq!(
         publication.body["publisher"].as_str(),
         crate::tokens::account_id(&app, "alice", Some(&token)).await.as_deref(),

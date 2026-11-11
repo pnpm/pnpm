@@ -15,7 +15,7 @@ pub(crate) enum StoreBinding {
     /// whose `layout.json` write has not yet been confirmed.
     Pending(String),
     /// No row in `hosted_store`. `has_data` says whether any hosted
-    /// catalog, package, blob, staged archive, or removed package row exists.
+    /// namespace, package, blob, staged archive, or removed package row exists.
     Unmarked { has_data: bool },
 }
 
@@ -84,7 +84,7 @@ fn read_store_binding(connection: &dyn Connection) -> Result<StoreBinding> {
     }
     let has_data = connection
         .query_optional(
-            "SELECT 1 FROM catalogs
+            "SELECT 1 FROM namespaces
              UNION ALL SELECT 1 FROM packages
              UNION ALL SELECT 1 FROM blobs
              UNION ALL SELECT 1 FROM staged_archives

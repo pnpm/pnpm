@@ -216,7 +216,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dirs, config, reporter);
+                return exec_fallback(script_name, args, dirs, config);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -228,7 +228,6 @@ impl RunArgs {
                 args,
                 dirs,
                 config,
-                reporter,
                 self.if_present,
                 fallback_to_exec,
             );
@@ -332,9 +331,8 @@ fn exec_fallback(
     args: &[String],
     dirs: ExecDirs<'_>,
     config: &Config,
-    reporter: ReporterType,
 ) -> miette::Result<()> {
-    let result = exec_script_name(script_name, args, dirs, config, reporter);
+    let result = exec_script_name(script_name, args, dirs, config);
     let Some(hint) = filter_placement_hint(script_name, args) else {
         return result;
     };
@@ -352,7 +350,6 @@ fn exec_script_name(
     args: &[String],
     dirs: ExecDirs<'_>,
     config: &Config,
-    reporter: ReporterType,
 ) -> miette::Result<()> {
     ExecArgs {
         command: RunArgs::script(script_name, args.iter().cloned()),
@@ -366,7 +363,7 @@ fn exec_script_name(
             parallel: false,
         },
     }
-    .run(dirs, config, reporter)
+    .run_verified(dirs, config)
 }
 
 #[cfg(test)]

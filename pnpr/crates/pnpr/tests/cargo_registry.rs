@@ -38,7 +38,7 @@ fn cargo_config(storage: PathBuf, upstream_url: &str, hosted_access: &str) -> Co
         Ecosystem::Cargo,
         HostedSource {
             name: "crates",
-            org: "crates",
+            namespace: "crates",
             access: hosted_access,
             packages: &["demo", "inflector"],
         },

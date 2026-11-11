@@ -24,7 +24,7 @@ auth:
 registries:
   local:
     type: hosted
-    org: \"\"
+    namespace: \"\"
     teamsManagedBy: api
     teams:
       readers: { name: readers, members: [] }

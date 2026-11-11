@@ -70,7 +70,7 @@ async fn measure(db: Db, layout: Layout) {
     let mut times = Vec::new();
     for sample in 0..16 {
         let key = PackageKey {
-            catalog: String::new(),
+            namespace: String::new(),
             ecosystem: Ecosystem::Npm,
             name: npm("sample-payload").as_str().to_string(),
         };

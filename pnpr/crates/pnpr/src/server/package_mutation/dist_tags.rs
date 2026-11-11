@@ -133,12 +133,12 @@ async fn update_dist_tag(
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await
     .map_err(IntoResponse::into_response)?;
     let version = parse_tag_target(request.body).map_err(IntoResponse::into_response)?;
-    let storage = hosted_storage(state, Some(&target.org));
+    let storage = hosted_storage(state, Some(&target.namespace));
     let change =
         TagChange { tag: request.tag, target: version.as_deref(), principal: identity.user_id() };
     match storage.change_dist_tag(&name, change).await {

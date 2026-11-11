@@ -335,7 +335,7 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     let config = Config::proxy(listen, PathBuf::from("/tmp"));
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert_eq!(config.routing.registries.default_registry(), Some("main"));
-    assert_eq!(config.routing.hosted["local"].org, "");
+    assert_eq!(config.routing.hosted["local"].namespace, "");
     assert_eq!(
         config.routing.registries.resolve_default(
             Ecosystem::Npm,
@@ -364,7 +364,7 @@ fn static_constructor_serves_everything_from_one_hosted() {
     let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
     let config = Config::static_serve(listen, PathBuf::from("/tmp"));
     assert!(config.routing.upstreams.is_empty());
-    assert_eq!(config.routing.hosted["local"].org, "");
+    assert_eq!(config.routing.hosted["local"].namespace, "");
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "anything"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },

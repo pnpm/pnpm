@@ -36,16 +36,16 @@ pub(super) fn remove_package(
     key: &PackageKey,
     principal: Option<&str>,
 ) -> Result<Option<Vec<BlobId>>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let mapped = query!(
         "SELECT DISTINCT blob_id FROM artifact_blobs
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        catalog,
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        namespace,
         ecosystem,
         name,
     );
     let (mut batch, results) =
-        Batch::begin_with(connection, &key.catalog, &[package_row_query(key), mapped])?;
+        Batch::begin_with(connection, &key.namespace, &[package_row_query(key), mapped])?;
     let mut results = results.into_iter();
     let Some(row) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(None);
@@ -56,8 +56,10 @@ pub(super) fn remove_package(
         batch
             .transaction()
             .execute(
-                &format!("DELETE FROM {table} WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3"),
-                params![catalog, ecosystem, name],
+                &format!(
+                    "DELETE FROM {table} WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+                ),
+                params![namespace, ecosystem, name],
             )?;
     }
     batch.touch(key);
@@ -72,20 +74,21 @@ pub(super) fn record_package(
     principal: Option<&str>,
 ) -> Result<()> {
     let maintainers = if key.ecosystem == Ecosystem::Npm {
-        let state: Value = serde_json::from_slice(state)?;
-        maintainer_ids(&state)
+        maintainer_ids(&serde_json::from_slice(state)?)
     } else {
-        Vec::new()
+        // Other ecosystems' documents are opaque here; one that does not
+        // parse records no owners.
+        serde_json::from_slice(state).map_or_else(|_| Vec::new(), |state| owner_ids(&state))
     };
     let maintainers = serde_json::to_string(&maintainers)?;
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     connection.execute(
-        "INSERT INTO removed_packages (catalog, ecosystem, name, maintainers, unpublished_at, unpublished_by)
+        "INSERT INTO removed_packages (namespace, ecosystem, name, maintainers, unpublished_at, unpublished_by)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT (catalog, ecosystem, name) DO UPDATE SET
+         ON CONFLICT (namespace, ecosystem, name) DO UPDATE SET
            maintainers = CASE WHEN excluded.maintainers = '[]' THEN removed_packages.maintainers ELSE excluded.maintainers END,
            unpublished_at = excluded.unpublished_at, unpublished_by = excluded.unpublished_by",
-        params![catalog, ecosystem, name, maintainers, crate::publish::now_millis(), principal],
+        params![namespace, ecosystem, name, maintainers, crate::publish::now_millis(), principal],
     )?;
     Ok(())
 }
@@ -106,29 +109,29 @@ fn record_removed_entries(
     key: &PackageKey,
     generation: u64,
 ) -> Result<()> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let column_gen = to_column(generation);
     match key.ecosystem {
         Ecosystem::Npm => connection.execute(
-            "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
-             SELECT catalog, ecosystem, name, version, ?4 FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+            "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+             SELECT namespace, ecosystem, name, version, ?4 FROM versions
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
              ON CONFLICT DO NOTHING",
-            params![catalog, ecosystem, name, column_gen],
+            params![namespace, ecosystem, name, column_gen],
         ),
         Ecosystem::Cargo => connection.execute(
-            "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
-             SELECT catalog, ecosystem, name, version, ?4 FROM cargo_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+            "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+             SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
              ON CONFLICT DO NOTHING",
-            params![catalog, ecosystem, name, column_gen],
+            params![namespace, ecosystem, name, column_gen],
         ),
         Ecosystem::Pypi => connection.execute(
-            "INSERT INTO removed_pypi_files (catalog, ecosystem, name, filename, generation)
-             SELECT catalog, ecosystem, name, filename, ?4 FROM pypi_files
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+            "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
+             SELECT namespace, ecosystem, name, filename, ?4 FROM pypi_files
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
              ON CONFLICT DO NOTHING",
-            params![catalog, ecosystem, name, column_gen],
+            params![namespace, ecosystem, name, column_gen],
         ),
         Ecosystem::Oci => record_removed_all_oci_digests(connection, key, generation),
     }
@@ -139,12 +142,12 @@ fn record_removed_all_oci_digests(
     key: &PackageKey,
     generation: u64,
 ) -> Result<()> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let digests: Vec<String> = connection
         .query(
             "SELECT digest FROM oci_manifests
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![catalog, ecosystem, name],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            params![namespace, ecosystem, name],
         )?
         .into_iter()
         .map(|mut row| row.get(0))
@@ -165,17 +168,32 @@ pub(super) fn record_removed_oci_digests<'digests>(
     if removed.is_empty() {
         return Ok(());
     }
-    let (catalog, _, name) = key.params();
+    let (namespace, _, name) = key.params();
     let removed = super::blobs::json_array(&removed);
     connection.execute(
-        "INSERT INTO removed_oci_manifests (catalog, name, artifact, generation)
+        "INSERT INTO removed_oci_manifests (namespace, name, artifact, generation)
          SELECT ?1, ?2, value, ?4
          FROM (SELECT value FROM json_each(?3)) AS removed
          WHERE value != ''
-         ON CONFLICT (catalog, name, artifact) DO UPDATE SET
+         ON CONFLICT (namespace, name, artifact) DO UPDATE SET
            generation = excluded.generation",
-        params![catalog, name, removed, to_column(generation)],
+        params![namespace, name, removed, to_column(generation)],
     )
+}
+
+/// The `owners` a crate, project, or image document records.
+fn owner_ids(state: &Value) -> Vec<String> {
+    state
+        .get("owners")
+        .and_then(Value::as_array)
+        .map(|owners| {
+            owners
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn maintainer_ids(state: &Value) -> Vec<String> {
@@ -200,7 +218,7 @@ impl PackageMetadata {
         name: &pnpr_package_name::CanonicalPackageName,
     ) -> Result<Option<PackageTombstone>> {
         let key = self.key(name);
-        self.database.read(self.catalog.clone(), Freshness::Current, move |connection, _| {
+        self.database.read(self.namespace.clone(), Freshness::Current, move |connection, _| {
             read_package(connection, &key)
         })
         .await
@@ -208,11 +226,11 @@ impl PackageMetadata {
 }
 
 fn read_package(connection: &dyn Connection, key: &PackageKey) -> Result<Option<PackageTombstone>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let Some(mut row) = connection.query_optional(
         "SELECT maintainers, unpublished_at, unpublished_by FROM removed_packages
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?
     else {
         return Ok(None);
@@ -221,8 +239,8 @@ fn read_package(connection: &dyn Connection, key: &PackageKey) -> Result<Option<
     let unpublished_versions = connection
         .query(
             "SELECT version FROM removed_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY version",
-            params![catalog, ecosystem, name],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY version",
+            params![namespace, ecosystem, name],
         )?
         .into_iter()
         .map(|mut row| row.get(0))

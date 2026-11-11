@@ -1,16 +1,5 @@
 use super::TeamDirectory;
-use pnpr_registry::Ecosystem;
 use std::sync::Arc;
-
-/// Whether `ecosystem`'s packages record maintainers. Where they do not,
-/// `$owners` admits nobody.
-#[must_use]
-pub fn records_package_owners(ecosystem: Ecosystem) -> bool {
-    match ecosystem {
-        Ecosystem::Npm => true,
-        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => false,
-    }
-}
 
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,18 +64,6 @@ impl AccessList {
                 .map(|token| AccessToken::from(token.as_ref()))
                 .collect(),
         )
-    }
-
-    /// The registry-level `publish` default for a registry serving
-    /// `ecosystem`: `$owners` where [`records_package_owners`] holds,
-    /// `$authenticated` elsewhere.
-    #[must_use]
-    pub fn publish_default(ecosystem: Ecosystem) -> Self {
-        if records_package_owners(ecosystem) {
-            Self::from_tokens(["$owners"])
-        } else {
-            Self::from_tokens(["$authenticated"])
-        }
     }
 
     /// Whether `identity` satisfies any token in the list.

@@ -42,11 +42,11 @@ pub(super) struct PackageRow {
 }
 
 pub(super) fn package_row_query(key: &PackageKey) -> Query<'_> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     query!(
         "SELECT generation, state_version, state FROM packages
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        catalog,
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        namespace,
         ecosystem,
         name,
     )
@@ -105,22 +105,22 @@ impl StoredPackage {
         let mut queries = vec![package_row_query(key)];
         match key.ecosystem {
             Ecosystem::Npm => {
-                let (catalog, ecosystem, name) = key.params();
+                let (namespace, ecosystem, name) = key.params();
                 queries.push(query!(
                     "SELECT v.version, m.accepted_digest, a.deprecated
                      FROM versions v
-                     JOIN accepted_manifests m USING (catalog, ecosystem, name, version)
-                     LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-                     WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3",
-                    catalog,
+                     JOIN accepted_manifests m USING (namespace, ecosystem, name, version)
+                     LEFT JOIN annotations a USING (namespace, ecosystem, name, version)
+                     WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3",
+                    namespace,
                     ecosystem,
                     name,
                 ));
                 queries.push(stored_tags_query(key));
                 queries.push(query!(
                     "SELECT version FROM removed_versions
-                     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-                    catalog,
+                     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+                    namespace,
                     ecosystem,
                     name,
                 ));
@@ -180,14 +180,14 @@ pub(super) struct Commit<'batch> {
 
 impl Commit<'_> {
     pub(super) fn write_state(&self, state_version: u32, state: &[u8]) -> Result<()> {
-        let (catalog, ecosystem, name) = self.key.params();
+        let (namespace, ecosystem, name) = self.key.params();
         self.transaction.execute(
-            "INSERT INTO packages (catalog, ecosystem, name, generation, state_version, state)
+            "INSERT INTO packages (namespace, ecosystem, name, generation, state_version, state)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT (catalog, ecosystem, name) DO UPDATE SET
+             ON CONFLICT (namespace, ecosystem, name) DO UPDATE SET
                state_version = excluded.state_version, state = excluded.state",
             params![
-                catalog,
+                namespace,
                 ecosystem,
                 name,
                 to_column(self.generation),
@@ -214,10 +214,10 @@ impl Commit<'_> {
     }
 
     pub(super) fn delete_state(&self) -> Result<()> {
-        let (catalog, ecosystem, name) = self.key.params();
+        let (namespace, ecosystem, name) = self.key.params();
         self.transaction.execute(
-            "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![catalog, ecosystem, name],
+            "DELETE FROM packages WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            params![namespace, ecosystem, name],
         )?;
         Ok(())
     }
@@ -256,7 +256,9 @@ impl Commit<'_> {
             StoredEcosystem::Pypi(pypi) => {
                 pypi_rows::apply(self, stored.row.as_ref(), pypi, bytes, principal)?
             }
-            StoredEcosystem::Oci(oci) => oci_rows::apply(self, stored.row.as_ref(), oci, bytes)?,
+            StoredEcosystem::Oci(oci) => {
+                oci_rows::apply(self, stored.row.as_ref(), oci, bytes, principal)?
+            }
         };
         Ok(Some(changed))
     }
@@ -273,7 +275,7 @@ pub(super) fn write_document(
     principal: Option<&str>,
 ) -> Result<DocumentWrite> {
     let (mut batch, results) =
-        Batch::begin_with(connection, &key.catalog, &StoredPackage::queries(key))?;
+        Batch::begin_with(connection, &key.namespace, &StoredPackage::queries(key))?;
     let stored = StoredPackage::from_rows(key, &mut results.into_iter())?;
     let records = ReleaseRecords::new();
     let commit = batch.package(key);

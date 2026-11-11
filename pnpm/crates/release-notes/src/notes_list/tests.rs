@@ -41,7 +41,7 @@ fn parses_the_rfc_example_document() {
               "text": "- `install` reads lockfiles from 11.x.\n",
               "initialDigest": "sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
               "publication": {
-                "org": "example",
+                "namespace": "example",
                 "id": "9f2c41",
                 "name": "v12.0.0",
                 "url": "/-/publications/example/9f2c41/notes"

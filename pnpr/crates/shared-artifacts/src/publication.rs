@@ -2,7 +2,7 @@ mod recovery;
 
 use super::{
     ACTIVE_PUBLICATION_EXPIRY, ArtifactPayload, BACKFILLED_SCOPE, BTreeMap, BTreeSet,
-    CompatibilityScopes, Duration, MAX_RESOLVE_RESPONSE_SIZE, ObjectStoreExt, OrgAccess,
+    CompatibilityScopes, Duration, MAX_RESOLVE_RESPONSE_SIZE, ObjectStoreExt, OwnerAccess,
     PUBLICATION_RENEWAL_INTERVAL, PreparedPublication, PublicationQuota, PublishArtifactRequest,
     RegistryError, Result, ScopeMarker, SharedArtifactStore, SlotClaim, UNIVERSAL_SCOPE,
     artifact_operation_id, bad_request, blob_id, check_stored_blob_size, compatibility_scopes,
@@ -13,7 +13,7 @@ use super::{
 impl SharedArtifactStore {
     pub async fn publish(
         &self,
-        caller: &(impl OrgAccess + ?Sized),
+        caller: &(impl OwnerAccess + ?Sized),
         request: PublishArtifactRequest,
     ) -> Result<bool> {
         let prepared = prepare_publication(caller, &request)?;

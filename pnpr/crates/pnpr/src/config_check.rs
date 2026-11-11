@@ -82,11 +82,11 @@ fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {
     let (kind, details) = match config.routing.registries.get(name) {
         Some(Registry::Hosted { patterns }) => {
             let pat_count = patterns.len();
-            let org = config.routing.hosted
+            let namespace = config.routing.hosted
                 .get(name)
-                .map(|hosted_entry| format!("org: {:?}", hosted_entry.org))
+                .map(|hosted_entry| format!("namespace: {:?}", hosted_entry.namespace))
                 .unwrap_or_default();
-            ("hosted".to_string(), format!("{pat_count} patterns, {org}"))
+            ("hosted".to_string(), format!("{pat_count} patterns, {namespace}"))
         }
         Some(Registry::Upstream { patterns }) => {
             let url = config.routing.upstreams

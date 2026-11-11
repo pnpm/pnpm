@@ -1,15 +1,13 @@
 use super::{
-    AccessList, AccessToken, BTreeSet, Deserialize, Ecosystem, IndexMap, RegistryError,
-    TeamDirectory, Teams,
+    AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError, TeamDirectory, Teams,
 };
-use pnpr_policy::records_package_owners;
 
 /// One `packages:` map value: `access` / `publish` / `unpublish` are
 /// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
 /// pseudo-groups, bare account IDs, and `team:<id>` references to the owning
 /// registry's declared teams), compiled into the owning registry's
 /// [`pnpr_policy::PackageRules`]. An omitted field falls back to the registry-level
-/// default. The map key set doubles as the registry's declared namespace, so
+/// default. The map key set doubles as the registry's claimed package patterns, so
 /// one declaration routes, filters, and authorizes.
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -143,24 +141,6 @@ pub fn compile_access_list(
     teams: &TeamDirectory,
 ) -> Result<AccessList, String> {
     AccessSpec::Many(entries).to_access_list(teams)
-}
-
-/// Reject `$owners` in a `publish` or `unpublish` list of a registry whose
-/// ecosystem does not [record package owners](records_package_owners).
-pub fn check_owners_supported(
-    ecosystem: Ecosystem,
-    write_lists: [Option<&AccessList>; 2],
-) -> Result<(), String> {
-    let references_owners = write_lists
-        .into_iter()
-        .flatten()
-        .any(AccessList::references_owners);
-    if references_owners && !records_package_owners(ecosystem) {
-        return Err(format!(
-            "{ecosystem} registries do not record package owners, so `$owners` admits nobody",
-        ));
-    }
-    Ok(())
 }
 
 /// Compile `auth.admins`, rejecting any entry that is not one account ID.

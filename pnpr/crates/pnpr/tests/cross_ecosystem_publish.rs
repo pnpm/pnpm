@@ -32,15 +32,12 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://pnpr.test".to_string();
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
-    for (name, org, ecosystem) in
-        [("crates", "", Ecosystem::Cargo), ("python", "", Ecosystem::Pypi)]
-    {
+    for (name, namespace) in [("crates", ""), ("python", "")] {
         config.routing.hosted.insert(
             name.to_string(),
             HostedConfig::new(
-                org,
-                PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$all"])))
-                    .with_default_publish(AccessList::publish_default(ecosystem)),
+                namespace,
+                PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$all"]))),
             ),
         );
     }

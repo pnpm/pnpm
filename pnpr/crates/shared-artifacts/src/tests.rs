@@ -474,17 +474,17 @@ impl ObjectStore for FailArtifactWrites {
 }
 
 /// The rule the store's own tests are written against: a caller reads and
-/// publishes the organization named after it, and nothing else.
-impl super::OrgAccess for str {
+/// publishes the artifact owner named after it, and nothing else.
+impl super::OwnerAccess for str {
     fn username(&self) -> &str {
         self
     }
 
-    fn may_read(&self, org: &str) -> bool {
-        org == self
+    fn may_read(&self, owner: &str) -> bool {
+        owner == self
     }
 
-    fn may_publish(&self, org: &str) -> bool {
-        org == self
+    fn may_publish(&self, owner: &str) -> bool {
+        owner == self
     }
 }

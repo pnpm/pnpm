@@ -549,7 +549,7 @@ registries:
   crates:
     type: hosted
     ecosystem: cargo
-    org: crates
+    namespace: crates
     access: $all
     packages:
       {claim}: {{}}

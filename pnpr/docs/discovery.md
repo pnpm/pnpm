@@ -79,7 +79,7 @@ host root.
 
 Each entry carries its `name`, its `kind` (`hosted`, `upstream`, or `router`),
 and its `ecosystem`; the identity is the pair `(ecosystem, name)`. Concrete
-registries report their namespace `patterns` and routers their ordered
+registries report their claimed `patterns` and routers their ordered
 `sources`, and either field is `null` when the caller's access rules do not
 permit disclosing it. A hosted registry also reports
 `teamsManagedBy` and `rulesManagedBy` (`config` or `api`, see

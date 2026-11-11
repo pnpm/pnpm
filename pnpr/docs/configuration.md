@@ -104,13 +104,13 @@ are three kinds:
   resolves to the first listed source that claims its name.
 
 The model is governed by one invariant: **provenance is declared, never
-inferred**. Every concrete registry declares the package names it serves (its
-namespace) through its [`packages:` map](#the-packages-map), a package
+inferred**. Every concrete registry declares the package names it claims through
+its [`packages:` map](#the-packages-map), a package
 resolves to exactly one declared origin, and no configuration can express a
-cross-origin fall-through, not on "not found" and not on "unavailable". The
-namespace is enforced at the registry, on every path to it: a read of a name
-outside the namespace is a definitive 404 answered before storage or the
-upstream is consulted, and an off-namespace publish is rejected. This closes
+cross-origin fall-through, not on "not found" and not on "unavailable". Claimed
+package patterns are enforced at the registry, on every path to it: a read of an
+unclaimed name is a definitive 404 answered before storage or the
+upstream is consulted, and a publish of an unclaimed name is rejected. This closes
 the dependency-confusion class of attacks by construction.
 
 `defaultRegistry` names the registry that an ecosystem's base URL, such as
@@ -133,7 +133,7 @@ unique names. See
 ### The `packages` map
 
 Every concrete registry (hosted or upstream) takes an optional `packages:`
-map. Its **keys are the registry's namespace** (the package names it serves),
+map. Its **keys are the package names the registry claims**,
 and its **values are the per-package access rules**. One declaration routes,
 filters, and authorizes. When the map is omitted, the registry serves every
 name.
@@ -158,9 +158,8 @@ reordering the map (by a formatter, or a YAML round-trip) can never change
 which rule applies. A duplicate key is a config error.
 
 Each value can set `access`, `publish`, and `unpublish`. When a field is
-omitted, `access` falls back to the registry-level `access:` default, and
-`unpublish` defaults to nobody. `publish` defaults to `$owners` on npm
-registries and to `$authenticated` on Cargo, PyPI, and OCI registries.
+omitted, `access` falls back to the registry-level `access:` default,
+`publish` defaults to `$owners`, and `unpublish` defaults to nobody.
 Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
 not support package unpublishing.
 
@@ -172,7 +171,7 @@ them, and the grammar is deliberately small:
 | `$all` | Anyone, authenticated or not. |
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
-| `$owners` | The package's maintainers and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its maintainer. Valid only in `publish` and `unpublish` lists of npm registries. |
+| `$owners` | The package's owners and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its owner. An npm package's owners are its maintainers. Valid only in `publish` and `unpublish` lists. |
 | `team:<id>` | The members of a [team](#teams) declared on this registry. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
@@ -196,7 +195,7 @@ Tokens are validated at config load:
 registries:
   private:
     type: hosted
-    org: mycompany
+    namespace: mycompany
     access: $authenticated
     packages:
       '@mycompany/*':
@@ -209,15 +208,15 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
+| `namespace` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
-| `packages` | The registry's namespace and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
+| `packages` | Claimed package patterns and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
-Two hosted registries of the same ecosystem cannot share an `org` namespace.
+Two hosted registries of the same ecosystem cannot share a `namespace`.
 That's rejected at config load. Hosted registries of different ecosystems can
-share an `org` because each ecosystem uses its own `<ecosystem>/` directory
+share a `namespace` because each ecosystem uses its own `<ecosystem>/` directory
 inside the namespace.
 
 The shape of a denial depends on who denied it. A caller that the
@@ -287,7 +286,7 @@ A private upstream registry is more than a proxy: it is a **pnpr-managed
 credential** for that origin. One upstream token, held by the server, is
 fanned out to a whole team through the registry's `access:` policy. Clients
 authenticate to pnpr with their own tokens and never see the upstream
-credential. Declaring a `packages:` namespace on a private upstream also
+credential. Declaring a `packages:` map on a private upstream also
 bounds what that credential can be used for: a caller can't pull arbitrary
 public names through it. pnpr never forwards a client's credentials upstream,
 and the server-owned credential is only ever attached over the upstream's own
@@ -316,8 +315,8 @@ registries:
 
 A source with no `packages:` map claims every name (the catch-all) and must
 be listed last. A router can order competing claims, but it can never assign a
-name to a registry that doesn't claim it: the namespace lives on the concrete
-registry, and is enforced there on every path.
+name to a registry that doesn't claim it: claimed package patterns live on the
+concrete registry, and are enforced there on every path.
 
 Because source order is load-bearing (a misordered router is the one way a
 mistake could send a private scope to a public origin), pnpr **refuses to
@@ -656,7 +655,7 @@ packageDocuments:
 
 How pnpr logs the [release records](endpoints.md#pnprs-package-document) of
 the versions it hosts. Each
-hosted organization has a transparency log per ecosystem, in the
+hosted namespace has a transparency log per ecosystem, in the
 [C2SP tiled log](https://c2sp.org/tlog-tiles) format Go's checksum database
 uses. A version's log entry is recorded in the same transaction that accepts
 the version. After the commit, pnpr adds the entry to the log's tiles and signs
@@ -671,7 +670,7 @@ releaseRecords:
 
 | Field | Meaning |
 | --- | --- |
-| `logSigningKey` | The signed-note private key that signs every log's checkpoints, `PRIVATE+KEY+<name>+<key hash>+<key>`, as Go's [`note.GenerateKey`](https://pkg.go.dev/golang.org/x/mod/sumdb/note#GenerateKey) writes one. Its name starts every log's origin: `<name>/npm` for the default organization, and `<name>/npm/~<organization>` for another one. Each log's checkpoints are signed with the same Ed25519 key under the log's origin. Without a key, pnpr records log entries but publishes no logs. Use [environment variable substitution](#environment-variable-substitution) rather than writing the key into the file. |
+| `logSigningKey` | The signed-note private key that signs every log's checkpoints, `PRIVATE+KEY+<name>+<key hash>+<key>`, as Go's [`note.GenerateKey`](https://pkg.go.dev/golang.org/x/mod/sumdb/note#GenerateKey) writes one. Its name starts every log's origin: `<name>/npm` for the default namespace, and `<name>/npm/~<namespace>` for another one. Each log's checkpoints are signed with the same Ed25519 key under the log's origin. Without a key, pnpr records log entries but publishes no logs. Use [environment variable substitution](#environment-variable-substitution) rather than writing the key into the file. |
 | `statementSigningKey` | The signed-note private key, in the same format, that signs the registry's [in-toto statements](https://github.com/in-toto/attestation) about its records in DSSE envelopes. Its `<name>+<key hash>` is each signature's `keyid`. pnpr states that it accepted each logged record under its profile. Without a key, the records' evidence lists no statements. |
 
 ## `gc`
@@ -825,7 +824,7 @@ resolver:
 ```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
-  orgs:
+  owners:
     acme:
       access: [<workload-account-id>, <account-id-1>, <account-id-2>]
       publish: <workload-account-id>
@@ -836,8 +835,8 @@ artifacts:
   `protocols.artifacts.versions` list. The handshake itself is served when any surface is
   enabled, so an artifact-only tier is discoverable.
 
-  `orgs` declares the organizations this server keeps build output for, and who
-  may read and who may publish what each one owns. An organization owns three
+  `owners` declares the artifact owners this server keeps build output for, and who
+  may read and who may publish what each one owns. An owner has three
   things:
 
   - its signed artifacts: [shared side effects](shared-side-effects-cache.md)
@@ -848,9 +847,9 @@ artifacts:
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
   signed-in account. Teams are declared per registry, so `team:` entries are
   refused here. Publishing also requires `access`. An empty list denies
-  everyone. An organization nobody may read is invisible: requests for it answer
-  as if it did not exist. An undeclared organization is unavailable.
-  `orgs` is read even when `enabled` is false, for a server that only stores
+  everyone. An owner nobody may read is invisible: requests for it answer
+  as if it did not exist. An undeclared owner is unavailable.
+  `owners` is read even when `enabled` is false, for a server that only stores
   pipeline runs.
 
   `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
@@ -875,7 +874,7 @@ pipeline:
   enabled: true
 ```
 
-  Who may read and submit runs is decided by [`artifacts.orgs`](#registry-resolver-and-artifact-surfaces).
+  Who may read and submit runs is decided by [`artifacts.owners`](#registry-resolver-and-artifact-surfaces).
 
 Something must be served: a config with no registries (or the registry
 surface disabled by flag), the resolver disabled, artifacts disabled, and the
@@ -999,7 +998,7 @@ Audit events record the `action`, the `actor` (the authenticated username, `"sci
   - `oci.delete_manifest`: deleting an OCI manifest (`actor`, `repository`, `reference`).
 
 - **Archive collection**:
-  - `gc.remove_archive`: reclaiming an unmapped archive (`actor`, `key`, `size`). The collection span names the `org` and `ecosystem`. A removal after unmapping an unreachable image blob also names the `repository`.
+  - `gc.remove_archive`: reclaiming an unmapped archive (`actor`, `key`, `size`). The collection span names the `namespace` and `ecosystem`. A removal after unmapping an unreachable image blob also names the `repository`.
 
 ### Prometheus metrics
 

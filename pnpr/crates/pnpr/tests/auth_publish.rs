@@ -50,11 +50,11 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     // Route everything to one local hosted over the flat storage root (an
-    // empty `org` namespace), so publishes/reads resolve through the
+    // empty `namespace`), so publishes/reads resolve through the
     // path-less base and the per-package rules in `packages_block` gate
     // them. The callers indent keys by two spaces; re-indent under
     // `registries.local.packages`, and add a `'**'` catch-all with the
-    // default rules so the namespace stays name-unbounded like the old
+    // default rules so the registry stays name-unbounded like the old
     // static shape.
     let nested: String = packages_block
         .lines()
@@ -63,7 +63,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
         .join("\n");
     let yaml = format!(
         "storage: {}\nregistries:\n  \
-         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n\
+         local:\n    type: hosted\n    namespace: \"\"\n    access: $all\n    packages:\n\
          {nested}\n      '**': {{}}\n  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",

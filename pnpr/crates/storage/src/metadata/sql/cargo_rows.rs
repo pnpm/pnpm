@@ -19,6 +19,8 @@ struct CargoEnvelope {
     name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    owners: Vec<String>,
 }
 
 pub(super) struct StoredCargo {
@@ -45,19 +47,19 @@ struct IncomingCargoVersion {
 }
 
 pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT version, position, yanked, entry FROM cargo_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
+            namespace,
             ecosystem,
             name,
         ),
         query!(
             "SELECT version FROM removed_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
@@ -118,17 +120,17 @@ fn clear_crate(
 ) -> Result<bool> {
     let Some(current) = row else { return Ok(false) };
     removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
-         SELECT catalog, ecosystem, name, version, ?4 FROM cargo_versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+         SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, to_column(commit.generation)],
+        params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
-        "DELETE FROM cargo_versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM cargo_versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -167,11 +169,11 @@ fn update_yanked(
     if was_yanked == is_yanked {
         return Ok(false);
     }
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
         "UPDATE cargo_versions SET yanked = ?5
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![catalog, ecosystem, name, version, i64::from(is_yanked)],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version, i64::from(is_yanked)],
     )?;
     Ok(true)
 }
@@ -181,12 +183,12 @@ fn insert_cargo_version(
     item: &IncomingCargoVersion,
     position: i64,
 ) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let entry = serde_json::to_string(&item.entry)?;
     commit.transaction.execute(
-        "INSERT INTO cargo_versions (catalog, ecosystem, name, version, position, yanked, entry)
+        "INSERT INTO cargo_versions (namespace, ecosystem, name, version, position, yanked, entry)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![catalog, ecosystem, name, &item.version, position, i64::from(item.yanked), entry,],
+        params![namespace, ecosystem, name, &item.version, position, i64::from(item.yanked), entry,],
     )
 }
 
@@ -202,25 +204,25 @@ fn remove_dropped_versions(
     if let Some(current) = row {
         removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     }
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let keys: Vec<&str> = dropped
         .keys()
         .map(String::as_str)
         .collect();
     let versions = super::blobs::json_array(&keys);
     commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
+        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
          SELECT ?1, ?2, ?3, value, ?5
          FROM (SELECT value FROM json_each(?4)) AS removed
          WHERE value != ''
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, &versions, to_column(commit.generation)],
+        params![namespace, ecosystem, name, &versions, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
         "DELETE FROM cargo_versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
            AND version IN (SELECT value FROM json_each(?4))",
-        params![catalog, ecosystem, name, &versions],
+        params![namespace, ecosystem, name, &versions],
     )?;
     Ok(true)
 }
@@ -236,8 +238,10 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<CargoRows>> {
     let name =
         take_optional_string(&mut doc, "name")?.unwrap_or_else(|| key.name.clone());
     let description = take_nullable_string(&mut doc, "description")?;
+    let owners = take_owners(&mut doc)?;
     let versions = parse_versions(doc.remove("versions"))?;
-    Ok(Some(CargoRows { state_version, envelope: CargoEnvelope { name, description }, versions }))
+    let envelope = CargoEnvelope { name, description, owners };
+    Ok(Some(CargoRows { state_version, envelope, versions }))
 }
 
 fn parse_versions(raw: Option<Value>) -> Result<Vec<IncomingCargoVersion>> {
@@ -312,15 +316,15 @@ fn canonicalize_cargo_dep(dep: &mut Map<String, Value>) {
 }
 
 pub(super) fn view_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     query!(
         "SELECT v.yanked, v.entry FROM cargo_versions v
-         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
+         WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
          ORDER BY v.position",
-        catalog,
+        namespace,
         ecosystem,
         name,
         unless,
@@ -357,6 +361,7 @@ pub(super) fn assemble(
     if let Some(description) = envelope.description {
         rendered.insert("description".to_string(), Value::String(description));
     }
+    insert_owners(&mut rendered, envelope.owners);
     Ok(serde_json::to_vec(&rendered)?)
 }
 
@@ -392,6 +397,18 @@ pub(super) fn take_optional_string(
         None => Ok(None),
         Some(Value::String(value)) => Ok(Some(value)),
         Some(_) => Err(bad_request(&format!("`{field}` must be a string"))),
+    }
+}
+
+/// The `owners` account IDs a crate, project, or image document records.
+pub(super) fn take_owners(doc: &mut Map<String, Value>) -> Result<Vec<String>> {
+    let Some(raw) = doc.remove("owners") else { return Ok(Vec::new()) };
+    serde_json::from_value(raw).map_err(|_| bad_request("`owners` must be an array of strings"))
+}
+
+pub(super) fn insert_owners(rendered: &mut Map<String, Value>, owners: Vec<String>) {
+    if !owners.is_empty() {
+        rendered.insert("owners".to_string(), Value::from(owners));
     }
 }
 

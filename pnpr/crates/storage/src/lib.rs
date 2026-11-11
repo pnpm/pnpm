@@ -60,7 +60,7 @@ mod archives;
 mod blob_id;
 
 mod layout_state;
-use layout_state::namespace;
+use layout_state::slice;
 
 mod staged_records;
 
@@ -150,22 +150,23 @@ pub enum CachedDocument {
 ///   on scratch/ephemeral disk.
 ///
 /// Both lay out packages as [`layout`] describes. A `Storage` addresses one
-/// hosted namespace, the default one unless [`Storage::for_hosted`] picked
-/// an org's, and the records every namespace shares.
+/// hosted `(namespace, ecosystem)` slice, the default npm one unless
+/// [`Storage::for_hosted`] picked another, and the records every namespace
+/// shares.
 #[derive(Debug, Clone)]
 pub struct Storage {
     /// The whole hosted store: its layout marker and the shared records.
     pub(crate) root: Arc<dyn HostedBackend>,
-    /// One namespace of `root`.
+    /// One `(namespace, ecosystem)` slice of `root`.
     hosted: Arc<dyn HostedBackend>,
     cached: Store,
-    /// The hosted backend's tar-integrity namespace, shared by every
-    /// organization; see [`Storage::read_tar_integrities`].
+    /// The hosted backend's tar-integrity record directory, shared by every
+    /// namespace; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
     /// The metadata database every namespace shares.
     database: Arc<metadata::SqlMetadata>,
-    /// The metadata of `hosted`'s namespace.
+    /// The metadata of `hosted`'s `(namespace, ecosystem)` slice.
     metadata: metadata::PackageMetadata,
 }
 
@@ -249,7 +250,7 @@ impl Storage {
         database: Arc<metadata::SqlMetadata>,
     ) -> Self {
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
-        let hosted = namespace(&root, "", Ecosystem::Npm);
+        let hosted = slice(&root, "", Ecosystem::Npm);
         let metadata = database.view("", Ecosystem::Npm);
         Self {
             root,

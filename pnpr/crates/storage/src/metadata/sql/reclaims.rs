@@ -23,47 +23,47 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 /// The live blobs of a namespace nothing maps, with their rows. `?3` narrows
 /// them to a JSON array of identities, or is `NULL` for all of them.
 const UNMAPPED: &str = "SELECT b.blob_id, b.incarnation, b.state, b.size FROM blobs b
-     WHERE b.catalog = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
+     WHERE b.namespace = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
        AND (?3 IS NULL OR b.blob_id IN (SELECT value FROM json_each(?3)))
        AND NOT EXISTS (
            SELECT 1 FROM artifact_blobs a
-           WHERE a.catalog = b.catalog AND a.ecosystem = b.ecosystem
+           WHERE a.namespace = b.namespace AND a.ecosystem = b.ecosystem
              AND a.blob_id = b.blob_id)";
 
 impl SqlMetadata {
-    /// The rows of `ids` in `catalog`'s `ecosystem`, read from the primary.
+    /// The rows of `ids` in `namespace`'s `ecosystem`, read from the primary.
     pub async fn blob_rows(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         ecosystem: Ecosystem,
         ids: Vec<BlobId>,
     ) -> Result<BTreeMap<BlobId, BlobRow>> {
         if ids.is_empty() {
             return Ok(BTreeMap::new());
         }
-        let catalog = catalog.to_string();
-        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
+        let namespace = namespace.to_string();
+        self.read(namespace.clone(), Freshness::Current, move |connection, _| {
             let ids: Vec<&str> = ids.iter().map(BlobId::as_str).collect();
             let ids = json_array(&ids);
             let sql = "SELECT blob_id, incarnation, state, size FROM blobs
-                 WHERE catalog = ?1 AND ecosystem = ?2
+                 WHERE namespace = ?1 AND ecosystem = ?2
                    AND blob_id IN (SELECT value FROM json_each(?3))";
-            rows_from(connection.query(sql, params![catalog, ecosystem.as_str(), ids])?)
+            rows_from(connection.query(sql, params![namespace, ecosystem.as_str(), ids])?)
         })
         .await
     }
 
-    /// The live blobs of `catalog`'s `ecosystem` that nothing maps, read
+    /// The live blobs of `namespace`'s `ecosystem` that nothing maps, read
     /// from the primary: what a reclaim of the namespace takes.
     pub async fn unmapped_blobs(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         ecosystem: Ecosystem,
     ) -> Result<BTreeMap<BlobId, BlobRow>> {
-        let catalog = catalog.to_string();
-        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
+        let namespace = namespace.to_string();
+        self.read(namespace.clone(), Freshness::Current, move |connection, _| {
             let all: Option<String> = None;
-            rows_from(connection.query(UNMAPPED, params![catalog, ecosystem.as_str(), all])?)
+            rows_from(connection.query(UNMAPPED, params![namespace, ecosystem.as_str(), all])?)
         })
         .await
     }
@@ -73,62 +73,62 @@ impl SqlMetadata {
     /// depends on them, and their keys may be removed at any time.
     pub async fn mark_reclaiming(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         ecosystem: Ecosystem,
         ids: Vec<BlobId>,
     ) -> Result<Vec<BlobRef>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        let catalog = catalog.to_string();
-        self.write(move |connection| mark(connection, (&catalog, ecosystem), &ids)).await
+        let namespace = namespace.to_string();
+        self.write(move |connection| mark(connection, (&namespace, ecosystem), &ids)).await
     }
 
     /// Record that the keys of `reclaimed`, each `reclaiming`, are removed.
     pub async fn finish_reclaims(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         ecosystem: Ecosystem,
         reclaimed: Vec<BlobRef>,
     ) -> Result<()> {
         if reclaimed.is_empty() {
             return Ok(());
         }
-        let catalog = catalog.to_string();
+        let namespace = namespace.to_string();
         self.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let now = crate::publish::now_millis();
             let sql = "UPDATE blobs SET state = 'gone', changed_at = ?5
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND blob_id = ?3 AND incarnation = ?4
+                 WHERE namespace = ?1 AND ecosystem = ?2 AND blob_id = ?3 AND incarnation = ?4
                    AND state = 'reclaiming'";
             let ecosystem = ecosystem.as_str();
             for blob in &reclaimed {
                 let (id, incarnation) = (blob.id.as_str(), to_column(blob.incarnation));
-                transaction.execute(sql, params![catalog, ecosystem, id, incarnation, now])?;
+                transaction.execute(sql, params![namespace, ecosystem, id, incarnation, now])?;
             }
             transaction.commit()
         })
         .await
     }
 
-    /// The incarnations of `catalog`'s `ecosystem` that have been
+    /// The incarnations of `namespace`'s `ecosystem` that have been
     /// `reclaiming` for at least `lease`: reclaims that stopped before they
     /// finished, read from the primary.
     pub async fn stale_reclaims(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         ecosystem: Ecosystem,
         lease: Duration,
     ) -> Result<BTreeMap<BlobRef, u64>> {
-        let catalog = catalog.to_string();
+        let namespace = namespace.to_string();
         let lease = i64::try_from(lease.as_millis()).unwrap_or(i64::MAX);
-        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
+        self.read(namespace.clone(), Freshness::Current, move |connection, _| {
             let now = crate::publish::now_millis();
             let sql = "SELECT blob_id, incarnation, size FROM blobs
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND state = 'reclaiming'
+                 WHERE namespace = ?1 AND ecosystem = ?2 AND state = 'reclaiming'
                    AND changed_at <= ?4 - ?3";
             connection
-                .query(sql, params![catalog, ecosystem.as_str(), lease, now])?
+                .query(sql, params![namespace, ecosystem.as_str(), lease, now])?
                 .into_iter()
                 .map(|mut row| {
                     let size = to_generation(row.get(2)?);
@@ -139,7 +139,7 @@ impl SqlMetadata {
         .await
     }
 
-    /// Settle the incarnations stored in `catalog`'s `ecosystem` that no
+    /// Settle the incarnations stored in `namespace`'s `ecosystem` that no
     /// commit made the live one, and return those whose keys may be removed:
     /// one below its blob's incarnation, or at it once gone, can never be
     /// committed. One above it, or of a blob without a row, may be a publish
@@ -149,15 +149,15 @@ impl SqlMetadata {
     /// and it is settled once that one is reclaimed.
     pub async fn settle_stored(
         self: &Arc<Self>,
-        catalog: &str,
+        namespace: &str,
         ecosystem: Ecosystem,
         stored: Vec<Uncommitted>,
     ) -> Result<Vec<BlobRef>> {
         if stored.is_empty() {
             return Ok(Vec::new());
         }
-        let catalog = catalog.to_string();
-        self.write(move |connection| settle(connection, (&catalog, ecosystem), &stored)).await
+        let namespace = namespace.to_string();
+        self.write(move |connection| settle(connection, (&namespace, ecosystem), &stored)).await
     }
 }
 
@@ -167,14 +167,14 @@ fn blob_ref_from(mut row: Row) -> Result<BlobRef> {
 
 fn mark(
     connection: &dyn Connection,
-    (catalog, ecosystem): (&str, Ecosystem),
+    (namespace, ecosystem): (&str, Ecosystem),
     ids: &[BlobId],
 ) -> Result<Vec<BlobRef>> {
     let transaction = WriteTransaction::begin(connection)?;
     let ids: Vec<&str> = ids.iter().map(BlobId::as_str).collect();
     let ids = Some(json_array(&ids));
     let ecosystem_name = ecosystem.as_str();
-    let read = Query::new(UNMAPPED, params![catalog, ecosystem_name, ids]);
+    let read = Query::new(UNMAPPED, params![namespace, ecosystem_name, ids]);
     let rows = rows_from(
         transaction
             .query_all(&[read])?
@@ -184,13 +184,13 @@ fn mark(
     )?;
     let now = crate::publish::now_millis();
     let sql = "UPDATE blobs SET state = 'reclaiming', changed_at = ?5
-         WHERE catalog = ?1 AND ecosystem = ?2 AND blob_id = ?3 AND incarnation = ?4";
+         WHERE namespace = ?1 AND ecosystem = ?2 AND blob_id = ?3 AND incarnation = ?4";
     let mut marked = Vec::with_capacity(rows.len());
     for (id, row) in rows {
         let incarnation = to_column(row.incarnation);
         transaction.execute(
             sql,
-            params![catalog, ecosystem.as_str(), id.as_str(), incarnation, now],
+            params![namespace, ecosystem.as_str(), id.as_str(), incarnation, now],
         )?;
         marked.push(BlobRef { id, incarnation: row.incarnation });
     }
@@ -246,10 +246,10 @@ fn settle(
     Ok(removable)
 }
 
-/// The rows of `ids` in `catalog`'s `ecosystem`, read in one round trip.
+/// The rows of `ids` in `namespace`'s `ecosystem`, read in one round trip.
 fn read_rows<'id>(
     connection: &dyn Connection,
-    (catalog, ecosystem): (&str, Ecosystem),
+    (namespace, ecosystem): (&str, Ecosystem),
     ids: impl Iterator<Item = &'id BlobId>,
 ) -> Result<BTreeMap<BlobId, BlobRow>> {
     let ids: Vec<&str> = ids.map(BlobId::as_str).collect();
@@ -257,9 +257,9 @@ fn read_rows<'id>(
     let ecosystem = ecosystem.as_str();
     let read = Query::new(
         "SELECT blob_id, incarnation, state, size FROM blobs
-         WHERE catalog = ?1 AND ecosystem = ?2
+         WHERE namespace = ?1 AND ecosystem = ?2
            AND blob_id IN (SELECT value FROM json_each(?3))",
-        params![catalog, ecosystem, ids],
+        params![namespace, ecosystem, ids],
     );
     rows_from(
         connection
@@ -273,19 +273,19 @@ fn read_rows<'id>(
 /// Record `blob`'s incarnation as the blob's current one, gone.
 fn write_gone(
     transaction: &dyn Connection,
-    (catalog, ecosystem): (&str, Ecosystem),
+    (namespace, ecosystem): (&str, Ecosystem),
     blob: &BlobRef,
 ) -> Result<()> {
     let now = crate::publish::now_millis();
     let sql =
-        "INSERT INTO blobs (catalog, ecosystem, blob_id, incarnation, state, size, changed_at)
+        "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
          VALUES (?1, ?2, ?3, ?4, 'gone', 0, ?5)
-         ON CONFLICT (catalog, ecosystem, blob_id) DO UPDATE
+         ON CONFLICT (namespace, ecosystem, blob_id) DO UPDATE
          SET incarnation = excluded.incarnation, state = 'gone',
              changed_at = excluded.changed_at";
     let incarnation = to_column(blob.incarnation);
     transaction.execute(
         sql,
-        params![catalog, ecosystem.as_str(), blob.id.as_str(), incarnation, now],
+        params![namespace, ecosystem.as_str(), blob.id.as_str(), incarnation, now],
     )
 }

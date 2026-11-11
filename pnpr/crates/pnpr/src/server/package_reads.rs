@@ -274,7 +274,7 @@ pub(super) fn hosted_gate(
     let rules = hosted.rules.snapshot();
     let effective = rules.for_package(package);
     if effective.access.allows(identity) {
-        return HostedGate::Allowed(hosted.org.clone());
+        return HostedGate::Allowed(hosted.namespace.clone());
     }
     // Loud denial only inside a registry the caller may see: the explicit
     // entry gates this name, but the registry-level default admits the
@@ -297,7 +297,7 @@ pub(super) fn hosted_gate(
     HostedGate::MaskNotFound
 }
 
-/// [`hosted_gate`] flattened to a `Result` for the readers: the org to read
+/// [`hosted_gate`] flattened to a `Result` for the readers: the namespace to read
 /// from, or the response to answer with.
 pub(super) fn hosted_read_namespace(
     state: &AppState,
@@ -306,7 +306,7 @@ pub(super) fn hosted_read_namespace(
     package: &str,
 ) -> Result<String, RegistryError> {
     match hosted_gate(state, identity, source, package) {
-        HostedGate::Allowed(org) => Ok(org),
+        HostedGate::Allowed(namespace) => Ok(namespace),
         HostedGate::MaskNotFound => Err(RegistryError::NotFound),
         HostedGate::Denied(err) => Err(err),
     }
@@ -321,16 +321,16 @@ pub(super) async fn serve_hosted_packument(
     tarball_base: &str,
     view_options: DistView<'_>,
 ) -> Response {
-    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
-        Ok(org) => org,
+    let namespace = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(namespace) => namespace,
         Err(err) => return err.into_response(),
     };
     let max_age = state.inner.config.http.packument_ttl.as_secs();
-    // A hosted org has no upstream fallback: a package it does not host is a
-    // definitive not-found. Reads come from the org's own storage namespace.
+    // A hosted registry has no upstream fallback: a package it does not host is a
+    // definitive not-found. Reads come from its storage namespace.
     let response = async {
         let view = state.inner.storage
-            .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+            .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
             .read_hosted_package_view(name)
             .await;
         let view = match view {
@@ -368,21 +368,21 @@ pub(super) async fn serve_hosted_tarball(
     name: &CanonicalPackageName,
     filename: &str,
 ) -> Response {
-    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
-        Ok(org) => org,
+    let namespace = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(namespace) => namespace,
         Err(err) => return err.into_response(),
     };
     let (filename, name_version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
         Err(err) => return err.into_response(),
     };
-    serve_hosted_version_blob(state, &org, name, &name_version, &filename).await
+    serve_hosted_version_blob(state, &namespace, name, &name_version, &filename).await
 }
 
-/// The blob `filename` of `version` in the hosted namespace `org`.
+/// The blob `filename` of `version` in the hosted `namespace`.
 pub(super) async fn serve_hosted_version_blob(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     name: &CanonicalPackageName,
     version: &str,
     filename: &str,
@@ -391,7 +391,7 @@ pub(super) async fn serve_hosted_version_blob(
         return err.into_response();
     }
     match state.inner.storage
-        .for_hosted(org, pnpr_registry::Ecosystem::Npm)
+        .for_hosted(namespace, pnpr_registry::Ecosystem::Npm)
         .open_hosted_blob(name, filename)
         .await
     {

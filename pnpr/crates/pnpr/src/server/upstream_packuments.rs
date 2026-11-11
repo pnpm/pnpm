@@ -26,9 +26,9 @@ pub(super) async fn read_source_packument(
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
-            let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+            let namespace = hosted_read_namespace(state, identity, source, name.as_str())?;
             state.inner.storage
-                .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+                .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
                 .read_hosted_document(name)
                 .await
         }
@@ -271,7 +271,7 @@ pub(super) async fn load_upstream_packument_for(
 /// path-less, the default-target registry) — resolving to one concrete origin and
 /// reading there, with no fall-through. `Ok(None)` is a definitive not-found
 /// (unknown package, no route, no default target, or an unauthorized private
-/// hosted org). Used by the readers that aren't
+/// hosted registry). Used by the readers that aren't
 /// packument/tarball/version-manifest (e.g. `dist-tags`).
 pub(super) async fn load_packument_for_read(
     state: &AppState,
@@ -298,13 +298,13 @@ pub(super) async fn load_packument_for_read(
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
-            let org = match hosted_gate(state, identity, source, name.as_str()) {
-                HostedGate::Allowed(org) => org,
+            let namespace = match hosted_gate(state, identity, source, name.as_str()) {
+                HostedGate::Allowed(namespace) => namespace,
                 HostedGate::MaskNotFound => return Ok(None),
                 HostedGate::Denied(err) => return Err(err),
             };
             state.inner.storage
-                .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+                .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
                 .read_hosted_document(name)
                 .await
         }

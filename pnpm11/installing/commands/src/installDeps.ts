@@ -249,7 +249,7 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
 }
 
 function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
-  if (!opts.optimisticRepeatInstall || params.length !== 0) return false
+  if (!opts.optimisticRepeatInstall || opts.nodeLinker === 'pnp' || params.length !== 0) return false
   return !opts.update && !opts.dedupe && !opts.force && !opts.pruneDirectDependencies && !opts.pruneStore
 }
 

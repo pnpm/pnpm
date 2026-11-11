@@ -1,4 +1,4 @@
-//! The transparency log of a catalog's release records: entries sequenced
+//! The transparency log of a namespace's release records: entries sequenced
 //! with their versions, integrated into tiles and checkpoints in the hosted
 //! store.
 
@@ -32,13 +32,13 @@ pub(super) fn record_of(name: &str, version: &str) -> Vec<u8> {
     serde_json::to_vec(&record).unwrap()
 }
 
-/// Publish `versions` of `name` in `catalog`, each with its record, on top of
-/// what the store holds of it.
-async fn publish(storage: &crate::Storage, catalog: &str, name: &str, versions: &[String]) {
+/// Publish `versions` of `name` in `namespace`, each with its record, on top
+/// of what the store holds of it.
+async fn publish(storage: &crate::Storage, namespace: &str, name: &str, versions: &[String]) {
     let database = storage.sql_metadata();
-    let org = storage.for_hosted(catalog, Ecosystem::Npm);
+    let slice = storage.for_hosted(namespace, Ecosystem::Npm);
     let npm = CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap();
-    let current = org.read_hosted_document_for_update(&npm).await.unwrap();
+    let current = slice.read_hosted_document_for_update(&npm).await.unwrap();
     let mut document: Value = match &current {
         Some(current) => serde_json::from_slice(&current.bytes).unwrap(),
         None => packument(name, &[]),
@@ -63,7 +63,7 @@ async fn publish(storage: &crate::Storage, catalog: &str, name: &str, versions: 
         records,
     };
     database
-        .commit_publication(catalog, vec![document], Vec::new(), PublishNotes::default(), None)
+        .commit_publication(namespace, vec![document], Vec::new(), PublishNotes::default(), None)
         .await
         .unwrap();
 }
@@ -77,7 +77,7 @@ fn versions(range: std::ops::Range<u32>) -> Vec<String> {
 async fn records_are_sequenced_with_their_versions_and_integrated_after(db: Db) {
     let storage = storage(&db);
     let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
-    let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
     publish(&storage, "acme", "core", &versions(0..3)).await;
     publish(&storage, "other", "core", &versions(0..1)).await;
     let database = storage.sql_metadata();
@@ -90,7 +90,7 @@ async fn records_are_sequenced_with_their_versions_and_integrated_after(db: Db) 
             .to_string();
         assert_eq!(entry, Some((index, digest)), "{version}");
     }
-    // Each catalog has a log of its own.
+    // Each namespace has a log of its own.
     let other = database.release_record_entry(&core, "other", "1.0.0").await.unwrap();
     assert_eq!(other.map(|(index, _)| index), Some(0));
     assert!(
@@ -181,9 +181,9 @@ async fn records_are_sequenced_with_their_versions_and_integrated_after(db: Db) 
 async fn a_removed_version_keeps_its_log_entry(db: Db) {
     let storage = storage(&db);
     publish(&storage, "acme", "core", &versions(0..2)).await;
-    let org = storage.for_hosted("acme", Ecosystem::Npm);
-    super::write(&org, "core", &packument("core", &[])).await;
-    let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    let slice = storage.for_hosted("acme", Ecosystem::Npm);
+    super::write(&slice, "core", &packument("core", &[])).await;
+    let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
     let database = storage.sql_metadata();
     let core = CanonicalPackageName::parse("core", Ecosystem::Npm).unwrap();
     assert!(
@@ -203,19 +203,19 @@ async fn a_removed_version_keeps_its_log_entry(db: Db) {
 async fn altered_tiles_are_never_signed_over(db: Db) {
     let storage = storage(&db);
     let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
-    let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
     publish(&storage, "acme", "core", &versions(0..3)).await;
     storage.integrate_log(&log, &signer).await.unwrap();
     let key = "npm/~acme/tile/0/000.p/3";
-    let namespace = crate::transparency_log::LOG_NAMESPACE;
+    let record_dir = crate::transparency_log::LOG_NAMESPACE;
     let tile = storage.root
-        .read_record(namespace, key)
+        .read_record(record_dir, key)
         .await
         .unwrap()
         .unwrap();
     let mut altered = tile.clone();
     altered[0] ^= 1;
-    let replaced = storage.root.replace_record_if_current(namespace, key, &tile, &altered);
+    let replaced = storage.root.replace_record_if_current(record_dir, key, &tile, &altered);
     assert_eq!(replaced.await.unwrap(), crate::DocumentWrite::Written);
 
     publish(&storage, "acme", "core", &versions(3..5)).await;
@@ -233,7 +233,7 @@ async fn altered_tiles_are_never_signed_over(db: Db) {
 async fn an_empty_log_signs_no_checkpoint(db: Db) {
     let storage = storage(&db);
     let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
-    let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
     let tree_head = storage.integrate_log(&log, &signer).await.unwrap();
     assert_eq!(tree_head.size, 0);
     assert_eq!(tree_head.hash, pnpm_transparency_log::EMPTY_HASH);

@@ -22,7 +22,7 @@ pub const PUBLIC_URL: &str = "http://pnpr.test";
 #[derive(Clone, Copy)]
 pub struct HostedSource<'spec> {
     pub name: &'spec str,
-    pub org: &'spec str,
+    pub namespace: &'spec str,
     /// The registry-level default `access:`.
     pub access: &'spec str,
     /// The exact names the registry claims.
@@ -46,9 +46,8 @@ pub fn mixed_router_config(
     config.routing.hosted.insert(
         hosted.name.to_string(),
         HostedConfig::new(
-            hosted.org,
-            PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted.access])))
-                .with_default_publish(AccessList::publish_default(ecosystem)),
+            hosted.namespace,
+            PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted.access]))),
         ),
     );
     config.routing.upstreams.insert(
@@ -152,7 +151,7 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
     let mut config = mixed_router_config(
         tmp.path().to_path_buf(),
         ecosystem,
-        HostedSource { name: "hosted", org: "hosted", access: "$all", packages: &["demo"] },
+        HostedSource { name: "hosted", namespace: "hosted", access: "$all", packages: &["demo"] },
         ("upstream", &upstream.url()),
     );
     config.http.packument_ttl = Duration::ZERO;

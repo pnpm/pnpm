@@ -7,10 +7,10 @@ use axum::{
 };
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
-use pnpr_shared_artifacts::{CompilerCacheKey, OrgGrant};
+use pnpr_shared_artifacts::{CompilerCacheKey, OwnerGrant};
 use serde::Deserialize;
 
-use super::{AppState, AuthedCaller, CallerOrgs, private_no_cache};
+use super::{AppState, AuthedCaller, CallerOwners, private_no_cache};
 
 pub(super) async fn read(
     State(state): State<AppState>,
@@ -94,7 +94,8 @@ pub(super) async fn authorize_request(
     } else {
         key
     };
-    let grant = if request.method() == Method::PUT { OrgGrant::Publish } else { OrgGrant::Read };
+    let grant =
+        if request.method() == Method::PUT { OwnerGrant::Publish } else { OwnerGrant::Read };
     let authorization =
         authorize(&state, &identity, &cache, grant).and_then(|()| CompilerCacheKey::try_from(key));
     if let Err(error) = authorization {
@@ -127,7 +128,7 @@ pub(super) async fn directory(
     Path(path): Path<CollectionPath>,
     method: Method,
 ) -> Response {
-    if let Err(error) = authorize(&state, &identity, &path.cache, OrgGrant::Read) {
+    if let Err(error) = authorize(&state, &identity, &path.cache, OwnerGrant::Read) {
         return private_no_cache(error.into_response());
     }
     if method.as_str() != "PROPFIND" {
@@ -152,13 +153,13 @@ pub(super) async fn directory(
     ).into_response())
 }
 
-/// A compiler cache is the cache of the organization it is named after.
+/// A compiler cache is the cache of the artifact owner it is named after.
 fn authorize(
     state: &AppState,
     identity: &Identity,
     cache: &str,
-    grant: OrgGrant,
+    grant: OwnerGrant,
 ) -> Result<(), RegistryError> {
-    CallerOrgs::new(state, identity, "compiler cache")?
+    CallerOwners::new(state, identity, "compiler cache")?
         .authorize(cache, grant, "publish to the compiler cache of")
 }

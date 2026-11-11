@@ -4,7 +4,9 @@
 use super::{
     PackageKey,
     adapter::{Connection, Query, Row},
-    cargo_rows::{bad_request, check_format_version, take_optional_string},
+    cargo_rows::{
+        bad_request, check_format_version, insert_owners, take_optional_string, take_owners,
+    },
     commit::{Commit, PackageRow, parse_json},
     removed, to_column, to_generation,
 };
@@ -18,6 +20,8 @@ pub(super) const OCI_STATE_VERSION: u32 = 1;
 #[derive(Serialize, Deserialize)]
 struct OciEnvelope {
     name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    owners: Vec<String>,
 }
 
 pub(super) struct StoredOci {
@@ -38,19 +42,19 @@ struct IncomingManifest {
 }
 
 pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT digest, entry FROM oci_manifests
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
         query!(
             "SELECT tag, digest, updated FROM oci_tags
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
@@ -79,9 +83,10 @@ pub(super) fn apply(
     row: Option<&PackageRow>,
     mut stored: StoredOci,
     bytes: &[u8],
+    principal: Option<&str>,
 ) -> Result<bool> {
     let Some(incoming) = decompose(commit.key, bytes)? else {
-        return clear_repository(commit, row, &stored);
+        return clear_repository(commit, row, &stored, principal);
     };
     validate_incoming(&stored, &incoming)?;
     let mut changed = commit.write_envelope(row, incoming.state_version, &incoming.envelope)?;
@@ -95,24 +100,24 @@ fn clear_repository(
     commit: &Commit<'_>,
     row: Option<&PackageRow>,
     stored: &StoredOci,
+    principal: Option<&str>,
 ) -> Result<bool> {
-    if row.is_none() {
-        return Ok(false);
-    }
+    let Some(current) = row else { return Ok(false) };
+    removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     removed::record_removed_oci_digests(
         commit.transaction,
         commit.key,
         commit.generation,
         stored.manifests.keys().map(String::as_str),
     )?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "DELETE FROM oci_tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM oci_tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.transaction.execute(
-        "DELETE FROM oci_manifests WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM oci_manifests WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -144,7 +149,7 @@ fn upsert_manifests(
     incoming: &BTreeMap<String, IncomingManifest>,
 ) -> Result<bool> {
     let mut changed = false;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     for (digest, manifest) in incoming {
         match stored.remove(digest) {
             Some(existing) if existing == manifest.entry => {}
@@ -152,17 +157,17 @@ fn upsert_manifests(
                 let entry = serde_json::to_string(&manifest.entry)?;
                 commit.transaction.execute(
                     "UPDATE oci_manifests SET entry = ?5
-                     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND digest = ?4",
-                    params![catalog, ecosystem, name, digest, entry],
+                     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND digest = ?4",
+                    params![namespace, ecosystem, name, digest, entry],
                 )?;
                 changed = true;
             }
             None => {
                 let entry = serde_json::to_string(&manifest.entry)?;
                 commit.transaction.execute(
-                    "INSERT INTO oci_manifests (catalog, ecosystem, name, digest, entry)
+                    "INSERT INTO oci_manifests (namespace, ecosystem, name, digest, entry)
                      VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![catalog, ecosystem, name, digest, entry],
+                    params![namespace, ecosystem, name, digest, entry],
                 )?;
                 changed = true;
             }
@@ -177,15 +182,15 @@ fn reconcile_tags(
     incoming: &BTreeMap<String, (String, u64)>,
 ) -> Result<bool> {
     let mut changed = false;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     for (tag, target) in incoming {
         if stored.remove(tag).as_ref() != Some(target) {
             commit.transaction.execute(
-                "INSERT INTO oci_tags (catalog, ecosystem, name, tag, digest, updated)
+                "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                 ON CONFLICT (catalog, ecosystem, name, tag) DO UPDATE SET
+                 ON CONFLICT (namespace, ecosystem, name, tag) DO UPDATE SET
                    digest = excluded.digest, updated = excluded.updated",
-                params![catalog, ecosystem, name, tag, &target.0, to_column(target.1)],
+                params![namespace, ecosystem, name, tag, &target.0, to_column(target.1)],
             )?;
             changed = true;
         }
@@ -193,8 +198,8 @@ fn reconcile_tags(
     for tag in stored.keys() {
         commit.transaction.execute(
             "DELETE FROM oci_tags
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
-            params![catalog, ecosystem, name, tag],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
+            params![namespace, ecosystem, name, tag],
         )?;
         changed = true;
     }
@@ -214,7 +219,7 @@ fn remove_dropped_manifests(
         commit.generation,
         dropped.keys().map(String::as_str),
     )?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let keys: Vec<&str> = dropped
         .keys()
         .map(String::as_str)
@@ -222,9 +227,9 @@ fn remove_dropped_manifests(
     let digests = super::blobs::json_array(&keys);
     commit.transaction.execute(
         "DELETE FROM oci_manifests
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
            AND digest IN (SELECT value FROM json_each(?4))",
-        params![catalog, ecosystem, name, &digests],
+        params![namespace, ecosystem, name, &digests],
     )?;
     Ok(true)
 }
@@ -239,9 +244,11 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<OciRows>> {
     let state_version = check_format_version(key, &doc, OCI_STATE_VERSION)?;
     let name =
         take_optional_string(&mut doc, "name")?.unwrap_or_else(|| key.name.clone());
+    let owners = take_owners(&mut doc)?;
     let manifests = parse_manifests(doc.remove("manifests"))?;
     let tags = parse_tags(doc.remove("tags"))?;
-    Ok(Some(OciRows { state_version, envelope: OciEnvelope { name }, manifests, tags }))
+    let envelope = OciEnvelope { name, owners };
+    Ok(Some(OciRows { state_version, envelope, manifests, tags }))
 }
 
 fn parse_manifests(raw: Option<Value>) -> Result<BTreeMap<String, IncomingManifest>> {
@@ -322,28 +329,28 @@ pub(super) fn view_queries<'query>(
     key: &'query PackageKey,
     unless: &'query i64,
 ) -> [Query<'query>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT m.entry FROM oci_manifests m
-             WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
+             WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
              ORDER BY m.digest",
-            catalog,
+            namespace,
             ecosystem,
             name,
             unless,
         ),
         query!(
             "SELECT t.tag, t.digest, t.updated FROM oci_tags t
-             WHERE t.catalog = ?1 AND t.ecosystem = ?2 AND t.name = ?3
+             WHERE t.namespace = ?1 AND t.ecosystem = ?2 AND t.name = ?3
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
              ORDER BY t.tag",
-            catalog,
+            namespace,
             ecosystem,
             name,
             unless,
@@ -385,5 +392,6 @@ pub(super) fn assemble(
     rendered.insert("name".to_string(), Value::String(envelope.name));
     rendered.insert("manifests".to_string(), Value::Array(manifests));
     rendered.insert("tags".to_string(), Value::Array(tags));
+    insert_owners(&mut rendered, envelope.owners);
     Ok(serde_json::to_vec(&rendered)?)
 }

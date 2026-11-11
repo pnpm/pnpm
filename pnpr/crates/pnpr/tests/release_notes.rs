@@ -169,6 +169,8 @@ async fn a_publication_note_is_reached_from_each_member() {
         .await
         .json();
     assert_eq!(listing["notes"][0]["version"], "1.0.0");
+    assert_eq!(listing["notes"][0]["publication"]["namespace"], "-");
+    assert!(listing["notes"][0]["publication"].get("org").is_none());
     assert_eq!(listing["notes"][0]["publication"]["name"], "v1.0.0");
     assert_eq!(listing["notes"][0]["publication"]["url"], "/-/publications/-/1/notes");
     assert!(listing["notes"][0].get("text").is_none());

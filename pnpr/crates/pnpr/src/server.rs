@@ -113,8 +113,6 @@ mod batch;
 mod cargo;
 mod client_ip;
 mod compiler_cache;
-mod org_access;
-use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
 mod health;
@@ -125,6 +123,8 @@ mod notes;
 mod oci;
 mod oidc;
 mod oidc_groups;
+mod owner_access;
+use owner_access::CallerOwners;
 mod package_mutation;
 mod publications;
 mod publishing;
@@ -155,8 +155,8 @@ mod tests;
 
 use self::{
     authentication::{
-        Action, AuthedCaller, authenticate, authorize, authorize_against_packument,
-        authorize_package,
+        Action, AuthedCaller, Ownership, authenticate, authorize, authorize_against_packument,
+        authorize_continuation, authorize_package, authorize_with_ownership,
     },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
@@ -218,9 +218,9 @@ use std::{collections::HashSet, fmt, net::SocketAddr, sync::Arc, time::Duration}
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
-/// The response header that carries the catalog generation a hosted package
+/// The response header that carries the namespace generation a hosted package
 /// view was rendered from, or that a mutation committed, as
-/// `<catalog>:<generation>`. Only a metadata backend that tracks generations
+/// `<namespace>:<generation>`. Only a metadata backend that tracks generations
 /// sends it.
 const GENERATION_HEADER: &str = "pnpr-generation";
 
@@ -493,10 +493,10 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// The npm hosted storage view for `org`, or the default npm namespace when
-/// `org` is `None`.
-fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
-    state.inner.storage.for_hosted(org.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
+/// The npm hosted storage view for `namespace`, or the default npm slice when
+/// `namespace` is `None`.
+fn hosted_storage(state: &AppState, namespace: Option<&str>) -> Storage {
+    state.inner.storage.for_hosted(namespace.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
 
 // --------------------------------------------------------------------
@@ -506,7 +506,7 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
 /// unpublish, packument update) targets, or the [`Response`] to return. A
 /// write routes like a publish: through the addressed `/~<name>/` (or,
-/// path-less, the default-target registry) to a hosted org, rejecting a name
+/// path-less, the default-target registry) to a hosted registry, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
 /// target or the registry's access list denies the caller.
 fn resolve_write_target(
@@ -527,7 +527,7 @@ fn resolve_write_target_for(
     name: &CanonicalPackageName,
 ) -> Result<WriteTarget, RegistryError> {
     match resolve_publish_target_for(state, identity, registry, ecosystem, name.as_str()) {
-        PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
+        PublishTarget::Hosted { source, namespace } => Ok(WriteTarget { source, namespace }),
         PublishTarget::Reject(reason) => Err(RegistryError::BadRequest { reason }),
         PublishTarget::Denied(response) => Err(response),
         PublishTarget::NotFound => Err(RegistryError::NotFound),
@@ -538,7 +538,7 @@ fn resolve_write_target_for(
 /// `publish`/`unpublish` rule lookup) and its storage namespace.
 struct WriteTarget {
     source: String,
-    org: String,
+    namespace: String,
 }
 
 fn not_found() -> Response {

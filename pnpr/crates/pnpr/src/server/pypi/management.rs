@@ -2,7 +2,7 @@ use super::{
     super::{require_admin, resolve_write_target_for},
     Action, AppState, AuthedCaller, CanonicalPackageName, ECOSYSTEM, HashMap, Identity, Path,
     ProjectDocument, RegistryError, RegistrySource, Response, State, StatusCode, TargetRegistry,
-    Yanked, authorize, is_safe_path_segment, not_found, private_no_cache,
+    Yanked, authorize_package, is_safe_path_segment, not_found, private_no_cache,
 };
 use axum::{Json, response::IntoResponse};
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
@@ -96,18 +96,15 @@ async fn update_file(
         require_admin(state, identity, "delete", format!("Python file {filename:?}"))?;
     }
     let target = resolve_write_target_for(state, identity, registry, ECOSYSTEM, &key)?;
-    if yanked.is_some() {
-        authorize(
-            state,
-            identity,
-            &RegistrySource::Hosted(target.source),
-            key.as_str(),
-            Action::Publish,
-        )?;
-    }
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
+    if yanked.is_some() {
+        let hosted = RegistrySource::Hosted(target.source);
+        let namespace = Some(target.namespace.as_str());
+        authorize_package(state, identity, &hosted, key.as_str(), Action::Publish, namespace)
+            .await?;
+    }
     state.inner.storage
-        .for_hosted(&target.org, ECOSYSTEM)
+        .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
             update_document(existing, &key, filename, yanked.as_ref())
         })

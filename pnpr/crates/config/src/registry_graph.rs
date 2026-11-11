@@ -1,5 +1,5 @@
 pub(super) use namespace::{
-    ecosystem_package_keys, org_collision_error, validate_org_namespace, validate_registry_key,
+    ecosystem_package_keys, namespace_collision_error, validate_namespace, validate_registry_key,
     validate_registry_name,
 };
 
@@ -194,13 +194,13 @@ pub(super) fn build_hosted_entry(
     hosted: &IndexMap<String, HostedConfig>,
     ecosystems: &IndexMap<String, Ecosystem>,
 ) -> Result<(HostedConfig, Ecosystem, Vec<PackagePattern>), RegistryError> {
-    let org = registry.org.unwrap_or_default();
-    validate_org_namespace(name, &org)?;
+    let namespace = registry.namespace.unwrap_or_default();
+    validate_namespace(name, &namespace)?;
     let ecosystem = registry.ecosystem.unwrap_or_default();
     if let Some((other, _)) = hosted
         .iter()
         .find(|(other_name, existing): &(&String, &HostedConfig)| {
-            existing.org == org
+            existing.namespace == namespace
                 && ecosystems
                     .get(*other_name)
                     .copied()
@@ -208,7 +208,7 @@ pub(super) fn build_hosted_entry(
                     == ecosystem
         })
     {
-        return Err(org_collision_error(name, &org, other));
+        return Err(namespace_collision_error(name, &namespace, other));
     }
     if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
         return Err(RegistryError::InvalidConfig {
@@ -226,7 +226,7 @@ pub(super) fn build_hosted_entry(
     let (teams_managed_by, rules_managed_by) =
         (registry.teams_managed_by, registry.rules_managed_by);
     Ok((
-        HostedConfig { org, rules, teams, teams_managed_by, rules_managed_by },
+        HostedConfig { namespace, rules, teams, teams_managed_by, rules_managed_by },
         ecosystem,
         patterns,
     ))
@@ -234,7 +234,7 @@ pub(super) fn build_hosted_entry(
 
 /// The resolved serving config, ecosystem and claimed patterns of one
 /// `upstream:` registry. The rules are built before the `resolve_upstreams`
-/// fork so the graph carries the namespace on every tier, and so a
+/// fork so the graph carries the claimed patterns on every tier, and so a
 /// `publish`/`unpublish` value — a write rule on a registry no write can land
 /// on — fails startup on every tier too. A resolver-only tier gets no serving
 /// config back.

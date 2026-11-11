@@ -491,8 +491,7 @@ async fn mounts_and_discovery_respect_source_read_permissions() {
             unpublish: None,
         }],
         Some(AccessList::from_tokens(["$all"])),
-    )
-    .with_default_publish(AccessList::publish_default(Ecosystem::Oci));
+    );
     let app = router_with_auth(config, auth_state);
     let response = app
         .clone()

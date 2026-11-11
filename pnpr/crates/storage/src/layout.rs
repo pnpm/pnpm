@@ -2,13 +2,13 @@
 //!
 //! ```text
 //! <root>/
-//!   layout.json                    {"layout": <LAYOUT_VERSION>, "store_id": "<hex>"}
-//!   default/<ecosystem>/           registries without an `org:`
-//!   orgs/<org>/<ecosystem>/        one namespace per (org, ecosystem)
-//!   .<record namespace>/           records every namespace shares
-//! <namespace>/
+//!   layout.json                         {"layout": <LAYOUT_VERSION>, "store_id": "<hex>"}
+//!   default/<ecosystem>/                registries without a `namespace:`
+//!   namespaces/<namespace>/<ecosystem>/ one slice per (namespace, ecosystem)
+//!   .<record dir>/                      records every namespace shares
+//! <slice>/
 //!   archives/<shard>/<identity>.<incarnation>
-//!   .<record namespace>/           records of this namespace
+//!   .<record dir>/                      records of this slice
 //! <cache root>/<upstream>/
 //!   packages/<segments...>/document.json
 //!   packages/<segments...>/blobs/<file>
@@ -19,9 +19,9 @@
 //! bytes several files share are stored once and a public file name never
 //! reaches a key. The proxy cache keeps an upstream's files by name: a
 //! package is the segments of [`package_segments`] and a blob the one segment
-//! of [`blob_segment`], so a name can never sit where an org, a namespace, a
-//! blob, or another name's child does, and an object key is byte for byte the
-//! local path.
+//! of [`blob_segment`], so a name can never sit where a namespace, an
+//! ecosystem, a blob, or another name's child does, and an object key is byte
+//! for byte the local path.
 
 pub use crate::write_local_layout_marker;
 
@@ -30,15 +30,15 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// The layout this build reads and writes.
-pub const LAYOUT_VERSION: u32 = 2;
+pub const LAYOUT_VERSION: u32 = 3;
 pub const LAYOUT_FILE: &str = "layout.json";
 pub(crate) const PACKAGES_DIR: &str = "packages";
 pub(crate) const DOCUMENT_FILE: &str = "document.json";
 pub(crate) const BLOBS_DIR: &str = "blobs";
-/// Where a hosted namespace keeps its archives, by key.
+/// Where a hosted `(namespace, ecosystem)` slice keeps its archives, by key.
 pub(crate) const ARCHIVES_DIR: &str = "archives";
 const DEFAULT_NAMESPACE: &str = "default";
-const ORGS_DIR: &str = "orgs";
+const NAMESPACES_DIR: &str = "namespaces";
 /// Opens every non-leaf segment of [`package_segments`], and the segment of a
 /// [`VERSIONED_EXTENSIONS`] file not named after its package.
 /// [`encode_segment`] never writes it.
@@ -72,22 +72,27 @@ pub fn new_store_id() -> String {
     out
 }
 
-/// The path segments of an `(org, ecosystem)` namespace, below the store root.
+/// The path segments of `(namespace, ecosystem)` below the store root.
 #[must_use]
-pub fn namespace_segments(org: &str, ecosystem: Ecosystem) -> Vec<String> {
-    if org.is_empty() {
+pub fn namespace_segments(namespace: &str, ecosystem: Ecosystem) -> Vec<String> {
+    if namespace.is_empty() {
         vec![DEFAULT_NAMESPACE.to_string(), ecosystem.as_str().to_string()]
     } else {
-        vec![ORGS_DIR.to_string(), encode_segment(org), ecosystem.as_str().to_string()]
+        vec![NAMESPACES_DIR.to_string(), encode_segment(namespace), ecosystem.as_str().to_string()]
     }
 }
 
-/// The directory of package `name` in `(org, ecosystem)`'s namespace of the
-/// local hosted store at `root`.
+/// The directory of package `name` in `(namespace, ecosystem)` of the local
+/// hosted store at `root`.
 #[must_use]
-pub fn local_package_dir(root: &Path, org: &str, ecosystem: Ecosystem, name: &str) -> PathBuf {
+pub fn local_package_dir(
+    root: &Path,
+    namespace: &str,
+    ecosystem: Ecosystem,
+    name: &str,
+) -> PathBuf {
     let mut dir = root.to_path_buf();
-    dir.extend(namespace_segments(org, ecosystem));
+    dir.extend(namespace_segments(namespace, ecosystem));
     dir.push(PACKAGES_DIR);
     dir.extend(package_segments(ecosystem, name));
     dir
@@ -95,13 +100,18 @@ pub fn local_package_dir(root: &Path, org: &str, ecosystem: Ecosystem, name: &st
 
 /// Where [`local_package_dir`]'s document is.
 #[must_use]
-pub fn local_document_path(root: &Path, org: &str, ecosystem: Ecosystem, name: &str) -> PathBuf {
-    local_package_dir(root, org, ecosystem, name).join(DOCUMENT_FILE)
+pub fn local_document_path(
+    root: &Path,
+    namespace: &str,
+    ecosystem: Ecosystem,
+    name: &str,
+) -> PathBuf {
+    local_package_dir(root, namespace, ecosystem, name).join(DOCUMENT_FILE)
 }
 
-/// Where the archive stored under `key` is, below its namespace:
-/// `archives/<shard>/<key>`, the shard being the first two hex digits of the
-/// key's digest.
+/// Where the archive stored under `key` is, below its `(namespace, ecosystem)`
+/// slice: `archives/<shard>/<key>`, the shard being the first two hex digits
+/// of the key's digest.
 #[must_use]
 pub fn archive_object_path(key: &str) -> String {
     let digest = key.split_once('-').map_or(key, |(_, digest)| digest);
@@ -109,12 +119,17 @@ pub fn archive_object_path(key: &str) -> String {
     format!("{ARCHIVES_DIR}/{shard}/{key}")
 }
 
-/// Where the archive stored under `key` in `(org, ecosystem)`'s namespace of
-/// the local hosted store at `root` is.
+/// Where the archive stored under `key` in `(namespace, ecosystem)` of the
+/// local hosted store at `root` is.
 #[must_use]
-pub fn local_archive_path(root: &Path, org: &str, ecosystem: Ecosystem, key: &str) -> PathBuf {
+pub fn local_archive_path(
+    root: &Path,
+    namespace: &str,
+    ecosystem: Ecosystem,
+    key: &str,
+) -> PathBuf {
     let mut path = root.to_path_buf();
-    path.extend(namespace_segments(org, ecosystem));
+    path.extend(namespace_segments(namespace, ecosystem));
     path.extend(archive_object_path(key).split('/'));
     path
 }

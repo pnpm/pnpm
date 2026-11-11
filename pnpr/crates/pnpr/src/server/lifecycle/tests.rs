@@ -89,7 +89,7 @@ async fn startup_and_periodic_sweeps_reclaim_s3_staging_files_past_request_timeo
 }
 
 #[tokio::test(start_paused = true)]
-async fn startup_sweep_reclaims_local_hosted_archive_temps_across_orgs() {
+async fn startup_sweep_reclaims_local_hosted_archive_temps_across_namespaces() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
     let config_path = tmp.path().join("config.yaml");
@@ -101,7 +101,7 @@ secret: test-secret-key-32-chars-long-12
 registries:
   acme-reg:
     type: hosted
-    org: acme
+    namespace: acme
 ",
         storage = tmp.path().join("storage").display(),
         cache = tmp.path().join("cache").display(),
