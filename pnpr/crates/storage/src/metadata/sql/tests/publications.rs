@@ -293,7 +293,7 @@ fn oci_document(name: &str, digests: &[&str], tags: &[(&str, &str)]) -> Value {
         .map(|(tag, digest)| json!({ "tag": tag, "digest": digest, "updated": 1 }))
         .collect();
     json!({
-        "formatVersion": 2,
+        "formatVersion": 1,
         "name": name,
         "manifests": manifests,
         "tags": tags,

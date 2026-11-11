@@ -3,14 +3,14 @@
 use super::{
     PackageKey,
     adapter::Connection,
-    commit::Commit,
-    packument::{Readme, VersionRows},
+    commit::{Commit, parse_json, parse_optional_json},
+    packument::{Interpretation, Readme, VersionRows},
     to_column,
 };
 use crate::metadata::ArtifactMember;
 use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
 use pnpr_error::{RegistryError, Result};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
 /// Insert the rows of a version the store has not accepted yet, with the
@@ -63,7 +63,7 @@ fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRo
     let (catalog, ecosystem, name) = commit.key.params();
     let manifest = serde_json::to_string(&rows.manifest)?;
     let inputs = serde_json::to_string(&rows.interpretation.inputs)?;
-    let accepted_digest = super::commit::accepted_digest(rows)?;
+    let accepted_digest = accepted_digest(rows)?;
     commit.transaction.execute(
         "INSERT INTO accepted_manifests (catalog, ecosystem, name, version, profile,
                                          manifest, inputs, accepted_digest)
@@ -80,6 +80,50 @@ fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRo
         ],
     )?;
     Ok(())
+}
+
+/// What a version was accepted as.
+pub(super) struct AcceptedRows {
+    pub(super) manifest: Map<String, Value>,
+    pub(super) readme: Readme,
+    pub(super) interpretation: Interpretation,
+}
+
+/// The accepted manifest, README, and interpretation of `version`, for a
+/// restatement whose digest differs, such as one with its fields in another
+/// order.
+pub(super) fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
+    let (catalog, ecosystem, name) = commit.key.params();
+    let mut row = commit.transaction.query_one(
+        "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
+         FROM accepted_manifests m
+         LEFT JOIN readmes r USING (catalog, ecosystem, name, version)
+         WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4",
+        params![catalog, ecosystem, name, version],
+    )?;
+    let manifest: String = row.get(0)?;
+    let text: Option<String> = row.get(1)?;
+    let filename: Option<String> = row.get(2)?;
+    let profile: String = row.get(3)?;
+    let inputs: String = row.get(4)?;
+    let readme = Readme {
+        text: parse_optional_json(text.as_deref())?,
+        filename: parse_optional_json(filename.as_deref())?,
+    };
+    let interpretation = Interpretation { profile, inputs: parse_json(&inputs)? };
+    Ok(AcceptedRows { manifest: parse_json(&manifest)?, readme, interpretation })
+}
+
+/// The digest of what a version's insert-only rows hold: its manifest,
+/// README, and interpretation.
+pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
+    let input = serde_json::to_vec(&(
+        &rows.manifest,
+        &rows.readme.text,
+        &rows.readme.filename,
+        &rows.interpretation,
+    ))?;
+    Ok(ssri::Integrity::from(input).to_string())
 }
 
 /// Insert the exact bytes of a version's release record. They must be a

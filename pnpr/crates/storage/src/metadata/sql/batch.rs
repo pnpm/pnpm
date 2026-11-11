@@ -39,7 +39,7 @@ impl<'conn> Batch<'conn> {
         let transaction = WriteTransaction::begin(connection)?;
         let mut queries = vec![Query::new(
             "SELECT COALESCE((SELECT generation FROM catalogs WHERE catalog = ?1), 0),
-             EXISTS (SELECT 1 FROM registry_records WHERE kind = 'cdn-subscription' AND name = 'default')",
+             EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)",
             params![catalog],
         )];
         queries.extend_from_slice(reads);

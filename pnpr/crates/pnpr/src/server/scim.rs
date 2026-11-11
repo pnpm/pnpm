@@ -25,10 +25,14 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
-use directory::{clean_up_before_reactivating, deprovision, read_directory, update_directory};
-use resources::{apply_patch, list_response, parse_filter, parse_user, user_resource};
+use directory::{
+    ScimUser, clean_up_before_reactivating, deprovision, insert_user, patch_user as patch_stored,
+    remove_user, replace_user as replace_stored,
+};
+use resources::{list_response, parse_filter, parse_user, user_resource};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::HashMap;
 
 const BASE: &str = "/-/pnpr/v0/scim/v2";
 const ERROR_SCHEMA: &str = "urn:ietf:params:scim:api:messages:2.0:Error";
@@ -88,26 +92,7 @@ async fn list_users(
             .as_deref()
             .map(parse_filter)
             .transpose()?;
-        let (directory, _) = read_directory(&state).await?;
-        let accounts = account_names(&state, &directory, wanted.as_deref()).await?;
-        let mut matching = Vec::new();
-        for (id, user) in &directory.users {
-            if user.removed {
-                continue;
-            }
-            let Some(username) = accounts.get(id) else {
-                continue;
-            };
-            if wanted
-                .as_ref()
-                .is_some_and(|wanted| wanted != username)
-            {
-                continue;
-            }
-            let mut user = user.clone();
-            user.username.clone_from(username);
-            matching.push((id.clone(), user));
-        }
+        let matching = matching_users(&state, wanted.as_deref()).await?;
         let start_index = query.start_index.unwrap_or(1).max(1);
         let page: Vec<_> = matching
             .iter()
@@ -127,16 +112,7 @@ async fn get_user(
     Path(path): Path<UserPath>,
 ) -> Response {
     let result = async {
-        let (directory, _) = read_directory(&state).await?;
-        let mut user = directory.users
-            .get(&path.id)
-            .filter(|user| !user.removed)
-            .ok_or(RegistryError::NotFound)?
-            .clone();
-        user.username = state.inner.identity.auth.users
-            .account_name(&path.id)
-            .await?
-            .ok_or(RegistryError::NotFound)?;
+        let user = ensure_resource_exists(&state, &path.id).await?;
         Ok(scim_json(StatusCode::OK, &user_resource(&path.id, &user, &location(&state, &path.id))))
     };
     scim_respond(result.await)
@@ -147,22 +123,17 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
     let result = async {
         let (username, user) = parse_user(&parse_json(&body)?)?;
         let id = state.inner.identity.auth.users.provision_user(&username).await?;
-        let created =
-            update_directory(&state, |directory| Ok(directory.store(&id, user.clone()))).await;
-        let created = match created {
-            Ok(created) => created,
-            Err(err) => {
-                state.inner.identity.auth.users.delete_user(&id).await?;
-                return Err(err);
-            }
-        };
-        let response = finish_write(&state, &id, &created, StatusCode::CREATED).await?;
+        if let Err(err) = insert_user(&state, &id, &user).await {
+            state.inner.identity.auth.users.delete_user(&id).await?;
+            return Err(err);
+        }
+        let response = finish_write(&state, &id, &user, StatusCode::CREATED).await?;
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_create",
             actor = "scim",
             user = %username,
-            active = created.active,
+            active = user.active,
             "scim user created",
         );
         Ok(response)
@@ -180,21 +151,15 @@ async fn replace_user(
     let result = async {
         let (username, user) = parse_user(&parse_json(&body)?)?;
         clean_up_before_reactivating(&state, &path.id).await?;
-        ensure_resource_exists(&state, &path.id).await?;
-        state.inner.identity.auth.users.rename_user(&path.id, &username).await?;
-        let replaced = update_directory(&state, |directory| {
-            existing_user(directory, &path.id)?;
-            Ok(directory.store(&path.id, user.clone()))
-        })
-        .await?;
-        let response = finish_write(&state, &path.id, &replaced, StatusCode::OK).await?;
+        replace_stored(&state, &path.id, &user).await?;
+        let response = finish_write(&state, &path.id, &user, StatusCode::OK).await?;
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_replace",
             actor = "scim",
-            user = %replaced.username,
+            user = %username,
             user_id = %path.id,
-            active = replaced.active,
+            active = user.active,
             "scim user replaced",
         );
         Ok(response)
@@ -212,16 +177,7 @@ async fn patch_user(
     let result = async {
         let patch = parse_json(&body)?;
         clean_up_before_reactivating(&state, &path.id).await?;
-        let mut projected = ensure_resource_exists(&state, &path.id).await?;
-        apply_patch(&mut projected, &patch)?;
-        state.inner.identity.auth.users.rename_user(&path.id, &projected.username).await?;
-        let patched = update_directory(&state, |directory| {
-            let mut user = existing_user(directory, &path.id)?.clone();
-            user.username.clone_from(&projected.username);
-            apply_patch(&mut user, &patch)?;
-            Ok(directory.store(&path.id, user))
-        })
-        .await?;
+        let patched = patch_stored(&state, &path.id, &patch).await?;
         let response = finish_write(&state, &path.id, &patched, StatusCode::OK).await?;
         tracing::info!(
             target: "pnpr::audit",
@@ -248,17 +204,7 @@ async fn delete_user(
             .account_name(&path.id)
             .await?
             .ok_or(RegistryError::NotFound)?;
-        update_directory(&state, |directory| {
-            let mut user = directory.users
-                .get(&path.id)
-                .cloned()
-                .ok_or(RegistryError::NotFound)?;
-            user.active = false;
-            user.removed = true;
-            directory.store(&path.id, user);
-            Ok(())
-        })
-        .await?;
+        remove_user(&state, &path.id).await?;
         deprovision(&state, &path.id).await?;
         state.inner.identity.auth.users.delete_user(&path.id).await?;
         tracing::info!(
@@ -274,42 +220,32 @@ async fn delete_user(
     scim_respond(result.await)
 }
 
-fn existing_user<'a>(
-    directory: &'a mut directory::Directory,
-    username: &str,
-) -> Result<&'a mut directory::ScimUser, RegistryError> {
-    directory.users
-        .get_mut(username)
-        .filter(|user| !user.removed)
-        .ok_or(RegistryError::NotFound)
-}
-
 /// Deprovision `user` when the write left it inactive, then answer with it.
 async fn finish_write(
     state: &AppState,
-    username: &str,
-    user: &directory::ScimUser,
+    user_id: &str,
+    user: &ScimUser,
     status: StatusCode,
 ) -> Result<Response, RegistryError> {
     let mut user = user.clone();
     user.username = state.inner.identity.auth.users
-        .account_name(username)
+        .account_name(user_id)
         .await?
         .ok_or(RegistryError::NotFound)?;
     if !user.active {
-        deprovision(state, username).await?;
+        deprovision(state, user_id).await?;
     }
-    Ok(scim_json(status, &user_resource(username, &user, &location(state, username))))
+    Ok(scim_json(status, &user_resource(user_id, &user, &location(state, user_id))))
 }
 
-fn location(state: &AppState, username: &str) -> String {
+fn location(state: &AppState, user_id: &str) -> String {
     let public_url = state.inner.config.http.public_url.trim_end_matches('/');
     let users = format!("{public_url}{BASE}/Users");
     let Ok(mut url) = url::Url::parse(&users) else {
-        return format!("{users}/{username}");
+        return format!("{users}/{user_id}");
     };
     if let Ok(mut segments) = url.path_segments_mut() {
-        segments.push(username);
+        segments.push(user_id);
     }
     url.into()
 }
@@ -343,49 +279,62 @@ fn scim_respond(result: Result<Response, RegistryError>) -> Response {
     })
 }
 
-async fn ensure_resource_exists(
-    state: &AppState,
-    id: &str,
-) -> Result<directory::ScimUser, RegistryError> {
-    let (directory, _) = read_directory(state).await?;
-    let mut user = directory.users
-        .get(id)
-        .filter(|user| !user.removed)
-        .ok_or(RegistryError::NotFound)?
-        .clone();
-    user.username =
+async fn ensure_resource_exists(state: &AppState, id: &str) -> Result<ScimUser, RegistryError> {
+    let stored = state.inner.storage.read_scim_user(id).await?.ok_or(RegistryError::NotFound)?;
+    let username =
         state.inner.identity.auth.users.account_name(id).await?.ok_or(RegistryError::NotFound)?;
-    Ok(user)
+    Ok(ScimUser { username, active: stored.active, attributes: stored.attributes })
 }
 
-async fn account_names(
+async fn matching_users(
     state: &AppState,
-    directory: &directory::Directory,
     wanted: Option<&str>,
-) -> Result<std::collections::HashMap<String, String>, RegistryError> {
+) -> Result<Vec<(String, ScimUser)>, RegistryError> {
+    if let Some(username) = wanted {
+        return Ok(matching_filtered_user(state, username).await?.into_iter().collect());
+    }
     let users = &state.inner.identity.auth.users;
-    let user_ids = if let Some(username) = wanted {
-        users
-            .account_id(username)
-            .await?
-            .into_iter()
-            .collect()
-    } else {
-        directory.users
-            .iter()
-            .filter(|(_, user)| !user.removed)
-            .map(|(id, _)| id.clone())
-            .collect::<Vec<_>>()
-    };
-    let user_ids: Vec<_> = user_ids
-        .into_iter()
-        .filter(|id| directory.users.get(id).is_some_and(|user| !user.removed))
+    let stored_users = state.inner.storage.list_active_scim_users().await?;
+    let user_ids: Vec<String> = stored_users
+        .iter()
+        .map(|user| user.user_id.clone())
         .collect();
-    let accounts = users
+    let accounts: HashMap<String, String> = users
         .accounts_by_id(&user_ids)
         .await?
         .into_iter()
         .map(|account| (account.id, account.username))
         .collect();
-    Ok(accounts)
+    Ok(stored_users
+        .into_iter()
+        .filter_map(|stored| {
+            let username = accounts.get(&stored.user_id)?.clone();
+            Some((
+                stored.user_id,
+                ScimUser { username, active: stored.active, attributes: stored.attributes },
+            ))
+        })
+        .collect())
+}
+
+async fn matching_filtered_user(
+    state: &AppState,
+    username: &str,
+) -> Result<Option<(String, ScimUser)>, RegistryError> {
+    let users = &state.inner.identity.auth.users;
+    let Some(id) = users.account_id(username).await? else {
+        return Ok(None);
+    };
+    let Some(stored) = state.inner.storage.read_scim_user(&id).await? else {
+        return Ok(None);
+    };
+    let Some(canonical_name) = users.account_name(&id).await? else {
+        return Ok(None);
+    };
+    if canonical_name != username {
+        return Ok(None);
+    }
+    let user =
+        ScimUser { username: canonical_name, active: stored.active, attributes: stored.attributes };
+    Ok(Some((id, user)))
 }

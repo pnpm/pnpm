@@ -36,8 +36,6 @@ pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
 pub use archives::{PromotedArchive, archive_temp_bases};
 pub use blob_id::{BlobId, parse_blob_key};
 
-pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
-
 pub use staged_archives::{
     INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
     StagedArchiveUsage,
@@ -67,8 +65,6 @@ use layout_state::namespace;
 mod staged_records;
 
 mod staged_archives;
-
-mod registry_records;
 
 mod atomic_write;
 use atomic_write::create_tmp_file;

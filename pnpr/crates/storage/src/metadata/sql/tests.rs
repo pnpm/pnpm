@@ -6,6 +6,7 @@ mod batched_reads;
 mod blobs;
 mod cdn;
 mod concurrency;
+mod ecosystems;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
@@ -830,46 +831,6 @@ async fn a_removed_version_is_never_accepted_again(db: Db) {
     assert!(matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { .. })));
 }
 
-async fn another_ecosystem_stores_its_document_whole(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Cargo);
-    let name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
-    storage.write_hosted_document_if_current(&name, b"not json", None, None).await.unwrap();
-    assert_eq!(
-        storage
-            .read_hosted_document(&name)
-            .await
-            .unwrap()
-            .unwrap(),
-        b"not json",
-    );
-    let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
-    assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);
-    let current = storage
-        .read_hosted_document_for_update(&name)
-        .await
-        .unwrap()
-        .unwrap();
-    storage
-        .write_hosted_document_if_current(&name, b"", Some(&current.version), None)
-        .await
-        .unwrap();
-    storage.write_hosted_document_if_current(&name, b"", None, None).await.unwrap();
-    assert!(
-        storage
-            .read_hosted_document(&name)
-            .await
-            .unwrap()
-            .is_none(),
-    );
-    assert!(
-        storage
-            .hosted_package_names()
-            .await
-            .unwrap()
-            .is_empty(),
-    );
-}
-
 conformance! {
     a_packument_reads_back_as_written,
     an_accepted_version_cannot_change,
@@ -886,7 +847,6 @@ conformance! {
     a_removed_version_is_never_accepted_again,
     an_archive_manifest_record_is_the_accepted_interpretation,
     an_archive_manifest_record_must_name_a_profile,
-    another_ecosystem_stores_its_document_whole,
 }
 
 #[cfg(feature = "backend-mysql")]

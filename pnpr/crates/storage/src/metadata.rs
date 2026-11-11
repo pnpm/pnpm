@@ -4,9 +4,9 @@
 //! state as rows of a SQL database and renders documents from them. The
 //! registry's handlers reach one namespace of it through [`Storage`]: reading
 //! a package view, committing a package document, changing a tag, removing a
-//! package. The database also owns removed-package claims, registry records,
-//! and staged-publish metadata. Archives and staged bodies stay in the hosted
-//! backend.
+//! package. The database also owns removed-package claims, SCIM accounts, team
+//! rosters, rule overrides, CDN invalidations, and staged-publish metadata.
+//! Archives and staged bodies stay in the hosted backend.
 
 pub(crate) mod sql;
 
@@ -24,7 +24,12 @@ pub use publication::{
     RecordedOutcome, ReleaseRecords,
 };
 pub(crate) use sql::PackageMetadata;
-pub use sql::{CdnInvalidation, Mapping, RenderStats, SqlMetadata, TagHistoryEntry, Unmapping};
+pub use sql::{
+    CdnInvalidation, Mapping, NewScimUser, RenderStats, RuleOverridesWrite, ScimStatus,
+    ScimUserRemoval, ScimUserWrite, SqlMetadata, StoredPackageOverride, StoredRuleOverrideSet,
+    StoredRuleOverrides, StoredScimUser, StoredTeam, StoredTeamRoster, TagHistoryEntry,
+    TeamRosterWrite, Unmapping,
+};
 pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};
 

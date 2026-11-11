@@ -13,8 +13,17 @@ use super::{
 use pnpr_error::{RegistryError, Result};
 use std::{sync::Arc, time::Duration};
 
-pub(super) const PAYLOAD_TABLES: [&str; 5] =
-    ["packages", "accepted_manifests", "release_records", "log_entries", "readmes"];
+pub(super) const PAYLOAD_TABLES: [&str; 9] = [
+    "packages",
+    "accepted_manifests",
+    "release_records",
+    "log_entries",
+    "readmes",
+    "scim_users",
+    "cargo_versions",
+    "pypi_files",
+    "oci_manifests",
+];
 
 const V1_TABLES: &str = include_str!("fixtures/v1_tables.sql");
 const V1_MYSQL_TABLES: &str = include_str!("fixtures/v1_mysql.sql");
@@ -503,7 +512,9 @@ async fn payload_tables_have_rowids(db: Db) {
 
 async fn unused_metadata_objects_are_absent(db: Db) {
     open(&db).await.unwrap();
-    assert!(!tables(&db).await.contains(&"note_history".to_string()));
+    let existing_tables = tables(&db).await;
+    assert!(!existing_tables.contains(&"note_history".to_string()));
+    assert!(!existing_tables.contains(&"registry_records".to_string()));
     let index_names = db.sql(
         "SELECT name FROM sqlite_master WHERE type = 'index'",
         "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()",

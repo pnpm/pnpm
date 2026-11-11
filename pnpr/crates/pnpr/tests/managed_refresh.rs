@@ -12,7 +12,7 @@ use pnpr::{Config, router_with_auth};
 use pnpr_config::{LibsqlSettings, MetadataBackend};
 use pnpr_libsql::testing::serve_primary;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{HostedDocumentVersion, RegistryRecord, Storage};
+use pnpr_storage::{HostedDocumentVersion, Storage, metadata::NewScimUser};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -191,12 +191,12 @@ defaultRegistry: local
 #[tokio::test(start_paused = true)]
 async fn stalled_roster_denies_stale_membership_and_retries() {
     let replica = Replica::new(ManagedRecords::Registry).await;
-    replica.start_stalled_refresh(&["team-roster"]).await;
+    replica.start_stalled_refresh(&["team_rosters"]).await;
     replica.expect_status("/npm/example", StatusCode::FORBIDDEN).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/npm/example", StatusCode::OK).await;
     replica.storage
-        .create_registry_record(RegistryRecord::TeamRoster, "npm/local", br#"{"teams":[]}"#)
+        .replace_team_roster("npm/local", &[])
         .await
         .unwrap();
     tokio::time::advance(Duration::from_secs(10)).await;
@@ -206,7 +206,7 @@ async fn stalled_roster_denies_stale_membership_and_retries() {
 #[tokio::test(start_paused = true)]
 async fn stalled_rules_deny_stale_access_and_recover() {
     let replica = Replica::new(ManagedRecords::Registry).await;
-    replica.start_stalled_refresh(&["rule-overrides"]).await;
+    replica.start_stalled_refresh(&["rule_override_sets"]).await;
     replica.expect_status("/npm/example", StatusCode::NOT_FOUND).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/npm/example", StatusCode::OK).await;
@@ -215,7 +215,7 @@ async fn stalled_rules_deny_stale_access_and_recover() {
 #[tokio::test(start_paused = true)]
 async fn stalled_scim_refuses_credentials_and_recovers() {
     let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
-    replica.start_stalled_refresh(&["scim-users"]).await;
+    replica.start_stalled_refresh(&["scim_users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/-/whoami", StatusCode::OK).await;
@@ -224,7 +224,7 @@ async fn stalled_scim_refuses_credentials_and_recovers() {
 #[tokio::test(start_paused = true)]
 async fn stalled_roster_does_not_delay_the_scim_deadline() {
     let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
-    replica.start_stalled_refresh(&["team-roster", "scim-users"]).await;
+    replica.start_stalled_refresh(&["team_rosters", "scim_users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/-/whoami", StatusCode::OK).await;
@@ -233,7 +233,7 @@ async fn stalled_roster_does_not_delay_the_scim_deadline() {
 #[tokio::test(start_paused = true)]
 async fn stalled_rules_do_not_delay_the_scim_deadline() {
     let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
-    replica.start_stalled_refresh(&["rule-overrides", "scim-users"]).await;
+    replica.start_stalled_refresh(&["rule_override_sets", "scim_users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/-/whoami", StatusCode::OK).await;
@@ -242,7 +242,7 @@ async fn stalled_rules_do_not_delay_the_scim_deadline() {
 #[tokio::test(start_paused = true)]
 async fn the_initial_read_has_a_deadline_and_retries() {
     let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
-    replica.database.pause("scim-users".to_string());
+    replica.database.pause("scim_users".to_string());
     let request = replica.get("/-/whoami");
     tokio::pin!(request);
     tokio::select! {
@@ -252,11 +252,11 @@ async fn the_initial_read_has_a_deadline_and_retries() {
     tokio::time::advance(Duration::from_secs(5)).await;
     assert_eq!(request.await, StatusCode::INTERNAL_SERVER_ERROR);
     replica.storage
-        .create_registry_record(
-            RegistryRecord::ScimUsers,
-            pnpr_storage::SCIM_DIRECTORY,
-            br#"{"users":{"reader":{"active":false}}}"#,
-        )
+        .insert_scim_user(NewScimUser {
+            user_id: "reader".to_string(),
+            active: false,
+            attributes: serde_json::Map::new(),
+        })
         .await
         .unwrap();
     tokio::time::advance(Duration::from_secs(1)).await;

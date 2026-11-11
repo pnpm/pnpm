@@ -248,15 +248,17 @@ async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
         send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await.0,
         StatusCode::NOT_FOUND,
     );
-    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
-    storage
-        .create_registry_record(
-            pnpr_storage::RegistryRecord::TeamRoster,
-            "npm/local",
-            b"not a roster",
-        )
-        .await
-        .unwrap();
+    let _storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
+        unreachable!();
+    };
+    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
+    conn.execute_batch(
+        "INSERT INTO team_rosters (registry, generation) VALUES ('npm/local', 1);
+         INSERT INTO team_members (registry, team_id, user_id) VALUES ('npm/local', 'missing', 'u-1');",
+    )
+    .unwrap();
+    drop(conn);
     let app = router_with_auth(config, auth);
 
     let (status, _) = send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await;

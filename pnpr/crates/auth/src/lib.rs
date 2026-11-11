@@ -384,8 +384,31 @@ pub trait UserBackend: Send + Sync {
     /// Resolve an active account ID to its current login name.
     async fn account_name(&self, user_id: &str) -> Result<Option<String>>;
 
+    /// Resolve an active account ID to its current login name and rename revision.
+    async fn account_login(&self, _user_id: &str) -> Result<Option<AccountLogin>> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account renames are not supported by this account backend"
+                .to_string(),
+        })
+    }
+
     /// Change an account's login name without changing its ID or grants.
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()>;
+
+    /// Claim `username` for `user_id` only while its stored rename revision
+    /// equals `expected_revision`, advancing the revision even when `username`
+    /// matches the stored login name.
+    async fn rename_user_if_current(
+        &self,
+        _user_id: &str,
+        _expected_revision: u64,
+        _username: &str,
+    ) -> Result<UserRename> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account renames are not supported by this account backend"
+                .to_string(),
+        })
+    }
 
     /// Check that the user store backend is reachable and ready to process requests.
     async fn check_readiness(&self) -> Result<()> {
@@ -523,6 +546,22 @@ pub enum UserRemoval {
     Removed,
     /// There was no such account.
     NoSuchUser,
+}
+
+/// An active account's login name and monotonic rename revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountLogin {
+    pub username: String,
+    pub revision: u64,
+}
+
+/// What [`UserBackend::rename_user_if_current`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserRename {
+    /// The account's login name is now at the returned revision.
+    Renamed(u64),
+    /// Another writer changed the account's login revision first.
+    CurrentChanged,
 }
 
 #[cfg(test)]

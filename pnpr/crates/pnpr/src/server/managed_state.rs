@@ -7,8 +7,8 @@ use super::{
 use futures_util::future::join_all;
 use pnpr_config::{Management, Teams};
 use pnpr_policy::RuleTable;
-use pnpr_storage::RegistryRecord;
 use std::{
+    collections::HashMap,
     future::Future,
     sync::{Arc, Mutex, PoisonError},
     time::Duration,
@@ -23,22 +23,27 @@ const STATE_TTL: Duration = Duration::from_secs(10);
 /// How soon a replica tries again after a record it could not read.
 const STATE_RETRY: Duration = Duration::from_secs(1);
 
-/// How many times an edit rereads a stored record after another writer
-/// replaced it first.
+/// How many times an edit rereads stored state after another writer replaced it
+/// first.
 pub(super) const WRITE_ATTEMPTS: usize = 5;
 
 /// The state admins and identity providers manage at runtime: team rosters
 /// (`teamsManagedBy: api`), package rules (`rulesManagedBy: api`), and the
 /// SCIM directory (`auth.scim`).
 ///
-/// The metadata database holds each one as a [`RegistryRecord`], so every replica
-/// sees the same state. A registry with no stored record yet serves its YAML.
+/// The metadata database holds each one in normalized SQL tables, so every
+/// replica sees the same state. A registry with no stored rows yet serves its
+/// YAML.
 pub(super) struct ManagedState {
     /// Each roster-managed registry's `teams:` map, keyed by registry name.
     pub(super) roster_seeds: IndexMap<String, Teams>,
     /// Each rules-managed registry's rules as the YAML declares them, keyed
     /// by registry name. Stored changes apply on top of these.
     pub(super) rule_bases: IndexMap<String, Arc<RuleTable>>,
+    /// Last loaded generation of each roster-managed registry.
+    pub(super) roster_generations: Mutex<HashMap<String, Option<u64>>>,
+    /// Last loaded generation of each rules-managed registry.
+    pub(super) rule_generations: Mutex<HashMap<String, Option<u64>>>,
     /// The account IDs the SCIM directory marks inactive. `None` without
     /// `auth.scim`.
     pub(super) scim: Option<ScimState>,
@@ -63,7 +68,15 @@ impl ManagedState {
             .map(|(name, hosted)| (name.clone(), hosted.rules.snapshot()))
             .collect();
         let scim = config.identity.auth.scim.as_ref().map(|_| ScimState::default());
-        Self { roster_seeds, rule_bases, scim, due_at: Mutex::new(None), reload: Arc::default() }
+        Self {
+            roster_seeds,
+            rule_bases,
+            roster_generations: Mutex::default(),
+            rule_generations: Mutex::default(),
+            scim,
+            due_at: Mutex::new(None),
+            reload: Arc::default(),
+        }
     }
 
     fn is_empty(&self) -> bool {
@@ -76,6 +89,10 @@ impl ManagedState {
 
     fn schedule(&self, after: Duration) {
         *self.due_at.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now() + after);
+    }
+
+    pub(super) fn schedule_retry(&self) {
+        self.schedule(STATE_RETRY);
     }
 }
 
@@ -146,32 +163,4 @@ pub(super) fn canonical_registry_key(state: &AppState, registry: &str) -> String
     let ecosystem = state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
     let local_name = pnpr_registry::Registries::local_name(registry);
     format!("{ecosystem}/{local_name}")
-}
-
-/// Store `bytes` as the record of `kind` for `registry`: create it when
-/// `expected` is `None`, otherwise replace it only while it still holds
-/// `expected`. Reports whether the write landed.
-pub(super) async fn store_registry_record(
-    state: &AppState,
-    kind: RegistryRecord,
-    registry: &str,
-    expected: Option<&pnpr_storage::MetadataRecord>,
-    bytes: &[u8],
-) -> Result<bool, RegistryError> {
-    let storage = &state.inner.storage;
-    let canonical = match kind {
-        RegistryRecord::ScimUsers => registry.to_string(),
-        RegistryRecord::TeamRoster | RegistryRecord::RuleOverrides => {
-            canonical_registry_key(state, registry)
-        }
-    };
-    match expected {
-        None => storage.create_registry_record(kind, &canonical, bytes).await,
-        Some(expected) => {
-            let written =
-                storage.replace_registry_record_if_current(kind, &canonical, expected, bytes)
-                    .await?;
-            Ok(written.is_some())
-        }
-    }
 }

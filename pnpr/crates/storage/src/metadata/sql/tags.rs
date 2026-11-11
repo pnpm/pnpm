@@ -110,7 +110,7 @@ pub(super) fn change_tag(
     let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
     let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
     let mut results = results.into_iter();
-    let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
+    let Some(package) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
@@ -190,7 +190,7 @@ fn move_tag(
         principal: change.principal.as_deref(),
     };
     record_tag_move(commit, &tag_move)?;
-    commit.write_state(&stamp_modified(&package.state)?)?;
+    commit.write_state(package.state_version, &stamp_modified(&package.state)?)?;
     Ok(true)
 }
 

@@ -275,17 +275,19 @@ async fn reactivation_cleans_up_credentials_left_during_deactivation() {
 #[tokio::test]
 async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     let dir = TempDir::new().unwrap();
-    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
-    let kind = pnpr_storage::RegistryRecord::ScimUsers;
-    storage
-        .create_registry_record(kind, pnpr_storage::SCIM_DIRECTORY, b"not a directory")
-        .await
-        .unwrap();
-    let record = storage
-        .read_registry_record(kind, pnpr_storage::SCIM_DIRECTORY)
-        .await
-        .unwrap()
-        .unwrap();
+    let config = load_config(dir.path());
+    let _storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
+        unreachable!();
+    };
+    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
+    conn.execute(
+        "INSERT INTO scim_users (user_id, active, removed, deprovisions, attributes, generation)
+         VALUES ('corrupt-user', 2, 0, 0, '{}', 1)",
+        [],
+    )
+    .unwrap();
+    drop(conn);
     let auth = AuthState::in_memory();
     auth.users.create_user("alice", "secret123").await.unwrap();
     let id = auth.users
@@ -299,16 +301,10 @@ async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     assert_eq!(whoami(&app, &token).await, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::INTERNAL_SERVER_ERROR);
 
-    storage
-        .replace_registry_record_if_current(
-            kind,
-            pnpr_storage::SCIM_DIRECTORY,
-            &record,
-            br#"{"users":{}}"#,
-        )
-        .await
-        .unwrap()
+    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
+    conn.execute("DELETE FROM scim_users WHERE user_id = 'corrupt-user'", [])
         .unwrap();
+    drop(conn);
     // A failed read is retried a second later, in the background of the
     // first request after that.
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -332,25 +328,10 @@ async fn deleting_retries_cleanup_after_the_resource_was_marked_removed() {
     let id = created["id"].as_str().unwrap();
     let token = auth.tokens.issue(id).await.unwrap();
     let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
-    let kind = pnpr_storage::RegistryRecord::ScimUsers;
-    let stored = storage
-        .read_registry_record(kind, pnpr_storage::SCIM_DIRECTORY)
-        .await
-        .unwrap()
-        .unwrap();
-    let mut directory: Value = serde_json::from_slice(&stored.bytes).unwrap();
-    directory["users"][id]["active"] = json!(false);
-    directory["users"][id]["removed"] = json!(true);
-    storage
-        .replace_registry_record_if_current(
-            kind,
-            pnpr_storage::SCIM_DIRECTORY,
-            &stored,
-            &serde_json::to_vec(&directory).unwrap(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+    assert!(matches!(
+        storage.remove_scim_user(id).await.unwrap(),
+        pnpr_storage::metadata::ScimUserRemoval::Removed(_),
+    ));
     assert_eq!(
         scim(&app, "DELETE", &format!("{USERS}/{id}"), None).await.0,
         StatusCode::NO_CONTENT,
@@ -358,4 +339,156 @@ async fn deleting_retries_cleanup_after_the_resource_was_marked_removed() {
     assert_eq!(auth.users.account_name(id).await.unwrap(), None);
     assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn deactivating_and_deleting_complete_cleanup_when_directory_reload_fails() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path());
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = config.storage
+        .metadata
+        .clone()
+    else {
+        unreachable!();
+    };
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(config, auth.clone());
+
+    let (_, alice) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+    let alice_token = auth.tokens.issue(alice_id).await.unwrap();
+
+    let (_, bob) = scim(&app, "POST", USERS, Some(new_user("bob"))).await;
+    let bob_id = bob["id"].as_str().unwrap();
+    let bob_token = auth.tokens.issue(bob_id).await.unwrap();
+
+    let (_, carol) = scim(&app, "POST", USERS, Some(new_user("carol"))).await;
+    let carol_id = carol["id"].as_str().unwrap();
+    let carol_token = auth.tokens.issue(carol_id).await.unwrap();
+
+    let conn = rusqlite::Connection::open(&sqlite_path).unwrap();
+    conn.execute(
+        "INSERT INTO scim_users (user_id, active, removed, deprovisions, attributes, generation)
+         VALUES ('corrupt-user', 2, 0, 0, '{}', 100)",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+
+    assert_eq!(
+        scim(&app, "PATCH", &format!("{USERS}/{alice_id}"), Some(deactivate()))
+            .await
+            .0,
+        StatusCode::OK,
+    );
+    assert_eq!(whoami(&app, &alice_token).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(whoami(&app, &carol_token).await, StatusCode::INTERNAL_SERVER_ERROR);
+
+    assert_eq!(
+        scim(&app, "DELETE", &format!("{USERS}/{bob_id}"), None).await.0,
+        StatusCode::NO_CONTENT,
+    );
+    assert_eq!(auth.users.account_name(bob_id).await.unwrap(), None);
+    assert_eq!(whoami(&app, &bob_token).await, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn patch_rolls_back_username_when_scim_row_fails_to_commit() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path());
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = config.storage
+        .metadata
+        .clone()
+    else {
+        unreachable!();
+    };
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(config, auth.clone());
+
+    let (_, alice) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+
+    let conn = rusqlite::Connection::open(&sqlite_path).unwrap();
+    conn.execute_batch(
+        "CREATE TRIGGER fail_scim_update BEFORE UPDATE ON scim_users
+         BEGIN SELECT RAISE(ABORT, 'simulated failure'); END;",
+    )
+    .unwrap();
+    drop(conn);
+
+    let rename_patch = serde_json::json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [{ "op": "replace", "path": "userName", "value": "alice-renamed" }],
+    });
+    assert_eq!(
+        scim(&app, "PATCH", &format!("{USERS}/{alice_id}"), Some(rename_patch))
+            .await
+            .0,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    );
+    assert_eq!(
+        auth.users
+            .account_name(alice_id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+}
+
+#[tokio::test]
+async fn failed_scim_rollback_never_undoes_a_newer_claimed_login_name() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+
+    let (_, alice) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+
+    // Replica A claims "bob" at revision 1, then Replica B accepts PUT("bob")
+    // at revision 2 before A's stale rollback runs.
+    let initial = auth.users
+        .account_login(alice_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        auth.users.rename_user_if_current(alice_id, initial.revision, "bob").await.unwrap(),
+        pnpr_auth::UserRename::Renamed(1),
+    );
+    assert_eq!(
+        scim(&app, "PUT", &format!("{USERS}/{alice_id}"), Some(new_user("bob")))
+            .await
+            .0,
+        StatusCode::OK,
+    );
+    assert_eq!(
+        auth.users.rename_user_if_current(alice_id, 1, "alice").await.unwrap(),
+        pnpr_auth::UserRename::CurrentChanged,
+    );
+    assert_eq!(
+        auth.users
+            .account_name(alice_id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("bob"),
+    );
+
+    // An intervening admin rename also advances the revision and blocks stale rollback.
+    let current = auth.users
+        .account_login(alice_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let pnpr_auth::UserRename::Renamed(claimed_rev) =
+        auth.users.rename_user_if_current(alice_id, current.revision, "carol").await.unwrap()
+    else {
+        unreachable!();
+    };
+    auth.users.rename_user(alice_id, "carol").await.unwrap();
+    assert_eq!(
+        auth.users.rename_user_if_current(alice_id, claimed_rev, "bob").await.unwrap(),
+        pnpr_auth::UserRename::CurrentChanged,
+    );
 }

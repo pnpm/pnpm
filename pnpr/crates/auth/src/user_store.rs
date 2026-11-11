@@ -15,16 +15,26 @@ use std::{
 /// Account records indexed by their current login name.
 type Users = HashMap<String, StoredAccount>;
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if is called as f(&field)"
+)]
+const fn is_zero(value: &u64) -> bool {
+    *value == 0
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredAccount {
     id: String,
     password_hash: String,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    name_revision: u64,
 }
 
 impl StoredAccount {
     fn new(password_hash: String) -> Self {
-        Self { id: crate::new_principal_id(), password_hash }
+        Self { id: crate::new_principal_id(), password_hash, name_revision: 0 }
     }
 }
 
