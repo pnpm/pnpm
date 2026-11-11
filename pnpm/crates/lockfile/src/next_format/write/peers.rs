@@ -1,6 +1,8 @@
 //! Which children of a snapshot are its own peers, and which packages
 //! provide the peers bound below it.
 
+pub(super) use constraint::ProviderConstraint;
+
 use super::{super::NextFormatError, children};
 use crate::{
     BoundProviders, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
@@ -9,6 +11,7 @@ use crate::{
 use std::collections::{HashMap, HashSet};
 
 mod candidates;
+mod constraint;
 use candidates::ProviderCandidates;
 
 /// The transitive peers of `key` whose providers its peer groups name, and the
@@ -84,17 +87,21 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         &mut self,
         key: &'a PackageKey,
         name: &'a str,
-        matches: impl Fn(&SnapshotDepRef) -> bool,
+        constraint: &ProviderConstraint,
     ) -> Option<&'a SnapshotDepRef> {
-        if let Some(reference) =
-            self.first_provider_below(key, name).filter(|reference| matches(reference))
+        if let Some(reference) = self
+            .first_provider_below(key, name)
+            .filter(|reference| constraint.matches(reference))
         {
             return Some(reference);
         }
         if !self.candidates.contains_key(name) {
             self.candidates.insert(name, ProviderCandidates::of(self, name));
         }
-        self.candidates[name].matching(key, matches)
+        self.candidates
+            .get_mut(name)
+            .unwrap()
+            .matching(key, constraint)
     }
 
     fn first_provider_below(

@@ -4,8 +4,8 @@
 use super::{
     importers::{importer_dependencies, next_importer, non_empty},
     peers::{
-        ProviderFinder, all_groups_named, binds_reference, names_provider, own_peer_names,
-        provider_segments, transitive_named_in_key,
+        ProviderConstraint, ProviderFinder, all_groups_named, own_peer_names, provider_segments,
+        transitive_named_in_key,
     },
     {
         super::{
@@ -176,12 +176,8 @@ impl<'a> Transitive<'a> {
         }
         let segments = provider_segments(&key.suffix);
         for (alias, name) in std::mem::take(&mut self.unnamed) {
-            let found = finder
-                .provider_below(key, name, |reference| match segments.as_deref() {
-                    Some(segments) => names_provider(segments, &alias, reference),
-                    None => binds_reference(providers, &alias, reference),
-                })
-                .cloned();
+            let constraint = ProviderConstraint::new(&alias, segments.as_deref(), providers);
+            let found = finder.provider_below(key, name, &constraint).cloned();
             if let Some(reference) = found {
                 self.named.push((alias, reference));
             }

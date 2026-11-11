@@ -1,13 +1,23 @@
-use super::{PackageKey, ProviderFinder, SnapshotDepRef, children};
+use super::{PackageKey, ProviderConstraint, ProviderFinder, SnapshotDepRef, children};
 use crate::next_format::tarjan;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet, VecDeque};
+
+const MAX_CACHED_BINDINGS: usize = 8;
 
 pub(super) struct ProviderCandidates<'a> {
     component_of: HashMap<&'a PackageKey, usize>,
-    references: Vec<Arc<HashSet<&'a SnapshotDepRef>>>,
+    components: Vec<Component<'a>>,
+    cached: VecDeque<MatchingProviders<'a>>,
+}
+
+struct Component<'a> {
+    references: HashSet<&'a SnapshotDepRef>,
+    descendants: HashSet<usize>,
+}
+
+struct MatchingProviders<'a> {
+    constraint: ProviderConstraint,
+    providers: Vec<Option<&'a SnapshotDepRef>>,
 }
 
 impl<'a> ProviderCandidates<'a> {
@@ -31,31 +41,63 @@ impl<'a> ProviderCandidates<'a> {
             })
             .collect();
         let components = tarjan::components(keys.len(), |index| edges[index].clone(), |_| true);
-        let mut references = Vec::with_capacity(components.components.len());
+        let mut grouped = Vec::with_capacity(components.components.len());
         for members in &components.components {
-            references.push(merge_references(
-                own_references(finder, &keys, members, name),
-                descendant_components(&edges, members, &components, references.len()),
-                &references,
-            ));
+            grouped.push(Component {
+                references: own_references(finder, &keys, members, name),
+                descendants: descendant_components(&edges, members, &components, grouped.len()),
+            });
         }
         let component_of = keys
             .into_iter()
             .enumerate()
             .map(|(index, key)| (key, components.component_of[&index]))
             .collect();
-        ProviderCandidates { component_of, references }
+        ProviderCandidates { component_of, components: grouped, cached: VecDeque::new() }
     }
 
     pub(super) fn matching(
-        &self,
+        &mut self,
         key: &PackageKey,
-        matches: impl Fn(&SnapshotDepRef) -> bool,
+        constraint: &ProviderConstraint,
     ) -> Option<&'a SnapshotDepRef> {
-        self.references[self.component_of[key]]
+        let cached = if let Some(index) = self.cached
             .iter()
-            .copied()
-            .find(|reference| matches(reference))
+            .position(|entry| entry.constraint == *constraint)
+        {
+            self.cached.remove(index).unwrap()
+        } else {
+            if self.cached.len() == MAX_CACHED_BINDINGS {
+                self.cached.pop_front();
+            }
+            MatchingProviders {
+                constraint: constraint.clone(),
+                providers: self.matching_providers(constraint),
+            }
+        };
+        let found = cached.providers[self.component_of[key]];
+        self.cached.push_back(cached);
+        found
+    }
+
+    fn matching_providers(
+        &self,
+        constraint: &ProviderConstraint,
+    ) -> Vec<Option<&'a SnapshotDepRef>> {
+        let mut providers = Vec::with_capacity(self.components.len());
+        for component in &self.components {
+            let found = component.references
+                .iter()
+                .copied()
+                .find(|reference| constraint.matches(reference))
+                .or_else(|| {
+                    component.descendants
+                        .iter()
+                        .find_map(|&index| providers[index])
+                });
+            providers.push(found);
+        }
+        providers
     }
 }
 
@@ -89,20 +131,6 @@ fn descendant_components(
         .map(|child| components.component_of[child])
         .filter(|&component| component < ready)
         .collect()
-}
-
-fn merge_references<'a>(
-    mut own: HashSet<&'a SnapshotDepRef>,
-    descendants: HashSet<usize>,
-    previous: &[Arc<HashSet<&'a SnapshotDepRef>>],
-) -> Arc<HashSet<&'a SnapshotDepRef>> {
-    if own.is_empty() && descendants.len() == 1 {
-        return Arc::clone(&previous[*descendants.iter().next().unwrap()]);
-    }
-    for descendant in descendants {
-        own.extend(previous[descendant].iter().copied());
-    }
-    Arc::new(own)
 }
 
 #[cfg(test)]
