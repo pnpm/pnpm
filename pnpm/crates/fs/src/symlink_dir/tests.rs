@@ -933,6 +933,8 @@ fn windows_read_junction_target_reads_only_junctions() {
 #[test]
 #[ignore = "needs a network share named by PNPM_TEST_NETWORK_SHARE_DIR"]
 fn windows_links_on_a_real_share_are_junctions() {
+    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+
     let share = std::env::var_os("PNPM_TEST_NETWORK_SHARE_DIR")
         .expect("set PNPM_TEST_NETWORK_SHARE_DIR to a directory on a network share");
     let root = tempfile::tempdir_in(share).expect("create a temp dir on the share");
@@ -940,15 +942,21 @@ fn windows_links_on_a_real_share_are_junctions() {
     fs::create_dir_all(&target).expect("create target");
     fs::write(target.join("index.js"), "module.exports = 1").expect("write a package file");
     let link = root.path().join(r"node_modules\pkg");
-    // What an earlier pnpm 12 install wrote, where it could.
-    let _ = std::os::windows::fs::symlink_dir(relative_target_for(&target, &link), &link);
+    // What an earlier pnpm 12 install wrote.
+    std::os::windows::fs::symlink_dir(relative_target_for(&target, &link), &link)
+        .expect("create the symlink to replace (needs Developer Mode or the symlink privilege)");
+    assert_eq!(
+        super::windows::reparse_tag(&link),
+        Some(super::windows::IO_REPARSE_TAG_SYMLINK),
+        "the starting link is a symlink",
+    );
 
     let outcome = force_symlink_dir(&target, &link).expect("link on the share");
 
     assert!(!outcome.reused, "a symlink on a share is replaced");
-    assert_ne!(
+    assert_eq!(
         super::windows::reparse_tag(&link),
-        Some(super::windows::IO_REPARSE_TAG_SYMLINK),
+        Some(IO_REPARSE_TAG_MOUNT_POINT),
         "the link on the share must be a junction",
     );
     assert_eq!(

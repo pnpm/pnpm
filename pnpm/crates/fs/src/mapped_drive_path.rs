@@ -72,17 +72,10 @@ pub(crate) fn is_on_network_drive_cached(path: &Path) -> bool {
 }
 
 /// Whether drive `letter` is mapped to a network share, or `None` when
-/// Windows can't tell. A persistent mapping that is disconnected counts as
-/// mapped: the first access through it reconnects it.
+/// Windows can't tell.
 #[cfg(windows)]
 fn is_mapped_drive(letter: char) -> Option<bool> {
-    use windows_sys::Win32::{
-        Foundation::{
-            ERROR_BAD_DEVICE, ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NO_NETWORK,
-            ERROR_NOT_CONNECTED, NO_ERROR,
-        },
-        NetworkManagement::WNet::WNetGetConnectionW,
-    };
+    use windows_sys::Win32::NetworkManagement::WNet::WNetGetConnectionW;
 
     let drive_name = [letter as u16, u16::from(b':'), 0];
     let mut remote_name = [0u16; 260];
@@ -91,9 +84,23 @@ fn is_mapped_drive(letter: char) -> Option<bool> {
     let result = unsafe {
         WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
     };
+    drive_kind_from_connection_result(result)
+}
+
+/// What a `WNetGetConnectionW` result says about a drive. A persistent
+/// mapping that is disconnected counts as mapped: the first access through
+/// it reconnects it. Only `ERROR_NOT_CONNECTED` says the drive isn't
+/// redirected. Any other error, such as `ERROR_NO_NETWORK` (no network
+/// provider is running) or `ERROR_BAD_DEVICE`, says nothing about the drive.
+#[cfg(windows)]
+fn drive_kind_from_connection_result(result: u32) -> Option<bool> {
+    use windows_sys::Win32::Foundation::{
+        ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR,
+    };
+
     match result {
         NO_ERROR | ERROR_MORE_DATA | ERROR_CONNECTION_UNAVAIL => Some(true),
-        ERROR_NOT_CONNECTED | ERROR_BAD_DEVICE | ERROR_NO_NETWORK => Some(false),
+        ERROR_NOT_CONNECTED => Some(false),
         _ => None,
     }
 }
