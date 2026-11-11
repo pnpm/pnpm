@@ -542,12 +542,12 @@ snapshots:
 		".meta-updater": {
 			"name": "@pnpm-private/updater",
 			"dependencies": {
-				"@pnpm/lockfile.fs": "workspace:*",
 				"@pnpm/logger": "workspace:*",
 				"@pnpm/meta-updater": "catalog:",
 				"@pnpm/object.key-sorting": "workspace:*",
 				"@pnpm/types": "workspace:*",
 				"@pnpm/workspace.projects-reader": "workspace:*",
+				"@pnpm/workspace.spec-parser": "workspace:*",
 				"@pnpm/workspace.workspace-manifest-reader": "workspace:*",
 				"@types/normalize-path": "catalog:",
 				"is-subdir": "catalog:",
