@@ -1,9 +1,10 @@
 //! Reading, verifying, signing, and advancing `.transparency-log/<log>/checkpoint`.
 
-use super::{LOG_NAMESPACE, LogId, Storage, log_error};
+use super::{LOG_NAMESPACE, LogId, Storage, TileReader, log_error};
 use crate::DocumentWrite;
 use pnpm_transparency_log::{
-    Checkpoint, CheckpointPolicy, KeySet, NoteSigner, TreeHead, sign_checkpoint,
+    Checkpoint, CheckpointPolicy, KeySet, NoteSigner, TreeHead, prove_consistency, sign_checkpoint,
+    verify_consistency,
 };
 use pnpr_error::{RegistryError, Result};
 
@@ -131,6 +132,57 @@ impl Storage {
             }
         }
     }
+
+    pub(super) async fn verify_stored_checkpoint_head(
+        &self,
+        log: &LogId,
+        head: &TreeHead,
+        checkpoint: &TreeHead,
+    ) -> Result<()> {
+        if checkpoint.size < head.size {
+            self.verify_stored_root(log, checkpoint.size, checkpoint.hash).await?;
+            let newer =
+                TreeHead { origin: checkpoint.origin.clone(), size: head.size, hash: head.hash };
+            return self.verify_checkpoint_consistency(log, checkpoint, &newer).await;
+        }
+        if checkpoint.size == head.size {
+            if checkpoint.hash != head.hash {
+                return Err(RegistryError::Internal {
+                    reason: format!(
+                        "the stored checkpoint of the log {log} disagrees with its integrated tree",
+                    ),
+                });
+            }
+            return Ok(());
+        }
+        self.verify_stored_root(log, checkpoint.size, checkpoint.hash).await?;
+        if head.size > 0 {
+            let older =
+                TreeHead { origin: checkpoint.origin.clone(), size: head.size, hash: head.hash };
+            self.verify_checkpoint_consistency(log, &older, checkpoint).await?;
+        }
+        Ok(())
+    }
+
+    async fn verify_checkpoint_consistency(
+        &self,
+        log: &LogId,
+        older: &TreeHead,
+        newer: &TreeHead,
+    ) -> Result<()> {
+        let reader = TileReader::new(self.clone(), log.clone(), newer.size);
+        let (older, newer) = (older.clone(), newer.clone());
+        let log_name = log.to_string();
+        tokio::task::spawn_blocking(move || {
+            let proof = prove_consistency(&reader, older.size, newer.size).map_err(log_error)?;
+            verify_consistency(&proof, &older, &newer).map_err(|err| RegistryError::Internal {
+                reason: format!(
+                    "the stored checkpoint of the log {log_name} is not a prefix of its integrated tree: {err}",
+                ),
+            })
+        })
+        .await?
+    }
 }
 
 pub(super) fn verify_stored_checkpoint(
@@ -158,6 +210,38 @@ pub(super) fn verify_stored_checkpoint(
         .map_err(|err| RegistryError::Internal {
             reason: format!("the stored checkpoint of the log {log} failed verification: {err}"),
         })?;
+    Ok(())
+}
+
+pub(super) fn validate_refreshed_checkpoint(
+    log: &LogId,
+    prior: Option<&StoredCheckpoint>,
+    signer: Option<&NoteSigner>,
+    checkpoint: Option<&StoredCheckpoint>,
+) -> Result<()> {
+    let Some(stored) = checkpoint else {
+        if prior.is_some() {
+            return Err(RegistryError::Internal {
+                reason: format!(
+                    "the stored checkpoint of the log {log} disappeared during reconciliation",
+                ),
+            });
+        }
+        return Ok(());
+    };
+    if prior != Some(stored) {
+        verify_stored_checkpoint(log, stored, signer)?;
+    }
+    if let Some(prior) = prior
+        && stored.tree_head.size < prior.tree_head.size
+    {
+        return Err(RegistryError::Internal {
+            reason: format!(
+                "the stored checkpoint of the log {log} regressed from {} to {} entries",
+                prior.tree_head.size, stored.tree_head.size,
+            ),
+        });
+    }
     Ok(())
 }
 

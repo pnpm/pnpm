@@ -28,7 +28,7 @@ A publish writes archives to hosted storage before committing metadata in the da
 
 1. **Pause scheduled `pnpr gc` jobs and package unpublishes, and let any running ones finish** before starting step 2. Garbage collection and unpublish operations reclaim unmapped archives immediately, which could delete an archive still referenced by the database snapshot.
 2. **Back up the metadata database first.** Record the backup timestamp ($T_{\text{db}}$) when using point-in-time recovery.
-3. **Pause publishes, let in-flight log integration finish, and capture hosted storage second** ($T_{\text{storage}} \ge T_{\text{db}}$). Waiting for integration ensures a signed checkpoint covers every entry bundle written after $T_{\text{db}}$.
+3. **Block new publishes, let in-flight publishes and log integration finish, and capture hosted storage second** ($T_{\text{storage}} \ge T_{\text{db}}$). Draining publishes and integration ensures a signed checkpoint covers every entry bundle written after $T_{\text{db}}$.
 4. **Resume publishes, `pnpr gc`, and package unpublishes** once the storage snapshot or S3 restore timestamp is recorded.
 
 Why this order keeps both archives and the transparency log consistent:
@@ -60,7 +60,7 @@ With filesystem snapshots, follow the [snapshot order](#snapshot-order):
    sqlite3 /var/lib/pnpr/tokens.db ".backup /mnt/backups/pnpr-tokens-$(date +%Y%m%d).db"
    ```
    With `database.url`, pass the path that URL names.
-3. Pause publishes and wait for background log integration to finish, then take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$). Resume publishes once the snapshot exists, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage and `users.json`:
+3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$), resume publishes, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage and `users.json`:
    ```sh
    tar --exclude='storage/.metadata' --exclude='tokens.db*' -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /mnt/pnpr-snap storage users.json
    ```
@@ -107,7 +107,7 @@ With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparenc
 
 1. Pause scheduled `pnpr gc` jobs and block package unpublishes until step 3 finishes. Wait for any running `pnpr gc` or unpublish operations to complete before step 2.
 2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the metadata database (`database.url`).
-3. Pause publishes, wait for background log integration to finish, and record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
+3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
 4. Resume publishes, scheduled `pnpr gc` jobs, and package unpublishes.
 
 ### Restore

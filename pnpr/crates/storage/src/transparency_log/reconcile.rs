@@ -5,7 +5,8 @@ mod bundles;
 
 use super::{
     LOG_NAMESPACE, LogId, Storage, StoredCheckpoint, TileReader, check_sequenced_at_least_head,
-    checkpoint::verify_stored_checkpoint, integrated_head, log_error,
+    checkpoint::{validate_refreshed_checkpoint, verify_stored_checkpoint},
+    integrated_head, log_error,
 };
 use bundles::{
     check_authenticated_bound, check_bundle_bounds, check_prior_full_bundle_keys,
@@ -16,6 +17,11 @@ use pnpm_transparency_log::{
     verify_consistency,
 };
 use pnpr_error::{RegistryError, Result};
+
+enum ReconcileOutcome {
+    Reconciled,
+    TargetAdvanced,
+}
 
 enum TailBundles {
     Complete(u64),
@@ -78,10 +84,30 @@ impl Storage {
             .unwrap_or_else(|| log.path());
         loop {
             let mut target = self.read_reconcile_target(log, &origin, signer.as_ref()).await?;
-            if self.reconcile_against_target(log, &mut target).await? {
-                return Ok(target.checkpoint);
+            match self.reconcile_against_target(log, &mut target).await? {
+                ReconcileOutcome::Reconciled => return Ok(target.checkpoint),
+                ReconcileOutcome::TargetAdvanced => {}
             }
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn reconcile_after_concurrent_advance(
+        &self,
+        log: &LogId,
+        key: &NoteSigner,
+        concurrent: impl std::future::Future<Output = ()>,
+    ) -> Result<(bool, Option<StoredCheckpoint>)> {
+        let signer = log.signer(key)?;
+        let origin = signer.verifier_key().name().to_string();
+        let mut target = self.read_reconcile_target(log, &origin, Some(&signer)).await?;
+        concurrent.await;
+        let restarted = matches!(
+            self.reconcile_against_target(log, &mut target).await?,
+            ReconcileOutcome::TargetAdvanced,
+        );
+        let verified = self.reconcile_log(log, Some(key)).await?;
+        Ok((restarted, verified))
     }
 
     async fn read_reconcile_target<'signer>(
@@ -104,7 +130,7 @@ impl Storage {
         &self,
         log: &LogId,
         target: &mut ReconcileTarget<'_>,
-    ) -> Result<bool> {
+    ) -> Result<ReconcileOutcome> {
         if target.head.size > 0 {
             self.verify_stored_root(log, target.head.size, target.head.hash).await?;
         }
@@ -116,41 +142,10 @@ impl Storage {
         let TailBundles::Complete(bundled_end) =
             self.stream_tail_bundles(log, target, start_bundle).await?
         else {
-            return Ok(false);
+            return Ok(ReconcileOutcome::TargetAdvanced);
         };
         check_bundle_bounds(log, target.head.size, target.checkpoint.as_ref(), bundled_end)?;
-        Ok(true)
-    }
-
-    async fn verify_stored_checkpoint_head(
-        &self,
-        log: &LogId,
-        head: &TreeHead,
-        checkpoint: &TreeHead,
-    ) -> Result<()> {
-        if checkpoint.size < head.size {
-            self.verify_stored_root(log, checkpoint.size, checkpoint.hash).await?;
-            let newer =
-                TreeHead { origin: checkpoint.origin.clone(), size: head.size, hash: head.hash };
-            return self.verify_checkpoint_consistency(log, checkpoint, &newer).await;
-        }
-        if checkpoint.size == head.size {
-            if checkpoint.hash != head.hash {
-                return Err(RegistryError::Internal {
-                    reason: format!(
-                        "the stored checkpoint of the log {log} disagrees with its integrated tree",
-                    ),
-                });
-            }
-            return Ok(());
-        }
-        self.verify_stored_root(log, checkpoint.size, checkpoint.hash).await?;
-        if head.size > 0 {
-            let older =
-                TreeHead { origin: checkpoint.origin.clone(), size: head.size, hash: head.hash };
-            self.verify_checkpoint_consistency(log, &older, checkpoint).await?;
-        }
-        Ok(())
+        Ok(ReconcileOutcome::Reconciled)
     }
 
     async fn verify_prior_full_bundles(&self, log: &LogId, start_bundle: u64) -> Result<()> {
@@ -226,7 +221,12 @@ impl Storage {
         let sequenced = self.sql_metadata().log_size(log).await?;
         check_sequenced_at_least_head(log, sequenced, target.head.size)?;
         let checkpoint = self.log_checkpoint(log).await?;
-        validate_refreshed_checkpoint(log, target, checkpoint.as_ref())?;
+        validate_refreshed_checkpoint(
+            log,
+            target.checkpoint.as_ref(),
+            target.signer,
+            checkpoint.as_ref(),
+        )?;
         let checkpoint_size =
             checkpoint.as_ref().map_or(0, |stored| stored.tree_head.size);
         let refreshed_end = sequenced.max(checkpoint_size);
@@ -362,61 +362,10 @@ impl Storage {
         .await?
     }
 
-    pub(super) async fn verify_checkpoint_consistency(
-        &self,
-        log: &LogId,
-        older: &TreeHead,
-        newer: &TreeHead,
-    ) -> Result<()> {
-        let reader = TileReader::new(self.clone(), log.clone(), newer.size);
-        let (older, newer) = (older.clone(), newer.clone());
-        let log_name = log.to_string();
-        tokio::task::spawn_blocking(move || {
-            let proof = prove_consistency(&reader, older.size, newer.size).map_err(log_error)?;
-            verify_consistency(&proof, &older, &newer).map_err(|err| RegistryError::Internal {
-                reason: format!(
-                    "the stored checkpoint of the log {log_name} is not a prefix of its integrated tree: {err}",
-                ),
-            })
-        })
-        .await?
-    }
-
     async fn max_partial_bundle_width(&self, log: &LogId, index: u64) -> Result<Option<u32>> {
         let prefix = TilePath::partial_entries_prefix(index);
         let namespace = format!("{LOG_NAMESPACE}/{}", log.key(&prefix));
         let keys = self.root.list_record_keys(&namespace).await?;
         Ok(max_partial_width_of_keys(index, &prefix, keys))
     }
-}
-
-fn validate_refreshed_checkpoint(
-    log: &LogId,
-    target: &ReconcileTarget<'_>,
-    checkpoint: Option<&StoredCheckpoint>,
-) -> Result<()> {
-    let Some(stored) = checkpoint else {
-        if target.checkpoint.is_some() {
-            return Err(RegistryError::Internal {
-                reason: format!(
-                    "the stored checkpoint of the log {log} disappeared during reconciliation",
-                ),
-            });
-        }
-        return Ok(());
-    };
-    if target.checkpoint.as_ref() != Some(stored) {
-        verify_stored_checkpoint(log, stored, target.signer)?;
-    }
-    if let Some(prior) = &target.checkpoint
-        && stored.tree_head.size < prior.tree_head.size
-    {
-        return Err(RegistryError::Internal {
-            reason: format!(
-                "the stored checkpoint of the log {log} regressed from {} to {} entries",
-                prior.tree_head.size, stored.tree_head.size,
-            ),
-        });
-    }
-    Ok(())
 }
