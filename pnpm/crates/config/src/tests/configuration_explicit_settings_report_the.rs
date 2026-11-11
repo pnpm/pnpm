@@ -366,6 +366,24 @@ pub fn lockfile_dir_env_var_overrides_yaml() {
 }
 
 #[test]
+pub fn lockfile_dir_equal_to_project_dir_keeps_the_default_lockfile_layout() {
+    for (yaml, shares_one_lockfile) in
+        [("lockfileDir: .\n", true), ("lockfileDir: .\nsharedWorkspaceLockfile: false\n", false)]
+    {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
+            .expect("write to pnpm-workspace.yaml");
+
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+        assert_eq!(config.lockfile_dir, None, "yaml: {yaml}");
+        assert!(!config.explicit_settings.contains_key("lockfileDir"), "yaml: {yaml}");
+        assert_eq!(config.shares_one_lockfile(), shares_one_lockfile, "yaml: {yaml}");
+        assert_eq!(config.lockfile_dir_for(tmp.path()), tmp.path(), "yaml: {yaml}");
+    }
+}
+
+#[test]
 pub fn package_map_settings_load_from_env() {
     struct HostWithPackageMapEnv;
     impl EnvVar for HostWithPackageMapEnv {

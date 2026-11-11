@@ -123,6 +123,22 @@ impl Config {
             self.lockfile = self.package_lock;
         }
 
+        let lockfile_dir_is_default = self.lockfile_dir
+            .as_ref()
+            .is_some_and(|lockfile_dir| {
+                let default_lockfile_dir = if self.shared_workspace_lockfile {
+                    self.workspace_dir.as_deref().unwrap_or(start_dir)
+                } else {
+                    start_dir
+                };
+                pnpm_fs::lexical_normalize(lockfile_dir)
+                    == pnpm_fs::lexical_normalize(default_lockfile_dir)
+            });
+        if lockfile_dir_is_default {
+            self.lockfile_dir = None;
+            self.explicit_settings.remove("lockfileDir");
+        }
+
         // A pinned `lockfileDir` moves the root `node_modules` and the
         // virtual store with it. Applied after every source has had its
         // say so the anchor uses the final value, and before the

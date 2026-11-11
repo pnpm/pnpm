@@ -128,6 +128,8 @@ When set to `false`, pnpm won't read or generate a `pnpm-lock.yaml` file.
 The directory in which `pnpm-lock.yaml` is created. Several projects may share a
 single lockfile.
 
+Setting `lockfileDir` to its default directory has no effect.
+
 The `--lockfile-dir` CLI option sets it for a single command. It cannot be used
 with `--global`.
 
