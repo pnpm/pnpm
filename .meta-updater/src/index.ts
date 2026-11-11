@@ -291,8 +291,8 @@ function findTypeScriptReferences ({
   return Object.entries(deps)
     .flatMap(([depName, spec]) => {
       const linkedPkgDir = resolveLinkedPackageDir({ depName, spec, dir, workspacePackageDirs })
-      if (linkedPkgDir == null || linkedPkgDir === dir || !fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) ||
-        !isSubdir(workspaceDir, linkedPkgDir) || isExcludedTypeScriptReference(depName, manifest.name)) return []
+      if (linkedPkgDir == null || linkedPkgDir === dir || !isSubdir(workspaceDir, linkedPkgDir) ||
+        !fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) || isExcludedTypeScriptReference(depName, manifest.name)) return []
       return [normalizePath(path.relative(dir, linkedPkgDir))]
     })
     .sort()
