@@ -1,3 +1,4 @@
+use super::share_links::{ShareLinks, UnusableShareLinksError};
 use derive_more::{Display, Error};
 use std::{
     borrow::Cow,
@@ -67,23 +68,26 @@ pub(super) struct NetworkShareLinkError {
 pub(super) fn explain_network_share_refusal(link: &Path, error: io::Error) -> io::Error {
     let refused =
         matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported);
-    if !refused || !crate::mapped_drive_path::is_on_network_drive(link) {
+    let explained = error
+        .get_ref()
+        .is_some_and(|inner| inner.downcast_ref::<UnusableShareLinksError>().is_some());
+    if !refused || explained || !crate::mapped_drive_path::is_on_network_drive(link) {
         return error;
     }
     io::Error::new(error.kind(), NetworkShareLinkError { source: error })
 }
 
 fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
-    // Windows evaluates a symlink on a share on the client, and by default
-    // doesn't follow one there that points back into a share ("remote to
-    // remote" in `fsutil behavior query SymlinkEvaluation`). The relative
-    // links in `node_modules/.pnpm` are exactly that, so a share that accepts
-    // symlinks would get links nothing can open. A junction is resolved by
-    // the server, and pnpm 11 links with junctions everywhere on Windows, so
-    // links on a share stay junctions whatever the process may create. This
-    // doesn't touch `MODE`: links on local drives keep preferring symlinks.
-    if crate::mapped_drive_path::is_on_network_drive_cached(link) {
-        return create_junction(original, link);
+    // On a network share the kind of link is the one that can be opened
+    // there, see [`super::share_links`]. This doesn't touch `MODE`: links on
+    // local drives keep preferring symlinks.
+    match super::share_links::share_links(link)? {
+        Some(ShareLinks::Junction) => return create_junction(original, link),
+        Some(ShareLinks::Symlink) => return std::os::windows::fs::symlink_dir(contents, link),
+        Some(ShareLinks::Unusable(error)) => {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, error));
+        }
+        None => {}
     }
     match MODE.load(Ordering::Relaxed) {
         USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
@@ -97,13 +101,44 @@ fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> 
     }
 }
 
-/// Whether `link` is a true symlink on a network share. [`create_link`]
-/// never writes one, but an earlier pnpm 12 install may have, and Windows
-/// doesn't follow it by default, so it is replaced rather than reused even
-/// when it points at the right target.
-pub(super) fn is_symlink_on_network_share(link: &Path) -> bool {
-    crate::mapped_drive_path::is_on_network_drive_cached(link)
-        && reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK)
+/// The contents of the link at `link` when it is of the kind that can be
+/// opened on its network share, and an error for any other entry. `None`
+/// when `link` isn't on a share. An earlier install may have left the other
+/// kind, which is replaced rather than reused even when it points at the
+/// right target. Where junctions are used, reading a junction as one fails
+/// for a symlink in the same open, so a warm install pays nothing extra per
+/// link. Where symlinks are used, telling them from junctions takes a second
+/// open per link.
+pub(super) fn read_share_link(link: &Path) -> Option<io::Result<PathBuf>> {
+    match super::share_links::share_links(link) {
+        Ok(None) => None,
+        Ok(Some(ShareLinks::Junction)) => Some(read_junction_target(link)),
+        Ok(Some(ShareLinks::Symlink)) => Some(
+            fs::read_link(link)
+                .and_then(|contents| {
+                    if reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK) {
+                        Ok(contents)
+                    } else {
+                        Err(io::Error::from(io::ErrorKind::InvalidInput))
+                    }
+                }),
+        ),
+        Ok(Some(ShareLinks::Unusable(error))) => {
+            Some(Err(io::Error::new(io::ErrorKind::Unsupported, error)))
+        }
+        Err(error) => Some(Err(error)),
+    }
+}
+
+/// Whether the link at `link` is of the kind [`create_link`] writes there.
+/// Off a network share both kinds are fine.
+pub(super) fn is_link_kind_usable(link: &Path) -> bool {
+    match super::share_links::share_links(link) {
+        Ok(None) => true,
+        Ok(Some(ShareLinks::Junction)) => reparse_tag(link) != Some(IO_REPARSE_TAG_SYMLINK),
+        Ok(Some(ShareLinks::Symlink)) => reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK),
+        Ok(Some(ShareLinks::Unusable(_))) | Err(_) => false,
+    }
 }
 
 pub(super) const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;

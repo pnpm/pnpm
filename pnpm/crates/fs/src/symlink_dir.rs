@@ -27,8 +27,8 @@ use crate::retry::{
 /// on a privilege error (symbolic links may require elevated
 /// privileges; junctions don't). The first successful branch is cached
 /// process-wide so subsequent calls skip the privilege probe. A link on a
-/// network share is always a junction, as in pnpm 11, because Windows
-/// doesn't follow a symlink on a share that points into a share by default.
+/// network share is a junction, as in pnpm 11, where a junction can be
+/// opened, a symlink where only that can be, and an error where neither can.
 pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -327,6 +327,8 @@ fn is_reparse_point(path: &Path) -> bool {
         .is_ok_and(|meta| meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
 }
 
+#[cfg(windows)]
+mod share_links;
 #[cfg(windows)]
 mod windows;
 
