@@ -9,12 +9,12 @@ use serde_json::json;
 
 async fn publication_times_keep_milliseconds_and_normalize_offsets(db: Db) {
     let storage = storage(&db);
-    let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
+    let default = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
     let mut document = packument("example", &["1.0.0"]);
     document["time"]["1.0.0"] = json!("2026-01-01T01:00:00.123+01:00");
-    write(&org, "example", &document).await;
+    write(&default, "example", &document).await;
     document["time"]["1.0.0"] = json!("2026-01-01T00:00:00.123Z");
-    assert_eq!(read(&org, "example").await, document);
+    assert_eq!(read(&default, "example").await, document);
     let publication = storage
         .sql_metadata()
         .initial_publication(&npm("example"), "", "1.0.0")
@@ -27,8 +27,8 @@ async fn publication_times_keep_milliseconds_and_normalize_offsets(db: Db) {
 async fn metadata_timestamps_are_integer_milliseconds(db: Db) {
     let before = now_millis();
     let storage = storage(&db);
-    let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
-    write(&org, "example", &packument("example", &["1.0.0"])).await;
+    let default = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
+    write(&default, "example", &packument("example", &["1.0.0"])).await;
     storage
         .sql_metadata()
         .set_version_note(
@@ -85,8 +85,8 @@ fn assert_timestamp_column(
 
 async fn every_timestamp_column_has_integer_affinity(db: Db) {
     let storage = storage(&db);
-    let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
-    write(&org, "example", &packument("example", &["1.0.0"])).await;
+    let default = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
+    write(&default, "example", &packument("example", &["1.0.0"])).await;
     let adapter = db.adapter();
     let column_type_sql = db.sql(
         "SELECT type FROM pragma_table_info(?1) WHERE name = ?2",
@@ -129,13 +129,15 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
 
 async fn an_invalid_publication_time_refuses_the_write(db: Db) {
     let storage = storage(&db);
-    let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
+    let default = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
     let mut document = packument("example", &["1.0.0"]);
     document["time"]["1.0.0"] = json!("not a timestamp");
-    let error = try_write(&org, "example", &document).await.unwrap_err();
+    let error = try_write(&default, "example", &document).await.unwrap_err();
     assert!(matches!(error, pnpr_error::RegistryError::BadRequest { .. }), "{error:?}");
     assert!(
-        org.read_hosted_document(&npm("example")).await
+        default
+            .read_hosted_document(&npm("example"))
+            .await
             .unwrap()
             .is_none(),
     );
@@ -143,14 +145,16 @@ async fn an_invalid_publication_time_refuses_the_write(db: Db) {
 
 async fn unpublish_times_use_integer_milliseconds(db: Db) {
     let storage = storage(&db);
-    let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
+    let default = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
     let before = now_millis();
-    write(&org, "example", &packument("example", &["1.0.0"])).await;
+    write(&default, "example", &packument("example", &["1.0.0"])).await;
     assert!(
-        org.remove_package(&npm("example"), Some("publisher")).await
+        default
+            .remove_package(&npm("example"), Some("publisher"))
+            .await
             .unwrap(),
     );
-    let tombstone = org
+    let tombstone = default
         .read_tombstone(&npm("example"))
         .await
         .unwrap()

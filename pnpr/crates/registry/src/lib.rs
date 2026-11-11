@@ -41,10 +41,10 @@ use pnpr_package_name::CanonicalPackageName;
 use std::fmt;
 
 /// The routing role of a registry. The per-registry serving details (upstream URL,
-/// credentials, access policy, org id) live in the `config` module; this
+/// credentials, access policy, hosted namespace) live in the `config` module; this
 /// captures only what routing and validation need.
 ///
-/// A concrete registry's `patterns` are its declared namespace: the names it
+/// A concrete registry's `patterns` are its claimed package patterns: the names it
 /// serves and accepts publishes for, and the claim routers derive their
 /// selection from. An empty list claims every name — the catch-all in any
 /// router.
@@ -52,7 +52,7 @@ use std::fmt;
 pub enum Registry {
     /// A pnpr-hosted registry: the authoritative origin for the packages it
     /// stores, and the only kind that accepts writes. Reads and writes are
-    /// scoped to the registry's own storage namespace (its optional `org`).
+    /// scoped to the registry's hosted `namespace`.
     Hosted { patterns: Vec<PackagePattern> },
     /// Exactly one external origin. One URL, one credential generation, one
     /// cache namespace — not a chain and not a set of endpoints.

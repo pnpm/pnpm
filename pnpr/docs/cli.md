@@ -207,7 +207,7 @@ no key pnpr stores archives under is never removed.
 For unmapped archives, `gc` logs each reclaimed archive's key and size at info
 level under the [`pnpr::audit` target](configuration.md#admin-audit-logs).
 When it unmaps an unreachable image blob, the removal record also names
-the repository. Collection logs include the organization and ecosystem.
+the repository. Collection logs include the namespace and ecosystem.
 Successful removals are logged even if another archive cannot be removed.
 
 The metadata database fences every removal; no step depends on timing. A

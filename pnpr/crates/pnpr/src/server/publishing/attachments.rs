@@ -115,11 +115,11 @@ pub(in super::super) async fn validate_publish_doc(
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await?;
 
-    let storage = hosted_storage(state, Some(&target.org));
+    let storage = hosted_storage(state, Some(&target.namespace));
     check_publish_tombstone(state, identity, &storage, &name).await?;
 
     let attachments = extract_attachments(&mut incoming)?;
@@ -146,7 +146,7 @@ pub(in super::super) async fn validate_publish_doc(
 pub(in super::super) async fn validate_staged_publish_name(
     state: &AppState,
     mut doc: ValidatedPublish,
-    org: &str,
+    namespace: &str,
 ) -> Result<(), RegistryError> {
     let invalid = match doc.name.validate_npm_publish() {
         Ok(()) => return Ok(()),
@@ -156,7 +156,7 @@ pub(in super::super) async fn validate_staged_publish_name(
     if !doc.prepared.is_empty() {
         return Err(invalid);
     }
-    let storage = hosted_storage(state, Some(org));
+    let storage = hosted_storage(state, Some(namespace));
     let mut base = read_staged_base(&storage, &doc).await?;
     prepare_publish_document(&storage, &mut doc, &mut base, &now_iso()).await?;
     Ok(())
@@ -175,10 +175,10 @@ pub(in super::super) struct StagedPublish {
     /// What the store held when `document` was computed from it.
     pub(in super::super) base: StagedBase,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
-    /// Hosted-org storage namespace this publish targets, or `None` for the
-    /// flat (path-less) hosted store. Threaded into the commit so the write
-    /// lands in the right org.
-    pub(in super::super) org: Option<String>,
+    /// Hosted storage namespace this publish targets, or `None` for the
+    /// default hosted namespace. Threaded into the commit so the write
+    /// lands in the right namespace.
+    pub(in super::super) namespace: Option<String>,
     /// Who published it, recorded with every dist-tag the document moves.
     pub(in super::super) publisher: Option<String>,
     /// What verifying the published archives produced.
@@ -228,9 +228,9 @@ pub(in super::super) async fn stage_publish(
     state: &AppState,
     mut doc: ValidatedPublish,
     now_iso: &str,
-    org: Option<&str>,
+    namespace: Option<&str>,
 ) -> Result<StagedPublish, RegistryError> {
-    let storage = hosted_storage(state, org);
+    let storage = hosted_storage(state, namespace);
 
     let mut base = read_staged_base(&storage, &doc).await?;
     check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
@@ -256,7 +256,7 @@ pub(in super::super) async fn stage_publish(
         document: verified.document,
         base,
         slots: verified.slots,
-        org: org.map(str::to_string),
+        namespace: namespace.map(str::to_string),
         publisher,
         verification: verified.verification,
     })

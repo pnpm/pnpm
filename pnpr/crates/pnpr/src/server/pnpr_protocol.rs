@@ -1,5 +1,5 @@
 use super::{
-    AppState, AuthedCaller, Body, CallerOrgs, Ecosystem, Response, State, StatusCode, header,
+    AppState, AuthedCaller, Body, CallerOwners, Ecosystem, Response, State, StatusCode, header,
     private_no_cache,
 };
 use axum::{extract::Path, http::HeaderMap, response::IntoResponse};
@@ -124,7 +124,7 @@ pub(super) async fn serve_publish_artifact(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact publication") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact publication") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -151,7 +151,7 @@ pub(super) async fn serve_resolve_artifacts(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact lookup") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact lookup") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -177,7 +177,7 @@ pub(super) async fn serve_artifact_blob(
     AuthedCaller(identity): AuthedCaller,
     Path((organization, integrity)): BlobPath,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact blob") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -210,7 +210,7 @@ pub(super) async fn serve_upload_artifact_blob(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob upload") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact blob upload") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
@@ -254,7 +254,7 @@ pub(super) async fn serve_artifact_blob_size(
     AuthedCaller(identity): AuthedCaller,
     Path((organization, integrity)): BlobPath,
 ) -> Response {
-    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob") {
+    let caller = match CallerOwners::new(&state, &identity, "shared artifact blob") {
         Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };

@@ -46,7 +46,7 @@ pub struct UpstreamConfig {
     /// a resolver private-route credential — only upstreams that declare
     /// `access:` participate in route classification.
     pub access: Option<AccessList>,
-    /// The registry's `packages:` map: the namespace it claims plus
+    /// The registry's `packages:` map: the package patterns it claims plus
     /// per-package `access` refinements (a `publish`/`unpublish` value is a
     /// config error — no write can land on an upstream). The registry-level
     /// gate ([`Self::access`], or `$all` for a public upstream) is the default

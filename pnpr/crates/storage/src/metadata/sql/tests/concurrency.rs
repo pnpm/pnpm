@@ -121,9 +121,9 @@ async fn a_commit_survives_a_restart_and_its_retry_changes_nothing(db: Db) {
     let restarted = storage(&db);
     assert_eq!(read(&restarted, "pkg").await, document);
     let metadata = restarted.sql_metadata();
-    let before = metadata.catalog_generation("").await.unwrap();
+    let before = metadata.namespace_generation("").await.unwrap();
     assert_eq!(write(&restarted, "pkg", &document).await, DocumentWrite::Written);
-    assert_eq!(metadata.catalog_generation("").await.unwrap(), before);
+    assert_eq!(metadata.namespace_generation("").await.unwrap(), before);
 }
 
 #[tokio::test]
@@ -136,7 +136,7 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
         connection.execute_batch("BEGIN IMMEDIATE").unwrap();
         connection
             .execute(
-                "INSERT INTO packages (catalog, ecosystem, name, generation, state_version, state)
+                "INSERT INTO packages (namespace, ecosystem, name, generation, state_version, state)
                  VALUES ('', 'npm', 'pkg', 1, 1, X'7B7D')",
                 [],
             )
@@ -154,7 +154,7 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
     assert_eq!(
         storage
             .sql_metadata()
-            .catalog_generation("")
+            .namespace_generation("")
             .await
             .unwrap(),
         0,
@@ -240,7 +240,7 @@ async fn a_panicked_write_does_not_leak_a_transaction(db: Db) {
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
     let before = storage
         .sql_metadata()
-        .catalog_generation("")
+        .namespace_generation("")
         .await
         .unwrap();
     let adapter = db.instance_adapter();
@@ -249,7 +249,7 @@ async fn a_panicked_write_does_not_leak_a_transaction(db: Db) {
             adapter
                 .write(&mut |connection| {
                     connection.begin_write()?;
-                    connection.execute("UPDATE catalogs SET generation = 999", &[])?;
+                    connection.execute("UPDATE namespaces SET generation = 999", &[])?;
                     panic!("interrupted operation");
                 })
                 .unwrap();
@@ -267,7 +267,7 @@ async fn a_panicked_write_does_not_leak_a_transaction(db: Db) {
     assert_eq!(
         storage
             .sql_metadata()
-            .catalog_generation("")
+            .namespace_generation("")
             .await
             .unwrap(),
         before,
@@ -299,7 +299,7 @@ async fn concurrent_publishes_of_distinct_packages_all_commit(db: Db) {
     }
     let generation = instances[0]
         .sql_metadata()
-        .catalog_generation("")
+        .namespace_generation("")
         .await
         .unwrap();
     assert_eq!(generation, u64::try_from(names.len()).unwrap());

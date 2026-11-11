@@ -26,13 +26,14 @@ pub enum HostedLayout {
 }
 
 impl Storage {
-    /// A view of `(org, ecosystem)`'s hosted namespace, so two registries
-    /// hosting the same `name@version` can't collide. The empty org is the
-    /// default namespace, and `("", Ecosystem::Npm)` is the one
-    /// [`Storage::new`] addresses. The disposable proxy cache is shared.
+    /// A view of `(namespace, ecosystem)` in the hosted store, so two
+    /// registries hosting the same `name@version` in separate namespaces
+    /// cannot collide. The empty string is the default namespace, and
+    /// `("", Ecosystem::Npm)` is the one [`Storage::new`] addresses. The
+    /// disposable proxy cache is shared.
     #[must_use]
-    pub fn for_hosted(&self, org: &str, ecosystem: Ecosystem) -> Storage {
-        let hosted = namespace(&self.root, org, ecosystem);
+    pub fn for_hosted(&self, namespace: &str, ecosystem: Ecosystem) -> Storage {
+        let hosted = slice(&self.root, namespace, ecosystem);
         Storage {
             root: Arc::clone(&self.root),
             hosted,
@@ -40,7 +41,7 @@ impl Storage {
             tar_integrities: Arc::clone(&self.tar_integrities),
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
             database: Arc::clone(&self.database),
-            metadata: self.database.view(org, ecosystem),
+            metadata: self.database.view(namespace, ecosystem),
         }
     }
 
@@ -141,13 +142,13 @@ impl Storage {
     }
 }
 
-/// `(org, ecosystem)`'s namespace of the hosted store `root`.
-pub(crate) fn namespace(
+/// `(namespace, ecosystem)`'s slice of the hosted store `root`.
+pub(crate) fn slice(
     root: &Arc<dyn HostedBackend>,
-    org: &str,
+    namespace: &str,
     ecosystem: Ecosystem,
 ) -> Arc<dyn HostedBackend> {
-    crate::layout::namespace_segments(org, ecosystem)
+    crate::layout::namespace_segments(namespace, ecosystem)
         .iter()
         .fold(Arc::clone(root), |backend, segment| backend.namespaced(segment))
         .with_ecosystem(ecosystem)

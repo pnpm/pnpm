@@ -161,18 +161,18 @@ struct VersionEntry {
 }
 
 fn version_entries_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     query!(
         "SELECT v.version, v.published_at, a.generation, m.profile
          FROM versions v
-         JOIN accepted_manifests m USING (catalog, ecosystem, name, version)
-         LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
+         JOIN accepted_manifests m USING (namespace, ecosystem, name, version)
+         LEFT JOIN annotations a USING (namespace, ecosystem, name, version)
+         WHERE v.namespace = ?1 AND v.ecosystem = ?2 AND v.name = ?3
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
          ORDER BY v.version",
-        catalog,
+        namespace,
         ecosystem,
         name,
         unless,
@@ -180,14 +180,14 @@ fn version_entries_query<'query>(key: &'query PackageKey, unless: &'query i64) -
 }
 
 fn tags_query<'query>(key: &'query PackageKey, unless: &'query i64) -> Query<'query> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     query!(
         "SELECT t.tag, t.version FROM tags t
-         WHERE t.catalog = ?1 AND t.ecosystem = ?2 AND t.name = ?3
+         WHERE t.namespace = ?1 AND t.ecosystem = ?2 AND t.name = ?3
            AND NOT EXISTS (
              SELECT 1 FROM packages p
-             WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)",
-        catalog,
+             WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)",
+        namespace,
         ecosystem,
         name,
         unless,
@@ -225,11 +225,11 @@ pub(super) fn read_version(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<Arc<str>>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let row = snapshot.query_optional(
         "SELECT profile FROM accepted_manifests
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![catalog, ecosystem, name, version],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version],
     )?;
     let Some(mut row) = row else { return Ok(None) };
     let fragment_key = FragmentKey {
@@ -276,13 +276,13 @@ fn render_fragment(key: &FragmentKey, rows: Vec<Row>) -> Result<Arc<str>> {
 }
 
 fn fragment_query(key: &FragmentKey) -> Query<'_> {
-    let (catalog, ecosystem, name) = key.package.params();
+    let (namespace, ecosystem, name) = key.package.params();
     if key.representation == Representation::Accepted {
         return query!(
             "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM accepted_manifests
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
                AND profile = ?5",
-            catalog,
+            namespace,
             ecosystem,
             name,
             &key.version,
@@ -292,11 +292,11 @@ fn fragment_query(key: &FragmentKey) -> Query<'_> {
     query!(
         "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
          FROM accepted_manifests m
-         LEFT JOIN readmes r USING (catalog, ecosystem, name, version)
-         LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-         WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
+         LEFT JOIN readmes r USING (namespace, ecosystem, name, version)
+         LEFT JOIN annotations a USING (namespace, ecosystem, name, version)
+         WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
            AND m.profile = ?5",
-        catalog,
+        namespace,
         ecosystem,
         name,
         &key.version,

@@ -176,16 +176,16 @@ pub fn tarball_path(storage: &Path, package: &str, version: &str) -> std::path::
 }
 
 /// The bytes the storage at `storage` serves for the file `file` of `name` in
-/// the `ecosystem` namespace of `org`, through the blob the file is mapped
+/// the `(namespace, ecosystem)` slice, through the blob the file is mapped
 /// to, or `None` when the package maps no such file.
 #[must_use]
 pub fn read_hosted_file(
     storage: &Path,
-    (org, ecosystem): (&str, Ecosystem),
+    (namespace, ecosystem): (&str, Ecosystem),
     name: &str,
     file: &str,
 ) -> Option<Vec<u8>> {
-    let store = open(storage).for_hosted(org, ecosystem);
+    let store = open(storage).for_hosted(namespace, ecosystem);
     let name = canonical(name, ecosystem);
     run(async move {
         let (body, _) = store
@@ -199,17 +199,17 @@ pub fn read_hosted_file(
 }
 
 /// Store `bytes` as the file `file` of `version` of `name` in the
-/// `ecosystem` namespace of `org` of the storage at `storage`, and map the
+/// `(namespace, ecosystem)` slice of the storage at `storage`, and map the
 /// file to them, as a publish would. `version` is empty for a file of no
 /// version.
 pub fn write_hosted_file(
     storage: &Path,
-    (org, ecosystem): (&str, Ecosystem),
+    (namespace, ecosystem): (&str, Ecosystem),
     (name, version): (&str, &str),
     file: &str,
     bytes: &[u8],
 ) {
-    let store = open(storage).for_hosted(org, ecosystem);
+    let store = open(storage).for_hosted(namespace, ecosystem);
     let name = canonical(name, ecosystem);
     let fail = |error: &dyn std::fmt::Display| -> ! {
         panic!("store {file} of {}: {error}", name.as_str())
@@ -244,17 +244,17 @@ pub fn read_packument(storage: &Path, package: &str) -> Value {
     serde_json::from_slice(&bytes).expect("parse fixture packument")
 }
 
-/// The stored document of `name` in the `ecosystem` namespace of `org`
-/// (`""` for the default one) of the storage at `storage`, or `None` when it
+/// The stored document of `name` in the `(namespace, ecosystem)` slice
+/// (`""` for the default namespace) of the storage at `storage`, or `None` when it
 /// holds none.
 #[must_use]
 pub fn read_hosted_document(
     storage: &Path,
-    org: &str,
+    namespace: &str,
     ecosystem: Ecosystem,
     name: &str,
 ) -> Option<Vec<u8>> {
-    let store = open(storage).for_hosted(org, ecosystem);
+    let store = open(storage).for_hosted(namespace, ecosystem);
     let name = canonical(name, ecosystem);
     run(async move {
         store
@@ -266,16 +266,16 @@ pub fn read_hosted_document(
     })
 }
 
-/// Commit `bytes` as the document of `name` in the `ecosystem` namespace of
-/// `org` of the storage at `storage`, whatever it held before.
+/// Commit `bytes` as the document of `name` in the `(namespace, ecosystem)` slice of
+/// the storage at `storage`, whatever it held before.
 pub fn write_hosted_document(
     storage: &Path,
-    org: &str,
+    namespace: &str,
     ecosystem: Ecosystem,
     name: &str,
     bytes: &[u8],
 ) {
-    let store = open(storage).for_hosted(org, ecosystem);
+    let store = open(storage).for_hosted(namespace, ecosystem);
     let name = canonical(name, ecosystem);
     run(async move {
         let version = HostedDocumentVersion::Unversioned;

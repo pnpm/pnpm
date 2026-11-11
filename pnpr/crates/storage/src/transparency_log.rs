@@ -1,6 +1,6 @@
-//! The transparency logs of the release records a hosted catalog accepts
+//! The transparency logs of the release records a hosted namespace accepts
 //! ([release records](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-release-records.md#transparency-log)),
-//! one per catalog and ecosystem.
+//! one per namespace and ecosystem.
 //!
 //! A record's log entry is sequenced in the SQL metadata store, in the
 //! transaction that accepts its version. Integration runs after commit: it
@@ -32,29 +32,29 @@ use std::{
 };
 use tlog_tiles::Tile;
 
-/// The hosted-store namespace of the logs' tiles and checkpoints. A leading
-/// `.` keeps it apart from every organization and package name.
+/// The hosted-store record directory of the logs' tiles and checkpoints. A
+/// leading `.` keeps it apart from every namespace and package name.
 pub const LOG_NAMESPACE: &str = ".transparency-log";
 
 /// The most entries one round of integration reads.
 const INTEGRATION_BATCH: u64 = 4096;
 
-/// One transparency log: the records of one hosted catalog and ecosystem.
+/// One transparency log: the records of one hosted namespace and ecosystem.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LogId {
-    /// The organization namespace; empty for the default one.
-    pub catalog: String,
+    /// The hosted namespace; empty for the default one.
+    pub namespace: String,
     pub ecosystem: Ecosystem,
 }
 
 impl LogId {
     /// The log's path in the store and in its origin: its ecosystem, and for
-    /// an organization other than the default one, `~<catalog>`.
+    /// a namespace other than the default one, `~<namespace>`.
     fn path(&self) -> String {
-        if self.catalog.is_empty() {
+        if self.namespace.is_empty() {
             self.ecosystem.as_str().to_string()
         } else {
-            format!("{}/~{}", self.ecosystem.as_str(), self.catalog)
+            format!("{}/~{}", self.ecosystem.as_str(), self.namespace)
         }
     }
 

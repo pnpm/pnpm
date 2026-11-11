@@ -48,19 +48,19 @@ struct IncomingPypiFile {
 }
 
 pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT filename, position, yanked, yank_reason, entry FROM pypi_files
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY position",
+            namespace,
             ecosystem,
             name,
         ),
         query!(
             "SELECT filename FROM removed_pypi_files
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
@@ -127,17 +127,17 @@ fn clear_project(
 ) -> Result<bool> {
     let Some(current) = row else { return Ok(false) };
     removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_pypi_files (catalog, ecosystem, name, filename, generation)
-         SELECT catalog, ecosystem, name, filename, ?4 FROM pypi_files
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+        "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
+         SELECT namespace, ecosystem, name, filename, ?4 FROM pypi_files
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, to_column(commit.generation)],
+        params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
-        "DELETE FROM pypi_files WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM pypi_files WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -171,12 +171,12 @@ fn update_yank(
     if existing.yanked == incoming.yanked && existing.yank_reason == incoming.yank_reason {
         return Ok(false);
     }
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
         "UPDATE pypi_files SET yanked = ?5, yank_reason = ?6
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND filename = ?4",
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND filename = ?4",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             &incoming.filename,
@@ -188,14 +188,14 @@ fn update_yank(
 }
 
 fn insert_pypi_file(commit: &Commit<'_>, item: &IncomingPypiFile, position: i64) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let entry = serde_json::to_string(&item.entry)?;
     commit.transaction.execute(
         "INSERT INTO pypi_files
-           (catalog, ecosystem, name, filename, position, yanked, yank_reason, entry)
+           (namespace, ecosystem, name, filename, position, yanked, yank_reason, entry)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             &item.filename,
@@ -213,7 +213,7 @@ fn retire_deleted_files(
     already_removed: &BTreeSet<String>,
     declared_deleted: &BTreeSet<String>,
 ) -> Result<bool> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     if !dropped.is_empty() {
         let keys: Vec<&str> = dropped
             .keys()
@@ -222,9 +222,9 @@ fn retire_deleted_files(
         let filenames = super::blobs::json_array(&keys);
         commit.transaction.execute(
             "DELETE FROM pypi_files
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
                AND filename IN (SELECT value FROM json_each(?4))",
-            params![catalog, ecosystem, name, &filenames],
+            params![namespace, ecosystem, name, &filenames],
         )?;
     }
     let to_record: Vec<&str> = dropped
@@ -241,12 +241,12 @@ fn retire_deleted_files(
     }
     let filenames = super::blobs::json_array(&to_record);
     commit.transaction.execute(
-        "INSERT INTO removed_pypi_files (catalog, ecosystem, name, filename, generation)
+        "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
          SELECT ?1, ?2, ?3, value, ?5
          FROM (SELECT value FROM json_each(?4)) AS removed
          WHERE value != ''
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, &filenames, to_column(commit.generation)],
+        params![namespace, ecosystem, name, &filenames, to_column(commit.generation)],
     )?;
     Ok(true)
 }
@@ -340,28 +340,28 @@ pub(super) fn view_queries<'query>(
     key: &'query PackageKey,
     unless: &'query i64,
 ) -> [Query<'query>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT f.yanked, f.yank_reason, f.entry FROM pypi_files f
-             WHERE f.catalog = ?1 AND f.ecosystem = ?2 AND f.name = ?3
+             WHERE f.namespace = ?1 AND f.ecosystem = ?2 AND f.name = ?3
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
              ORDER BY f.position",
-            catalog,
+            namespace,
             ecosystem,
             name,
             unless,
         ),
         query!(
             "SELECT r.filename FROM removed_pypi_files r
-             WHERE r.catalog = ?1 AND r.ecosystem = ?2 AND r.name = ?3
+             WHERE r.namespace = ?1 AND r.ecosystem = ?2 AND r.name = ?3
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
              ORDER BY r.filename",
-            catalog,
+            namespace,
             ecosystem,
             name,
             unless,

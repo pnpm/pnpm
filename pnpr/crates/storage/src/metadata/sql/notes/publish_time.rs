@@ -34,7 +34,7 @@ pub(in crate::metadata::sql) fn store_publish_notes(
             return Err(already_noted(&note.version));
         }
         let key = PackageKey {
-            catalog: batch.catalog().to_string(),
+            namespace: batch.namespace().to_string(),
             ecosystem: note.ecosystem,
             name: note.name.clone(),
         };
@@ -47,19 +47,19 @@ pub(in crate::metadata::sql) fn store_publish_notes(
         reason: "a publication note needs a publish that introduces a version".to_string(),
     })?;
     // The publication is this batch's own, so it has no note yet.
-    write_initial(batch, &NoteSubject::publication(batch.catalog(), id), text, principal)
+    write_initial(batch, &NoteSubject::publication(batch.namespace(), id), text, principal)
 }
 
 /// The read that finds a row when `note`'s version already has a note, for
 /// [`store_publish_notes`].
 pub(in crate::metadata::sql) fn version_note_query<'query>(
-    catalog: &'query str,
+    namespace: &'query str,
     note: &'query VersionNote,
 ) -> Query<'query> {
     query!(
         "SELECT 1 FROM notes
-         WHERE catalog = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
-        catalog,
+         WHERE namespace = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
+        namespace,
         VERSION,
         note.ecosystem.as_str(),
         &note.name,

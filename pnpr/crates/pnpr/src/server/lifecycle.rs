@@ -43,7 +43,7 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     let mut namespaces: Vec<&str> = config.routing.hosted
         .iter()
         .filter(|(name, _)| config.routing.registries.ecosystem(name) == Some(Ecosystem::Oci))
-        .map(|(_, hosted)| hosted.org.as_str())
+        .map(|(_, hosted)| hosted.namespace.as_str())
         .collect();
     namespaces.push("");
     namespaces.sort_unstable();
@@ -87,7 +87,7 @@ fn hosted_archive_namespaces(config: &Config) -> Vec<(String, Ecosystem)> {
     let mut namespaces: Vec<(String, Ecosystem)> = config.routing.hosted
         .iter()
         .filter_map(|(name, hosted)| {
-            Some((hosted.org.clone(), config.routing.registries.ecosystem(name)?))
+            Some((hosted.namespace.clone(), config.routing.registries.ecosystem(name)?))
         })
         .collect();
     namespaces.push((String::new(), Ecosystem::Npm));

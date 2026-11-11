@@ -55,11 +55,11 @@ enum Rebase {
 /// expect that packument's generation.
 async fn rebase_documents(
     state: &AppState,
-    catalog: &str,
+    namespace: &str,
     documents: &mut [BatchDocument],
     rebases: (&[Option<Value>], &[Value]),
 ) -> Result<Rebase, RegistryError> {
-    let storage = state.inner.storage.for_hosted(catalog, pnpr_registry::Ecosystem::Npm);
+    let storage = state.inner.storage.for_hosted(namespace, pnpr_registry::Ecosystem::Npm);
     for ((document, base), ours) in documents
         .iter_mut()
         .zip(rebases.0)
@@ -89,8 +89,8 @@ async fn rebase_documents(
 }
 
 /// What a publish commits beside its documents.
-pub(super) struct Publication<'catalog> {
-    pub(super) catalog: &'catalog str,
+pub(super) struct Publication<'namespace> {
+    pub(super) namespace: &'namespace str,
     pub(super) artifacts: Vec<ArtifactMember>,
     pub(super) notes: PublishNotes,
     pub(super) request: Option<PublicationRequest>,
@@ -107,14 +107,14 @@ pub(super) async fn commit_rebasing(
     mut documents: Vec<BatchDocument>,
     bases: Option<Vec<Option<Value>>>,
 ) -> Result<PublicationCommit, RegistryError> {
-    let catalog = publication.catalog;
+    let namespace = publication.namespace;
     let database = state.inner.storage.sql_metadata();
     // What the publish computed, parsed only once a race calls for it.
     let mut ours: Option<Vec<Value>> = None;
     let mut attempts = 0;
     loop {
         let commit = database.commit_fenced_publication(
-            catalog,
+            namespace,
             documents.clone(),
             publication.artifacts.clone(),
             publication.notes.clone(),
@@ -139,7 +139,7 @@ pub(super) async fn commit_rebasing(
                     .collect::<Result<_, _>>()?,
             ),
         };
-        match rebase_documents(state, catalog, &mut documents, (conflict.1, ours)).await? {
+        match rebase_documents(state, namespace, &mut documents, (conflict.1, ours)).await? {
             Rebase::Applied => {}
             Rebase::Conflict => return Err(conflict.0),
         }

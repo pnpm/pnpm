@@ -78,7 +78,7 @@ pub(super) async fn add_hosted_org_packages(
     if !hosted.rules.any_access_admits(identity) {
         return Ok(());
     }
-    let storage = hosted_storage(state, Some(&hosted.org));
+    let storage = hosted_storage(state, Some(&hosted.namespace));
     let mut names = storage.hosted_package_names().await?;
     names.sort();
     let resolved = RegistrySource::Hosted(scan.source.to_string());
@@ -92,7 +92,7 @@ pub(super) async fn add_hosted_org_packages(
             &resolved,
             &name,
             Action::Publish,
-            Some(&hosted.org),
+            Some(&hosted.namespace),
         )
         .await
         {

@@ -44,7 +44,7 @@ fn record_publisher_in_maintainers(incoming: &mut Value, user_id: &str, username
 }
 
 /// The stored packument, parsed, with the version its update must be based
-/// on. `None` for a package the org has not published yet.
+/// on. `None` for a package the namespace has not published yet.
 pub(super) fn parse_hosted_packument(
     name: &CanonicalPackageName,
     hosted: Option<HostedDocumentForUpdate>,

@@ -97,15 +97,15 @@ async fn serve_hosted_attestations(
     name: &CanonicalPackageName,
     version: &str,
 ) -> Response {
-    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
-        Ok(org) => org,
+    let namespace = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(namespace) => namespace,
         Err(err) => return err.into_response(),
     };
     if let Err(err) = ensure_osv_allowed(state, name, version) {
         return err.into_response();
     }
     let filename = name.sigstore_name_for_version(version);
-    match super::hosted_storage(state, Some(&org)).open_hosted_blob(name, &filename).await {
+    match super::hosted_storage(state, Some(&namespace)).open_hosted_blob(name, &filename).await {
         Ok(Some((body, _len))) => {
             let bytes = match axum::body::to_bytes(body, 16 * 1024 * 1024).await {
                 Ok(bytes) => bytes,

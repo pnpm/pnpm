@@ -1,5 +1,5 @@
 //! The shared-artifact surface's settings: who may read and publish what
-//! each organization owns, and how much the artifact store keeps.
+//! each artifact owner owns, and how much the artifact store keeps.
 
 use super::{
     AccessList, AccessSpec, ArtifactQuotaFile, IndexMap, RegistryError, StorageAccessFile,
@@ -12,10 +12,10 @@ use super::{
 pub struct ArtifactsFeature {
     /// Master switch for artifact and compiler-cache endpoints.
     pub enabled: bool,
-    /// Who may read and who may publish what each organization owns: its
+    /// Who may read and who may publish what each artifact owner owns: its
     /// signed artifacts, its compiler cache, and its pipeline run records. An
-    /// undeclared organization is unavailable.
-    pub orgs: IndexMap<String, StorageAccess>,
+    /// undeclared owner is unavailable.
+    pub owners: IndexMap<String, StorageAccess>,
     pub quota: ArtifactQuota,
 }
 
@@ -55,12 +55,12 @@ pub(super) fn parse_storage_access(
                 let list = spec
                     .to_access_list(&TeamDirectory::default())
                     .map_err(|reason| RegistryError::InvalidConfig {
-                        reason: format!("organization {name:?}: {reason}"),
+                        reason: format!("artifact owner {name:?}: {reason}"),
                     })?;
                 if list.references_owners() {
                     return Err(RegistryError::InvalidConfig {
                         reason: format!(
-                            "organization {name:?}: `$owners` is not valid for artifact `{field}` rules",
+                            "artifact owner {name:?}: `$owners` is not valid for artifact `{field}` rules",
                         ),
                     });
                 }

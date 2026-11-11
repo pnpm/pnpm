@@ -291,7 +291,7 @@ fn insert_v1_fixture_rows(connection: &dyn Connection) -> Result<()> {
         params![],
     )?;
     connection.execute(
-        "INSERT INTO catalogs (catalog, generation) VALUES (?1, ?2)",
+        "INSERT INTO namespaces (namespace, generation) VALUES (?1, ?2)",
         params!["acme", 3_i64],
     )?;
     connection.execute(
@@ -352,10 +352,13 @@ async fn assert_migrated_v1_fixture_rows(db: &Db) {
                 .query_one("SELECT username FROM users WHERE id = ?1", params!["u-1"])?
                 .get(0)?;
             assert_eq!(username, "alice");
-            let catalog_gen: i64 = connection
-                .query_one("SELECT generation FROM catalogs WHERE catalog = ?1", params!["acme"])?
+            let namespace_gen: i64 = connection
+                .query_one(
+                    "SELECT generation FROM namespaces WHERE namespace = ?1",
+                    params!["acme"],
+                )?
                 .get(0)?;
-            assert_eq!(catalog_gen, 3);
+            assert_eq!(namespace_gen, 3);
             Ok(())
         })
     })
@@ -564,7 +567,7 @@ async fn another_version_is_refused(db: Db) {
         &[
             "CREATE TABLE schema_version (version TEXT NOT NULL)",
             &insert,
-            "CREATE TABLE catalogs (catalog VARCHAR(512) NOT NULL PRIMARY KEY)",
+            "CREATE TABLE namespaces (namespace VARCHAR(512) NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
@@ -572,7 +575,7 @@ async fn another_version_is_refused(db: Db) {
     assert!(reason.contains("holds pre-1.0 schema version 0.5,"), "{reason}");
     assert!(reason.contains("wipe pnpr's tables"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
-    execute(&db, &[&format!("DROP TABLE {LEGACY_MARKER}"), "DROP TABLE catalogs"]).await;
+    execute(&db, &[&format!("DROP TABLE {LEGACY_MARKER}"), "DROP TABLE namespaces"]).await;
     open(&db).await.unwrap();
     assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
 }
@@ -583,7 +586,7 @@ async fn an_integer_schema_version_is_refused(db: Db) {
         &[
             &format!("CREATE TABLE {LEGACY_MARKER} (version INTEGER NOT NULL)"),
             &format!("INSERT INTO {LEGACY_MARKER} (version) VALUES (4)"),
-            "CREATE TABLE catalogs (catalog VARCHAR(512) NOT NULL PRIMARY KEY)",
+            "CREATE TABLE namespaces (namespace VARCHAR(512) NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
@@ -614,11 +617,11 @@ async fn a_pre_1_0_auth_migrations_table_is_refused(db: Db) {
 async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     open(&db).await.unwrap();
     // A wipe that drops metadata or auth tables but leaves the marker.
-    execute(&db, &["DROP TABLE catalogs", "DROP TABLE notes", "DROP TABLE users"]).await;
+    execute(&db, &["DROP TABLE namespaces", "DROP TABLE notes", "DROP TABLE users"]).await;
     let reason = refused(&db).await;
     assert!(
         reason.contains(&format!(
-            "holds schema version {SCHEMA_VERSION} without the tables catalogs, \
+            "holds schema version {SCHEMA_VERSION} without the tables namespaces, \
              notes, users,"
         )),
         "{reason}",
@@ -690,7 +693,7 @@ conformance! {
 fn every_schema_table_is_known() {
     let tables = schema::table_names(TABLES);
     assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
-    assert!(tables.contains(&"catalogs".to_string()));
+    assert!(tables.contains(&"namespaces".to_string()));
     assert!(tables.contains(&"notes".to_string()));
     assert!(tables.contains(&"removed_oci_manifests".to_string()));
     assert!(!tables.contains(&"note_history".to_string()));
@@ -707,8 +710,8 @@ fn every_schema_table_is_known() {
 #[test]
 fn a_table_is_known_however_its_statement_is_spaced_or_cased() {
     assert_eq!(
-        schema::table_names("create table\n  if not exists\tcatalogs(catalog TEXT);"),
-        ["catalogs"],
+        schema::table_names("create table\n  if not exists\tnamespaces(namespace TEXT);"),
+        ["namespaces"],
     );
     assert_eq!(schema::table_names("CREATE\nTABLE packages (name TEXT);"), ["packages"]);
     assert!(schema::table_names("CREATE INDEX packages_by_name ON packages (name);").is_empty());

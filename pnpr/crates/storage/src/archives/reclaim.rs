@@ -33,23 +33,23 @@ impl Storage {
         ids: Vec<BlobId>,
         on_removed: impl Fn(&BlobRef),
     ) -> Result<Vec<BlobRef>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        let marked = self.database.mark_reclaiming(catalog, ecosystem, ids).await?;
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        let marked = self.database.mark_reclaiming(namespace, ecosystem, ids).await?;
         self.remove_reclaiming(marked, on_removed).await
     }
 
     /// The live blobs of this namespace that nothing maps, with their rows.
     pub async fn unmapped_blobs(&self) -> Result<BTreeMap<BlobId, BlobRow>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        self.database.unmapped_blobs(catalog, ecosystem).await
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        self.database.unmapped_blobs(namespace, ecosystem).await
     }
 
     /// Finish the reclaims of this namespace that have been `reclaiming` for
     /// at least `lease`: reclaims that stopped before they recorded their
     /// removal. Returns the removed incarnations and their byte sizes.
     pub async fn finish_stale_reclaims(&self, lease: Duration) -> Result<BTreeMap<BlobRef, u64>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        let stale = self.database.stale_reclaims(catalog, ecosystem, lease).await?;
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        let stale = self.database.stale_reclaims(namespace, ecosystem, lease).await?;
         let candidates = stale.keys().cloned().collect();
         let removed = self.remove_reclaiming(candidates, |_| {}).await?;
         Ok(removed
@@ -67,8 +67,8 @@ impl Storage {
     /// when its flag says so (see [`crate::metadata::SqlMetadata::settle_stored`]).
     /// Returns the incarnations removed.
     pub async fn remove_uncommitted(&self, stored: Vec<Uncommitted>) -> Result<Vec<BlobRef>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        let removable = self.database.settle_stored(catalog, ecosystem, stored).await?;
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        let removable = self.database.settle_stored(namespace, ecosystem, stored).await?;
         let mut removed = Vec::with_capacity(removable.len());
         let mut failure = None;
         for blob in removable {
@@ -118,8 +118,8 @@ impl Storage {
                 }
             }
         }
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        self.database.finish_reclaims(catalog, ecosystem, removed.clone()).await?;
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        self.database.finish_reclaims(namespace, ecosystem, removed.clone()).await?;
         failure.map_or(Ok(removed), Err)
     }
 
@@ -144,13 +144,13 @@ impl Storage {
         artifacts: Vec<impl Into<Unmapping>>,
         on_removed: impl Fn(&BlobRef),
     ) -> Result<Option<Vec<BlobRef>>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
         let unmappings = artifacts
             .into_iter()
             .map(Into::into)
             .collect();
         let unmapped = self.database.unmap_artifacts(
-            catalog,
+            namespace,
             ecosystem,
             name.as_str(),
             (expected, unmappings),
@@ -168,13 +168,13 @@ impl Storage {
         &self,
         name: &pnpr_package_name::CanonicalPackageName,
     ) -> Result<(Option<u64>, Vec<crate::metadata::Mapping>)> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        self.database.package_mappings(catalog, ecosystem, name.as_str()).await
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        self.database.package_mappings(namespace, ecosystem, name.as_str()).await
     }
 
     /// The packages of this namespace with a mapped file.
     pub async fn mapped_packages(&self) -> Result<Vec<String>> {
-        let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        self.database.mapped_packages(catalog, ecosystem).await
+        let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
+        self.database.mapped_packages(namespace, ecosystem).await
     }
 }

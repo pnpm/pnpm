@@ -74,14 +74,14 @@ conditional quota updates let several stateless pnpr replicas share one
 artifact tier.
 
 Artifacts are stored per owner, an organization the server declares under
-[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces).
+[`artifacts.owners`](configuration.md#registry-resolver-and-artifact-surfaces).
 Its `access` list decides who may restore its artifacts and its `publish` list
 who may publish them:
 
 ```yaml title="config.yaml"
 artifacts:
   enabled: true
-  orgs:
+  owners:
     acme:
       access: [<workload-account-id>, <account-id-1>, <account-id-2>]
       publish: <workload-account-id>

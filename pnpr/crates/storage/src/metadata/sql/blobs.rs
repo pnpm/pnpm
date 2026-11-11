@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 /// The rows of the blobs a JSON array of identities names, in one namespace.
 pub(super) const ROWS: &str = "SELECT blob_id, incarnation, state, size FROM blobs
-     WHERE catalog = ?1 AND ecosystem = ?2
+     WHERE namespace = ?1 AND ecosystem = ?2
        AND blob_id IN (SELECT value FROM json_each(?3))";
 
 /// The mapped files of one package a JSON array of file names names, with
@@ -23,16 +23,16 @@ pub(super) const ROWS: &str = "SELECT blob_id, incarnation, state, size FROM blo
 const MAPPED: &str = "SELECT a.artifact, a.version, a.blob_id, b.incarnation, b.state, b.size
      FROM artifact_blobs a
      JOIN blobs b
-       ON b.catalog = a.catalog AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
-     WHERE a.catalog = ?1 AND a.ecosystem = ?2 AND a.name = ?3
+       ON b.namespace = a.namespace AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
+     WHERE a.namespace = ?1 AND a.ecosystem = ?2 AND a.name = ?3
        AND a.artifact IN (SELECT value FROM json_each(?4))";
 
 /// The blob a file of a package is mapped to, while it is live.
 pub(super) const ARTIFACT: &str = "SELECT a.blob_id, b.incarnation
      FROM artifact_blobs a
      JOIN blobs b
-       ON b.catalog = a.catalog AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
-     WHERE a.catalog = ?1 AND a.ecosystem = ?2 AND a.name = ?3 AND a.artifact = ?4
+       ON b.namespace = a.namespace AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
+     WHERE a.namespace = ?1 AND a.ecosystem = ?2 AND a.name = ?3 AND a.artifact = ?4
        AND b.state = 'live'";
 
 /// The identity a column holds.
@@ -104,13 +104,13 @@ impl LookupRead {
     }
 
     pub(super) fn queries(&self) -> Vec<Query<'_>> {
-        let (catalog, ecosystem, name) = self.key.params();
+        let (namespace, ecosystem, name) = self.key.params();
         let mut queries = Vec::new();
         if let Some(ids) = &self.ids {
-            queries.push(query!(ROWS, catalog, ecosystem, ids.as_str()));
+            queries.push(query!(ROWS, namespace, ecosystem, ids.as_str()));
         }
         if let Some(artifacts) = &self.artifacts {
-            queries.push(query!(MAPPED, catalog, ecosystem, name, artifacts.as_str()));
+            queries.push(query!(MAPPED, namespace, ecosystem, name, artifacts.as_str()));
         }
         queries
     }

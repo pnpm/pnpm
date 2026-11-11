@@ -132,7 +132,7 @@ async fn the_primary_alone_keeps_metadata_for_every_instance() {
         .unwrap()
         .unwrap();
     assert!(matches!(current.version, HostedDocumentVersion::Generation(1)), "{current:?}");
-    assert_eq!(second.catalog_generation("").await.unwrap(), 1);
+    assert_eq!(second.namespace_generation("").await.unwrap(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -196,7 +196,7 @@ async fn an_instance_reads_its_own_commits_from_its_replica() {
     publish(&metadata, &["1.0.0"]).await;
     publish(&metadata, &["1.0.0", "2.0.0"]).await;
     assert_eq!(latest(&metadata).await.as_deref(), Some("2.0.0"));
-    assert_eq!(database.catalog_generation("").await.unwrap(), 2);
+    assert_eq!(database.namespace_generation("").await.unwrap(), 2);
     // A note edit advances no generation, and is still read back.
     let change = NoteChange { text: Some("edited\n".to_string()), principal: "bob".to_string() };
     assert!(
@@ -293,7 +293,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
     };
     let server = server().await;
     let database = server.instance(None, 60);
-    database.catalog_generation("").await.unwrap();
+    database.namespace_generation("").await.unwrap();
     let document = |name: &str, versions: &[&str]| {
         let mut document = packument(name, versions);
         document["dist-tags"]["next"] = Value::from(versions[0]);
@@ -603,7 +603,7 @@ async fn metadata_writes_and_reads_retry_when_the_primary_expires_or_drops_a_str
     server.primary.expire_next_stream();
     publish(&writer_views, &["1.0.0"]).await;
     assert_eq!(server.primary.stale_stream_rejections(), 1);
-    assert_eq!(writer.catalog_generation("").await.unwrap(), 1);
+    assert_eq!(writer.namespace_generation("").await.unwrap(), 1);
 
     // Expiring (`STREAM_EXPIRED`) or dropping (`Received an invalid baton`)
     // a write's stream between its read batch and its commit batch reruns the
@@ -611,23 +611,23 @@ async fn metadata_writes_and_reads_retry_when_the_primary_expires_or_drops_a_str
     server.primary.expire_next_stream();
     publish(&writer_views, &["1.0.0", "2.0.0"]).await;
     assert_eq!(server.primary.stale_stream_rejections(), 2);
-    assert_eq!(writer.catalog_generation("").await.unwrap(), 2);
+    assert_eq!(writer.namespace_generation("").await.unwrap(), 2);
 
     server.primary.drop_next_stream();
     publish(&writer_views, &["1.0.0", "2.0.0", "3.0.0"]).await;
     assert_eq!(server.primary.stale_stream_rejections(), 3);
-    assert_eq!(writer.catalog_generation("").await.unwrap(), 3);
+    assert_eq!(writer.namespace_generation("").await.unwrap(), 3);
 
     // Without `replicaPath`, a cold-cache view read takes two round trips on
     // the primary; losing the stream before the second batch retries cleanly.
     let expired_reader = server.instance(None, 60);
-    assert_eq!(expired_reader.catalog_generation("").await.unwrap(), 3);
+    assert_eq!(expired_reader.namespace_generation("").await.unwrap(), 3);
     server.primary.expire_next_stream();
     assert_eq!(latest(&views(&expired_reader)).await.as_deref(), Some("3.0.0"));
     assert_eq!(server.primary.stale_stream_rejections(), 4);
 
     let dropped_reader = server.instance(None, 60);
-    assert_eq!(dropped_reader.catalog_generation("").await.unwrap(), 3);
+    assert_eq!(dropped_reader.namespace_generation("").await.unwrap(), 3);
     server.primary.drop_next_stream();
     assert_eq!(latest(&views(&dropped_reader)).await.as_deref(), Some("3.0.0"));
     assert_eq!(server.primary.stale_stream_rejections(), 5);
@@ -638,7 +638,7 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     let server = server().await;
     let instance = server.instance(None, 60);
     publish(&views(&instance), &["1.0.0"]).await;
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 1);
+    assert_eq!(instance.namespace_generation("").await.unwrap(), 1);
 
     let adapter = Arc::new(LibsqlAdapter::new(server.settings(None, 60)));
 
@@ -651,7 +651,7 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     assert!(pnpr_libsql::is_stale_stream(&tx_err), "{tx_err:?}");
     assert_eq!(tx_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 1);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 11);
+    assert_eq!(instance.namespace_generation("").await.unwrap(), 11);
 
     // An autocommit write flushed in an earlier batch is equally irreversible.
     let (auto_res, auto_calls) =
@@ -660,7 +660,7 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     assert!(pnpr_libsql::is_stale_stream(&auto_err), "{auto_err:?}");
     assert_eq!(auto_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 2);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 21);
+    assert_eq!(instance.namespace_generation("").await.unwrap(), 21);
 
     // An autocommit write held until `WriteTransaction::begin` shares its batch
     // with `BEGIN IMMEDIATE` and still commits before the transaction starts.
@@ -670,7 +670,7 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     assert!(pnpr_libsql::is_stale_stream(&batched_err), "{batched_err:?}");
     assert_eq!(batched_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 3);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 31);
+    assert_eq!(instance.namespace_generation("").await.unwrap(), 31);
 
     // A multi-statement `execute_batch` script that commits a write before
     // opening another transaction is also irreversible.
@@ -680,7 +680,7 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     assert!(pnpr_libsql::is_stale_stream(&script_err), "{script_err:?}");
     assert_eq!(script_calls, 1);
     assert_eq!(server.primary.stale_stream_rejections(), 4);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 41);
+    assert_eq!(instance.namespace_generation("").await.unwrap(), 41);
 
     // A read-only `SELECT` in autocommit mode makes no durable change, so a
     // stale stream in the transaction after it still replays the callback.
@@ -689,7 +689,7 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     retry_res.unwrap();
     assert_eq!(retry_calls, 2);
     assert_eq!(server.primary.stale_stream_rejections(), 5);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 42);
+    assert_eq!(instance.namespace_generation("").await.unwrap(), 42);
 }
 
 async fn run_write_case(
@@ -715,10 +715,13 @@ fn script_commit_then_expired_tx(
     adapter.write(&mut |connection| {
         calls.fetch_add(1, Ordering::SeqCst);
         connection.execute_batch(
-            "BEGIN; UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''; COMMIT; BEGIN",
+            "BEGIN; UPDATE namespaces SET generation = generation + 10 WHERE namespace = ''; COMMIT; BEGIN",
         )?;
         primary.expire_next_stream();
-        connection.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        connection.execute(
+            "UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''",
+            &[],
+        )?;
         connection.commit()
     })
 }
@@ -731,12 +734,18 @@ fn committed_tx_then_expired_tx(
     adapter.write(&mut |connection| {
         calls.fetch_add(1, Ordering::SeqCst);
         let first = WriteTransaction::begin(connection)?;
-        first.execute("UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''", &[])?;
+        first.execute(
+            "UPDATE namespaces SET generation = generation + 10 WHERE namespace = ''",
+            &[],
+        )?;
         first.commit()?;
         let second = WriteTransaction::begin(connection)?;
-        second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        second.query("SELECT generation FROM namespaces WHERE namespace = ''", &[])?;
         primary.expire_next_stream();
-        second.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        second.execute(
+            "UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''",
+            &[],
+        )?;
         second.commit()
     })
 }
@@ -749,14 +758,17 @@ fn flushed_autocommit_write_then_expired_tx(
     adapter.write(&mut |connection| {
         calls.fetch_add(1, Ordering::SeqCst);
         connection.execute(
-            "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+            "UPDATE namespaces SET generation = generation + 10 WHERE namespace = ''",
             &[],
         )?;
-        connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        connection.query("SELECT generation FROM namespaces WHERE namespace = ''", &[])?;
         let second = WriteTransaction::begin(connection)?;
-        second.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        second.query("SELECT generation FROM namespaces WHERE namespace = ''", &[])?;
         primary.drop_next_stream();
-        second.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        second.execute(
+            "UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''",
+            &[],
+        )?;
         second.commit()
     })
 }
@@ -769,13 +781,13 @@ fn batched_autocommit_write_then_expired_tx(
     adapter.write(&mut |connection| {
         calls.fetch_add(1, Ordering::SeqCst);
         connection.execute(
-            "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+            "UPDATE namespaces SET generation = generation + 10 WHERE namespace = ''",
             &[],
         )?;
         let tx = WriteTransaction::begin(connection)?;
-        tx.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        tx.query("SELECT generation FROM namespaces WHERE namespace = ''", &[])?;
         primary.expire_next_stream();
-        tx.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        tx.execute("UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''", &[])?;
         tx.commit()
     })
 }
@@ -787,14 +799,14 @@ fn read_then_write_with_first_attempt_expired(
 ) -> pnpr_error::Result<()> {
     adapter.write(&mut |connection| {
         let attempt = calls.fetch_add(1, Ordering::SeqCst);
-        connection.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        connection.query("SELECT generation FROM namespaces WHERE namespace = ''", &[])?;
 
         let tx = WriteTransaction::begin(connection)?;
-        tx.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        tx.query("SELECT generation FROM namespaces WHERE namespace = ''", &[])?;
         if attempt == 0 {
             primary.expire_next_stream();
         }
-        tx.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        tx.execute("UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''", &[])?;
         tx.commit()
     })
 }

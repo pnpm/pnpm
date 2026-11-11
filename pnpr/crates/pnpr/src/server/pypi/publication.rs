@@ -57,7 +57,7 @@ pub(super) async fn upload_file(
 /// own, or [`Self::stage`] as one package of a cross-ecosystem batch.
 pub(in super::super) struct PypiPublication {
     pub(super) key: CanonicalPackageName,
-    pub(super) org: String,
+    pub(super) namespace: String,
     pub(super) entry: ProjectFile,
     pub(super) content: Vec<u8>,
     metadata: Option<String>,
@@ -80,7 +80,7 @@ pub(in super::super) async fn validate_upload(
 /// spending anything on the file.
 pub(in super::super) struct PypiTarget {
     pub(super) key: CanonicalPackageName,
-    pub(super) org: String,
+    pub(super) namespace: String,
 }
 
 pub(in super::super) fn authorize_upload(
@@ -114,15 +114,15 @@ pub(in super::super) fn authorize_upload(
             )));
         }
     }
-    let (source, org) =
+    let (source, namespace) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, project) {
-            PublishTarget::Hosted { source, org } => (source, org),
+            PublishTarget::Hosted { source, namespace } => (source, namespace),
             PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
     authorize(state, identity, &RegistrySource::Hosted(source), project, Action::Publish)?;
-    Ok(PypiTarget { key, org })
+    Ok(PypiTarget { key, namespace })
 }
 
 /// Check the file against the digest it was uploaded with, and build the
@@ -140,7 +140,7 @@ fn verify_distribution(
     target: PypiTarget,
     upload: Upload,
 ) -> Result<PypiPublication, RegistryError> {
-    let PypiTarget { key, org } = target;
+    let PypiTarget { key, namespace } = target;
     let sha256 = sha256_hex(&upload.content);
     if upload.sha256_digest
         .as_deref()
@@ -169,7 +169,7 @@ fn verify_distribution(
         data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
-    Ok(PypiPublication { key, org, entry, content: upload.content, metadata })
+    Ok(PypiPublication { key, namespace, entry, content: upload.content, metadata })
 }
 
 fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError> {
@@ -213,9 +213,9 @@ impl PypiPublication {
         &self.key
     }
 
-    /// The organization whose catalog the file is published into.
-    pub(in super::super) fn org(&self) -> &str {
-        &self.org
+    /// The hosted namespace the file is published into.
+    pub(in super::super) fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     /// Publish this file on its own, in a transaction of one.
@@ -238,7 +238,7 @@ impl PypiPublication {
         }
         stage_hosted_artifacts(
             state,
-            &self.org,
+            &self.namespace,
             &self.key,
             &files,
             &refuse_existing_file(&self.entry.filename),

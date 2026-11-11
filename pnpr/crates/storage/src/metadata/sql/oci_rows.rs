@@ -38,19 +38,19 @@ struct IncomingManifest {
 }
 
 pub(super) fn queries(key: &PackageKey) -> [Query<'_>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT digest, entry FROM oci_manifests
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
         query!(
             "SELECT tag, digest, updated FROM oci_tags
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+            namespace,
             ecosystem,
             name,
         ),
@@ -105,14 +105,14 @@ fn clear_repository(
         commit.generation,
         stored.manifests.keys().map(String::as_str),
     )?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "DELETE FROM oci_tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM oci_tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.transaction.execute(
-        "DELETE FROM oci_manifests WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
+        "DELETE FROM oci_manifests WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![namespace, ecosystem, name],
     )?;
     commit.delete_state()?;
     Ok(true)
@@ -144,7 +144,7 @@ fn upsert_manifests(
     incoming: &BTreeMap<String, IncomingManifest>,
 ) -> Result<bool> {
     let mut changed = false;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     for (digest, manifest) in incoming {
         match stored.remove(digest) {
             Some(existing) if existing == manifest.entry => {}
@@ -152,17 +152,17 @@ fn upsert_manifests(
                 let entry = serde_json::to_string(&manifest.entry)?;
                 commit.transaction.execute(
                     "UPDATE oci_manifests SET entry = ?5
-                     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND digest = ?4",
-                    params![catalog, ecosystem, name, digest, entry],
+                     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND digest = ?4",
+                    params![namespace, ecosystem, name, digest, entry],
                 )?;
                 changed = true;
             }
             None => {
                 let entry = serde_json::to_string(&manifest.entry)?;
                 commit.transaction.execute(
-                    "INSERT INTO oci_manifests (catalog, ecosystem, name, digest, entry)
+                    "INSERT INTO oci_manifests (namespace, ecosystem, name, digest, entry)
                      VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![catalog, ecosystem, name, digest, entry],
+                    params![namespace, ecosystem, name, digest, entry],
                 )?;
                 changed = true;
             }
@@ -177,15 +177,15 @@ fn reconcile_tags(
     incoming: &BTreeMap<String, (String, u64)>,
 ) -> Result<bool> {
     let mut changed = false;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     for (tag, target) in incoming {
         if stored.remove(tag).as_ref() != Some(target) {
             commit.transaction.execute(
-                "INSERT INTO oci_tags (catalog, ecosystem, name, tag, digest, updated)
+                "INSERT INTO oci_tags (namespace, ecosystem, name, tag, digest, updated)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                 ON CONFLICT (catalog, ecosystem, name, tag) DO UPDATE SET
+                 ON CONFLICT (namespace, ecosystem, name, tag) DO UPDATE SET
                    digest = excluded.digest, updated = excluded.updated",
-                params![catalog, ecosystem, name, tag, &target.0, to_column(target.1)],
+                params![namespace, ecosystem, name, tag, &target.0, to_column(target.1)],
             )?;
             changed = true;
         }
@@ -193,8 +193,8 @@ fn reconcile_tags(
     for tag in stored.keys() {
         commit.transaction.execute(
             "DELETE FROM oci_tags
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
-            params![catalog, ecosystem, name, tag],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
+            params![namespace, ecosystem, name, tag],
         )?;
         changed = true;
     }
@@ -214,7 +214,7 @@ fn remove_dropped_manifests(
         commit.generation,
         dropped.keys().map(String::as_str),
     )?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let keys: Vec<&str> = dropped
         .keys()
         .map(String::as_str)
@@ -222,9 +222,9 @@ fn remove_dropped_manifests(
     let digests = super::blobs::json_array(&keys);
     commit.transaction.execute(
         "DELETE FROM oci_manifests
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
            AND digest IN (SELECT value FROM json_each(?4))",
-        params![catalog, ecosystem, name, &digests],
+        params![namespace, ecosystem, name, &digests],
     )?;
     Ok(true)
 }
@@ -322,28 +322,28 @@ pub(super) fn view_queries<'query>(
     key: &'query PackageKey,
     unless: &'query i64,
 ) -> [Query<'query>; 2] {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     [
         query!(
             "SELECT m.entry FROM oci_manifests m
-             WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
+             WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
              ORDER BY m.digest",
-            catalog,
+            namespace,
             ecosystem,
             name,
             unless,
         ),
         query!(
             "SELECT t.tag, t.digest, t.updated FROM oci_tags t
-             WHERE t.catalog = ?1 AND t.ecosystem = ?2 AND t.name = ?3
+             WHERE t.namespace = ?1 AND t.ecosystem = ?2 AND t.name = ?3
                AND NOT EXISTS (
                  SELECT 1 FROM packages p
-                 WHERE p.catalog = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2 AND p.name = ?3 AND p.generation = ?4)
              ORDER BY t.tag",
-            catalog,
+            namespace,
             ecosystem,
             name,
             unless,

@@ -14,13 +14,13 @@ impl Request {
             Ok(target) => target,
             Err(refusal) => return refusal.respond(),
         };
-        let org = match crate::server::hosted_read_namespace(
+        let namespace = match crate::server::hosted_read_namespace(
             &self.state,
             &self.identity,
             &source,
             key.as_str(),
         ) {
-            Ok(org) => org,
+            Ok(namespace) => namespace,
             Err(err) => return registry_error(err),
         };
         if let Err(err) = authorize(
@@ -32,7 +32,8 @@ impl Request {
         ) {
             return registry_error(err);
         }
-        let storage = self.state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Oci);
+        let storage =
+            self.state.inner.storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Oci);
         let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         let result = async {
             for _ in 0..DOCUMENT_WRITE_RETRIES {

@@ -1,5 +1,5 @@
-//! The sequenced entries of each catalog's transparency logs, one log per
-//! catalog and ecosystem.
+//! The sequenced entries of each namespace's transparency logs, one log per
+//! namespace and ecosystem.
 
 use super::{PackageKey, adapter::Connection};
 use crate::transparency_log::LogId;
@@ -16,10 +16,10 @@ pub(super) fn entries(
 ) -> Result<Vec<Vec<u8>>> {
     let rows = connection.query(
         "SELECT entry FROM log_entries
-         WHERE catalog = ?1 AND ecosystem = ?2 AND idx >= ?3 AND idx < ?4
+         WHERE namespace = ?1 AND ecosystem = ?2 AND idx >= ?3 AND idx < ?4
          ORDER BY idx",
         params![
-            log.catalog,
+            log.namespace,
             log.ecosystem.as_str(),
             to_column(indexes.start),
             to_column(indexes.end)
@@ -40,8 +40,8 @@ pub(super) fn entries(
 /// The number of entries sequenced in `log`.
 pub(super) fn size(connection: &dyn Connection, log: &LogId) -> Result<u64> {
     let mut row = connection.query_one(
-        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2",
-        params![log.catalog, log.ecosystem.as_str()],
+        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?2",
+        params![log.namespace, log.ecosystem.as_str()],
     )?;
     Ok(u64::try_from(row.get::<i64>(0)?).unwrap_or_default())
 }
@@ -49,8 +49,8 @@ pub(super) fn size(connection: &dyn Connection, log: &LogId) -> Result<u64> {
 /// The tree `log` was integrated to: its size and root.
 pub(super) fn head(connection: &dyn Connection, log: &LogId) -> Result<Option<(u64, Vec<u8>)>> {
     let row = connection.query_optional(
-        "SELECT size, root FROM log_heads WHERE catalog = ?1 AND ecosystem = ?2",
-        params![log.catalog, log.ecosystem.as_str()],
+        "SELECT size, root FROM log_heads WHERE namespace = ?1 AND ecosystem = ?2",
+        params![log.namespace, log.ecosystem.as_str()],
     )?;
     row.map(|mut row| Ok((u64::try_from(row.get::<i64>(0)?).unwrap_or_default(), row.get(1)?)))
         .transpose()
@@ -69,9 +69,9 @@ pub(super) fn advance_head(
         return transaction.commit();
     }
     transaction.execute(
-        "INSERT INTO log_heads (catalog, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT (catalog, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
-        params![log.catalog, log.ecosystem.as_str(), to_column(size), root],
+        "INSERT INTO log_heads (namespace, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (namespace, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
+        params![log.namespace, log.ecosystem.as_str(), to_column(size), root],
     )?;
     transaction.commit()
 }
@@ -79,16 +79,16 @@ pub(super) fn advance_head(
 /// Every log with a sequenced entry, with the number of its entries.
 pub(super) fn sizes(connection: &dyn Connection) -> Result<Vec<(LogId, u64)>> {
     let rows = connection.query(
-        "SELECT catalog, ecosystem, MAX(idx) + 1 FROM log_entries GROUP BY catalog, ecosystem",
+        "SELECT namespace, ecosystem, MAX(idx) + 1 FROM log_entries GROUP BY namespace, ecosystem",
         params![],
     )?;
     rows.into_iter()
         .map(|mut row| {
-            let catalog: String = row.get(0)?;
+            let namespace: String = row.get(0)?;
             let ecosystem: String = row.get(1)?;
             let ecosystem = parse_ecosystem(&ecosystem)?;
             let size = u64::try_from(row.get::<i64>(2)?).unwrap_or_default();
-            Ok((LogId { catalog, ecosystem }, size))
+            Ok((LogId { namespace, ecosystem }, size))
         })
         .collect()
 }
@@ -100,11 +100,11 @@ pub(super) fn record_entry(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<(u64, String)>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let row = connection.query_optional(
         "SELECT log_index, digest FROM release_records
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![catalog, ecosystem, name, version],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version],
     )?;
     row.map(|mut row| {
         let index = u64::try_from(row.get::<i64>(0)?).unwrap_or_default();

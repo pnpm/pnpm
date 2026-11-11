@@ -148,13 +148,13 @@ impl Request {
         reference: &str,
         body: Body,
     ) -> Result<OciPublication, Refusal> {
-        let (key, org) = self.publish_target(name)?;
+        let (key, namespace) = self.publish_target(name)?;
         let content_type = self.headers
             .get(header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok());
         let bytes = collect_body(body, self.state.inner.config.http.oci.max_manifest_bytes).await?;
         OciPublication::new(
-            (key, org),
+            (key, namespace),
             reference.to_string(),
             bytes,
             content_type,

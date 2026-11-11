@@ -1,8 +1,8 @@
 //! Publications and the recorded outcomes of publication requests.
 //!
 //! A publication is the commit that introduced one or more artifacts. Its id
-//! is the catalog generation it committed, which is unique within the catalog
-//! and orders publications with every other commit.
+//! is the namespace generation it committed, which is unique within the
+//! namespace and orders publications with every other commit.
 
 use super::{
     PackageKey,
@@ -29,35 +29,35 @@ fn retention_cutoff() -> i64 {
 /// not been removed since it committed.
 pub(super) fn recorded_outcome(
     connection: &dyn Connection,
-    catalog: &str,
+    namespace: &str,
     request: &PublicationRequest,
 ) -> Result<Option<RecordedOutcome>> {
-    let query = claim_query(catalog, request);
+    let query = claim_query(namespace, request);
     let Some(mut row) = connection.query_optional(query.sql, &query.params)? else {
         return Ok(None);
     };
     if row.get::<String>(0)? != request.request_digest {
         return Ok(None);
     }
-    outcome(catalog, row)
+    outcome(namespace, row)
 }
 
 /// The read of the request's idempotency claim, which [`claim`] checks
 /// inside the batch.
 pub(super) fn claim_query<'query>(
-    catalog: &'query str,
+    namespace: &'query str,
     request: &'query PublicationRequest,
 ) -> Query<'query> {
     Query {
         sql: "SELECT request_digest, generation, publication,
                      NOT EXISTS (
                          SELECT 1 FROM publication_members AS member
-                         WHERE member.catalog = outcome.catalog
+                         WHERE member.namespace = outcome.namespace
                            AND member.publication = outcome.publication
                            AND (
                                (member.ecosystem != 'oci' AND EXISTS (
                                    SELECT 1 FROM removed_versions AS removed
-                                   WHERE removed.catalog = member.catalog
+                                   WHERE removed.namespace = member.namespace
                                      AND removed.ecosystem = member.ecosystem
                                      AND removed.name = member.name
                                      AND removed.version = member.version
@@ -65,7 +65,7 @@ pub(super) fn claim_query<'query>(
                                ))
                                OR (member.ecosystem = 'oci' AND EXISTS (
                                    SELECT 1 FROM removed_oci_manifests AS removed
-                                   WHERE removed.catalog = member.catalog
+                                   WHERE removed.namespace = member.namespace
                                      AND removed.name = member.name
                                      AND removed.artifact = member.artifact
                                      AND removed.generation > outcome.generation
@@ -73,10 +73,10 @@ pub(super) fn claim_query<'query>(
                            )
                      )
               FROM publication_outcomes AS outcome
-              WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
+              WHERE namespace = ?1 AND principal = ?2 AND idempotency_key = ?3
                 AND committed_at >= ?4",
         params: vec![
-            Param::Text(catalog),
+            Param::Text(namespace),
             Param::Text(&request.principal),
             Param::Text(&request.idempotency_key),
             Param::Integer(retention_cutoff()),
@@ -99,22 +99,22 @@ pub(super) fn claim(
             reason: "the idempotency key was already used for a different request".to_string(),
         });
     }
-    outcome(batch.catalog(), stored)
+    outcome(batch.namespace(), stored)
 }
 
-fn outcome(catalog: &str, mut row: Row) -> Result<Option<RecordedOutcome>> {
+fn outcome(namespace: &str, mut row: Row) -> Result<Option<RecordedOutcome>> {
     if row.get::<i64>(3)? == 0 {
         return Ok(None);
     }
     let generation = to_generation(row.get(1)?);
     let publication = row.get::<Option<i64>>(2)?.map(to_generation);
-    Ok(Some(RecordedOutcome { catalog: catalog.to_string(), generation, publication }))
+    Ok(Some(RecordedOutcome { namespace: namespace.to_string(), generation, publication }))
 }
 
 /// Record the publication the batch commits, when it introduced any
 /// artifact, and the request's outcome. The request's principal is the
 /// publisher; without a request, `publisher` is. `name_taken` reports that
-/// the catalog already gave the request's publication name to another
+/// the namespace already gave the request's publication name to another
 /// publication, read by [`name_query`] inside the batch. Returns the
 /// publication's id.
 pub(super) fn record(
@@ -160,14 +160,14 @@ fn record_outcome(
     batch
         .transaction()
         .execute(
-            "INSERT INTO publication_outcomes (catalog, principal, idempotency_key, request_digest,
+            "INSERT INTO publication_outcomes (namespace, principal, idempotency_key, request_digest,
                                            generation, publication, committed_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-         ON CONFLICT (catalog, principal, idempotency_key) DO UPDATE SET
+         ON CONFLICT (namespace, principal, idempotency_key) DO UPDATE SET
            request_digest = excluded.request_digest, generation = excluded.generation,
            publication = excluded.publication, committed_at = excluded.committed_at",
             params![
-                batch.catalog(),
+                batch.namespace(),
                 request.principal,
                 request.idempotency_key,
                 request.request_digest,
@@ -223,20 +223,20 @@ fn insert_publication(
     batch
         .transaction()
         .execute(
-            "INSERT INTO publications (catalog, id, name, principal, committed_at)
+            "INSERT INTO publications (namespace, id, name, principal, committed_at)
          VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![batch.catalog(), id, name, principal, now_millis()],
+            params![batch.namespace(), id, name, principal, now_millis()],
         )?;
     for member in members {
         batch
             .transaction()
             .execute(
                 "INSERT INTO publication_members
-               (catalog, publication, ecosystem, name, version, artifact)
+               (namespace, publication, ecosystem, name, version, artifact)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT DO NOTHING",
                 params![
-                    batch.catalog(),
+                    batch.namespace(),
                     id,
                     member.ecosystem.as_str(),
                     member.name,
@@ -248,17 +248,17 @@ fn insert_publication(
     Ok(())
 }
 
-/// The read of whether the catalog already gave the publication name
+/// The read of whether the namespace already gave the publication name
 /// `name` to a publication, for [`record`].
-pub(super) fn name_query<'query>(catalog: &'query str, name: &'query str) -> Query<'query> {
-    query!("SELECT 1 FROM publications WHERE catalog = ?1 AND name = ?2", catalog, name)
+pub(super) fn name_query<'query>(namespace: &'query str, name: &'query str) -> Query<'query> {
+    query!("SELECT 1 FROM publications WHERE namespace = ?1 AND name = ?2", namespace, name)
 }
 
-/// The publication `id_or_name` names in `catalog`: a decimal number is an
+/// The publication `id_or_name` names in `namespace`: a decimal number is an
 /// id, since a publication name never is one, and anything else a name.
 pub(super) fn publication(
     connection: &dyn Connection,
-    catalog: &str,
+    namespace: &str,
     id_or_name: &str,
 ) -> Result<Option<Publication>> {
     let decimal = !id_or_name.is_empty() && id_or_name.bytes().all(|byte| byte.is_ascii_digit());
@@ -266,12 +266,12 @@ pub(super) fn publication(
         if decimal { (id_or_name.parse::<i64>().ok(), None) } else { (None, Some(id_or_name)) };
     let row = connection.query_optional(
         "SELECT id, name, principal, committed_at FROM publications
-         WHERE catalog = ?1 AND (id = ?2 OR name = ?3)",
-        params![catalog, by_id, by_name],
+         WHERE namespace = ?1 AND (id = ?2 OR name = ?3)",
+        params![namespace, by_id, by_name],
     )?;
     let Some(mut row) = row else { return Ok(None) };
     let publication = Publication {
-        catalog: catalog.to_string(),
+        namespace: namespace.to_string(),
         id: to_generation(row.get(0)?),
         name: row.get(1)?,
         publisher: row.get(2)?,
@@ -284,8 +284,8 @@ pub(super) fn publication(
 fn with_members(connection: &dyn Connection, mut publication: Publication) -> Result<Publication> {
     let rows = connection.query(
         "SELECT ecosystem, name, version, artifact FROM publication_members
-         WHERE catalog = ?1 AND publication = ?2 ORDER BY ecosystem, name, version, artifact",
-        params![publication.catalog, to_column(publication.id)],
+         WHERE namespace = ?1 AND publication = ?2 ORDER BY ecosystem, name, version, artifact",
+        params![publication.namespace, to_column(publication.id)],
     )?;
     publication.members = members(rows)?;
     Ok(publication)
@@ -297,13 +297,13 @@ pub(super) fn initial_publication(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<Publication>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let id: Option<i64> = connection
         .query_one(
             "SELECT MIN(publication) FROM publication_members
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            params![catalog, ecosystem, name, version],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+            params![namespace, ecosystem, name, version],
         )?
         .get(0)?;
-    id.map_or(Ok(None), |id| publication(connection, catalog, &id.to_string()))
+    id.map_or(Ok(None), |id| publication(connection, namespace, &id.to_string()))
 }

@@ -9,7 +9,7 @@
 //! is already a valid one — and carries what that surface's own publish
 //! endpoint takes, with the binary parts base64-encoded. Every entry is
 //! validated and staged before any of them is committed, and the whole batch
-//! commits as one generation of its organization's catalog, or not at all: a
+//! commits as one generation of its hosted namespace, or not at all: a
 //! release that spans ecosystems either lands whole or leaves nothing behind,
 //! and a reader sees all of it or none of it. A blob whose immutable slot
 //! another writer already owns fails the batch before anything is recorded
@@ -23,8 +23,8 @@ use super::{
     publishing::{
         PublishReceipt, StagedPublish, check_body_versions, cleanup_tmp_slots, commit_publication,
         publication_name, publication_request, publish_committed_response,
-        refuse_notes_of_published_python_versions, replayed_outcome, single_catalog, stage_publish,
-        take_note, take_version_note, validate_publish_doc,
+        refuse_notes_of_published_python_versions, replayed_outcome, single_namespace,
+        stage_publish, take_note, take_version_note, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
     resolve_write_target,
@@ -165,13 +165,13 @@ impl ValidatedEntry {
         }
     }
 
-    /// The organization whose catalog the entry is published into.
-    fn org(&self) -> &str {
+    /// The hosted namespace the entry is published into.
+    fn namespace(&self) -> &str {
         match self {
-            ValidatedEntry::Npm(_, org) => org,
-            ValidatedEntry::Cargo(publication) => publication.org(),
-            ValidatedEntry::Pypi(publication) => publication.org(),
-            ValidatedEntry::Oci(publication) => publication.org(),
+            ValidatedEntry::Npm(_, namespace) => namespace,
+            ValidatedEntry::Cargo(publication) => publication.namespace(),
+            ValidatedEntry::Pypi(publication) => publication.namespace(),
+            ValidatedEntry::Oci(publication) => publication.namespace(),
         }
     }
 
@@ -186,7 +186,9 @@ impl ValidatedEntry {
 
     async fn stage(self, state: &AppState, now: &str) -> Result<StagedPublish, RegistryError> {
         match self {
-            ValidatedEntry::Npm(doc, org) => stage_publish(state, *doc, now, Some(&org)).await,
+            ValidatedEntry::Npm(doc, namespace) => {
+                stage_publish(state, *doc, now, Some(&namespace)).await
+            }
             ValidatedEntry::Cargo(publication) => publication.stage(state).await,
             ValidatedEntry::Pypi(publication) => publication.stage(state).await,
             ValidatedEntry::Oci(publication) => publication.stage(state).await.map_err(Into::into),
@@ -254,7 +256,7 @@ async fn stage_and_commit(
 }
 
 /// Refuse the batch's notes for Python versions already published, in the
-/// one catalog its entries target.
+/// one namespace its entries target.
 async fn refuse_late_python_notes(
     state: &AppState,
     validated: &[ValidatedEntry],
@@ -263,13 +265,13 @@ async fn refuse_late_python_notes(
     if notes.versions.is_empty() {
         return Ok(());
     }
-    let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
-    refuse_notes_of_published_python_versions(state, &catalog, notes).await
+    let namespace = single_namespace(validated.iter().map(ValidatedEntry::namespace))?;
+    refuse_notes_of_published_python_versions(state, &namespace, notes).await
 }
 
-/// The recorded outcome of the batch `request` repeats, in the one catalog
+/// The recorded outcome of the batch `request` repeats, in the one namespace
 /// its entries target. A request exists only with `SQLite` metadata, whose
-/// publish targets one catalog.
+/// publish targets one namespace.
 async fn replayed_batch(
     state: &AppState,
     request: Option<&PublicationRequest>,
@@ -278,8 +280,8 @@ async fn replayed_batch(
     if request.is_none() {
         return Ok(None);
     }
-    let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
-    replayed_outcome(state, &catalog, request).await
+    let namespace = single_namespace(validated.iter().map(ValidatedEntry::namespace))?;
+    replayed_outcome(state, &namespace, request).await
 }
 
 /// Stage every entry, removing what was staged when one fails.
@@ -468,7 +470,7 @@ async fn validate_npm_entry(
     // registry's publish rule per document.
     let (doc, target) =
         validate_publish_doc(state, caller.identity, caller.registry, name, package).await?;
-    Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
+    Ok(ValidatedEntry::Npm(Box::new(doc), target.namespace))
 }
 
 async fn validate_pypi_entry(

@@ -9,7 +9,7 @@ use pnpr_policy::records_package_owners;
 /// pseudo-groups, bare account IDs, and `team:<id>` references to the owning
 /// registry's declared teams), compiled into the owning registry's
 /// [`pnpr_policy::PackageRules`]. An omitted field falls back to the registry-level
-/// default. The map key set doubles as the registry's declared namespace, so
+/// default. The map key set doubles as the registry's claimed package patterns, so
 /// one declaration routes, filters, and authorizes.
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

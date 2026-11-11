@@ -10,8 +10,8 @@ use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use reqwest::header::HeaderMap;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
-/// The namespace [`MockConfigPresets::proxy`] declares on its flat-root hosted org, so
-/// those names resolve locally rather than to the npm upstream: the
+/// The package patterns [`MockConfigPresets::proxy`] declares on its flat-root hosted
+/// registry, so those names resolve locally rather than to the npm upstream: the
 /// registry-mock fixture scopes plus the unscoped fixtures. Kept in sync
 /// with the fixtures under `pnpr/.fixtures/packages`.
 pub const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[

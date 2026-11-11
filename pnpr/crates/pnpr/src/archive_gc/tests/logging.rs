@@ -103,13 +103,13 @@ async fn collection_logs_successful_removals_when_another_archive_cannot_be_dele
 async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
     let (temp, storage) = setup();
     let repository = name("example/app");
-    for (org, pre_unmapped) in [("team-one", false), ("team-two", true)] {
-        let view = storage.for_hosted(org, Ecosystem::Oci);
+    for (namespace, pre_unmapped) in [("team-one", false), ("team-two", true)] {
+        let view = storage.for_hosted(namespace, Ecosystem::Oci);
         let digest = blob(&view, &repository, b"orphan").await;
         if pre_unmapped {
             view.sql_metadata()
                 .unmap_artifacts(
-                    org,
+                    namespace,
                     Ecosystem::Oci,
                     repository.as_str(),
                     (None, vec![digest.blob_filename().into()]),
@@ -119,7 +119,7 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
                 .unwrap();
         }
     }
-    let yaml = "storage: ./store\ncache: ./cache\ndatabase: { url: 'sqlite:./metadata.sqlite' }\nregistries:\n  first: { type: hosted, ecosystem: oci, org: team-one, access: '$all' }\n  second: { type: hosted, ecosystem: oci, org: team-two, access: '$all' }\n";
+    let yaml = "storage: ./store\ncache: ./cache\ndatabase: { url: 'sqlite:./metadata.sqlite' }\nregistries:\n  first: { type: hosted, ecosystem: oci, namespace: team-one, access: '$all' }\n  second: { type: hosted, ecosystem: oci, namespace: team-two, access: '$all' }\n";
     let config_path = temp.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let config =
@@ -150,15 +150,15 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
         .collect();
     assert_eq!(removed.len(), 2, "{output}");
     assert_eq!(removed[0]["fields"]["key"], removed[1]["fields"]["key"]);
-    for (event, org) in removed
+    for (event, namespace) in removed
         .iter()
         .zip(["team-one", "team-two"])
     {
-        assert_eq!(event["span"]["org"], org);
+        assert_eq!(event["span"]["namespace"], namespace);
         assert_eq!(event["span"]["ecosystem"], "oci");
         assert_eq!(
             event["fields"]["repository"].as_str(),
-            (org == "team-one").then_some("example/app"),
+            (namespace == "team-one").then_some("example/app"),
         );
         assert_eq!(event["target"], "pnpr::audit");
         assert_eq!(event["fields"]["action"], "gc.remove_archive");

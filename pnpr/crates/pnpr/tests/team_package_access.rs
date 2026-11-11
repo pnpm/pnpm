@@ -24,7 +24,7 @@ auth:
 registries:
   local:
     type: hosted
-    org: \"\"
+    namespace: \"\"
     rulesManagedBy: api
     teams:
       devs: { name: devs, members: [carol] }
@@ -35,7 +35,7 @@ registries:
       '@acme/*': {}
   fixed:
     type: hosted
-    org: fixed
+    namespace: fixed
     teams:
       devs: { name: devs, members: [carol] }
     packages:

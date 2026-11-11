@@ -25,7 +25,12 @@ fn pypi_config(storage: PathBuf, upstream_url: &str) -> Config {
     mixed_router_config(
         storage,
         Ecosystem::Pypi,
-        HostedSource { name: "internal", org: "python", access: "$all", packages: &["demo-pkg"] },
+        HostedSource {
+            name: "internal",
+            namespace: "python",
+            access: "$all",
+            packages: &["demo-pkg"],
+        },
         ("pypiorg", upstream_url),
     )
 }

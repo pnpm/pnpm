@@ -2,46 +2,46 @@
 
 -- Timestamps are INTEGER milliseconds since the Unix epoch. Registry-generated
 -- timestamps use the application clock; published_at records the supplied event time.
--- The current generation of each hosted catalog.
-CREATE TABLE IF NOT EXISTS catalogs (
-    catalog TEXT NOT NULL PRIMARY KEY,
+-- The current generation of each hosted namespace.
+CREATE TABLE IF NOT EXISTS namespaces (
+    namespace TEXT NOT NULL PRIMARY KEY,
     generation INTEGER NOT NULL
 ) STRICT;
 
--- One row per package. `generation` is the catalog generation of the last
+-- One row per package. `generation` is the namespace generation of the last
 -- commit that changed it. `state_version` is the format version of `state`,
 -- which holds the package-level fields no child table stores.
 CREATE TABLE IF NOT EXISTS packages (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     generation INTEGER NOT NULL,
     state_version INTEGER NOT NULL,
     state BLOB NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name)
+    PRIMARY KEY (namespace, ecosystem, name)
 ) STRICT;
 
 -- Published versions of a Cargo crate, ordered by `position` as the sparse
 -- index serves them. `entry` holds the immutable sparse-index fields; `yanked`
 -- flips in place.
 CREATE TABLE IF NOT EXISTS cargo_versions (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     position INTEGER NOT NULL,
     yanked INTEGER NOT NULL,
     entry TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version)
+    PRIMARY KEY (namespace, ecosystem, name, version)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS cargo_versions_by_position
-    ON cargo_versions (catalog, ecosystem, name, position);
+    ON cargo_versions (namespace, ecosystem, name, position);
 
 -- Published distribution files of a Python project, ordered by `position`.
 -- `entry` holds the immutable PEP 691 file metadata; `yanked` and `yank_reason`
 -- change in place.
 CREATE TABLE IF NOT EXISTS pypi_files (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     filename TEXT NOT NULL,
@@ -49,56 +49,56 @@ CREATE TABLE IF NOT EXISTS pypi_files (
     yanked INTEGER NOT NULL,
     yank_reason TEXT,
     entry TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, filename)
+    PRIMARY KEY (namespace, ecosystem, name, filename)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS pypi_files_by_position
-    ON pypi_files (catalog, ecosystem, name, position);
+    ON pypi_files (namespace, ecosystem, name, position);
 
 -- Distribution filenames permanently reserved after deletion from a Python
 -- project, so a deleted filename can never be uploaded again.
 CREATE TABLE IF NOT EXISTS removed_pypi_files (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     filename TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, filename)
+    PRIMARY KEY (namespace, ecosystem, name, filename)
 ) STRICT, WITHOUT ROWID;
 
 -- Manifests retained in an OCI image repository, keyed by content digest.
 -- `entry` holds child digests and indexed referrer metadata.
 CREATE TABLE IF NOT EXISTS oci_manifests (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     digest TEXT NOT NULL,
     entry TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, digest)
+    PRIMARY KEY (namespace, ecosystem, name, digest)
 ) STRICT;
 
 -- Mutable tags of an OCI image repository and the manifest digest each names.
 CREATE TABLE IF NOT EXISTS oci_tags (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     tag TEXT NOT NULL,
     digest TEXT NOT NULL,
     updated INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, tag)
+    PRIMARY KEY (namespace, ecosystem, name, tag)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
--- catalog generation that accepted it, which is the id of the version's
+-- namespace generation that accepted it, which is the id of the version's
 -- initial publication.
 CREATE TABLE IF NOT EXISTS versions (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     integrity TEXT NOT NULL,
     published_at INTEGER,
     accepted_generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version)
+    PRIMARY KEY (namespace, ecosystem, name, version)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS versions (
 -- `accepted_digest` covers the manifest, README, profile, and inputs, which a
 -- restatement of the version must match.
 CREATE TABLE IF NOT EXISTS accepted_manifests (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
@@ -116,15 +116,15 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     manifest TEXT NOT NULL,
     inputs TEXT NOT NULL,
     accepted_digest TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, ecosystem, name, version, profile)
 ) STRICT;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
 -- under `profile` and served unchanged at its record route. `digest` is their
 -- SHA-512, `sha512-<base64>`, which the record's log entry commits to, and
--- `log_index` the index of that entry in its catalog's log.
+-- `log_index` the index of that entry in its namespace's log.
 CREATE TABLE IF NOT EXISTS release_records (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
@@ -132,19 +132,19 @@ CREATE TABLE IF NOT EXISTS release_records (
     record BLOB NOT NULL,
     digest TEXT NOT NULL,
     log_index INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, profile)
+    PRIMARY KEY (namespace, ecosystem, name, version, profile)
 ) STRICT;
 
--- Insert-only: the transparency log of each catalog's records of one
+-- Insert-only: the transparency log of each namespace's records of one
 -- ecosystem, one row per entry, sequenced in the transaction that accepts the
 -- record. `idx` counts from 0 without gaps. Kept when a version or package is
 -- removed: a log only grows.
 CREATE TABLE IF NOT EXISTS log_entries (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     idx INTEGER NOT NULL,
     entry BLOB NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, idx)
+    PRIMARY KEY (namespace, ecosystem, idx)
 ) STRICT;
 
 -- The tree each log's tiles and checkpoint were integrated to: its size and
@@ -152,39 +152,39 @@ CREATE TABLE IF NOT EXISTS log_entries (
 -- extends a log, so altered tiles are never signed over, and only moves it to
 -- a larger tree.
 CREATE TABLE IF NOT EXISTS log_heads (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     size INTEGER NOT NULL,
     root BLOB NOT NULL,
-    PRIMARY KEY (catalog, ecosystem)
+    PRIMARY KEY (namespace, ecosystem)
 ) STRICT, WITHOUT ROWID;
 
 -- Kept out of the manifest so a README never inflates resolution metadata.
 CREATE TABLE IF NOT EXISTS readmes (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     readme TEXT,
     readme_filename TEXT,
-    PRIMARY KEY (catalog, ecosystem, name, version)
+    PRIMARY KEY (namespace, ecosystem, name, version)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS tags (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     tag TEXT NOT NULL,
     version TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, tag)
+    PRIMARY KEY (namespace, ecosystem, name, tag)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: every move of a tag, so a release-age or downgrade policy can
 -- see when a tag moved, not only where it points. Kept when the package is
 -- removed.
 CREATE TABLE IF NOT EXISTS tag_history (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     tag TEXT NOT NULL,
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS tag_history (
     target TEXT,
     principal TEXT,
     changed_at INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, tag, generation)
+    PRIMARY KEY (namespace, ecosystem, name, tag, generation)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the identity of every version removed from a package, by
@@ -201,12 +201,12 @@ CREATE TABLE IF NOT EXISTS tag_history (
 -- a removed version is never accepted again and a version always names the
 -- same bytes.
 CREATE TABLE IF NOT EXISTS removed_versions (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version)
+    PRIMARY KEY (namespace, ecosystem, name, version)
 ) STRICT, WITHOUT ROWID;
 
 -- Every manifest removed from an OCI repository, by deleting the manifest or
@@ -214,63 +214,63 @@ CREATE TABLE IF NOT EXISTS removed_versions (
 -- after its removal. Kept when the repository is removed, with the generation
 -- of its latest removal when pushed and removed again.
 CREATE TABLE IF NOT EXISTS removed_oci_manifests (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, name, artifact)
+    PRIMARY KEY (namespace, name, artifact)
 ) STRICT, WITHOUT ROWID;
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
 -- `generation` is the generation that last changed the row.
 CREATE TABLE IF NOT EXISTS annotations (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     deprecated TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version)
+    PRIMARY KEY (namespace, ecosystem, name, version)
 ) STRICT, WITHOUT ROWID;
 
--- A commit that introduced artifacts. `id` is the catalog generation it
--- committed. `name` is the publisher's, unique within the catalog.
+-- A commit that introduced artifacts. `id` is the namespace generation it
+-- committed. `name` is the publisher's, unique within the namespace.
 CREATE TABLE IF NOT EXISTS publications (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     id INTEGER NOT NULL,
     name TEXT,
     principal TEXT,
     committed_at INTEGER NOT NULL,
-    PRIMARY KEY (catalog, id)
+    PRIMARY KEY (namespace, id)
 ) STRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS publications_by_name
-    ON publications (catalog, name) WHERE name IS NOT NULL;
+    ON publications (namespace, name) WHERE name IS NOT NULL;
 
 -- Insert-only: each artifact belongs to every publication that introduced it.
 -- Kept when the package is removed.
 CREATE TABLE IF NOT EXISTS publication_members (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     publication INTEGER NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     artifact TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, artifact, publication)
+    PRIMARY KEY (namespace, ecosystem, name, version, artifact, publication)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS publication_members_by_publication
-    ON publication_members (catalog, publication);
+    ON publication_members (namespace, publication);
 
 -- The outcome of a committed publication request, keyed by the principal
 -- that sent it and its idempotency key, for the request's retries.
 CREATE TABLE IF NOT EXISTS publication_outcomes (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     principal TEXT NOT NULL,
     idempotency_key TEXT NOT NULL,
     request_digest TEXT NOT NULL,
     generation INTEGER NOT NULL,
     publication INTEGER,
     committed_at INTEGER NOT NULL,
-    PRIMARY KEY (catalog, principal, idempotency_key)
+    PRIMARY KEY (namespace, principal, idempotency_key)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at
     ON publication_outcomes (committed_at);
@@ -280,7 +280,7 @@ CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at
 -- `name` empty, `subject` = its id). `text` is NULL once deleted.
 -- `initial_digest` is the digest of the text published with the subject.
 CREATE TABLE IF NOT EXISTS notes (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     kind TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS notes (
     modified_at INTEGER NOT NULL,
     principal TEXT,
     initial_digest TEXT,
-    PRIMARY KEY (catalog, kind, ecosystem, name, subject)
+    PRIMARY KEY (namespace, kind, ecosystem, name, subject)
 ) STRICT, WITHOUT ROWID;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
@@ -298,22 +298,22 @@ CREATE TABLE IF NOT EXISTS notes (
 -- a reclaim may remove is never written again. `changed_at` is when `state`
 -- last changed.
 CREATE TABLE IF NOT EXISTS blobs (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     blob_id TEXT NOT NULL,
     incarnation INTEGER NOT NULL,
     state TEXT NOT NULL,
     size INTEGER NOT NULL,
     changed_at INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, blob_id)
+    PRIMARY KEY (namespace, ecosystem, blob_id)
 ) STRICT, WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS blobs_by_state ON blobs (catalog, ecosystem, state);
+CREATE INDEX IF NOT EXISTS blobs_by_state ON blobs (namespace, ecosystem, state);
 
 -- Each public file name of a package, mapped to the blob holding its bytes,
 -- by the commit that publishes it or an image blob's upload, and dropped
 -- with its version or package.
 CREATE TABLE IF NOT EXISTS artifact_blobs (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
@@ -321,10 +321,10 @@ CREATE TABLE IF NOT EXISTS artifact_blobs (
     blob_id TEXT NOT NULL,
     mapped_at INTEGER NOT NULL,
     mapping TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, artifact)
+    PRIMARY KEY (namespace, ecosystem, name, artifact)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS artifact_blobs_by_blob_id
-    ON artifact_blobs (catalog, ecosystem, blob_id);
+    ON artifact_blobs (namespace, ecosystem, blob_id);
 
 -- The record of each archive a principal staged by the identity
 -- (`<algorithm>-<hex>`) of its bytes ahead of the commit that claims it. The
@@ -433,13 +433,13 @@ CREATE TABLE IF NOT EXISTS staged_metadata (
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE IF NOT EXISTS removed_packages (
-    catalog TEXT NOT NULL,
+    namespace TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     maintainers TEXT NOT NULL,
     unpublished_at INTEGER NOT NULL,
     unpublished_by TEXT,
-    PRIMARY KEY (catalog, ecosystem, name)
+    PRIMARY KEY (namespace, ecosystem, name)
 ) STRICT, WITHOUT ROWID;
 
 -- Generations stay unique after a record is removed and recreated.

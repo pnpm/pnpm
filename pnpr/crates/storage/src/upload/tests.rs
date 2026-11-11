@@ -231,8 +231,8 @@ async fn an_upload_belongs_to_the_repository_that_started_it() {
     let id = upload.id().to_string();
 
     // An id is a capability over the bytes its own client sent. A publisher
-    // for another repository of the same organization who learns one must not
-    // be able to finish it there.
+    // for another repository of the same namespace who learns one must not be
+    // able to finish it there.
     assert!(
         storage
             .open_blob_upload(&image("acme/other"), &id)
@@ -301,9 +301,9 @@ async fn a_record_left_without_its_upload_is_reclaimed() {
     assert!(uploads_left(&tmp).is_empty(), "the sweep left {:?}", uploads_left(&tmp));
 }
 
-/// Two organizations of one object-store backend, which share a scratch root
-/// and so are the pair a repository name alone cannot tell apart.
-fn two_orgs_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
+/// Two namespaces of one object-store backend, which share a scratch root and
+/// so are the pair a repository name alone cannot tell apart.
+fn two_namespaces_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
     let hosted = HostedStoreConfig::ObjectStore {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: String::new(),
@@ -319,9 +319,9 @@ fn two_orgs_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
 }
 
 #[tokio::test]
-async fn an_upload_does_not_cross_between_organizations() {
+async fn an_upload_does_not_cross_between_namespaces() {
     let tmp = TempDir::new().unwrap();
-    let (first, second) = two_orgs_of_one_bucket(&tmp);
+    let (first, second) = two_namespaces_of_one_bucket(&tmp);
 
     let upload = first
         .begin_blob_upload(&image("acme/app"))

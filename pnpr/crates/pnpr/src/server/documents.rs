@@ -151,9 +151,9 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
     source: &str,
     key: &CanonicalPackageName,
 ) -> Result<Option<Document>, RegistryError> {
-    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
+    let namespace = hosted_read_namespace(state, identity, source, key.as_str())?;
     state.inner.storage
-        .for_hosted(&org, Document::ECOSYSTEM)
+        .for_hosted(&namespace, Document::ECOSYSTEM)
         .read_hosted_document(key)
         .await?
         .map(|bytes| Document::parse(&bytes).map_err(RegistryError::Json))
@@ -173,9 +173,9 @@ where
     Document: HostedDocument,
     Found: Send + 'static,
 {
-    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
+    let namespace = hosted_read_namespace(state, identity, source, key.as_str())?;
     state.inner.storage
-        .for_hosted(&org, Document::ECOSYSTEM)
+        .for_hosted(&namespace, Document::ECOSYSTEM)
         .lookup_in_hosted_document(key, move |bytes| {
             let document = Document::parse(bytes).map_err(RegistryError::Json)?;
             Ok(select(&document))
@@ -184,7 +184,7 @@ where
 }
 
 /// Publish one blob: store `bytes` as `filename` under `key` in the hosted
-/// namespace `org` and record `addition` — the document holding just that
+/// `namespace` and record `addition` — the document holding just that
 /// blob's entry — in the project's document, as one commit.
 ///
 /// Writers of the same key on this instance are serialized by the package
@@ -194,7 +194,7 @@ where
 /// either reports the conflict and commits nothing.
 pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     key: &CanonicalPackageName,
     filename: &str,
     bytes: &[u8],
@@ -202,7 +202,8 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     addition: Document,
 ) -> Result<(), RegistryError> {
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
-    let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
+    let staged =
+        stage_hosted_artifact(state, namespace, key, filename, bytes, &refuse, addition).await?;
     commit_publishes(state, vec![staged]).await
 }
 
@@ -213,27 +214,27 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
 /// instance.
 pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     key: &CanonicalPackageName,
     filename: &str,
     bytes: &[u8],
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
-    stage_hosted_artifacts(state, org, key, &[(filename, bytes)], refuse, addition).await
+    stage_hosted_artifacts(state, namespace, key, &[(filename, bytes)], refuse, addition).await
 }
 
 /// Stage a distribution and its sidecars in the same publication.
 pub(super) async fn stage_hosted_artifacts<Document: HostedDocument + Send>(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     key: &CanonicalPackageName,
     files: &[(&str, &[u8])],
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
     let ((filename, bytes), sidecars) = files.split_first().expect("publication has an artifact");
-    let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
+    let storage = state.inner.storage.for_hosted(namespace, Document::ECOSYSTEM);
     let lookup = BlobLookup {
         ids: files
             .iter()
@@ -244,7 +245,7 @@ pub(super) async fn stage_hosted_artifacts<Document: HostedDocument + Send>(
     let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
     let artifact = HostedArtifact { filename, bytes, references: Vec::new() };
     let mut staged =
-        stage_hosted_artifact_on(state, org, key, artifact, base, refuse, addition).await?;
+        stage_hosted_artifact_on(state, namespace, key, artifact, base, refuse, addition).await?;
     for (filename, bytes) in sidecars {
         match write_hosted_blob(&storage, key, filename, bytes).await {
             Ok(slot) => staged.slots.push(slot),
@@ -269,14 +270,14 @@ pub(super) struct HostedArtifact<'bytes> {
 /// before anything it references was checked.
 pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     key: &CanonicalPackageName,
     artifact: HostedArtifact<'_>,
     base: pnpr_storage::metadata::PublishBase,
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
-    let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
+    let storage = state.inner.storage.for_hosted(namespace, Document::ECOSYSTEM);
     let stored = base.stored;
     let mut document = match &stored {
         Some(stored) => Document::parse(&stored.bytes).map_err(RegistryError::Json)?,
@@ -305,7 +306,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             ..StagedBase::default()
         },
         slots: vec![slot],
-        org: Some(org.to_string()),
+        namespace: Some(namespace.to_string()),
         // Only an npm document has dist-tags to record a publisher with.
         publisher: None,
         verification: Verification::default(),

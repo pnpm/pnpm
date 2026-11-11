@@ -6,7 +6,7 @@ pub fn multi_ecosystem_config(root: &Path, npm_access: &str) -> Config {
     for ecosystem in Ecosystem::all() {
         let access = if ecosystem == Ecosystem::Npm { npm_access } else { "$all" };
         write!(yaml,
-            "  {ecosystem}-internal:\n    type: hosted\n    ecosystem: {ecosystem}\n    org: internal\n    access: '{access}'\n  {ecosystem}-main:\n    type: router\n    sources: [{ecosystem}-internal]\n",
+            "  {ecosystem}-internal:\n    type: hosted\n    ecosystem: {ecosystem}\n    namespace: internal\n    access: '{access}'\n  {ecosystem}-main:\n    type: router\n    sources: [{ecosystem}-internal]\n",
         ).unwrap();
     }
     yaml.push_str("defaultRegistry:\n  npm: npm-main\n  cargo: cargo-main\n  pypi: pypi-main\n  oci: oci-main\n");

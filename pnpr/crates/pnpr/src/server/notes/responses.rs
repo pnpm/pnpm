@@ -40,7 +40,7 @@ pub(in crate::server) fn read_note_body(
 /// The publication note a version note response links to.
 #[derive(Clone)]
 pub(in crate::server) struct PublicationLink {
-    pub(in crate::server) org: String,
+    pub(in crate::server) namespace: String,
     pub(in crate::server) id: u64,
     pub(in crate::server) name: Option<String>,
     pub(in crate::server) initial_digest: Option<String>,
@@ -52,8 +52,8 @@ impl PublicationLink {
     /// The absolute path of the publication's note on this server, under the
     /// path prefix of `public_url`.
     pub(in crate::server) fn notes_path(&self, public_url: &str) -> String {
-        let org = if self.org.is_empty() { "-" } else { &self.org };
-        format!("{}/-/publications/{org}/{}/notes", path_prefix(public_url), self.id)
+        let namespace = if self.namespace.is_empty() { "-" } else { &self.namespace };
+        format!("{}/-/publications/{namespace}/{}/notes", path_prefix(public_url), self.id)
     }
 }
 

@@ -13,7 +13,7 @@ registries:
   images:
     type: hosted
     ecosystem: oci
-    org: images
+    namespace: images
     packages:
       'acme/*': {}
 
@@ -44,9 +44,9 @@ same declared-provenance rules every other surface uses.
 `containerd`, whose `registries.conf` `location` and `hosts.toml` `server` both
 accept a path.
 
-A `packages:` key is either one repository name or `<namespace>/*`, which claims
-every repository under one leading path component. The namespace is a single
-component, so two namespace claims are either identical or disjoint. Repository
+A `packages:` key is either one repository name or `<prefix>/*`, which claims
+every repository under one leading path component. The prefix is a single
+component, so two prefix claims are either identical or disjoint. Repository
 names follow the distribution spec's grammar and are folded to lowercase, so
 `ACME/App` and `acme/app` are one repository rather than two directories on a
 case-insensitive filesystem.
@@ -147,9 +147,10 @@ them. `--min-age` defaults to `1d`, which keeps blobs uploaded more recently so
 an interrupted push can still name them in a manifest; set it to zero to
 collect every unreferenced blob.
 
-A registry stores the bytes of a blob once per org, however many repositories
-hold it: a finished upload of a layer the org already stores maps it into the
-repository without storing it again, and so does a cross-repository mount.
+A registry stores the bytes of a blob once per namespace, however many
+repositories hold it: a finished upload of a layer the namespace already stores
+maps it into the repository without storing it again, and so does a
+cross-repository mount.
 Collecting a blob a repository no longer reaches unmaps it from that
 repository, and removes its bytes only when no other repository maps them.
 

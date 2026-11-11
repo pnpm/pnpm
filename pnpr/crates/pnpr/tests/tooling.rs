@@ -637,7 +637,7 @@ registries:
   crates:
     type: hosted
     ecosystem: cargo
-    org: crates
+    namespace: crates
     packages:
       acme-crate:
         publish: $authenticated
