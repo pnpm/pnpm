@@ -126,6 +126,7 @@ sqlx = { workspace = true, optional = true }
 ssri = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
@@ -146,7 +147,6 @@ pnpr-fixtures = { workspace = true }
 pnpr-libsql = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
-tower = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }

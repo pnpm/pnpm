@@ -142,6 +142,11 @@ registry host lives in the client's `.npmrc`, not in the lockfile), and a
 project resolves to the same lockfile whether it installs through `/resolve`
 or directly against the registry endpoint.
 
+When an npm registry URL points to this pnpr server's `public_url`, resolution
+reads hosted packages and named upstreams such as `/npm/~internal/` inside the
+server, using the caller's access permissions. Upstream credentials are sent
+only to the configured upstream, never to `public_url` or its reverse proxy.
+
 The resolution cache is **authorization-aware**: a resolution that touched
 only public routes is cached once and shared by every caller, while a
 resolution that touched private routes is keyed by the access it required and

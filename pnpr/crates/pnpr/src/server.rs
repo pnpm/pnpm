@@ -1,5 +1,6 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
+pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -117,6 +118,7 @@ mod documents;
 mod ecosystem;
 mod health;
 use health::shutdown_signal;
+mod local_registry;
 mod managed_state;
 mod metrics;
 mod notes;

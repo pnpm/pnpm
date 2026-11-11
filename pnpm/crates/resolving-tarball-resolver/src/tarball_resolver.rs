@@ -196,6 +196,20 @@ impl TarballResolver {
                 url: pnpm_network::redact_url_credentials(normalized_bare_specifier),
             }));
         }
+        if let Some(ctx) = self.fetch_context.as_ref()
+            && ctx.auth_headers
+                .fetch_local(normalized_bare_specifier, None, reqwest::header::HeaderMap::new())
+                .is_some()
+        {
+            return Ok(normalized_bare_specifier.to_string());
+        }
+        self.remote_preflight_url(normalized_bare_specifier).await
+    }
+
+    async fn remote_preflight_url(
+        &self,
+        normalized_bare_specifier: &str,
+    ) -> Result<String, ResolveError> {
         let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
         let mut request = client.head(normalized_bare_specifier);
         if let Some(value) = self.fetch_context

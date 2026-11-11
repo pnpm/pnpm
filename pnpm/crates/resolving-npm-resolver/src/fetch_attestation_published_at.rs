@@ -42,16 +42,7 @@ pub async fn fetch_attestation_published_at(
     if !opts.auth_headers.allows_fetch(&url) {
         return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(&url) });
     }
-    // Verification-only lookup: queue in the background class so it
-    // never outranks resolution-gating fetches.
-    let mut request = opts.http_client
-        .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
-        .await
-        .get(&url);
-    if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
-        request = request.header("authorization", value);
-    }
-    let response = match request.send().await {
+    let response = match request_attestation(opts, &url, pkg_name).await {
         Ok(response) => response,
         Err(error) => {
             // Swallow the error and return None so the caller falls
@@ -80,6 +71,26 @@ pub async fn fetch_attestation_published_at(
 /// disagree (e.g. publish v0.1 vs SLSA provenance v1) the older
 /// Rekor entry is what tells us when the artifact existed in a
 /// transparency log, which is the floor on publish time.
+async fn request_attestation(
+    opts: &FetchAttestationOptions<'_>,
+    url: &str,
+    pkg_name: &str,
+) -> Result<reqwest::Response, reqwest::Error> {
+    // Verification-only lookup: queue in the background class so it
+    // never outranks resolution-gating fetches.
+    let mut request = opts.http_client
+        .acquire_for_url_with_priority(url, pnpm_network::BACKGROUND)
+        .await
+        .get(url);
+    if let Some(value) = opts.auth_headers.for_url_with_package(url, Some(pkg_name)) {
+        request = request.header("authorization", value);
+    }
+    match opts.auth_headers.fetch_local(url, Some(pkg_name), reqwest::header::HeaderMap::new()) {
+        Some(response) => Ok(response.await),
+        None => request.send().await,
+    }
+}
+
 fn extract_published_at(body: &serde_json::Value) -> Option<String> {
     let attestations = body.get("attestations")?.as_array()?;
     let mut earliest: Option<i64> = None;

@@ -102,6 +102,7 @@ pub(super) async fn serve_resolve(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
+        &state,
     );
     crate::resolver::handle_resolve(runtime, identity, body).await
 }
@@ -115,6 +116,7 @@ pub(super) async fn serve_verify_lockfile(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
+        &state,
     );
     crate::resolver::handle_verify_lockfile(runtime, identity, body).await
 }

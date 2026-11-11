@@ -50,7 +50,7 @@ pub(crate) async fn handle_verify_lockfile(
     let tarball_router = TarballRouter::new(
         Arc::clone(&runtime.route_context),
         identity.clone(),
-        runtime.public_url.clone(),
+        runtime.local_registry.public_url.clone(),
         config
             .resolved_registries()
             .into_iter()

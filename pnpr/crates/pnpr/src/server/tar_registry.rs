@@ -6,6 +6,8 @@
 //! request by [`super::tar_responses::tar_response`]. Its hash is derived at publish or on the first
 //! decode, and kept in the storage's tar-integrity table.
 
+pub(super) use pnpr_route::split_package_identifier;
+
 use super::{
     AppState, CanonicalPackageName, RegistryError, RegistrySource, Value, revision_source_registry,
 };
@@ -245,16 +247,6 @@ pub(super) fn tgz_integrity_key(dist: &serde_json::Map<String, Value>) -> Option
     }
     let shasum = dist.get("shasum").and_then(Value::as_str)?;
     Integrity::from_hex(shasum, Algorithm::Sha1).ok().map(|integrity| integrity.to_string())
-}
-
-/// Split `<name>@<version>` into its parts. A package name holds `@` only as
-/// its scope prefix, so the version follows the last `@` past the first byte.
-pub(super) fn split_package_identifier(identifier: &str) -> Option<(&str, &str)> {
-    let at = identifier
-        .rfind('@')
-        .filter(|at| *at > 0)?;
-    let (name, version) = (&identifier[..at], &identifier[at + 1..]);
-    (!version.is_empty() && !name.ends_with('/')).then_some((name, version))
 }
 
 #[cfg(test)]

@@ -9,7 +9,9 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use pnpm_network::{read_limited_body, send_with_retry};
+use pnpm_network::{
+    LocalResponse, read_limited_body, retry_async, send_with_retry, should_retry_status,
+};
 use pnpm_registry::{InstallV2Entry, PackageVersion};
 use pnpm_resolving_resolver_base::ResolveError;
 use reqwest::header;
@@ -144,6 +146,33 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
         release_record_path(cache_dir, &meta_dir, self.registry, &self.version.name, address).ok()
     }
 
+    async fn retry_local_response(
+        &self,
+        first: LocalResponse,
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        let http = self.ctx.metadata.http;
+        let mut first = Some(first);
+        retry_async(
+            self.url,
+            http.retry_opts,
+            |error: &reqwest::Error| error.status().is_some_and(should_retry_status),
+            || {
+                let response = first
+                    .take()
+                    .or_else(|| {
+                        http.auth_headers.fetch_local(
+                            self.url,
+                            Some(&self.version.name),
+                            header::HeaderMap::new(),
+                        )
+                    })
+                    .expect("local route remains available during a resolve");
+                async move { response.await.error_for_status() }
+            },
+        )
+        .await
+    }
+
     /// The record's body, and whether it may be kept on disk with no
     /// expiry: pnpr serves a record `immutable` once it has derived every
     /// fact about the archive. A caller-gated package's records are
@@ -152,15 +181,21 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
     async fn download(&self) -> Result<(Vec<u8>, bool), ResolveError> {
         let http = self.ctx.metadata.http;
         let name = &self.version.name;
-        let (_guard, response) =
-            send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
-                let request = client.get(self.url).header(header::ACCEPT, "application/json");
-                match http.auth_headers.for_url_with_package(self.url, Some(name)) {
-                    Some(value) => request.header(header::AUTHORIZATION, value),
-                    None => request,
-                }
-            })
-            .await?;
+        let local = http.auth_headers.fetch_local(self.url, Some(name), header::HeaderMap::new());
+        let (_guard, response) = if let Some(response) = local {
+            (None, self.retry_local_response(response).await?)
+        } else {
+            let (guard, response) =
+                send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
+                    let request = client.get(self.url).header(header::ACCEPT, "application/json");
+                    match http.auth_headers.for_url_with_package(self.url, Some(name)) {
+                        Some(value) => request.header(header::AUTHORIZATION, value),
+                        None => request,
+                    }
+                })
+                .await?;
+            (Some(guard), response)
+        };
         let response = response.error_for_status()?;
         let lasting = response
             .headers()

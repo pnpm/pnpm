@@ -81,7 +81,8 @@ impl RouteContext {
         self.aliases
             .iter()
             .find(|alias| {
-                fetch.starts_with(&alias.origin)
+                alias.authorization.is_some()
+                    && fetch.starts_with(&alias.origin)
                     && alias.access.allows(identity)
                     && self.upstream_admits(&alias.name, identity, package)
             })

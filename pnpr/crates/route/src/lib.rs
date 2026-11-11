@@ -25,6 +25,8 @@ pub use url_credentials::{
     sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
 };
 
+pub use local_routes::split_package_identifier;
+pub use pnpm_network::LocalFetch;
 pub use route_hook::RouteHook;
 
 pub use footprint::{
@@ -35,6 +37,7 @@ pub use footprint::{
 mod url_credentials;
 use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_prefix, scheme_of};
 
+mod local_routes;
 mod route_hook;
 
 mod alias_admission;
@@ -72,10 +75,8 @@ pub enum RouteClass {
     /// Gated by re-running that policy for the caller; `policy_id`
     /// identifies the access-policy rule that produced the entry.
     Hosted { policy_id: String },
-    /// A proxied upstream route served with a pnpr-managed credential
-    /// alias the caller is authorized to use. [`credential_digest`] is a hash
-    /// of the upstream's `Authorization`, so rotating the credential changes it
-    /// (see [`credential_digest`]).
+    /// An upstream route whose access or credentials require a private cache.
+    /// The digest covers all configured upstream headers.
     Proxied { alias: String, credential_digest: String },
 }
 
@@ -90,12 +91,10 @@ pub struct RouteContext {
     /// glob. Always begins with the built-in official-npm route
     /// ([`RouteMatcher::npmjs`]), followed by the operator-declared ones.
     public_routes: Vec<RouteMatcher>,
-    /// pnpr-managed upstream credential aliases, in declared order.
+    /// Configured upstream access and credentials, in declared order.
     aliases: Vec<ResolvedAlias>,
     /// Nerf-darted origin of every configured upstream (access-bearing or a
-    /// plain mirror), forming the upstream half of the fetch allowlist. A
-    /// plain mirror needs no credential, so it has no [`ResolvedAlias`]; it
-    /// is still a configured registry pnpr may fetch from anonymously.
+    /// plain mirror), forming the upstream half of the fetch allowlist.
     upstream_origins: Vec<String>,
     /// The registry routing graph, used to resolve a path-less fetch to the
     /// concrete registry that serves it — the same dispatch the serving
@@ -133,8 +132,7 @@ struct RouteMatcher {
 #[derive(Clone)]
 struct ResolvedAlias {
     name: String,
-    /// [`credential_digest`] of [`Self::authorization`]: the credential epoch
-    /// this alias's private cache entries are keyed by.
+    /// Digest of every configured upstream header, keying its private cache.
     credential_digest: String,
     registry: String,
     /// Nerf-darted upstream origin the alias serves. Routing is by origin
@@ -147,7 +145,7 @@ struct ResolvedAlias {
     scheme: String,
     /// The fully-formed `Authorization` header value the alias sends
     /// upstream (`Bearer ...` / `Basic ...`).
-    authorization: String,
+    authorization: Option<String>,
     /// Which pnpr callers may select this alias.
     access: AccessList,
 }
@@ -173,7 +171,8 @@ impl RouteContext {
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
         let routing = &config.routing;
-        let hosted_origin = nerf_prefix(&config.http.public_url);
+        let hosted_origin =
+            nerf_prefix(&format!("{}/", config.http.public_url.trim_end_matches('/')));
         let mut registries = routing.registries.clone();
         for name in routing.upstreams.keys() {
             registries.ensure_upstream(name);
@@ -186,9 +185,6 @@ impl RouteContext {
             .into_iter()
             .chain(routing.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
             .collect();
-        // Proxied-route credentials come from `upstreams:` entries that declare
-        // an `access:` policy. They are matched by registry origin and exposed
-        // to clients at `/~<name>/`.
         let aliases = routing.upstreams
             .iter()
             .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
@@ -279,7 +275,11 @@ impl RouteContext {
         let npm_endpoint =
             format!("{}{}/", hosted.trim_end_matches('/'), Ecosystem::Npm.base_path());
         if let Some(registry) = addressed_registry_segment(fetch, &npm_endpoint) {
-            return self.classify_addressed(identity, registry, package);
+            return self.classify_addressed(
+                identity,
+                &pnpm_network::percent_decode_str(registry),
+                package,
+            );
         }
 
         // A path-less fetch resolves through the graph's default registry —
@@ -312,42 +312,38 @@ impl RouteContext {
         registry: &str,
         package: Option<&str>,
     ) -> RouteClass {
-        let Some(registry) = self.registries.addressed(registry, Ecosystem::Npm) else {
+        let Some(package) = package else {
             return RouteClass::Public;
         };
-        if let Some(alias) = self.authorized_alias(identity, registry) {
-            // Per-package refinement: a name the upstream's rules deny this
-            // caller gets no credential — the anonymous fetch fails closed at
-            // the endpoint, matching serving.
-            if self.upstream_admits(&alias.name, identity, package) {
-                return RouteClass::Proxied {
-                    alias: alias.name.clone(),
-                    credential_digest: alias.credential_digest.clone(),
-                };
-            }
-            return RouteClass::Public;
+        match self.registries.resolve(registry, Ecosystem::Npm, package) {
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Hosted,
+            } => self.classify_hosted(identity, registry, Some(package)),
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Upstream,
+            } => self.classify_upstream(identity, registry, package),
+            Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
         }
-        if self.hosted_rules.contains_key(registry) {
-            return self.classify_hosted(identity, registry, package);
-        }
-        RouteClass::Public
     }
 
-    /// Classify a package served by an upstream registry reached as the
-    /// default. A public upstream source (no alias) is an anonymous public
-    /// fetch; an unauthorized caller falls through to one the endpoint fails
-    /// closed on.
     fn classify_upstream(&self, identity: &Identity, registry: &str, package: &str) -> RouteClass {
-        // Per-package refinement — see `classify_addressed`.
         let admitted = self
             .authorized_alias(identity, registry)
             .filter(|alias| self.upstream_admits(&alias.name, identity, Some(package)));
         match admitted {
-            Some(alias) => RouteClass::Proxied {
-                alias: alias.name.clone(),
-                credential_digest: alias.credential_digest.clone(),
-            },
-            None => RouteClass::Public,
+            Some(alias)
+                if alias.authorization.is_some()
+                    || !alias.access.allows(&Identity::Anonymous)
+                    || !self.upstream_admits(registry, &Identity::Anonymous, Some(package)) =>
+            {
+                RouteClass::Proxied {
+                    alias: alias.name.clone(),
+                    credential_digest: alias.credential_digest.clone(),
+                }
+            }
+            _ => RouteClass::Public,
         }
     }
 
@@ -378,6 +374,12 @@ impl RouteContext {
     /// legitimately plain HTTP.
     #[must_use]
     pub fn allows_registry(&self, url: &str) -> bool {
+        if url
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte == b'\\')
+        {
+            return false;
+        }
         let fetch = nerf_dart(url);
         if fetch.is_empty() {
             return false;
@@ -488,6 +490,11 @@ impl RouteContext {
                     .iter()
                     .find(|candidate| candidate.name == alias.as_str())
                     .is_some_and(|candidate| {
+                        if candidate.authorization.is_none() {
+                            return candidate.access.allows(identity)
+                                && candidate.credential_digest == *credential_digest
+                                && self.upstream_admits(alias, identity, package.as_deref());
+                        }
                         self.select_alias(identity, &candidate.origin, package.as_deref())
                             .is_some_and(|selected| {
                                 selected.name == alias.as_str()
