@@ -518,15 +518,15 @@ auth:
   users:
     maxUsers: 100
 registries:
-  cargo:
-    crates:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'foo': {}
+  crates:
+    type: hosted
+    ecosystem: cargo
+    rulesManagedBy: api
+    packages:
+      'foo': {}
   main:
     type: router
-    sources: ['cargo/crates']
+    sources: [crates]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
