@@ -168,7 +168,6 @@ pub(super) async fn serve_resolve_artifacts(
     )
 }
 
-/// The organization and integrity a blob route names.
 type BlobPath = Path<(String, String)>;
 
 /// `GET /-/pnpr/v0/artifacts/blobs/{organization}/{integrity}`: one stored
