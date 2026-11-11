@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 
 use pnpm_crypto_hash::create_short_hash;
 
@@ -271,6 +271,15 @@ enum PeerGroups {
     Bare,
 }
 
+impl PeerGroups {
+    fn provider(self, target: &PkgNameVerPeer) -> Cow<'_, PkgNameVerPeer> {
+        match self {
+            Self::Full => Cow::Borrowed(target),
+            Self::Bare => Cow::Owned(target.without_peer()),
+        }
+    }
+}
+
 fn find_matching_combination<'a>(
     candidates: &'a [Vec<PkgNameVerPeer>],
     idx: usize,
@@ -294,7 +303,7 @@ fn find_matching_combination<'a>(
         .then(|| {
             chosen
                 .iter()
-                .map(|target| target.without_peer())
+                .map(|target| mode.provider(target).into_owned())
                 .collect()
         })
 }
@@ -305,17 +314,10 @@ fn subset_matches_hash(chosen: &[&PkgNameVerPeer], mode: PeerGroups, hash_hex: &
     }
     let mut segments: Vec<String> = chosen
         .iter()
-        .map(|target| render_segment(target, mode))
+        .map(|target| mode.provider(target).to_string())
         .collect();
     segments.sort();
     create_short_hash(&segments.join(")(")) == hash_hex
-}
-
-fn render_segment(target: &PkgNameVerPeer, mode: PeerGroups) -> String {
-    match mode {
-        PeerGroups::Full => target.to_string(),
-        PeerGroups::Bare => target.without_peer().to_string(),
-    }
 }
 
 impl BoundProviders {
@@ -328,7 +330,7 @@ impl BoundProviders {
             return providers;
         }
         match recover_hashed_providers(entries, key) {
-            Some(recovered) => BoundProviders(Some(recovered)),
+            Some(recovered) => Self::from_providers(recovered),
             None => providers,
         }
     }

@@ -22,10 +22,7 @@ struct MatchingProviders<'a> {
 
 impl<'a> ProviderCandidates<'a> {
     pub(super) fn of(finder: &ProviderFinder<'a, '_>, name: &str) -> Self {
-        let keys: Vec<_> = finder.snapshots
-            .keys()
-            .filter(|key| finder.needs_from_outside(key, name))
-            .collect();
+        let keys: Vec<_> = finder.keys_needing_peer(name).collect();
         let positions: HashMap<_, _> = keys
             .iter()
             .enumerate()

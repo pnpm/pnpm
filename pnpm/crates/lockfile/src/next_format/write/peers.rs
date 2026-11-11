@@ -8,7 +8,10 @@ use crate::{
     BoundProviders, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
     SnapshotDepRef, SnapshotEntry, split_peer_suffix_segments,
 };
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::OnceLock,
+};
 
 mod candidates;
 mod constraint;
@@ -73,6 +76,7 @@ pub(super) struct ProviderFinder<'a, 'own> {
     /// `None` while a lookup is in progress, which ends a dependency cycle.
     found: HashMap<(&'a PackageKey, &'a str), Option<&'a SnapshotDepRef>>,
     candidates: HashMap<&'a str, ProviderCandidates<'a>>,
+    needing_peer: OnceLock<HashMap<String, HashSet<&'a PackageKey>>>,
 }
 
 impl<'a, 'own> ProviderFinder<'a, 'own> {
@@ -80,7 +84,13 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         own_peers: &'own HashMap<&'a PackageKey, HashSet<&'a PkgName>>,
     ) -> Self {
-        ProviderFinder { snapshots, own_peers, found: HashMap::new(), candidates: HashMap::new() }
+        ProviderFinder {
+            snapshots,
+            own_peers,
+            found: HashMap::new(),
+            candidates: HashMap::new(),
+            needing_peer: OnceLock::new(),
+        }
     }
 
     pub(super) fn provider_below(
@@ -143,6 +153,31 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
                 let (child_key, _) = self.snapshots.get_key_value(&reference.resolve(alias)?)?;
                 self.needs_from_outside(child_key, name).then_some(child_key)
             })
+    }
+
+    fn keys_needing_peer(&self, name: &str) -> impl Iterator<Item = &'a PackageKey> + '_ {
+        self.needing_peer
+            .get_or_init(|| {
+                let mut indexed: HashMap<String, HashSet<_>> = HashMap::new();
+                for (key, entry) in self.snapshots {
+                    let names = entry.transitive_peer_dependencies
+                        .iter()
+                        .flatten()
+                        .cloned()
+                        .chain(self.own_peers[key].iter().map(ToString::to_string));
+                    for name in names {
+                        indexed
+                            .entry(name)
+                            .or_default()
+                            .insert(key);
+                    }
+                }
+                indexed
+            })
+            .get(name)
+            .into_iter()
+            .flatten()
+            .copied()
     }
 
     fn needs_from_outside(&self, key: &PackageKey, name: &str) -> bool {
@@ -265,7 +300,7 @@ pub(super) fn binds_reference(
     reference: &SnapshotDepRef,
 ) -> bool {
     providers.is_none_or(|providers| match reference.resolve(alias) {
-        Some(target) => providers.binds(&target),
+        Some(target) => providers.binds_snapshot(&target),
         None => providers.is_hashed() && reference.as_link_target().is_some(),
     })
 }

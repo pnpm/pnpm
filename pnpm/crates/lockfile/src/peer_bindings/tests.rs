@@ -369,3 +369,14 @@ fn bindings_round_trip_through_every_checked_in_lockfile() {
     }
     assert!(checked > 0, "no snapshot with peers found under {}", repo_root.display());
 }
+
+#[test]
+fn snapshot_bindings_preserve_recorded_peer_contexts() {
+    let full = BoundProviders::from_key(&key("parent@1.0.0(provider@1.0.0(nested@1.0.0))"));
+    assert!(full.binds_snapshot(&key("provider@1.0.0(nested@1.0.0)")));
+    assert!(!full.binds_snapshot(&key("provider@1.0.0(nested@2.0.0)")));
+    assert!(!full.binds_snapshot(&key("provider@1.0.0")));
+    let bare = BoundProviders::from_key(&key("parent@1.0.0(provider@1.0.0)"));
+    assert!(bare.binds_snapshot(&key("provider@1.0.0(nested@2.0.0)")));
+    assert!(!bare.binds_snapshot(&key("provider@2.0.0(nested@2.0.0)")));
+}

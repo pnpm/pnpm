@@ -2,7 +2,7 @@ use super::{
     MAX_CACHED_BINDINGS, ProviderCandidates, ProviderConstraint, ProviderFinder, SnapshotDepRef,
 };
 use crate::Lockfile;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[test]
 fn distinct_provider_chain_keeps_candidate_storage_linear() {
@@ -50,14 +50,13 @@ fn distinct_provider_chain_keeps_candidate_storage_linear() {
         );
         let expected: SnapshotDepRef = format!("{version}.0.0").parse().unwrap();
         assert_eq!(candidates.matching(&key(1), &constraint), Some(&expected));
-        assert!(candidates.cached.len() <= MAX_CACHED_BINDINGS);
-        assert!(
-            candidates.cached
-                .iter()
-                .map(|cached| cached.providers.len())
-                .sum::<usize>()
-                <= MAX_CACHED_BINDINGS * LENGTH,
-        );
+        let tables = candidates.cached.len();
+        let slots: usize = candidates.cached
+            .iter()
+            .map(|cached| cached.providers.len())
+            .sum();
+        assert!(tables <= MAX_CACHED_BINDINGS, "cached tables: {tables}");
+        assert!(slots <= MAX_CACHED_BINDINGS * LENGTH, "cached provider slots: {slots}");
     }
 }
 
@@ -111,4 +110,48 @@ snapshots:
         let missing = ProviderConstraint::new(&"missing".parse().unwrap(), None, None);
         assert_eq!(finder.provider_below(root, "missing", &missing), None);
     }
+}
+
+#[test]
+fn distinct_peer_names_index_only_their_own_snapshots() {
+    let snapshots: HashMap<_, _> = (0..128)
+        .map(|index| {
+            let name = format!("@scope/provider-{index}");
+            let key = format!("node-{index}@1.0.0({name}@1.0.0)").parse().unwrap();
+            let entry = crate::SnapshotEntry {
+                dependencies: Some(HashMap::from([(
+                    name.parse().unwrap(),
+                    "1.0.0".parse().unwrap(),
+                )])),
+                ..Default::default()
+            };
+            (key, entry)
+        })
+        .collect();
+    let own_peers = snapshots
+        .iter()
+        .map(|(key, entry)| (key, super::super::own_peer_names(key, entry, None, None)))
+        .collect();
+    let mut finder = ProviderFinder::new(&snapshots, &own_peers);
+    assert!(finder.needing_peer.get().is_none());
+    let names: Vec<_> = (0..128)
+        .map(|index| format!("@scope/provider-{index}"))
+        .collect();
+    for (index, name) in names.iter().enumerate() {
+        let key = format!("node-{index}@1.0.0({name}@1.0.0)").parse().unwrap();
+        let (key, _) = snapshots.get_key_value(&key).unwrap();
+        let constraint =
+            ProviderConstraint::new(&name.parse().unwrap(), Some(&[format!("{name}@2.0.0")]), None);
+        assert_eq!(finder.provider_below(key, name, &constraint), None);
+        assert_eq!(finder.candidates[name.as_str()].components.len(), 1);
+    }
+    let indexed = finder.needing_peer.get().unwrap();
+    assert_eq!(indexed.len(), names.len());
+    assert_eq!(
+        indexed
+            .values()
+            .map(HashSet::len)
+            .sum::<usize>(),
+        snapshots.len(),
+    );
 }

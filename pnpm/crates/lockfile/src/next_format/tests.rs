@@ -1309,3 +1309,77 @@ snapshots:
         written_and_read(&lockfile);
     }
 }
+
+#[test]
+fn hashed_transitive_peer_distinguishes_provider_peer_bindings() {
+    let suffix = |segments| crate::PeerBindings::Explicit(segments).to_suffix(3).unwrap();
+    let first_provider = suffix(vec!["nested@1.0.0".to_string()]);
+    let second_provider = suffix(vec!["nested@2.0.0".to_string()]);
+    let first = suffix(vec![format!("provider@1.0.0{first_provider}")]);
+    let second = suffix(vec![format!("provider@1.0.0{second_provider}")]);
+    let mut lockfile = parse(&format!(
+        r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      parent:
+        specifier: 1.0.0
+        version: 1.0.0{first}
+packages:
+  parent@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  child@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+  provider@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+    peerDependencies:
+      nested: '*'
+  nested@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+  nested@2.0.0:
+    resolution: {{integrity: sha512-EEEE}}
+snapshots:
+  parent@1.0.0{first}:
+    dependencies:
+      first: child@1.0.0{first}
+      second: child@1.0.0{second}
+    transitivePeerDependencies: [provider]
+  child@1.0.0{first}:
+    dependencies:
+      provider: 1.0.0{first_provider}
+  child@1.0.0{second}:
+    dependencies:
+      provider: 1.0.0{second_provider}
+  provider@1.0.0{first_provider}:
+    dependencies:
+      nested: 1.0.0
+  provider@1.0.0{second_provider}:
+    dependencies:
+      nested: 2.0.0
+  nested@1.0.0: {{}}
+  nested@2.0.0: {{}}
+",
+    ));
+    let parent = format!("parent@1.0.0{first}").parse().unwrap();
+    let branches = lockfile.snapshots
+        .as_mut()
+        .unwrap()
+        .get_mut(&parent)
+        .unwrap()
+        .dependencies
+        .as_mut()
+        .unwrap();
+    for (reference, target) in branches
+        .values_mut()
+        .zip([second, first])
+    {
+        *reference = crate::SnapshotDepRef::Alias(format!("child@1.0.0{target}").parse().unwrap());
+    }
+    written_and_read(&lockfile);
+}
