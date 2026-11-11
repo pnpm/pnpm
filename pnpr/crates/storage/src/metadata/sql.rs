@@ -40,7 +40,7 @@ pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
 pub(crate) use records::RecordKey;
 pub(crate) use staged::{StagedEntry, StagedId};
-pub(crate) use store_binding::StoreBinding;
+pub(crate) use store_binding::{StoreBinding, StoreClaim};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 

@@ -4,14 +4,31 @@ use super::{Connection, Freshness, SqlMetadata};
 use pnpr_error::{RegistryError, Result};
 use std::sync::Arc;
 
+const PENDING_PREFIX: &str = "pending:";
+
 /// How a metadata database is bound to a hosted store.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StoreBinding {
-    /// Bound to this `store_id` in `hosted_store`.
+    /// Confirmed binding to this `store_id` in `hosted_store`.
     Bound(String),
+    /// An in-progress binding to this `store_id` in `hosted_store` whose
+    /// `layout.json` write has not yet been confirmed.
+    Pending(String),
     /// No row in `hosted_store`. `has_data` says whether any hosted
     /// catalog, package, blob, staged archive, or removed package row exists.
     Unmarked { has_data: bool },
+}
+
+/// Outcome of starting or replacing a pending `store_id` claim in `hosted_store`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum StoreClaim {
+    /// This call wrote `pending:<id>` into `hosted_store`.
+    Claimed(String),
+    /// `hosted_store` already held `pending:<id>` from another or interrupted
+    /// initialization.
+    ExistingPending(String),
+    /// `hosted_store` is already confirmed bound to `<id>`.
+    Bound(String),
 }
 
 impl SqlMetadata {
@@ -23,21 +40,60 @@ impl SqlMetadata {
         .await
     }
 
-    /// Bind this database to `candidate` when `hosted_store` holds no id yet,
-    /// returning the bound `store_id`.
-    pub(crate) async fn claim_store_id(self: &Arc<Self>, candidate: String) -> Result<String> {
-        self.write(move |connection| claim_store_id(connection, &candidate)).await
+    /// Start binding this database to `candidate` by recording `pending:<candidate>`
+    /// when `hosted_store` has no row yet.
+    pub(crate) async fn begin_store_claim(
+        self: &Arc<Self>,
+        candidate: String,
+    ) -> Result<StoreClaim> {
+        self.write(move |connection| begin_store_claim(connection, &candidate)).await
     }
 
-    /// Synchronous [`Self::claim_store_id`] for test fixture setup.
+    /// Replace a stale `pending:<expected_pending>` claim with `pending:<candidate>`.
+    pub(crate) async fn replace_pending_store_claim(
+        self: &Arc<Self>,
+        expected_pending: String,
+        candidate: String,
+    ) -> Result<StoreClaim> {
+        self.write(move |connection| {
+            replace_pending_store_claim(connection, &expected_pending, &candidate)
+        })
+        .await
+    }
+
+    /// Confirm `pending:<store_id>` in `hosted_store` as `<store_id>` once
+    /// `layout.json` holds `<store_id>`.
+    pub(crate) async fn confirm_store_claim(
+        self: &Arc<Self>,
+        store_id: String,
+    ) -> Result<StoreBinding> {
+        self.write(move |connection| confirm_store_claim(connection, &store_id)).await
+    }
+
+    /// Remove `pending:<store_id>` when `layout.json` could not be written for
+    /// `<store_id>`.
+    pub(crate) async fn clear_pending_store_claim(
+        self: &Arc<Self>,
+        store_id: String,
+    ) -> Result<()> {
+        self.write(move |connection| clear_pending_store_claim(connection, &store_id)).await
+    }
+
+    /// Synchronous confirmed claim for test fixture setup.
     pub(crate) fn claim_store_id_sync(&self, candidate: &str) -> Result<String> {
         self.run_write(|connection| claim_store_id(connection, candidate))
     }
 }
 
 fn read_store_binding(connection: &dyn Connection) -> Result<StoreBinding> {
-    if let Some(store_id) = read_store_id(connection)? {
-        return Ok(StoreBinding::Bound(store_id));
+    if let Some(raw_id) = read_raw_store_id(connection)? {
+        if let Some(pending_id) = raw_id.strip_prefix(PENDING_PREFIX) {
+            if pending_id.is_empty() {
+                return Err(empty_store_id_error());
+            }
+            return Ok(StoreBinding::Pending(pending_id.to_string()));
+        }
+        return Ok(StoreBinding::Bound(raw_id));
     }
     let has_data = connection
         .query_optional(
@@ -53,7 +109,7 @@ fn read_store_binding(connection: &dyn Connection) -> Result<StoreBinding> {
     Ok(StoreBinding::Unmarked { has_data })
 }
 
-fn read_store_id(connection: &dyn Connection) -> Result<Option<String>> {
+fn read_raw_store_id(connection: &dyn Connection) -> Result<Option<String>> {
     let Some(mut row) = connection.query_optional(
         "SELECT store_id FROM hosted_store WHERE singleton = 1",
         params![],
@@ -63,24 +119,102 @@ fn read_store_id(connection: &dyn Connection) -> Result<Option<String>> {
     };
     let store_id: String = row.get(0)?;
     if store_id.is_empty() {
-        return Err(RegistryError::StorageUnavailable {
-            reason: "the metadata database holds an empty store_id in hosted_store".to_string(),
-        });
+        return Err(empty_store_id_error());
     }
     Ok(Some(store_id))
 }
 
+fn begin_store_claim(connection: &dyn Connection, candidate: &str) -> Result<StoreClaim> {
+    match read_store_binding(connection)? {
+        StoreBinding::Bound(id) => return Ok(StoreClaim::Bound(id)),
+        StoreBinding::Pending(id) => return Ok(StoreClaim::ExistingPending(id)),
+        StoreBinding::Unmarked { has_data: true } => {
+            return Err(RegistryError::StorageUnavailable {
+                reason: "the metadata database has no store_id in hosted_store and holds data from an earlier schema".to_string(),
+            });
+        }
+        StoreBinding::Unmarked { has_data: false } => {}
+    }
+    let pending = format!("{PENDING_PREFIX}{candidate}");
+    connection.execute(
+        "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
+         ON CONFLICT DO NOTHING",
+        params![pending.as_str()],
+    )?;
+    claim_from_binding(read_store_binding(connection)?, candidate)
+}
+
+fn replace_pending_store_claim(
+    connection: &dyn Connection,
+    expected_pending: &str,
+    candidate: &str,
+) -> Result<StoreClaim> {
+    let expected = format!("{PENDING_PREFIX}{expected_pending}");
+    let next = format!("{PENDING_PREFIX}{candidate}");
+    connection.execute(
+        "UPDATE hosted_store SET store_id = ?1 WHERE singleton = 1 AND store_id = ?2",
+        params![next.as_str(), expected.as_str()],
+    )?;
+    claim_from_binding(read_store_binding(connection)?, candidate)
+}
+
+fn confirm_store_claim(connection: &dyn Connection, store_id: &str) -> Result<StoreBinding> {
+    let pending = format!("{PENDING_PREFIX}{store_id}");
+    connection.execute(
+        "UPDATE hosted_store SET store_id = ?1 WHERE singleton = 1 AND store_id = ?2",
+        params![store_id, pending.as_str()],
+    )?;
+    read_store_binding(connection)
+}
+
+fn clear_pending_store_claim(connection: &dyn Connection, store_id: &str) -> Result<()> {
+    let pending = format!("{PENDING_PREFIX}{store_id}");
+    connection.execute(
+        "DELETE FROM hosted_store WHERE singleton = 1 AND store_id = ?1",
+        params![pending.as_str()],
+    )?;
+    Ok(())
+}
+
+fn claim_from_binding(binding: StoreBinding, candidate: &str) -> Result<StoreClaim> {
+    match binding {
+        StoreBinding::Bound(id) => Ok(StoreClaim::Bound(id)),
+        StoreBinding::Pending(id) if id == candidate => Ok(StoreClaim::Claimed(id)),
+        StoreBinding::Pending(id) => Ok(StoreClaim::ExistingPending(id)),
+        StoreBinding::Unmarked { .. } => Err(RegistryError::Internal {
+            reason: "hosted_store holds no store_id after claim".to_string(),
+        }),
+    }
+}
+
 fn claim_store_id(connection: &dyn Connection, candidate: &str) -> Result<String> {
-    if let Some(existing) = read_store_id(connection)? {
-        return Ok(existing);
+    match read_store_binding(connection)? {
+        StoreBinding::Bound(existing) => return Ok(existing),
+        StoreBinding::Pending(existing) if existing == candidate => {
+            connection.execute(
+                "UPDATE hosted_store SET store_id = ?1 WHERE singleton = 1",
+                params![candidate],
+            )?;
+            return Ok(candidate.to_string());
+        }
+        StoreBinding::Pending(existing) => return Ok(existing),
+        StoreBinding::Unmarked { .. } => {}
     }
     connection.execute(
         "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
          ON CONFLICT DO NOTHING",
         params![candidate],
     )?;
-    read_store_id(connection)?
-        .ok_or_else(|| RegistryError::Internal {
+    match read_store_binding(connection)? {
+        StoreBinding::Bound(id) | StoreBinding::Pending(id) => Ok(id),
+        StoreBinding::Unmarked { .. } => Err(RegistryError::Internal {
             reason: "hosted_store holds no store_id after insert".to_string(),
-        })
+        }),
+    }
+}
+
+fn empty_store_id_error() -> RegistryError {
+    RegistryError::StorageUnavailable {
+        reason: "the metadata database holds an empty store_id in hosted_store".to_string(),
+    }
 }

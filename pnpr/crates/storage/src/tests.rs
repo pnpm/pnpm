@@ -298,10 +298,32 @@ async fn mismatched_or_half_bound_store_and_database_are_refused() {
 }
 
 #[tokio::test]
-async fn pending_marker_from_uncertain_claim_recovers_on_retry_without_binding_other_databases() {
+async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_databases() {
+    // 1. Interrupted after `begin_store_claim` and before `layout.json` is written.
+    let tmp_before_marker = TempDir::new().unwrap();
+    let initial = storage_in(&tmp_before_marker);
+    let stale_id = crate::layout::new_store_id();
+    assert_eq!(
+        initial.database.begin_store_claim(stale_id.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Claimed(stale_id),
+    );
+    drop(initial);
+
+    let restarted = storage_in(&tmp_before_marker);
+    restarted.ensure_hosted_layout().await.unwrap();
+    assert!(matches!(
+        restarted.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(_),
+    ));
+
+    // 2. Interrupted after `layout.json` is written and before `confirm_store_claim` completes.
     let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
+    let first_boot = storage_in(&tmp);
     let candidate = crate::layout::new_store_id();
+    assert_eq!(
+        first_boot.database.begin_store_claim(candidate.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Claimed(candidate.clone()),
+    );
     fs::create_dir_all(tmp.path().join("storage")).await.unwrap();
     fs::write(
         tmp.path().join("storage/layout.json"),
@@ -313,7 +335,7 @@ async fn pending_marker_from_uncertain_claim_recovers_on_retry_without_binding_o
     )
     .await
     .unwrap();
-    *storage.pending_store_id.lock().unwrap() = Some(candidate.clone());
+    drop(first_boot);
 
     // Another initializer with a separate empty database refuses to bind to the marker.
     let other_db = TempDir::new().unwrap();
@@ -330,10 +352,11 @@ async fn pending_marker_from_uncertain_claim_recovers_on_retry_without_binding_o
         crate::metadata::sql::StoreBinding::Unmarked { has_data: false },
     );
 
-    // Retrying on the originating Storage completes the database claim.
-    storage.ensure_hosted_layout().await.unwrap();
+    // A newly constructed Storage instance after restart completes the confirmation.
+    let restarted_after_marker = storage_in(&tmp);
+    restarted_after_marker.ensure_hosted_layout().await.unwrap();
     assert_eq!(
-        storage.database.store_binding().await.unwrap(),
+        restarted_after_marker.database.store_binding().await.unwrap(),
         crate::metadata::sql::StoreBinding::Bound(candidate),
     );
 }

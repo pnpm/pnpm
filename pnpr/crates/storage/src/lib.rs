@@ -171,9 +171,6 @@ pub struct Storage {
     database: Arc<metadata::SqlMetadata>,
     /// The metadata of `hosted`'s namespace.
     metadata: metadata::PackageMetadata,
-    /// A `store_id` written to `layout.json` by this `Storage` whose database
-    /// claim has not yet been confirmed.
-    pending_store_id: Arc<std::sync::Mutex<Option<String>>>,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -266,7 +263,6 @@ impl Storage {
             tar_integrity_cache: Arc::default(),
             database,
             metadata,
-            pending_store_id: Arc::default(),
         }
     }
 

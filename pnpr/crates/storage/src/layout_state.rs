@@ -4,11 +4,11 @@
 use crate::{
     HostedBackend, Result, Storage,
     layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker, new_store_id},
-    metadata::sql::StoreBinding,
+    metadata::sql::{StoreBinding, StoreClaim},
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
-use std::sync::{Arc, PoisonError};
+use std::sync::Arc;
 use tokio::fs;
 
 /// The record namespace the marker is written in: the store root itself.
@@ -43,7 +43,6 @@ impl Storage {
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
             database: Arc::clone(&self.database),
             metadata: self.database.view(org, ecosystem),
-            pending_store_id: Arc::clone(&self.pending_store_id),
         }
     }
 
@@ -79,18 +78,22 @@ impl Storage {
     pub async fn ensure_hosted_layout(&self) -> Result<()> {
         let layout = self.hosted_layout().await?;
         let binding = self.database.store_binding().await?;
-        if let (
-            HostedLayout::Current { store_id: Some(store_id) },
-            StoreBinding::Unmarked { has_data: false },
-        ) = (&layout, &binding)
-        {
-            return self.resolve_existing_marker_with_unmarked_db(store_id).await;
+        match (&layout, &binding) {
+            (
+                HostedLayout::Current { store_id: Some(store_id) },
+                StoreBinding::Pending(pending_id),
+            ) if store_id == pending_id => {
+                return self.confirm_claimed_marker(store_id).await;
+            }
+            (HostedLayout::Unmarked { has_data: false }, StoreBinding::Pending(_)) => {
+                return self.write_hosted_layout_marker().await;
+            }
+            _ => {}
         }
         if matches!(
             verify_store_binding(layout, binding)?,
             HostedLayout::Current { store_id: Some(_) },
         ) {
-            self.set_pending_store_id(None);
             return Ok(());
         }
         self.write_hosted_layout_marker().await
@@ -148,79 +151,94 @@ impl Storage {
     /// metadata database to its `store_id`. Only for an empty store and
     /// database.
     pub async fn write_hosted_layout_marker(&self) -> Result<()> {
-        match self.database.store_binding().await? {
-            StoreBinding::Bound(bound_id) => {
-                let layout = self.hosted_layout().await?;
-                let verified = verify_store_binding(layout, StoreBinding::Bound(bound_id))?;
-                if matches!(verified, HostedLayout::Current { store_id: Some(_) }) {
-                    self.set_pending_store_id(None);
-                    return Ok(());
-                }
+        match self.database.begin_store_claim(new_store_id()).await? {
+            StoreClaim::Claimed(candidate) => self.write_claimed_marker(&candidate).await,
+            StoreClaim::ExistingPending(pending_id) => {
+                self.resolve_existing_pending_claim(&pending_id).await
             }
-            StoreBinding::Unmarked { has_data: true } => {
-                return Err(unmarked_database_with_data_error());
-            }
-            StoreBinding::Unmarked { has_data: false } => {}
+            StoreClaim::Bound(bound_id) => self.verify_bound_store(&bound_id).await,
         }
-        let candidate = new_store_id();
+    }
+
+    async fn write_claimed_marker(&self, candidate: &str) -> Result<()> {
         let marker = serde_json::to_vec(&LayoutMarker {
             layout: LAYOUT_VERSION,
-            store_id: Some(candidate.clone()),
+            store_id: Some(candidate.to_string()),
         })?;
-        if self.root.create_record(ROOT, LAYOUT_FILE, &marker).await? {
-            self.set_pending_store_id(Some(candidate.clone()));
-            return self.claim_created_marker_in_database(candidate).await;
-        }
-        let existing_id = self
-            .read_existing_marker_store_id()
-            .await?
-            .ok_or_else(|| RegistryError::StorageUnavailable {
-                reason: format!("the hosted store's {LAYOUT_FILE} has no store_id"),
-            })?;
-        self.resolve_existing_marker_with_unmarked_db(&existing_id).await
-    }
-
-    async fn resolve_existing_marker_with_unmarked_db(&self, existing_id: &str) -> Result<()> {
-        if self.pending_store_id().as_deref() == Some(existing_id) {
-            return self.claim_created_marker_in_database(existing_id.to_string()).await;
-        }
-        self.wait_for_existing_marker_binding(existing_id).await
-    }
-
-    async fn claim_created_marker_in_database(&self, store_id: String) -> Result<()> {
-        match self.database.claim_store_id(store_id.clone()).await {
-            Ok(bound_id) if bound_id == store_id => {
-                self.set_pending_store_id(None);
-                Ok(())
+        match self.root.create_record(ROOT, LAYOUT_FILE, &marker).await {
+            Ok(true) => self.confirm_claimed_marker(candidate).await,
+            Ok(false) => {
+                let _ = self.database.clear_pending_store_claim(candidate.to_string()).await;
+                let existing_id = self.require_existing_marker_store_id().await?;
+                if existing_id == candidate {
+                    return self.confirm_claimed_marker(candidate).await;
+                }
+                Err(unmarked_database_error(&existing_id))
             }
-            Ok(bound_id) => {
-                self.remove_unclaimed_marker(&store_id).await;
-                Err(store_mismatch_error(&store_id, &bound_id))
-            }
-            Err(err) => self.recover_or_cleanup_after_claim_error(&store_id, err).await,
+            Err(err) => Err(err),
         }
     }
 
-    async fn recover_or_cleanup_after_claim_error(
-        &self,
-        store_id: &str,
-        err: RegistryError,
-    ) -> Result<()> {
-        match self.database.store_binding().await {
-            Ok(StoreBinding::Bound(bound_id)) if bound_id == store_id => {
-                self.set_pending_store_id(None);
-                Ok(())
-            }
-            Ok(StoreBinding::Bound(bound_id)) => {
+    async fn confirm_claimed_marker(&self, store_id: &str) -> Result<()> {
+        match self.database.confirm_store_claim(store_id.to_string()).await? {
+            StoreBinding::Bound(bound_id) if bound_id == store_id => Ok(()),
+            StoreBinding::Bound(bound_id) => {
                 self.remove_unclaimed_marker(store_id).await;
                 Err(store_mismatch_error(store_id, &bound_id))
             }
-            Ok(StoreBinding::Unmarked { .. }) => {
+            StoreBinding::Pending(pending_id) => {
                 self.remove_unclaimed_marker(store_id).await;
-                Err(err)
+                Err(store_mismatch_error(store_id, &pending_id))
             }
-            Err(_) => Err(err),
+            StoreBinding::Unmarked { .. } => {
+                self.remove_unclaimed_marker(store_id).await;
+                Err(unmarked_database_error(store_id))
+            }
         }
+    }
+
+    async fn resolve_existing_pending_claim(&self, pending_id: &str) -> Result<()> {
+        let mut current_pending = pending_id.to_string();
+        for attempt in 0..crate::DOCUMENT_WRITE_RETRIES {
+            let binding = self.database.store_binding().await?;
+            let layout = self.hosted_layout().await?;
+            match (layout, binding) {
+                (
+                    HostedLayout::Current { store_id: Some(store_id) },
+                    StoreBinding::Pending(db_id),
+                ) if store_id == db_id => {
+                    return self.confirm_claimed_marker(&store_id).await;
+                }
+                (HostedLayout::Unmarked { has_data: false }, StoreBinding::Pending(db_id)) => {
+                    current_pending = db_id;
+                    crate::wait_after_document_write_conflict(attempt).await;
+                }
+                (layout, binding) => return verify_store_binding(layout, binding).map(|_| ()),
+            }
+        }
+        self.reclaim_stale_pending_store(&current_pending).await
+    }
+
+    async fn reclaim_stale_pending_store(&self, expected_pending: &str) -> Result<()> {
+        let claim =
+            self.database.replace_pending_store_claim(expected_pending.to_string(), new_store_id())
+                .await?;
+        match claim {
+            StoreClaim::Claimed(candidate) => self.write_claimed_marker(&candidate).await,
+            StoreClaim::Bound(bound_id) => self.verify_bound_store(&bound_id).await,
+            StoreClaim::ExistingPending(pending_id) => {
+                let layout = self.hosted_layout().await?;
+                if layout == (HostedLayout::Current { store_id: Some(pending_id.clone()) }) {
+                    return self.confirm_claimed_marker(&pending_id).await;
+                }
+                verify_store_binding(layout, StoreBinding::Pending(pending_id)).map(|_| ())
+            }
+        }
+    }
+
+    async fn verify_bound_store(&self, bound_id: &str) -> Result<()> {
+        let layout = self.hosted_layout().await?;
+        verify_store_binding(layout, StoreBinding::Bound(bound_id.to_string())).map(|_| ())
     }
 
     async fn remove_unclaimed_marker(&self, store_id: &str) {
@@ -231,43 +249,9 @@ impl Storage {
             .flatten()
             .as_deref()
             == Some(store_id)
-            && self.root.remove_record(ROOT, LAYOUT_FILE).await.is_ok()
         {
-            self.set_pending_store_id(None);
+            let _ = self.root.remove_record(ROOT, LAYOUT_FILE).await;
         }
-    }
-
-    async fn wait_for_existing_marker_binding(&self, existing_id: &str) -> Result<()> {
-        for attempt in 0..crate::DOCUMENT_WRITE_RETRIES {
-            match self.database.store_binding().await? {
-                StoreBinding::Bound(bound_id) if bound_id == existing_id => return Ok(()),
-                StoreBinding::Bound(bound_id) => {
-                    return Err(store_mismatch_error(existing_id, &bound_id));
-                }
-                StoreBinding::Unmarked { has_data: true } => {
-                    return Err(unmarked_database_with_data_error());
-                }
-                StoreBinding::Unmarked { has_data: false } => {
-                    crate::wait_after_document_write_conflict(attempt).await;
-                }
-            }
-        }
-        match self.database.store_binding().await? {
-            StoreBinding::Bound(bound_id) if bound_id == existing_id => Ok(()),
-            StoreBinding::Bound(bound_id) => Err(store_mismatch_error(existing_id, &bound_id)),
-            StoreBinding::Unmarked { .. } => Err(unmarked_database_error(existing_id)),
-        }
-    }
-
-    fn pending_store_id(&self) -> Option<String> {
-        self.pending_store_id
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-
-    fn set_pending_store_id(&self, store_id: Option<String>) {
-        *self.pending_store_id.lock().unwrap_or_else(PoisonError::into_inner) = store_id;
     }
 
     async fn write_hosted_layout_marker_for(&self, store_id: &str) -> Result<()> {
@@ -287,6 +271,13 @@ impl Storage {
                 ),
             }),
         }
+    }
+
+    async fn require_existing_marker_store_id(&self) -> Result<String> {
+        self.read_existing_marker_store_id().await?
+            .ok_or_else(|| RegistryError::StorageUnavailable {
+                reason: format!("the hosted store's {LAYOUT_FILE} has no store_id"),
+            })
     }
 
     async fn read_existing_marker_store_id(&self) -> Result<Option<String>> {
@@ -378,6 +369,9 @@ fn verify_store_binding(layout: HostedLayout, binding: StoreBinding) -> Result<H
         (HostedLayout::Current { store_id: Some(store_id) }, StoreBinding::Bound(db_id)) => {
             Err(store_mismatch_error(store_id, &db_id))
         }
+        (HostedLayout::Current { store_id: Some(store_id) }, StoreBinding::Pending(db_id)) => {
+            Err(pending_binding_error(store_id, &db_id))
+        }
         (HostedLayout::Current { store_id: Some(store_id) }, StoreBinding::Unmarked { .. }) => {
             Err(unmarked_database_error(store_id))
         }
@@ -389,7 +383,7 @@ fn verify_store_binding(layout: HostedLayout, binding: StoreBinding) -> Result<H
 
 fn missing_marker_id_error(binding: StoreBinding) -> RegistryError {
     let reason = match binding {
-        StoreBinding::Bound(db_id) => format!(
+        StoreBinding::Bound(db_id) | StoreBinding::Pending(db_id) => format!(
             "the metadata database is bound to hosted store {db_id}, but the hosted store's {LAYOUT_FILE} has no store_id",
         ),
         StoreBinding::Unmarked { .. } => {
@@ -401,14 +395,27 @@ fn missing_marker_id_error(binding: StoreBinding) -> RegistryError {
 
 fn verify_unmarked_store(layout: HostedLayout, binding: StoreBinding) -> Result<HostedLayout> {
     match binding {
-        StoreBinding::Bound(db_id) => Err(RegistryError::StorageUnavailable {
-            reason: format!(
-                "the metadata database is bound to hosted store {db_id}, but the hosted store has no {LAYOUT_FILE}",
-            ),
-        }),
+        StoreBinding::Bound(db_id) | StoreBinding::Pending(db_id) => {
+            Err(RegistryError::StorageUnavailable {
+                reason: format!(
+                    "the metadata database is bound to hosted store {db_id}, but the hosted store has no {LAYOUT_FILE}",
+                ),
+            })
+        }
         StoreBinding::Unmarked { has_data: true } => Err(unmarked_database_with_data_error()),
         StoreBinding::Unmarked { has_data: false } => Ok(layout),
     }
+}
+
+fn pending_binding_error(store_id: &str, db_id: &str) -> RegistryError {
+    if store_id == db_id {
+        return RegistryError::StorageUnavailable {
+            reason: format!(
+                "the metadata database has an unconfirmed binding to hosted store {db_id}",
+            ),
+        };
+    }
+    store_mismatch_error(store_id, db_id)
 }
 
 fn unmarked_database_error(store_id: &str) -> RegistryError {
