@@ -83,7 +83,16 @@ async fn cdn_public_tarballs_are_cacheable_and_private_responses_stay_private() 
     assert_eq!(response.headers()[header::CONTENT_LENGTH], "7");
     let private = crate::server::private_no_cache(tarball_response(Body::empty(), None));
     assert_eq!(
-        super::public_response(private).headers()[header::CACHE_CONTROL],
+        super::public_tarball_response(private).headers()[header::CACHE_CONTROL],
         "private, no-store",
     );
+}
+
+#[test]
+fn cdn_does_not_add_cache_permission_to_incomplete_json_records() {
+    use axum::{Json, http::header, response::IntoResponse};
+    let response =
+        Json(serde_json::json!({ "name": "widget", "version": "1.0.0" })).into_response();
+    let response = super::public_tarball_response(response);
+    assert!(!response.headers().contains_key(header::CACHE_CONTROL));
 }

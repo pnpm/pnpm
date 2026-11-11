@@ -337,7 +337,7 @@ use a new key namespace or purge its entries.
 
 For cache hits that do not contact the container, use the
 [CDN cache example](#cdn-cache-with-push-invalidation). It caches public npm
-metadata and package tarballs. Package changes purge the package tag; access-rule
+metadata and package tarballs. Hosted package changes purge the package tag; access-rule
 changes purge the deployment tag. Access revocation is eventually consistent.
 
 The [revalidating metadata cache example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)

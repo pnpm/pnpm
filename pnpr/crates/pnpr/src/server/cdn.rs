@@ -3,9 +3,17 @@ use pnpr_config::CloudflareCdnConfig;
 use pnpr_storage::{Storage, metadata::CdnInvalidation};
 use std::{sync::Arc, time::Duration};
 
-pub(super) fn public_response(mut response: axum::response::Response) -> axum::response::Response {
+pub(super) fn public_tarball_response(
+    mut response: axum::response::Response,
+) -> axum::response::Response {
     use axum::http::{HeaderValue, header};
-    if response.status().is_success() && !response.headers().contains_key(header::CACHE_CONTROL) {
+    if response.status().is_success()
+        && response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .is_some_and(|value| value == "application/octet-stream")
+        && !response.headers().contains_key(header::CACHE_CONTROL)
+    {
         response
             .headers_mut()
             .insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"));
