@@ -153,11 +153,14 @@ fn check_frozen_deploy(fixture: &WorkspaceFixture, deployed: &Path, expected_pee
     stale["dependencies"]["shared"] = json!("0.0.0");
     write_manifest_value(deployed, &stale);
     let rejected = fixture.command_at(deployed, ["install", "--frozen-lockfile"]);
-    assert!(!rejected.status.success(), "a changed manifest must not pass the frozen check");
     let output = format!(
         "{}{}",
         String::from_utf8_lossy(&rejected.stdout),
         String::from_utf8_lossy(&rejected.stderr),
+    );
+    assert!(
+        !rejected.status.success(),
+        "a changed manifest must not pass the frozen check: {output}",
     );
     assert!(output.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "{output}");
     assert_eq!(fs::read(deployed.join("pnpm-lock.yaml")).unwrap(), expected_lockfile);
