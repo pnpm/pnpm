@@ -25,7 +25,6 @@ registries:
       # The names this registry serves, plus their access rules.
       '@mycompany/*':
         access: $authenticated
-        publish: $authenticated
 
   npmjs:
     type: upstream
@@ -126,8 +125,8 @@ or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 A registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
 Each ecosystem is addressed through its own path prefix (`/npm/`, `/cargo/`,
-`/pypi/`, or `/oci/`), and registry names can be reused across ecosystems
-by grouping the entries under an ecosystem key. See
+`/pypi/`, or `/oci/`). Declare registries directly under `registries:` with
+unique names. See
 [Cargo and Python registries](ecosystems.md) and
 [Container images](container-images.md).
 
@@ -159,8 +158,9 @@ reordering the map (by a formatter, or a YAML round-trip) can never change
 which rule applies. A duplicate key is a config error.
 
 Each value can set `access`, `publish`, and `unpublish`. When a field is
-omitted, `access` falls back to the registry-level `access:` default, `publish`
-defaults to `$authenticated`, and `unpublish` defaults to nobody.
+omitted, `access` falls back to the registry-level `access:` default, and
+`unpublish` defaults to nobody. `publish` defaults to `$owners` on npm
+registries and to `$authenticated` on Cargo, PyPI, and OCI registries.
 Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
 not support package unpublishing.
 
@@ -172,12 +172,13 @@ them, and the grammar is deliberately small:
 | `$all` | Anyone, authenticated or not. |
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
+| `$owners` | The package's maintainers and the [`auth.admins`](#auth). The first publish of a new name makes the publisher its maintainer. Valid only in `publish` and `unpublish` lists of npm registries. |
 | `team:<id>` | The members of a [team](#teams) declared on this registry. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
 Tokens are validated at config load:
 
-- `$` is reserved for the three built-ins. Any other `$token` is an error.
+- `$` is reserved for the built-ins above. Any other `$token` is an error.
 - `all`, `authenticated`, `anonymous`, and `@`-prefixed spellings like `@all`
   are errors suggesting the `$` form.
 - `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
@@ -199,8 +200,7 @@ registries:
     access: $authenticated
     packages:
       '@mycompany/*':
-        publish: $authenticated
-        unpublish: $authenticated
+        unpublish: $owners
       # An explicit entry fully decides its names — this opens one
       # package on an otherwise-private registry.
       '@mycompany/open-sdk':
@@ -209,7 +209,7 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
+| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
@@ -833,7 +833,7 @@ artifacts:
 
   The CLI flag `--disable-artifacts` overrides this setting. With artifacts off,
   its routes are not mounted and the `GET /-/pnpr` handshake advertises an empty
-  artifact-version list. The handshake itself is served when any surface is
+  `protocols.artifacts.versions` list. The handshake itself is served when any surface is
   enabled, so an artifact-only tier is discoverable.
 
   `orgs` declares the organizations this server keeps build output for, and who

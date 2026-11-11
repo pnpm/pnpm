@@ -22,13 +22,13 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 /// The live blobs of a namespace nothing maps, with their rows. `?3` narrows
 /// them to a JSON array of identities, or is `NULL` for all of them.
-const UNMAPPED: &str = "SELECT b.integrity, b.incarnation, b.state, b.size FROM blobs b
+const UNMAPPED: &str = "SELECT b.blob_id, b.incarnation, b.state, b.size FROM blobs b
      WHERE b.catalog = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
-       AND (?3 IS NULL OR b.integrity IN (SELECT value FROM json_each(?3)))
+       AND (?3 IS NULL OR b.blob_id IN (SELECT value FROM json_each(?3)))
        AND NOT EXISTS (
            SELECT 1 FROM artifact_blobs a
            WHERE a.catalog = b.catalog AND a.ecosystem = b.ecosystem
-             AND a.integrity = b.integrity)";
+             AND a.blob_id = b.blob_id)";
 
 impl SqlMetadata {
     /// The rows of `ids` in `catalog`'s `ecosystem`, read from the primary.
@@ -45,9 +45,9 @@ impl SqlMetadata {
         self.read(catalog.clone(), Freshness::Current, move |connection, _| {
             let ids: Vec<&str> = ids.iter().map(BlobId::as_str).collect();
             let ids = json_array(&ids);
-            let sql = "SELECT integrity, incarnation, state, size FROM blobs
+            let sql = "SELECT blob_id, incarnation, state, size FROM blobs
                  WHERE catalog = ?1 AND ecosystem = ?2
-                   AND integrity IN (SELECT value FROM json_each(?3))";
+                   AND blob_id IN (SELECT value FROM json_each(?3))";
             rows_from(connection.query(sql, params![catalog, ecosystem.as_str(), ids])?)
         })
         .await
@@ -99,7 +99,7 @@ impl SqlMetadata {
             let transaction = WriteTransaction::begin(connection)?;
             let now = crate::publish::now_millis();
             let sql = "UPDATE blobs SET state = 'gone', changed_at = ?5
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND integrity = ?3 AND incarnation = ?4
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND blob_id = ?3 AND incarnation = ?4
                    AND state = 'reclaiming'";
             let ecosystem = ecosystem.as_str();
             for blob in &reclaimed {
@@ -124,7 +124,7 @@ impl SqlMetadata {
         let lease = i64::try_from(lease.as_millis()).unwrap_or(i64::MAX);
         self.read(catalog.clone(), Freshness::Current, move |connection, _| {
             let now = crate::publish::now_millis();
-            let sql = "SELECT integrity, incarnation, size FROM blobs
+            let sql = "SELECT blob_id, incarnation, size FROM blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND state = 'reclaiming'
                    AND changed_at <= ?4 - ?3";
             connection
@@ -184,7 +184,7 @@ fn mark(
     )?;
     let now = crate::publish::now_millis();
     let sql = "UPDATE blobs SET state = 'reclaiming', changed_at = ?5
-         WHERE catalog = ?1 AND ecosystem = ?2 AND integrity = ?3 AND incarnation = ?4";
+         WHERE catalog = ?1 AND ecosystem = ?2 AND blob_id = ?3 AND incarnation = ?4";
     let mut marked = Vec::with_capacity(rows.len());
     for (id, row) in rows {
         let incarnation = to_column(row.incarnation);
@@ -256,9 +256,9 @@ fn read_rows<'id>(
     let ids = json_array(&ids);
     let ecosystem = ecosystem.as_str();
     let read = Query::new(
-        "SELECT integrity, incarnation, state, size FROM blobs
+        "SELECT blob_id, incarnation, state, size FROM blobs
          WHERE catalog = ?1 AND ecosystem = ?2
-           AND integrity IN (SELECT value FROM json_each(?3))",
+           AND blob_id IN (SELECT value FROM json_each(?3))",
         params![catalog, ecosystem, ids],
     );
     rows_from(
@@ -278,9 +278,9 @@ fn write_gone(
 ) -> Result<()> {
     let now = crate::publish::now_millis();
     let sql =
-        "INSERT INTO blobs (catalog, ecosystem, integrity, incarnation, state, size, changed_at)
+        "INSERT INTO blobs (catalog, ecosystem, blob_id, incarnation, state, size, changed_at)
          VALUES (?1, ?2, ?3, ?4, 'gone', 0, ?5)
-         ON CONFLICT (catalog, ecosystem, integrity) DO UPDATE
+         ON CONFLICT (catalog, ecosystem, blob_id) DO UPDATE
          SET incarnation = excluded.incarnation, state = 'gone',
              changed_at = excluded.changed_at";
     let incarnation = to_column(blob.incarnation);

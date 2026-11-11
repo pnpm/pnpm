@@ -293,7 +293,7 @@ fn oci_document(name: &str, digests: &[&str], tags: &[(&str, &str)]) -> Value {
         .map(|(tag, digest)| json!({ "tag": tag, "digest": digest, "updated": 1 }))
         .collect();
     json!({
-        "formatVersion": 2,
+        "formatVersion": 1,
         "name": name,
         "manifests": manifests,
         "tags": tags,
@@ -781,7 +781,7 @@ async fn measure_outcome_sweep(
     let mut statements: Vec<_> = schema::statements(&tables).collect();
     statements.push(schema::MARKER_TABLE.to_string());
     statements.push(format!(
-        "INSERT INTO {} (version) VALUES ({})",
+        "INSERT INTO {} (version, applied_at) VALUES ({}, 1)",
         schema::MARKER,
         schema::SCHEMA_VERSION,
     ));

@@ -189,15 +189,20 @@ struct GitParsedParams {
     path: Option<String>,
 }
 
-/// Parse the `&`-separated committish parameters (`semver:`, `path:`,
-/// or a bare committish) carried in a git specifier's fragment.
+/// Parse the committish parameters (`semver:`, `path:`, or a bare
+/// committish) carried in a git specifier's fragment. They are separated
+/// by `&` or, as npm writes them, by `::`.
 fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
     let mut out = GitParsedParams::default();
     let Some(committish) = committish else { return out };
     if committish.is_empty() {
         return out;
     }
-    for param in committish.split('&') {
+    for param in committish
+        .split('&')
+        .flat_map(|part| part.split("::"))
+        .filter(|param| !param.is_empty())
+    {
         if let Some(range) = param.strip_prefix("semver:") {
             out.git_range = Some(range.to_string());
         } else if let Some(path) = param.strip_prefix("path:") {

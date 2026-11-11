@@ -318,8 +318,9 @@ impl Walker<'_> {
             self.final_record_dep_paths(final_dep_paths);
 
         let mut graph = DependenciesGraph::default();
-        let mut graph_order: HashMap<DepPath, u64> = HashMap::default();
-        for (node_id, record) in &self.output.node_records {
+        let mut records: Vec<_> = self.output.node_records.iter().collect();
+        records.sort_unstable_by_key(|(_, record)| record.order);
+        for (node_id, record) in records {
             let dep_path = record_dep_paths[node_id].clone();
             let depth = min_depth
                 .get(&dep_path)
@@ -327,13 +328,7 @@ impl Walker<'_> {
                 .unwrap_or(record.depth);
             let candidate =
                 self.graph_node_for_record(node_id, record, dep_path, depth, final_dep_paths);
-            insert_graph_node(
-                &mut graph,
-                &mut graph_order,
-                candidate,
-                record.order,
-                &transitive_peer_dependencies_by_dep_path,
-            );
+            insert_graph_node(&mut graph, candidate, &transitive_peer_dependencies_by_dep_path);
         }
         graph
     }

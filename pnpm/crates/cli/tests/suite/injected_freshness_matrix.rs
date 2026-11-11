@@ -529,3 +529,105 @@ fn a_workspace_version_that_is_not_semver_agrees_across_layouts() {
         assert!(scenario.frozen_install_passes(&[]), "shared lockfile: {shared_lockfile}");
     }
 }
+
+#[test]
+fn recorded_directory_specs_accept_deduplicated_optional_peer_also_in_dependencies() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("autoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: true\ndedupeInjectedDeps: false\n");
+    let dependency = "@pnpm.e2e/foo";
+    write_manifest_value(
+        &fixture.workspace,
+        &json!({
+            "name": "root",
+            "dependencies": { dependency: "100.0.0", "shared": "workspace:*" },
+            "dependenciesMeta": { "shared": { "injected": true } },
+        }),
+    );
+    let shared = fixture.project("shared", "shared", ManifestDeps::default());
+    write_manifest_value(
+        &shared,
+        &json!({
+            "name": "shared", "version": "1.0.0",
+            "dependencies": { dependency: "100.0.0" },
+            "peerDependencies": { dependency: "^100.0.0" },
+            "peerDependenciesMeta": { dependency: { "optional": true } },
+        }),
+    );
+    let app = fixture.project("app", "app", ManifestDeps::default());
+    write_manifest_value(
+        &app,
+        &json!({
+            "name": "app", "version": "1.0.0",
+            "dependencies": { "shared": "workspace:*" },
+            "dependenciesMeta": { "shared": { "injected": true } },
+        }),
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    let frozen =
+        fixture.command_at(&fixture.workspace, ["install", "--lockfile-only", "--frozen-lockfile"]);
+    assert!(
+        !frozen.status.success(),
+        "the legacy check cannot recover the children owner's peer split",
+    );
+    fixture.append_workspace_yaml("lockfile:\n  format: v13\n");
+    fixture.run(["install", "--lockfile-only", "--no-frozen-lockfile"]);
+    let frozen =
+        fixture.command_at(&fixture.workspace, ["install", "--lockfile-only", "--frozen-lockfile"]);
+    assert_success(&frozen);
+}
+
+#[test]
+fn required_catalog_child_cannot_use_an_excluded_optional_entry() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "lockfile:\n  format: v13\nautoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: false\ndedupeInjectedDeps: false\ncatalog:\n  '@pnpm.e2e/foo': '100.0.0'\n",
+    );
+    let dependency = "@pnpm.e2e/foo";
+    write_manifest_value(
+        &fixture.workspace,
+        &json!({
+            "name": "root",
+            "dependencies": { "shared": "workspace:*" },
+            "dependenciesMeta": { "shared": { "injected": true } },
+        }),
+    );
+    let shared = fixture.project("shared", "shared", ManifestDeps::default());
+    write_manifest_value(
+        &shared,
+        &json!({
+            "name": "shared", "version": "1.0.0",
+            "dependencies": { dependency: "catalog:" },
+            "peerDependencies": { dependency: "^100.0.0" },
+            "peerDependenciesMeta": { dependency: { "optional": true } },
+        }),
+    );
+    fixture.run(["install", "--lockfile-only", "--no-optional"]);
+    let path = fixture.workspace.join("pnpm-lock.yaml");
+    let text = fs::read_to_string(&path).unwrap();
+    let mut lockfile: Value = serde_saphyr::from_str(&text).unwrap();
+    let package = &mut lockfile["packages"]["shared@file:packages/shared"];
+    let reference = package["dependencies"]
+        .as_object_mut()
+        .unwrap()
+        .remove(dependency)
+        .unwrap();
+    package["optionalDependencies"] = json!({ dependency: reference });
+    fs::write(&path, serde_json::to_string_pretty(&lockfile).unwrap()).unwrap();
+
+    let frozen =
+        fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile", "--no-optional"]);
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&frozen.stdout),
+        String::from_utf8_lossy(&frozen.stderr),
+    );
+    assert!(!frozen.status.success() && output.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "{output}");
+    fixture.run(["install", "--no-frozen-lockfile", "--no-optional"]);
+    let installed = fs::canonicalize(fixture.workspace.join("node_modules/shared")).unwrap();
+    let child = installed
+        .parent()
+        .unwrap()
+        .join(dependency);
+    assert_eq!(read_manifest(&child)["version"], "100.0.0");
+    fixture.run(["install", "--frozen-lockfile", "--no-optional"]);
+}

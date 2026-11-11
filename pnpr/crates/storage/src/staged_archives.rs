@@ -8,13 +8,13 @@
 //! registry route: an archive becomes visible only when a commit copies it
 //! into its package, and only the principal that uploaded it can claim it.
 //!
-//! Each archive is stored under its principal and the hex SHA-512 digest of
-//! its bytes, as `<digest>.<incarnation>`, and the metadata database keeps
-//! its record (see [`crate::metadata::StagedRecord`]): when it was last
-//! uploaded, and whether its bytes are all there. An upload records its
-//! archive as incomplete before the bytes arrive, which reserves them against
-//! the principal's limits, and as complete once they are stored; only a
-//! complete archive counts as staged. An archive no commit claims expires
+//! Each archive is stored under its principal and the [`BlobId`] of its bytes,
+//! as `<blob_id>.<incarnation>`, and the metadata database keeps its record
+//! (see [`crate::metadata::StagedRecord`]): when it was last uploaded, and
+//! whether its bytes are all there. An upload records its archive as
+//! incomplete before the bytes arrive, which reserves them against the
+//! principal's limits, and as complete once they are stored; only a complete
+//! archive counts as staged. An archive no commit claims expires
 //! [`STAGED_ARCHIVE_MAX_AGE`] after its last upload, an upload that never
 //! completed after [`INCOMPLETE_MAX_AGE`], and a sweep removes both.
 //!
@@ -29,8 +29,10 @@
 mod operations;
 mod sweep;
 
-use super::{RegistryError, Result};
-use crate::metadata::{StagedEntry, StagedId, StagedRecord, StagedState};
+use crate::{
+    BlobId,
+    metadata::{StagedEntry, StagedId, StagedRecord, StagedState},
+};
 use std::time::Duration;
 
 /// Reserved namespace of the hosted store holding staged archives.
@@ -114,54 +116,26 @@ impl StagedArchiveUsage {
     }
 }
 
-/// One principal's staged archive: who uploaded it, and the hex SHA-512 of
-/// its bytes.
+/// One principal's staged archive: who uploaded it, and the identity of its
+/// bytes.
 #[derive(Debug, Clone, Copy)]
 pub struct StagedArchiveKey<'a> {
     /// The stable identity that uploaded the archive. Only the same
     /// principal can find it again.
     pub principal: &'a str,
-    /// The lowercase hex SHA-512 digest of the archive's bytes.
-    pub digest: &'a str,
+    /// The identity of the archive's bytes in the hosted store.
+    pub blob_id: &'a BlobId,
 }
 
 impl StagedArchiveKey<'_> {
-    fn id(&self) -> Result<StagedId> {
-        if !is_digest(self.digest) {
-            return Err(RegistryError::BadRequest {
-                reason: format!("invalid staged archive digest {:?}", self.digest),
-            });
-        }
-        Ok(StagedId { principal: self.principal.to_string(), digest: self.digest.to_string() })
+    fn id(&self) -> StagedId {
+        StagedId { principal: self.principal.to_string(), blob_id: self.blob_id.clone() }
     }
 
     /// The namespace holding every archive of this key's principal.
     fn namespace(&self) -> String {
         principal_namespace(self.principal)
     }
-}
-
-/// Whether `text` is a lowercase hex SHA-512 digest.
-fn is_digest(text: &str) -> bool {
-    text.len() == 128
-        && text
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
-
-/// The key the bytes of `digest` are stored under at `incarnation`.
-fn object(digest: &str, incarnation: u64) -> String {
-    format!("{digest}.{incarnation}")
-}
-
-/// The digest and incarnation `name` is the key of, `None` for a name that
-/// is no archive's key, which a sweep never touches.
-fn parse_object(name: &str) -> Option<(&str, u64)> {
-    let (digest, incarnation) = name.rsplit_once('.')?;
-    let canonical =
-        !incarnation.starts_with('0') && incarnation.bytes().all(|b| b.is_ascii_digit());
-    (is_digest(digest) && canonical).then_some(())?;
-    Some((digest, incarnation.parse().ok()?))
 }
 
 /// The namespace of `principal`'s archives. The principal is hashed, so any

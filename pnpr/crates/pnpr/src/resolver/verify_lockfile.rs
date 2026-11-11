@@ -35,7 +35,7 @@ pub(crate) async fn handle_verify_lockfile(
     };
 
     if request.trust_lockfile {
-        return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile);
+        return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile, &request);
     }
 
     let Some(config) = runtime.config_for(&request) else {
@@ -62,7 +62,9 @@ pub(crate) async fn handle_verify_lockfile(
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
-        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
+        Ok(_) => {
+            verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile, &request)
+        }
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
             ndjson_single_frame(&violations_frame(&violations))

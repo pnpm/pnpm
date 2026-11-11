@@ -24,6 +24,8 @@ pub(super) struct SnapshotWire {
     #[serde(default)]
     peer_dependencies: Option<HashMap<PkgName, PeerEntry>>,
     #[serde(default)]
+    unbound_peer_dependencies: Option<Vec<String>>,
+    #[serde(default)]
     optional: bool,
 }
 
@@ -36,6 +38,7 @@ impl From<SnapshotWire> for NextSnapshotEntry {
             optional_dependencies: wire.optional_dependencies,
             peer_dependencies: bindings.own,
             transitive_peer_dependencies: bindings.below,
+            unbound_peer_dependencies: wire.unbound_peer_dependencies,
             optional: wire.optional,
         }
     }
@@ -53,6 +56,8 @@ struct SnapshotWireRef<'a> {
     optional_dependencies: Option<SortedMap<'a, PkgName, NextRef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     peer_dependencies: Option<BTreeMap<String, BindingOut<'a>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unbound_peer_dependencies: &'a Option<Vec<String>>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     optional: bool,
 }
@@ -67,6 +72,7 @@ impl Serialize for NextSnapshotEntry {
                 self.peer_dependencies.as_ref(),
                 self.transitive_peer_dependencies.as_ref(),
             ),
+            unbound_peer_dependencies: &self.unbound_peer_dependencies,
             optional: self.optional,
         }
         .serialize(serializer)

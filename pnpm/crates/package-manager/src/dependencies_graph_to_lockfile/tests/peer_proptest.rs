@@ -5,15 +5,16 @@
 //! peer cycles.
 
 mod counterexamples;
+mod fixture;
 mod model;
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use model::{
-    IMPORTER_IDS, Outcome, Settings, StubResolver, Workspace, importer_dependencies, lockfile_of,
-    lockfile_with_settings, move_dependency, outcome_of,
+    IMPORTER_IDS, Outcome, Settings, StubResolver, Workspace, lockfile_of, lockfile_with_settings,
+    move_dependency, outcome_of,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use proptest::{prelude::*, test_runner::RngSeed};
 
@@ -30,24 +31,6 @@ enum Reuse<'a> {
     Install(&'a pnpm_lockfile::Lockfile),
     /// `pnpm dedupe`: keep the locked pins but re-walk every edge.
     Dedupe(&'a pnpm_lockfile::Lockfile),
-}
-
-fn manifests(workspace: &Workspace) -> Vec<(tempfile::TempDir, PackageManifest)> {
-    workspace.importers
-        .iter()
-        .map(|edges| {
-            let tmp = tempfile::tempdir().expect("tempdir");
-            let path = tmp.path().join("package.json");
-            let json = serde_json::json!({
-                "name": "importer",
-                "version": "0.0.0",
-                "dependencies": importer_dependencies(edges),
-            });
-            std::fs::write(&path, json.to_string()).expect("write package.json");
-            let manifest = PackageManifest::from_path(path).expect("parse package.json");
-            (tmp, manifest)
-        })
-        .collect()
 }
 
 fn importer_opts(id: &str, settings: Settings) -> ResolveImporterOptions {
@@ -135,14 +118,20 @@ fn resolve_with(
     settings: Settings,
     reuse: Reuse<'_>,
 ) -> Result<ResolveWorkspaceResult, String> {
-    let resolver: StubResolver = model::stub_resolver(workspace);
-    let manifests = manifests(workspace);
+    let fixture = fixture::Fixture::new(workspace, settings);
+    let resolver: StubResolver = model::stub_resolver(workspace, &fixture);
     let importers: Vec<WorkspaceImporter<'_>> = order
         .iter()
         .map(|&index| WorkspaceImporter {
             id: IMPORTER_IDS[index].to_string(),
-            manifest: &manifests[index].1,
+            manifest: &fixture.manifests[index].1,
         })
+        .chain(
+            fixture.manifests
+                .iter()
+                .skip(workspace.importers.len())
+                .map(|(id, manifest)| WorkspaceImporter { id: id.clone(), manifest }),
+        )
         .collect();
     let runtime = tokio::runtime::Builder::new_current_thread().build().expect("build runtime");
     runtime
@@ -150,8 +139,8 @@ fn resolve_with(
             &resolver,
             &importers,
             &[DependencyGroup::Prod],
-            workspace_opts(settings, reuse),
-            |importer| importer_opts(&importer.id, settings),
+            fixture.workspace_opts(settings, reuse),
+            |importer| fixture.importer_opts(&importer.id, settings),
         ))
         .map_err(|error| format!("{error:?}"))
 }
@@ -185,6 +174,27 @@ fn config() -> ProptestConfig {
 
 proptest! {
     #![proptest_config(config())]
+
+    #[test]
+    fn frozen_check_accepts_writer_output_with_recorded_directory_specs(
+        workspace in model::workspace(),
+        settings in model::settings(),
+    ) {
+        let settings = if settings.injected {
+            Settings { format: pnpm_lockfile::LockfileFormat::V13, ..settings }
+        } else {
+            settings
+        };
+        let result = resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh)
+            .expect("generated workspace resolves");
+        let lockfile = lockfile_with_settings(&result, &workspace, settings);
+        let fixture = fixture::Fixture::new(&workspace, settings);
+        prop_assert_eq!(fixture.frozen_check(&lockfile, settings), Ok(()));
+        let mut stale = lockfile;
+        stale.importers.get_mut(".").unwrap().dependencies.as_mut().unwrap()
+            .values_mut().next().unwrap().specifier = "not-the-manifest-specifier".to_string();
+        prop_assert!(fixture.frozen_check(&stale, settings).is_err());
+    }
 
     /// Installing over the lockfile a fresh resolution wrote changes nothing.
     #[test]

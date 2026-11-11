@@ -1,6 +1,6 @@
 use super::{
-    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist,
-    is_preferred_ident, percent_encode_path,
+    HoistError, HoistOpts, HoisterDependencyKind, HoisterResult, HoisterTree, RcByPtr,
+    build_hoist_ident_map, hoist, is_preferred_ident, nm_hoist, percent_encode_path,
 };
 use indexmap::IndexSet;
 use pnpm_lockfile::{
@@ -106,6 +106,69 @@ fn result_node(
         ),
         hoisted_dependencies: RefCell::new(std::collections::HashMap::new()),
         decoupled: std::cell::Cell::new(false),
+    })
+}
+
+/// Construct a [`HoisterTree`] node directly, for feeding [`nm_hoist`] an
+/// input the lockfile converter does not produce: nodes that share a
+/// `reference` while carrying `peer_names`, the shape the TypeScript
+/// wrapper's `depPathByPkgId` gives every peer variant.
+fn tree_node(
+    name: &str,
+    reference: &str,
+    peer_names: &[&str],
+    dependencies: Vec<Rc<HoisterTree>>,
+) -> Rc<HoisterTree> {
+    Rc::new(HoisterTree {
+        name: name.to_string(),
+        ident_name: name.to_string(),
+        reference: reference.to_string(),
+        peer_names: peer_names
+            .iter()
+            .map(|&peer| peer.to_string())
+            .collect(),
+        dependency_kind: HoisterDependencyKind::Regular,
+        hoist_priority: 0,
+        dependencies: RefCell::new(
+            dependencies
+                .into_iter()
+                .map(RcByPtr)
+                .collect::<IndexSet<_>>(),
+        ),
+    })
+}
+
+/// The child of `parent` named `name`; panics listing the children it has.
+fn child_of(parent: &HoisterResult, name: &str) -> Rc<HoisterResult> {
+    let children = parent.dependencies.borrow();
+    let child = children
+        .iter()
+        .find(|dep| dep.0.name == name)
+        .unwrap_or_else(|| {
+            let names: Vec<&str> = children
+                .iter()
+                .map(|dep| dep.0.name.as_str())
+                .collect();
+            panic!("{} has no child {name}, only {names:?}", parent.name)
+        });
+    Rc::clone(&child.0)
+}
+
+/// The `.` root [`hoist`] builds, over hand-made [`tree_node`] children.
+fn tree_root(dependencies: Vec<Rc<HoisterTree>>) -> Rc<HoisterTree> {
+    Rc::new(HoisterTree {
+        name: ".".to_string(),
+        ident_name: ".".to_string(),
+        reference: String::new(),
+        peer_names: BTreeSet::new(),
+        dependency_kind: HoisterDependencyKind::Workspace,
+        hoist_priority: 0,
+        dependencies: RefCell::new(
+            dependencies
+                .into_iter()
+                .map(RcByPtr)
+                .collect::<IndexSet<_>>(),
+        ),
     })
 }
 

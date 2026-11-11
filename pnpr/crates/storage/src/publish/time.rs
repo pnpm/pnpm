@@ -15,9 +15,9 @@ pub(crate) fn now_millis() -> i64 {
 
 /// Format a unix-millis timestamp as an ISO-8601 / RFC-3339 string
 /// with millisecond precision. The token-listing endpoint surfaces
-/// `TokenRecord::created_at` (seconds since epoch) through this same
-/// helper so both `time.modified` on packuments and `created` on
-/// tokens render with identical shape.
+/// `TokenRecord::created_at` through this same helper so both
+/// `time.modified` on packuments and `created` on tokens render with
+/// identical shape.
 #[must_use]
 pub fn iso_from_unix_millis(millis: i64) -> String {
     // Civil-time conversion without pulling in `chrono`.

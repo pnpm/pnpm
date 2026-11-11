@@ -31,8 +31,6 @@ use pnpr_upstream::{
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
-const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
-const PROJECT_TRANSFORMS_VERSION: &str = "1";
 
 /// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
@@ -225,17 +223,15 @@ fn pnpr_served_revision(
 /// writes the lockfile and fetches every tarball itself.
 pub(super) fn done_frame(
     lockfile: &Lockfile,
-    applied_policies: Option<&super::protocol::AppliedPolicies>,
+    applied_policies: &super::protocol::AppliedPolicies,
 ) -> Vec<u8> {
     let total_packages = lockfile.packages.as_ref().map_or(0, std::collections::HashMap::len);
-    let mut frame = serde_json::json!({
+    let frame = serde_json::json!({
         "type": "done",
+        "appliedPolicies": applied_policies,
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
-    if let Some(applied) = applied_policies {
-        frame["appliedPolicies"] = serde_json::to_value(applied).unwrap_or_default();
-    }
     ndjson_line(&frame)
         .unwrap_or_else(|_| {
             br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
@@ -294,8 +290,9 @@ pub(super) fn violations_frame(violations: &[serde_json::Value]) -> Vec<u8> {
         .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
 }
 
-fn verify_done_frame() -> Vec<u8> {
-    ndjson_line(&serde_json::json!({ "type": "done" }))
+fn verify_done_frame(request: &super::protocol::ResolveRequest) -> Vec<u8> {
+    let applied = super::protocol::AppliedPolicies::from_request(request);
+    ndjson_line(&serde_json::json!({ "type": "done", "appliedPolicies": applied }))
         .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
 }
 
@@ -304,13 +301,14 @@ const OSV_VULNERABILITY_CODE: &str = "ERR_PNPM_OSV_VULNERABILITY";
 pub(super) fn verify_done_or_osv_violations(
     osv_index: Option<&Arc<OsvIndex>>,
     lockfile: &Lockfile,
+    request: &super::protocol::ResolveRequest,
 ) -> Response {
     let Some(osv_index) = osv_index else {
-        return ndjson_single_frame(&verify_done_frame());
+        return ndjson_single_frame(&verify_done_frame(request));
     };
     let violations = osv_violations_for_lockfile(osv_index, lockfile);
     if violations.is_empty() {
-        ndjson_single_frame(&verify_done_frame())
+        ndjson_single_frame(&verify_done_frame(request))
     } else {
         ndjson_single_frame(&violations_frame(&violations))
     }
@@ -463,7 +461,6 @@ pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frame.to_vec()))
         .expect("binary response is always valid")
 }
@@ -475,7 +472,6 @@ pub(super) fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from(frames.concat()))
         .expect("binary response is always valid")
 }
@@ -493,7 +489,6 @@ pub(super) fn ndjson_stream_response(
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from_stream(stream))
         .expect("streaming response is always valid")
 }

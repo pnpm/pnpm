@@ -5,7 +5,7 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::{ORDINARY, PackumentRows, TIME},
+    packument::{PackumentRows, TIME},
     to_column,
 };
 use crate::{
@@ -110,7 +110,7 @@ pub(super) fn change_tag(
     let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
     let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
     let mut results = results.into_iter();
-    let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
+    let Some(package) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
@@ -141,21 +141,18 @@ fn tag_target_query<'query>(
     match change.target.as_deref() {
         Some(target) => query!(
             "SELECT version FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4
-               AND version = ?5 LIMIT 1",
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4 LIMIT 1",
             catalog,
             ecosystem,
             name,
-            ORDINARY,
             target,
         ),
         None => query!(
             "SELECT version FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4 LIMIT 1",
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 LIMIT 1",
             catalog,
             ecosystem,
             name,
-            ORDINARY,
         ),
     }
 }
@@ -193,7 +190,7 @@ fn move_tag(
         principal: change.principal.as_deref(),
     };
     record_tag_move(commit, &tag_move)?;
-    commit.write_state(&stamp_modified(&package.state)?)?;
+    commit.write_state(package.state_version, &stamp_modified(&package.state)?)?;
     Ok(true)
 }
 

@@ -1,91 +1,198 @@
 use super::{Db, npm, packument, storage};
-use crate::{DocumentWrite, RegistryRecord, SCIM_DIRECTORY};
-use serde_json::json;
+use crate::{
+    DocumentWrite,
+    metadata::{
+        NewScimUser, RuleOverridesWrite, ScimUserRemoval, ScimUserWrite, StoredPackageOverride,
+        StoredRuleOverrides, StoredTeam, TeamRosterWrite,
+    },
+};
+use serde_json::{Map, json};
+use std::collections::{BTreeMap, BTreeSet};
 
 async fn record_keys_preserve_case(db: Db) {
     let storage = storage(&db);
-    let kind = RegistryRecord::TeamRoster;
-    for key in ["example", "Example"] {
-        assert!(storage.create_registry_record(kind, key, key.as_bytes()).await.unwrap());
+    for key in ["npm/example", "npm/Example"] {
+        let team = StoredTeam {
+            id: format!("id-{key}"),
+            name: key.replace('/', "-"),
+            members: BTreeSet::new(),
+        };
+        storage
+            .replace_team_roster(key, &[team])
+            .await
+            .unwrap();
     }
-    for key in ["example", "Example"] {
-        assert_eq!(
-            storage
-                .read_registry_record(kind, key)
-                .await
-                .unwrap()
-                .unwrap()
-                .bytes,
-            key.as_bytes(),
-        );
+    for key in ["npm/example", "npm/Example"] {
+        let roster = storage
+            .read_team_roster(key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(roster.teams.len(), 1);
+        assert_eq!(roster.teams[0].id, format!("id-{key}"));
     }
 }
 
-async fn registry_records_use_current_generations(db: Db) {
+async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
     let first = storage(&db);
     let second = storage(&db);
-    for kind in
-        [RegistryRecord::TeamRoster, RegistryRecord::RuleOverrides, RegistryRecord::ScimUsers]
-    {
-        let key = SCIM_DIRECTORY;
-        assert!(first.create_registry_record(kind, key, b"initial").await.unwrap());
-        assert!(!second.create_registry_record(kind, key, b"duplicate").await.unwrap());
-        let original = second
-            .read_registry_record(kind, key)
+    let mut attrs = Map::new();
+    attrs.insert("displayName".to_string(), json!("Alice"));
+    let created = first
+        .insert_scim_user(NewScimUser {
+            user_id: "u-alice".to_string(),
+            active: true,
+            attributes: attrs.clone(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(created.deprovisions, 0);
+    assert!(
+        second
+            .insert_scim_user(NewScimUser {
+                user_id: "u-alice".to_string(),
+                active: true,
+                attributes: Map::new(),
+            })
             .await
             .unwrap()
-            .unwrap();
-        assert_eq!(original.bytes, b"initial");
-        let left = first.replace_registry_record_if_current(kind, key, &original, b"left");
-        let right = second.replace_registry_record_if_current(kind, key, &original, b"right");
-        let (left, right) = tokio::join!(left, right);
-        assert_ne!(left.unwrap().is_some(), right.unwrap().is_some());
-        let current = first
-            .read_registry_record(kind, key)
+            .is_none(),
+    );
+
+    let initial_delta = second.read_scim_statuses_since(0).await.unwrap();
+    assert_eq!(initial_delta.len(), 1);
+    assert!(
+        second
+            .read_scim_statuses_since(created.generation)
             .await
             .unwrap()
-            .unwrap();
-        assert!(current.generation > original.generation);
-        let restored = second
-            .replace_registry_record_if_current(kind, key, &current, b"initial")
+            .is_empty(),
+    );
+
+    let ScimUserWrite::Written(deactivated) = first
+        .replace_scim_user(
+            Some(created.generation),
+            NewScimUser { user_id: "u-alice".to_string(), active: false, attributes: attrs },
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected write to succeed");
+    };
+    assert_eq!(deactivated.deprovisions, 1);
+    assert_eq!(
+        second
+            .replace_scim_user(
+                Some(created.generation),
+                NewScimUser {
+                    user_id: "u-alice".to_string(),
+                    active: true,
+                    attributes: Map::new(),
+                },
+            )
+            .await
+            .unwrap(),
+        ScimUserWrite::Conflict,
+    );
+
+    let delta = second.read_scim_statuses_since(created.generation).await.unwrap();
+    assert_eq!(delta.len(), 1);
+    assert_eq!(delta[0].deprovisions, 1);
+    assert!(!delta[0].active);
+
+    let ScimUserRemoval::Removed(removed) = second.remove_scim_user("u-alice").await.unwrap()
+    else {
+        panic!("expected removal");
+    };
+    assert!(!removed.active);
+    assert!(
+        first
+            .read_scim_user("u-alice")
             .await
             .unwrap()
-            .unwrap();
-        assert!(
-            first
-                .replace_registry_record_if_current(kind, key, &original, b"stale")
-                .await
-                .unwrap()
-                .is_none(),
-        );
-        assert!(second.remove_registry_record(kind, key).await.unwrap());
-        assert!(first.create_registry_record(kind, key, b"initial").await.unwrap());
-        assert!(
-            second
-                .replace_registry_record_if_current(kind, key, &restored, b"stale")
-                .await
-                .unwrap()
-                .is_none(),
-        );
-        assert_eq!(
-            second
-                .read_registry_record(kind, key)
-                .await
-                .unwrap()
-                .unwrap()
-                .bytes,
-            b"initial",
-        );
-    }
-    for namespace in [".team-rosters", ".rule-overrides", ".scim-users"] {
-        assert!(
-            !db.tmp
-                .path()
-                .join("storage")
-                .join(namespace)
-                .exists(),
-        );
-    }
+            .is_none(),
+    );
+    assert!(
+        first
+            .list_active_scim_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+async fn team_rosters_and_rule_overrides_use_current_generations(db: Db) {
+    let first = storage(&db);
+    let second = storage(&db);
+    let seed = [StoredTeam {
+        id: "t-seed".to_string(),
+        name: "readers".to_string(),
+        members: BTreeSet::from(["u-1".to_string()]),
+    }];
+    let TeamRosterWrite::Written(created) =
+        first.create_team_in_roster("npm/local", &seed, "t-devs", "devs").await.unwrap()
+    else {
+        panic!("expected team creation");
+    };
+    assert_eq!(created.teams.len(), 2);
+    assert_eq!(
+        second.create_team_in_roster("npm/local", &seed, "t-dup", "devs").await.unwrap(),
+        TeamRosterWrite::Conflict,
+    );
+    let TeamRosterWrite::Written(with_member) =
+        second.add_member_to_team("npm/local", &seed, "devs", "u-2").await.unwrap()
+    else {
+        panic!("expected member add");
+    };
+    assert!(with_member.generation > created.generation);
+
+    let mut packages = BTreeMap::new();
+    packages.insert(
+        "@acme/*".to_string(),
+        StoredPackageOverride {
+            access: Some(vec!["team:t-devs".to_string()]),
+            ..Default::default()
+        },
+    );
+    let overrides = StoredRuleOverrides { access: Some(vec!["$all".to_string()]), packages };
+    let RuleOverridesWrite::Written(Some(gen1)) = first
+        .replace_rule_overrides("npm/local", Some(None), &overrides)
+        .await
+        .unwrap()
+    else {
+        panic!("expected initial override write");
+    };
+    assert_eq!(
+        second
+            .replace_rule_overrides("npm/local", Some(None), &overrides)
+            .await
+            .unwrap(),
+        RuleOverridesWrite::Conflict,
+    );
+    assert_eq!(
+        second
+            .read_rule_overrides("npm/local")
+            .await
+            .unwrap()
+            .unwrap()
+            .overrides,
+        overrides,
+    );
+    assert_eq!(
+        second
+            .replace_rule_overrides("npm/local", Some(Some(gen1)), &StoredRuleOverrides::default())
+            .await
+            .unwrap(),
+        RuleOverridesWrite::Written(None),
+    );
+    assert!(
+        first
+            .read_rule_overrides("npm/local")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 async fn staged_records_keep_only_bodies_in_the_object_store(db: Db) {
@@ -322,7 +429,8 @@ async fn unpublish_rolls_back_ownership_and_version_bans_together(db: Db) {
 
 conformance!(
     record_keys_preserve_case,
-    registry_records_use_current_generations,
+    scim_users_track_incremental_generations_and_deprovisions,
+    team_rosters_and_rule_overrides_use_current_generations,
     staged_records_keep_only_bodies_in_the_object_store,
     unpublish_rolls_back_ownership_and_version_bans_together,
 );

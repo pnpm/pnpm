@@ -159,7 +159,7 @@ describe('install remote side-effects', () => {
       expect(requestedPaths).toEqual([
         '/-/pnpr',
         '/-/pnpr/v0/artifacts/resolve',
-        '/-/pnpr/v0/artifacts/blob',
+        `${BLOB_PATH_PREFIX}acme/${encodeURIComponent(builtFileIntegrity)}`,
       ])
 
       // Content the store already holds is the same content, addressed by the
@@ -197,7 +197,7 @@ describe('install remote side-effects', () => {
       expect(reusedFiles.sideEffectsMaps?.get(reusedKey!)?.added?.get('build/addon.node'))
         .toBe(alreadyStoredFile)
       expect(storedFiles).toEqual([])
-      expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
+      expect(requestedPaths.some(isBlobPath)).toBe(false)
 
       requestedPaths.length = 0
       const persistedFiles: PackageFilesResponse = {
@@ -423,7 +423,7 @@ describe('install remote side-effects', () => {
           filesIndexFile: 'late-corrupt-row',
         },
       ])
-      expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
+      expect(requestedPaths.some(isBlobPath)).toBe(false)
 
       requestedPaths.length = 0
       const quarantinedRestorer = createRemoteSideEffectsRestorer({
@@ -451,7 +451,7 @@ describe('install remote side-effects', () => {
         resolution: { integrity: sourceIntegrity } as LockfileResolution,
         version: packageVersion,
       })).resolves.toBeUndefined()
-      expect(requestedPaths).not.toContain('/-/pnpr/v0/artifacts/blob')
+      expect(requestedPaths.some(isBlobPath)).toBe(false)
 
       let releaseQuarantineImport!: () => void
       const waitForQuarantineImport = new Promise<void>((resolve) => {
@@ -589,7 +589,7 @@ describe('install remote side-effects', () => {
         deleted: [],
         symlinks: new Map([[linkPath, 'addon.node']]),
       })
-      expect(requestedPaths.filter((requested) => requested === '/-/pnpr/v0/artifacts/blob')).toHaveLength(2)
+      expect(requestedPaths.filter(isBlobPath)).toHaveLength(2)
       expect(persisted).toHaveLength(1)
 
       // The persisted diff is reverified offline with the link accounted for.
@@ -783,9 +783,19 @@ function createBufferingServer (handle: (bufferedRequest: BufferedRequest) => vo
   })
 }
 
+const BLOB_PATH_PREFIX = '/-/pnpr/v0/artifacts/blobs/'
+
+function isBlobPath (path: string): boolean {
+  return path.startsWith(BLOB_PATH_PREFIX)
+}
+
+function blobIntegrity (path: string): string {
+  return decodeURIComponent(path.slice(path.lastIndexOf('/') + 1))
+}
+
 function respondWithArtifactCapabilities (response: ServerResponse): void {
   response.writeHead(200, { 'content-type': 'application/json' })
-    .end(JSON.stringify({ pnpr: { versions: [0], artifacts: [0] } }))
+    .end(JSON.stringify({ pnpr: { protocols: { artifacts: { versions: [0] } } } }))
 }
 
 function createHydrationServer (state: HydrationServerState, signing: ArtifactSigning): Server {
@@ -800,7 +810,7 @@ function createHydrationServer (state: HydrationServerState, signing: ArtifactSi
       respondWithHydrationArtifacts({ state, signing, envelopesByKey }, { request, body, response })
       return
     }
-    if (request.url === '/-/pnpr/v0/artifacts/blob') {
+    if (isBlobPath(request.url ?? '')) {
       response.writeHead(200, { 'content-type': 'application/octet-stream' })
         .end(state.corruptBlob ? Buffer.from('corrupt') : builtFile)
       return
@@ -889,7 +899,6 @@ function createSymlinkArtifactServer (requestedPaths: string[], signing: Artifac
     requestedPaths.push(request.url ?? '')
     const body = JSON.parse(rawBody.toString('utf8') || '{}') as {
       candidates?: DependencySideEffectsCandidate[]
-      integrity?: string
     }
     if (request.url === '/-/pnpr') {
       respondWithArtifactCapabilities(response)
@@ -900,7 +909,7 @@ function createSymlinkArtifactServer (requestedPaths: string[], signing: Artifac
       response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ artifacts }))
       return
     }
-    const blob = request.url === '/-/pnpr/v0/artifacts/blob' ? blobs.get(body.integrity ?? '') : undefined
+    const blob = isBlobPath(request.url ?? '') ? blobs.get(blobIntegrity(request.url!)) : undefined
     if (blob == null) {
       response.writeHead(404).end()
       return

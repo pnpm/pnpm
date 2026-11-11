@@ -1,8 +1,12 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig,
-    RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig, Storage,
+    atomic_write::create_tmp_file_with, fs,
 };
-use crate::archives::testing::{served, store_file};
+use crate::{
+    archives::testing::{served, store_file},
+    metadata::{RuleOverridesWrite, StoredRuleOverrides, StoredTeam},
+};
+use std::collections::BTreeSet;
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
@@ -498,69 +502,56 @@ async fn grouped_registries_with_same_local_name_keep_records_isolated() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    let npm_record = b"npm-team-roster";
-    let pypi_record = b"pypi-team-roster";
+    let npm_teams = [StoredTeam {
+        id: "t-npm".to_string(),
+        name: "npm-team".to_string(),
+        members: BTreeSet::new(),
+    }];
+    let pypi_teams = [StoredTeam {
+        id: "t-pypi".to_string(),
+        name: "pypi-team".to_string(),
+        members: BTreeSet::new(),
+    }];
 
-    assert!(
-        storage
-            .create_registry_record(RegistryRecord::TeamRoster, "npm/shared", npm_record)
-            .await
-            .unwrap(),
-    );
-    assert!(
-        storage
-            .create_registry_record(RegistryRecord::TeamRoster, "pypi/shared", pypi_record)
-            .await
-            .unwrap(),
-    );
+    storage.replace_team_roster("npm/shared", &npm_teams).await.unwrap();
+    storage.replace_team_roster("pypi/shared", &pypi_teams).await.unwrap();
 
     assert_eq!(
         storage
-            .read_registry_record(RegistryRecord::TeamRoster, "npm/shared")
+            .read_team_roster("npm/shared")
             .await
             .unwrap()
             .unwrap()
-            .bytes,
-        npm_record.to_vec(),
+            .teams,
+        npm_teams,
     );
     assert_eq!(
         storage
-            .read_registry_record(RegistryRecord::TeamRoster, "pypi/shared")
+            .read_team_roster("pypi/shared")
             .await
             .unwrap()
             .unwrap()
-            .bytes,
-        pypi_record.to_vec(),
+            .teams,
+        pypi_teams,
     );
-    assert!(
-        storage.remove_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-    );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        None,
-    );
+    assert!(storage.remove_team_roster("npm/shared").await.unwrap());
+    assert_eq!(storage.read_team_roster("npm/shared").await.unwrap(), None);
 }
 
 #[tokio::test]
-async fn replace_registry_record_returns_conflict_if_record_is_absent() {
+async fn replace_rule_overrides_returns_conflict_if_record_is_absent() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
+    let overrides =
+        StoredRuleOverrides { access: Some(vec!["$all".to_string()]), ..Default::default() };
     let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            &super::MetadataRecord { bytes: b"expected-val".to_vec(), generation: 1 },
-            b"new-val",
-        )
+        .replace_rule_overrides("npm/shared", Some(Some(1)), &overrides)
         .await
         .unwrap();
-    assert!(write_result.is_none());
+    assert_eq!(write_result, RuleOverridesWrite::Conflict);
 
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        None,
-    );
+    assert_eq!(storage.read_rule_overrides("npm/shared").await.unwrap(), None);
 }
 
 #[test]
@@ -577,15 +568,27 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
     let max_len_repo = ["a"; 128].join("/");
     assert_eq!(max_len_repo.len(), 255);
     let repos = ["acme", "acme/blobs", "acme/app", "acme/app/tool", max_len_repo.as_str()];
+    let digest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
+    let make_doc = |repo: &str| {
+        serde_json::to_vec(&serde_json::json!({
+            "formatVersion": 1,
+            "name": repo,
+            "manifests": [{
+                "digest": digest,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "size": 1,
+            }],
+            "tags": [],
+        }))
+        .unwrap()
+    };
 
     for repo in repos {
         let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
-        let doc = format!(r#"{{"repository":"{repo}"}}"#);
+        let doc = make_doc(repo);
         assert_eq!(
-            storage
-                .write_hosted_document_if_current(&name, doc.as_bytes(), None, None)
-                .await
-                .unwrap(),
+            storage.write_hosted_document_if_current(&name, &doc, None, None).await.unwrap(),
             DocumentWrite::Written,
         );
         store_file(&storage, &name, "sha256-deadbeef", repo.as_bytes()).await;
@@ -593,14 +596,14 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
 
     for repo in repos {
         let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
-        let expected_doc = format!(r#"{{"repository":"{repo}"}}"#);
+        let expected_doc = make_doc(repo);
         assert_eq!(
             storage
                 .read_hosted_document(&name)
                 .await
                 .unwrap()
                 .as_deref(),
-            Some(expected_doc.as_bytes()),
+            Some(expected_doc.as_slice()),
         );
     }
 

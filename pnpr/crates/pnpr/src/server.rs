@@ -19,9 +19,9 @@ use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;
 use pnpr_protocol::{
-    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_pnpr_handshake,
-    serve_publish_artifact, serve_resolve, serve_resolve_artifacts, serve_upload_artifact_blob,
-    serve_verify_lockfile,
+    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_npm_handshake,
+    serve_pnpr_handshake, serve_publish_artifact, serve_resolve, serve_resolve_artifacts,
+    serve_upload_artifact_blob, serve_verify_lockfile,
 };
 
 mod pipeline_runs;
@@ -154,7 +154,10 @@ mod web_ui;
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
+    authentication::{
+        Action, AuthedCaller, authenticate, authorize, authorize_against_packument,
+        authorize_package,
+    },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
@@ -244,7 +247,6 @@ const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
 /// A pipeline run record is a summary plus a bounded event stream; well
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.

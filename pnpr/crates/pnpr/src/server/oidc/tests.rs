@@ -63,7 +63,10 @@ fn workload_credentials_only_permit_named_package_publication() {
         "/-/user/org.couchdb.user:ci",
         "/-/npm/v1/tokens",
         "/npm/~other/-/pnpr/v0/publish",
-        "/npm/~other/-/pnpr/v0/artifacts/blob",
+        "/npm/~other/-/pnpr/v0/publish/archives/sha512-x",
+        "/-/pnpr/v0/publish/archives/",
+        "/-/pnpr/v0/publish/archives",
+        "/npm/~private/-/pnpr/v0/artifacts/blobs/acme/sha512-x",
         "/-/pnpr/v0/publish/extra",
         "/v2/token",
         "/npm/~private/@org%252fpkg",
@@ -89,7 +92,7 @@ fn workload_credentials_permit_staging_and_publish_commits() {
     let workload = &config.identity.auth.oidc[0].workloads[0];
     for base in ["", "/npm", "/npm/~private"] {
         for method in [Method::PUT, Method::HEAD] {
-            let path = format!("{base}/-/pnpr/v0/artifacts/blob");
+            let path = format!("{base}/-/pnpr/v0/publish/archives/sha512-a%2Fb%3D%3D");
             check_workload_request(workload, &method, &path).unwrap();
         }
         let path = format!("{base}/-/pnpr/v0/publish");
@@ -187,10 +190,8 @@ async fn archives_are_staged_under_a_registry_address() {
         "sha512-{}",
         base64::engine::general_purpose::STANDARD.encode(sha2::Sha512::digest(&bytes)),
     );
-    let query = url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("integrity", &integrity)
-        .finish();
-    let path = format!("/npm/~private/-/pnpr/v0/artifacts/blob?{query}");
+    let archive = archive_segment(&integrity);
+    let path = format!("/npm/~private/-/pnpr/v0/publish/archives/{archive}");
     let put = Request::put(&path)
         .header(header::AUTHORIZATION, "Bearer tok")
         .header(header::CONTENT_LENGTH, bytes.len())
@@ -204,7 +205,7 @@ async fn archives_are_staged_under_a_registry_address() {
             .status(),
         StatusCode::CREATED,
     );
-    let head = Request::head(format!("/npm/-/pnpr/v0/artifacts/blob?{query}"))
+    let head = Request::head(format!("/npm/-/pnpr/v0/publish/archives/{archive}"))
         .header(header::AUTHORIZATION, "Bearer tok")
         .body(Body::empty())
         .unwrap();
@@ -322,4 +323,9 @@ async fn a_ui_sign_in_hands_the_token_only_to_the_browser_and_flow_that_signed_i
     assert_eq!(token(redeemed).await, "pnpr_oidc_first");
     assert_eq!(redeem(&oidc, "flow-a", &both).status(), StatusCode::UNAUTHORIZED);
     assert_eq!(token(redeem(&oidc, "flow-b", &both)).await, "pnpr_oidc_second");
+}
+
+/// `integrity` as one path segment.
+fn archive_segment(integrity: &str) -> String {
+    url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect()
 }

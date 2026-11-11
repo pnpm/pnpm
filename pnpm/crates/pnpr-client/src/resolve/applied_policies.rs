@@ -17,15 +17,19 @@ pub struct AppliedPolicies {
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
     pub add_missing_peer_types: bool,
-    /// Absent from a server that predates the setting.
-    #[serde(default)]
     pub project_scoped_optional_peers: bool,
     pub frozen_lockfile: bool,
     pub resolution_mode: String,
-    #[serde(default)]
+    pub trust_lockfile: bool,
+    #[serde(deserialize_with = "Option::deserialize")]
     pub minimum_release_age: Option<u64>,
-    #[serde(default)]
+    pub minimum_release_age_exclude: Vec<String>,
+    pub minimum_release_age_ignore_missing_time: bool,
+    #[serde(deserialize_with = "Option::deserialize")]
     pub trust_policy: Option<String>,
+    pub trust_policy_exclude: Vec<String>,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub trust_policy_ignore_after: Option<u64>,
 }
 
 pub(super) fn assert_applied_policies(
@@ -33,32 +37,49 @@ pub(super) fn assert_applied_policies(
     opts: &ResolveProjectsOptions,
 ) -> Result<(), PnprClientError> {
     let Some(applied) = applied else {
-        return Ok(());
+        return Err(PnprClientError::Protocol("pnpr server omitted appliedPolicies".to_string()));
     };
-    assert_verification_policies(applied, opts)?;
+    assert_verification_policies(applied, &opts.verification, opts.reuse.trust_lockfile)?;
     assert_resolution_settings(applied, opts)?;
     assert_reuse_policies(applied, opts)?;
     Ok(())
 }
 
-fn assert_verification_policies(
+pub(crate) fn assert_verification_policies(
     applied: &AppliedPolicies,
-    opts: &ResolveProjectsOptions,
+    policy: &crate::VerificationPolicy,
+    trust_lockfile: bool,
 ) -> Result<(), PnprClientError> {
-    if opts.verification.trust_policy == pnpm_config::TrustPolicy::NoDowngrade
-        && applied.trust_policy.as_deref() != Some("no-downgrade")
-    {
-        return Err(PnprClientError::Protocol(
-            "pnpr server ignored requested trustPolicy (expected no-downgrade)".to_string(),
-        ));
-    }
-    if opts.verification.minimum_release_age.is_some()
-        && opts.verification.minimum_release_age != applied.minimum_release_age
-    {
-        return Err(PnprClientError::Protocol(format!(
-            "pnpr server ignored requested minimumReleaseAge (expected {:?}, got {:?})",
-            opts.verification.minimum_release_age, applied.minimum_release_age,
-        )));
+    let expected_trust = match policy.trust_policy {
+        pnpm_config::TrustPolicy::Off => None,
+        pnpm_config::TrustPolicy::NoDowngrade => Some("no-downgrade"),
+    };
+    let checks = [
+        ("trustPolicy", applied.trust_policy.as_deref() == expected_trust),
+        ("minimumReleaseAge", applied.minimum_release_age == policy.minimum_release_age),
+        (
+            "minimumReleaseAgeExclude",
+            applied.minimum_release_age_exclude.as_slice()
+                == policy.minimum_release_age_exclude.as_deref().unwrap_or_default(),
+        ),
+        (
+            "minimumReleaseAgeIgnoreMissingTime",
+            applied.minimum_release_age_ignore_missing_time
+                == policy.minimum_release_age_ignore_missing_time,
+        ),
+        (
+            "trustPolicyExclude",
+            applied.trust_policy_exclude.as_slice()
+                == policy.trust_policy_exclude.as_deref().unwrap_or_default(),
+        ),
+        (
+            "trustPolicyIgnoreAfter",
+            applied.trust_policy_ignore_after == policy.trust_policy_ignore_after,
+        ),
+        ("trustLockfile", applied.trust_lockfile == trust_lockfile),
+    ];
+    if let Some((name, _)) = checks.into_iter().find(|(_, matches)| !matches) {
+        return Err(PnprClientError::Protocol(format!("pnpr server ignored requested {name}")));
     }
     Ok(())
 }

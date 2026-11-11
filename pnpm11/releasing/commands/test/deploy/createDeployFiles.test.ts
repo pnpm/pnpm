@@ -560,3 +560,49 @@ test('createDeployFiles prunes unused patchedDependencies and writes self-contai
   })
 })
 
+test.each([undefined, 'dist'])('createDeployFiles preserves an injected snapshot when the importer has different children (publishDirectory=%s)', (publishDirectory) => {
+  const lockfileDir = path.resolve('workspace')
+  const sharedDir = path.join(lockfileDir, 'packages/shared')
+  const packageDir = publishDirectory == null ? sharedDir : path.join(sharedDir, publishDirectory)
+  const sourcePath = `file:packages/shared${publishDirectory == null ? '' : `/${publishDirectory}`}`
+  const targetPath = `shared@${url.pathToFileURL(packageDir)}` as DepPath
+  const manifest = {
+    name: 'shared',
+    version: '1.0.0',
+    dependencies: { provider: '1.0.0' },
+    peerDependencies: { provider: '^1.0.0' },
+    ...(publishDirectory == null ? {} : { publishConfig: { directory: publishDirectory } }),
+  }
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    settings: { autoInstallPeers: false, excludeLinksFromLockfile: false, injectWorkspacePackages: true },
+    importers: {
+      ['.' as ProjectId]: { specifiers: { shared: 'workspace:*' }, dependencies: { shared: sourcePath } },
+      ['packages/shared' as ProjectId]: {
+        specifiers: { provider: '1.0.0' },
+        dependencies: { provider: '1.0.0' },
+        ...(publishDirectory == null ? {} : { publishDirectory }),
+      },
+    },
+    packages: {
+      [`shared@${sourcePath}` as DepPath]: {
+        resolution: { type: 'directory', directory: path.relative(lockfileDir, packageDir) },
+        peerDependencies: { provider: '^1.0.0' },
+      },
+      ['provider@1.0.0' as DepPath]: { resolution: { tarball: 'https://registry.example/provider.tgz' } },
+    },
+  }
+  const result = createDeployFiles({
+    allProjects: [{ rootDir: sharedDir as ProjectRootDir, rootDirRealPath: sharedDir as ProjectRootDirRealPath, manifest }],
+    deployDir: path.join(lockfileDir, 'out'),
+    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+    lockfile,
+    lockfileDir,
+    selectedProjectManifest: { name: 'app', dependencies: { shared: 'workspace:*' } },
+    projectId: '.' as ProjectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+  expect(result.lockfile.packages?.[targetPath]).toMatchObject({ peerDependencies: { provider: '^1.0.0' } })
+  expect(result.lockfile.packages?.[targetPath].dependencies).toBeUndefined()
+  expect(result.lockfile.packages?.['provider@1.0.0' as DepPath]).toBeUndefined()
+})

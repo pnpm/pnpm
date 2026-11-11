@@ -175,13 +175,10 @@ function convertWorkspaceImporters (
       ...convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions),
       ...(manifest == null ? {} : getLockfilePeerDependencies(manifest)),
     }
-    const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
-    ctx.targetPackageSnapshots[depPath] = packageSnapshot
-    const publishDirDepPath = addLinkedPublishDirSnapshot(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
+    const depPaths = addLinkedWorkspaceSnapshots(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
     if (manifest?.peerDependencies == null) continue
     const linkedWorkspaceProject = createLinkedWorkspaceProject(manifest, { convertOptions, injectedWorkspace, projectSnapshot })
-    linkedWorkspaceProjects.set(depPath, linkedWorkspaceProject)
-    if (publishDirDepPath != null) linkedWorkspaceProjects.set(publishDirDepPath, linkedWorkspaceProject)
+    for (const depPath of depPaths) linkedWorkspaceProjects.set(depPath, linkedWorkspaceProject)
   }
   return linkedWorkspaceProjects
 }
@@ -201,12 +198,8 @@ function createLinkedWorkspaceProject (
   }
 }
 
-/**
- * Adds the package that the other importers link to when the project has a
- * publish directory that workspace links use. It is the project's package,
- * installed from the publish directory. Returns its dependency path.
- */
-function addLinkedPublishDirSnapshot (
+/** Synthesizes missing workspace snapshots and returns the keys that need peer binding. */
+function addLinkedWorkspaceSnapshots (
   targetPackageSnapshots: PackageSnapshots,
   importer: {
     opts: CreateDeployFilesOptions
@@ -214,16 +207,24 @@ function addLinkedPublishDirSnapshot (
     projectRootDirRealPath: string
     projectSnapshot: ProjectSnapshot
   }
-): DepPath | undefined {
+): DepPath[] {
   const { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot } = importer
-  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return undefined
-  const publishDir = path.join(projectRootDirRealPath, projectSnapshot.publishDirectory)
-  const depPath = createFileUrlDepPath({ resolvedPath: publishDir }, opts.allProjects)
-  targetPackageSnapshots[depPath] = {
-    ...packageSnapshot,
-    resolution: { type: 'directory', directory: normalizePath(path.relative(opts.deployDir, publishDir)) },
+  const directories = [projectRootDirRealPath]
+  if (projectSnapshot.publishDirectory != null && projectSnapshot.linkDirectory !== false) {
+    directories.push(path.join(projectRootDirRealPath, projectSnapshot.publishDirectory))
   }
-  return depPath
+  const added: DepPath[] = []
+  for (const directory of directories) {
+    const depPath = createFileUrlDepPath({ resolvedPath: directory }, opts.allProjects)
+    // An injected snapshot records its own peer context, which can differ from the importer.
+    if (targetPackageSnapshots[depPath] != null) continue
+    targetPackageSnapshots[depPath] = {
+      ...packageSnapshot,
+      resolution: { type: 'directory', directory: normalizePath(path.relative(opts.deployDir, directory)) },
+    }
+    added.push(depPath)
+  }
+  return added
 }
 
 /**

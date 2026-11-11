@@ -301,15 +301,15 @@ fn validate_workload_packages(packages: &[String]) -> Result<(), RegistryError> 
     Ok(())
 }
 
-/// The routes besides its own packages' publish that a workload may call,
-/// under the server root, the npm base, or its registry's address:
-/// staging a release archive, and committing a publish that references
-/// staged archives. The commit is scoped to the workload's packages by
-/// [`WorkloadScope`].
-const WORKLOAD_PROTOCOL_ROUTES: [(&str, &[axum::http::Method]); 2] = [
-    ("/-/pnpr/v0/artifacts/blob", &[axum::http::Method::PUT, axum::http::Method::HEAD]),
-    ("/-/pnpr/v0/publish", &[axum::http::Method::PUT]),
-];
+/// The publish commit a workload may call besides its own packages' publish,
+/// under the server root, the npm base, or its registry's address. The
+/// commit is scoped to the workload's packages by [`WorkloadScope`].
+const WORKLOAD_PUBLISH_ROUTE: &str = "/-/pnpr/v0/publish";
+
+/// Where a workload stages the release archives its commit references, one
+/// archive per path segment below it, under the same bases as
+/// [`WORKLOAD_PUBLISH_ROUTE`].
+const WORKLOAD_ARCHIVES_ROUTE: &str = "/-/pnpr/v0/publish/archives";
 
 pub(super) fn check_workload_request(
     workload: &pnpr_config::oidc::OidcWorkload,
@@ -327,15 +327,23 @@ pub(super) fn check_workload_request(
     {
         return Ok(());
     }
-    let protocol = WORKLOAD_PROTOCOL_ROUTES
-        .iter()
-        .any(|(route, methods)| {
-            methods.contains(method)
-                && ["", base.as_str(), registry_base.as_str()]
-                    .iter()
-                    .any(|prefix| decoded == format!("{prefix}{route}"))
-        });
-    if protocol {
+    let prefixes = ["", base.as_str(), registry_base.as_str()];
+    let publish = *method == axum::http::Method::PUT
+        && prefixes
+            .iter()
+            .any(|prefix| decoded == format!("{prefix}{WORKLOAD_PUBLISH_ROUTE}"));
+    // The parent is compared as sent, as the router matches it, so the
+    // percent-encoded archive segment cannot stand for more than one.
+    let staging = matches!(*method, axum::http::Method::PUT | axum::http::Method::HEAD)
+        && path
+            .rsplit_once('/')
+            .is_some_and(|(parent, archive)| {
+                !archive.is_empty()
+                    && prefixes
+                        .iter()
+                        .any(|prefix| parent == format!("{prefix}{WORKLOAD_ARCHIVES_ROUTE}"))
+            });
+    if publish || staging {
         return Ok(());
     }
     Err(RegistryError::Forbidden {

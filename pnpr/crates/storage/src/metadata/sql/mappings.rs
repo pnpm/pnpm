@@ -127,7 +127,7 @@ impl SqlMetadata {
         self.read(catalog.to_string(), Freshness::Current, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let mapped = query!(
-                "SELECT artifact, integrity, mapped_at, mapping FROM artifact_blobs
+                "SELECT artifact, blob_id, mapped_at, mapping FROM artifact_blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY artifact",
                 catalog,
                 ecosystem,
@@ -136,8 +136,8 @@ impl SqlMetadata {
             let mut results = connection
                 .query_all(&[package_row_query(&key), mapped])?
                 .into_iter();
-            let generation =
-                package_row_from(results.next().unwrap_or_default())?.map(|row| row.generation);
+            let generation = package_row_from(&key, results.next().unwrap_or_default())?
+                .map(|row| row.generation);
             let mappings = results
                 .next()
                 .unwrap_or_default()
@@ -204,13 +204,13 @@ fn unmap(
 ) -> Result<Option<Vec<BlobId>>> {
     let (catalog, ecosystem, name) = key.params();
     let transaction = WriteTransaction::begin(connection)?;
-    let select = format!("SELECT DISTINCT integrity FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
+    let select = format!("SELECT DISTINCT blob_id FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
     let mapped = Query::new(&select, params![catalog, ecosystem, name, any, exact]);
     let mut results = transaction
         .query_all(&[package_row_query(key), mapped])?
         .into_iter();
     let generation =
-        package_row_from(results.next().unwrap_or_default())?.map(|row| row.generation);
+        package_row_from(key, results.next().unwrap_or_default())?.map(|row| row.generation);
     if generation != expected {
         return Ok(None);
     }
@@ -263,7 +263,7 @@ impl super::PackageMetadata {
         self.database.read(self.catalog.clone(), Freshness::Current, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let rows = connection.query(
-                "SELECT DISTINCT integrity FROM artifact_blobs
+                "SELECT DISTINCT blob_id FROM artifact_blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
                    AND version IN (SELECT value FROM json_each(?4))",
                 params![catalog, ecosystem, name, versions],

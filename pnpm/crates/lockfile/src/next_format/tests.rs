@@ -1038,3 +1038,122 @@ fn converting_a_recorded_directory_to_v9_omits_the_new_fields() {
     let written = lockfile.to_yaml_string().expect("write v9 lockfile");
     assert!(!written.contains("specifiers"), "{written}");
 }
+
+#[test]
+fn nested_peer_references_round_trip_within_the_depth_limit() {
+    for depth in [1, 8, 32] {
+        written_and_read(&peer_variant_chain(depth));
+    }
+}
+
+#[test]
+fn overly_deep_peer_references_return_a_format_error() {
+    let lockfile = as_next(peer_variant_chain(40));
+    let error = lockfile
+        .to_yaml_string()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("32 nested references"), "{error}");
+}
+
+#[test]
+fn round_trip_guard_rejects_changed_transitive_peer_names() {
+    let lockfile = parse(OPTIONAL_PEER_LOCKFILE);
+    let mut restored = super::RestoredSections {
+        importers: lockfile.importers.clone(),
+        snapshots: lockfile.snapshots.clone(),
+    };
+    restored.snapshots
+        .as_mut()
+        .unwrap()
+        .get_mut(&"container@3.2.2(buffer-impl@3.7.1)".parse().unwrap())
+        .unwrap()
+        .transitive_peer_dependencies = Some(vec!["buffer-impl".to_string()]);
+    assert!(super::write::check_round_trip(&lockfile, &restored).is_err());
+}
+
+fn peer_variant_chain(depth: usize) -> Lockfile {
+    let mut lockfile = parse(OPTIONAL_PEER_LOCKFILE);
+    let metadata =
+        lockfile.packages.as_ref().unwrap()[&"buffer-impl@3.7.1".parse().unwrap()].clone();
+    lockfile.importers.clear();
+    let packages = lockfile.packages.as_mut().unwrap();
+    let snapshots = lockfile.snapshots.as_mut().unwrap();
+    packages.clear();
+    snapshots.clear();
+    for major in [1, 2] {
+        let mut provider: crate::PackageKey = format!("leaf@{major}.0.0").parse().unwrap();
+        packages.insert(provider.clone(), metadata.clone());
+        snapshots.insert(provider.clone(), crate::SnapshotEntry::default());
+        for level in (0..depth).rev() {
+            let key: crate::PackageKey =
+                format!("layer-{level}@1.0.0({provider})").parse().unwrap();
+            packages.insert(key.without_peer(), metadata.clone());
+            snapshots.insert(
+                key.clone(),
+                crate::SnapshotEntry {
+                    dependencies: Some(std::collections::HashMap::from([(
+                        provider.name.clone(),
+                        crate::SnapshotDepRef::Plain(provider.suffix.clone()),
+                    )])),
+                    ..Default::default()
+                },
+            );
+            provider = key;
+        }
+    }
+    lockfile
+}
+
+#[test]
+fn peer_cycle_variants_use_consistent_nested_discriminators() {
+    let mut lockfile = peer_variant_chain(0);
+    let metadata = lockfile.packages
+        .as_ref()
+        .unwrap()
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    for major in [1, 2] {
+        for (name, other) in [("alpha", "beta"), ("beta", "alpha")] {
+            let key: crate::PackageKey =
+                format!("{name}@1.0.0({other}@1.0.0)(leaf@{major}.0.0)").parse().unwrap();
+            let provider: crate::PackageKey =
+                format!("{other}@1.0.0({name}@1.0.0)(leaf@{major}.0.0)").parse().unwrap();
+            lockfile.packages
+                .as_mut()
+                .unwrap()
+                .insert(key.without_peer(), metadata.clone());
+            lockfile.snapshots
+                .as_mut()
+                .unwrap()
+                .insert(
+                    key.clone(),
+                    crate::SnapshotEntry {
+                        dependencies: Some(std::collections::HashMap::from([
+                            (other.parse().unwrap(), crate::SnapshotDepRef::Plain(provider.suffix)),
+                            ("leaf".parse().unwrap(), format!("{major}.0.0").parse().unwrap()),
+                        ])),
+                        ..Default::default()
+                    },
+                );
+            if name == "alpha" {
+                lockfile.importers.insert(
+                    format!("project-{major}"),
+                    crate::ProjectSnapshot {
+                        dependencies: Some(std::collections::HashMap::from([(
+                            name.parse().unwrap(),
+                            crate::ResolvedDependencySpec {
+                                specifier: "1.0.0".to_string(),
+                                version: crate::ImporterDepVersion::Regular(key.suffix),
+                            },
+                        )])),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
+    }
+    written_and_read(&lockfile);
+}

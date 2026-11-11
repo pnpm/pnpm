@@ -580,7 +580,7 @@ mod restore {
         let handshake = server
             .mock("GET", "/-/pnpr")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
             .create_async()
             .await;
         let resolve = server
@@ -597,14 +597,21 @@ mod restore {
             .create_async()
             .await;
         let blob = server
-            .mock("POST", "/-/pnpr/v0/artifacts/blob")
+            .mock("GET", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blobs/[^/]+/".into()))
             .with_body_from_request(move |request| {
-                let request: pnpm_pnpr_client::ArtifactBlobRequest =
-                    serde_json::from_slice(request.body().expect("blob body"))
-                        .expect("blob request");
+                let (_, segment) = request
+                    .path()
+                    .rsplit_once('/')
+                    .expect("blob path");
                 blobs
-                    .get(&request.integrity)
+                    .iter()
+                    .find(|(integrity, _)| {
+                        url::form_urlencoded::byte_serialize(integrity.as_bytes())
+                            .collect::<String>()
+                            == segment
+                    })
                     .expect("a blob the manifest names")
+                    .1
                     .clone()
             })
             .expect(expected_downloads)
@@ -642,7 +649,7 @@ mod restore {
         let _handshake = server
             .mock("GET", "/-/pnpr")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
             .create_async()
             .await;
         let requested = std::sync::Arc::new(std::sync::Mutex::new(None));
@@ -925,14 +932,12 @@ mod restore {
     /// upload. Returns the upload mock.
     async fn accept_blob_uploads(server: &mut mockito::ServerGuard) -> mockito::Mock {
         server
-            .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
-            .match_query(mockito::Matcher::Any)
+            .mock("HEAD", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blobs/".into()))
             .with_status(404)
             .create_async()
             .await;
         server
-            .mock("PUT", "/-/pnpr/v0/artifacts/blob")
-            .match_query(mockito::Matcher::Any)
+            .mock("PUT", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blobs/".into()))
             .with_status(201)
             .create_async()
             .await

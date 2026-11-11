@@ -1,6 +1,6 @@
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, configure_pnpr_auth, configure_workspace, fs,
-    pacquet_at, read_workspace_lockfile, start_pnpr, workspace_importer_version,
+    pacquet_at, pnpr_done_frame, read_workspace_lockfile, start_pnpr, workspace_importer_version,
     write_workspace_project,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -52,8 +52,8 @@ fn project_scoped_optional_peers_resolve_via_pnpr() {
     drop((root, mock_instance));
 }
 
-/// A server that predates the setting returns a lockfile resolved without
-/// it, which the client must not save.
+/// A server confirms the setting but returns a lockfile resolved without it.
+/// The client must not save the inconsistent lockfile.
 #[test]
 fn install_via_pnpr_rejects_a_lockfile_resolved_without_project_scoped_optional_peers() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -67,7 +67,7 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_project_scoped_optional_
     let resolve_mock = older_server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
-        .with_body(format!("{done}\n"))
+        .with_body_from_request(move |request| pnpr_done_frame(request, done.clone()))
         .expect(1)
         .create();
 

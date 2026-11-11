@@ -5,13 +5,17 @@ use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
     batch::Batch,
-    packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
+    cargo_rows::{self, CARGO_STATE_VERSION, StoredCargo},
+    oci_rows::{self, OCI_STATE_VERSION, StoredOci},
+    packument::{PackumentRows, VersionRows, decompose},
+    pypi_rows::{self, PYPI_STATE_VERSION, StoredPypi},
     tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows, validate_packument_tags},
     to_column, to_generation,
 };
 use crate::{
     DocumentWrite,
     metadata::{ArtifactMember, ReleaseRecords},
+    publish::PACKUMENT_FORMAT_VERSION,
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
@@ -21,16 +25,26 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
+pub(super) const fn supported_state_version(ecosystem: Ecosystem) -> u32 {
+    match ecosystem {
+        Ecosystem::Npm => PACKUMENT_FORMAT_VERSION,
+        Ecosystem::Cargo => CARGO_STATE_VERSION,
+        Ecosystem::Pypi => PYPI_STATE_VERSION,
+        Ecosystem::Oci => OCI_STATE_VERSION,
+    }
+}
+
 /// The stored row of a package.
 pub(super) struct PackageRow {
     pub(super) generation: u64,
+    pub(super) state_version: u32,
     pub(super) state: Vec<u8>,
 }
 
 pub(super) fn package_row_query(key: &PackageKey) -> Query<'_> {
     let (catalog, ecosystem, name) = key.params();
     query!(
-        "SELECT generation, state FROM packages
+        "SELECT generation, state_version, state FROM packages
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
         catalog,
         ecosystem,
@@ -38,53 +52,82 @@ pub(super) fn package_row_query(key: &PackageKey) -> Query<'_> {
     )
 }
 
-pub(super) fn package_row_from(rows: Vec<Row>) -> Result<Option<PackageRow>> {
+pub(super) fn package_row_from(key: &PackageKey, rows: Vec<Row>) -> Result<Option<PackageRow>> {
     rows.into_iter()
         .next()
         .map(|mut row| {
-            Ok(PackageRow { generation: to_generation(row.get(0)?), state: row.get(1)? })
+            let generation = to_generation(row.get(0)?);
+            let raw_version: i64 = row.get(1)?;
+            let state_version = validate_stored_state_version(key, raw_version)?;
+            Ok(PackageRow { generation, state_version, state: row.get(2)? })
         })
         .transpose()
+}
+
+fn validate_stored_state_version(key: &PackageKey, raw_version: i64) -> Result<u32> {
+    let supported = supported_state_version(key.ecosystem);
+    if raw_version > i64::from(supported) {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: key.name.clone(),
+            format_version: u32::try_from(raw_version).unwrap_or(u32::MAX),
+            supported_version: supported,
+        });
+    }
+    if raw_version < 1 {
+        return Err(RegistryError::Internal {
+            reason: format!("invalid state_version {raw_version} for {}", key.name),
+        });
+    }
+    Ok(u32::try_from(raw_version).unwrap_or(supported))
 }
 
 /// What a write of a package's document compares the document with, read
 /// before it changes anything.
 pub(super) struct StoredPackage {
     row: Option<PackageRow>,
-    /// Each accepted version's digest and deprecation.
-    versions: BTreeMap<String, StoredVersion>,
-    tags: BTreeMap<String, String>,
-    /// The versions removed from the package, never to be accepted again.
-    removed: BTreeSet<String>,
+    ecosystem: StoredEcosystem,
+}
+
+enum StoredEcosystem {
+    Npm {
+        versions: BTreeMap<String, StoredVersion>,
+        tags: BTreeMap<String, String>,
+        removed: BTreeSet<String>,
+    },
+    Cargo(StoredCargo),
+    Pypi(StoredPypi),
+    Oci(StoredOci),
 }
 
 impl StoredPackage {
     /// The reads of a package of `key`'s ecosystem, for [`Self::from_rows`].
     pub(super) fn queries(key: &PackageKey) -> Vec<Query<'_>> {
         let mut queries = vec![package_row_query(key)];
-        if key.ecosystem == Ecosystem::Npm {
-            let (catalog, ecosystem, name) = key.params();
-            queries.push(query!(
-                "SELECT v.version, m.accepted_digest, a.deprecated
-                 FROM versions v
-                 JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
-                 LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-                 WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
-                   AND v.revision_key = ?4",
-                catalog,
-                ecosystem,
-                name,
-                ORDINARY,
-            ));
-            queries.push(stored_tags_query(key));
-            queries.push(query!(
-                "SELECT version FROM removed_versions
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4",
-                catalog,
-                ecosystem,
-                name,
-                ORDINARY,
-            ));
+        match key.ecosystem {
+            Ecosystem::Npm => {
+                let (catalog, ecosystem, name) = key.params();
+                queries.push(query!(
+                    "SELECT v.version, m.accepted_digest, a.deprecated
+                     FROM versions v
+                     JOIN accepted_manifests m USING (catalog, ecosystem, name, version)
+                     LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
+                     WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3",
+                    catalog,
+                    ecosystem,
+                    name,
+                ));
+                queries.push(stored_tags_query(key));
+                queries.push(query!(
+                    "SELECT version FROM removed_versions
+                     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+                    catalog,
+                    ecosystem,
+                    name,
+                ));
+            }
+            Ecosystem::Cargo => queries.extend(cargo_rows::queries(key)),
+            Ecosystem::Pypi => queries.extend(pypi_rows::queries(key)),
+            Ecosystem::Oci => queries.extend(oci_rows::queries(key)),
         }
         queries
     }
@@ -101,30 +144,29 @@ impl StoredPackage {
                     reason: "a metadata batch did not answer every read of a package".to_string(),
                 })
         };
-        let row = package_row_from(next()?)?;
-        let mut stored = Self {
-            row,
-            versions: BTreeMap::new(),
-            tags: BTreeMap::new(),
-            removed: BTreeSet::new(),
+        let row = package_row_from(key, next()?)?;
+        let ecosystem = match key.ecosystem {
+            Ecosystem::Npm => npm_from_rows(&mut next)?,
+            Ecosystem::Cargo => StoredEcosystem::Cargo(cargo_rows::from_rows(next()?, next()?)?),
+            Ecosystem::Pypi => StoredEcosystem::Pypi(pypi_rows::from_rows(next()?, next()?)?),
+            Ecosystem::Oci => StoredEcosystem::Oci(oci_rows::from_rows(next()?, next()?)?),
         };
-        if key.ecosystem != Ecosystem::Npm {
-            return Ok(stored);
-        }
-        for mut row in next()? {
-            let deprecated = parse_optional_json(row.get::<Option<String>>(2)?.as_deref())?;
-            stored.versions.insert(
-                row.get(0)?,
-                StoredVersion { accepted_digest: row.get(1)?, deprecated },
-            );
-        }
-        stored.tags = tags_from_rows(next()?)?;
-        stored.removed = next()?
-            .into_iter()
-            .map(|mut row| row.get(0))
-            .collect::<Result<_>>()?;
-        Ok(stored)
+        Ok(Self { row, ecosystem })
     }
+}
+
+fn npm_from_rows(next: &mut impl FnMut() -> Result<Vec<Row>>) -> Result<StoredEcosystem> {
+    let mut versions = BTreeMap::new();
+    for mut row in next()? {
+        let deprecated = parse_optional_json(row.get::<Option<String>>(2)?.as_deref())?;
+        versions.insert(row.get(0)?, StoredVersion { accepted_digest: row.get(1)?, deprecated });
+    }
+    let tags = tags_from_rows(next()?)?;
+    let removed = next()?
+        .into_iter()
+        .map(|mut row| row.get(0))
+        .collect::<Result<_>>()?;
+    Ok(StoredEcosystem::Npm { versions, tags, removed })
 }
 
 /// One package's writes within a [`Batch`], under the batch's generation.
@@ -137,15 +179,38 @@ pub(super) struct Commit<'batch> {
 }
 
 impl Commit<'_> {
-    pub(super) fn write_state(&self, state: &[u8]) -> Result<()> {
+    pub(super) fn write_state(&self, state_version: u32, state: &[u8]) -> Result<()> {
         let (catalog, ecosystem, name) = self.key.params();
         self.transaction.execute(
-            "INSERT INTO packages (catalog, ecosystem, name, generation, state)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT (catalog, ecosystem, name) DO UPDATE SET state = excluded.state",
-            params![catalog, ecosystem, name, to_column(self.generation), state],
+            "INSERT INTO packages (catalog, ecosystem, name, generation, state_version, state)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT (catalog, ecosystem, name) DO UPDATE SET
+               state_version = excluded.state_version, state = excluded.state",
+            params![
+                catalog,
+                ecosystem,
+                name,
+                to_column(self.generation),
+                i64::from(state_version),
+                state,
+            ],
         )?;
         Ok(())
+    }
+
+    pub(super) fn write_envelope(
+        &self,
+        current: Option<&PackageRow>,
+        state_version: u32,
+        envelope: &impl serde::Serialize,
+    ) -> Result<bool> {
+        let state = serde_json::to_vec(envelope)?;
+        let changed =
+            current.is_none_or(|row| row.state_version != state_version || row.state != state);
+        if changed {
+            self.write_state(state_version, &state)?;
+        }
+        Ok(changed)
     }
 
     pub(super) fn delete_state(&self) -> Result<()> {
@@ -169,16 +234,29 @@ impl Commit<'_> {
         principal: Option<&str>,
         records: &ReleaseRecords,
     ) -> Result<Option<bool>> {
-        let rows = match self.key.ecosystem {
+        let npm_rows = match self.key.ecosystem {
             Ecosystem::Npm => Some(decompose(bytes)?),
             Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => None,
         };
         if !expected.admits(stored.row.as_ref().map(|row| row.generation)) {
             return Ok(None);
         }
-        let changed = match rows {
-            Some(rows) => apply_packument(self, stored, rows, principal, records)?,
-            None => apply_whole_document(self, stored.row.as_ref(), bytes)?,
+        let changed = match stored.ecosystem {
+            StoredEcosystem::Npm { versions, tags, removed } => apply_packument(
+                self,
+                stored.row.as_ref(),
+                (versions, tags, removed),
+                npm_rows.expect("npm decomposed"),
+                principal,
+                records,
+            )?,
+            StoredEcosystem::Cargo(cargo) => {
+                cargo_rows::apply(self, stored.row.as_ref(), cargo, bytes, principal)?
+            }
+            StoredEcosystem::Pypi(pypi) => {
+                pypi_rows::apply(self, stored.row.as_ref(), pypi, bytes, principal)?
+            }
+            StoredEcosystem::Oci(oci) => oci_rows::apply(self, stored.row.as_ref(), oci, bytes)?,
         };
         Ok(Some(changed))
     }
@@ -212,72 +290,44 @@ pub(super) fn write_document(
     Ok(DocumentWrite::Written)
 }
 
-fn apply_whole_document(
-    commit: &Commit<'_>,
-    current: Option<&PackageRow>,
-    bytes: &[u8],
-) -> Result<bool> {
-    if bytes.is_empty() {
-        let Some(row) = current else {
-            return Ok(false);
-        };
-        super::removed::record_oci_manifests(
-            commit.transaction,
-            commit.key,
-            commit.generation,
-            &row.state,
-            b"",
-        )?;
-        commit.delete_state()?;
-        return Ok(true);
-    }
-    if current.is_some_and(|row| row.state == bytes) {
-        return Ok(false);
-    }
-    if let Some(row) = current {
-        super::removed::record_oci_manifests(
-            commit.transaction,
-            commit.key,
-            commit.generation,
-            &row.state,
-            bytes,
-        )?;
-    }
-    commit.write_state(bytes)?;
-    Ok(true)
-}
-
 fn apply_packument(
     commit: &Commit<'_>,
-    stored: StoredPackage,
+    current_row: Option<&PackageRow>,
+    (stored_versions, stored_tags, removed): (
+        BTreeMap<String, StoredVersion>,
+        BTreeMap<String, String>,
+        BTreeSet<String>,
+    ),
     rows: PackumentRows,
     principal: Option<&str>,
     records: &ReleaseRecords,
 ) -> Result<bool> {
-    validate_packument_tags(&stored.tags, &rows)?;
-    if stored.versions
+    validate_packument_tags(&stored_tags, &rows)?;
+    if stored_versions
         .keys()
         .any(|version| !rows.versions.contains_key(version))
-        && let Some(row) = &stored.row
+        && let Some(row) = current_row
     {
         super::removed::record_package(commit.transaction, commit.key, &row.state, principal)?;
     }
-    let mut changed = if !stored.versions.is_empty() && rows.versions.is_empty() {
+    let mut changed = if !stored_versions.is_empty() && rows.versions.is_empty() {
         commit.delete_state()?;
         true
     } else {
-        let state = serde_json::to_vec(&rows.state)?;
-        let changed = stored.row
-            .as_ref()
-            .is_none_or(|row| row.state != state);
-        if changed {
-            commit.write_state(&state)?;
-        }
-        changed
+        commit.write_envelope(current_row, npm_state_version(&rows.state), &rows.state)?
     };
-    changed |= apply_versions(commit, stored.versions, &stored.removed, rows.versions, records)?;
-    changed |= apply_tags(commit, &stored.tags, &rows.tags, principal)?;
+    changed |= apply_versions(commit, stored_versions, &removed, rows.versions, records)?;
+    changed |= apply_tags(commit, &stored_tags, &rows.tags, principal)?;
     Ok(changed)
+}
+
+fn npm_state_version(state: &Map<String, Value>) -> u32 {
+    state
+        .get("formatVersion")
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .filter(|&value| value >= 1 && value <= PACKUMENT_FORMAT_VERSION)
+        .unwrap_or(PACKUMENT_FORMAT_VERSION)
 }
 
 /// What the store holds for one accepted version, short of its manifest.
@@ -324,8 +374,8 @@ fn reconcile_version(
     existing: &StoredVersion,
     incoming: &VersionRows,
 ) -> Result<bool> {
-    let restated = existing.accepted_digest == accepted_digest(incoming)? || {
-        let accepted = accepted_rows(commit, version)?;
+    let restated = existing.accepted_digest == super::versions::accepted_digest(incoming)? || {
+        let accepted = super::versions::accepted_rows(commit, version)?;
         accepted.manifest == incoming.manifest
             && accepted.readme == incoming.readme
             && accepted.interpretation == incoming.interpretation
@@ -341,51 +391,6 @@ fn reconcile_version(
     }
     super::versions::write_deprecation(commit, version, incoming.deprecated.as_ref())?;
     Ok(true)
-}
-
-/// What a version was accepted as.
-struct AcceptedRows {
-    manifest: Map<String, Value>,
-    readme: Readme,
-    interpretation: Interpretation,
-}
-
-/// The accepted manifest, README, and interpretation of `version`, for a
-/// restatement whose digest differs, such as one with its fields in another
-/// order.
-fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
-    let (catalog, ecosystem, name) = commit.key.params();
-    let mut row = commit.transaction.query_one(
-        "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
-         FROM accepted_manifests m
-         LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
-         WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
-           AND m.revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
-    )?;
-    let manifest: String = row.get(0)?;
-    let text: Option<String> = row.get(1)?;
-    let filename: Option<String> = row.get(2)?;
-    let profile: String = row.get(3)?;
-    let inputs: String = row.get(4)?;
-    let readme = Readme {
-        text: parse_optional_json(text.as_deref())?,
-        filename: parse_optional_json(filename.as_deref())?,
-    };
-    let interpretation = Interpretation { profile, inputs: parse_json(&inputs)? };
-    Ok(AcceptedRows { manifest: parse_json(&manifest)?, readme, interpretation })
-}
-
-/// The digest of what a version's insert-only rows hold: its manifest,
-/// README, and interpretation.
-pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
-    let input = serde_json::to_vec(&(
-        &rows.manifest,
-        &rows.readme.text,
-        &rows.readme.filename,
-        &rows.interpretation,
-    ))?;
-    Ok(ssri::Integrity::from(input).to_string())
 }
 
 /// Move every tag the document points elsewhere, recording each move with

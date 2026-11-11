@@ -125,21 +125,46 @@ fn package_version(package_count: usize) -> impl Strategy<Value = PackageVersion
 pub(super) struct Settings {
     pub(super) peers_suffix_max_length: usize,
     pub(super) auto_install_peers: bool,
+    pub(super) catalogs: bool,
+    pub(super) injected: bool,
+    pub(super) format: pnpm_lockfile::LockfileFormat,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { peers_suffix_max_length: 1000, auto_install_peers: true }
+        Self {
+            peers_suffix_max_length: 1000,
+            auto_install_peers: true,
+            catalogs: false,
+            injected: false,
+            format: pnpm_lockfile::LockfileFormat::V9,
+        }
     }
 }
 
 pub(super) fn settings() -> impl Strategy<Value = Settings> {
-    (prop::sample::select(vec![1000usize, 20usize]), any::<bool>()).prop_map(
-        |(peers_suffix_max_length, auto_install_peers)| Settings {
-            peers_suffix_max_length,
-            auto_install_peers,
-        },
+    (
+        prop::sample::select(vec![1000usize, 20usize]),
+        any::<bool>(),
+        any::<bool>(),
+        any::<bool>(),
+        any::<bool>(),
     )
+        .prop_map(
+            |(peers_suffix_max_length, auto_install_peers, catalogs, injected, next_format)| {
+                Settings {
+                    peers_suffix_max_length,
+                    auto_install_peers,
+                    catalogs,
+                    injected,
+                    format: if next_format {
+                        pnpm_lockfile::LockfileFormat::V13
+                    } else {
+                        pnpm_lockfile::LockfileFormat::V9
+                    },
+                }
+            },
+        )
 }
 
 /// Two to five packages, each at both [`MAJORS`], depended on by one to
@@ -230,7 +255,11 @@ fn exact(major: u8) -> String {
 
 /// `dependencies` and `peerDependencies` (with `peerDependenciesMeta`)
 /// of `p{index}` at `version`.
-fn package_manifest(index: usize, major: u8, version: &PackageVersion) -> serde_json::Value {
+pub(super) fn package_manifest(
+    index: usize,
+    major: u8,
+    version: &PackageVersion,
+) -> serde_json::Value {
     let mut dependencies = serde_json::Map::new();
     let mut peers = serde_json::Map::new();
     let mut peers_meta = serde_json::Map::new();
@@ -275,7 +304,10 @@ fn desugared_caret(major: u8) -> String {
 
 /// Each package answers its caret range in both spellings, its exact
 /// version, and `*` (the highest version).
-pub(super) fn stub_resolver(workspace: &Workspace) -> StubResolver {
+pub(super) fn stub_resolver(
+    workspace: &Workspace,
+    fixture: &super::fixture::Fixture,
+) -> StubResolver {
     let mut table = HashMap::default();
     for (index, versions) in workspace.packages.iter().enumerate() {
         let name = package_name(index);
@@ -288,6 +320,21 @@ pub(super) fn stub_resolver(workspace: &Workspace) -> StubResolver {
                 table.insert((name.clone(), "*".to_string()), result);
             }
         }
+    }
+    if let Some((_, manifest)) = fixture.manifests
+        .iter()
+        .find(|(id, _)| id == "shared")
+    {
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(manifest.path()).unwrap()).unwrap();
+        let mut result = fake_result("shared", "1.0.0", value);
+        result.id = "file:shared".to_string().into();
+        result.resolved_via = "workspace".to_string();
+        result.resolution =
+            pnpm_lockfile::LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
+                directory: "shared".to_string(),
+            });
+        table.insert(("shared".to_string(), "workspace:*".to_string()), result);
     }
     StubResolver { table }
 }
@@ -310,7 +357,7 @@ pub(super) struct Outcome {
 }
 
 pub(super) fn outcome_of(result: &ResolveWorkspaceResult, workspace: &Workspace) -> Outcome {
-    let direct = IMPORTER_IDS
+    let mut direct: BTreeMap<_, _> = IMPORTER_IDS
         .iter()
         .zip(&workspace.importers)
         .map(|(id, edges)| {
@@ -318,11 +365,14 @@ pub(super) fn outcome_of(result: &ResolveWorkspaceResult, workspace: &Workspace)
             let declared = importer_dependencies(edges);
             let kept = resolved
                 .into_iter()
-                .filter(|(alias, _)| declared.contains_key(alias))
+                .filter(|(alias, _)| declared.contains_key(alias) || alias == "shared")
                 .collect();
             ((*id).to_string(), kept)
         })
         .collect();
+    if let Some(shared) = result.peers.direct_dependencies_by_importer.get("shared") {
+        direct.insert("shared".to_string(), stringify_edges(shared));
+    }
     let graph = result.peers.graph
         .values()
         .map(|node| (node.dep_path.to_string(), stringify_edges(&node.edges.children)))
@@ -349,9 +399,9 @@ pub(super) fn lockfile_with_settings(
     workspace: &Workspace,
     settings: Settings,
 ) -> Lockfile {
-    let manifests = super::manifests(workspace);
+    let fixture = super::fixture::Fixture::new(workspace, settings);
     let mut options = single_importer_opts(
-        &manifests[0].1,
+        &fixture.manifests[0].1,
         &result.peers.graph,
         BTreeMap::new(),
         settings.auto_install_peers,
@@ -361,21 +411,24 @@ pub(super) fn lockfile_with_settings(
     );
     options.settings.peers_suffix_max_length =
         Some(settings.peers_suffix_max_length.try_into().unwrap());
-    options.importers = IMPORTER_IDS
+    options.catalogs = &fixture.catalogs;
+    options.metadata_sources.lockfile_format = settings.format;
+    options.importers = fixture.manifests
         .iter()
-        .zip(&manifests)
-        .map(|(id, (_, manifest))| {
+        .map(|(id, manifest)| {
             (
-                (*id).to_string(),
+                id.clone(),
                 crate::ImporterLockfileInput {
                     manifest,
-                    direct_dependencies_by_alias: result.peers.direct_dependencies_by_importer[*id]
+                    direct_dependencies_by_alias: result.peers.direct_dependencies_by_importer[id]
                         .clone(),
                 },
             )
         })
         .collect();
-    let lockfile = crate::dependencies_graph_to_lockfile(options).expect("write generated graph");
+    let mut lockfile =
+        crate::dependencies_graph_to_lockfile(options).expect("write generated graph");
+    lockfile.lockfile_version = settings.format.version();
     let yaml = lockfile.to_yaml_string().expect("serialize generated lockfile");
     Lockfile::parse(&yaml, std::path::Path::new(Lockfile::FILE_NAME))
         .expect("parse generated lockfile")

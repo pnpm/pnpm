@@ -120,9 +120,10 @@ export async function pnprSupportsSharedSideEffects (
   })
   if (response.statusCode < 200 || response.statusCode >= 300) return false
   const parsed = JSON.parse(response.body.toString('utf8')) as {
-    pnpr?: { artifacts?: unknown }
+    pnpr?: { protocols?: { artifacts?: { versions?: unknown } } }
   }
-  return Array.isArray(parsed.pnpr?.artifacts) && parsed.pnpr.artifacts.includes(0)
+  const versions = parsed.pnpr?.protocols?.artifacts?.versions
+  return Array.isArray(versions) && versions.includes(0)
 }
 
 export async function resolveSharedSideEffects (
@@ -282,19 +283,22 @@ export async function downloadSharedArtifactBlob (
     request: ArtifactBlobRequest
   }
 ): Promise<Buffer> {
-  validateOwner(opts.request.owner)
-  artifactBlobDigest(opts.request.integrity)
+  const { owner, integrity } = opts.request
+  validateOwner(owner)
+  artifactBlobDigest(integrity)
+  if (owner.type !== 'organization') {
+    throw new Error('Shared artifact blobs are stored only under an organization')
+  }
   const response = await request({
     registryUrl: opts.registryUrl,
-    path: '-/pnpr/v0/artifacts/blob',
-    method: 'POST',
+    path: `-/pnpr/v0/artifacts/blobs/${encodeURIComponent(owner.name)}/${encodeURIComponent(integrity)}`,
+    method: 'GET',
     authorization: opts.authorization,
-    body: Buffer.from(JSON.stringify(opts.request)),
     maxResponseSize: MAX_FILE_SIZE,
   })
-  assertSuccess(response, '/-/pnpr/v0/artifacts/blob')
+  assertSuccess(response, '/-/pnpr/v0/artifacts/blobs')
   try {
-    verifyBlob(opts.request.integrity, response.body)
+    verifyBlob(integrity, response.body)
   } catch (err: unknown) {
     throw new SharedArtifactBlobIntegrityError(errorMessage(err))
   }

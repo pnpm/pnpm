@@ -62,9 +62,10 @@ fn null_defaulted_aggregate_config_fields_use_defaults() {
 
     let router_yaml = "registries:\n  router: {type: router, sources: null}\n";
     let parsed = super::super::loading::parse_config_file(router_yaml).unwrap();
-    let super::super::config_file::RegistryGroupFile::Registry(
-        super::super::config_file::RegistryFile::Router(router),
-    ) = parsed.registries.get("router").unwrap()
+    let super::super::config_file::RegistryFile::Router(router) = parsed
+        .registries
+        .get("router")
+        .unwrap()
     else {
         panic!("expected a router registry");
     };
@@ -357,7 +358,8 @@ fn empty_and_null_map_values_mean_default_rules() {
         let effective = table.for_package("lodash");
         assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
         assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
-        assert!(effective.publish.allows(&user("alice")), "value {value:?}");
+        assert!(!effective.publish.allows(&user("alice")), "value {value:?}");
+        assert!(effective.publish.allows_with_context(&user("alice"), true), "value {value:?}");
         assert!(!effective.unpublish.allows(&user("alice")), "value {value:?}");
     }
 }

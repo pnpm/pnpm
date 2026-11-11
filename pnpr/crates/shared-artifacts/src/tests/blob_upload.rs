@@ -1,6 +1,6 @@
 use super::{
-    ArtifactBlobRequest, BASE64, HostedStoreConfig, OwnerScope, Sha512, SharedArtifactStore,
-    TempDir, lookup, publication_with_blob,
+    BASE64, HostedStoreConfig, OwnerScope, Sha512, SharedArtifactStore, TempDir, lookup,
+    publication_with_blob,
 };
 use crate::{blob_id, org_key, staged_record_path};
 use base64::Engine as _;
@@ -31,9 +31,8 @@ async fn global_bytes(store: &SharedArtifactStore) -> u64 {
 }
 
 async fn read_back(store: &SharedArtifactStore, integrity: &str) -> Vec<u8> {
-    let request = ArtifactBlobRequest { owner: acme(), integrity: integrity.to_string() };
     let mut blob = store
-        .read_blob("acme", &serde_json::to_vec(&request).unwrap())
+        .read_blob("acme", &acme(), integrity)
         .await
         .unwrap()
         .expect("stored blob");

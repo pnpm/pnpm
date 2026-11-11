@@ -33,13 +33,17 @@ pub(super) enum AbsorbDecision {
     /// Root's name slot is taken by a different locator — a version
     /// conflict. The child stays under its current parent.
     Conflict,
-    /// Hoisting would shadow a peer dependency one of the
-    /// candidate's ancestors satisfies with a different ident than
-    /// what the root provides. The child stays under its parent so
-    /// the ancestor's peer resolution still finds the intended
-    /// version. Mirrors upstream's `getNodeHoistInfo` peer checks
-    /// at [hoist.ts:414][peer-shadow-root] and
-    /// [hoist.ts:454-479][peer-path].
+    /// Hoisting, or dedup-removing in favour of the root's copy,
+    /// would shadow a peer dependency one of the candidate's
+    /// ancestors satisfies with a different ident than what the root
+    /// provides. The child stays under its parent so the ancestor's
+    /// peer resolution still finds the intended version. Mirrors
+    /// upstream's `getNodeHoistInfo` peer checks at
+    /// [hoist.ts:414][peer-shadow-root] and
+    /// [hoist.ts:454-479][peer-path], which upstream runs before its
+    /// same-locator merge, so a copy whose peer comes from its parent
+    /// is never merged into a root copy that resolves the peer
+    /// elsewhere.
     ///
     /// [peer-shadow-root]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L414
     /// [peer-path]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L454-L479
@@ -150,10 +154,12 @@ fn refuse_shadowed(
 
     // Peer-aware refusal layered on top of the basic
     // free / dedup / conflict decision. `Conflict` already
-    // leaves the candidate in place and `SameNode` dedups
-    // an already-hoisted package, so the peer check
-    // only matters when we'd otherwise hoist.
-    if matches!(decision, AbsorbDecision::Free) && would_shadow_peer(child, path, root, root_index)
+    // leaves the candidate in place. A dedup removes this
+    // position's copy like a hoist does, so it is refused on
+    // the same grounds: the root copy may share the locator
+    // and still resolve its peer from a different provider.
+    if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
+        && would_shadow_peer(child, path, root, root_index)
     {
         decision = AbsorbDecision::PeerShadow;
     }
@@ -166,13 +172,14 @@ fn refuse_shadowed(
 pub(super) enum ChildStep {
     /// The edge was removed at this parent; there is nothing to descend into.
     Dropped,
-    /// The child stays in the graph and must be walked. `path` is its
-    /// ancestor path computed from its *new* position — the load-bearing
-    /// detail: the recursion path always reflects the child's current
-    /// position in the result graph, so peer checks deeper down see
-    /// ancestors that are actually ancestors. `moved` reports whether
-    /// applying the decision changed the graph.
-    Descend { path: Vec<Rc<HoisterResult>>, moved: bool },
+    /// The child moved to the root. It is walked from there in the next
+    /// wave of [`hoist_graph`](crate::hoist_graph), not now: upstream
+    /// defers a hoisted node the same way, and the order decides which of
+    /// two same-locator nodes claims the root slot.
+    Hoisted,
+    /// The child stays under this parent and is walked from here, with
+    /// the path through the parent as its ancestor path.
+    Stayed,
 }
 
 pub(super) fn apply_decision(
@@ -180,26 +187,17 @@ pub(super) fn apply_decision(
     child: &RcByPtr<HoisterResult>,
     node: &Rc<HoisterResult>,
     ctx: &HoistCtx<'_>,
-    path_for_children: &[Rc<HoisterResult>],
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
 ) -> ChildStep {
-    let root = ctx.root;
-    // Root's direct children are already at root — no movement happens, and
-    // their ancestor path is `[root]`.
-    if Rc::ptr_eq(node, root) {
-        return ChildStep::Descend { path: path_for_children.to_vec(), moved: false };
-    }
     match decision {
         AbsorbDecision::Free => {
             node.dependencies.borrow_mut().shift_remove(child);
             node.hoisted_dependencies
                 .borrow_mut()
                 .insert(child.0.name.clone(), Rc::clone(&child.0));
-            root.dependencies.borrow_mut().insert(child.clone());
+            ctx.root.dependencies.borrow_mut().insert(child.clone());
             root_index.insert(child.0.name.clone(), child.clone());
-            // Child is now a direct dep of root; its ancestor path collapses
-            // to `[root]`.
-            ChildStep::Descend { path: vec![Rc::clone(root)], moved: true }
+            ChildStep::Hoisted
         }
         AbsorbDecision::SameNode => {
             // A copy of this package is already at root;
@@ -214,18 +212,15 @@ pub(super) fn apply_decision(
                 .insert(child.0.name.clone(), Rc::clone(&child.0));
             ChildStep::Dropped
         }
-        // Stays at the current parent, so the child's ancestor path is the
-        // path through `node`. A later round may revisit it with a different
-        // peer / conflict / preference context; only `Border` is terminal,
-        // since the limit boundary never moves.
+        // A later round may revisit the child with a different peer /
+        // conflict / preference context; only `Border` is terminal, since
+        // the limit boundary never moves.
         AbsorbDecision::Conflict
         | AbsorbDecision::PeerShadow
         | AbsorbDecision::PathShadow
         | AbsorbDecision::UsedShadow
         | AbsorbDecision::Border
-        | AbsorbDecision::Defer => {
-            ChildStep::Descend { path: path_for_children.to_vec(), moved: false }
-        }
+        | AbsorbDecision::Defer => ChildStep::Stayed,
     }
 }
 

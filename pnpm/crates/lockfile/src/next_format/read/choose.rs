@@ -59,25 +59,26 @@ impl<'a> Graph<'a> {
         Some(self.snapshot_in_scope(start, count, referrer))
     }
 
-    /// The first snapshot among `start..start + count` that binds every peer
-    /// in `peers` to the reference named.
+    /// The snapshot that binds every named peer, with the fewest extra bindings.
     pub(super) fn snapshot_with_bindings(
         &self,
         start: Sid,
         count: usize,
         peers: &NamedBindings,
     ) -> Option<Sid> {
-        (start..start + count).find(|&sid| {
-            peers
-                .iter()
-                .all(|(name, wanted)| {
-                    self.entries[sid]
-                        .bindings()
-                        .any(|(bound, reference)| {
-                            bound.to_string() == *name && names_binding(wanted, reference.version())
-                        })
-                })
-        })
+        (start..start + count)
+            .filter(|&sid| {
+                peers
+                    .iter()
+                    .all(|(name, wanted)| {
+                        self.entries[sid]
+                            .bindings()
+                            .any(|(bound, reference)| {
+                                bound.to_string() == *name && names_binding(wanted, reference)
+                            })
+                    })
+            })
+            .min_by_key(|&sid| self.entries[sid].bindings().count())
     }
 
     /// The snapshot none of whose bindings disagrees with the referrer's

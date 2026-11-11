@@ -1,6 +1,6 @@
 use super::super::{
     AccessList, AccessSpec, Ecosystem, IndexMap, PackageAccess, PackagePattern, PackageRule,
-    PackageRules, RegistryError, TeamDirectory,
+    PackageRules, RegistryError, TeamDirectory, check_owners_supported,
 };
 
 /// Compile a `registries:` entry's registry-level `access:` value, naming the
@@ -79,7 +79,7 @@ fn compile_package_rule(
     let key = pattern.to_string();
     let key = key.as_str();
     validate_unpublish_supported(registry, ecosystem, key, rule)?;
-    Ok(PackageRule {
+    let rule = PackageRule {
         pattern: pattern.clone(),
         access: compile_rule_access_list(
             registry,
@@ -102,7 +102,12 @@ fn compile_package_rule(
             rule.and_then(|fields| fields.unpublish.as_ref()),
             teams,
         )?,
-    })
+    };
+    check_owners_supported(ecosystem, [rule.publish.as_ref(), rule.unpublish.as_ref()])
+        .map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!("registry {registry:?}: {key:?} has an invalid rule: {reason}"),
+        })?;
+    Ok(rule)
 }
 
 pub(super) fn build_rules(
@@ -116,5 +121,6 @@ pub(super) fn build_rules(
     for (pattern, rule) in packages.values() {
         rules.push(compile_package_rule(registry, ecosystem, pattern, rule.as_ref(), teams)?);
     }
-    Ok(PackageRules::new(rules, default_access))
+    Ok(PackageRules::new(rules, default_access)
+        .with_default_publish(AccessList::publish_default(ecosystem)))
 }

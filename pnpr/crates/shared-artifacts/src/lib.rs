@@ -267,20 +267,23 @@ impl SharedArtifactStore {
         Ok(ResolveArtifactsResponse { artifacts })
     }
 
+    /// The blob `integrity` names in `owner`'s namespace. `None` when it is
+    /// not stored or `caller` may not read it.
     pub async fn read_blob(
         &self,
         caller: &(impl OrgAccess + ?Sized),
-        body: &[u8],
+        owner: &OwnerScope,
+        integrity: &str,
     ) -> Result<Option<ArtifactBlob>> {
-        let request: ArtifactBlobRequest = serde_json::from_slice(body)
-            .map_err(|err| bad_request(format!("invalid artifact blob request: {err}")))?;
+        let request =
+            ArtifactBlobRequest { owner: owner.clone(), integrity: integrity.to_string() };
         request.validate().map_err(|err| protocol_error(&err))?;
-        let owner = match owner_key(caller, &request.owner) {
+        let owner = match owner_key(caller, owner) {
             Ok(owner) => owner,
             Err(RegistryError::Forbidden { .. }) => return Ok(None),
             Err(err) => return Err(err),
         };
-        let id = blob_id(&request.integrity).map_err(|err| protocol_error(&err))?;
+        let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
         let path = self.object_path(&format!("{owner}/blobs/{id}"));
         let result = match self.store.get(&path).await {
             Ok(result) => result,

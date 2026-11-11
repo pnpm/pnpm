@@ -83,27 +83,21 @@ impl AuthSqlBackend for MysqlDatabase {
             .map_err(RegistryError::from)
     }
 
+    async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
+        self.account_login_impl(user_id).await
+    }
+
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
-        let current = self.account_name(user_id).await?.ok_or(RegistryError::NotFound)?;
-        if current == username {
-            return Ok(());
-        }
-        let result =
-            sqlx::query("UPDATE users SET username = ?, username_skeleton_hash = ? WHERE id = ? AND bcrypt_hash <> '!'")
-                .bind(username)
-                .bind(crate::validation::username_skeleton_hash(username))
-                .bind(user_id)
-                .execute(&mut *self.pool.acquire().await?)
-                .await;
-        match result {
-            Ok(result) if result.rows_affected() > 0 => Ok(()),
-            Ok(_) => Err(RegistryError::NotFound),
-            Err(err) if is_unique_violation(&err) => Err(crate::validation::username_conflict(
-                username,
-                self.stored_user(username).await?.is_some(),
-            )),
-            Err(err) => Err(err.into()),
-        }
+        self.rename_account(user_id, username).await
+    }
+
+    async fn rename_user_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        username: &str,
+    ) -> Result<crate::UserRename> {
+        self.rename_account_if_current(user_id, expected_revision, username).await
     }
 
     async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {

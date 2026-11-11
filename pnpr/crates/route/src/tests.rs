@@ -370,6 +370,86 @@ fn upstream_per_package_rules_gate_alias_selection() {
 }
 
 #[test]
+fn upstream_credential_is_bounded_by_its_packages_claim() {
+    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+
+    let mut config = base_config();
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
+    );
+    let patterns =
+        vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).expect("test pattern parses")];
+    config.routing.registries = Registries::new(
+        std::iter::once(("corp".to_string(), Registry::Upstream { patterns })).collect(),
+        None,
+    );
+    let context = RouteContext::from_config(&config);
+
+    let proxied =
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() };
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://npm.corp.example/@corp%2ftool",
+            Some("@corp/tool")
+        ),
+        proxied,
+    );
+    assert_eq!(
+        context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Public,
+    );
+    let descriptor = |package: &str| PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+        package: Some(package.to_string()),
+    };
+    assert!(context.allows_descriptor(&user("alice"), &descriptor("@corp/tool")));
+    assert!(!context.allows_descriptor(&user("alice"), &descriptor("lodash")));
+    let endpoint = format!("{}/npm/~corp/lodash", config.http.public_url);
+    assert_eq!(context.classify(&user("alice"), &endpoint, Some("lodash")), RouteClass::Public);
+}
+
+#[test]
+fn a_resolution_through_an_alias_an_earlier_one_skips_replays() {
+    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+
+    let mut config = base_config();
+    for name in ["scoped", "fallback"] {
+        config.routing.upstreams.insert(
+            name.to_string(),
+            upstream_with_access("https://npm.corp.example/", "$authenticated"),
+        );
+    }
+    let patterns =
+        vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).expect("test pattern parses")];
+    config.routing.registries = Registries::new(
+        std::iter::once(("scoped".to_string(), Registry::Upstream { patterns })).collect(),
+        None,
+    );
+    let context = Arc::new(RouteContext::from_config(&config));
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        Arc::clone(&context),
+        user("alice"),
+        Arc::clone(&footprint),
+        Arc::from(b"secret".as_slice()),
+    );
+
+    assert!(
+        hook.authorize("https://npm.corp.example/lodash", Some("lodash"))
+            .is_some(),
+    );
+    assert!(
+        footprint
+            .lock()
+            .unwrap()
+            .allows(&context, &user("alice")),
+    );
+}
+
+#[test]
 fn upstream_with_access_is_a_proxied_route_matched_by_origin() {
     let mut config = base_config();
     config.routing.upstreams.insert(

@@ -934,7 +934,7 @@ async fn signed_subjects(pkg: &PackedPkg<'_>) -> Vec<(String, String)> {
         .with_body(r#"{"token":"registry-token"}"#)
         .create_async()
         .await;
-    let blob = mockito::Matcher::Regex("/-/pnpr/v0/artifacts/blob".to_owned());
+    let blob = mockito::Matcher::Regex("/-/pnpr/v0/publish/archives/".to_owned());
     server
         .mock("HEAD", blob.clone())
         .with_status(404)
@@ -1053,7 +1053,7 @@ async fn rerun_from_staged_variant(record: Option<Value>) -> Result<(), PublishP
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     server
-        .mock("HEAD", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned()))
+        .mock("HEAD", mockito::Matcher::Regex("^/-/pnpr/v0/publish/archives/".to_owned()))
         .with_status(404)
         .create_async()
         .await;

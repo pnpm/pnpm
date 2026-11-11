@@ -53,10 +53,7 @@ pub(super) fn parse_user(body: &Value) -> Result<(String, ScimUser), RegistryErr
         .filter(|(key, _)| !MANAGED_ATTRIBUTES.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    Ok((
-        username.to_string(),
-        ScimUser { username: username.to_string(), active, attributes, ..ScimUser::default() },
-    ))
+    Ok((username.to_string(), ScimUser { username: username.to_string(), active, attributes }))
 }
 
 /// Apply a `PatchOp` body to `user`. `active` and top-level or `name.*`

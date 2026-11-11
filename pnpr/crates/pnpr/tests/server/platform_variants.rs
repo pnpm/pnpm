@@ -443,10 +443,9 @@ async fn variants_come_only_with_an_any_archive_they_agree_with() {
 /// Stage `tgz` for the caller `token` names, as a publisher does before a
 /// commit that references it.
 async fn stage(app: &axum::Router, tgz: &[u8], token: &str) {
-    let query = url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("integrity", &sha512_integrity(tgz))
-        .finish();
-    let path = format!("/npm/-/pnpr/v0/artifacts/blob?{query}");
+    let archive: String =
+        url::form_urlencoded::byte_serialize(sha512_integrity(tgz).as_bytes()).collect();
+    let path = format!("/npm/-/pnpr/v0/publish/archives/{archive}");
     let response = app
         .clone()
         .oneshot(

@@ -54,7 +54,7 @@ libc = { workspace = true }
 pnpr-libsql = { workspace = true, features = ["testing"] }
 reqwest = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
 tlog_tiles = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

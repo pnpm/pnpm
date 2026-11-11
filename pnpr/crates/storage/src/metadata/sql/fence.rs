@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// The files of one package a JSON array names that are mapped, with the
 /// blobs they are mapped to.
-const MAPPED: &str = "SELECT artifact, integrity FROM artifact_blobs
+const MAPPED: &str = "SELECT artifact, blob_id FROM artifact_blobs
      WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
        AND artifact IN (SELECT value FROM json_each(?4))";
 
@@ -197,9 +197,9 @@ fn write_live(
     artifact: &ArtifactBlob,
 ) -> Result<()> {
     let sql =
-        "INSERT INTO blobs (catalog, ecosystem, integrity, incarnation, state, size, changed_at)
+        "INSERT INTO blobs (catalog, ecosystem, blob_id, incarnation, state, size, changed_at)
          VALUES (?1, ?2, ?3, ?4, 'live', ?5, ?6)
-         ON CONFLICT (catalog, ecosystem, integrity) DO UPDATE
+         ON CONFLICT (catalog, ecosystem, blob_id) DO UPDATE
          SET incarnation = excluded.incarnation, state = 'live', size = excluded.size,
              changed_at = excluded.changed_at";
     transaction.execute(
@@ -224,11 +224,11 @@ fn write_mapping(
     artifact: &ArtifactBlob,
 ) -> Result<()> {
     let sql = "INSERT INTO artifact_blobs
-             (catalog, ecosystem, name, artifact, version, integrity, mapped_at, mapping)
+             (catalog, ecosystem, name, artifact, version, blob_id, mapped_at, mapping)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?8, ?7)
          ON CONFLICT (catalog, ecosystem, name, artifact) DO UPDATE
          SET mapped_at = excluded.mapped_at, mapping = excluded.mapping
-         WHERE artifact_blobs.integrity = excluded.integrity";
+         WHERE artifact_blobs.blob_id = excluded.blob_id";
     transaction.execute(
         sql,
         params![

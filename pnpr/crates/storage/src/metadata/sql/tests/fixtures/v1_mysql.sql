@@ -5,16 +5,82 @@ CREATE TABLE IF NOT EXISTS catalogs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- One row per package. `generation` is the catalog generation of the last
--- commit that changed it. `state` holds what no other table does: for npm,
--- the package-level fields of the packument; for any other ecosystem, its
--- whole document.
+-- commit that changed it. `state_version` is the format version of `state`,
+-- which holds the package-level fields no child table stores.
 CREATE TABLE IF NOT EXISTS packages (
     catalog VARBINARY(512) NOT NULL,
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     generation BIGINT NOT NULL,
+    state_version BIGINT NOT NULL,
     state LONGBLOB NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Published versions of a Cargo crate, ordered by `position` as the sparse
+-- index serves them. `entry` holds the immutable sparse-index fields; `yanked`
+-- flips in place.
+CREATE TABLE IF NOT EXISTS cargo_versions (
+    catalog VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    version VARBINARY(512) NOT NULL,
+    position BIGINT NOT NULL,
+    yanked BIGINT NOT NULL,
+    entry LONGTEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX cargo_versions_by_position
+    ON cargo_versions (catalog, ecosystem, name, position);
+
+-- Published distribution files of a Python project, ordered by `position`.
+-- `entry` holds the immutable PEP 691 file metadata; `yanked` and `yank_reason`
+-- change in place.
+CREATE TABLE IF NOT EXISTS pypi_files (
+    catalog VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    filename VARBINARY(512) NOT NULL,
+    position BIGINT NOT NULL,
+    yanked BIGINT NOT NULL,
+    yank_reason LONGTEXT,
+    entry LONGTEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, filename)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX pypi_files_by_position
+    ON pypi_files (catalog, ecosystem, name, position);
+
+-- Distribution filenames permanently reserved after deletion from a Python
+-- project, so a deleted filename can never be uploaded again.
+CREATE TABLE IF NOT EXISTS removed_pypi_files (
+    catalog VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    filename VARBINARY(512) NOT NULL,
+    generation BIGINT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, filename)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Manifests retained in an OCI image repository, keyed by content digest.
+-- `entry` holds child digests and indexed referrer metadata.
+CREATE TABLE IF NOT EXISTS oci_manifests (
+    catalog VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    digest VARBINARY(512) NOT NULL,
+    entry LONGTEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, digest)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Mutable tags of an OCI image repository and the manifest digest each names.
+CREATE TABLE IF NOT EXISTS oci_tags (
+    catalog VARBINARY(512) NOT NULL,
+    ecosystem VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    tag VARBINARY(512) NOT NULL,
+    digest VARBINARY(512) NOT NULL,
+    updated BIGINT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, tag)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
@@ -25,11 +91,10 @@ CREATE TABLE IF NOT EXISTS versions (
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
-    revision_key VARBINARY(512) NOT NULL,
     integrity VARBINARY(512) NOT NULL,
     published_at BIGINT,
     accepted_generation BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+    PRIMARY KEY (catalog, ecosystem, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -43,12 +108,11 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
-    revision_key VARBINARY(512) NOT NULL,
     profile VARBINARY(512) NOT NULL,
     manifest LONGTEXT NOT NULL,
     inputs LONGTEXT NOT NULL,
     accepted_digest LONGTEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
+    PRIMARY KEY (catalog, ecosystem, name, version, profile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
@@ -60,12 +124,11 @@ CREATE TABLE IF NOT EXISTS release_records (
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
-    revision_key VARBINARY(512) NOT NULL,
     profile VARBINARY(512) NOT NULL,
     record LONGBLOB NOT NULL,
     digest VARBINARY(512) NOT NULL,
     log_index BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
+    PRIMARY KEY (catalog, ecosystem, name, version, profile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the transparency log of each catalog's records of one
@@ -98,10 +161,9 @@ CREATE TABLE IF NOT EXISTS readmes (
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
-    revision_key VARBINARY(512) NOT NULL,
     readme LONGTEXT,
     readme_filename LONGTEXT,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+    PRIMARY KEY (catalog, ecosystem, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -132,16 +194,27 @@ CREATE TABLE IF NOT EXISTS tag_history (
 
 -- Insert-only: the identity of every version removed from a package, by
 -- unpublishing it or the whole package. Kept when the package is removed, so
--- a removed version is never accepted again and a version and revision always
--- name the same bytes.
+-- a removed version is never accepted again and a version always names the
+-- same bytes.
 CREATE TABLE IF NOT EXISTS removed_versions (
     catalog VARBINARY(512) NOT NULL,
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
-    revision_key VARBINARY(512) NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+    PRIMARY KEY (catalog, ecosystem, name, version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Every manifest removed from an OCI repository, by deleting the manifest or
+-- removing the repository, so a publication that introduced it is not replayed
+-- after its removal. Kept when the repository is removed, with the generation
+-- of its latest removal when pushed and removed again.
+CREATE TABLE IF NOT EXISTS removed_oci_manifests (
+    catalog VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    artifact VARBINARY(512) NOT NULL,
+    generation BIGINT NOT NULL,
+    PRIMARY KEY (catalog, name, artifact)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
@@ -216,19 +289,19 @@ CREATE TABLE IF NOT EXISTS notes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
--- the incarnation stored under `<integrity>.<incarnation>` now, `live`,
+-- the incarnation stored under `<blob_id>.<incarnation>` now, `live`,
 -- `reclaiming`, or `gone`. Never removed, so incarnations only grow and a key
 -- a reclaim may remove is never written again. `changed_at` is when `state`
 -- last changed.
 CREATE TABLE IF NOT EXISTS blobs (
     catalog VARBINARY(512) NOT NULL,
     ecosystem VARBINARY(512) NOT NULL,
-    integrity VARBINARY(512) NOT NULL,
+    blob_id VARBINARY(512) NOT NULL,
     incarnation BIGINT NOT NULL,
     state VARBINARY(512) NOT NULL,
     size BIGINT NOT NULL,
     changed_at BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, integrity)
+    PRIMARY KEY (catalog, ecosystem, blob_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX blobs_by_state ON blobs (catalog, ecosystem, state);
 
@@ -241,39 +314,111 @@ CREATE TABLE IF NOT EXISTS artifact_blobs (
     name VARBINARY(512) NOT NULL,
     artifact VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
-    integrity VARBINARY(512) NOT NULL,
+    blob_id VARBINARY(512) NOT NULL,
     mapped_at BIGINT NOT NULL,
     mapping LONGTEXT NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, artifact)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-CREATE INDEX artifact_blobs_by_integrity
-    ON artifact_blobs (catalog, ecosystem, integrity);
+CREATE INDEX artifact_blobs_by_blob_id
+    ON artifact_blobs (catalog, ecosystem, blob_id);
 
--- The record of each archive a principal staged by the hex SHA-512 digest
--- of its bytes ahead of the commit that claims it. The bytes stay in the
--- hosted store under `<digest>.<incarnation>`. `state` is `incomplete`,
--- `complete`, or `gone`; never removed, so incarnations only grow and a key
--- a sweep may remove is never written again. `staged_at` is `0` once given
--- back or claimed.
+-- The record of each archive a principal staged by the identity
+-- (`<algorithm>-<hex>`) of its bytes ahead of the commit that claims it. The
+-- bytes stay in the hosted store under `<blob_id>.<incarnation>`. `state` is
+-- `incomplete`, `complete`, or `gone`; never removed, so incarnations only
+-- grow and a key a sweep may remove is never written again. `staged_at` is
+-- `0` once given back or claimed.
 CREATE TABLE IF NOT EXISTS staged_archives (
     principal VARBINARY(512) NOT NULL,
-    digest VARBINARY(512) NOT NULL,
+    blob_id VARBINARY(512) NOT NULL,
     incarnation BIGINT NOT NULL,
     staged_at BIGINT NOT NULL,
     size BIGINT NOT NULL,
     state VARBINARY(512) NOT NULL,
-    PRIMARY KEY (principal, digest)
+    PRIMARY KEY (principal, blob_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX staged_archives_held
     ON staged_archives (principal);
 
-CREATE TABLE IF NOT EXISTS registry_records (
-    kind VARBINARY(512) NOT NULL,
-    name VARBINARY(512) NOT NULL,
-    generation BIGINT NOT NULL,
-    body LONGBLOB NOT NULL,
-    PRIMARY KEY (kind, name)
+-- Provisioned SCIM user accounts and deletion tombstones (`removed` = 1).
+-- `deprovisions` counts transitions from active to inactive so replicas revoke
+-- sessions even if an account is reactivated between polls.
+CREATE TABLE IF NOT EXISTS scim_users (
+    user_id VARBINARY(512) NOT NULL PRIMARY KEY,
+    active BIGINT NOT NULL,
+    removed BIGINT NOT NULL,
+    deprovisions BIGINT NOT NULL,
+    attributes LONGTEXT NOT NULL,
+    generation BIGINT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX scim_users_by_generation
+    ON scim_users (generation);
+
+-- Registries whose team roster has been initialized in the database.
+CREATE TABLE IF NOT EXISTS team_rosters (
+    registry VARBINARY(512) NOT NULL PRIMARY KEY,
+    generation BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+CREATE TABLE IF NOT EXISTS teams (
+    registry VARBINARY(512) NOT NULL,
+    team_id VARBINARY(512) NOT NULL,
+    name VARBINARY(512) NOT NULL,
+    position BIGINT NOT NULL,
+    PRIMARY KEY (registry, team_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE UNIQUE INDEX teams_by_name
+    ON teams (registry, name);
+CREATE INDEX teams_by_position
+    ON teams (registry, position);
+
+CREATE TABLE IF NOT EXISTS team_members (
+    registry VARBINARY(512) NOT NULL,
+    team_id VARBINARY(512) NOT NULL,
+    user_id VARBINARY(512) NOT NULL,
+    PRIMARY KEY (registry, team_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Registries with stored API rule overrides, and the generation of their
+-- current override set.
+CREATE TABLE IF NOT EXISTS rule_override_sets (
+    registry VARBINARY(512) NOT NULL PRIMARY KEY,
+    generation BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Overridden rule lists of a registry (`pattern` = '' for the registry-level
+-- default `access`, else a declared package pattern). Presence with zero rows
+-- in `rule_override_grants` represents an empty access list (`[]`).
+CREATE TABLE IF NOT EXISTS rule_overrides (
+    registry VARBINARY(512) NOT NULL,
+    pattern VARBINARY(512) NOT NULL,
+    action VARBINARY(512) NOT NULL,
+    PRIMARY KEY (registry, pattern, action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+CREATE TABLE IF NOT EXISTS rule_override_grants (
+    registry VARBINARY(512) NOT NULL,
+    pattern VARBINARY(512) NOT NULL,
+    action VARBINARY(512) NOT NULL,
+    position BIGINT NOT NULL,
+    principal LONGTEXT NOT NULL,
+    PRIMARY KEY (registry, pattern, action, position)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- The active Cloudflare CDN cache-tag target shared by replicas of this database.
+CREATE TABLE IF NOT EXISTS cdn_subscriptions (
+    singleton BIGINT NOT NULL PRIMARY KEY CHECK (singleton = 1),
+    target LONGTEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+
+-- Coalesced CDN cache invalidations (`package` = '*' for a full zone-tag purge,
+-- else a package name).
+CREATE TABLE IF NOT EXISTS cdn_purge_queue (
+    package VARBINARY(512) NOT NULL PRIMARY KEY,
+    generation BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
+CREATE INDEX cdn_purge_queue_by_generation
+    ON cdn_purge_queue (generation);
 
 CREATE TABLE IF NOT EXISTS staged_metadata (
     id VARBINARY(512) PRIMARY KEY NOT NULL,
@@ -304,7 +449,8 @@ CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(512) NOT NULL PRIMARY KEY,
     username VARCHAR(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
     username_skeleton_hash VARCHAR(512) UNIQUE,
-    bcrypt_hash LONGTEXT NOT NULL
+    bcrypt_hash LONGTEXT NOT NULL,
+    name_revision BIGINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Bearer tokens for SQL-backed and local SQLite auth.

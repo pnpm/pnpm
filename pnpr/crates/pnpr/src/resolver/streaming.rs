@@ -97,7 +97,7 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
         });
     }
     let applied_policies = super::protocol::AppliedPolicies::from_request(&task.inputs.request);
-    let _ = tx.send(done_frame(&lockfile, Some(&applied_policies)));
+    let _ = tx.send(done_frame(&lockfile, &applied_policies));
 }
 
 impl StreamedResolve {

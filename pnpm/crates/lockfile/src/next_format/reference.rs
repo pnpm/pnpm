@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 /// The bindings that name a snapshot: the peer's name, and the reference the
 /// snapshot binds it to, without groups.
-pub type NamedBindings = BTreeMap<String, SnapshotDepRef>;
+pub type NamedBindings = BTreeMap<String, NextRef>;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -106,8 +106,14 @@ pub fn without_groups(reference: &SnapshotDepRef) -> SnapshotDepRef {
     }
 }
 
-/// Whether `binding`, groups aside, is the reference `wanted` names.
+/// Matches the version and any explicit provider bindings in `wanted`.
 #[must_use]
-pub fn names_binding(wanted: &SnapshotDepRef, binding: &SnapshotDepRef) -> bool {
-    *wanted == without_groups(binding)
+pub fn names_binding(wanted: &NextRef, binding: &NextRef) -> bool {
+    *wanted.version() == without_groups(binding.version())
+        && wanted
+            .peers()
+            .is_none_or(|wanted| match binding.peers() {
+                Some(actual) => actual == wanted,
+                None => wanted.is_empty(),
+            })
 }

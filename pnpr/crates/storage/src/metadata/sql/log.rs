@@ -1,7 +1,7 @@
 //! The sequenced entries of each catalog's transparency logs, one log per
 //! catalog and ecosystem.
 
-use super::{PackageKey, adapter::Connection, packument::ORDINARY};
+use super::{PackageKey, adapter::Connection};
 use crate::transparency_log::LogId;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
@@ -103,9 +103,8 @@ pub(super) fn record_entry(
     let (catalog, ecosystem, name) = key.params();
     let row = connection.query_optional(
         "SELECT log_index, digest FROM release_records
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-           AND revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![catalog, ecosystem, name, version],
     )?;
     row.map(|mut row| {
         let index = u64::try_from(row.get::<i64>(0)?).unwrap_or_default();

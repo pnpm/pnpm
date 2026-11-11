@@ -1,6 +1,8 @@
 pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
+#[cfg(test)]
+pub(crate) mod tests;
 pub(crate) use directory_deps::{
     NestedDirectoryPackage, ProjectManifestsByDir, dependency_manifests_by_dir,
     is_declared_local_directory, project_manifests_by_dir, spec_target_and_range,
@@ -530,6 +532,3 @@ pub(super) struct UnresolvedOptionalDependency {
 }
 
 mod settings;
-
-#[cfg(test)]
-mod tests;
