@@ -3,6 +3,7 @@ pub use directory::grant_inherited_dir_mode;
 pub use directory::{
     create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
 };
+pub use pnpm_ffi_process::Umask;
 
 mod directory;
 #[cfg(unix)]
@@ -36,30 +37,6 @@ pub const EXEC_MODE: FileMode = FileMode::from_mode(0b111_101_101);
 /// non-executable entries.
 pub const BASE_FILE_MODE: FileMode = FileMode::from_mode(0b110_110_110);
 
-/// The permissions a file creation takes away.
-///
-/// Its own type rather than a [`FileMode`], because the bits mean the
-/// opposite of each other: a mode says which permissions a file has, a
-/// mask which ones its creation removes. Handing one to the other's
-/// caller inverts the result, which no test of a single mode would
-/// notice, so the two do not convert.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Umask(u32);
-
-impl Umask {
-    /// The mask `mask` names, as the platform reports it.
-    #[must_use]
-    pub const fn from_mask(mask: u32) -> Self {
-        Self(mask)
-    }
-
-    /// The bits, as the number a foreign call takes.
-    #[must_use]
-    pub const fn mask(self) -> u32 {
-        self.0
-    }
-}
-
 /// The mode a fresh store write gives an entry of `executable`'s class
 /// under `umask`. The store creates every file this way
 /// (`StoreDir::write_cas_file`), so materializing a store file at this
@@ -91,18 +68,18 @@ pub fn store_inode_mode_is_linkable(mode: FileMode, desired: FileMode) -> bool {
 #[cfg(unix)]
 #[must_use]
 pub fn current_umask() -> Umask {
-    static UMASK: std::sync::LazyLock<u32> =
+    static UMASK: std::sync::LazyLock<Umask> =
         std::sync::LazyLock::new(pnpm_ffi_process::current_umask);
-    Umask::from_mask(*UMASK)
+    *UMASK
 }
 
 /// Cache the host process mask for WASI permission calculations.
 #[cfg(target_os = "wasi")]
 #[must_use]
 pub fn current_umask() -> Umask {
-    static UMASK: std::sync::LazyLock<u32> =
-        std::sync::LazyLock::new(crate::wasi_fs::current_umask);
-    Umask::from_mask(*UMASK)
+    static UMASK: std::sync::LazyLock<Umask> =
+        std::sync::LazyLock::new(|| Umask::from_mask(crate::wasi_fs::current_umask()));
+    *UMASK
 }
 
 /// Platforms without permission bits have no mode bits to mask.

@@ -11,7 +11,7 @@ pub use pnpm_fs::file_mode::Umask;
 pub fn with_umask(command: &mut std::process::Command, umask: Umask) {
     use std::os::unix::process::CommandExt as _;
 
-    let umask = libc::mode_t::try_from(umask.mask()).expect("the mask fits mode_t");
+    let umask = umask.narrow();
     // SAFETY: the hook runs in the forked child, between the fork and the
     // `exec`, where only the calling thread exists and so only
     // async-signal-safe work is allowed. It calls `umask` and nothing else:
