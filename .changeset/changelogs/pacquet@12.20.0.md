@@ -1,6 +1,6 @@
 ## 12.20.0
 
-pnpm 12.20.0 records the specifiers of local directory dependencies in the experimental v13 lockfile and fixes several `nodeLinker: hoisted`, peer dependency, and `overrides` bugs. The bundled `node-gyp` no longer ships the undici version that security scanners flag. Remote resolution and shared build caches now need pnpr 0.1.0-alpha.20 or newer, so upgrade the pnpr server before upgrading pnpm.
+pnpm 12.20.0 records the specifiers of local directory dependencies in the experimental v13 lockfile and fixes several `nodeLinker: hoisted`, peer dependency, and `overrides` bugs. The bundled `node-gyp` no longer ships the undici version that security scanners flag. Remote resolution and shared build caches no longer work with pnpr 0.1.0-alpha.19 or older.
 
 ### Minor Changes
 
@@ -10,7 +10,7 @@ pnpm 12.20.0 records the specifiers of local directory dependencies in the exper
 
 #### Upgrading and security
 
-- pnpm now requires pnpr 0.1.0-alpha.20 or newer for remote resolution, shared build caches, and release notes. pnpm reads the capabilities a pnpr server advertises under `pnpr.protocols`, and installs fail when the server does not confirm the requested resolution and verification policies. Upgrade the pnpr server before upgrading pnpm.
+- Remote resolution, shared build caches, and release notes no longer work with pnpr 0.1.0-alpha.19 or older. pnpm now reads the capabilities a pnpr server advertises under `pnpr.protocols`. Installs fail when the server does not confirm the requested resolution and verification policies.
 
 - The `node-gyp` bundled with pnpm no longer ships undici 6, which security scanners flag for CVE-2026-84947. On Node.js 26, `node-gyp` downloads through a proxy or with a custom CA file no longer crash with "invalid onError method" [#17941](https://github.com/pnpm/pnpm/issues/17941).
 
