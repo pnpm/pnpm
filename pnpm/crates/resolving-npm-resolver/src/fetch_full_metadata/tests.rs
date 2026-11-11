@@ -829,32 +829,41 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
 
 #[tokio::test]
 async fn fetch_full_metadata_returns_not_modified_on_304() {
-    conditional_metadata(false, false).await;
+    conditional_metadata(MetadataRoute::Remote, MetadataResponses::NotModified).await;
 }
 
 #[tokio::test]
 async fn local_metadata_preserves_conditional_headers() {
-    conditional_metadata(true, false).await;
+    conditional_metadata(MetadataRoute::Local, MetadataResponses::NotModified).await;
 }
 
 #[tokio::test]
 async fn local_metadata_retries_transient_statuses() {
-    conditional_metadata(true, true).await;
+    conditional_metadata(MetadataRoute::Local, MetadataResponses::TransientThenNotModified).await;
 }
 
-async fn conditional_metadata(local: bool, transient: bool) {
+enum MetadataRoute {
+    Remote,
+    Local,
+}
+
+enum MetadataResponses {
+    NotModified,
+    TransientThenNotModified,
+}
+
+async fn conditional_metadata(route: MetadataRoute, responses: MetadataResponses) {
     let mut server = mockito::Server::new_async().await;
-    let failed = if transient {
-        Some(
+    let failed = match responses {
+        MetadataResponses::TransientThenNotModified => Some(
             server
                 .mock("GET", "/acme")
                 .with_status(503)
                 .expect(1)
                 .create_async()
                 .await,
-        )
-    } else {
-        None
+        ),
+        MetadataResponses::NotModified => None,
     };
     let mock = server
         .mock("GET", "/acme")
@@ -867,16 +876,18 @@ async fn conditional_metadata(local: bool, transient: bool) {
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
-    let auth_headers = if local {
-        AuthHeaders::default()
-            .with_route_hook(std::sync::Arc::new(LocalMetadata {
-                target: format!("{registry}acme"),
-            }))
-    } else {
-        AuthHeaders::default()
+    let (auth_headers, registry) = match route {
+        MetadataRoute::Local => (
+            AuthHeaders::default()
+                .with_route_hook(std::sync::Arc::new(LocalMetadata {
+                    target: format!("{registry}acme"),
+                })),
+            "https://local.invalid/",
+        ),
+        MetadataRoute::Remote => (AuthHeaders::default(), registry.as_str()),
     };
     let opts = FetchFullMetadataOptions {
-        registry: if local { "https://local.invalid/" } else { &registry },
+        registry,
         full_metadata: true,
         etag: Some(r#"W/"fresh""#),
         modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
