@@ -66,8 +66,6 @@ fn one_watchdog_watches_every_process_group() {
     assert_eq!(watchdogs.len(), 1, "one watchdog should watch all three groups");
 }
 
-/// A watchdog started ahead of the first group watches that group and every
-/// later one without a second `sh`.
 #[test]
 fn a_watchdog_started_ahead_of_its_groups_watches_them() {
     let mut watch = GroupWatch::new();
