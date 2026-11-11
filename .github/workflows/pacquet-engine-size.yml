@@ -64,6 +64,9 @@ jobs:
       - name: Test reduced runtime resolver
         run: cargo test --locked -p pnpm-resolving-default-resolver --no-default-features unavailable_tool_tests
 
+      - name: Test reduced runtime provisioning
+        run: cargo test --locked -p pnpm-package-manager --no-default-features registry_ranges_still_bump_without_runtime_provisioning
+
       - name: Measure pull request
         shell: bash
         run: |

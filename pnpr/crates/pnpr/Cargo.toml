@@ -27,7 +27,8 @@ name = "suite"
 path = "tests/suite.rs"
 
 [features]
-default = ["backend-libsql", "backend-mysql", "backend-postgres"]
+default = ["backend-libsql", "backend-mysql", "backend-postgres", "runtime-provisioning"]
+runtime-provisioning = ["pnpm-package-manager/runtime-provisioning"]
 backend-libsql = [
   "dep:pnpr-libsql",
   "dep:libsql",
@@ -79,7 +80,7 @@ pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-lockfile-verification = { workspace = true }
 pnpm-network = { workspace = true }
-pnpm-package-manager = { workspace = true, features = ["runtime-provisioning"] }
+pnpm-package-manager = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-python-resolver = { workspace = true }
 pnpm-reporter = { workspace = true }
