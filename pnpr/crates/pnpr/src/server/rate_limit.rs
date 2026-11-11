@@ -17,11 +17,23 @@ enum RateLimitKey {
     WrongWebLoginCode(Option<IpAddr>),
 }
 
+/// A pool of at most [`MAX_WEB_LOGIN_RECORDS`] records, for keys an anonymous
+/// client can create one of for every address it sends from. Login starts
+/// and wrong codes have separate pools, so guesses cannot use up the records
+/// that starting a login needs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CappedPool {
+    WebLogin = 0,
+    WrongWebLoginCode = 1,
+}
+
 impl RateLimitKey {
-    /// Whether the key counts toward [`MAX_WEB_LOGIN_RECORDS`]: an anonymous
-    /// client can create one for every address it sends from.
-    fn is_capped(&self) -> bool {
-        matches!(self, RateLimitKey::WebLogin(_) | RateLimitKey::WrongWebLoginCode(_))
+    fn capped_pool(&self) -> Option<CappedPool> {
+        match self {
+            RateLimitKey::WebLogin(_) => Some(CappedPool::WebLogin),
+            RateLimitKey::WrongWebLoginCode(_) => Some(CappedPool::WrongWebLoginCode),
+            _ => None,
+        }
     }
 }
 
@@ -37,7 +49,8 @@ struct AttemptRecord {
 
 struct RateLimiterInner {
     map: HashMap<RateLimitKey, AttemptRecord>,
-    web_login_count: usize,
+    /// Live records per [`CappedPool`], indexed by its discriminant.
+    capped_counts: [usize; 2],
     last_eviction: Instant,
 }
 
@@ -80,7 +93,7 @@ impl LoginRateLimiter {
             max_user_attempts,
             records: Mutex::new(RateLimiterInner {
                 map: HashMap::new(),
-                web_login_count: 0,
+                capped_counts: [0; 2],
                 last_eviction: Instant::now(),
             }),
         }
@@ -94,11 +107,12 @@ impl LoginRateLimiter {
         let should_evict = now.duration_since(inner.last_eviction) >= EVICTION_INTERVAL
             || (off_schedule && now.duration_since(inner.last_eviction) >= FULL_EVICTION_COOLDOWN);
         if should_evict {
-            let web_login_count = &mut inner.web_login_count;
+            let capped_counts = &mut inner.capped_counts;
             inner.map.retain(|key, record| {
                 let active = now.duration_since(record.first_attempt) < self.window;
-                if !active && key.is_capped() {
-                    *web_login_count = web_login_count.saturating_sub(1);
+                if !active && let Some(pool) = key.capped_pool() {
+                    let count = &mut capped_counts[pool as usize];
+                    *count = count.saturating_sub(1);
                 }
                 active
             });
@@ -183,20 +197,24 @@ impl LoginRateLimiter {
     fn ensure_web_login_capacity(
         &self,
         inner: &mut RateLimiterInner,
+        pool: CappedPool,
         now: Instant,
     ) -> Result<(), u64> {
-        if inner.web_login_count < MAX_WEB_LOGIN_RECORDS {
+        if inner.capped_counts[pool as usize] < MAX_WEB_LOGIN_RECORDS {
             return Ok(());
         }
         self.evict_if_needed(inner, now, Sweep::AsSoonAsAllowed);
-        if inner.web_login_count < MAX_WEB_LOGIN_RECORDS {
+        if inner.capped_counts[pool as usize] < MAX_WEB_LOGIN_RECORDS {
             return Ok(());
         }
         let cooldown_active = now.duration_since(inner.last_eviction) < FULL_EVICTION_COOLDOWN;
         let has_expired = cooldown_active
             && inner.map
                 .iter()
-                .any(|(k, r)| k.is_capped() && now.duration_since(r.first_attempt) >= self.window);
+                .any(|(k, r)| {
+                    k.capped_pool() == Some(pool)
+                        && now.duration_since(r.first_attempt) >= self.window
+                });
         let retry_after = if has_expired {
             FULL_EVICTION_COOLDOWN
                 .saturating_sub(now.duration_since(inner.last_eviction))
@@ -218,7 +236,10 @@ impl LoginRateLimiter {
         client_ip: Option<IpAddr>,
         peer_ip: Option<IpAddr>,
     ) -> Result<(), u64> {
-        self.check_and_record_capped(RateLimitKey::WebLogin(client_ip.or(peer_ip)))
+        self.check_and_record_capped(
+            RateLimitKey::WebLogin(client_ip.or(peer_ip)),
+            CappedPool::WebLogin,
+        )
     }
 
     /// Reserve one web login code submission for the client, identified as in
@@ -231,22 +252,32 @@ impl LoginRateLimiter {
         client_ip: Option<IpAddr>,
         peer_ip: Option<IpAddr>,
     ) -> Result<(), u64> {
-        self.check_and_record_capped(RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)))
+        self.check_and_record_capped(
+            RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)),
+            CappedPool::WrongWebLoginCode,
+        )
     }
 
-    /// Give back a reservation of [`Self::reserve_web_login_code`].
+    /// Give back a reservation of [`Self::reserve_web_login_code`]. A record
+    /// left with no attempts is removed, so valid sign-ins do not fill the
+    /// pool.
     pub(crate) fn refund_web_login_code(&self, client_ip: Option<IpAddr>, peer_ip: Option<IpAddr>) {
         let mut inner = self.records.lock().unwrap();
-        if let Some(record) =
-            inner.map.get_mut(&RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)))
-        {
-            record.count = record.count.saturating_sub(1);
+        let key = RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip));
+        let Some(record) = inner.map.get_mut(&key) else {
+            return;
+        };
+        if record.count > 1 {
+            record.count -= 1;
+            return;
         }
+        inner.map.remove(&key);
+        let count = &mut inner.capped_counts[CappedPool::WrongWebLoginCode as usize];
+        *count = count.saturating_sub(1);
     }
 
-    /// Count an attempt under `key`, a key of an anonymous web login, whose
-    /// records are capped at [`MAX_WEB_LOGIN_RECORDS`].
-    fn check_and_record_capped(&self, key: RateLimitKey) -> Result<(), u64> {
+    /// Count an attempt under `key`, which belongs to `pool`.
+    fn check_and_record_capped(&self, key: RateLimitKey, pool: CappedPool) -> Result<(), u64> {
         let now = Instant::now();
         let mut inner = self.records.lock().unwrap();
 
@@ -254,11 +285,11 @@ impl LoginRateLimiter {
             return self.update_existing_web_login(record, now);
         }
 
-        self.ensure_web_login_capacity(&mut inner, now)?;
+        self.ensure_web_login_capacity(&mut inner, pool, now)?;
         self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
 
         inner.map.insert(key, AttemptRecord { count: 1, first_attempt: now });
-        inner.web_login_count += 1;
+        inner.capped_counts[pool as usize] += 1;
 
         Ok(())
     }

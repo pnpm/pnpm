@@ -301,7 +301,7 @@ fn refunded_code_submissions_do_not_use_up_the_limit() {
 }
 
 #[test]
-fn wrong_code_records_share_the_web_login_capacity() {
+fn wrong_codes_cannot_use_up_the_records_that_login_starts_need() {
     let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 2, 5);
     for index in 0..1024u32 {
         let ip = IpAddr::V4(Ipv4Addr::from(index + 1));
@@ -314,5 +314,15 @@ fn wrong_code_records_share_the_web_login_capacity() {
     }
     let over_capacity_ip = Some(IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1)));
     assert!(limiter.reserve_web_login_code(over_capacity_ip, None).is_err());
-    assert!(limiter.check_and_record_web_login(over_capacity_ip, None).is_err());
+    assert!(limiter.check_and_record_web_login(over_capacity_ip, None).is_ok());
+}
+
+#[test]
+fn refunded_code_records_free_their_slot() {
+    let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 2, 5);
+    for index in 0..2048u32 {
+        let ip = Some(IpAddr::V4(Ipv4Addr::from(index + 1)));
+        assert!(limiter.reserve_web_login_code(ip, None).is_ok(), "IP #{index}");
+        limiter.refund_web_login_code(ip, None);
+    }
 }
