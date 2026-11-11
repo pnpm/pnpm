@@ -120,6 +120,9 @@ impl<'conn> Batch<'conn> {
         }
         let generation = to_column(self.generation);
         for key in &self.touched {
+            if key.ecosystem == pnpr_package_name::Ecosystem::Npm {
+                super::cdn::enqueue(&*self.transaction, &key.name)?;
+            }
             let (catalog, ecosystem, name) = key.params();
             self.transaction.execute(
                 "UPDATE packages SET generation = ?4

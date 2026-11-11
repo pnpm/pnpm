@@ -12,6 +12,7 @@ pub use backend_config::{
     TokensConfig, UsersConfig,
 };
 pub use byte_size::{ByteSize, parse_byte_size};
+pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, parse_trusted_proxies};
@@ -44,6 +45,7 @@ mod backend_config;
 use backend_config::build_identity_config;
 
 mod byte_size;
+mod cdn;
 
 mod config_file;
 use config_file::{
@@ -239,6 +241,7 @@ pub struct HttpConfig {
     pub metrics: Option<MetricsConfig>,
     /// How pnpr's own package document is served.
     pub package_documents: PackageDocumentsConfig,
+    pub cloudflare_cdn: Option<CloudflareCdnConfig>,
 }
 
 impl HttpConfig {

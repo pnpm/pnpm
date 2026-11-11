@@ -88,6 +88,7 @@ pub(super) fn state_and_router(
     // Every router, also one an embedder builds directly, picks up what an
     // interrupted integration of the release record logs left.
     super::release_record_logs::integrate_sequenced_logs(&state);
+    super::cdn::start(&state)?;
     Ok((state, router))
 }
 

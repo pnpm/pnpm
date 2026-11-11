@@ -308,6 +308,7 @@ fn build_http_config(
         request_timeout,
         metrics: build_metrics_config(file, listen)?,
         package_documents: super::build_package_documents_config(file.package_documents.take())?,
+        cloudflare_cdn: super::cdn::build(file.cloudflare_cdn.take())?,
     })
 }
 
