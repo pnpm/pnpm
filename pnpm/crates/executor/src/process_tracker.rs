@@ -228,17 +228,15 @@ pub fn spawn_child<'tracker>(
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
     #[cfg(unix)]
-    if own_process_group {
-        group_watchdog::start()?;
-    }
+    let (child, watched) =
+        if own_process_group { group_watchdog::spawn(command)? } else { (command.spawn()?, false) };
+    #[cfg(not(unix))]
     let child = command.spawn()?;
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
-    #[cfg(unix)]
-    let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
@@ -256,27 +254,6 @@ pub fn spawn_child<'tracker>(
         #[cfg(unix)]
         watched,
     })
-}
-
-/// Have the watchdog watch `child`'s group when the child leads one.
-/// Returns whether the group is watched.
-///
-/// A child left unwatched would be the very orphan the watchdog exists to
-/// prevent, so if the watch cannot be set up the child's group is killed
-/// before the failure is returned.
-#[cfg(unix)]
-fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<(Child, bool)> {
-    if !own_process_group {
-        return Ok((child, false));
-    }
-    match group_watchdog::watch(child.id()) {
-        Ok(watched) => Ok((child, watched)),
-        Err(error) => {
-            terminate_process(child.id(), true, Stop::Forced);
-            let _ = child.wait();
-            Err(error)
-        }
-    }
 }
 
 #[cfg(unix)]

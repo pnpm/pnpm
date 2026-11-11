@@ -6,8 +6,8 @@
 //! and leaves the script running, holding the caller's pipes open
 //! ([pnpm/pnpm#15555](https://github.com/pnpm/pnpm/issues/15555)). The
 //! signal cannot be relayed, so a `sh` in a group of its own stands watch
-//! instead: it reads a pipe only pnpm writes to, on which pnpm names each
-//! group it creates and each group it is done with. End of input means
+//! instead: each group leader registers itself through a pipe before `exec`,
+//! and pnpm releases the group when it is done with it. End of input means
 //! pnpm died, and the watchdog kills every group still named, as the
 //! signal would have had the children stayed in pnpm's group.
 //!
@@ -56,20 +56,9 @@ for group in $groups; do kill -9 -"$group"; done"#;
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
 
-/// Start the watchdog unless one is running, replacing one that exited. A child runs from the moment
-/// it is spawned, so starting the watchdog before the first group's leader
-/// keeps [`watch`] down to one write, rather than leaving that group
-/// unwatched for as long as a `sh` takes to spawn. Returns `false` when there
-/// is no `sh` to watch with.
-pub(super) fn start() -> io::Result<bool> {
-    lock().start()
-}
-
-/// Watch the process group led by `leader` until [`release`] is called for
-/// it, killing the group should pnpm die first. Returns `false` when there
-/// is no `sh` to watch with, which leaves the group on its own.
-pub(super) fn watch(leader: u32) -> io::Result<bool> {
-    lock().watch(leader)
+/// Register the child's group before its executable can run.
+pub(super) fn spawn(command: &mut Command) -> io::Result<(Child, bool)> {
+    lock().spawn(command)
 }
 
 /// Stop watching the process group led by `leader`, so pnpm's own exit
@@ -97,7 +86,7 @@ impl GroupWatch {
         Self { watchdog: None, leaders: Vec::new(), shell_missing: false }
     }
 
-    /// See [`start`].
+    /// Start or replace the watchdog.
     pub(super) fn start(&mut self) -> io::Result<bool> {
         if self.shell_missing {
             return Ok(false);
@@ -110,7 +99,20 @@ impl GroupWatch {
         self.start_watchdog()
     }
 
-    /// See [`watch`].
+    pub(super) fn spawn(&mut self, command: &mut Command) -> io::Result<(Child, bool)> {
+        if !self.start()? {
+            return command
+                .spawn()
+                .map(|child| (child, false));
+        }
+        let watchdog = self.watchdog.as_mut().expect("started watchdog");
+        let child = spawn::registered(command, watchdog)?;
+        self.leaders.push(child.id());
+        Ok((child, true))
+    }
+
+    /// Watch an already running group.
+    #[cfg(test)]
     pub(super) fn watch(&mut self, leader: u32) -> io::Result<bool> {
         if self.shell_missing {
             return Ok(false);
@@ -224,3 +226,5 @@ impl GroupWatchdog {
         self.lifeline.write_all(line.as_bytes())
     }
 }
+
+mod spawn;

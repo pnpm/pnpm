@@ -106,6 +106,21 @@ impl Command {
         self
     }
 
+    #[cfg(unix)]
+    /// # Safety
+    ///
+    /// The callback must be safe to run after `fork` and before `exec`.
+    pub unsafe fn pre_exec<Function>(&mut self, function: Function) -> &mut Self
+    where
+        Function: FnMut() -> io::Result<()> + Send + Sync + 'static,
+    {
+        use std::os::unix::process::CommandExt;
+
+        // SAFETY: the caller guarantees the callback is safe between fork and exec.
+        unsafe { self.inner.pre_exec(function) };
+        self
+    }
+
     pub fn spawn(&mut self) -> io::Result<Child> {
         #[cfg(unix)]
         let _spawning = spawning();
