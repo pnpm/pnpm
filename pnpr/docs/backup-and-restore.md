@@ -44,7 +44,7 @@ Why this order keeps both archives and the transparency log consistent:
 To back up while pnpr is stopped, stop pnpr and any scheduled `pnpr gc` jobs first so the archive includes a consistent SQLite database and its `-wal` file:
 
 ```sh
-tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage users.json tokens.db
+tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage users.json tokens.db*
 ```
 
 The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
@@ -79,13 +79,13 @@ An export does not include transparency logs, unpublished versions, former maint
 To restore local filesystem storage:
 
 1. Stop all running pnpr instances and scheduled `pnpr gc` jobs.
-2. Move aside or remove any existing `storage` directory so newer files written after the backup, such as later log bundles, do not remain. Extract hosted storage and auth files into `/var/lib/pnpr`:
+2. Move aside or remove any existing `storage` directory and `tokens.db` sidecars so newer log bundles or stale SQLite write-ahead logs do not remain. Extract hosted storage and auth files into `/var/lib/pnpr`:
    ```sh
-   rm -rf /var/lib/pnpr/storage
+   rm -rf /var/lib/pnpr/storage /var/lib/pnpr/tokens.db*
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
 3. Restore the metadata and token databases so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
-   - **SQLite**: Delete any `-wal` and `-shm` files at each destination path first so SQLite does not replay another copy's write-ahead log. Copy the backed-up metadata database (`<storage>/.metadata/metadata.sqlite` or the `sqlite:` path) and `tokens.db` into place.
+   - **SQLite**: Keep any `-wal` file extracted from an offline `tar` archive because it can hold committed transactions. When restoring a standalone `sqlite3 .backup` file or an external `sqlite:` database, delete destination `-wal` and `-shm` files before copying it into place.
    - **PostgreSQL, MySQL, or libSQL (`database.url`)**: Restore the database to $T_{\text{db}}$. When `replicaPath` is configured for libSQL, delete that local replica file and its `-wal` and `-shm` files before starting pnpr.
 4. Run `pnpr verify` to confirm all referenced package documents and archives match:
    ```sh
@@ -158,9 +158,9 @@ To migrate hosted packages from a local directory to an S3 bucket:
      authToken: ${PNPR_LIBSQL_TOKEN}
    ```
 
-3. Move the archives. `migrate-storage` copies every stored archive under the
-   same key, which the metadata maps files to, and refuses metadata an S3
-   deployment cannot read:
+3. Move the archives and transparency log. `migrate-storage` copies every stored
+   archive and `.transparency-log/` record under the same key, and refuses
+   metadata an S3 deployment cannot read:
 
    ```sh
    # Dry run: check what would be transferred

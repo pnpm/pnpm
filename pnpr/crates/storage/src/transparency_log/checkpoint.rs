@@ -247,7 +247,7 @@ pub(super) fn validate_refreshed_checkpoint(
 
 /// The tree head a stored checkpoint note signs: the text before the blank
 /// line that starts its signatures.
-fn tree_head_of(note: &[u8]) -> Result<TreeHead> {
+pub(super) fn tree_head_of(note: &[u8]) -> Result<TreeHead> {
     let malformed =
         || RegistryError::Internal { reason: "a stored log checkpoint is malformed".to_string() };
     let text_end = note

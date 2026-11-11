@@ -21,6 +21,7 @@
 pub use checkpoint::StoredCheckpoint;
 
 mod checkpoint;
+mod migrate;
 mod reconcile;
 
 use crate::Storage;

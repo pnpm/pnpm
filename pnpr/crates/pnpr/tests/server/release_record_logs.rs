@@ -443,3 +443,66 @@ async fn prepare_storage_and_publish_refuse_a_forked_transparency_log() {
         donor_checkpoint,
     );
 }
+
+#[tokio::test]
+async fn migrate_local_to_s3_copies_transparency_log_for_migrated_startup() {
+    let primary_dir = TempDir::new().unwrap();
+    let (_primary, primary_addr, _primary_task) =
+        pnpr_libsql::testing::serve_primary(primary_dir.path().join("primary.db")).await;
+    let metadata = pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+        url: format!("http://{primary_addr}"),
+        auth_token: None,
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    });
+
+    let local_tmp = TempDir::new().unwrap();
+    let mut local_config = acme_config(local_tmp.path(), Vec::new());
+    local_config.storage.metadata = metadata.clone();
+    pnpr::prepare_storage(&local_config).await.unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let local_app = router_with_auth(local_config, auth.clone());
+    publish(&local_app, &token, "@acme/widget", "1.0.0").await;
+    let before_migrate = wait_for_checkpoint_size(&local_app, 1).await;
+    drop(local_app);
+
+    let s3_scratch = TempDir::new().unwrap();
+    let mut s3_config = acme_config(s3_scratch.path(), Vec::new());
+    s3_config.storage.metadata = metadata;
+    s3_config.storage.hosted_backend = pnpr_config::HostedStoreConfig::ObjectStore {
+        store: Arc::new(object_store::memory::InMemory::new()),
+        prefix: "registry".to_string(),
+    };
+
+    // Before `.transparency-log/` is migrated, startup refuses the empty bucket.
+    assert!(pnpr::prepare_storage(&s3_config).await.is_err());
+
+    let migrate_options = pnpr::migrate_storage::MigrateStorageOptions {
+        from: Some(local_tmp.path().to_path_buf()),
+        verify: true,
+        ..Default::default()
+    };
+    let report = pnpr::migrate_storage::migrate_local_to_s3(&s3_config, &migrate_options)
+        .await
+        .unwrap();
+    assert_eq!(report.packages_migrated, 1);
+    assert!(report.blobs_transferred >= 4, "{report:?}");
+
+    // Re-running migration against the populated bucket is idempotent.
+    pnpr::migrate_storage::migrate_local_to_s3(&s3_config, &migrate_options)
+        .await
+        .unwrap();
+
+    pnpr::prepare_storage(&s3_config).await.unwrap();
+    let s3_app = router_with_auth(s3_config, auth);
+    assert_eq!(wait_for_checkpoint_size(&s3_app, 1).await, before_migrate);
+
+    publish(&s3_app, &token, "@acme/widget", "1.0.1").await;
+    let after_migrate = wait_for_checkpoint_size(&s3_app, 2).await;
+    assert_eq!(after_migrate.size, 2);
+    let bundle =
+        body_bytes(get(&s3_app, "/npm/-/log/tile/entries/000.p/2", None).await.into_body()).await;
+    assert_eq!(decode_bundle(&bundle).unwrap().len(), 2);
+}
