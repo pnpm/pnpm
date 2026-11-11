@@ -1,12 +1,9 @@
-import type { CatalogResolver } from '@pnpm/catalogs.resolver'
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { PackageManifest } from '@pnpm/types'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
 import semver from 'semver'
-
-import { lookUpCatalogEntry } from './lookUpCatalogEntry.js'
 
 /** One workspace-root dependency that a missing peer can be satisfied with. */
 export interface HoistableRootDep {
@@ -72,7 +69,6 @@ export function getPeerShadowedDependencies (
 export interface HoistPeersOptions {
   autoInstallPeers: boolean
   allPreferredVersions?: PreferredVersions
-  catalogResolver?: CatalogResolver
   /**
    * Whether the running update targets the peer. The lockfile's pins of a
    * targeted peer are not reused, so the peer re-resolves.
@@ -136,9 +132,6 @@ function pickMissingPeerSpec (
   opts: HoistPeersOptions,
   { peerName, range }: { peerName: string, range: string }
 ): string | undefined {
-  if (opts.catalogResolver != null) {
-    range = lookUpCatalogEntry(opts.catalogResolver, { alias: peerName, bareSpecifier: range })?.specifier ?? range
-  }
   if (!isRegistryPeerSpecifier(range)) {
     return opts.autoInstallPeers ? range : undefined
   }

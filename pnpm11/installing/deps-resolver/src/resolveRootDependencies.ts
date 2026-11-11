@@ -166,7 +166,6 @@ function createImporterPeersHoister (hoisting: PeerHoisting, index: number): (mi
   return hoistPeers.bind(null, {
     autoInstallPeers: ctx.autoInstallPeers,
     allPreferredVersions: ctx.allPreferredVersions,
-    catalogResolver: ctx.catalogResolver,
     isUpdateTarget: hoisting.hoistedPeersUpdateDepths[index] < 0 ? undefined : options.updateMatching,
     lockfileOnlyVersions: hoisting.lockfileOnlyVersions,
     workspaceRootDeps: hoisting.workspaceRootDeps,

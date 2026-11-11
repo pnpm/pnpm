@@ -92,6 +92,7 @@ function addNewResolvedPackage (
   // WARN: It is very important to keep this sync
   // Otherwise, deprecation messages for the same package might get written several times
   ctx.resolvedPkgsById[pkgResponse.body.id] = getResolvedPackage({
+    catalogResolver: ctx.catalogResolver,
     dependencyLockfile: currentPkg.dependencyLockfile,
     pkgIdWithPatchHash: resolved.pkgIdWithPatchHash,
     force: ctx.force,
@@ -114,7 +115,7 @@ function addNewResolvedPackage (
  * also an optional peer can end up as neither.
  */
 function installOwnerPeerDependencies ({ ctx }: DependencyRequest, { pkg, pkgResponse }: ResolvedPackageSource): void {
-  ctx.resolvedPkgsById[pkgResponse.body.id].peers = getPeerSet(pkg)
+  ctx.resolvedPkgsById[pkgResponse.body.id].peers = getPeerSet(pkg, ctx.catalogResolver)
 }
 
 // Report deprecated packages only on first occurrence.
