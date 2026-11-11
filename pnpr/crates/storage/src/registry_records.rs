@@ -73,8 +73,7 @@ impl Storage {
     }
 }
 
-/// A registry's record key. A registry declared under an ecosystem group is
-/// named `<ecosystem>/<name>`, and each segment becomes one path segment.
+/// A registry's record key, with each segment validated as a path component.
 fn registry_record_key(registry: &str) -> Result<String> {
     let segments = registry
         .split('/')

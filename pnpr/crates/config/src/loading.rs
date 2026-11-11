@@ -6,10 +6,7 @@ use super::{
     build_osv_config, build_route_policy, build_ui_config, config_file_in, env_replace_lossy,
     resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
-use crate::{
-    config_file::{RegistryFile, RegistryGroupFile},
-    secrets::validate_secret_env_vars,
-};
+use crate::{config_file::RegistryFile, secrets::validate_secret_env_vars};
 
 impl Config {
     /// Load YAML from `path` and merge it with runtime values
@@ -354,17 +351,11 @@ fn build_metrics_config(
     Ok(metrics)
 }
 
-/// Whether the config declares a hosted registry, flat or inside an
-/// ecosystem group: the only registries with package metadata of their own.
+/// Whether the config declares a registry with package metadata of its own.
 fn declares_a_hosted_registry(file: &ConfigFile) -> bool {
     file.registries
         .values()
-        .any(|entry| match entry {
-            RegistryGroupFile::Registry(registry) => matches!(registry, RegistryFile::Hosted(_)),
-            RegistryGroupFile::Ecosystem(group) => group
-                .values()
-                .any(|registry| matches!(registry, RegistryFile::Hosted(_))),
-        })
+        .any(|registry| matches!(registry, RegistryFile::Hosted(_)))
 }
 
 fn build_storage_config(

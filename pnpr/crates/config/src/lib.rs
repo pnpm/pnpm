@@ -51,8 +51,8 @@ mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
     FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock,
-    RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock, RemovedUpstreamsBlock,
+    RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
 mod gc;

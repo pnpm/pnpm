@@ -141,8 +141,7 @@ pub(super) async fn read_with_deadline<Output>(
         })?
 }
 
-/// Canonicalize a registry key as `<ecosystem>/<local_name>`, regardless of
-/// whether the registry is declared at top level or under an ecosystem group.
+/// Canonicalize a registry key as `<ecosystem>/<local_name>`.
 pub(super) fn canonical_registry_key(state: &AppState, registry: &str) -> String {
     let ecosystem = state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
     let local_name = pnpr_registry::Registries::local_name(registry);

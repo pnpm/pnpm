@@ -384,30 +384,30 @@ async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
 }
 
 #[tokio::test]
-async fn moving_registry_into_ecosystem_group_preserves_rules() {
+async fn making_default_ecosystem_and_org_explicit_preserves_rules() {
     let dir = TempDir::new().unwrap();
     let app1 = app_router(load_config(dir.path())).await;
     let root = add_user(&app1, "root").await;
     let change = json!({ "access": ["$authenticated"] });
     assert_eq!(send(&app1, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
 
-    let grouped_config_yaml = "\
+    let explicit_config_yaml = "\
 auth:
   admins: [root]
   users:
     maxUsers: 100
 registries:
-  npm:
-    local:
-      type: hosted
-      org: \"\"
-      rulesManagedBy: api
-      teams:
-        readers: { name: readers, members: [carol] }
-      packages:
-        '@secret/*':
-          access: [$authenticated]
-        '**': {}
+  local:
+    type: hosted
+    ecosystem: npm
+    org: \"\"
+    rulesManagedBy: api
+    teams:
+      readers: { name: readers, members: [carol] }
+    packages:
+      '@secret/*':
+        access: [$authenticated]
+      '**': {}
   fixed:
     type: hosted
     org: fixed
@@ -415,12 +415,12 @@ registries:
       '@fixed/*': {}
   main:
     type: router
-    sources: [fixed, 'npm/local']
+    sources: [fixed, local]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
-    let path = dir.path().join("config_grouped.yaml");
-    std::fs::write(&path, format!("storage: {}\n{grouped_config_yaml}", storage.display()))
+    let path = dir.path().join("config_explicit.yaml");
+    std::fs::write(&path, format!("storage: {}\n{explicit_config_yaml}", storage.display()))
         .unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let config2 =
@@ -443,21 +443,21 @@ auth:
   users:
     maxUsers: 100
 registries:
-  cargo:
-    crates:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'foo': {}
-  pypi:
-    wheels:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'bar': {}
+  crates:
+    type: hosted
+    ecosystem: cargo
+    rulesManagedBy: api
+    packages:
+      'foo': {}
+  wheels:
+    type: hosted
+    ecosystem: pypi
+    rulesManagedBy: api
+    packages:
+      'bar': {}
   main:
     type: router
-    sources: ['cargo/crates']
+    sources: [crates]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
@@ -518,15 +518,15 @@ auth:
   users:
     maxUsers: 100
 registries:
-  cargo:
-    crates:
-      type: hosted
-      rulesManagedBy: api
-      packages:
-        'foo': {}
+  crates:
+    type: hosted
+    ecosystem: cargo
+    rulesManagedBy: api
+    packages:
+      'foo': {}
   main:
     type: router
-    sources: ['cargo/crates']
+    sources: [crates]
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");

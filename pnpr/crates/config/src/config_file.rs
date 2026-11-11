@@ -46,8 +46,8 @@ pub(super) struct HostedFile {
     #[serde(default)]
     pub(super) ecosystem: Option<Ecosystem>,
     /// Storage namespace for this registry's packages, so two hosted registries can
-    /// hold the same `name@version` without colliding. A grouped registry defaults
-    /// to `name`; a flat entry defaults to the default namespace (`""`).
+    /// hold the same `name@version` without colliding. Omitted ⇒ the default
+    /// namespace (`""`).
     #[serde(default)]
     pub(super) org: Option<String>,
     /// The registry-level default: who may read this registry's packages when
@@ -155,16 +155,6 @@ pub(super) struct RouterFile {
     /// `tgz`.
     #[serde(default)]
     pub(super) tarballs: Option<TarballFormat>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(
-    untagged,
-    expecting = "a registry with type hosted, upstream, or router, or an ecosystem group of registries"
-)]
-pub(super) enum RegistryGroupFile {
-    Registry(RegistryFile),
-    Ecosystem(IndexMap<String, RegistryFile>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -279,7 +269,7 @@ pub(super) struct ConfigFile {
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`.
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) registries: IndexMap<String, RegistryGroupFile>,
+    pub(super) registries: IndexMap<String, RegistryFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
     /// registry and clients must address a `/~<name>/`.
     #[serde(default)]

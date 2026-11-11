@@ -181,7 +181,9 @@ fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
 /// load instead of becoming an unreachable or URL-ambiguous registry.
 #[test]
 fn from_yaml_str_rejects_url_unsafe_registry_names() {
-    for name in ["'a/b'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"] {
+    for name in
+        ["'a/b'", "'npm/local'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"]
+    {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a URL-unsafe registry name must be rejected");
@@ -442,19 +444,25 @@ registries:
 }
 
 #[test]
-fn ecosystem_groups_reject_ambiguous_or_cross_ecosystem_configuration() {
-    for yaml in [
-        "registries:\n  npm:\n    internal: {type: hosted, ecosystem: cargo}\n",
-        "registries:\n  internal: {type: hosted}\n  npm:\n    internal: {type: hosted}\n",
-        "registries:\n  npm:\n    main: {type: router, sources: [internal]}\n  cargo:\n    internal: {type: hosted}\n",
-        "registries:\n  npm:\n    main: {type: router, sources: ['cargo/internal']}\n  cargo:\n    internal: {type: hosted}\n",
-        "registries:\n  cargo:\n    internal: {type: hosted}\ndefaultRegistry:\n  npm: internal\n",
-        "registries:\n  cargo:\n    internal: {type: hosted, ecosystem: npm}\n",
-        "registries:\n  npm:\n    internal: {type: hosted}\n    internal: {type: hosted}\n",
-    ] {
-        let result = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None);
-        assert!(result.is_err(), "must reject ambiguous or cross-ecosystem config: {yaml}");
+fn ecosystem_groups_are_rejected_even_with_an_explicit_org() {
+    for ecosystem in Ecosystem::all() {
+        for org in ["", ", org: internal", ", org: ''"] {
+            let yaml =
+                format!("registries:\n  {ecosystem}:\n    internal: {{type: hosted{org}}}\n");
+            let error = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+                .expect_err("registries must be declared directly under registries");
+            assert!(error.to_string().contains("type"), "{error}");
+        }
     }
+}
+
+#[test]
+fn ecosystem_default_does_not_assign_the_registry_ecosystem() {
+    let yaml = "registries:\n  local: {type: hosted}\ndefaultRegistry:\n  cargo: local\n";
+    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a registry without ecosystem is npm, regardless of the default");
+    assert!(error.to_string().contains("defaultRegistry"), "{error}");
+    assert!(error.to_string().contains("local"), "{error}");
 }
 
 #[test]

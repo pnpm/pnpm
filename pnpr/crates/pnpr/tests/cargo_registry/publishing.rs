@@ -1,6 +1,6 @@
 use super::{
     AuthState, Body, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, cargo_config,
-    crate_archive, header, json, metadata, publish_body, publish_request, registry_groups,
+    crate_archive, header, json, metadata, multi_ecosystem, publish_body, publish_request,
     router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
@@ -407,13 +407,13 @@ async fn search_reports_the_newest_unyanked_release() {
 }
 
 #[tokio::test]
-async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
+async fn cargo_publish_stays_out_of_other_ecosystems() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(registry_groups::grouped_config(tmp.path(), "$all"), auth);
+    let app = router_with_auth(multi_ecosystem::multi_ecosystem_config(tmp.path(), "$all"), auth);
     let archive = crate_archive("demo", "0.1.0");
-    let request = Request::put("/cargo/~internal/api/v1/crates/new")
+    let request = Request::put("/cargo/~cargo-internal/api/v1/crates/new")
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .body(Body::from(publish_body(&metadata("demo", "0.1.0"), &archive)))
         .unwrap();
@@ -423,7 +423,7 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    for base in ["/cargo/~internal", "/cargo/~main", "/cargo"] {
+    for base in ["/cargo/~cargo-internal", "/cargo/~cargo-main", "/cargo"] {
         let response = app
             .clone()
             .oneshot(
@@ -448,9 +448,12 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
         assert_eq!(response.status(), StatusCode::OK, "{base}");
         assert_eq!(body_bytes(response.into_body()).await, archive);
     }
-    for path in
-        ["/npm/~internal/demo", "/npm/~main/demo", "/npm/demo", "/pypi/~internal/simple/demo/"]
-    {
+    for path in [
+        "/npm/~npm-internal/demo",
+        "/npm/~npm-main/demo",
+        "/npm/demo",
+        "/pypi/~pypi-internal/simple/demo/",
+    ] {
         let response = app
             .clone()
             .oneshot(
