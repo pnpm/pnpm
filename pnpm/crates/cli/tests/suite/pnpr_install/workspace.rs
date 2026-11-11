@@ -2,10 +2,11 @@ use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, Lockfile, MISSING_PEERS_PARENT,
     WORKSPACE_HELLO, WORKSPACE_PARENT, assert_filtered_workspace_pnpr,
     assert_standard_workspace_pnpr_from, configure_pnpr_auth, configure_workspace, fs,
-    is_preserved_key, mock_filtered_repair_response, pacquet_at, read_workspace_lockfile,
-    replace_workspace_dependency, seed_filtered_repair_workspace, selected_only_pnpr_lockfile,
-    start_pnpr, workspace_has_link, workspace_importer, workspace_importer_version, workspace_slot,
-    workspace_snapshot_entries, write_workspace_project,
+    is_preserved_key, mock_filtered_repair_response, pacquet_at, pnpr_done_frame,
+    read_workspace_lockfile, replace_workspace_dependency, seed_filtered_repair_workspace,
+    selected_only_pnpr_lockfile, start_pnpr, workspace_has_link, workspace_importer,
+    workspace_importer_version, workspace_slot, workspace_snapshot_entries,
+    write_workspace_project,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::fmt::Write as _;
@@ -364,7 +365,7 @@ fn filtered_workspace_pnpr_reports_a_missing_selected_importer_without_panicking
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body(format!("{response}\n"))
+        .with_body_from_request(move |request| pnpr_done_frame(request, response.clone()))
         .expect(1)
         .create();
 

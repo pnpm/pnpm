@@ -1,8 +1,9 @@
 use super::{
     AddMockedRegistry, CONFLICTED_DEPENDENCY, CommandExtra, CommandTempCwd, IS_POSITIVE_PATCH,
     Path, assert_merged_conflicted_lockfile, configure_pnpr_auth, fs, get_all_files,
-    is_symlink_or_junction, pacquet_at, point_npmrc_registry_at, read_workspace_lockfile,
-    start_pnpr, start_pnpr_for, workspace_importer_version, write_conflicted_lockfile_fixture,
+    is_symlink_or_junction, pacquet_at, pnpr_done_frame, point_npmrc_registry_at,
+    read_workspace_lockfile, start_pnpr, start_pnpr_for, workspace_importer_version,
+    write_conflicted_lockfile_fixture,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -295,9 +296,7 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("stdout:\n{stdout}\nstderr:\n{stderr}");
     assert!(!output.status.success());
-    assert!(format!("{stdout}{stderr}").contains(
-        "ERR_PNPM_PNPR_SERVER_IGNORED_ADD_MISSING_PEER_TYPES"
-    ),);
+    assert!(format!("{stdout}{stderr}").contains("pnpr server omitted appliedPolicies"));
     assert!(!workspace.join("pnpm-lock.yaml").exists());
     resolve_mock.assert();
 
@@ -405,7 +404,9 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         .mock("POST", "/-/pnpr/v0/verify-lockfile")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\"}\n")
+        .with_body_from_request(|request| {
+            pnpr_done_frame(request, serde_json::json!({ "type": "done" }))
+        })
         .expect(1)
         .create();
 
@@ -590,7 +591,9 @@ fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
         .mock("POST", "/-/pnpr/v0/verify-lockfile")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\"}\n")
+        .with_body_from_request(|request| {
+            pnpr_done_frame(request, serde_json::json!({ "type": "done" }))
+        })
         .expect(1)
         .create();
     let no_resolve = verifier

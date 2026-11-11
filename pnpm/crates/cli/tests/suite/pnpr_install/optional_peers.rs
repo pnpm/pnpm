@@ -86,10 +86,7 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_project_scoped_optional_
         String::from_utf8_lossy(&output.stderr),
     );
     assert!(!output.status.success(), "{combined}");
-    assert!(
-        combined.contains("ERR_PNPM_PNPR_SERVER_IGNORED_PROJECT_SCOPED_OPTIONAL_PEERS"),
-        "{combined}",
-    );
+    assert!(combined.contains("pnpr server omitted appliedPolicies"), "{combined}");
     assert!(!workspace.join("pnpm-lock.yaml").exists());
     resolve_mock.assert();
 
