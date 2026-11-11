@@ -197,7 +197,7 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       RUST_TEST_SHARED_BUILD: ${{ matrix.shared_test_build }}
       # Jitter entropy initialization aborts on Windows runners: pnpm/tasks#239.
-      AWS_LC_SYS_NO_JITTER_ENTROPY: ${{ matrix.os_label == 'windows' && '1' || '0' }}
+      AWS_LC_SYS_NO_JITTER_ENTROPY: ${{ matrix.os_label == 'windows' && '1' || '' }}
       # Main only restores compiler cache entries that main wrote.
       SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     strategy:
