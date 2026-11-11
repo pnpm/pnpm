@@ -136,9 +136,9 @@ pub(crate) async fn post_v1_login_device(
     let code = form.code.unwrap_or_default();
     let oidc = &state.inner.identity.oidc;
     if !oidc.is_pending_web_login(&code) {
-        state.inner.identity.login_rate_limiter.record_wrong_web_login_code(ip_address, peer_ip);
         return code_page(StatusCode::BAD_REQUEST, Some(UNUSABLE_CODE));
     }
+    state.inner.identity.login_rate_limiter.refund_web_login_code(ip_address, peer_ip);
     match choose_provider(form.provider, &providers, &code) {
         Ok(provider) => sign_in_with_code(oidc, &providers, &provider, &code).await,
         Err(page) => page,
@@ -168,7 +168,8 @@ fn choose_provider(
 }
 
 /// Refuse a code submission that did not come from pnpr's own page, or from
-/// a client that entered too many wrong codes.
+/// a client that entered too many wrong codes. An admitted submission holds
+/// a reservation that a valid code gives back.
 fn admit_device_request(
     state: &AppState,
     headers: &HeaderMap,
@@ -181,7 +182,7 @@ fn admit_device_request(
         ));
     }
     state.inner.identity.login_rate_limiter
-        .check_web_login_code(ip_address, peer_ip)
+        .reserve_web_login_code(ip_address, peer_ip)
         .map_err(|retry_after| super::user_accounts::login_throttled_response(state, retry_after))
 }
 

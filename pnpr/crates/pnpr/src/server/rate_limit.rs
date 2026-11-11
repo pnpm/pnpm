@@ -17,6 +17,14 @@ enum RateLimitKey {
     WrongWebLoginCode(Option<IpAddr>),
 }
 
+impl RateLimitKey {
+    /// Whether the key counts toward [`MAX_WEB_LOGIN_RECORDS`]: an anonymous
+    /// client can create one for every address it sends from.
+    fn is_capped(&self) -> bool {
+        matches!(self, RateLimitKey::WebLogin(_) | RateLimitKey::WrongWebLoginCode(_))
+    }
+}
+
 const MAX_WEB_LOGIN_RECORDS: usize = 1024;
 const EVICTION_MAP_THRESHOLD: usize = 1024;
 const EVICTION_INTERVAL: Duration = Duration::from_secs(30);
@@ -89,7 +97,7 @@ impl LoginRateLimiter {
             let web_login_count = &mut inner.web_login_count;
             inner.map.retain(|key, record| {
                 let active = now.duration_since(record.first_attempt) < self.window;
-                if !active && matches!(key, RateLimitKey::WebLogin(_)) {
+                if !active && key.is_capped() {
                     *web_login_count = web_login_count.saturating_sub(1);
                 }
                 active
@@ -188,10 +196,7 @@ impl LoginRateLimiter {
         let has_expired = cooldown_active
             && inner.map
                 .iter()
-                .any(|(k, r)| {
-                    matches!(k, RateLimitKey::WebLogin(_))
-                        && now.duration_since(r.first_attempt) >= self.window
-                });
+                .any(|(k, r)| k.is_capped() && now.duration_since(r.first_attempt) >= self.window);
         let retry_after = if has_expired {
             FULL_EVICTION_COOLDOWN
                 .saturating_sub(now.duration_since(inner.last_eviction))
@@ -213,10 +218,38 @@ impl LoginRateLimiter {
         client_ip: Option<IpAddr>,
         peer_ip: Option<IpAddr>,
     ) -> Result<(), u64> {
+        self.check_and_record_capped(RateLimitKey::WebLogin(client_ip.or(peer_ip)))
+    }
+
+    /// Reserve one web login code submission for the client, identified as in
+    /// [`Self::check_and_record_web_login`]. A submission whose code turns
+    /// out to be valid gives its reservation back with
+    /// [`Self::refund_web_login_code`], so only wrong codes use up the limit,
+    /// and people behind one address do not throttle each other's sign-ins.
+    pub(crate) fn reserve_web_login_code(
+        &self,
+        client_ip: Option<IpAddr>,
+        peer_ip: Option<IpAddr>,
+    ) -> Result<(), u64> {
+        self.check_and_record_capped(RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)))
+    }
+
+    /// Give back a reservation of [`Self::reserve_web_login_code`].
+    pub(crate) fn refund_web_login_code(&self, client_ip: Option<IpAddr>, peer_ip: Option<IpAddr>) {
+        let mut inner = self.records.lock().unwrap();
+        if let Some(record) =
+            inner.map.get_mut(&RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)))
+        {
+            record.count = record.count.saturating_sub(1);
+        }
+    }
+
+    /// Count an attempt under `key`, a key of an anonymous web login, whose
+    /// records are capped at [`MAX_WEB_LOGIN_RECORDS`].
+    fn check_and_record_capped(&self, key: RateLimitKey) -> Result<(), u64> {
         let now = Instant::now();
         let mut inner = self.records.lock().unwrap();
 
-        let key = RateLimitKey::WebLogin(client_ip.or(peer_ip));
         if let Some(record) = inner.map.get_mut(&key) {
             return self.update_existing_web_login(record, now);
         }
@@ -243,57 +276,18 @@ impl LoginRateLimiter {
         }
 
         for key in keys {
-            self.count_attempt(&mut inner.map, key, now);
+            inner.map
+                .entry(key)
+                .and_modify(|record| {
+                    if now.duration_since(record.first_attempt) >= self.window {
+                        record.count = 1;
+                        record.first_attempt = now;
+                    } else {
+                        record.count += 1;
+                    }
+                })
+                .or_insert(AttemptRecord { count: 1, first_attempt: now });
         }
-    }
-
-    fn count_attempt(
-        &self,
-        map: &mut HashMap<RateLimitKey, AttemptRecord>,
-        key: RateLimitKey,
-        now: Instant,
-    ) {
-        map.entry(key)
-            .and_modify(|record| {
-                if now.duration_since(record.first_attempt) >= self.window {
-                    record.count = 1;
-                    record.first_attempt = now;
-                } else {
-                    record.count += 1;
-                }
-            })
-            .or_insert(AttemptRecord { count: 1, first_attempt: now });
-    }
-
-    /// Refuse a web login code submission from a client that entered too many
-    /// codes that matched no pending login. Accepted codes do not count, so
-    /// people behind one address can sign in without throttling each other.
-    /// The client is identified as in [`Self::check_and_record_web_login`].
-    pub(crate) fn check_web_login_code(
-        &self,
-        client_ip: Option<IpAddr>,
-        peer_ip: Option<IpAddr>,
-    ) -> Result<(), u64> {
-        let now = Instant::now();
-        let inner = self.records.lock().unwrap();
-        let key = RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip));
-        self.check_key(&inner.map, &key, self.max_ip_attempts, now)
-    }
-
-    /// Count a web login code that matched no pending login.
-    pub(crate) fn record_wrong_web_login_code(
-        &self,
-        client_ip: Option<IpAddr>,
-        peer_ip: Option<IpAddr>,
-    ) {
-        let now = Instant::now();
-        let mut inner = self.records.lock().unwrap();
-        self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
-        self.count_attempt(
-            &mut inner.map,
-            RateLimitKey::WrongWebLoginCode(client_ip.or(peer_ip)),
-            now,
-        );
     }
 
     /// Clear failure count for `(client_ip, username)` or `username` on successful authentication.

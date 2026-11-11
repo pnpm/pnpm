@@ -183,3 +183,29 @@ async fn accepted_codes_do_not_use_up_the_guess_limit() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_code_guesses_cannot_exceed_the_limit() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let mut guesses = tokio::task::JoinSet::new();
+    for _ in 0..30 {
+        let app = app.clone();
+        guesses.spawn(async move {
+            app.oneshot(submit_code("BCDF-GHJK", None, Some("same-origin")))
+                .await
+                .unwrap()
+                .status()
+        });
+    }
+    let statuses = guesses.join_all().await;
+    let wrong = statuses
+        .iter()
+        .filter(|status| **status == StatusCode::BAD_REQUEST)
+        .count();
+    let throttled = statuses
+        .iter()
+        .filter(|status| **status == StatusCode::TOO_MANY_REQUESTS)
+        .count();
+    assert_eq!((wrong, throttled), (20, 10), "{statuses:?}");
+}
