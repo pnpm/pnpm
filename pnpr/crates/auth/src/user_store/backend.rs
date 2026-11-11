@@ -214,7 +214,10 @@ impl UserBackend for UserStore {
         let Some(username) = state.names_by_id.get(user_id) else {
             return Ok(None);
         };
-        let revision = state.users.get(username).map_or(0, |account| account.name_revision);
+        let revision = state.users
+            .get(username)
+            .map(|account| account.name_revision)
+            .unwrap_or(0);
         Ok(Some(crate::AccountLogin { username: username.clone(), revision }))
     }
 
