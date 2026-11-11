@@ -92,8 +92,8 @@ database:
 ```
 
 MySQL metadata keys are case-sensitive and limited to 512 bytes each. This
-includes catalog, package, version, revision, profile, tag, artifact, and
-publication names, principal IDs, and idempotency keys. Longer keys are rejected
+includes catalog, package, version, profile, tag, artifact, and publication
+names, principal IDs, and idempotency keys. Longer keys are rejected
 without committing the publication. Package manifests, READMEs, release records,
 and other payloads are not subject to this key limit. Use MySQL 8.0.19 or later
 with InnoDB and its default 16 KiB page size.

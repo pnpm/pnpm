@@ -262,10 +262,9 @@ impl PackageMetadata {
                                WHERE v.catalog = p.catalog
                                  AND v.ecosystem = p.ecosystem
                                  AND v.name = p.name
-                                 AND v.revision_key = ?3
                            )
                          ORDER BY p.name",
-                    params![catalog, ecosystem.as_str(), super::packument::ORDINARY],
+                    params![catalog, ecosystem.as_str()],
                 )?,
                 Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => connection.query(
                     "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",

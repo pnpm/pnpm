@@ -14,24 +14,24 @@ use pnpr_error::{RegistryError, Result};
 use std::collections::BTreeMap;
 
 /// The rows of the blobs a JSON array of identities names, in one namespace.
-pub(super) const ROWS: &str = "SELECT integrity, incarnation, state, size FROM blobs
+pub(super) const ROWS: &str = "SELECT blob_id, incarnation, state, size FROM blobs
      WHERE catalog = ?1 AND ecosystem = ?2
-       AND integrity IN (SELECT value FROM json_each(?3))";
+       AND blob_id IN (SELECT value FROM json_each(?3))";
 
 /// The mapped files of one package a JSON array of file names names, with
 /// the rows of their blobs.
-const MAPPED: &str = "SELECT a.artifact, a.version, a.integrity, b.incarnation, b.state, b.size
+const MAPPED: &str = "SELECT a.artifact, a.version, a.blob_id, b.incarnation, b.state, b.size
      FROM artifact_blobs a
      JOIN blobs b
-       ON b.catalog = a.catalog AND b.ecosystem = a.ecosystem AND b.integrity = a.integrity
+       ON b.catalog = a.catalog AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
      WHERE a.catalog = ?1 AND a.ecosystem = ?2 AND a.name = ?3
        AND a.artifact IN (SELECT value FROM json_each(?4))";
 
 /// The blob a file of a package is mapped to, while it is live.
-pub(super) const ARTIFACT: &str = "SELECT a.integrity, b.incarnation
+pub(super) const ARTIFACT: &str = "SELECT a.blob_id, b.incarnation
      FROM artifact_blobs a
      JOIN blobs b
-       ON b.catalog = a.catalog AND b.ecosystem = a.ecosystem AND b.integrity = a.integrity
+       ON b.catalog = a.catalog AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
      WHERE a.catalog = ?1 AND a.ecosystem = ?2 AND a.name = ?3 AND a.artifact = ?4
        AND b.state = 'live'";
 

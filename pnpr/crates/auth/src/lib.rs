@@ -18,10 +18,10 @@ pub use htpasswd::{
     verify_bcrypt, verify_returning_user, write_atomic,
 };
 pub use identify::identify;
-pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
+pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
 pub use owned_tokens::OwnedTokens;
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
-pub use token_store::{NewToken, TokenRecord, TokenStore};
+pub use token_store::{NewToken, TokenRecord, TokenStore, unix_millis};
 pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
@@ -30,7 +30,7 @@ mod password_login;
 use htpasswd::hash_bcrypt;
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex, unix_seconds};
+use token_store::{fresh_secret, sha256_hex};
 
 mod identify;
 mod last_used;
@@ -429,7 +429,7 @@ pub trait TokenBackend: Send + Sync {
     /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
     /// issued, was revoked, or expired.
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let now = unix_seconds();
+        let now = unix_millis();
         let record = self.find_by_key(&sha256_hex(raw.as_bytes())).await?;
         if let Some(ref r) = record
             && r.expires_at.is_some_and(|exp| exp <= now)
@@ -439,12 +439,12 @@ pub trait TokenBackend: Send + Sync {
         Ok(record)
     }
 
-    /// Update the last-used timestamp of the token identified by `key`.
+    /// Update the last-used timestamp (in Unix milliseconds) of the token identified by `key`.
     async fn touch_key(&self, _key: &str, _now: u64) -> Result<()> {
         Ok(())
     }
 
-    /// Update the last-used timestamp of the token by raw bearer token value.
+    /// Update the last-used timestamp (in Unix milliseconds) of the token by raw bearer token value.
     async fn touch(&self, raw: &str, now: u64) -> Result<()> {
         self.touch_key(&sha256_hex(raw.as_bytes()), now).await
     }

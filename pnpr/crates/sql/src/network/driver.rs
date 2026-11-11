@@ -353,7 +353,7 @@ macro_rules! driver {
                 fn schema_marker(&self) -> Option<&'static str> {
                     Some(match self.dialect {
                         Dialect::Postgres => {
-                            "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL DEFAULT 0)"
+                            "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL)"
                         }
                         Dialect::Mysql => super::mysql_schema::MARKER_TABLE,
                     })

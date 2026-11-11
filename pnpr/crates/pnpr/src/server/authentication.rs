@@ -6,11 +6,7 @@ mod credentials;
 
 use accounts::{account_identity, active_account_name};
 
-use std::{
-    net::IpAddr,
-    sync::LazyLock,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{net::IpAddr, sync::LazyLock};
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
@@ -295,10 +291,7 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
     let Some(record) = auth.tokens.find_by_key(key).await? else {
         return Ok(None);
     };
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+    let now = pnpr_auth::unix_millis();
     if record.expires_at.is_some_and(|exp| exp <= now) {
         return Ok(None);
     }

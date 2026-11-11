@@ -92,10 +92,10 @@ async fn create_verified_token(
     body: &[u8],
 ) -> Result<Response, RegistryError> {
     let username = identity.username().expect("authenticated caller");
-    let request = payload::parse_and_validate_token_request(body, token_store_unix_seconds())?;
+    let request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
     let verified_hash =
         verify_caller_password(state, client_ip, username, request.password()).await?;
-    let new_token = request.into_new_token(token_store_unix_seconds())?;
+    let new_token = request.into_new_token(pnpr_auth::unix_millis())?;
     let user_id = identity.user_id().expect("authenticated caller");
     let (raw, record) = state.inner.identity.auth.issue_token_if_credential_current(
         username,
@@ -313,18 +313,8 @@ pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) 
     obj
 }
 
-pub(super) fn token_timestamp_iso(seconds: u64) -> String {
-    iso_from_unix_millis(token_timestamp_millis(seconds))
-}
-
-pub(super) fn token_timestamp_millis(seconds: u64) -> i64 {
-    const MILLIS_PER_SECOND: u64 = 1000;
-    let max_seconds = i64::MAX as u64 / MILLIS_PER_SECOND;
-    (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
-}
-
-fn token_store_unix_seconds() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+pub(super) fn token_timestamp_iso(millis: u64) -> String {
+    iso_from_unix_millis(i64::try_from(millis).unwrap_or(i64::MAX))
 }
 
 #[cfg(test)]

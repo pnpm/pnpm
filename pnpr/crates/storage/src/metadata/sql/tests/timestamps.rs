@@ -25,9 +25,9 @@ async fn publication_times_keep_milliseconds_and_normalize_offsets(db: Db) {
 }
 
 async fn metadata_timestamps_are_integer_milliseconds(db: Db) {
+    let before = now_millis();
     let storage = storage(&db);
     let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
-    let before = now_millis();
     write(&org, "example", &packument("example", &["1.0.0"])).await;
     storage
         .sql_metadata()
@@ -54,6 +54,7 @@ async fn metadata_timestamps_are_integer_milliseconds(db: Db) {
 
 fn assert_timestamps(connection: &dyn Connection, before: i64) -> pnpr_error::Result<()> {
     for columns in [
+        ("schema_migrations", "applied_at"),
         ("versions", "published_at"),
         ("publications", "committed_at"),
         ("tag_history", "changed_at"),
@@ -96,6 +97,7 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
     tokio::task::spawn_blocking(move || {
         adapter.read(ReadSource::Primary, &mut |connection| {
             for (table, column) in [
+                ("schema_migrations", "applied_at"),
                 ("versions", "published_at"),
                 ("publications", "committed_at"),
                 ("publication_outcomes", "committed_at"),
@@ -105,6 +107,9 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
                 ("artifact_blobs", "mapped_at"),
                 ("staged_archives", "staged_at"),
                 ("removed_packages", "unpublished_at"),
+                ("tokens", "created_at"),
+                ("tokens", "last_used_at"),
+                ("tokens", "expires_at"),
             ] {
                 let mut row = connection.query_one(column_type_sql, params![table, column])?;
                 assert_eq!(

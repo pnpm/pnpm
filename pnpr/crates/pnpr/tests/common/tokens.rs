@@ -1,7 +1,7 @@
 //! Tokens for tests that drive a router built on an in-memory `AuthState`.
 
 use pnpr::{AuthState, TokenBackend};
-use pnpr_auth::LAST_USED_GRANULARITY_SECS;
+use pnpr_auth::LAST_USED_GRANULARITY_MILLIS;
 use std::{sync::Arc, time::Duration};
 
 /// A token for `username`, stored as an account first: pnpr honors only
@@ -24,7 +24,7 @@ pub(crate) async fn age_last_use(tokens: &Arc<dyn TokenBackend>, raw: &str) -> u
         .await
         .unwrap()
         .unwrap();
-    let aged = record.last_used_at - 2 * LAST_USED_GRANULARITY_SECS;
+    let aged = record.last_used_at - 2 * LAST_USED_GRANULARITY_MILLIS;
     tokens.touch(raw, aged).await.unwrap();
     aged
 }

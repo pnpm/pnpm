@@ -5,7 +5,7 @@ use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
     batch::Batch,
-    packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
+    packument::{Interpretation, PackumentRows, Readme, VersionRows, decompose},
     tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows, validate_packument_tags},
     to_column, to_generation,
 };
@@ -67,23 +67,20 @@ impl StoredPackage {
             queries.push(query!(
                 "SELECT v.version, m.accepted_digest, a.deprecated
                  FROM versions v
-                 JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
+                 JOIN accepted_manifests m USING (catalog, ecosystem, name, version)
                  LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-                 WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
-                   AND v.revision_key = ?4",
+                 WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3",
                 catalog,
                 ecosystem,
                 name,
-                ORDINARY,
             ));
             queries.push(stored_tags_query(key));
             queries.push(query!(
                 "SELECT version FROM removed_versions
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4",
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
                 catalog,
                 ecosystem,
                 name,
-                ORDINARY,
             ));
         }
         queries
@@ -358,10 +355,9 @@ fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
     let mut row = commit.transaction.query_one(
         "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
          FROM accepted_manifests m
-         LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
-         WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
-           AND m.revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
+         LEFT JOIN readmes r USING (catalog, ecosystem, name, version)
+         WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4",
+        params![catalog, ecosystem, name, version],
     )?;
     let manifest: String = row.get(0)?;
     let text: Option<String> = row.get(1)?;

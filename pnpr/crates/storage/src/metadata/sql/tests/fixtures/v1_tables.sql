@@ -29,11 +29,10 @@ CREATE TABLE IF NOT EXISTS versions (
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    revision_key TEXT NOT NULL,
     integrity TEXT NOT NULL,
     published_at INTEGER,
     accepted_generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+    PRIMARY KEY (catalog, ecosystem, name, version)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -47,12 +46,11 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    revision_key TEXT NOT NULL,
     profile TEXT NOT NULL,
     manifest TEXT NOT NULL,
     inputs TEXT NOT NULL,
     accepted_digest TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
+    PRIMARY KEY (catalog, ecosystem, name, version, profile)
 ) STRICT;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
@@ -64,12 +62,11 @@ CREATE TABLE IF NOT EXISTS release_records (
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    revision_key TEXT NOT NULL,
     profile TEXT NOT NULL,
     record BLOB NOT NULL,
     digest TEXT NOT NULL,
     log_index INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
+    PRIMARY KEY (catalog, ecosystem, name, version, profile)
 ) STRICT;
 
 -- Insert-only: the transparency log of each catalog's records of one
@@ -102,10 +99,9 @@ CREATE TABLE IF NOT EXISTS readmes (
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    revision_key TEXT NOT NULL,
     readme TEXT,
     readme_filename TEXT,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+    PRIMARY KEY (catalog, ecosystem, name, version)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -136,16 +132,27 @@ CREATE TABLE IF NOT EXISTS tag_history (
 
 -- Insert-only: the identity of every version removed from a package, by
 -- unpublishing it or the whole package. Kept when the package is removed, so
--- a removed version is never accepted again and a version and revision always
--- name the same bytes.
+-- a removed version is never accepted again and a version always names the
+-- same bytes.
 CREATE TABLE IF NOT EXISTS removed_versions (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    revision_key TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+    PRIMARY KEY (catalog, ecosystem, name, version)
+) STRICT, WITHOUT ROWID;
+
+-- Every manifest removed from an OCI repository, by deleting the manifest or
+-- removing the repository, so a publication that introduced it is not replayed
+-- after its removal. Kept when the repository is removed, with the generation
+-- of its latest removal when pushed and removed again.
+CREATE TABLE IF NOT EXISTS removed_oci_manifests (
+    catalog TEXT NOT NULL,
+    name TEXT NOT NULL,
+    artifact TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    PRIMARY KEY (catalog, name, artifact)
 ) STRICT, WITHOUT ROWID;
 
 -- Mutable annotations of a version. `deprecated` is its JSON value.
@@ -220,19 +227,19 @@ CREATE TABLE IF NOT EXISTS notes (
 ) STRICT, WITHOUT ROWID;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
--- the incarnation stored under `<integrity>.<incarnation>` now, `live`,
+-- the incarnation stored under `<blob_id>.<incarnation>` now, `live`,
 -- `reclaiming`, or `gone`. Never removed, so incarnations only grow and a key
 -- a reclaim may remove is never written again. `changed_at` is when `state`
 -- last changed.
 CREATE TABLE IF NOT EXISTS blobs (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
-    integrity TEXT NOT NULL,
+    blob_id TEXT NOT NULL,
     incarnation INTEGER NOT NULL,
     state TEXT NOT NULL,
     size INTEGER NOT NULL,
     changed_at INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, integrity)
+    PRIMARY KEY (catalog, ecosystem, blob_id)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS blobs_by_state ON blobs (catalog, ecosystem, state);
 
@@ -245,28 +252,28 @@ CREATE TABLE IF NOT EXISTS artifact_blobs (
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
     version TEXT NOT NULL,
-    integrity TEXT NOT NULL,
+    blob_id TEXT NOT NULL,
     mapped_at INTEGER NOT NULL,
     mapping TEXT NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, artifact)
 ) STRICT, WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS artifact_blobs_by_integrity
-    ON artifact_blobs (catalog, ecosystem, integrity);
+CREATE INDEX IF NOT EXISTS artifact_blobs_by_blob_id
+    ON artifact_blobs (catalog, ecosystem, blob_id);
 
--- The record of each archive a principal staged by the hex SHA-512 digest
--- of its bytes ahead of the commit that claims it. The bytes stay in the
--- hosted store under `<digest>.<incarnation>`. `state` is `incomplete`,
--- `complete`, or `gone`; never removed, so incarnations only grow and a key
--- a sweep may remove is never written again. `staged_at` is `0` once given
--- back or claimed.
+-- The record of each archive a principal staged by the identity
+-- (`<algorithm>-<hex>`) of its bytes ahead of the commit that claims it. The
+-- bytes stay in the hosted store under `<blob_id>.<incarnation>`. `state` is
+-- `incomplete`, `complete`, or `gone`; never removed, so incarnations only
+-- grow and a key a sweep may remove is never written again. `staged_at` is
+-- `0` once given back or claimed.
 CREATE TABLE IF NOT EXISTS staged_archives (
     principal TEXT NOT NULL,
-    digest TEXT NOT NULL,
+    blob_id TEXT NOT NULL,
     incarnation INTEGER NOT NULL,
     staged_at INTEGER NOT NULL,
     size INTEGER NOT NULL,
     state TEXT NOT NULL,
-    PRIMARY KEY (principal, digest)
+    PRIMARY KEY (principal, blob_id)
 ) STRICT, WITHOUT ROWID;
 -- The records a principal still holds, so its usage and its sweeps read
 -- them without the tombstones of every archive it ever staged.
@@ -280,6 +287,8 @@ CREATE TABLE IF NOT EXISTS registry_records (
     body BLOB NOT NULL,
     PRIMARY KEY (kind, name)
 ) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS registry_records_by_generation
+    ON registry_records (kind, generation);
 
 CREATE TABLE IF NOT EXISTS staged_metadata (
     id TEXT PRIMARY KEY NOT NULL,

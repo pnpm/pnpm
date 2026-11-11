@@ -30,6 +30,25 @@ fn a_key_names_one_incarnation() {
     }
 }
 
+#[test]
+fn an_invalid_identity_is_refused() {
+    let hex = "0123456789abcdef".repeat(8);
+    let windows = format!(r"sha512-{}\{}", &hex[..64], &hex[65..]);
+    let nested = format!("sha512-{}/{}", &hex[..64], &hex[65..]);
+    for candidate in [
+        "../escape",
+        "ABC",
+        &hex,
+        "sha512-../escape",
+        "sha512-ABC",
+        &format!("sha512-{}", hex.to_uppercase()),
+        &windows,
+        &nested,
+    ] {
+        assert_eq!(BlobId::parse(candidate), None, "{candidate}");
+    }
+}
+
 /// The hex SHA-256 of `bytes`.
 fn pnpr_oci_hex(bytes: &[u8]) -> String {
     let (_, hex) = ssri::Integrity::from(bytes).to_hex();

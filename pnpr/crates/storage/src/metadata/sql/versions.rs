@@ -4,7 +4,7 @@ use super::{
     PackageKey,
     adapter::Connection,
     commit::Commit,
-    packument::{ORDINARY, Readme, VersionRows},
+    packument::{Readme, VersionRows},
     to_column,
 };
 use crate::metadata::ArtifactMember;
@@ -26,15 +26,14 @@ pub(super) fn insert_version(
     refuse_removed(commit, removed, version)?;
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO versions (catalog, ecosystem, name, version, revision_key, integrity,
+        "INSERT INTO versions (catalog, ecosystem, name, version, integrity,
                                published_at, accepted_generation)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             catalog,
             ecosystem,
             name,
             version,
-            ORDINARY,
             rows.integrity(),
             rows.published_at,
             to_column(commit.generation),
@@ -66,15 +65,14 @@ fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRo
     let inputs = serde_json::to_string(&rows.interpretation.inputs)?;
     let accepted_digest = super::commit::accepted_digest(rows)?;
     commit.transaction.execute(
-        "INSERT INTO accepted_manifests (catalog, ecosystem, name, version, revision_key, profile,
+        "INSERT INTO accepted_manifests (catalog, ecosystem, name, version, profile,
                                          manifest, inputs, accepted_digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             catalog,
             ecosystem,
             name,
             version,
-            ORDINARY,
             rows.interpretation.profile,
             manifest,
             inputs,
@@ -116,16 +114,15 @@ fn insert_release_record(
     // The record keeps the index its entry was just sequenced at, the log's
     // last.
     commit.transaction.execute(
-        "INSERT INTO release_records (catalog, ecosystem, name, version, revision_key, profile,
+        "INSERT INTO release_records (catalog, ecosystem, name, version, profile,
                                       record, digest, log_index)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
                  (SELECT MAX(idx) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2))",
         params![
             catalog,
             ecosystem,
             name,
             version,
-            ORDINARY,
             profile,
             record.bytes(),
             record.digest().to_string(),
@@ -159,9 +156,8 @@ pub(super) fn read_release_record(
     let (catalog, ecosystem, name) = key.params();
     let row = connection.query_optional(
         "SELECT record FROM release_records
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-           AND revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![catalog, ecosystem, name, version],
     )?;
     row.map(|mut row| row.get(0))
         .transpose()
@@ -185,15 +181,13 @@ fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<
     }
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO readmes (catalog, ecosystem, name, version, revision_key, readme,
-                              readme_filename)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO readmes (catalog, ecosystem, name, version, readme, readme_filename)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             catalog,
             ecosystem,
             name,
             version,
-            ORDINARY,
             json_text(readme.text.as_ref())?,
             json_text(readme.filename.as_ref())?,
         ],
@@ -241,8 +235,8 @@ fn json_text(value: Option<&Value>) -> Result<Option<String>> {
 pub(super) fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
+        "INSERT INTO removed_versions (catalog, ecosystem, name, version, generation)
+         SELECT catalog, ecosystem, name, version, ?5 FROM versions
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
          ON CONFLICT DO NOTHING",
         params![catalog, ecosystem, name, version, to_column(commit.generation)],

@@ -666,7 +666,7 @@ async fn libsql_schema_migrations_refuses_future_version() {
     backend.pool
         .connect()
         .unwrap()
-        .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [future])
+        .execute("INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 1)", [future])
         .await
         .unwrap();
 
