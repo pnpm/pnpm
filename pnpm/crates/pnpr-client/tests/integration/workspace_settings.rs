@@ -9,6 +9,22 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
     let addr = listener.local_addr().expect("capture addr");
     let done = serde_json::json!({
         "type": "done",
+        "appliedPolicies": {
+            "autoInstallPeers": true,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": false,
+            "addMissingPeerTypes": false,
+            "projectScopedOptionalPeers": false,
+            "frozenLockfile": false,
+            "resolutionMode": "highest",
+            "minimumReleaseAge": null,
+            "minimumReleaseAgeExclude": [],
+            "minimumReleaseAgeIgnoreMissingTime": true,
+            "trustPolicy": null,
+            "trustPolicyExclude": [],
+            "trustPolicyIgnoreAfter": null,
+            "trustLockfile": false,
+        },
         "lockfile": {
             "lockfileVersion": "9.0",
             "importers": {

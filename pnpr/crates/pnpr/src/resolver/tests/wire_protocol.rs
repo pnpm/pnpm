@@ -351,3 +351,58 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
+
+#[tokio::test]
+async fn npm_success_frames_echo_every_policy() {
+    use super::super::{
+        protocol::AppliedPolicies,
+        wire::{done_frame, verify_done_or_osv_violations},
+    };
+    use serde_json::{Value, json};
+
+    let request: ResolveRequest = serde_json::from_value(json!({
+        "dedupePeers": true,
+        "minimumReleaseAge": 60,
+        "minimumReleaseAgeExclude": ["example-*"],
+        "minimumReleaseAgeIgnoreMissingTime": false,
+        "trustPolicy": "no-downgrade",
+        "trustPolicyExclude": ["legacy-*"],
+        "trustPolicyIgnoreAfter": 1440,
+        "trustLockfile": false,
+        "projectScopedOptionalPeers": true,
+    }))
+    .unwrap();
+    let applied = AppliedPolicies::from_request(&request);
+    let expected = json!({
+        "autoInstallPeers": true,
+        "dedupePeers": true,
+        "excludeLinksFromLockfile": false,
+        "addMissingPeerTypes": false,
+        "projectScopedOptionalPeers": true,
+        "frozenLockfile": false,
+        "resolutionMode": "highest",
+        "minimumReleaseAge": 60,
+        "minimumReleaseAgeExclude": ["example-*"],
+        "minimumReleaseAgeIgnoreMissingTime": false,
+        "trustPolicy": "no-downgrade",
+        "trustPolicyExclude": ["legacy-*"],
+        "trustPolicyIgnoreAfter": 1440,
+        "trustLockfile": false,
+    });
+    let lockfile = lockfile("1.0.0");
+    let resolve: Value = serde_json::from_slice(&done_frame(&lockfile, &applied)).unwrap();
+    assert_eq!(resolve["appliedPolicies"], expected);
+    let verify = verify_done_or_osv_violations(None, &lockfile, &request);
+    let body = axum::body::to_bytes(verify.into_body(), usize::MAX).await.unwrap();
+    let verify: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(verify["appliedPolicies"], expected);
+
+    let defaults =
+        serde_json::to_value(AppliedPolicies::from_request(&ResolveRequest::default())).unwrap();
+    assert_eq!(defaults["minimumReleaseAge"], Value::Null);
+    assert_eq!(defaults["minimumReleaseAgeExclude"], json!([]));
+    assert_eq!(defaults["minimumReleaseAgeIgnoreMissingTime"], json!(true));
+    assert_eq!(defaults["trustPolicy"], Value::Null);
+    assert_eq!(defaults["trustPolicyExclude"], json!([]));
+    assert_eq!(defaults["trustPolicyIgnoreAfter"], Value::Null);
+}
