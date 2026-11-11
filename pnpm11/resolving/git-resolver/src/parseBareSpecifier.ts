@@ -203,7 +203,8 @@ function parseGitParams (committish: string | null): GitParsedParams {
     return result
   }
 
-  const params = committish.split('&')
+  // `&` separates the parameters in pnpm's syntax, `::` in npm's.
+  const params = committish.split('&').flatMap((part) => part.split('::')).filter((param) => param !== '')
   for (const param of params) {
     if (param.length >= 7 && param.slice(0, 7) === 'semver:') {
       result.gitRange = param.slice(7)
