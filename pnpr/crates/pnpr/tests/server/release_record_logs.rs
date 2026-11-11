@@ -69,7 +69,12 @@ async fn setup(rules: Vec<pnpr::PackageRule>) -> (TempDir, Router, String) {
     (tmp, app, token)
 }
 
-async fn publish_status(app: &Router, token: &str, package: &str, version: &str) -> StatusCode {
+async fn publish_response(
+    app: &Router,
+    token: &str,
+    package: &str,
+    version: &str,
+) -> (StatusCode, String) {
     let manifest = format!(r#"{{"name":"{package}","version":"{version}"}}"#);
     let tar = tar_of(&[("package/package.json", manifest.as_bytes())]);
     let request = hosted_publish_request(
@@ -79,15 +84,23 @@ async fn publish_status(app: &Router, token: &str, package: &str, version: &str)
         &super::gzip(&tar),
         token,
     );
-    app.clone()
+    let response = app
+        .clone()
         .oneshot(request)
         .await
-        .unwrap()
-        .status()
+        .unwrap();
+    let status = response.status();
+    let text = String::from_utf8_lossy(&body_bytes(response.into_body()).await).into_owned();
+    (status, text)
+}
+
+async fn publish_status(app: &Router, token: &str, package: &str, version: &str) -> StatusCode {
+    publish_response(app, token, package, version).await.0
 }
 
 async fn publish(app: &Router, token: &str, package: &str, version: &str) {
-    assert_eq!(publish_status(app, token, package, version).await, StatusCode::CREATED);
+    let (status, body) = publish_response(app, token, package, version).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
 }
 
 async fn get(app: &Router, uri: &str, token: Option<&str>) -> axum::response::Response {
@@ -319,8 +332,11 @@ async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
     let app_initial = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
     publish(&app_initial, &token, "@acme/widget", "1.0.0").await;
     assert_eq!(wait_for_checkpoint_size(&app_initial, 1).await.size, 1);
+    rusqlite::Connection::open(&db_path)
+        .unwrap()
+        .execute("VACUUM INTO ?1", [db_backup.to_str().unwrap()])
+        .unwrap();
     drop(app_initial);
-    std::fs::copy(&db_path, &db_backup).unwrap();
 
     let app_before_crash = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
     publish(&app_before_crash, &token, "@acme/widget", "1.0.1").await;
@@ -329,21 +345,15 @@ async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
     assert_eq!(before_restore.size, 3);
     drop(app_before_crash);
 
-    for suffix in ["-wal", "-shm"] {
-        let sidecar = tmp
-            .path()
-            .join(format!("metadata.sqlite{suffix}"));
-        let _ = std::fs::remove_file(sidecar);
-    }
-    std::fs::copy(&db_backup, &db_path).unwrap();
-
     // Even without calling `prepare_storage` first, an immediate publish on a
-    // fresh router reconciles the log before committing.
-    let app_restored = router_with_auth(acme_config(tmp.path(), Vec::new()), auth);
-    assert_eq!(
-        publish_status(&app_restored, &token, "@acme/widget", "1.0.1").await,
-        StatusCode::FORBIDDEN,
-    );
+    // fresh router pointed at the earlier metadata backup reconciles the log
+    // before staging or committing.
+    let mut restored_config = acme_config(tmp.path(), Vec::new());
+    restored_config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(db_backup);
+    let app_restored = router_with_auth(restored_config, auth);
+    let (republish_status, republish_body) =
+        publish_response(&app_restored, &token, "@acme/widget", "1.0.1").await;
+    assert_eq!(republish_status, StatusCode::FORBIDDEN, "{republish_body}");
     publish(&app_restored, &token, "@acme/widget", "1.0.3").await;
     let after_restore = wait_for_checkpoint_size(&app_restored, 4).await;
     assert_eq!(after_restore.size, 4);

@@ -157,7 +157,7 @@ pub(in super::super) async fn validate_staged_publish_name(
         return Err(invalid);
     }
     let storage = hosted_storage(state, Some(namespace));
-    let mut base = read_staged_base(&storage, &doc).await?;
+    let mut base = read_staged_base(state, &storage, Some(namespace), &doc).await?;
     prepare_publish_document(&storage, &mut doc, &mut base, &now_iso()).await?;
     Ok(())
 }
@@ -232,7 +232,7 @@ pub(in super::super) async fn stage_publish(
 ) -> Result<StagedPublish, RegistryError> {
     let storage = hosted_storage(state, namespace);
 
-    let mut base = read_staged_base(&storage, &doc).await?;
+    let mut base = read_staged_base(state, &storage, namespace, &doc).await?;
     check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
     reauthorize_staged(state, &doc, &base)?;
     let publisher = doc.publisher.user_id().map(str::to_string);
@@ -312,11 +312,19 @@ async fn prepare_publish_document(
 }
 
 /// The packument `doc` is computed from, read with the rows of the blobs it
-/// expects to store.
+/// expects to store, after reconciling the namespace's transparency log so any
+/// rolled-back versions are already marked removed.
 async fn read_staged_base(
+    state: &AppState,
     storage: &Storage,
+    namespace: Option<&str>,
     doc: &ValidatedPublish,
 ) -> Result<StagedBase, RegistryError> {
+    let log = pnpr_storage::transparency_log::LogId {
+        namespace: namespace.unwrap_or_default().to_string(),
+        ecosystem: Ecosystem::Npm,
+    };
+    super::super::release_record_logs::ensure_reconciled(state, &log).await?;
     let lookup = BlobLookup { ids: expected_blobs(doc), artifacts: Vec::new() };
     let base = storage.read_hosted_document_for_publish(&doc.name, &lookup).await?;
     staged_base(&doc.name, base)
