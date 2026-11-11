@@ -59,7 +59,6 @@ impl ScimState {
                 state.inner.identity.oidc.revoke_user_sessions(&status.user_id);
             }
         }
-        drop(subjects);
         if !statuses.is_empty() {
             let mut active_by_id =
                 self.active_by_id.write().unwrap_or_else(PoisonError::into_inner);
@@ -372,3 +371,6 @@ pub(super) async fn deprovision(state: &AppState, user_id: &str) -> Result<(), R
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
