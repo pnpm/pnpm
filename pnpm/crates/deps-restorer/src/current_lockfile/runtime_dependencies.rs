@@ -25,7 +25,9 @@ fn importer_runtime_dependency_alias(
                 [
                     included.dependencies.then_some(DependencyGroup::Prod),
                     included.dev_dependencies.then_some(DependencyGroup::Dev),
-                    included.optional_dependencies.then_some(DependencyGroup::Optional),
+                    included
+                        .includes_project_optional_dependencies()
+                        .then_some(DependencyGroup::Optional),
                 ]
                 .into_iter()
                 .flatten(),

@@ -11,6 +11,14 @@ fn included(optional_dependencies: bool) -> IncludedDependencies {
     IncludedDependencies { dependencies: true, dev_dependencies: false, optional_dependencies }
 }
 
+fn dev_only_included() -> IncludedDependencies {
+    IncludedDependencies {
+        dependencies: false,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    }
+}
+
 #[test]
 fn finds_runtime_dependencies_in_selected_snapshots() {
     let lockfile = lockfile(
@@ -31,6 +39,18 @@ fn ignores_optional_runtime_dependencies_when_optionals_are_excluded() {
 
     assert_eq!(
         crate::runtime_dependency_alias(&lockfile, included(false), &SkippedSnapshots::new()),
+        None,
+    );
+}
+
+#[test]
+fn ignores_project_optional_runtime_dependencies_in_dev_only_selection() {
+    let lockfile = lockfile(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    optionalDependencies:\n      node:\n        specifier: runtime:22.0.0\n        version: runtime:22.0.0\npackages:\n  node@runtime:22.0.0:\n    resolution: {integrity: sha512-bbb}\nsnapshots:\n  node@runtime:22.0.0: {}\n",
+    );
+
+    assert_eq!(
+        crate::runtime_dependency_alias(&lockfile, dev_only_included(), &SkippedSnapshots::new()),
         None,
     );
 }
