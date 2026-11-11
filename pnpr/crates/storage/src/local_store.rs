@@ -226,6 +226,33 @@ impl Store {
         }
     }
 
+    pub(super) async fn has_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        match fs::metadata(self.record_path(namespace, key)).await {
+            Ok(meta) => Ok(meta.is_file()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub(super) async fn has_any_record(&self, namespace: &str) -> Result<bool> {
+        let mut root = self.root.clone();
+        root.extend(namespace.split('/'));
+        let mut pending = vec![root];
+        while let Some(dir) = pending.pop() {
+            let Some(mut entries) = read_dir_if_present(&dir).await? else {
+                continue;
+            };
+            while let Some(entry) = entries.next_entry().await? {
+                if entry.file_type().await?.is_dir() {
+                    pending.push(entry.path());
+                } else {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub(super) async fn create_record(
         &self,
         namespace: &str,

@@ -283,10 +283,6 @@ async fn copy_log_namespace(donor: &Storage, target: &Storage) {
     }
 }
 
-/// Restoring an older database snapshot behind `.transparency-log/` re-imports
-/// the bundled entries across full and partial bundles, fences off their
-/// rolled-back npm versions, and extends the existing tree without stalling or
-/// forking.
 async fn older_database_reimports_bundled_entries_and_extends_cleanly(db: Db) {
     let donor_tmp = TempDir::new().unwrap();
     let donor = Storage::from_config(&config(&donor_tmp)).unwrap();
@@ -353,19 +349,21 @@ async fn older_database_reimports_bundled_entries_and_extends_cleanly(db: Db) {
     }
 }
 
-/// Integration fails closed when `.transparency-log/` holds a checkpoint
-/// larger than the database's log and the missing entry bundles are absent,
-/// and never overwrites that checkpoint even if new publishes grow the
-/// database past it.
 async fn checkpoint_ahead_without_entry_bundles_fails_closed(db: Db) {
     let donor_tmp = TempDir::new().unwrap();
     let donor = Storage::from_config(&config(&donor_tmp)).unwrap();
     let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
     let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
-    publish(&donor, "acme", "core", &versions(0..5)).await;
+    publish(&donor, "acme", "core", &versions(0..3)).await;
+    publish(&donor, "acme", "core", &versions(3..5)).await;
     donor.integrate_log(&log, &signer).await.unwrap();
     let donor_checkpoint = donor
         .log_checkpoint(&log)
+        .await
+        .unwrap()
+        .unwrap();
+    let donor_hash_tile = donor.root
+        .read_record(LOG_NAMESPACE, "npm/~acme/tile/0/000.p/5")
         .await
         .unwrap()
         .unwrap();
@@ -373,10 +371,11 @@ async fn checkpoint_ahead_without_entry_bundles_fails_closed(db: Db) {
     let storage = storage(&db);
     publish(&storage, "acme", "core", &versions(0..3)).await;
     storage.integrate_log(&log, &signer).await.unwrap();
+    overwrite_log_record(&storage, "npm/~acme/tile/0/000.p/5", &donor_hash_tile).await;
     overwrite_log_record(&storage, "npm/~acme/checkpoint", &donor_checkpoint.note).await;
 
     let behind_err = storage.integrate_log(&log, &signer).await.unwrap_err();
-    assert!(behind_err.to_string().contains("more than its stored entry bundles"));
+    assert!(behind_err.to_string().contains("more than its stored entry bundles"), "{behind_err}");
 
     publish(&storage, "acme", "forked", &versions(0..4)).await;
     assert_eq!(
@@ -388,7 +387,7 @@ async fn checkpoint_ahead_without_entry_bundles_fails_closed(db: Db) {
         7,
     );
     let grown_err = storage.integrate_log(&log, &signer).await.unwrap_err();
-    assert!(grown_err.to_string().contains("more than its stored entry bundles"));
+    assert!(grown_err.to_string().contains("more than its stored entry bundles"), "{grown_err}");
     assert_eq!(
         storage
             .log_checkpoint(&log)
@@ -400,8 +399,6 @@ async fn checkpoint_ahead_without_entry_bundles_fails_closed(db: Db) {
     );
 }
 
-/// Integration fails closed when the stored checkpoint is not a prefix of the
-/// database's log, even after the database grows larger than that checkpoint.
 async fn forked_checkpoint_is_never_signed_over(db: Db) {
     let donor_tmp = TempDir::new().unwrap();
     let donor = Storage::from_config(&config(&donor_tmp)).unwrap();
@@ -452,6 +449,84 @@ async fn forked_checkpoint_is_never_signed_over(db: Db) {
     );
 }
 
+async fn unauthenticated_bundles_and_missing_prior_bundles_are_refused(db: Db) {
+    let donor_tmp = TempDir::new().unwrap();
+    let donor = Storage::from_config(&config(&donor_tmp)).unwrap();
+    let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
+    let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    publish(&donor, "acme", "core", &versions(0..2)).await;
+    publish(&donor, "acme", "core", &versions(2..4)).await;
+    donor.integrate_log(&log, &signer).await.unwrap();
+    let uncheckpointed_bundle = donor.root
+        .read_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000.p/4")
+        .await
+        .unwrap()
+        .unwrap();
+
+    let storage = storage(&db);
+    publish(&storage, "acme", "core", &versions(0..2)).await;
+    storage.integrate_log(&log, &signer).await.unwrap();
+
+    let no_key_err = storage.reconcile_log(&log, None).await.unwrap_err();
+    assert!(
+        no_key_err.to_string().contains("without a configured log signing key"),
+        "{no_key_err}",
+    );
+
+    overwrite_log_record(&storage, "npm/~acme/tile/entries/000.p/4", &uncheckpointed_bundle).await;
+    let unauth_err = storage.integrate_log(&log, &signer).await.unwrap_err();
+    assert!(unauth_err.to_string().contains("authenticated entries"), "{unauth_err}");
+    assert_eq!(
+        storage
+            .sql_metadata()
+            .log_size(&log)
+            .await
+            .unwrap(),
+        2,
+    );
+    storage.root.remove_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000.p/4").await.unwrap();
+
+    publish(&storage, "acme", "core", &versions(2..260)).await;
+    storage.integrate_log(&log, &signer).await.unwrap();
+    storage.root.remove_record(LOG_NAMESPACE, "npm/~acme/tile/entries/000").await.unwrap();
+    let missing_err = storage
+        .reconcile_log(&log, Some(&signer))
+        .await
+        .unwrap_err();
+    assert!(missing_err.to_string().contains("tile/entries/000"), "{missing_err}");
+}
+
+#[tokio::test]
+async fn multi_batch_checkpoint_recovery_extends_across_batches() {
+    let tmp = TempDir::new().unwrap();
+    let db_backup = TempDir::new().unwrap();
+    let backup_file = db_backup.path().join("backup.sqlite");
+    let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
+    let log = LogId { namespace: "acme".to_string(), ecosystem: Ecosystem::Npm };
+
+    let initial = Storage::from_config(&config(&tmp)).unwrap();
+    publish(&initial, "acme", "core", &versions(0..10)).await;
+    initial.integrate_log(&log, &signer).await.unwrap();
+    rusqlite::Connection::open(tmp.path().join("metadata.sqlite"))
+        .unwrap()
+        .execute("VACUUM INTO ?1", [backup_file.to_str().unwrap()])
+        .unwrap();
+
+    publish(&initial, "acme", "core", &versions(10..4100)).await;
+    let head_before = initial.integrate_log(&log, &signer).await.unwrap();
+    assert_eq!(head_before.size, 4100);
+    drop(initial);
+
+    let mut restored_cfg = config(&tmp);
+    restored_cfg.metadata = pnpr_config::MetadataBackend::Sqlite(backup_file);
+    let restored = Storage::from_config(&restored_cfg).unwrap();
+    let recovered = restored.integrate_log(&log, &signer).await.unwrap();
+    assert_eq!(recovered, head_before);
+    publish(&restored, "acme", "core", &versions(4100..4102)).await;
+    let extended = restored.integrate_log(&log, &signer).await.unwrap();
+    assert_eq!(extended.size, 4102);
+}
+
 conformance! {
     an_empty_log_signs_no_checkpoint,
     altered_tiles_are_never_signed_over,
@@ -460,4 +535,5 @@ conformance! {
     older_database_reimports_bundled_entries_and_extends_cleanly,
     records_are_sequenced_with_their_versions_and_integrated_after,
     a_removed_version_keeps_its_log_entry,
+    unauthenticated_bundles_and_missing_prior_bundles_are_refused,
 }

@@ -136,6 +136,14 @@ impl HostedBackend for S3Store {
         S3Store::read_record(self, namespace, key).await
     }
 
+    async fn has_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        S3Store::has_record(self, namespace, key).await
+    }
+
+    async fn has_any_record(&self, namespace: &str) -> Result<bool> {
+        S3Store::has_any_record(self, namespace).await
+    }
+
     async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
         S3Store::create_record(self, namespace, key, bytes).await
     }

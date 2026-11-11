@@ -90,6 +90,29 @@ impl S3Store {
         }
     }
 
+    pub async fn has_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        match self.store.head(&self.record_key(namespace, key)).await {
+            Ok(_) => Ok(true),
+            Err(object_store::Error::NotFound { .. }) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub async fn has_any_record(&self, namespace: &str) -> Result<bool> {
+        let scope = format!("{}{namespace}/", self.prefix);
+        let prefix = ObjectPath::from(scope.as_str());
+        let mut listing = self.store.list(Some(&prefix));
+        while let Some(meta) = listing.next().await {
+            let meta = meta?;
+            if !meta.location.as_ref().ends_with('/')
+                && meta.location.as_ref().starts_with(prefix.as_ref())
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         let scope = format!("{}{namespace}/", self.prefix);
         let mut listing = self.store.list(Some(&ObjectPath::from(scope.as_str())));

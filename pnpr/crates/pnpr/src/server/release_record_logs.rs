@@ -7,52 +7,61 @@
 //! integration left: when its router is built, or, for a router built
 //! outside a Tokio runtime, at the first integration it starts or the
 //! first read of a log. Startup and publish commits reconcile each log against
-//! `.transparency-log/` before new entries are sequenced, re-importing entries
-//! from stored bundles after a metadata rollback and refusing forked logs.
+//! `.transparency-log/` before new entries are sequenced, re-importing
+//! checkpoint-signed entries from stored bundles after a metadata rollback and
+//! refusing forked logs.
 
 use super::AppState;
-use pnpm_transparency_log::NoteSigner;
+use pnpm_transparency_log::{NoteSigner, TreeHead};
 use pnpr_config::Config;
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::{Storage, metadata::SqlMetadata, transparency_log::LogId};
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
     },
 };
 
+#[derive(Default)]
 pub(super) struct LogIntegrationState {
-    lock: Arc<tokio::sync::Mutex<()>>,
+    locks: Mutex<HashMap<LogId, Arc<tokio::sync::Mutex<()>>>>,
     recovered: AtomicBool,
-    reconciled: Mutex<HashSet<LogId>>,
-}
-
-impl Default for LogIntegrationState {
-    fn default() -> Self {
-        Self {
-            lock: Arc::new(tokio::sync::Mutex::new(())),
-            recovered: AtomicBool::new(false),
-            reconciled: Mutex::new(HashSet::new()),
-        }
-    }
+    reconciled: Mutex<HashMap<LogId, Option<TreeHead>>>,
 }
 
 impl LogIntegrationState {
-    fn is_reconciled(&self, log: &LogId) -> bool {
-        self.reconciled
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .contains(log)
+    fn lock_for(&self, log: &LogId) -> Arc<tokio::sync::Mutex<()>> {
+        let mut locks = self.locks.lock().unwrap_or_else(PoisonError::into_inner);
+        Arc::clone(
+            locks
+                .entry(log.clone())
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(()))),
+        )
     }
 
-    fn mark_reconciled(&self, log: LogId) {
+    fn reconciled_head(&self, log: &LogId) -> Option<Option<TreeHead>> {
         self.reconciled
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(log);
+            .get(log)
+            .cloned()
+    }
+
+    fn mark_reconciled(&self, log: LogId, head: Option<TreeHead>) {
+        self.reconciled
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(log, head);
+    }
+
+    fn unmark_reconciled(&self, log: &LogId) {
+        self.reconciled
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(log);
     }
 }
 
@@ -73,21 +82,30 @@ pub(super) async fn reconcile_configured_logs(storage: &Storage, config: &Config
 /// Ensure `log` has been reconciled against `.transparency-log/` on this
 /// instance before a publish sequences new entries into it.
 pub(super) async fn ensure_reconciled(state: &AppState, log: &LogId) -> Result<()> {
-    if state.inner.locks.logs.is_reconciled(log) {
+    if state.inner.locks.logs.reconciled_head(log).is_some() {
         return Ok(());
     }
-    let _integrating = state.inner.locks.logs.lock.lock().await;
-    if state.inner.locks.logs.is_reconciled(log) {
-        return Ok(());
-    }
+    let lock = state.inner.locks.logs.lock_for(log);
+    let _guard = lock.lock().await;
     let key = state.inner.config.release_records.log_signing_key.as_deref();
-    if key.is_none() && !state.inner.storage.has_stored_log(log).await? {
-        state.inner.locks.logs.mark_reconciled(log.clone());
-        return Ok(());
+    ensure_reconciled_locked(state, log, key).await.map(|_| ())
+}
+
+async fn ensure_reconciled_locked(
+    state: &AppState,
+    log: &LogId,
+    key: Option<&NoteSigner>,
+) -> Result<Option<TreeHead>> {
+    if let Some(verified) = state.inner.locks.logs.reconciled_head(log) {
+        return Ok(verified);
     }
-    state.inner.storage.reconcile_log(log, key).await?;
-    state.inner.locks.logs.mark_reconciled(log.clone());
-    Ok(())
+    if key.is_none() && !state.inner.storage.has_stored_log(log).await? {
+        state.inner.locks.logs.mark_reconciled(log.clone(), None);
+        return Ok(None);
+    }
+    let verified = state.inner.storage.reconcile_log(log, key).await?;
+    state.inner.locks.logs.mark_reconciled(log.clone(), verified.clone());
+    Ok(verified)
 }
 
 /// Integrate `log` in the background, after a commit that sequenced entries
@@ -99,14 +117,9 @@ pub(super) fn integrate_in_background(state: &AppState, log: LogId) {
     integrate_sequenced_logs(state);
     let state = state.clone();
     tokio::spawn(async move {
-        let _integrating = state.inner.locks.logs.lock.lock().await;
-        match state.inner.storage.integrate_log(&log, &key).await {
-            Ok(_) => state.inner.locks.logs.mark_reconciled(log),
-            Err(error) => {
-                tracing::warn!(%error, %log, "integrating a transparency log failed");
-                // The next trigger scans every log again, this one included.
-                state.inner.locks.logs.recovered.store(false, Ordering::Release);
-            }
+        if !integrate_one_log(&state, &log, &key).await {
+            // The next trigger scans every log again, this one included.
+            state.inner.locks.logs.recovered.store(false, Ordering::Release);
         }
     });
 }
@@ -125,7 +138,6 @@ pub(super) fn integrate_sequenced_logs(state: &AppState) {
     let mut retry = RetryRecovery(Some(state.clone()));
     let state = state.clone();
     runtime.spawn(async move {
-        let _integrating = state.inner.locks.logs.lock.lock().await;
         if integrate_every_log(&state, &key).await {
             retry.disarm();
         }
@@ -159,15 +171,29 @@ async fn integrate_every_log(state: &AppState, key: &NoteSigner) -> bool {
     };
     let mut integrated = true;
     for log in logs {
-        match state.inner.storage.integrate_log(&log, key).await {
-            Ok(_) => state.inner.locks.logs.mark_reconciled(log),
-            Err(error) => {
-                tracing::warn!(%error, %log, "integrating a transparency log failed");
-                integrated = false;
-            }
+        if !integrate_one_log(state, &log, key).await {
+            integrated = false;
         }
     }
     integrated
+}
+
+async fn integrate_one_log(state: &AppState, log: &LogId, key: &NoteSigner) -> bool {
+    let lock = state.inner.locks.logs.lock_for(log);
+    let _guard = lock.lock().await;
+    let outcome = async {
+        let verified = ensure_reconciled_locked(state, log, Some(key)).await?;
+        let head = state.inner.storage.integrate_reconciled_log(log, key, verified).await?;
+        state.inner.locks.logs.mark_reconciled(log.clone(), (head.size > 0).then_some(head));
+        Ok::<_, pnpr_error::RegistryError>(())
+    }
+    .await;
+    if let Err(error) = outcome {
+        state.inner.locks.logs.unmark_reconciled(log);
+        tracing::warn!(%error, %log, "integrating a transparency log failed");
+        return false;
+    }
+    true
 }
 
 async fn candidate_logs(database: &Arc<SqlMetadata>, config: &Config) -> Result<Vec<LogId>> {

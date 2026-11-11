@@ -317,10 +317,6 @@ async fn wait_for_checkpoint_size(app: &Router, min_size: u64) -> pnpm_transpare
     }
 }
 
-/// Restoring an older `SQLite` database backup while keeping a newer
-/// `.transparency-log/` directory re-imports the bundled entries before new
-/// publishes sequence, blocks republishing those rolled-back versions, and
-/// extends the log with a consistent checkpoint.
 #[tokio::test]
 async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
     let tmp = TempDir::new().unwrap();
@@ -404,8 +400,6 @@ async fn restoring_an_older_sqlite_database_extends_the_log_without_forking() {
     }
 }
 
-/// `prepare_storage` and publish commits fail closed when `.transparency-log/`
-/// holds a checkpoint from another history.
 #[tokio::test]
 async fn prepare_storage_and_publish_refuse_a_forked_transparency_log() {
     let donor_tmp = TempDir::new().unwrap();
@@ -424,17 +418,36 @@ async fn prepare_storage_and_publish_refuse_a_forked_transparency_log() {
     let target_app = router_with_auth(target_config.clone(), target_auth.clone());
     publish(&target_app, &target_token, "@acme/widget", "1.0.0").await;
     assert_eq!(wait_for_checkpoint_size(&target_app, 1).await.size, 1);
-    drop(target_app);
-
     let checkpoint_subpath = ".transparency-log/npm/~acme/checkpoint";
     let donor_checkpoint = std::fs::read(donor_tmp.path().join(checkpoint_subpath)).unwrap();
     std::fs::write(target_tmp.path().join(checkpoint_subpath), &donor_checkpoint).unwrap();
 
+    // A live server whose background integration hits the forked checkpoint
+    // invalidates its reconciliation cache so later publishes also fail closed.
+    publish(&target_app, &target_token, "@acme/widget", "1.0.1").await;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let mut next_patch = 2_u32;
+    loop {
+        let version = format!("1.0.{next_patch}");
+        next_patch += 1;
+        let status = publish_status(&target_app, &target_token, "@acme/widget", &version).await;
+        if status == StatusCode::INTERNAL_SERVER_ERROR {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "live publish never rechecked forked log");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    drop(target_app);
+
     let startup_err = pnpr::prepare_storage(&target_config).await.unwrap_err();
-    assert!(startup_err.to_string().contains("disagrees"));
+    assert!(
+        startup_err.to_string().contains("disagree")
+            || startup_err.to_string().contains("not a prefix"),
+        "{startup_err}",
+    );
 
     let restarted = router_with_auth(target_config, target_auth);
-    let status = publish_status(&restarted, &target_token, "@acme/widget", "1.0.1").await;
+    let status = publish_status(&restarted, &target_token, "@acme/widget", "2.0.0").await;
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(
         std::fs::read(target_tmp.path().join(checkpoint_subpath)).unwrap(),

@@ -18,12 +18,16 @@
 //! at once: they write the same bytes to the same tiles, and the checkpoint
 //! only moves to a larger tree.
 
+pub use checkpoint::StoredCheckpoint;
+
+mod checkpoint;
 mod reconcile;
 
-use crate::{DocumentWrite, Storage};
+use crate::Storage;
+use checkpoint::CheckpointStatus;
 use pnpm_transparency_log::{
-    BundleRange, Checkpoint, Hash, HashReader, NoteSigner, TILE_HEIGHT, TilePath, TreeHead,
-    encode_bundle, integrate, prove_inclusion, sign_checkpoint,
+    BundleRange, Hash, HashReader, NoteSigner, TILE_HEIGHT, TilePath, TreeHead, encode_bundle,
+    integrate, prove_inclusion,
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
@@ -87,14 +91,6 @@ impl fmt::Display for LogId {
     }
 }
 
-/// A log's latest checkpoint as it is stored, and the tree head it signs.
-#[derive(Debug, Clone)]
-pub struct StoredCheckpoint {
-    /// The signed note.
-    pub note: Vec<u8>,
-    pub tree_head: TreeHead,
-}
-
 /// An entry's inclusion proof against a stored checkpoint.
 #[derive(Debug, Clone)]
 pub struct InclusionProof {
@@ -118,22 +114,7 @@ pub(crate) struct RawLogState {
     pub(crate) sequenced: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CheckpointStatus {
-    Published,
-    BehindStored(u64),
-}
-
 impl Storage {
-    /// The latest checkpoint of `log`, `None` until an integration signs one.
-    pub async fn log_checkpoint(&self, log: &LogId) -> Result<Option<StoredCheckpoint>> {
-        let Some(note) = self.root.read_record(LOG_NAMESPACE, &log.key("checkpoint")).await? else {
-            return Ok(None);
-        };
-        let tree_head = tree_head_of(&note)?;
-        Ok(Some(StoredCheckpoint { note, tree_head }))
-    }
-
     /// The tile or entry bundle at `path` of `log`, once integration wrote
     /// it.
     pub async fn log_tile(&self, log: &LogId, path: TilePath) -> Result<Option<Vec<u8>>> {
@@ -156,27 +137,39 @@ impl Storage {
     /// An entry or tile cannot be read or written, or a stored tile disagrees with the tree the store recorded
     /// or with the one integration computes.
     pub async fn integrate_log(&self, log: &LogId, key: &NoteSigner) -> Result<TreeHead> {
+        let verified = self.reconcile_log(log, Some(key)).await?;
+        self.integrate_reconciled_log(log, key, verified).await
+    }
+
+    /// Integrate every entry of `log` sequenced after its integrated tree, once
+    /// [`Self::reconcile_log`] has already reconciled `log` and observed
+    /// `verified_checkpoint`.
+    pub async fn integrate_reconciled_log(
+        &self,
+        log: &LogId,
+        key: &NoteSigner,
+        mut verified_checkpoint: Option<TreeHead>,
+    ) -> Result<TreeHead> {
         let signer = log.signer(key)?;
         let origin = signer.verifier_key().name().to_string();
-        self.reconcile_log(log, Some(key)).await?;
         let database = self.sql_metadata();
         loop {
             let state = database.log_head_and_size(log).await?;
             let sequenced = state.sequenced;
             let head = integrated_head(log, &origin, state.head)?;
-            if sequenced < head.size {
-                return Err(RegistryError::Internal {
-                    reason: format!(
-                        "the log {log} has {sequenced} sequenced entries, fewer than its integrated tree of {}",
-                        head.size,
-                    ),
-                });
-            }
+            check_sequenced_at_least_head(log, sequenced, head.size)?;
             if sequenced == head.size {
                 if let CheckpointStatus::BehindStored(stored) =
-                    self.publish_checkpoint(log, &head, &signer).await?
+                    self.publish_checkpoint(log, None, &head, &signer).await?
                 {
-                    self.catch_up_with_stored_checkpoint(log, key, stored).await?;
+                    verified_checkpoint = self.reconcile_behind_stored(
+                        log,
+                        key,
+                        sequenced,
+                        verified_checkpoint,
+                        stored,
+                    )
+                    .await?;
                     continue;
                 }
                 return Ok(head);
@@ -186,11 +179,27 @@ impl Storage {
             let tree_head = self.integrate_batch(log, &head, &entries).await?;
             database.advance_log_head(log, tree_head.size, tree_head.hash.0).await?;
             if let CheckpointStatus::BehindStored(stored) =
-                self.publish_checkpoint(log, &tree_head, &signer).await?
+                self.publish_checkpoint(log, Some(&head), &tree_head, &signer).await?
             {
-                self.catch_up_with_stored_checkpoint(log, key, stored).await?;
+                verified_checkpoint =
+                    self.reconcile_behind_stored(log, key, sequenced, verified_checkpoint, stored)
+                        .await?;
             }
         }
+    }
+
+    async fn reconcile_behind_stored(
+        &self,
+        log: &LogId,
+        key: &NoteSigner,
+        sequenced: u64,
+        verified: Option<TreeHead>,
+        stored: TreeHead,
+    ) -> Result<Option<TreeHead>> {
+        if verified.as_ref() == Some(&stored) && sequenced >= stored.size {
+            return Ok(verified);
+        }
+        self.catch_up_with_stored_checkpoint(log, key, stored.size).await
     }
 
     async fn catch_up_with_stored_checkpoint(
@@ -198,8 +207,8 @@ impl Storage {
         log: &LogId,
         key: &NoteSigner,
         stored_size: u64,
-    ) -> Result<()> {
-        self.reconcile_log(log, Some(key)).await?;
+    ) -> Result<Option<TreeHead>> {
+        let verified = self.reconcile_log(log, Some(key)).await?;
         let sequenced = self.sql_metadata().log_size(log).await?;
         if sequenced < stored_size {
             return Err(RegistryError::Internal {
@@ -208,53 +217,7 @@ impl Storage {
                 ),
             });
         }
-        Ok(())
-    }
-
-    /// Sign and write a checkpoint of `tree_head`, verifying first that any
-    /// stored checkpoint is an exact prefix of `tree_head`.
-    async fn publish_checkpoint(
-        &self,
-        log: &LogId,
-        tree_head: &TreeHead,
-        signer: &NoteSigner,
-    ) -> Result<CheckpointStatus> {
-        let current = self.log_checkpoint(log).await?;
-        if let Some(status) =
-            self.check_checkpoint_before_write(log, current.as_ref(), tree_head, signer).await?
-        {
-            return Ok(status);
-        }
-        let note = sign_checkpoint(tree_head, &[signer]).map_err(log_error)?;
-        self.advance_checkpoint(log, current, tree_head, signer, &note).await
-    }
-
-    async fn check_checkpoint_before_write(
-        &self,
-        log: &LogId,
-        current: Option<&StoredCheckpoint>,
-        tree_head: &TreeHead,
-        signer: &NoteSigner,
-    ) -> Result<Option<CheckpointStatus>> {
-        let Some(stored) = current else {
-            return Ok((tree_head.size == 0).then_some(CheckpointStatus::Published));
-        };
-        reconcile::verify_stored_checkpoint(log, stored, Some(signer))?;
-        if stored.tree_head.size > tree_head.size {
-            return Ok(Some(CheckpointStatus::BehindStored(stored.tree_head.size)));
-        }
-        if stored.tree_head.size == tree_head.size {
-            if stored.tree_head.hash != tree_head.hash {
-                return Err(RegistryError::Internal {
-                    reason: format!(
-                        "the stored checkpoint of the log {log} disagrees with its integrated tree",
-                    ),
-                });
-            }
-            return Ok(Some(CheckpointStatus::Published));
-        }
-        self.verify_checkpoint_consistency(log, &stored.tree_head, tree_head).await?;
-        Ok(None)
+        Ok(verified)
     }
 
     /// Write the entry bundles and hash tiles that `entries`, sequenced after
@@ -332,43 +295,6 @@ impl Storage {
             _ => Err(RegistryError::Internal {
                 reason: format!("the stored tile {path} of the log {log} differs from its entries"),
             }),
-        }
-    }
-
-    /// Replace `current` with `note`, verifying any checkpoint another
-    /// integrator wrote meanwhile before skipping or replacing it.
-    async fn advance_checkpoint(
-        &self,
-        log: &LogId,
-        mut current: Option<StoredCheckpoint>,
-        tree_head: &TreeHead,
-        signer: &NoteSigner,
-        note: &[u8],
-    ) -> Result<CheckpointStatus> {
-        let key = log.key("checkpoint");
-        loop {
-            let written = match &current {
-                None => self.root.create_record(LOG_NAMESPACE, &key, note).await?,
-                Some(stored) => {
-                    let replaced = self.root.replace_record_if_current(
-                        LOG_NAMESPACE,
-                        &key,
-                        &stored.note,
-                        note,
-                    )
-                    .await?;
-                    replaced == DocumentWrite::Written
-                }
-            };
-            if written {
-                return Ok(CheckpointStatus::Published);
-            }
-            current = self.log_checkpoint(log).await?;
-            if let Some(status) =
-                self.check_checkpoint_before_write(log, current.as_ref(), tree_head, signer).await?
-            {
-                return Ok(status);
-            }
         }
     }
 
@@ -459,21 +385,19 @@ fn integrated_head(log: &LogId, origin: &str, head: Option<(u64, Vec<u8>)>) -> R
     Ok(TreeHead { origin: origin.to_string(), size, hash: Hash(hash) })
 }
 
-/// The tree head a stored checkpoint note signs: the text before the blank
-/// line that starts its signatures.
-fn tree_head_of(note: &[u8]) -> Result<TreeHead> {
-    let malformed =
-        || RegistryError::Internal { reason: "a stored log checkpoint is malformed".to_string() };
-    let text_end = note
-        .windows(2)
-        .position(|pair| pair == b"\n\n")
-        .ok_or_else(malformed)?;
-    let checkpoint = Checkpoint::from_bytes(&note[..=text_end]).map_err(|_| malformed())?;
-    Ok(TreeHead {
-        origin: checkpoint.origin().to_string(),
-        size: checkpoint.size(),
-        hash: *checkpoint.hash(),
-    })
+pub(super) fn check_sequenced_at_least_head(
+    log: &LogId,
+    sequenced: u64,
+    head_size: u64,
+) -> Result<()> {
+    if sequenced < head_size {
+        return Err(RegistryError::Internal {
+            reason: format!(
+                "the log {log} has {sequenced} sequenced entries, fewer than its integrated tree of {head_size}",
+            ),
+        });
+    }
+    Ok(())
 }
 
 /// The hash of the empty tree.
