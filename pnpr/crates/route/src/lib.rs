@@ -215,15 +215,31 @@ impl RouteContext {
         }
     }
 
-    /// Whether the upstream registry's effective per-package access admits
-    /// `identity` for `package`. A non-package fetch and an upstream with no
-    /// rules entry (a programmatically folded one) gate at the registry
-    /// level only, which alias selection already checked.
+    /// Whether the upstream registry's credential may be used for `package`
+    /// on behalf of `identity`: the upstream's `packages:` namespace claims
+    /// the name, and its effective per-package access admits the caller. A
+    /// non-package fetch gates at the registry level only, which alias
+    /// selection already checked. An upstream with no rules entry (a
+    /// programmatically folded one) skips the access check.
     fn upstream_admits(&self, registry: &str, identity: &Identity, package: Option<&str>) -> bool {
-        let (Some(package), Some(rules)) = (package, self.upstream_rules.get(registry)) else {
+        let Some(package) = package else {
             return true;
         };
-        rules.access_admits(package, identity)
+        self.upstream_claims(registry, package)
+            && self.upstream_rules
+                .get(registry)
+                .is_none_or(|rules| rules.access_admits(package, identity))
+    }
+
+    /// Whether `registry`'s declared namespace claims `package`, resolved in
+    /// the ecosystem the upstream serves.
+    fn upstream_claims(&self, registry: &str, package: &str) -> bool {
+        self.registries
+            .ecosystem(registry)
+            .is_some_and(|ecosystem| {
+                self.registries.resolve(registry, ecosystem, package)
+                    == Resolved::Concrete { registry, kind: ConcreteKind::Upstream }
+            })
     }
 
     /// The descriptor package qualifier for a proxied fetch: `Some(package)`
