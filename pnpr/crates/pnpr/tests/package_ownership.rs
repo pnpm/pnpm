@@ -338,6 +338,31 @@ async fn publish_defaults_to_owners_for_an_entry_without_a_publish_list() {
 }
 
 #[tokio::test]
+async fn organization_listing_reports_write_for_maintainers_under_the_default_rule() {
+    let (_dir, config) = config_with_packages("packages:\n  '@acme/*': {}\n", &[]);
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+    let doc = publish_doc("@acme/lib", "1.0.0", b"tarball-1");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/@acme%2flib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    for (token, permission) in [(&alice_token, "write"), (&bob_token, "read")] {
+        let response = app
+            .clone()
+            .oneshot(authed_get("/npm/-/org/acme/package", token))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_json(response.into_body()).await["@acme/lib"], json!(permission));
+    }
+}
+
+#[tokio::test]
 async fn npm_owner_maintainer_mutation_flow() {
     let (_dir, config) = config_with_packages(
         "packages:\n  'team-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",

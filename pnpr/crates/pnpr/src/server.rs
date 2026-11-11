@@ -154,7 +154,10 @@ mod web_ui;
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
+    authentication::{
+        Action, AuthedCaller, authenticate, authorize, authorize_against_packument,
+        authorize_package,
+    },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,

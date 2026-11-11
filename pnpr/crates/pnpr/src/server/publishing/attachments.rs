@@ -1,7 +1,8 @@
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_package, cleanup_tmp_slots, extract_attachments, generated_archive, hosted_storage,
+    authorize_against_packument, authorize_package, cleanup_tmp_slots, extract_attachments,
+    generated_archive, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -65,6 +66,8 @@ pub(in super::super) struct ValidatedPublish {
     /// The caller these checks admitted, for the checks that repeat under
     /// the package lock.
     pub(in super::super) publisher: Identity,
+    /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
+    pub(in super::super) registry: String,
     pub(in super::super) tarballs: TarballStorage,
     /// Attached platform variant archives, by version.
     pub(in super::super) variants: Declarations,
@@ -133,7 +136,10 @@ pub(in super::super) async fn validate_publish_doc(
     } else {
         TarballStorage::Tgz
     };
-    Ok((ValidatedPublish { name, incoming, prepared, publisher, tarballs, variants }, target))
+    let registry = target.source.clone();
+    let validated =
+        ValidatedPublish { name, incoming, prepared, publisher, registry, tarballs, variants };
+    Ok((validated, target))
 }
 
 /// Accept a new npm name or preflight an existing package's metadata update.
@@ -228,6 +234,7 @@ pub(in super::super) async fn stage_publish(
 
     let mut base = read_staged_base(&storage, &doc).await?;
     check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
+    reauthorize_staged(state, &doc, &base)?;
     let publisher = doc.publisher.user_id().map(str::to_string);
     let (merged, without_any) =
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
@@ -253,6 +260,22 @@ pub(in super::super) async fn stage_publish(
         publisher,
         verification: verified.verification,
     })
+}
+
+/// Repeat the `publish` check against the document read under the package
+/// lock. The first check ran before the lock, so another publish may have
+/// claimed a new name since.
+fn reauthorize_staged(
+    state: &AppState,
+    doc: &ValidatedPublish,
+    base: &StagedBase,
+) -> Result<(), RegistryError> {
+    let Some(packument) = &base.packument else {
+        return Ok(());
+    };
+    let source = RegistrySource::Hosted(doc.registry.clone());
+    let package = (doc.name.as_str(), packument);
+    authorize_against_packument(state, &doc.publisher, &source, package, Action::Publish)
 }
 
 async fn prepare_publish_document(
