@@ -427,10 +427,36 @@ async fn unpublish_rolls_back_ownership_and_version_bans_together(db: Db) {
     );
 }
 
+async fn removing_an_owned_document_keeps_its_owners_and_remover(db: Db) {
+    let storage = storage(&db).for_hosted("org", crate::Ecosystem::Oci);
+    let name =
+        pnpr_package_name::CanonicalPackageName::parse("acme/app", crate::Ecosystem::Oci).unwrap();
+    let document = json!({ "name": "acme/app", "owners": ["owner-id"] }).to_string();
+    storage.write_hosted_document_if_current(&name, document.as_bytes(), None, None).await.unwrap();
+    let current = storage
+        .read_hosted_document_for_update(&name)
+        .await
+        .unwrap()
+        .unwrap();
+    let removal = Some(&current.version);
+    storage
+        .write_hosted_document_if_current(&name, b"", removal, Some("remover-id"))
+        .await
+        .unwrap();
+    let removed = storage
+        .read_tombstone(&name)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(removed.maintainers, ["owner-id"]);
+    assert_eq!(removed.unpublished_by.as_deref(), Some("remover-id"));
+}
+
 conformance!(
     record_keys_preserve_case,
     scim_users_track_incremental_generations_and_deprovisions,
     team_rosters_and_rule_overrides_use_current_generations,
     staged_records_keep_only_bodies_in_the_object_store,
     unpublish_rolls_back_ownership_and_version_bans_together,
+    removing_an_owned_document_keeps_its_owners_and_remover,
 );

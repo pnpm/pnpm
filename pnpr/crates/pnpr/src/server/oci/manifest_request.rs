@@ -102,7 +102,7 @@ impl Request {
         let outcome = repo.storage.update_hosted_document_with_retry(
             &repo.key,
             DOCUMENT_WRITE_RETRIES,
-            None,
+            self.identity.user_id(),
             |existing| {
                 referenced_child = None;
                 remove_manifest_or_tag(existing, &repo.key, reference, &mut referenced_child)
