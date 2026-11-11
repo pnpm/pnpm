@@ -6,6 +6,56 @@ use pnpm_package_manifest::PackageManifest;
 use std::fs;
 use tempfile::tempdir;
 
+pub(crate) async fn check_frozen_fixture(
+    check: &WantedLockfileSatisfactionCheck<'_>,
+    manifests: &[(String, PackageManifest)],
+) -> Result<(), String> {
+    let manifests: Vec<_> = manifests
+        .iter()
+        .map(|(id, manifest)| (id.clone(), manifest))
+        .collect();
+    let declared: Vec<_> = manifests
+        .iter()
+        .map(|(_, manifest)| {
+            (
+                manifest
+                    .path()
+                    .parent()
+                    .unwrap()
+                    .to_path_buf(),
+                *manifest,
+            )
+        })
+        .collect();
+    let unresolved = super::check_lockfile_freshness(
+        check.lockfile,
+        &super::LockfileFreshnessInputs {
+            lockfile_dir: check.config.workspace_dir.as_deref().unwrap(),
+            manifests: &manifests,
+            workspace_packages: None,
+            dependency_manifests: super::DependencyManifestSources {
+                declared: &declared,
+                injected: None,
+            },
+            config: check.config,
+            catalogs: check.catalogs,
+            pnpmfile_hook: None,
+            scope: super::FreshnessScope {
+                ignore_manifest_check: false,
+                allow_missing_dependency_free_importers: false,
+                frozen_lockfile: true,
+                prune_stale_importers: true,
+                patches_only: false,
+                locked_registries: None,
+            },
+        },
+    )
+    .await
+    .map_err(|error| format!("{error:?}"))?;
+    assert!(unresolved.is_empty());
+    Ok(())
+}
+
 #[tokio::test]
 async fn workspace_satisfaction_uses_pinned_lockfile_dir_for_local_overrides() {
     let root = tempdir().expect("create fixture directory");

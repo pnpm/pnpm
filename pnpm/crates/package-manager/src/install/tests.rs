@@ -3,6 +3,8 @@
     reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
 )]
 
+pub(crate) use super::lockfile_freshness::tests::check_frozen_fixture;
+
 mod catalogs;
 
 mod store;

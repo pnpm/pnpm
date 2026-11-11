@@ -100,6 +100,13 @@ pub struct InstallDependencyOptions {
 }
 
 impl InstallDependencyOptions {
+    pub(crate) fn apply(&self, config: &mut pnpm_config::Config) {
+        if self.optional || self.no_optional {
+            config.cli_settings.insert("optional".to_string());
+        }
+        config.optional = resolve_bool_override(self.optional, self.no_optional, config.optional);
+    }
+
     /// Convert the dependency options to an iterator of [`DependencyGroup`]
     /// which filters the types of dependencies to install.
     pub(crate) fn dependency_groups(
