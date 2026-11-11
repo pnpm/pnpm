@@ -1,7 +1,7 @@
 use super::{
     Config, ExecDirs, HashMap, IndexMap, IntoDiagnostic, Mutex, PackageManifest, Path,
-    ProcessTracker, ReporterType, RunError, RunScript, ScheduleGraphOptions, ScriptExit,
-    ScriptOutput, ScriptSelector, TaskCompletion, Value, env, exec_fallback, exit_like,
+    ProcessTracker, RunError, RunScript, ScheduleGraphOptions, ScriptExit, ScriptOutput,
+    ScriptSelector, TaskCompletion, Value, env, exec_fallback, exit_like,
     injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
     interrupt_count,
     lifecycle_failure::report_lifecycle_failure,
@@ -149,7 +149,6 @@ pub(super) fn no_matching_script(
     args: &[String],
     dirs: ExecDirs<'_>,
     config: &Config,
-    reporter: ReporterType,
     if_present: bool,
     fallback_to_exec: bool,
 ) -> miette::Result<()> {
@@ -157,7 +156,7 @@ pub(super) fn no_matching_script(
         return Ok(());
     }
     if fallback_to_exec {
-        return exec_fallback(script_name, args, dirs, config, reporter);
+        return exec_fallback(script_name, args, dirs, config);
     }
     Err(RunError::no_script(script_name, args).into())
 }

@@ -42,3 +42,34 @@ fn failed_install_warns_and_runs_the_script() {
 
     drop(root);
 }
+
+/// A name that matches no script falls back to `exec`. The install still
+/// runs once, so its failure is reported once
+/// ([pnpm/pnpm#17977](https://github.com/pnpm/pnpm/issues/17977)).
+#[test]
+fn failed_install_warns_once_when_falling_back_to_exec() {
+    const WARNING: &str = "The install that runs before scripts failed";
+    for args in [&["no-such-command"][..], &["run", "no-such-command"]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let manifest = json!({
+            "name": "verify-deps-project",
+            "version": "0.0.0",
+            "dependencies": {
+                "@pnpm.e2e/this-package-does-not-exist": "1.0.0",
+            },
+        });
+        fs::write(workspace.join("package.json"), manifest.to_string())
+            .expect("write package.json");
+
+        let output = pacquet
+            .with_args(args)
+            .output()
+            .expect("spawn pacquet");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "the command does not exist:\n{stderr}");
+        assert_eq!(stderr.matches(WARNING).count(), 1, "{args:?}:\n{stderr}");
+
+        drop(root);
+    }
+}
