@@ -365,7 +365,8 @@ enum OwnerRecord {
 }
 
 /// Give a package being published again after its removal the owners its
-/// tombstone kept. Returns whether there were any.
+/// tombstone kept. Returns whether there was a tombstone: one with no owners
+/// still records them, so only admins may publish to the name.
 async fn restore_owners<Document: HostedDocument>(
     storage: &Storage,
     key: &CanonicalPackageName,
@@ -374,9 +375,6 @@ async fn restore_owners<Document: HostedDocument>(
     let Some(tombstone) = storage.read_tombstone(key).await? else {
         return Ok(false);
     };
-    if tombstone.maintainers.is_empty() {
-        return Ok(false);
-    }
     *document.owners_mut() = tombstone.maintainers;
     Ok(true)
 }

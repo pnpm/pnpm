@@ -1,4 +1,4 @@
-use super::{HostedTarget, OwnerRecord, claim_ownership};
+use super::{HostedTarget, OwnerRecord, claim_ownership, restore_owners};
 use crate::server::routing::state_and_router;
 use pnpr_auth::AuthState;
 use pnpr_cargo::CrateDocument;
@@ -62,5 +62,28 @@ fn a_stored_document_without_owners_admits_only_admins() {
     let refused = claim("bob", &mut document, OwnerRecord::Recorded).unwrap_err();
     assert!(matches!(refused, RegistryError::Forbidden { .. }), "{refused:?}");
     claim("root", &mut document, OwnerRecord::Recorded).unwrap();
+    assert!(document.owners.is_empty());
+}
+
+#[tokio::test]
+async fn a_removed_package_without_owners_stays_recorded() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let state = state(dir.path());
+    let storage = state.inner.storage.for_hosted("", Ecosystem::Cargo);
+    let key = CanonicalPackageName::parse("demo", Ecosystem::Cargo).unwrap();
+    let stored = CrateDocument::new("demo").to_bytes();
+    storage.write_hosted_document_if_current(&key, &stored, None, None).await.unwrap();
+    let current = storage
+        .read_hosted_document_for_update(&key)
+        .await
+        .unwrap()
+        .unwrap();
+    storage
+        .write_hosted_document_if_current(&key, b"", Some(&current.version), None)
+        .await
+        .unwrap();
+
+    let mut document = CrateDocument::new("demo");
+    assert!(restore_owners(&storage, &key, &mut document).await.unwrap());
     assert!(document.owners.is_empty());
 }
