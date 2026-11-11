@@ -98,6 +98,77 @@ async fn update_config_lockfile_dir_uses_the_invoking_project_as_its_default() {
     assert!(config.shares_one_lockfile());
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn update_config_lockfile_dir_refreshes_derived_node_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH").map(String::as_str),
+        Some(
+            lockfile_dir
+                .join("node_modules/.pnpm/node_modules")
+                .to_str()
+                .unwrap()
+        ),
+    );
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(
+        config.extra_env.get("NODE_PATH").map(String::as_str),
+        Some(
+            workspace
+                .join("node_modules/.pnpm/node_modules")
+                .to_str()
+                .unwrap()
+        ),
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn update_config_lockfile_dir_preserves_hook_node_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; config.extraEnv = { ...config.extraEnv, NODE_PATH: '/custom' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.extra_env.get("NODE_PATH").map(String::as_str), Some("/custom"));
+}
+
 /// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
 /// default a source had turned off.
 #[tokio::test]

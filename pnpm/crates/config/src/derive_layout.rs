@@ -31,6 +31,24 @@ impl Config {
         }
     }
 
+    pub fn refresh_node_path_after_lockfile_dir_change<Sys>(&mut self, preserve_node_path: bool)
+    where
+        Sys: EnvVar,
+    {
+        if !preserve_node_path
+            && cfg!(any(unix, target_os = "wasi"))
+            && self.prefer_symlinked_executables == Some(true)
+        {
+            let hidden_modules_dir =
+                pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
+            self.extra_env.insert(
+                "NODE_PATH".to_string(),
+                hidden_modules_dir.display().to_string(),
+            );
+        }
+        self.apply_global_virtual_store_node_path::<Sys>();
+    }
+
     /// The directory layout and environment every spawned process sees,
     /// derived once every source has had its say.
     pub(super) fn apply_layout_derivations<Sys>(&mut self)

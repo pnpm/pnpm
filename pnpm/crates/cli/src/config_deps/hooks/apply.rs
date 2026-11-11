@@ -67,6 +67,8 @@ pub(super) fn apply_hook_delta(
     base_dir: &Path,
 ) -> Result<()> {
     let delta = filter_hook_delta(config, config_delta(input, current));
+    let node_path_changed =
+        input.pointer("/extraEnv/NODE_PATH") != current.pointer("/extraEnv/NODE_PATH");
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
@@ -100,6 +102,7 @@ pub(super) fn apply_hook_delta(
             let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
             config.anchor_lockfile_paths(&default_lockfile_dir);
         }
+        config.refresh_node_path_after_lockfile_dir_change::<Host>(node_path_changed);
     }
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;
