@@ -143,8 +143,9 @@ publishing new versions.
 crates it hosts. Each result reports the crate's newest release that is not
 yanked; a crate whose releases are all yanked reports its newest release.
 
-`cargo owner` is not supported. Listing, adding, or removing owners returns
-HTTP `501 Not Implemented` with a Cargo error message.
+The account that first publishes a crate becomes its
+[owner](configuration.md#the-packages-map). `cargo owner` is not supported. Listing, adding, or removing
+owners returns HTTP `501 Not Implemented` with a Cargo error message.
 
 ## Python
 
@@ -155,7 +156,8 @@ so installers can resolve dependencies without downloading the whole wheel.
 A Python registry serves the Simple Repository API at `/pypi/simple/` (PEP 503
 HTML and PEP 691 JSON, chosen by `Accept`), files at
 `/pypi/files/<project>/<filename>`, and accepts uploads on the legacy API at
-`/pypi/legacy/`. A named registry answers under `/pypi/~<name>/...`.
+`/pypi/legacy/`. A named registry answers under `/pypi/~<name>/...`. The
+account that first uploads to a project becomes its [owner](configuration.md#the-packages-map).
 
 ```sh
 pip install --index-url https://pnpr.example.com/pypi/simple/ my-package

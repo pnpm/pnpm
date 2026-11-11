@@ -16,7 +16,7 @@
 //! registry's live [`TeamDirectory`], so evaluation needs only the caller's
 //! identity.
 
-pub use access::{AccessList, AccessToken, Identity, Membership, records_package_owners};
+pub use access::{AccessList, AccessToken, Identity, Membership};
 pub use package_rules::{PackageRules, RuleOverride};
 pub use teams::{Team, TeamDirectory, Teams};
 
@@ -26,7 +26,7 @@ mod teams;
 
 use std::collections::BTreeMap;
 
-use pnpr_registry::{Ecosystem, PackagePattern};
+use pnpr_registry::PackagePattern;
 
 /// One entry of a registry's `packages:` map: a namespace claim
 /// ([`PackagePattern`] key) plus optional per-package rules. `access`
@@ -152,17 +152,15 @@ pub struct Effective<'a> {
 
 impl RuleTable {
     /// Build a registry's rules. `default_access` is the registry-level
-    /// `access:` (its omission = `$all`); publish defaults to npm's
-    /// [`AccessList::publish_default`] and unpublish to nobody, the safe
-    /// defaults. A registry serving another ecosystem sets its own with
-    /// [`Self::with_default_publish`].
+    /// `access:` (its omission = `$all`); publish defaults to `$owners` and
+    /// unpublish to nobody, the safe defaults.
     #[must_use]
     pub fn new(rules: Vec<PackageRule>, default_access: Option<AccessList>) -> Self {
         Self {
             index: RuleIndex::build(&rules),
             rules,
             default_access: default_access.unwrap_or_else(|| AccessList::from_tokens(["$all"])),
-            default_publish: AccessList::publish_default(Ecosystem::Npm),
+            default_publish: AccessList::from_tokens(["$owners"]),
             default_unpublish: AccessList::default(),
         }
     }

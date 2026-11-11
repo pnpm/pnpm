@@ -256,7 +256,9 @@ impl Commit<'_> {
             StoredEcosystem::Pypi(pypi) => {
                 pypi_rows::apply(self, stored.row.as_ref(), pypi, bytes, principal)?
             }
-            StoredEcosystem::Oci(oci) => oci_rows::apply(self, stored.row.as_ref(), oci, bytes)?,
+            StoredEcosystem::Oci(oci) => {
+                oci_rows::apply(self, stored.row.as_ref(), oci, bytes, principal)?
+            }
         };
         Ok(Some(changed))
     }

@@ -2,7 +2,7 @@ use super::{
     AppState, RegistryError,
     managed_state::{WRITE_ATTEMPTS, canonical_registry_key, read_with_deadline},
 };
-use pnpr_config::{TeamDirectory, check_owners_supported, compile_access_list};
+use pnpr_config::{TeamDirectory, compile_access_list};
 use pnpr_policy::{AccessList, AccessToken, RuleOverride, RuleTable};
 use pnpr_registry::{Ecosystem, PackagePattern};
 use pnpr_storage::metadata::{RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrides};
@@ -319,11 +319,6 @@ fn validate_and_compile_override(
         publish: list(lists.publish)?,
         unpublish: list(lists.unpublish)?,
     };
-    if compile == Compile::Strict {
-        let write_lists = [override_rules.publish.as_ref(), override_rules.unpublish.as_ref()];
-        check_owners_supported(ecosystem, write_lists)
-            .map_err(|reason| format!("{key:?} has an invalid rule: {reason}"))?;
-    }
     Ok((pattern, override_rules))
 }
 

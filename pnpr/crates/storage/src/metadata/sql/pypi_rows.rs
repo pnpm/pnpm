@@ -4,7 +4,9 @@
 use super::{
     PackageKey,
     adapter::{Connection, Query, Row},
-    cargo_rows::{bad_request, check_format_version, take_optional_string},
+    cargo_rows::{
+        bad_request, check_format_version, insert_owners, take_optional_string, take_owners,
+    },
     commit::{Commit, PackageRow, parse_json},
     removed, to_column,
 };
@@ -19,6 +21,8 @@ const YANKED: &str = "yanked";
 #[derive(Serialize, Deserialize)]
 struct PypiEnvelope {
     name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    owners: Vec<String>,
 }
 
 pub(super) struct StoredPypi {
@@ -261,9 +265,11 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<PypiRows>> {
     let state_version = check_format_version(key, &doc, PYPI_STATE_VERSION)?;
     let name =
         take_optional_string(&mut doc, "name")?.unwrap_or_else(|| key.name.clone());
+    let owners = take_owners(&mut doc)?;
     let files = parse_files(doc.remove("files"))?;
     let deleted_files = parse_deleted_files(doc.remove("deleted_files"))?;
-    Ok(Some(PypiRows { state_version, envelope: PypiEnvelope { name }, files, deleted_files }))
+    let envelope = PypiEnvelope { name, owners };
+    Ok(Some(PypiRows { state_version, envelope, files, deleted_files }))
 }
 
 fn parse_files(raw: Option<Value>) -> Result<Vec<IncomingPypiFile>> {
@@ -397,6 +403,7 @@ pub(super) fn assemble(
     if !deleted.is_empty() {
         rendered.insert("deleted_files".to_string(), Value::Array(deleted));
     }
+    insert_owners(&mut rendered, envelope.owners);
     Ok(serde_json::to_vec(&rendered)?)
 }
 

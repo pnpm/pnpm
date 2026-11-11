@@ -1,9 +1,9 @@
 use super::{
-    Action, Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
-    ImageDocument, Method, OciPublication, Refusal, RegistryError, RegistrySource, Request,
-    Response, ResponseBody, StatusCode, authorize, collect_body, created, error, header,
-    hosted_manifest_response, insert_header, lookup_in_hosted_document, method_not_allowed,
-    no_content, read_manifest_bytes, registry_error, unknown_repository,
+    Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
+    ImageDocument, Method, OciPublication, Refusal, RegistryError, Request, Response, ResponseBody,
+    StatusCode, collect_body, created, error, header, hosted_manifest_response, insert_header,
+    lookup_in_hosted_document, method_not_allowed, no_content, read_manifest_bytes, registry_error,
+    unknown_repository,
 };
 use pnpr_oci::ManifestRemoval;
 use pnpr_storage::metadata::HostedLookup;
@@ -94,21 +94,15 @@ impl Request {
             Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        if let Err(err) = authorize(
-            &self.state,
-            &self.identity,
-            &RegistrySource::Hosted(repo.source.clone()),
-            repo.key.as_str(),
-            Action::Unpublish,
-        ) {
+        let _guard = self.state.inner.locks.packages.lock(repo.key.as_str()).await;
+        if let Err(err) = self.authorize_unpublish(&repo).await {
             return registry_error(err);
         }
-        let _guard = self.state.inner.locks.packages.lock(repo.key.as_str()).await;
         let mut referenced_child = None;
         let outcome = repo.storage.update_hosted_document_with_retry(
             &repo.key,
             DOCUMENT_WRITE_RETRIES,
-            None,
+            self.identity.user_id(),
             |existing| {
                 referenced_child = None;
                 remove_manifest_or_tag(existing, &repo.key, reference, &mut referenced_child)
@@ -148,13 +142,13 @@ impl Request {
         reference: &str,
         body: Body,
     ) -> Result<OciPublication, Refusal> {
-        let (key, namespace) = self.publish_target(name)?;
+        let target = self.publish_target(name).await?;
         let content_type = self.headers
             .get(header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok());
         let bytes = collect_body(body, self.state.inner.config.http.oci.max_manifest_bytes).await?;
         OciPublication::new(
-            (key, namespace),
+            target,
             reference.to_string(),
             bytes,
             content_type,

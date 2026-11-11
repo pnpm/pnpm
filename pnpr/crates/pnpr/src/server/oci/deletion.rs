@@ -1,8 +1,5 @@
 use super::{Digest, ErrorCode, ImageDocument, Request, error, no_content, registry_error};
-use crate::{
-    archive_gc::liveness::referenced_document_blobs,
-    server::{Action, RegistrySource, authorize},
-};
+use crate::archive_gc::liveness::referenced_document_blobs;
 use axum::{http::StatusCode, response::Response};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
@@ -10,38 +7,22 @@ use pnpr_storage::{DOCUMENT_WRITE_RETRIES, metadata::BlobLookup};
 
 impl Request {
     pub(super) async fn delete_blob(&self, name: &str, digest: &Digest) -> Response {
-        let (key, source) = match self.hosted_source(name) {
-            Ok(target) => target,
+        let repo = match self.hosted_repo(name) {
+            Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let namespace = match crate::server::hosted_read_namespace(
-            &self.state,
-            &self.identity,
-            &source,
-            key.as_str(),
-        ) {
-            Ok(namespace) => namespace,
-            Err(err) => return registry_error(err),
-        };
-        if let Err(err) = authorize(
-            &self.state,
-            &self.identity,
-            &RegistrySource::Hosted(source.clone()),
-            key.as_str(),
-            Action::Unpublish,
-        ) {
+        let (key, storage) = (&repo.key, &repo.storage);
+        let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
+        if let Err(err) = self.authorize_unpublish(&repo).await {
             return registry_error(err);
         }
-        let storage =
-            self.state.inner.storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Oci);
-        let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         let result = async {
             for _ in 0..DOCUMENT_WRITE_RETRIES {
-                let Some(response) = self.try_delete_blob(&storage, &key, digest).await? else {
+                let Some(response) = self.try_delete_blob(storage, key, digest).await? else {
                     continue;
                 };
                 if response.status().is_success() {
-                    self.log_oci_blob_deleted(&key, digest);
+                    self.log_oci_blob_deleted(key, digest);
                 }
                 return Ok(response);
             }

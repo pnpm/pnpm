@@ -4,6 +4,7 @@
 use std::sync::LazyLock;
 
 use pnpr_error::RegistryError;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_policy::{AccessList, Identity, PackageRules, RuleTable};
 
 use super::{Action, AppState, RegistrySource};
@@ -49,9 +50,52 @@ pub(in crate::server) fn authorize(
     Err(denial(identity, package, action))
 }
 
-/// [`authorize_package`] decided against `packument`, the package's document
-/// as read under the package lock, so the decision holds for the write that
+/// [`authorize`] for a request that continues work an owner-checked request
+/// started, such as a later request of an upload session. `$owners` admits
+/// any signed-in caller here, so the check reads no document.
+pub(in crate::server) fn authorize_continuation(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    package: &str,
+    action: Action,
+) -> Result<(), RegistryError> {
+    let rules = source_rules(state, source).snapshot();
+    let list = permission_list(&rules, package, action);
+    if list.allows_with_context(identity, identity.is_authenticated()) {
+        return Ok(());
+    }
+    Err(denial(identity, package, action))
+}
+
+/// Who owns a package, as its document records it.
+pub(in crate::server) enum Ownership<'owners> {
+    /// No document: a publish claims the name.
+    Unclaimed,
+    /// The account IDs the stored document records.
+    Owners(&'owners [String]),
+}
+
+/// [`authorize_package`] decided against `ownership`, read from the package's
+/// document under the package lock, so the decision holds for the write that
 /// lock guards.
+pub(in crate::server) fn authorize_with_ownership(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    (package, ownership): (&str, &Ownership<'_>),
+    action: Action,
+) -> Result<(), RegistryError> {
+    let rules = source_rules(state, source).snapshot();
+    let is_owner = owns(state, identity, ownership, action);
+    if permission_list(&rules, package, action).allows_with_context(identity, is_owner) {
+        return Ok(());
+    }
+    Err(denial(identity, package, action))
+}
+
+/// [`authorize_with_ownership`] against the maintainers an npm `packument`
+/// records.
 pub(in crate::server) fn authorize_against_packument(
     state: &AppState,
     identity: &Identity,
@@ -59,17 +103,55 @@ pub(in crate::server) fn authorize_against_packument(
     (package, packument): (&str, &serde_json::Value),
     action: Action,
 ) -> Result<(), RegistryError> {
-    let rules = source_rules(state, source).snapshot();
-    let is_owner = identity
-        .user_id()
-        .is_some_and(|user| {
-            state.inner.config.identity.admins.contains(user)
-                || maintainers_include(packument, user)
-        });
-    if permission_list(&rules, package, action).allows_with_context(identity, is_owner) {
-        return Ok(());
+    let owners = document_owners(Ecosystem::Npm, packument);
+    let ownership = Ownership::Owners(&owners);
+    authorize_with_ownership(state, identity, source, (package, &ownership), action)
+}
+
+/// Whether `identity` counts as an owner for `action`: an admin, an account
+/// the document records, or any caller claiming an unclaimed name.
+fn owns(state: &AppState, identity: &Identity, ownership: &Ownership<'_>, action: Action) -> bool {
+    let Some(user) = identity.user_id() else {
+        return false;
+    };
+    if is_admin(state, identity) {
+        return true;
     }
-    Err(denial(identity, package, action))
+    match ownership {
+        Ownership::Unclaimed => matches!(action, Action::Publish),
+        Ownership::Owners(owners) => owners.iter().any(|owner| owner == user),
+    }
+}
+
+fn is_admin(state: &AppState, identity: &Identity) -> bool {
+    identity
+        .user_id()
+        .is_some_and(|user| state.inner.config.identity.admins.contains(user))
+}
+
+/// The owners a stored document records: an npm packument's maintainer
+/// account IDs, or the `owners` of a crate, project, or image document.
+fn document_owners(ecosystem: Ecosystem, document: &serde_json::Value) -> Vec<String> {
+    let ids = match ecosystem {
+        Ecosystem::Npm => document
+            .get("maintainers")
+            .and_then(serde_json::Value::as_array)
+            .map(|maintainers| {
+                maintainers
+                    .iter()
+                    .filter_map(|entry| entry.get("userId"))
+                    .collect::<Vec<_>>()
+            }),
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => document
+            .get("owners")
+            .and_then(serde_json::Value::as_array)
+            .map(|owners| owners.iter().collect()),
+    };
+    ids.unwrap_or_default()
+        .into_iter()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_string)
+        .collect()
 }
 
 fn permission_list<'rules>(
@@ -98,51 +180,25 @@ fn denial(identity: &Identity, package: &str, action: Action) -> RegistryError {
     }
 }
 
-fn maintainers_include(packument: &serde_json::Value, user_id: &str) -> bool {
-    packument
-        .get("maintainers")
-        .and_then(serde_json::Value::as_array)
-        .is_some_and(|maintainers| {
-            maintainers
-                .iter()
-                .any(|entry| {
-                    entry.get("userId").and_then(serde_json::Value::as_str) == Some(user_id)
-                })
-        })
-}
-
-async fn is_package_owner(
+/// Read the ownership of `package` from the current document, never a
+/// replica's copy that may predate an owner's removal.
+async fn read_ownership(
     state: &AppState,
-    identity: &Identity,
-    package: &str,
+    (package, ecosystem): (&str, Ecosystem),
     namespace: Option<&str>,
-    action: Action,
-) -> Result<bool, RegistryError> {
-    let Some(username) = identity.user_id() else {
-        return Ok(false);
-    };
-    if state.inner.config.identity.admins.contains(username) {
-        return Ok(true);
-    }
-    let Ok(canonical) =
-        pnpr_package_name::CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)
-    else {
-        return Ok(false);
-    };
-    let storage = crate::server::hosted_storage(state, namespace);
-    // An authorization check reads the current document, never a replica's
-    // copy that may predate a maintainer's removal.
+) -> Result<Option<Vec<String>>, RegistryError> {
+    let canonical = CanonicalPackageName::from_stored(package, ecosystem);
+    let storage = state.inner.storage.for_hosted(namespace.unwrap_or(""), ecosystem);
     if let Some(stored) = storage.read_hosted_document_for_update(&canonical).await? {
-        return Ok(serde_json::from_slice::<serde_json::Value>(&stored.bytes)
-            .is_ok_and(|packument| maintainers_include(&packument, username)));
+        let owners = serde_json::from_slice::<serde_json::Value>(&stored.bytes)
+            .map(|document| document_owners(ecosystem, &document))
+            .unwrap_or_default();
+        return Ok(Some(owners));
     }
     if let Some(tombstone) = storage.read_tombstone(&canonical).await? {
-        return Ok(tombstone.maintainers
-            .iter()
-            .any(|maintainer| maintainer == username));
+        return Ok(Some(tombstone.maintainers));
     }
-    // Brand new package: initial publish claims the package; cannot unpublish nonexistent package
-    Ok(matches!(action, Action::Publish))
+    Ok(None)
 }
 
 pub(in crate::server) async fn authorize_package(
@@ -159,10 +215,31 @@ pub(in crate::server) async fn authorize_package(
         return Ok(());
     }
     if list.references_owners() && identity.is_authenticated() {
-        let is_owner = is_package_owner(state, identity, package, namespace, action).await?;
+        let is_owner =
+            is_package_owner(state, identity, (source, package), namespace, action).await?;
         if list.allows_with_context(identity, is_owner) {
             return Ok(());
         }
     }
     Err(denial(identity, package, action))
+}
+
+async fn is_package_owner(
+    state: &AppState,
+    identity: &Identity,
+    (source, package): (&RegistrySource, &str),
+    namespace: Option<&str>,
+    action: Action,
+) -> Result<bool, RegistryError> {
+    if is_admin(state, identity) {
+        return Ok(true);
+    }
+    let ecosystem = match source {
+        RegistrySource::Hosted(name) => state.inner.config.routing.registries.ecosystem(name),
+        _ => None,
+    };
+    let ecosystem = ecosystem.unwrap_or(Ecosystem::Npm);
+    let owners = read_ownership(state, (package, ecosystem), namespace).await?;
+    let ownership = owners.as_deref().map_or(Ownership::Unclaimed, Ownership::Owners);
+    Ok(owns(state, identity, &ownership, action))
 }

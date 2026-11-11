@@ -55,8 +55,8 @@ impl Request {
         if self.method != Method::POST {
             return method_not_allowed();
         }
-        let (key, namespace) = match self.publish_target(name) {
-            Ok(target) => target,
+        let (key, namespace) = match self.publish_target(name).await {
+            Ok(target) => (target.key, target.namespace),
             Err(refusal) => return refusal.respond(),
         };
         let storage = self.state.inner.storage.for_hosted(&namespace, ECOSYSTEM);
@@ -88,8 +88,8 @@ impl Request {
 
     /// `PATCH`/`PUT`/`GET`/`DELETE /v2/<name>/blobs/uploads/<id>`.
     pub(super) async fn upload(&self, name: &str, id: &str, body: Body) -> Response {
-        let (key, namespace) = match self.publish_target(name) {
-            Ok(target) => target,
+        let (key, namespace) = match self.session_target(name) {
+            Ok(target) => (target.key, target.namespace),
             Err(refusal) => return refusal.respond(),
         };
         // One upload is one sequence of bytes, so its requests are serialized:

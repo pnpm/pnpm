@@ -59,6 +59,7 @@ fn document() -> ProjectDocument {
         format_version: PROJECT_DOCUMENT_FORMAT_VERSION,
         name: "demo-pkg".to_string(),
         deleted_files: BTreeSet::new(),
+        owners: Vec::new(),
         files: vec![
             ProjectFile {
                 filename: "demo_pkg-1.0.0.tar.gz".to_string(),

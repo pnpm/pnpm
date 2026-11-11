@@ -25,7 +25,7 @@ mod upload_errors;
 use publication::post_upload;
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
+    Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize_package,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,

@@ -19,6 +19,8 @@ struct CargoEnvelope {
     name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    owners: Vec<String>,
 }
 
 pub(super) struct StoredCargo {
@@ -236,8 +238,10 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<CargoRows>> {
     let name =
         take_optional_string(&mut doc, "name")?.unwrap_or_else(|| key.name.clone());
     let description = take_nullable_string(&mut doc, "description")?;
+    let owners = take_owners(&mut doc)?;
     let versions = parse_versions(doc.remove("versions"))?;
-    Ok(Some(CargoRows { state_version, envelope: CargoEnvelope { name, description }, versions }))
+    let envelope = CargoEnvelope { name, description, owners };
+    Ok(Some(CargoRows { state_version, envelope, versions }))
 }
 
 fn parse_versions(raw: Option<Value>) -> Result<Vec<IncomingCargoVersion>> {
@@ -357,6 +361,7 @@ pub(super) fn assemble(
     if let Some(description) = envelope.description {
         rendered.insert("description".to_string(), Value::String(description));
     }
+    insert_owners(&mut rendered, envelope.owners);
     Ok(serde_json::to_vec(&rendered)?)
 }
 
@@ -392,6 +397,18 @@ pub(super) fn take_optional_string(
         None => Ok(None),
         Some(Value::String(value)) => Ok(Some(value)),
         Some(_) => Err(bad_request(&format!("`{field}` must be a string"))),
+    }
+}
+
+/// The `owners` account IDs a crate, project, or image document records.
+pub(super) fn take_owners(doc: &mut Map<String, Value>) -> Result<Vec<String>> {
+    let Some(raw) = doc.remove("owners") else { return Ok(Vec::new()) };
+    serde_json::from_value(raw).map_err(|_| bad_request("`owners` must be an array of strings"))
+}
+
+pub(super) fn insert_owners(rendered: &mut Map<String, Value>, owners: Vec<String>) {
+    if !owners.is_empty() {
+        rendered.insert("owners".to_string(), Value::from(owners));
     }
 }
 
