@@ -814,15 +814,15 @@ fn mismatched_policy(field: &str) -> Value {
     match field {
         "minimumReleaseAge" | "trustPolicyIgnoreAfter" => json!(0),
         "minimumReleaseAgeExclude" | "trustPolicyExclude" => json!([]),
-        "minimumReleaseAgeIgnoreMissingTime" => json!(true),
+        "minimumReleaseAgeIgnoreMissingTime" | "projectScopedOptionalPeers" => json!(true),
         "trustPolicy" => json!(null),
-        "trustLockfile" => json!(false),
+        "trustLockfile" | "addMissingPeerTypes" => json!(false),
         _ => panic!("no mismatch for {field}"),
     }
 }
 
 #[tokio::test]
-async fn resolve_rejects_mismatched_verification_policies() {
+async fn resolve_rejects_mismatched_policies() {
     for field in [
         "minimumReleaseAge",
         "minimumReleaseAgeExclude",
@@ -831,12 +831,17 @@ async fn resolve_rejects_mismatched_verification_policies() {
         "trustPolicyExclude",
         "trustPolicyIgnoreAfter",
         "trustLockfile",
+        "addMissingPeerTypes",
+        "projectScopedOptionalPeers",
     ] {
         let options = resolve_projects_options();
         let mut applied = matching_applied_policies(&options);
         applied[field] = mismatched_policy(field);
         let done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": applied });
         let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
-        assert!(matches!(result, Err(PnprClientError::Protocol(_))), "{field}: {result:?}");
+        assert!(
+            matches!(result, Err(PnprClientError::Protocol(ref message)) if message.contains(field)),
+            "{field}: {result:?}",
+        );
     }
 }
