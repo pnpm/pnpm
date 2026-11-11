@@ -429,6 +429,10 @@ pub(super) fn lockfile_with_settings(
     let mut lockfile =
         crate::dependencies_graph_to_lockfile(options).expect("write generated graph");
     lockfile.lockfile_version = settings.format.version();
+    round_trip(&lockfile)
+}
+
+pub(super) fn round_trip(lockfile: &Lockfile) -> Lockfile {
     let yaml = lockfile.to_yaml_string().expect("serialize generated lockfile");
     Lockfile::parse(&yaml, std::path::Path::new(Lockfile::FILE_NAME))
         .expect("parse generated lockfile")

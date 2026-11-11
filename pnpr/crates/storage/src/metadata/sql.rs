@@ -59,7 +59,10 @@ use super::{
     ArtifactMember, BatchDocument, BlobFence, Generation, Publication, PublicationCommit,
     PublicationRequest, PublishNotes, RecordedOutcome,
 };
-use crate::{HostedDocumentVersion, transparency_log::LogId};
+use crate::{
+    HostedDocumentVersion,
+    transparency_log::{ImportedLogEntry, LogId, RawLogState},
+};
 use adapter::{Adapter, Connection};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
@@ -385,6 +388,14 @@ impl SqlMetadata {
         .await
     }
 
+    pub(crate) async fn log_head_and_size(self: &Arc<Self>, log: &LogId) -> Result<RawLogState> {
+        let log = log.clone();
+        self.read(log.namespace.clone(), Freshness::Current, move |connection, _| {
+            log::head_and_size(connection, &log)
+        })
+        .await
+    }
+
     /// Record that `log` was integrated to the tree of `size` entries with
     /// `root`, unless it already was to a larger one.
     pub async fn advance_log_head(
@@ -408,6 +419,18 @@ impl SqlMetadata {
             log::entries(connection, &log, indexes.clone())
         })
         .await
+    }
+
+    /// Re-import `imported`, starting at `start`, into `log` from stored entry
+    /// bundles after a metadata rollback.
+    pub(crate) async fn import_log_entries(
+        self: &Arc<Self>,
+        log: &LogId,
+        start: u64,
+        imported: Vec<ImportedLogEntry>,
+    ) -> Result<()> {
+        let log = log.clone();
+        self.write(move |connection| log::import_entries(connection, &log, start, &imported)).await
     }
 
     /// The index of the log entry of the release record `version` of `name`

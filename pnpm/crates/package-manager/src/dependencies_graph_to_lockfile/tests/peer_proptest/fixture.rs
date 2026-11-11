@@ -19,15 +19,7 @@ impl Fixture {
         lockfile: &pnpm_lockfile::Lockfile,
         settings: Settings,
     ) -> Result<(), String> {
-        let mut config = pnpm_config::Config::new();
-        config.workspace_dir = Some(self.root.path().to_path_buf());
-        config.lockfile_dir = Some(self.root.path().to_path_buf());
-        config.ignore_pnpmfile = true;
-        config.lockfile_format = settings.format;
-        config.auto_install_peers = settings.auto_install_peers;
-        config.peers_suffix_max_length = settings.peers_suffix_max_length.try_into().unwrap();
-        config.dedupe_peers = false;
-        config.resolve_peers_from_workspace_root = false;
+        let config = self.config(settings);
         let check = crate::WantedLockfileSatisfactionCheck {
             config: &config,
             manifest: &self.manifests[0].1,
@@ -40,6 +32,19 @@ impl Fixture {
             .build()
             .unwrap()
             .block_on(crate::install::tests::check_frozen_fixture(&check, &self.manifests))
+    }
+
+    pub(super) fn config(&self, settings: Settings) -> pnpm_config::Config {
+        let mut config = pnpm_config::Config::new();
+        config.workspace_dir = Some(self.root.path().to_path_buf());
+        config.lockfile_dir = Some(self.root.path().to_path_buf());
+        config.ignore_pnpmfile = true;
+        config.lockfile_format = settings.format;
+        config.auto_install_peers = settings.auto_install_peers;
+        config.peers_suffix_max_length = settings.peers_suffix_max_length.try_into().unwrap();
+        config.dedupe_peers = false;
+        config.resolve_peers_from_workspace_root = false;
+        config
     }
 
     pub(super) fn new(workspace: &Workspace, settings: Settings) -> Self {

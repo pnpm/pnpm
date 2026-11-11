@@ -15,7 +15,7 @@ pub use byte_size::{ByteSize, parse_byte_size};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use hosted::{HostedConfig, Management};
-pub use ip_network::{IpNetwork, parse_trusted_proxies};
+pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;

@@ -145,3 +145,24 @@ fn spells_a_purl_canonically() {
     let vcs = "pkg:npm/legacy!pkg@1.0.0?vcs_url=git%2Bhttps://example.com/legacy.git";
     assert_eq!(Purl::from_string_unchecked(vcs.to_owned()).canonical(), None);
 }
+
+#[test]
+fn extracts_npm_package_name_and_version() {
+    assert_eq!(
+        Purl::npm("@example/widgets", "1.2.0-beta.1+build.5").unwrap().npm_package(),
+        Some(("@example/widgets".to_owned(), "1.2.0-beta.1+build.5".to_owned())),
+    );
+    assert_eq!(
+        Purl::npm("foobar", "12.3.1").unwrap().npm_package(),
+        Some(("foobar".to_owned(), "12.3.1".to_owned())),
+    );
+    assert_eq!(
+        Purl::npm_variant("@example/cli", "4.0.0", "linux-x64").unwrap().npm_package(),
+        None,
+    );
+    assert_eq!(Purl::cargo("serde", "1.0.210").unwrap().npm_package(), None);
+    assert_eq!(
+        Purl::from_string_unchecked("pkg:npm/@example/widgets@1.2.0".to_owned()).npm_package(),
+        None,
+    );
+}

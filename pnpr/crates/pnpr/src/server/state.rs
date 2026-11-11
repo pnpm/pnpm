@@ -74,11 +74,7 @@ pub(super) struct MutationLocks {
     /// The same, per principal, so one account cannot hold every upload
     /// permit. See [`super::staged_archives::PrincipalUploads`].
     pub(super) staged_archive_uploads_by_principal: super::staged_archives::PrincipalUploads,
-    /// Held while this instance integrates a transparency log, so its
-    /// integrations run one at a time.
-    pub(super) log_integration: Arc<tokio::sync::Mutex<()>>,
-    /// Set once this server started integrating every sequenced log.
-    pub(super) logs_recovered: std::sync::atomic::AtomicBool,
+    pub(super) logs: super::release_record_logs::LogIntegrationState,
 }
 
 pub(super) struct IdentityServices {
@@ -119,8 +115,7 @@ impl AppInner {
                 ),
                 staged_archive_uploads_by_principal:
                     super::staged_archives::PrincipalUploads::default(),
-                log_integration: Arc::new(tokio::sync::Mutex::new(())),
-                logs_recovered: std::sync::atomic::AtomicBool::new(false),
+                logs: super::release_record_logs::LogIntegrationState::default(),
             },
             identity,
             metrics: Arc::new(ServerMetrics::new()),

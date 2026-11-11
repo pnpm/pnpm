@@ -58,6 +58,14 @@ pub async fn migrate_local_to_s3(
             migrate_namespace(&src, &tgt, options, &mut report).await?;
         }
     }
+    migrate_transparency_logs(
+        &source,
+        &target,
+        config.release_records.log_signing_key.as_deref(),
+        options,
+        &mut report,
+    )
+    .await?;
 
     Ok(report)
 }
@@ -127,8 +135,11 @@ fn resolve_target_s3_config(
             allow_http: None,
         };
         Ok(HostedStoreConfig::S3(settings))
-    } else if let HostedStoreConfig::S3(s) = &config.storage.hosted_backend {
-        Ok(HostedStoreConfig::S3(s.clone()))
+    } else if matches!(
+        config.storage.hosted_backend,
+        HostedStoreConfig::S3(_) | HostedStoreConfig::ObjectStore { .. },
+    ) {
+        Ok(config.storage.hosted_backend.clone())
     } else {
         Err(miette::miette!(
             "destination S3 storage must be configured via YAML 's3:' or CLI flag '--to-bucket'"
@@ -207,6 +218,82 @@ async fn verify_uploaded_archive(
     } else {
         Err(miette::miette!(
             "uploaded archive '{key}' content mismatch: target does not match source"
+        ))
+    }
+}
+
+/// Copy every `.transparency-log` tile, entry bundle, and checkpoint from
+/// `source` to `target`, uploading tiles and bundles before checkpoints.
+async fn migrate_transparency_logs(
+    source: &Storage,
+    target: &Storage,
+    signer: Option<&pnpm_transparency_log::NoteSigner>,
+    options: &MigrateStorageOptions,
+    report: &mut MigrateReport,
+) -> miette::Result<()> {
+    let keys = source
+        .stored_log_record_keys()
+        .await
+        .map_err(|err| miette::miette!("failed to list source transparency-log records: {err}"))?;
+    for key in keys {
+        migrate_log_record(source, target, &key, signer, options, report).await?;
+    }
+    Ok(())
+}
+
+async fn migrate_log_record(
+    source: &Storage,
+    target: &Storage,
+    key: &str,
+    signer: Option<&pnpm_transparency_log::NoteSigner>,
+    options: &MigrateStorageOptions,
+    report: &mut MigrateReport,
+) -> miette::Result<()> {
+    let opened = source
+        .read_log_record(key)
+        .await
+        .map_err(|err| {
+            miette::miette!("failed to read source transparency-log record '{key}': {err}")
+        })?;
+    let Some(bytes) = opened else { return Ok(()) };
+    report.blobs_transferred += 1;
+    report.bytes_transferred += bytes.len() as u64;
+    if options.dry_run {
+        return Ok(());
+    }
+    target
+        .store_log_record_copy(key, &bytes, signer)
+        .await
+        .map_err(|err| {
+            miette::miette!("failed to store transparency-log record '{key}' on target: {err}")
+        })?;
+    if options.verify {
+        verify_uploaded_log_record(target, key, &bytes).await?;
+    }
+    Ok(())
+}
+
+async fn verify_uploaded_log_record(
+    target: &Storage,
+    key: &str,
+    expected_bytes: &[u8],
+) -> miette::Result<()> {
+    let stored = target
+        .read_log_record(key)
+        .await
+        .map_err(|err| {
+            miette::miette!("failed to verify uploaded transparency-log record '{key}': {err}")
+        })?;
+    let Some(bytes) = stored else {
+        return Err(miette::miette!(
+            "uploaded transparency-log record '{key}' not found in target store"
+        ));
+    };
+    if bytes.as_slice() == expected_bytes {
+        Ok(())
+    } else {
+        Err(miette::miette!(
+            "uploaded transparency-log record '{key}' content mismatch: target does not match source"
         ))
     }
 }

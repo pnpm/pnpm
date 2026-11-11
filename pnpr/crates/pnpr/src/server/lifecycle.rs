@@ -20,14 +20,16 @@ pub(super) fn load_active_osv_index(
     }
 }
 
-/// Check the hosted store's layout, and empty a proxy cache in another
-/// layout. [`serve`] and [`serve_listener`] call this before binding; an
-/// embedder that builds a router directly should call it itself on startup,
-/// before serving requests.
+/// Check the hosted store's layout, empty a proxy cache in another layout,
+/// and reconcile hosted transparency logs with the metadata database.
+/// [`serve`] and [`serve_listener`] call this before binding; an embedder that
+/// builds a router directly should call it itself on startup, before serving
+/// requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
     let storage = Storage::from_config(&config.storage)?;
     if !config.routing.hosted.is_empty() {
         storage.ensure_hosted_layout().await?;
+        super::release_record_logs::reconcile_configured_logs(&storage, config).await?;
     }
     storage.reset_cache_from_other_layout().await
 }

@@ -1,3 +1,7 @@
+pub(crate) use peer_contexts::peer_sensitive_packages;
+
+mod peer_contexts;
+
 use pnpm_lockfile::{
     Lockfile, PkgName, PkgNameVerPeer, Prefix, ResolvedDependencySpec, SnapshotDepRef,
     SnapshotEntry, VersionPart,
@@ -64,6 +68,11 @@ impl DroppedEdges {
         self.0.insert(peer_id);
     }
 
+    fn contains_package(&self, key: &PkgNameVerPeer) -> bool {
+        self.0.contains(&format!("{}@", key.name))
+            || peer_id_of(key).is_some_and(|peer_id| self.0.contains(&peer_id))
+    }
+
     /// Whether `peers` — the peer suffix of a snapshot key — names none
     /// of the severed edges' targets, at any nesting depth. Without
     /// `dedupePeers` a peer is named by its whole dep path, and the peers
@@ -112,8 +121,9 @@ fn peer_id_of(key: &PkgNameVerPeer) -> Option<String> {
 /// path.
 pub(crate) fn finish_graph_edits(candidate: &mut Lockfile, edits: &GraphEdits) -> bool {
     if !edits.dropped.is_empty() {
+        let affected = edits.dropped.including_subtrees(candidate);
         prune_unreachable_packages(candidate);
-        if !peer_suffixes_are_independent_of(candidate, &edits.dropped) {
+        if !peer_contexts_are_independent_of(candidate, &affected) {
             return false;
         }
         prune_unreferenced_catalog_entries(candidate);
@@ -124,19 +134,20 @@ pub(crate) fn finish_graph_edits(candidate: &mut Lockfile, edits: &GraphEdits) -
     true
 }
 
-/// Whether no surviving snapshot resolves a peer through one of `dropped`.
-///
-/// A dropped package that some snapshot reaches as a peer is embedded in
-/// that snapshot's key, so removing it would rekey the dependent rather
-/// than only prune. A package the same alias still provides at another
-/// version is no such peer: the suffix names the version, not the alias.
-fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &DroppedEdges) -> bool {
+/// Whether surviving peer contexts are independent of the removed subtrees.
+/// Shared peer dependents can change bindings after deduplication even when
+/// their provider remains reachable.
+fn peer_contexts_are_independent_of(lockfile: &Lockfile, dropped: &DroppedEdges) -> bool {
     let Some(snapshots) = lockfile.snapshots.as_ref() else {
         return true;
     };
     snapshots
         .keys()
-        .all(|key| dropped.are_absent_from(key.suffix.peer()))
+        .all(|key| {
+            let changes_peer_owner =
+                dropped.contains_package(key) && peer_contexts::has_declared_peers(lockfile, key);
+            !changes_peer_owner && dropped.are_absent_from(key.suffix.peer())
+        })
 }
 
 pub fn prune_unreachable_packages(lockfile: &mut Lockfile) {
@@ -175,9 +186,16 @@ pub(crate) fn reachable_from(
     is_root: impl Fn(&str, &PkgName) -> bool,
     follows: impl Fn(&PkgNameVerPeer, &PkgName) -> bool,
 ) -> Option<HashSet<PkgNameVerPeer>> {
+    reachable_from_keys(lockfile, importer_root_keys(lockfile, is_root), follows)
+}
+
+fn reachable_from_keys(
+    lockfile: &Lockfile,
+    mut queue: VecDeque<PkgNameVerPeer>,
+    follows: impl Fn(&PkgNameVerPeer, &PkgName) -> bool,
+) -> Option<HashSet<PkgNameVerPeer>> {
     let snapshots = lockfile.snapshots.as_ref()?;
     let mut reachable = HashSet::new();
-    let mut queue = importer_root_keys(lockfile, is_root);
     while let Some(key) = queue.pop_front() {
         if !reachable.insert(key.clone()) {
             continue;

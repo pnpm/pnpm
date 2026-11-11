@@ -78,6 +78,13 @@ impl TilePath {
             TilePath::Hashes { width, .. } | TilePath::Entries { width, .. } => width == TILE_WIDTH,
         }
     }
+
+    /// The path prefix under which partial entry bundles of `index` are
+    /// stored (`tile/entries/<N>.p`), without a trailing `/`.
+    #[must_use]
+    pub fn partial_entries_prefix(index: u64) -> String {
+        format!("tile/entries/{}.p", encode_index(index))
+    }
 }
 
 impl fmt::Display for TilePath {

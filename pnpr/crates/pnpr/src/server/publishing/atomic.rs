@@ -141,10 +141,7 @@ async fn commit_staged(
     notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
-    let namespaces = staged
-        .iter()
-        .map(|stage| stage.namespace.as_deref().unwrap_or_default());
-    let namespace = match single_namespace(namespaces) {
+    let namespace = match prepare_staged_namespace(state, &staged).await {
         Ok(namespace) => namespace,
         Err(err) => {
             for stage in staged {
@@ -178,6 +175,29 @@ async fn commit_staged(
         }
     }
     Ok(commit.into())
+}
+
+/// Resolve the single namespace of `staged` and reconcile every ecosystem's
+/// log it touches before committing, so entries in `.transparency-log/` from a
+/// newer store snapshot are re-imported (and their versions fenced off) before
+/// new entries are sequenced.
+async fn prepare_staged_namespace(
+    state: &AppState,
+    staged: &[StagedPublish],
+) -> Result<String, RegistryError> {
+    let namespaces = staged
+        .iter()
+        .map(|stage| stage.namespace.as_deref().unwrap_or_default());
+    let namespace = single_namespace(namespaces)?;
+    let ecosystems: std::collections::BTreeSet<_> = staged
+        .iter()
+        .map(|stage| stage.ecosystem)
+        .collect();
+    for ecosystem in ecosystems {
+        let log = LogId { namespace: namespace.clone(), ecosystem };
+        super::super::release_record_logs::ensure_reconciled(state, &log).await?;
+    }
+    Ok(namespace)
 }
 
 /// The documents a commit writes, and the ecosystems whose logs the records

@@ -89,3 +89,14 @@ fn does_not_convert_hash_tiles_outside_tlog_tiles_bounds() {
         assert_eq!(TilePath::Hashes { level, index: 0, width }.to_tile(), None);
     }
 }
+
+#[test]
+fn formats_partial_entries_prefix_for_bundle_discovery() {
+    assert_eq!(TilePath::partial_entries_prefix(0), "tile/entries/000.p");
+    assert_eq!(TilePath::partial_entries_prefix(1_234_067), "tile/entries/x001/x234/067.p");
+    let candidate = format!("{}/17", TilePath::partial_entries_prefix(1_234_067));
+    assert_eq!(
+        candidate.parse::<TilePath>(),
+        Ok(TilePath::Entries { index: 1_234_067, width: 17 }),
+    );
+}
