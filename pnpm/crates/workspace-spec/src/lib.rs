@@ -72,9 +72,7 @@ pub fn is_workspace_path_specifier(bare_specifier: &str) -> bool {
     };
     path.starts_with('.')
         || path.starts_with('/')
-        || (path.len() >= 3
-            && path.as_bytes()[1] == b':'
-            && matches!(path.as_bytes()[2], b'/' | b'\\'))
+        || matches!(path.as_bytes(), [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic())
 }
 
 /// Split the post-`workspace:` portion into `(alias?, version)` per the

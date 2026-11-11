@@ -166,6 +166,68 @@ fn injected_override_target_resolves_catalog_dependencies() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn workspace_path_override_applies_to_a_dependency_of_a_registry_package() {
+    let mut failures = Vec::new();
+    for inject_workspace_packages in [false, true] {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+        let workspace_yaml =
+            fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(
+            &workspace_yaml_path,
+            format!(
+                "{workspace_yaml}\npackages:\n  - packages/**\n\
+                 injectWorkspacePackages: {inject_workspace_packages}\n\
+                 overrides:\n  '@pnpm.e2e/dep-of-pkg-with-1-dep': workspace:./packages/target\n",
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+        write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+        let consumer = workspace.join("packages/deep/consumer");
+        fs::create_dir_all(&consumer).expect("create the consumer");
+        write_manifest(
+            &consumer,
+            &serde_json::json!({
+                "name": "consumer",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+            }),
+        );
+        let target = workspace.join("packages/target");
+        fs::create_dir_all(&target).expect("create the target");
+        write_manifest(
+            &target,
+            &serde_json::json!({ "name": "@pnpm.e2e/dep-of-pkg-with-1-dep", "version": "100.0.0" }),
+        );
+        fs::write(target.join("index.js"), "module.exports = 'target'\n").expect("write index.js");
+
+        let install = pacquet
+            .with_arg("install")
+            .output()
+            .expect("run install");
+        let installed = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/index.js",
+        );
+        if !install.status.success()
+            || fs::read_to_string(&installed).ok().as_deref() != Some("module.exports = 'target'\n")
+        {
+            failures.push(format!(
+                "injectWorkspacePackages={inject_workspace_packages}: {install:?}",
+            ));
+        }
+
+        drop((root, npmrc_info));
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
 struct FixtureOptions<'a> {
     inject_workspace_packages: bool,
     shared_workspace_lockfile: bool,
