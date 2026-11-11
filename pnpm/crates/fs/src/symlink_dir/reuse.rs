@@ -12,12 +12,23 @@ pub(super) fn force_symlink(
     link: &Path,
     create_symlink: fn(&Path, &Path) -> io::Result<()>,
 ) -> io::Result<ForceSymlinkOutcome> {
-    if fs::read_link(link)
-        .is_ok_and(|existing| existing_symlink_up_to_date(target, link, &existing))
-    {
+    if fs::read_link(link).is_ok_and(|existing| existing_link_reusable(target, link, &existing)) {
         return Ok(ForceSymlinkOutcome { reused: true, warning: None });
     }
     force_symlink_inner(target, link, TriedOnce::default(), create_symlink)
+}
+
+/// Whether the link at `link`, holding `existing`, can stay as it is: it
+/// points at `wanted`, and on Windows it isn't a symlink on a network share,
+/// which Windows doesn't follow by default.
+pub(super) fn existing_link_reusable(wanted: &Path, link: &Path, existing: &Path) -> bool {
+    if !existing_symlink_up_to_date(wanted, link, existing) {
+        return false;
+    }
+    #[cfg(windows)]
+    return !super::windows::is_symlink_on_network_share(link);
+    #[cfg(not(windows))]
+    true
 }
 
 /// Lexical "does the existing link resolve to the wanted target?"

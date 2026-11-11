@@ -851,6 +851,88 @@ fn windows_junction_to_a_unc_path_holds_the_unc_target() {
     assert_eq!(fs::read_link(&link).expect("read the junction"), target);
 }
 
+/// A symlink that an earlier install left on a share is found by its reparse
+/// tag, since the standard library reports a junction as a symlink too
+/// (pnpm/tasks#304). Creating the symlink needs Developer Mode or an
+/// elevated process, which CI has.
+#[cfg(windows)]
+#[test]
+fn windows_reparse_tag_tells_a_symlink_from_a_junction() {
+    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let junction = root.path().join("junction");
+    super::windows::create_junction(&target, &junction).expect("create the junction");
+
+    assert_eq!(super::windows::reparse_tag(&junction), Some(IO_REPARSE_TAG_MOUNT_POINT));
+    assert_eq!(super::windows::reparse_tag(&target), None, "a plain directory has no tag");
+    assert!(
+        !super::windows::is_symlink_on_network_share(&junction),
+        "a local junction is reusable",
+    );
+
+    let symlink = root.path().join("symlink");
+    match std::os::windows::fs::symlink_dir(&target, &symlink) {
+        Ok(()) => assert_eq!(
+            super::windows::reparse_tag(&symlink),
+            Some(super::windows::IO_REPARSE_TAG_SYMLINK),
+        ),
+        Err(error) if error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            eprintln!("skipping the symlink half: this process may not create symlinks");
+        }
+        Err(error) => panic!("create the symlink: {error}"),
+    }
+}
+
+/// Links on a real share: a matching symlink left by an earlier install is
+/// replaced with a junction, and a package opens through the junction.
+/// No share is available in CI, so this runs only when
+/// `PNPM_TEST_NETWORK_SHARE_DIR` names a writable directory on one (a mapped
+/// drive or a UNC path): `PNPM_TEST_NETWORK_SHARE_DIR=Z:\tmp cargo nextest
+/// run -p pnpm-fs --run-ignored only -E 'test(on_a_real_share)'`
+/// (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+#[ignore = "needs a network share named by PNPM_TEST_NETWORK_SHARE_DIR"]
+fn windows_links_on_a_real_share_are_junctions() {
+    let share = std::env::var_os("PNPM_TEST_NETWORK_SHARE_DIR")
+        .expect("set PNPM_TEST_NETWORK_SHARE_DIR to a directory on a network share");
+    let root = tempfile::tempdir_in(share).expect("create a temp dir on the share");
+    let target = root.path().join(r"node_modules\.pnpm\pkg@1.0.0\node_modules\pkg");
+    fs::create_dir_all(&target).expect("create target");
+    fs::write(target.join("index.js"), "module.exports = 1").expect("write a package file");
+    let link = root.path().join(r"node_modules\pkg");
+    // What an earlier pnpm 12 install wrote, where it could.
+    let _ = std::os::windows::fs::symlink_dir(relative_target_for(&target, &link), &link);
+
+    let outcome = force_symlink_dir(&target, &link).expect("link on the share");
+
+    assert!(!outcome.reused, "a symlink on a share is replaced");
+    assert_ne!(
+        super::windows::reparse_tag(&link),
+        Some(super::windows::IO_REPARSE_TAG_SYMLINK),
+        "the link on the share must be a junction",
+    );
+    assert_eq!(
+        fs::read_to_string(link.join("index.js")).expect("open a file through the link"),
+        "module.exports = 1",
+    );
+    let outcome = force_symlink_dir(&target, &link).expect("link again");
+    assert!(outcome.reused, "the junction is reused");
+}
+
+/// Relative targets are resolved before the UNC check, since a UNC working
+/// directory turns them into UNC paths.
+#[cfg(windows)]
+#[test]
+fn windows_junction_target_resolves_a_relative_path() {
+    let resolved = super::windows::junction_target(std::path::Path::new(r"pkg\dir"));
+    assert!(resolved.is_absolute(), "{resolved:?}");
+    assert!(resolved.ends_with(r"pkg\dir"), "{resolved:?}");
+}
+
 /// Links on a share are junctions, so the per-link check must know a UNC
 /// path without asking Windows, and a local drive must not count
 /// (pnpm/tasks#304).

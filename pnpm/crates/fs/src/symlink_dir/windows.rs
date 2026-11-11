@@ -97,6 +97,47 @@ fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> 
     }
 }
 
+/// Whether `link` is a true symlink on a network share. [`create_link`]
+/// never writes one, but an earlier pnpm 12 install may have, and Windows
+/// doesn't follow it by default, so it is replaced rather than reused even
+/// when it points at the right target.
+pub(super) fn is_symlink_on_network_share(link: &Path) -> bool {
+    crate::mapped_drive_path::is_on_network_drive_cached(link)
+        && reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK)
+}
+
+pub(super) const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
+
+/// The reparse tag of `path` itself, or `None` when it isn't a reparse
+/// point or can't be read. The standard library reports a junction and a
+/// symlink alike as a symlink, so the tag is the only way to tell them apart.
+pub(super) fn reparse_tag(path: &Path) -> Option<u32> {
+    use std::os::windows::{fs::OpenOptionsExt as _, io::AsRawHandle as _};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ATTRIBUTE_REPARSE_POINT, FILE_ATTRIBUTE_TAG_INFO, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FileAttributeTagInfo,
+        GetFileInformationByHandleEx,
+    };
+
+    let file = fs::OpenOptions::new()
+        .access_mode(FILE_READ_ATTRIBUTES)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+        .ok()?;
+    let mut info = FILE_ATTRIBUTE_TAG_INFO { FileAttributes: 0, ReparseTag: 0 };
+    // SAFETY: `info` is writable for the size passed, and the handle stays
+    // open for the call.
+    let ok = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FileAttributeTagInfo,
+            (&raw mut info).cast(),
+            size_of::<FILE_ATTRIBUTE_TAG_INFO>() as u32,
+        )
+    };
+    (ok != 0 && info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0).then_some(info.ReparseTag)
+}
+
 fn probe_and_cache(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
     // Try the true directory symlink first — that's what users
     // running in Developer Mode (or as Administrator) get, and
@@ -148,7 +189,8 @@ pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
 /// `\\server\share\…` would become `\??\\\server\share\…`, which names
 /// nothing. Its verbatim form `\\?\UNC\server\share\…` becomes
 /// `\??\UNC\server\share\…`, the target Node.js writes for a junction to
-/// that path.
+/// that path. A relative `original` is resolved first, as the crate would
+/// resolve it, because under a UNC working directory it becomes a UNC path.
 pub(super) fn junction_target(original: &Path) -> Cow<'_, Path> {
     use std::{
         ffi::OsString,
@@ -156,6 +198,14 @@ pub(super) fn junction_target(original: &Path) -> Cow<'_, Path> {
         path::{Component, Prefix},
     };
 
+    if original.is_relative()
+        && let Ok(absolute) = std::path::absolute(original)
+    {
+        return match junction_target(&absolute) {
+            Cow::Borrowed(_) => Cow::Owned(absolute),
+            Cow::Owned(verbatim) => Cow::Owned(verbatim),
+        };
+    }
     let is_plain_unc = matches!(
         original.components().next(),
         Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::UNC(..)),
