@@ -5034,6 +5034,7 @@ dependencies = [
  "pnpm-workspace-task-scheduler",
  "pnpr-registry",
  "pretty_assertions",
+ "same-file",
  "serde",
  "serde-saphyr",
  "serde_json",
