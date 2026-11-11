@@ -802,7 +802,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85 # v1.52.0
+      - uses: crate-ci/typos@2611abd15acb0c2e317fb9e45855aabb8b35a414 # v1.52.1
         with:
           files: pnpm pnpr
 

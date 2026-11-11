@@ -56,6 +56,6 @@ pub(crate) async fn configure(
     sqlx::query("SET SESSION sql_mode = 'STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'")
         .execute(&mut *conn)
         .await?;
-    sqlx::query(&timeout_sql(timeout)).execute(conn).await?;
+    sqlx::query(sqlx::AssertSqlSafe(timeout_sql(timeout))).execute(conn).await?;
     Ok(())
 }

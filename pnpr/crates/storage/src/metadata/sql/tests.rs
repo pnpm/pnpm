@@ -95,13 +95,19 @@ impl Db {
         #[cfg(feature = "backend-postgres")]
         if variable == "PNPR_TEST_POSTGRES_URL" {
             let pool = sqlx::PgPool::connect(&url).await.unwrap();
-            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+                .execute(&pool)
+                .await
+                .unwrap();
             pool.close().await;
         }
         #[cfg(feature = "backend-mysql")]
         if variable == "PNPR_TEST_MYSQL_URL" {
             let pool = sqlx::MySqlPool::connect(&url).await.unwrap();
-            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+                .execute(&pool)
+                .await
+                .unwrap();
             pool.close().await;
         }
         let database_url = format!("{}/{name}", url.rsplit_once('/').unwrap().0);

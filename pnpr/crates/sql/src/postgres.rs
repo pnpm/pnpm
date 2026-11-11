@@ -45,6 +45,6 @@ pub(crate) async fn configure(
     conn: &mut PgConnection,
     timeout: Duration,
 ) -> std::result::Result<(), sqlx::Error> {
-    sqlx::query(&timeout_sql(timeout)).execute(conn).await?;
+    sqlx::query(sqlx::AssertSqlSafe(timeout_sql(timeout))).execute(conn).await?;
     Ok(())
 }
