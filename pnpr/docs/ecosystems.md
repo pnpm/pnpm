@@ -182,6 +182,11 @@ pip install --index-url https://pnpr.example.com/pypi/simple/ my-package
 twine upload --repository-url https://pnpr.example.com/pypi/legacy/ dist/*
 ```
 
+Upload errors include the reason in the HTTP/1 status line, so twine displays
+it without `--verbose`. Long reasons and reasons containing non-ASCII or
+control characters remain in the response body. HTTP/2 carries the reason
+only in the body.
+
 Use `__token__` as the username and a pnpr token as the password, the PyPI
 convention.
 
@@ -295,6 +300,12 @@ read sees the whole release or none of it:
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.
+
+Individual publishes to one package serialize their metadata updates. With a
+remote metadata database, each commit also waits for database round trips.
+A publisher using the HTTP API can include several versions in one npm
+publish document to commit them together. A batch accepts one document per
+package.
 
 ### Staged archives {#staged-archives}
 

@@ -14,8 +14,8 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use htpasswd::{
-    is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
-    write_atomic,
+    dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
+    verify_bcrypt, verify_returning_user, write_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
@@ -26,7 +26,8 @@ pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
-use htpasswd::{dummy_verify, hash_bcrypt, verify_returning_user};
+mod password_login;
+use htpasswd::hash_bcrypt;
 
 mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};
@@ -99,10 +100,10 @@ pub struct UserAccount {
 }
 
 /// The outcome of [`AuthState::put_user`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UserPut {
     Created,
-    PasswordChanged,
+    PasswordChanged { user_id: String },
 }
 
 impl std::fmt::Debug for AuthState {
@@ -141,13 +142,56 @@ impl AuthState {
                 let Some(id) = self.users.account_id(username).await? else {
                     return Ok(None);
                 };
-                match self.users.set_password(&id, password).await? {
-                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
+                match self.change_password(&id, password).await? {
+                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged { user_id: id })),
                     // Another caller removed the user between the two calls.
                     PasswordChange::NoSuchUser => Ok(None),
                 }
             }
         }
+    }
+
+    /// Replace a password and revoke every bearer token for the account.
+    pub async fn change_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        let outcome = self.users.set_password(user_id, password).await;
+        self.revoke_after_password_change(user_id, outcome, |change| {
+            matches!(change, PasswordChange::Changed)
+        })
+        .await
+    }
+
+    /// Change a verified password without overwriting a concurrent reset.
+    pub async fn change_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        let outcome = self.users.set_password_if_current(user_id, password, expected_hash).await;
+        self.revoke_after_password_change(user_id, outcome, |changed| *changed).await
+    }
+
+    async fn revoke_after_password_change<Outcome: Send>(
+        &self,
+        user_id: &str,
+        outcome: Result<Outcome>,
+        changed: impl FnOnce(&Outcome) -> bool + Send,
+    ) -> Result<Outcome> {
+        let committed = match &outcome {
+            Ok(outcome) => changed(outcome),
+            Err(error) => error.committed_password_user().is_some(),
+        };
+        if committed && let Err(source) = self.revoke_all_tokens(user_id).await {
+            if let Err(original) = &outcome {
+                tracing::error!(error = %source.log_message(), "Revoking tokens after a committed password change failed");
+                tracing::error!(error = %original.log_message(), "The password change also failed to refresh its replica");
+            }
+            return Err(RegistryError::PasswordChangeCommitted {
+                user_id: user_id.to_string(),
+                source: Box::new(source),
+            });
+        }
+        outcome
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
@@ -310,6 +354,20 @@ pub trait UserBackend: Send + Sync {
     /// Replace the password of the account identified by `user_id`.
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange>;
 
+    /// Replace a password only while its hash still equals the verified credential.
+    /// Returns false when the account or its credential has changed.
+    /// Backends without conditional writes reject the operation.
+    async fn set_password_if_current(
+        &self,
+        _user_id: &str,
+        _password: &str,
+        _expected_hash: &str,
+    ) -> Result<bool> {
+        Err(RegistryError::BadRequest {
+            reason: "Password changes are not supported by this account backend".to_string(),
+        })
+    }
+
     /// Remove password credentials without changing the account ID or login name.
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange>;
 
@@ -429,7 +487,7 @@ pub trait TokenBackend: Send + Sync {
 /// tool. ~50–100 ms per hash on modern hardware — slow enough to
 /// frustrate offline cracking, cheap enough that adduser doesn't
 /// feel sluggish.
-const DEFAULT_BCRYPT_COST: u32 = 10;
+pub const DEFAULT_BCRYPT_COST: u32 = 10;
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

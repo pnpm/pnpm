@@ -141,10 +141,10 @@ impl Collection<'_> {
     /// Finish the reclaims that stopped more than the lease ago.
     async fn finish_stale(&self) -> Result<GcReport> {
         let finished = self.storage.finish_stale_reclaims(self.lease).await?;
-        for blob in &finished {
+        for blob in finished.keys() {
             tracing::info!(key = %blob.key(), "finished an interrupted archive reclaim");
         }
-        Ok(report_of(&finished, |_| 0))
+        Ok(GcReport { archives: finished.len(), bytes: finished.values().sum() })
     }
 
     /// Remove the stored incarnations no commit made live. One a publish on

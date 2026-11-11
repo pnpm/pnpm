@@ -214,11 +214,11 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
             for statement in schema::statements(&ddl) {
                 transaction.execute_ddl(&statement)?;
             }
+            let marker_ddl = transaction.schema_marker().unwrap_or(schema::MARKER_TABLE);
+            transaction.execute(marker_ddl, params![])?;
             for step in &schema::STEPS[1..] {
                 step(&*transaction)?;
             }
-            let marker_ddl = transaction.schema_marker().unwrap_or(schema::MARKER_TABLE);
-            transaction.execute(marker_ddl, params![])?;
             for version in 1..=SCHEMA_VERSION {
                 transaction.execute(
                     &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
@@ -824,4 +824,82 @@ mod mysql_recovery {
         .unwrap()
         .unwrap();
     }
+}
+
+#[tokio::test]
+async fn an_open_database_refuses_a_schema_advanced_by_another_server() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let path = temp.path().join("metadata.sqlite");
+    let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
+    let writer = rusqlite::Connection::open(&path).unwrap();
+    writer
+        .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [SCHEMA_VERSION + 1])
+        .unwrap();
+    metadata.schema_monitor.expire();
+    let error = metadata
+        .ensure_schema()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("Upgrade pnpr"), "{error}");
+    writer
+        .execute("DELETE FROM schema_migrations WHERE version = ?1", [SCHEMA_VERSION + 1])
+        .unwrap();
+    assert_eq!(
+        metadata
+            .check_schema()
+            .await
+            .unwrap_err()
+            .to_string(),
+        error,
+    );
+    assert_eq!(
+        metadata
+            .ensure_schema()
+            .unwrap_err()
+            .to_string(),
+        error,
+    );
+}
+
+#[tokio::test]
+async fn fresh_migration_records_have_application_times() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let path = temp.path().join("metadata.sqlite");
+    SqlMetadata::open_sqlite(&path).unwrap();
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    let count: i64 = connection
+        .query_row("SELECT COUNT(*) FROM schema_migrations WHERE applied_at > 0", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, SCHEMA_VERSION);
+}
+
+#[tokio::test]
+async fn a_confirmed_malformed_schema_remains_refused_after_a_runtime_probe() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let path = temp.path().join("metadata.sqlite");
+    let metadata = Arc::new(SqlMetadata::open_sqlite(&path).unwrap());
+    let writer = rusqlite::Connection::open(&path).unwrap();
+    writer
+        .execute("DELETE FROM schema_migrations WHERE version = 1", [])
+        .unwrap();
+    metadata.schema_monitor.expire();
+    let error = metadata
+        .ensure_schema()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("incompatible with this pnpr"), "{error}");
+    assert!(matches!(metadata.ensure_schema(), Err(RegistryError::StorageUnavailable { .. })));
+    writer
+        .execute("INSERT INTO schema_migrations (version) VALUES (1)", [])
+        .unwrap();
+    assert_eq!(
+        metadata
+            .check_schema()
+            .await
+            .unwrap_err()
+            .to_string(),
+        error,
+    );
 }

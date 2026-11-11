@@ -6,7 +6,7 @@ const INIT_COMMENT: &str = "pnpr-init:1";
 
 /// The statement that creates [`MARKER`] on `MySQL`, carrying the `pnpr-init:1`
 /// comment so an interrupted first migration can resume.
-pub const MARKER_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY) ENGINE=InnoDB COMMENT='pnpr-init:1'";
+pub const MARKER_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL DEFAULT 0) ENGINE=InnoDB COMMENT='pnpr-init:1'";
 
 pub(super) fn is_recoverable(connection: &dyn Connection) -> Result<bool> {
     let Some(mut row) = connection.query_optional(

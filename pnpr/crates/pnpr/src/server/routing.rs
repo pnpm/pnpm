@@ -407,6 +407,14 @@ fn npm_version_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
     let path = |tail: &str| format!("{base}{tail}");
     router
         .route(
+            &path("/-/package/{name}/visibility"),
+            axum::routing::any(note_handlers::unsupported_npm_route),
+        )
+        .route(
+            &path("/-/package/{name}/collaborators"),
+            axum::routing::any(note_handlers::unsupported_npm_route),
+        )
+        .route(
             &path("/{scope}/{name}/{version}/evidence"),
             get(note_handlers::scoped_record_evidence),
         )

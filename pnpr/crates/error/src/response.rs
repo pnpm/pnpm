@@ -28,6 +28,9 @@ impl RegistryError {
             | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
             RegistryError::Shared(inner) => inner.is_transient_upstream_error(),
+            RegistryError::PasswordChangeCommitted { source, .. } => {
+                source.is_transient_upstream_error()
+            }
             _ => false,
         }
     }
@@ -36,6 +39,7 @@ impl RegistryError {
         match self {
             RegistryError::UpstreamUnavailable { retry_after, .. } => Some(*retry_after),
             RegistryError::Shared(inner) => inner.retry_after(),
+            RegistryError::PasswordChangeCommitted { source, .. } => source.retry_after(),
             _ => None,
         }
     }
@@ -66,6 +70,7 @@ impl RegistryError {
             RegistryError::AdminConflict { .. } => "admin_conflict",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::PublishRejected { .. } => "publish_rejected",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
             RegistryError::ArchiveReclaimed { .. } => "archive_reclaimed",
@@ -77,6 +82,7 @@ impl RegistryError {
             RegistryError::TooManyRequests { .. } => "too_many_requests",
             RegistryError::RequestTimeout { .. } => "request_timeout",
             RegistryError::Shared(inner) => inner.log_kind(),
+            RegistryError::PasswordChangeCommitted { source, .. } => source.log_kind(),
             _ => self.storage_log_kind(),
         }
     }
@@ -99,6 +105,7 @@ impl RegistryError {
             RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
             RegistryError::DocumentFormatTooNew { .. } => "document_format_too_new",
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
+            RegistryError::CorruptArchive { .. } => "corrupt_archive",
             RegistryError::Internal { .. } => "internal",
             RegistryError::InvalidUsersFile { .. } => "invalid_users_file",
             RegistryError::Bcrypt(_) => "bcrypt",
@@ -123,7 +130,9 @@ impl RegistryError {
 
     fn storage_status_code(&self) -> StatusCode {
         match self {
-            RegistryError::StorageUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::StorageUnavailable { .. } | RegistryError::CorruptArchive { .. } => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
             RegistryError::InvalidConfig { .. }
             | RegistryError::Internal { .. }
             | RegistryError::InvalidUsersFile { .. }
@@ -159,6 +168,9 @@ impl RegistryError {
     pub fn public_message(&self) -> String {
         if let RegistryError::Shared(inner) = self {
             return inner.public_message();
+        }
+        if let RegistryError::PasswordChangeCommitted { source, .. } = self {
+            return source.public_message();
         }
         if let RegistryError::UpstreamUnavailable { .. } = self {
             return self.to_string();
@@ -210,6 +222,7 @@ impl RegistryError {
             RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
             RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::Shared(inner) => inner.status_code(),
+            RegistryError::PasswordChangeCommitted { source, .. } => source.status_code(),
             _ => self.storage_status_code(),
         }
     }
@@ -227,6 +240,7 @@ impl RegistryError {
             RegistryError::PreconditionFailed { .. } => Some(StatusCode::PRECONDITION_FAILED),
             RegistryError::Unauthenticated { .. } => Some(StatusCode::UNAUTHORIZED),
             RegistryError::Forbidden { .. }
+            | RegistryError::PublishRejected { .. }
             | RegistryError::TeamsConfigManaged { .. }
             | RegistryError::RulesConfigManaged
             | RegistryError::OsvVulnerability { .. }

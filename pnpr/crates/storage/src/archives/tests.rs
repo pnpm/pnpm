@@ -232,3 +232,41 @@ async fn mapping_other_bytes_to_a_mapped_file_keeps_the_first() {
     assert_eq!(after[0].mapping, before[0].mapping);
     assert_eq!(served(&storage, &name, "a-1.0.0.tgz").await.as_deref(), Some(&b"first"[..]));
 }
+
+#[tokio::test]
+async fn corrupted_archives_are_rejected_before_full_or_partial_reads() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("example-package");
+    let blob = store_file(&storage, &name, "example-package-1.0.0.tgz", b"original")
+        .await
+        .artifact
+        .blob;
+    assert_eq!(
+        served(&storage, &name, "example-package-1.0.0.tgz").await.as_deref(),
+        Some(b"original".as_slice()),
+    );
+    let path = path_of(&tmp, &blob);
+    let modified = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+    tokio::fs::write(&path, b"tampered").await.unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(modified))
+        .unwrap();
+    assert!(storage.open_hosted_blob(&name, "example-package-1.0.0.tgz").await.is_err());
+    assert!(
+        storage
+            .open_hosted_blob_range(
+                &name,
+                "example-package-1.0.0.tgz",
+                &object_store::GetRange::Bounded(0..2)
+            )
+            .await
+            .is_err(),
+    );
+}

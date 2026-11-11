@@ -112,12 +112,25 @@ async fn a_stopped_reclaim_is_taken_over_after_its_lease(db: Db) {
             .is_empty(),
     );
     let stale = database.stale_reclaims("", Ecosystem::Npm, Duration::ZERO).await.unwrap();
-    assert_eq!(stale, marked);
+    assert_eq!(
+        stale
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        marked,
+    );
+    assert_eq!(
+        stale
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        [3],
+    );
 
     let other = vec![BlobRef { id: bytes.clone(), incarnation: 2 }];
     database.finish_reclaims("", Ecosystem::Npm, other).await.unwrap();
     assert_eq!(row(&storage, &bytes).await, Some(reclaiming));
-    assert_eq!(storage.finish_stale_reclaims(Duration::ZERO).await.unwrap(), marked);
+    assert_eq!(storage.finish_stale_reclaims(Duration::ZERO).await.unwrap(), stale);
     let gone = BlobRow { incarnation: 1, state: BlobState::Gone, size: 3 };
     assert_eq!(row(&storage, &bytes).await, Some(gone));
 }

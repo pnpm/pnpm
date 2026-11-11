@@ -78,12 +78,22 @@ async fn put_user(
     let result = async {
         require_admin(&state, &identity, "manage", format!("user {:?}", path.user))?;
         let password = parse_password(&body)?;
-        let (status, action) =
-            match state.inner.identity.auth.put_user(&path.user, &password).await? {
-                Some(UserPut::Created) => (StatusCode::CREATED, "user.create"),
-                Some(UserPut::PasswordChanged) => (StatusCode::OK, "user.password_update"),
-                None => return Err(RegistryError::NotFound),
-            };
+        let updated = state.inner.identity.auth.put_user(&path.user, &password).await;
+        if let Err(error) = &updated {
+            state.inner.identity.oidc.revoke_committed_password_sessions(error);
+        }
+        let (status, action, id) = match updated? {
+            Some(UserPut::Created) => (
+                StatusCode::CREATED,
+                "user.create",
+                state.inner.identity.auth.users.account_id(&path.user).await?,
+            ),
+            Some(UserPut::PasswordChanged { user_id }) => {
+                state.inner.identity.oidc.revoke_user_sessions(&user_id);
+                (StatusCode::OK, "user.password_update", Some(user_id))
+            }
+            None => return Err(RegistryError::NotFound),
+        };
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -92,7 +102,6 @@ async fn put_user(
             user = %path.user,
             "admin action performed on user",
         );
-        let id = state.inner.identity.auth.users.account_id(&path.user).await?;
         Ok(json_response(status, &json!({ "id": id, "name": path.user })))
     };
     respond(result.await)

@@ -21,6 +21,7 @@ pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
 mod management;
 mod metadata;
 mod publication;
+mod upload_errors;
 use publication::post_upload;
 
 use super::{

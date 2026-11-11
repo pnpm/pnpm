@@ -132,6 +132,8 @@ macro_rules! driver {
                     };
                     Dialect::retryable(&**error)
                 }
+
+
             }
 
             struct NetworkConnection {
@@ -216,7 +218,7 @@ macro_rules! driver {
                     self.transaction_open.set(false);
                     self.schema_locked.set(false);
                     self.writes_locked.set(false);
-                    RegistryError::Internal {
+                    RegistryError::StorageUnavailable {
                         reason: "metadata database operation timed out".to_string(),
                     }
                 }
@@ -351,7 +353,7 @@ macro_rules! driver {
                 fn schema_marker(&self) -> Option<&'static str> {
                     Some(match self.dialect {
                         Dialect::Postgres => {
-                            "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY)"
+                            "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL DEFAULT 0)"
                         }
                         Dialect::Mysql => super::mysql_schema::MARKER_TABLE,
                     })

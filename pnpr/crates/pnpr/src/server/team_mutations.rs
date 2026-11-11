@@ -1,6 +1,6 @@
 use super::{
     AppState, Identity, RegistryError, Response, StatusCode, json, organizations::team_registry,
-    parse_json_body, require_admin, team_rosters::update_team_roster,
+    parse_json_body, require_admin, require_caller, team_rosters::update_team_roster,
 };
 use axum::{body::Bytes, response::IntoResponse};
 use pnpr_config::{Management, Team, Teams, validate_member_name, validate_team_name};
@@ -193,6 +193,7 @@ fn admin_roster<'a>(
         return Err(RegistryError::TeamsConfigManaged { action });
     }
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
+    require_caller(identity, &format!("@{scope}"))?;
     require_admin(state, identity, action, format!("on @{scope}"))?;
     Ok(registry)
 }

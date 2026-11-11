@@ -43,7 +43,7 @@ impl Storage {
         self.hosted.open_archive(&blob.key()).await
     }
 
-    /// Open only the requested bytes, without reading the preceding content.
+    /// Open the requested bytes after verifying the stored archive.
     pub async fn open_hosted_blob_range(
         &self,
         name: &CanonicalPackageName,

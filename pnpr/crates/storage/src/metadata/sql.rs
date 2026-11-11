@@ -59,6 +59,7 @@ mod reclaims;
 mod records;
 mod removed;
 mod render;
+mod schema_monitor;
 mod staged;
 mod tags;
 mod transactions;
@@ -91,6 +92,7 @@ pub struct SqlMetadata {
     /// Held while the schema is checked, so concurrent first operations
     /// check it once.
     schema_check: Mutex<()>,
+    schema_monitor: schema_monitor::SchemaMonitor,
     cache: cache::RenderCache,
 }
 
@@ -189,6 +191,7 @@ impl SqlMetadata {
             name,
             schema: OnceLock::new(),
             schema_check: Mutex::new(()),
+            schema_monitor: schema_monitor::SchemaMonitor::default(),
             cache: cache::RenderCache::default(),
         }
     }
@@ -199,15 +202,20 @@ impl SqlMetadata {
     /// the operator wipes pnpr's tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
-            return Ok(());
+            self.schema_monitor.result()?;
+            if self.schema_monitor.claim() {
+                self.schema_monitor.probe(&*self.adapter, &self.name);
+            }
+            return self.schema_monitor.result();
         }
-        let _check = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
+        let _initializing = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
         if self.schema.get().is_some() {
-            return Ok(());
+            return self.schema_monitor.result();
         }
         if let Some(stored) = schema::prepare_adapter_with_steps(&*self.adapter, schema::STEPS)? {
             return Err(schema::refused_error(&self.name, &stored));
         }
+        self.schema_monitor.checked();
         let _ = self.schema.set(());
         // A replica bootstrapped before the schema existed lacks its tables.
         // One that cannot sync now is left stale, and its reads sync first or
@@ -216,6 +224,23 @@ impl SqlMetadata {
             tracing::warn!(%error, "the metadata replica could not sync; reads use the primary");
         }
         Ok(())
+    }
+
+    /// Refuse a known incompatible schema and schedule at most one primary probe.
+    /// Requests retain the last compatible result while that probe is pending.
+    pub async fn check_schema(self: &Arc<Self>) -> Result<()> {
+        self.schema_monitor.result()?;
+        if self.schema.get().is_none() {
+            let metadata = Arc::clone(self);
+            return tokio::task::spawn_blocking(move || metadata.ensure_schema()).await?;
+        }
+        if self.schema_monitor.claim() {
+            let metadata = Arc::clone(self);
+            tokio::task::spawn_blocking(move || {
+                metadata.schema_monitor.probe(&*metadata.adapter, &metadata.name);
+            });
+        }
+        self.schema_monitor.result()
     }
 
     /// What rendering has done since the database was opened.

@@ -361,7 +361,7 @@ async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
         .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret123")))
         .await
         .unwrap();
-    assert_eq!(second.status(), StatusCode::FORBIDDEN);
+    assert_eq!(second.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

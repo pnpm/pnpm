@@ -550,3 +550,44 @@ async fn dropping_unpromoted_s3_blob_slot_removes_staging_file() {
         .unwrap();
     assert!(served.is_some());
 }
+
+#[tokio::test]
+async fn corrupted_remote_archives_are_rejected_before_full_or_partial_reads() {
+    use crate::HostedBackend as _;
+    let (store, _staging) = store_with_prefix("");
+    let key = key_of(b"original");
+    upload(&store, &key, b"original").await;
+    let (body, _) = store
+        .open_archive(&key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(collect(body).await, b"original");
+    let range = object_store::GetRange::Bounded(0..2);
+    let ranged = store
+        .open_archive_range(&key, &range)
+        .await
+        .unwrap()
+        .unwrap();
+    let crate::RangedBlob::Read { body, .. } = ranged else { panic!("expected range") };
+    assert_eq!(collect(body).await, b"or");
+    upload(&store, &key, b"tampered").await;
+    assert!(store.open_archive(&key).await.is_err());
+    assert!(store.open_archive_range(&key, &range).await.is_err());
+}
+
+#[tokio::test]
+async fn archive_verification_does_not_trust_another_stores_etag() {
+    let key = key_of(b"original");
+    let (first, _first_staging) = store_with_prefix("");
+    upload(&first, &key, b"original").await;
+    let (body, _) = first
+        .open_archive(&key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(collect(body).await, b"original");
+    let (second, _second_staging) = store_with_prefix("");
+    upload(&second, &key, b"tampered").await;
+    assert!(second.open_archive(&key).await.is_err());
+}

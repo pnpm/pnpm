@@ -87,7 +87,7 @@ async fn admins_create_accounts_past_the_registration_cap() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret123").await.unwrap();
-    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::FORBIDDEN));
+    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
 
     let body = json!({ "password": "first-password" });
     let (status, _) =
@@ -116,9 +116,11 @@ async fn a_new_password_replaces_the_old_one() {
     let path = "/-/pnpr/v0/admin/users/bob";
     send(&app, "PUT", path, Some(&root), Some(json!({ "password": "first-password" }))).await;
 
+    let old_token = login(&app, "bob", "first-password").await.unwrap();
     let (status, _) =
         send(&app, "PUT", path, Some(&root), Some(json!({ "password": "second-password" }))).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(whoami(&app, &old_token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
     assert!(login(&app, "bob", "second-password").await.is_ok());
 }
@@ -134,7 +136,7 @@ async fn removing_an_account_revokes_its_tokens() {
 
     assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
     assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
-    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::FORBIDDEN));
+    assert_eq!(login(&app, "bob", "first-password").await, Err(StatusCode::UNAUTHORIZED));
     assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NOT_FOUND);
 }
 
@@ -396,7 +398,9 @@ impl UserBackend for ReplacedDuringLogin {
 async fn an_old_password_gets_no_token_for_a_recreated_account() {
     let dir = TempDir::new().unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
-    let hashes = vec![Some("new hash".to_string()), Some("old hash".to_string())];
+    let old = bcrypt::hash("old-password", 4).unwrap();
+    let new = bcrypt::hash("new-password", 4).unwrap();
+    let hashes = vec![Some(new), Some(old)];
     let users = ReplacedDuringLogin {
         outcome: UpsertOutcome::LoggedIn,
         hashes: std::sync::Mutex::new(hashes),
@@ -689,3 +693,49 @@ async fn registration_and_rename_reject_lookalike_usernames() {
         .collect();
     assert_eq!(names, ["Cltest", "other", "root"]);
 }
+
+#[tokio::test]
+async fn npm_profile_changes_password_and_revokes_tokens() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    let root = login(&app, "root", "secret123").await.unwrap();
+    let profile = "/-/npm/v1/user";
+    let wrong = json!({ "password": { "old": "incorrect", "new": "new-secret123" } });
+    assert_eq!(
+        send(&app, "POST", profile, None, Some(wrong.clone())).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(
+        send(&app, "POST", profile, Some(&root), Some(wrong)).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(whoami(&app, &root).await, StatusCode::OK);
+    let too_short = json!({ "password": { "old": "secret123", "new": "short" } });
+    assert_eq!(
+        send(&app, "POST", profile, Some(&root), Some(too_short)).await.0,
+        StatusCode::BAD_REQUEST,
+    );
+    assert_eq!(whoami(&app, &root).await, StatusCode::OK);
+    let update = json!({ "password": { "old": "secret123", "new": "new-secret123" } });
+    let (status, body) = send(&app, "POST", profile, Some(&root), Some(update)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["name"], "root");
+    assert_eq!(whoami(&app, &root).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(login(&app, "root", "secret123").await, Err(StatusCode::UNAUTHORIZED));
+    assert!(login(&app, "root", "new-secret123").await.is_ok());
+}
+
+#[tokio::test]
+async fn full_registration_does_not_disclose_account_existence() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    for username in ["root", "unknown"] {
+        let path = format!("/-/user/org.couchdb.user:{username}");
+        let body = json!({ "name": username, "password": "incorrect-password" });
+        let (status, payload) = send(&app, "PUT", &path, None, Some(body)).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(payload["error"], format!("Authentication required for user {username:?}"));
+    }
+}
+
+mod password_updates;

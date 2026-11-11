@@ -133,6 +133,7 @@ async fn a_change_applies_at_once_and_a_reset_undoes_it() {
     let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
     assert_eq!(rules["packages"]["@secret/*"]["access"], json!(["$authenticated"]));
     assert_eq!(rules["rulesManagedBy"], json!("api"));
+    assert_eq!(rules["version"], json!("config"));
 }
 
 #[tokio::test]

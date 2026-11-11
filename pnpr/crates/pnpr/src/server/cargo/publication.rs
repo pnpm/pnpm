@@ -82,7 +82,7 @@ pub(in super::super) fn authorize_crate_publish(
     let (source, org) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, key.as_str()) {
             PublishTarget::Hosted { source, org } => (source, org),
-            PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
+            PublishTarget::Reject(reason) => return Err(RegistryError::PublishRejected { reason }),
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };

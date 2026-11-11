@@ -244,6 +244,17 @@ impl UserBackend for LibsqlAuth {
         self.update_password(user_id, password).await
     }
 
+    async fn set_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        crate::validation::validate_password(password)?;
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.replace_password_hash_if_current(user_id, expected_hash, &hash).await
+    }
+
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
         self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH).await
     }
@@ -470,16 +481,7 @@ impl LibsqlAuth {
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
             let (new_hash, stored) = (new_hash.as_str(), stored.as_str());
-            self.pool.write(|conn| async move {
-                conn.execute(
-                    "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3",
-                    params![new_hash, id_ref, stored],
-                )
-                .await?;
-                Ok(())
-            })
-            .await?;
-            self.sync_replica().await?;
+            self.replace_password_hash_if_current(id_ref, stored, new_hash).await?;
         }
         Ok((outcome, id))
     }

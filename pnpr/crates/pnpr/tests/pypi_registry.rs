@@ -276,6 +276,11 @@ async fn upload_is_authenticated_and_validated() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let reason = response
+        .extensions()
+        .get::<hyper::ext::ReasonPhrase>()
+        .unwrap();
+    assert!(reason.as_bytes().starts_with(b"Bad request: File already exists"));
     let text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(text.contains("File already exists"), "{text}");
 

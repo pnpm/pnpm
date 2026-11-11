@@ -478,6 +478,11 @@ a hosted registry.
 name and target rules. A package-document update cannot remove `latest` while
 published versions remain.
 
+Unpublishing a version removes every dist-tag pointing at it. If `latest`
+pointed at it and versions remain, `latest` moves to the highest remaining
+version. npm visibility and collaborator endpoints return `404` with an
+`unsupported_route` error.
+
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`, including versions in DELETE requests.
 Publish version keys with build metadata, such as `1.0.0+build.5`, return `400`
@@ -739,6 +744,7 @@ resolver-only server that exposes no registry surface.
 | `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
+| `POST` | `/-/npm/v1/user` | Change the authenticated user's password. Accepts `{"password":{"old":"current-password","new":"new-password"}}`. Revokes the account's existing bearer tokens. Also revokes browser sessions on the serving replica. |
 | `POST` | `/-/npm/v1/tokens` | Creates a bearer token for the authenticated caller after verifying `password`. Accepts `readonly` (`true` or `false`) or `packages_and_scopes_permission` (`"read-only"` or `"read-write"`), `cidr_whitelist`, `name`, `expires` (positive integer days or an RFC 3339 timestamp), and `expires_in` (positive integer seconds). Unsupported package, scope, organization, and stage-only restrictions return `400`. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |
 | `DELETE` | `/-/npm/v1/tokens/token/{key}` | Revokes one of the caller's tokens by listing-side token key. |
@@ -753,7 +759,7 @@ anonymous and `403` when signed in.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/-/pnpr/v0/admin/users` | Every active account, as `{"users": [{"id": ..., "name": ...}]}`, sorted by name. |
-| `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). The body is `{"password": "..."}`. Creating ignores `maxUsers`. |
+| `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). Replacing a password revokes the account's bearer tokens. Also revokes browser sessions on the serving replica. The body is `{"password": "..."}`. Creating ignores `maxUsers`. |
 | `PATCH` | `/-/pnpr/v0/admin/users/{id}` | Rename an account with `{"name": "..."}`. Its ID, tokens, and grants stay with it. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}` | Delete the account and revoke its credentials. The login name becomes available; a replacement account receives a fresh ID. Returns `204`. |
 | `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |

@@ -117,7 +117,7 @@ pub(super) fn resolve_publish_target_for(
         RegistrySource::Unclaimed => {
             if registry_visible_to_caller(state, identity, &target) {
                 PublishTarget::Reject(format!(
-                    "cannot publish {package:?} {context}: no registry's declared `patterns:` \
+                    "cannot publish {package:?} {context}: no registry's declared `packages:` \
                      claim this package name",
                 ))
             } else {

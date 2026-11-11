@@ -7067,6 +7067,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "home",
+ "hyper 1.12.0",
  "indexmap 2.14.2",
  "libc",
  "libsql",

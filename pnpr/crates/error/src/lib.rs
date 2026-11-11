@@ -11,6 +11,16 @@ use derive_more::{Display, Error, From};
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum RegistryError {
+    /// A password write committed, but credential cleanup or replica refresh failed.
+    #[display("Password change committed, but credential cleanup failed: {source}")]
+    #[from(skip)]
+    PasswordChangeCommitted {
+        #[error(not(source))]
+        user_id: String,
+        #[error(source)]
+        source: Box<RegistryError>,
+    },
+
     #[display("Upstream request to {url} failed: {source}")]
     #[cfg(feature = "server")]
     Upstream {
@@ -68,6 +78,13 @@ pub enum RegistryError {
     StorageUnavailable {
         #[error(not(source))]
         reason: String,
+    },
+
+    #[display("Stored archive {key:?} failed integrity verification")]
+    #[from(skip)]
+    CorruptArchive {
+        #[error(not(source))]
+        key: String,
     },
 
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
@@ -173,6 +190,13 @@ pub enum RegistryError {
     InvalidAttachment {
         #[error(not(source))]
         filename: String,
+        reason: String,
+    },
+
+    /// The addressed registry cannot accept the package. Maps to 403.
+    #[from(skip)]
+    PublishRejected {
+        #[error(not(source))]
         reason: String,
     },
 
@@ -447,6 +471,18 @@ pub enum RegistryError {
     #[display("JSON error: {_0}")]
     #[cfg(feature = "server")]
     Json(serde_json::Error),
+}
+
+impl RegistryError {
+    /// The account whose password committed despite this error.
+    #[must_use]
+    pub fn committed_password_user(&self) -> Option<&str> {
+        match self {
+            Self::PasswordChangeCommitted { user_id, .. } => Some(user_id),
+            Self::Shared(inner) => inner.committed_password_user(),
+            _ => None,
+        }
+    }
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;

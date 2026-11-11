@@ -17,7 +17,8 @@ use crate::server::{
 };
 use axum::{
     body::Bytes,
-    http::{HeaderMap, Method},
+    http::{HeaderMap, Method, StatusCode},
+    response::IntoResponse,
 };
 use serde::Deserialize;
 
@@ -45,6 +46,10 @@ pub(super) async fn three_segments(
     Path(path): Path<ScopedVersionPath>,
     body: Bytes,
 ) -> Response {
+    if path.scope == "-" && path.name == "package" {
+        return unsupported_npm_route().await;
+    }
+
     // `@scope/name/notes` is the version manifest of the tag `notes`, since a
     // name of two literal segments takes a version after it.
     let names_a_whole_package = !path.scope.starts_with('@') || path.scope.contains('/');
@@ -158,4 +163,15 @@ pub(super) async fn scoped_package_notes(
     }
     let name = format!("{}/{}", path.scope, path.name);
     serve_package_notes(&state, &identity, registry.as_deref(), &name).await
+}
+
+pub(super) async fn unsupported_npm_route() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        axum::Json(serde_json::json!({
+            "error": "unsupported_route",
+            "reason": "This npm package endpoint is not supported"
+        })),
+    )
+        .into_response()
 }

@@ -120,3 +120,39 @@ registries:
     sweep_abandoned_archive_temps(&config).await.unwrap();
     assert!(!stale_path.exists());
 }
+
+#[tokio::test(start_paused = true)]
+async fn shutdown_deadline_starts_when_shutdown_is_requested() {
+    let (send_shutdown, shutdown) = tokio::sync::oneshot::channel::<()>();
+    let serving = tokio::spawn(super::drain_until_deadline(std::future::pending(), async {
+        shutdown.await.unwrap();
+    }));
+    tokio::time::advance(Duration::from_secs(120)).await;
+    assert!(!serving.is_finished());
+    send_shutdown.send(()).unwrap();
+    tokio::task::yield_now().await;
+    tokio::time::advance(
+        super::SHUTDOWN_DRAIN_TIMEOUT
+            .checked_sub(Duration::from_secs(1))
+            .unwrap(),
+    )
+    .await;
+    assert!(!serving.is_finished());
+    tokio::time::advance(Duration::from_secs(1)).await;
+    serving.await.unwrap().unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn shutdown_drain_returns_when_requests_finish() {
+    let start = tokio::time::Instant::now();
+    super::drain_until_deadline(
+        async {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            Ok(())
+        },
+        std::future::ready(()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(start.elapsed(), Duration::from_secs(1));
+}
