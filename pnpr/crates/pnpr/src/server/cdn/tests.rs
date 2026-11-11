@@ -1,4 +1,4 @@
-use super::*;
+use super::{CdnInvalidation, CloudflareCdnConfig, purge, purge_tags, sha256_hex};
 
 #[tokio::test]
 async fn purge_requires_a_successful_api_result() {
