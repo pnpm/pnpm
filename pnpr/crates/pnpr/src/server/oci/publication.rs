@@ -108,28 +108,26 @@ impl OciPublication {
         };
         let mut base = storage.read_hosted_document_for_publish(&self.key, &lookup).await?;
         let references = self.check_referenced_blobs(&referenced, &mut base.artifacts)?;
-        let addition = self.document_addition();
-        let children: Vec<Digest> = if pnpr_oci::media_type::is_index(self.manifest.media_type()) {
-            self.manifest
-                .references()
-                .map(|descriptor| descriptor.digest.clone())
-                .collect()
+        let children = if pnpr_oci::media_type::is_index(self.manifest.media_type()) {
+            referenced
         } else {
             Vec::new()
         };
         let refuse = |stored: &ImageDocument| refuse_missing_children(stored, &children);
+        let addition = self.document_addition(children.clone());
         let filename = self.digest.blob_filename();
         let artifact = HostedArtifact { filename: &filename, bytes: &self.bytes, references };
         stage_hosted_artifact_on(state, &self.org, &self.key, artifact, base, &refuse, addition)
             .await
             .map_err(Into::into)
     }
-    fn document_addition(&self) -> ImageDocument {
+    fn document_addition(&self, children: Vec<Digest>) -> ImageDocument {
         let mut addition = ImageDocument::new(self.key.as_str());
         addition.insert_manifest(ManifestEntry {
             digest: self.digest.clone(),
             media_type: self.manifest.media_type().to_string(),
             size: self.bytes.len() as u64,
+            children,
             referrer: Some(self.manifest.referrer_metadata()),
         });
         if Digest::parse(&self.reference).is_err() {

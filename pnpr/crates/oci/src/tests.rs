@@ -1,4 +1,6 @@
-use crate::{Digest, ImageDocument, Manifest, ManifestEntry, TagEntry, media_type};
+use crate::{
+    Digest, ImageDocument, Manifest, ManifestEntry, ManifestRemoval, TagEntry, media_type,
+};
 
 fn digest_of(body: &str) -> Digest {
     Digest::of(body.as_bytes())
@@ -6,6 +8,7 @@ fn digest_of(body: &str) -> Digest {
 
 fn entry(body: &str) -> ManifestEntry {
     ManifestEntry {
+        children: Vec::new(),
         referrer: None,
         digest: digest_of(body),
         media_type: media_type::OCI_IMAGE_MANIFEST.to_string(),
@@ -73,9 +76,37 @@ fn removing_a_manifest_drops_the_tags_that_named_it() {
     document.set_tag(tag("latest", "one", 1));
     document.set_tag(tag("stable", "two", 1));
 
-    assert!(document.remove_manifest(&digest_of("one")));
+    assert_eq!(document.remove_manifest(&digest_of("one")), ManifestRemoval::Removed);
     assert_eq!(document.tag_names(), ["stable"]);
-    assert!(!document.remove_manifest(&digest_of("one")));
+    assert_eq!(document.remove_manifest(&digest_of("one")), ManifestRemoval::NotFound);
+}
+
+#[test]
+fn a_child_manifest_cannot_be_removed_while_a_retained_index_references_it() {
+    let mut document = ImageDocument::new("acme/app");
+    document.insert_manifest(entry("child-a"));
+    document.insert_manifest(entry("child-b"));
+    document.set_tag(tag("arm64", "child-a", 1));
+    document.insert_manifest(ManifestEntry {
+        children: vec![digest_of("child-a"), digest_of("child-b")],
+        referrer: None,
+        digest: digest_of("index"),
+        media_type: media_type::OCI_IMAGE_INDEX.to_string(),
+        size: 10,
+    });
+    document.set_tag(tag("v1", "index", 1));
+
+    assert_eq!(document.remove_manifest(&digest_of("child-a")), ManifestRemoval::ReferencedByIndex);
+    assert!(
+        document
+            .manifest(&digest_of("child-a"))
+            .is_some(),
+    );
+    assert_eq!(document.tag_names(), ["arm64", "v1"]);
+
+    assert_eq!(document.remove_manifest(&digest_of("index")), ManifestRemoval::Removed);
+    assert_eq!(document.remove_manifest(&digest_of("child-a")), ManifestRemoval::Removed);
+    assert_eq!(document.tag_names(), [] as [&str; 0]);
 }
 
 #[test]
