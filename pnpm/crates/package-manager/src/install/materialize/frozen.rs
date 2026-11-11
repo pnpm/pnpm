@@ -123,7 +123,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         );
         #[cfg(not(feature = "runtime-provisioning"))]
         ensure_runtime_provisioning(&scope, self.install.execution.skip_runtimes)?;
-        debug_assert!(matches!(scope.lockfile().lockfile_version.major, 9 | 12 | 13));
+        assert_supported_lockfile_major(scope.lockfile());
 
         let frozen_verification_override = settle_frozen_verification::<Reporter>(
             self.workspace.requested_importer_ids,
@@ -153,6 +153,11 @@ impl<'a> MaterializationInputs<'a, '_> {
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }
+}
+
+fn assert_supported_lockfile_major(lockfile: &Lockfile) {
+    let major = lockfile.lockfile_version.major;
+    debug_assert!(matches!(major, 9 | 12 | 13));
 }
 
 #[cfg(not(feature = "runtime-provisioning"))]
