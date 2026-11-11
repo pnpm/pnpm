@@ -1,6 +1,6 @@
 //! Staging release archives by integrity ahead of the publish commit that
-//! references them: `PUT` and `HEAD /-/pnpr/v0/artifacts/blob?integrity=...`
-//! with no owner, and the publishes that reference what was staged.
+//! references them: `PUT` and `HEAD /-/pnpr/v0/publish/archives/{integrity}`,
+//! and the publishes that reference what was staged.
 
 use crate::npm::{npm_tgz, publish_doc, sri_sha512};
 
@@ -65,10 +65,8 @@ pub(crate) async fn blob(
 }
 
 pub(crate) fn staging_path(integrity: &str) -> String {
-    let query = url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("integrity", integrity)
-        .finish();
-    format!("/-/pnpr/v0/artifacts/blob?{query}")
+    let archive: String = url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect();
+    format!("/-/pnpr/v0/publish/archives/{archive}")
 }
 
 pub(crate) async fn token_of(app: &Router, user: &str) -> String {

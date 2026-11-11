@@ -35,7 +35,7 @@ tarball, and which platform it belongs to.
    *locally configured* public key, then checks the signed package name and
    version, source tarball integrity, owner, input key, manifest, and platform
    compatibility, and picks the most preferred compatible variant.
-4. It downloads that variant's blobs with `POST /-/pnpr/v0/artifacts/blob`, one
+4. It downloads that variant's blobs with `GET /-/pnpr/v0/artifacts/blobs/{organization}/{integrity}`, one
    request per unique SHA-512, recomputing the digest before accepting the
    bytes, and hydrates them into the store.
 5. The restored side-effects map and its signed origin are persisted in the
@@ -177,7 +177,7 @@ export PNPM_SIDE_EFFECTS_CACHE_REMOTE_BUILDER_ID='ci/main/42'
 
 `pnpm install` then runs the lifecycle scripts as usual, captures the actual
 post-build diff, and signs it. It uploads each blob the server lacks with
-`PUT /-/pnpr/v0/artifacts/blob`, then stores the signed envelope with
+`PUT /-/pnpr/v0/artifacts/blobs/{organization}/{integrity}`, then stores the signed envelope with
 `PUT /-/pnpr/v0/artifacts`. `imageDigest`, `architectureBaseline` and `buildEnv`
 are optional provenance recorded in the signed payload. Never commit the private
 key.

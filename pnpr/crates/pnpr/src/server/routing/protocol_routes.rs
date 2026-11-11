@@ -6,12 +6,13 @@ use axum::{
 };
 
 use crate::server::{
-    AppState, MAX_ARTIFACT_BLOB_BODY_BYTES, MAX_ARTIFACT_PUBLISH_BODY_BYTES,
-    MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_PIPELINE_RUN_BODY_BYTES, compiler_cache,
-    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
-    serve_get_pipeline_run, serve_list_pipeline_runs, serve_pipeline_ui, serve_publish_artifact,
-    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_verify_lockfile,
-    staged_archives::{serve_head_blob, serve_put_blob},
+    AppState, MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES,
+    MAX_PIPELINE_RUN_BODY_BYTES, compiler_cache, require_artifact_caller, require_pipeline_caller,
+    require_resolver_caller, serve_artifact_blob, serve_artifact_blob_size, serve_get_pipeline_run,
+    serve_list_pipeline_runs, serve_pipeline_ui, serve_publish_artifact,
+    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_upload_artifact_blob,
+    serve_verify_lockfile,
+    staged_archives::{serve_stage_archive, serve_staged_archive_size},
 };
 
 pub(super) fn resolver_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
@@ -54,19 +55,17 @@ pub(super) fn artifacts_routes(state: &AppState, router: Router<AppState>) -> Ro
                     require_artifact_caller,
                 )),
         )
-        // The limit bounds the lookup a `POST` sends, and the layers apply to
-        // it alone. A `PUT` streams its body past the limit, and the store
-        // holds that to the declared size. A `PUT` or `HEAD` naming no owner
-        // stages a release archive instead, which the registry surface
-        // serves with the registry's own credentials; both handlers identify
-        // their caller themselves.
+        // An upload streams its body, and the store holds it to the declared
+        // size.
         .route(
-            "/-/pnpr/v0/artifacts/blob",
-            post(serve_artifact_blob)
-                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
-                .route_layer(middleware::from_fn_with_state(state.clone(), require_artifact_caller))
-                .put(serve_put_blob)
-                .head(serve_head_blob),
+            "/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}",
+            get(serve_artifact_blob)
+                .head(serve_artifact_blob_size)
+                .put(serve_upload_artifact_blob)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_artifact_caller,
+                )),
         )
 }
 
@@ -114,20 +113,12 @@ fn compiler_cache_routes(state: &AppState, router: Router<AppState>) -> Router<A
         )
 }
 
-/// Release archive staging on a server without the artifact surface, which
-/// otherwise serves the route (see [`artifacts_routes`]).
-pub(super) fn staged_archive_routes(router: Router<AppState>) -> Router<AppState> {
-    staged_archive_routes_under(router, "")
-}
-
-/// Release archive staging under `base`. A staged archive belongs to its
-/// principal whichever base it is uploaded through.
-pub(super) fn staged_archive_routes_under(
-    router: Router<AppState>,
-    base: &str,
-) -> Router<AppState> {
+/// Release archive staging under `base`, beside the publish that references
+/// the archives. A staged archive belongs to its principal whichever base it
+/// is uploaded through.
+pub(super) fn staged_archive_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
     router.route(
-        &format!("{base}/-/pnpr/v0/artifacts/blob"),
-        put(serve_put_blob).head(serve_head_blob),
+        &format!("{base}/-/pnpr/v0/publish/archives/{{integrity}}"),
+        put(serve_stage_archive).head(serve_staged_archive_size),
     )
 }

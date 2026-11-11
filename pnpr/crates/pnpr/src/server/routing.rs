@@ -19,10 +19,7 @@ mod account_handlers;
 use account_handlers::account_routes;
 
 mod protocol_routes;
-use protocol_routes::{
-    artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes,
-    staged_archive_routes_under,
-};
+use protocol_routes::{artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes};
 
 mod team_handlers;
 use team_handlers::team_routes;
@@ -272,8 +269,6 @@ fn surface_routes(
     }
     if surfaces.artifacts {
         router = artifacts_routes(state, router);
-    } else if surfaces.registry {
-        router = staged_archive_routes(router);
     }
     if surfaces.pipeline {
         router = pipeline_routes(state, router);
@@ -292,7 +287,7 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     let npm = npm_registry_routes();
     // One publish transaction for packages of any ecosystem. It answers here
     // rather than inside the npm surface.
-    let mut router = router
+    let mut router = staged_archive_routes(router, "")
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
         .route("/-/publications/{org}", get(super::publications::serve_member_publication))
@@ -336,12 +331,11 @@ fn npm_registry_routes() -> Router<AppState> {
     // registry URL; under a named registry, its npm entries are addressed
     // through that registry. The archives a publish references are staged
     // beside it, under the same base.
-    let mut router = staged_archive_routes(
-        Router::new()
-            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
-            .route("/~{registry}/-/pnpr/v0/publish", put(batch::serve_registry_publish)),
-    );
-    router = staged_archive_routes_under(router, "/~{registry}");
+    let mut router = Router::new()
+        .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+        .route("/~{registry}/-/pnpr/v0/publish", put(batch::serve_registry_publish));
+    router = staged_archive_routes(router, "");
+    router = staged_archive_routes(router, "/~{registry}");
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
         let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);

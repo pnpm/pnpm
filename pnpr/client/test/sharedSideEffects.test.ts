@@ -408,7 +408,7 @@ describe('signed shared artifacts', () => {
           response.writeHead(201).end()
         } else if (request.url === '/-/pnpr/v0/artifacts/resolve') {
           response.writeHead(200, { 'content-type': 'application/json' }).end(resolveResponseBody)
-        } else if (request.url === '/-/pnpr/v0/artifacts/blob') {
+        } else if (request.method === 'GET' && request.url?.startsWith('/-/pnpr/v0/artifacts/blobs/')) {
           response.writeHead(200, { 'content-type': 'application/octet-stream' }).end(contents)
         } else {
           response.writeHead(404).end()
@@ -502,7 +502,7 @@ describe('signed shared artifacts', () => {
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
         '/-/pnpr/v0/artifacts/resolve',
-        '/-/pnpr/v0/artifacts/blob',
+        `/-/pnpr/v0/artifacts/blobs/acme/${encodeURIComponent(integrity)}`,
       ])
       expect(requests.every(request => request.authorization === 'Bearer token')).toBe(true)
     } finally {

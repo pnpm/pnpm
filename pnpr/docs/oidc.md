@@ -198,7 +198,7 @@ The credential permits:
 - ordinary `PUT` publications to the configured packages through that named
   registry;
 - [staging archives](ecosystems.md#staged-archives) with `PUT` and `HEAD` on
-  `/-/pnpr/v0/artifacts/blob`, under the server root, the npm base, or the
+  `/-/pnpr/v0/publish/archives/{integrity}`, under the server root, the npm base, or the
   named registry's address;
 - batch commits to `/-/pnpr/v0/publish` at the same addresses, when every entry
   is an npm package of the configured ones that resolves to that named

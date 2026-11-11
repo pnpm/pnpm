@@ -190,10 +190,10 @@ decides who may read and who may publish what each one owns.
 | Method | Path | Description |
 | --- | --- | --- |
 | `PUT` | `/-/pnpr/v0/artifacts` | Stores one immutable opaque signed envelope in its organization's namespace. Every blob its manifest names is already stored or carried inline, base64-encoded, up to 64 MiB in all. Requires `publish` on that organization. At most eight variants per input key; a different artifact whose compatible consumers overlap an existing variant gets `409 Conflict`. |
-| `PUT` | `/-/pnpr/v0/artifacts/blob?organization=<name>&integrity=<sha512-…>` | Stores one blob, streamed from the request body, ahead of the envelope that names it. Requires `publish` on that organization and a `Content-Length` of at most 4 GiB. The blob is stored only if its bytes match the integrity. A blob nothing references yet is kept for at least an hour. |
-| `HEAD` | `/-/pnpr/v0/artifacts/blob?organization=<name>&integrity=<sha512-…>` | Whether the blob is stored, with its size as `Content-Length`. |
+| `PUT` | `/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}` | Stores one blob, streamed from the request body, ahead of the envelope that names it. Requires `publish` on that organization and a `Content-Length` of at most 4 GiB. The blob is stored only if its bytes match the integrity. A blob nothing references yet is kept for at least an hour. |
+| `HEAD` | `/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}` | Whether the blob is stored, with its size as `Content-Length`. |
+| `GET` | `/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}` | Reads one blob. A blob the caller may not read answers `404`. |
 | `POST` | `/-/pnpr/v0/artifacts/resolve` | One batched lookup for candidate input keys. Returns at most eight signed variants per key; scanned envelope bytes plus the serialized response share one 16 MiB budget. |
-| `POST` | `/-/pnpr/v0/artifacts/blob` | Reads one owner-scoped blob by its SHA-512 integrity. |
 | `GET` `HEAD` `PUT` | `/-/pnpr/v0/compiler-cache/{cache}/{key}` | One [Cargo compilation cache](compiler-cache.md) entry, over the subset of WebDAV sccache uses. `PROPFIND` answers for virtual parent directories. Added in v0.1.0-alpha.11. |
 
 ### Cross-ecosystem endpoints
@@ -205,8 +205,8 @@ These belong to no single ecosystem, so they sit on the server root.
 | Method | Path | Description |
 | --- | --- | --- |
 | `PUT` | `/-/pnpr/v0/publish` | [Publish packages of any ecosystem](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) in one transaction. Advertised as `protocols.publish.versions: [0]` in the handshake. |
-| `PUT` | `/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` | [Stages one release archive](ecosystems.md#staged-archives) for the caller, streamed from the request body, ahead of the publish that references it. Also under `/npm/`. Answers `201` when stored, `200` when the caller had it staged already, which renews it. Needs a signed-in caller and a `Content-Length` of at most 100 MiB. The archive is stored only if its bytes match the integrity. Only the caller can claim it, for 24 hours after its last upload. |
-| `HEAD` | `/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` | Whether the caller has the archive staged with at least an hour left, with its size as `Content-Length`. |
+| `PUT` | `/-/pnpr/v0/publish/archives/{integrity}` | [Stages one release archive](ecosystems.md#staged-archives) for the caller, streamed from the request body, ahead of the publish that references it. Also under `/npm/`. Answers `201` when stored, `200` when the caller had it staged already, which renews it. Needs a signed-in caller and a `Content-Length` of at most 100 MiB. The archive is stored only if its bytes match the integrity. Only the caller can claim it, for 24 hours after its last upload. |
+| `HEAD` | `/-/pnpr/v0/publish/archives/{integrity}` | Whether the caller has the archive staged with at least an hour left, with its size as `Content-Length`. |
 | `GET` | `/-/pnpr/v0/registries` | The [registry directory](discovery.md#the-registry-directory): the named registries, ecosystem endpoints, and routing order the caller may see. |
 
 ### Publication endpoints {#publication-endpoints}

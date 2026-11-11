@@ -1,24 +1,7 @@
-use super::{PrincipalUploads, StagedReferences, archive_blob_id, names_owner, query_integrity};
-use axum::http::Uri;
+use super::{PrincipalUploads, StagedReferences, archive_blob_id};
 use pnpr_config::HostedStoreConfig;
 use pnpr_storage::{StagedArchiveKey, Storage};
 use std::time::Duration;
-
-#[test]
-fn only_an_owner_parameter_routes_a_blob_to_shared_artifacts() {
-    let uri = |query: &str| format!("/-/pnpr/v0/artifacts/blob?{query}").parse::<Uri>().unwrap();
-    assert!(names_owner(&uri("organization=acme&integrity=sha512-AAAA")));
-    assert!(names_owner(&uri("publisher=pkg&integrity=sha512-AAAA")));
-    assert!(!names_owner(&uri("integrity=sha512-AAAA")));
-}
-
-#[test]
-fn a_staged_archive_names_exactly_one_integrity() {
-    let uri = |query: &str| format!("/-/pnpr/v0/artifacts/blob?{query}").parse::<Uri>().unwrap();
-    assert_eq!(query_integrity(&uri("integrity=sha512-AAAA")).unwrap(), "sha512-AAAA");
-    assert!(query_integrity(&uri("")).is_err());
-    assert!(query_integrity(&uri("integrity=sha512-AAAA&integrity=sha512-BBBB")).is_err());
-}
 
 #[test]
 fn only_a_sha512_integrity_addresses_a_staged_archive() {

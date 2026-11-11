@@ -1,9 +1,9 @@
 use super::{
-    Arc, ArtifactBlobRequest, ArtifactCandidate, ArtifactQuota, ArtifactSubject, ArtifactUsage,
-    AtomicUsize, FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory,
-    MAX_VARIANTS_PER_CANDIDATE, ObjectPath, ObjectStore, ObjectStoreExt, Ordering, OwnerScope,
-    RegistryError, ResolveArtifactsRequest, SharedArtifactStore, TempDir, is_variant_file, lookup,
-    publication, publication_for_platform, publication_tagged, publication_with_blob,
+    Arc, ArtifactCandidate, ArtifactQuota, ArtifactSubject, ArtifactUsage, AtomicUsize,
+    FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory, MAX_VARIANTS_PER_CANDIDATE,
+    ObjectPath, ObjectStore, ObjectStoreExt, Ordering, OwnerScope, RegistryError,
+    ResolveArtifactsRequest, SharedArtifactStore, TempDir, is_variant_file, lookup, publication,
+    publication_for_platform, publication_tagged, publication_with_blob,
     workspace_task_publication,
 };
 use futures_util::StreamExt as _;
@@ -34,14 +34,7 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
     assert_eq!(response.artifacts[0].variants.len(), 1);
 
     let mut blob = store
-        .read_blob(
-            "acme",
-            &serde_json::to_vec(&ArtifactBlobRequest {
-                owner: OwnerScope::organization("acme"),
-                integrity,
-            })
-            .unwrap(),
-        )
+        .read_blob("acme", &OwnerScope::organization("acme"), &integrity)
         .await
         .unwrap()
         .unwrap();
