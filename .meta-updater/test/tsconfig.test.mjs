@@ -81,23 +81,42 @@ test('test and lint tsconfigs are synchronized with the source references', asyn
   await mkdir(path.join(dir, 'test'), { recursive: true })
   const manifest = { name: 'consumer', devDependencies: { library: 'workspace:*' } }
   await writeJson(workspaceDir, 'packages/consumer/package.json', manifest)
+  const { files } = await updater(workspaceDir)
+  const updateTest = files['test/tsconfig.json [generated-json]']
+  const updateLint = files['tsconfig.lint.json [generated-json]']
+  const options = { dir, manifest }
+  assert.equal(await updateTest(null, options), null)
+  assert.equal(await updateLint(null, options), null)
+  await writeJson(workspaceDir, 'packages/consumer/tsconfig.json', {})
+  assert.deepEqual((await updateTest(null, options)).references, [{ path: '..' }])
+  await writeJson(workspaceDir, 'packages/consumer/tsconfig.json', { compilerOptions: { composite: false } })
+  assert.deepEqual((await updateTest(null, options)).references, [{ path: '../../library' }])
+  assert.equal((await updateLint(null, options)).extends, './tsconfig.json')
+})
+
+test('the tsconfig update does not write generated configs', async t => {
+  const workspaceDir = await createWorkspace(t, 'v13')
+  const dir = path.join(workspaceDir, 'packages/consumer')
+  await mkdir(path.join(dir, 'test'), { recursive: true })
+  const manifest = { name: 'consumer', devDependencies: { library: 'workspace:*' } }
+  await writeJson(workspaceDir, 'packages/consumer/package.json', manifest)
   const update = (await updater(workspaceDir)).files['tsconfig.json']
   await update({}, { dir, manifest })
-  assert.deepEqual((await readJson(dir, 'test/tsconfig.json')).references, [{ path: '..' }])
-  await update({ compilerOptions: { composite: false } }, { dir, manifest })
-  assert.deepEqual((await readJson(dir, 'test/tsconfig.json')).references, [{ path: '../../library' }])
-  assert.equal((await readJson(dir, 'tsconfig.lint.json')).extends, './tsconfig.json')
+  await assert.rejects(readJson(dir, 'test/tsconfig.json'), { code: 'ENOENT' })
+  await assert.rejects(readJson(dir, 'tsconfig.lint.json'), { code: 'ENOENT' })
 })
 
 test('packages with independent tsconfigs are left unchanged', async t => {
   const workspaceDir = await createWorkspace(t, 'v13')
-  const update = (await updater(workspaceDir)).files['tsconfig.json']
+  const dir = path.join(workspaceDir, 'packages/consumer')
+  await mkdir(path.join(dir, 'test'), { recursive: true })
+  await writeJson(workspaceDir, 'packages/consumer/tsconfig.json', {})
+  const { files } = await updater(workspaceDir)
   for (const name of ['@pnpm/tsconfig', '@pnpm-private/typecheck', 'get-pnpm', 'pacquet', '@pnpm/napi']) {
-    const config = { references: [{ path: 'preserved' }] }
-    assert.equal(await update(config, {
-      dir: path.join(workspaceDir, 'packages/consumer'),
-      manifest: { name },
-    }), config)
+    for (const file of ['tsconfig.json', 'tsconfig.lint.json [generated-json]', 'test/tsconfig.json [generated-json]']) {
+      const config = { references: [{ path: 'preserved' }] }
+      assert.equal(await files[file](config, { dir, manifest: { name } }), config)
+    }
   }
 })
 

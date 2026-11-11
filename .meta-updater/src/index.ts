@@ -17,11 +17,9 @@ import { PUBLISH_EXECUTABLE_FILES, sortKeysInManifest, updateManifest } from './
 
 const CLI_PKG_NAME = 'pnpm'
 
-interface TypeScriptConfigContext {
+interface TypeScriptReferencesContext {
   workspaceDir: string
-  dir: string
-  tsConfig: object
-  linkValues: string[]
+  workspacePackageDirs: Map<string, string>
 }
 
 // These packages have their own release metadata and build pipelines;
@@ -60,9 +58,17 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   const workspacePackages = await findWorkspaceProjectsNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
   const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
   const workspacePackageDirs = new Map(workspacePackages.flatMap(pkg => pkg.manifest.name ? [[pkg.manifest.name, pkg.rootDir] as const] : []))
+  const tsConfigContext: TypeScriptReferencesContext = { workspaceDir, workspacePackageDirs }
   const nodeRuntimeVersion = readNodeRuntimeVersion(workspaceDir)
   return createUpdateOptions({
-    formats: { '.yml': textFormat, '.rs': textFormat, '.toml': textFormat, '.lock': textFormat, '.ts': textFormat },
+    formats: {
+      '.yml': textFormat,
+      '.rs': textFormat,
+      '.toml': textFormat,
+      '.lock': textFormat,
+      '.ts': textFormat,
+      [GENERATED_JSON]: generatedJsonFormat,
+    },
     files: {
       'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
         if (!manifest) {
@@ -160,10 +166,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
         return updateManifest(workspaceDir, manifest, dir, nextTag)
       },
-      'tsconfig.json': updateTSConfig.bind(null, {
-        workspacePackageDirs,
-        workspaceDir,
-      }),
+      'tsconfig.json': updateTSConfig.bind(null, tsConfigContext),
+      [`tsconfig.lint.json [${GENERATED_JSON}]`]: updateLintTSConfig.bind(null, workspaceDir),
+      [`test/tsconfig.json [${GENERATED_JSON}]`]: updateTestTSConfig.bind(null, tsConfigContext),
     'cspell.json': (cspell: any) => { // eslint-disable-line
         if (cspell && typeof cspell === 'object' && 'words' in cspell && Array.isArray(cspell.words)) {
           cspell.words = cspell.words.sort((w1: string, w2: string) => w1.localeCompare(w2))
@@ -198,27 +203,12 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   })
 }
 
-async function updateTSConfig (
-  context: {
-    workspacePackageDirs: Map<string, string>
-    workspaceDir: string
-  },
+function updateTSConfig (
+  context: TypeScriptReferencesContext,
   tsConfig: object | null,
-  {
-    dir,
-    manifest,
-  }: FormatPluginFnOptions
-): Promise<object | null> {
-  if (tsConfig == null) return tsConfig
-  if (shouldKeepTSConfig(manifest.name)) return tsConfig
-  const linkValues = findTypeScriptReferences({
-    workspaceDir: context.workspaceDir,
-    workspacePackageDirs: context.workspacePackageDirs,
-    dir,
-    manifest,
-  })
-  const configContext = { workspaceDir: context.workspaceDir, dir, tsConfig, linkValues }
-  await writeTsConfigFiles(configContext)
+  { dir, manifest }: FormatPluginFnOptions
+): object | null {
+  if (tsConfig == null || shouldKeepTSConfig(manifest.name)) return tsConfig
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
@@ -226,8 +216,55 @@ async function updateTSConfig (
       ...getCompilerOptions(tsConfig),
       rootDir: 'src',
     },
-    references: linkValues.map(path => ({ path })),
+    references: findTypeScriptReferences({ ...context, dir, manifest }).map(path => ({ path })),
   }
+}
+
+function updateLintTSConfig (
+  workspaceDir: string,
+  lintConfig: object | null,
+  { dir, manifest }: FormatPluginFnOptions
+): object | null {
+  if (readGeneratedTSConfig(dir, manifest.name) == null) return lintConfig
+  return {
+    extends: './tsconfig.json',
+    include: [
+      'src/**/*.ts',
+      'test/**/*.ts',
+      normalizePath(path.relative(dir, path.join(workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
+    ],
+  }
+}
+
+function updateTestTSConfig (
+  context: TypeScriptReferencesContext,
+  testConfig: object | null,
+  { dir, manifest }: FormatPluginFnOptions
+): object | null {
+  const tsConfig = readGeneratedTSConfig(dir, manifest.name)
+  const testDir = path.join(dir, 'test')
+  if (tsConfig == null || !fs.existsSync(testDir)) return testConfig
+  return {
+    extends: '../tsconfig.json',
+    compilerOptions: {
+      noEmit: false,
+      outDir: '../node_modules/.test.lib',
+      rootDir: '..',
+      isolatedModules: true,
+    },
+    include: [
+      '**/*.ts',
+      normalizePath(path.relative(testDir, path.join(context.workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
+    ],
+    references: getTestReferences({ context, tsConfig, dir, testDir, manifest }),
+  }
+}
+
+/** The package's `tsconfig.json`, or `undefined` when the package has none or keeps its own. */
+function readGeneratedTSConfig (dir: string, projectName: string | undefined): object | undefined {
+  if (shouldKeepTSConfig(projectName)) return undefined
+  const tsConfigPath = path.join(dir, 'tsconfig.json')
+  return fs.existsSync(tsConfigPath) ? loadJsonFileSync<object>(tsConfigPath) : undefined
 }
 
 function shouldKeepTSConfig (name: string | undefined): boolean {
@@ -283,45 +320,15 @@ function isExcludedTypeScriptReference (dependencyName: string, projectName: str
     dependencyName === 'pnpm' && projectName === '@pnpm/lockfile.make-dedicated-lockfile'
 }
 
-async function writeTsConfigFiles ({ workspaceDir, dir, tsConfig, linkValues }: TypeScriptConfigContext): Promise<void> {
-  const testDir = path.join(dir, 'test')
-  const testConfig = fs.existsSync(testDir)
-    ? writeTestTsConfig({ workspaceDir, dir, testDir, tsConfig, linkValues })
-    : Promise.resolve()
-  await Promise.all([
-    testConfig,
-    writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
-      extends: './tsconfig.json',
-      include: [
-        'src/**/*.ts',
-        'test/**/*.ts',
-        normalizePath(path.relative(dir, path.join(workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
-      ],
-    }, { indent: 2 }),
-  ])
-}
-
-async function writeTestTsConfig ({ workspaceDir, dir, testDir, tsConfig, linkValues }: TypeScriptConfigContext & { testDir: string }): Promise<void> {
-  await writeJsonFile(path.join(testDir, 'tsconfig.json'), {
-    extends: '../tsconfig.json',
-    compilerOptions: {
-      noEmit: false,
-      outDir: '../node_modules/.test.lib',
-      rootDir: '..',
-      isolatedModules: true,
-    },
-    include: [
-      '**/*.ts',
-      normalizePath(path.relative(testDir, path.join(workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
-    ],
-    references: getTestReferences({ tsConfig, dir, testDir, linkValues }),
-  }, { indent: 2 })
-}
-
-function getTestReferences ({ tsConfig, dir, testDir, linkValues }: Pick<TypeScriptConfigContext, 'tsConfig' | 'dir' | 'linkValues'> & { testDir: string }): Array<{ path: string }> {
-  const compilerOptions = getCompilerOptions(tsConfig)
-  if (compilerOptions?.composite !== false) return [{ path: '..' }]
-  return linkValues.map(relativePath => ({
+function getTestReferences ({ context, tsConfig, dir, testDir, manifest }: {
+  context: TypeScriptReferencesContext
+  tsConfig: object
+  dir: string
+  testDir: string
+  manifest: FormatPluginFnOptions['manifest']
+}): Array<{ path: string }> {
+  if (getCompilerOptions(tsConfig)?.composite !== false) return [{ path: '..' }]
+  return findTypeScriptReferences({ ...context, dir, manifest }).map(relativePath => ({
     path: normalizePath(path.relative(testDir, path.join(dir, relativePath))),
   }))
 }
@@ -367,6 +374,17 @@ function replaceRustVersion (content: string | null, pattern: RegExp, replacemen
   }
   return content.replace(pattern, replacement)
 }
+
+// The JSON format for files the updater generates whole: a new file gets the
+// repository's two-space indent rather than the built-in format's tab default.
+const GENERATED_JSON = 'generated-json'
+
+const generatedJsonFormat = createFormat<object>({
+  read: ({ resolvedPath }) => loadJsonFileSync<object>(resolvedPath),
+  update: (actual, updater, options) => updater(actual, options),
+  equal: (expected, actual) => JSON.stringify(expected) === JSON.stringify(actual),
+  write: (expected, { resolvedPath }) => writeJsonFile(resolvedPath, expected, { indent: 2 }),
+})
 
 const textFormat = createFormat<string>({
   read: ({ resolvedPath }) => fs.readFileSync(resolvedPath, 'utf8'),
