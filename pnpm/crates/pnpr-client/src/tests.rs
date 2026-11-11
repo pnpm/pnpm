@@ -839,9 +839,14 @@ async fn resolve_rejects_mismatched_policies() {
         applied[field] = mismatched_policy(field);
         let done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": applied });
         let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
-        assert!(
-            matches!(result, Err(PnprClientError::Protocol(ref message)) if message.contains(field)),
-            "{field}: {result:?}",
-        );
+        let Err(PnprClientError::Protocol(message)) = result else {
+            panic!("{field}: expected a protocol error, got {result:?}");
+        };
+        let expected_message = match field {
+            "addMissingPeerTypes" => "pnpr server ignored requested addMissingPeerTypes (expected Some(true), got false)".to_string(),
+            "projectScopedOptionalPeers" => "pnpr server ignored requested projectScopedOptionalPeers (expected Some(false), got true)".to_string(),
+            _ => format!("pnpr server ignored requested {field}"),
+        };
+        assert_eq!(message, expected_message, "{field}");
     }
 }
