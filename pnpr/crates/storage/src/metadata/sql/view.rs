@@ -253,28 +253,39 @@ impl PackageMetadata {
     pub(crate) async fn published_package_names(&self) -> Result<Vec<String>> {
         let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
         self.database.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
-            let rows = match ecosystem {
-                Ecosystem::Npm => connection.query(
-                    "SELECT p.name FROM packages p
-                         WHERE p.catalog = ?1 AND p.ecosystem = ?2
-                           AND EXISTS (
-                               SELECT 1 FROM versions v
-                               WHERE v.catalog = p.catalog
-                                 AND v.ecosystem = p.ecosystem
-                                 AND v.name = p.name
-                           )
-                         ORDER BY p.name",
-                    params![catalog, ecosystem.as_str()],
-                )?,
-                Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => connection.query(
-                    "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
-                    params![catalog, ecosystem.as_str()],
-                )?,
-            };
-            rows.into_iter()
-                .map(|mut row| row.get(0))
-                .collect()
+            query_published_names(connection, &catalog, ecosystem)
         })
         .await
     }
+}
+
+fn query_published_names(
+    connection: &dyn super::adapter::Connection,
+    catalog: &str,
+    ecosystem: Ecosystem,
+) -> Result<Vec<String>> {
+    let table = match ecosystem {
+        Ecosystem::Npm => "versions",
+        Ecosystem::Cargo => "cargo_versions",
+        Ecosystem::Pypi => "pypi_files",
+        Ecosystem::Oci => "oci_manifests",
+    };
+    connection
+        .query(
+            &format!(
+                "SELECT p.name FROM packages p
+                 WHERE p.catalog = ?1 AND p.ecosystem = ?2
+                   AND EXISTS (
+                       SELECT 1 FROM {table} item
+                       WHERE item.catalog = p.catalog
+                         AND item.ecosystem = p.ecosystem
+                         AND item.name = p.name
+                   )
+                 ORDER BY p.name",
+            ),
+            params![catalog, ecosystem.as_str()],
+        )?
+        .into_iter()
+        .map(|mut row| row.get(0))
+        .collect()
 }

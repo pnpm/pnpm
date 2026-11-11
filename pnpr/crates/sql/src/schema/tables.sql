@@ -9,17 +9,83 @@ CREATE TABLE IF NOT EXISTS catalogs (
 ) STRICT;
 
 -- One row per package. `generation` is the catalog generation of the last
--- commit that changed it. `state` holds what no other table does: for npm,
--- the package-level fields of the packument; for any other ecosystem, its
--- whole document.
+-- commit that changed it. `state_version` is the format version of `state`,
+-- which holds the package-level fields no child table stores.
 CREATE TABLE IF NOT EXISTS packages (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     generation INTEGER NOT NULL,
+    state_version INTEGER NOT NULL,
     state BLOB NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name)
 ) STRICT;
+
+-- Published versions of a Cargo crate, ordered by `position` as the sparse
+-- index serves them. `entry` holds the immutable sparse-index fields; `yanked`
+-- flips in place.
+CREATE TABLE IF NOT EXISTS cargo_versions (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    yanked INTEGER NOT NULL,
+    entry TEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, version)
+) STRICT;
+CREATE INDEX IF NOT EXISTS cargo_versions_by_position
+    ON cargo_versions (catalog, ecosystem, name, position);
+
+-- Published distribution files of a Python project, ordered by `position`.
+-- `entry` holds the immutable PEP 691 file metadata; `yanked` and `yank_reason`
+-- change in place.
+CREATE TABLE IF NOT EXISTS pypi_files (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    yanked INTEGER NOT NULL,
+    yank_reason TEXT,
+    entry TEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, filename)
+) STRICT;
+CREATE INDEX IF NOT EXISTS pypi_files_by_position
+    ON pypi_files (catalog, ecosystem, name, position);
+
+-- Distribution filenames permanently reserved after deletion from a Python
+-- project, so a deleted filename can never be uploaded again.
+CREATE TABLE IF NOT EXISTS removed_pypi_files (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, filename)
+) STRICT, WITHOUT ROWID;
+
+-- Manifests retained in an OCI image repository, keyed by content digest.
+-- `entry` holds child digests and indexed referrer metadata.
+CREATE TABLE IF NOT EXISTS oci_manifests (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    entry TEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, digest)
+) STRICT;
+
+-- Mutable tags of an OCI image repository and the manifest digest each names.
+CREATE TABLE IF NOT EXISTS oci_tags (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    updated INTEGER NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, tag)
+) STRICT, WITHOUT ROWID;
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
 -- catalog generation that accepted it, which is the id of the version's
@@ -280,15 +346,85 @@ CREATE TABLE IF NOT EXISTS staged_archives (
 CREATE INDEX IF NOT EXISTS staged_archives_held
     ON staged_archives (principal) WHERE state != 'gone';
 
-CREATE TABLE IF NOT EXISTS registry_records (
-    kind TEXT NOT NULL,
-    name TEXT NOT NULL,
-    generation INTEGER NOT NULL,
-    body BLOB NOT NULL,
-    PRIMARY KEY (kind, name)
+-- Provisioned SCIM user accounts and deletion tombstones (`removed` = 1).
+-- `deprovisions` counts transitions from active to inactive so replicas revoke
+-- sessions even if an account is reactivated between polls.
+CREATE TABLE IF NOT EXISTS scim_users (
+    user_id TEXT NOT NULL PRIMARY KEY,
+    active INTEGER NOT NULL,
+    removed INTEGER NOT NULL,
+    deprovisions INTEGER NOT NULL,
+    attributes TEXT NOT NULL,
+    generation INTEGER NOT NULL
+) STRICT;
+CREATE INDEX IF NOT EXISTS scim_users_by_generation
+    ON scim_users (generation);
+
+-- Registries whose team roster has been initialized in the database.
+CREATE TABLE IF NOT EXISTS team_rosters (
+    registry TEXT NOT NULL PRIMARY KEY,
+    generation INTEGER NOT NULL
 ) STRICT, WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS registry_records_by_generation
-    ON registry_records (kind, generation);
+
+CREATE TABLE IF NOT EXISTS teams (
+    registry TEXT NOT NULL,
+    team_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (registry, team_id)
+) STRICT, WITHOUT ROWID;
+CREATE UNIQUE INDEX IF NOT EXISTS teams_by_name
+    ON teams (registry, name);
+CREATE INDEX IF NOT EXISTS teams_by_position
+    ON teams (registry, position);
+
+CREATE TABLE IF NOT EXISTS team_members (
+    registry TEXT NOT NULL,
+    team_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    PRIMARY KEY (registry, team_id, user_id)
+) STRICT, WITHOUT ROWID;
+
+-- Registries with stored API rule overrides, and the generation of their
+-- current override set.
+CREATE TABLE IF NOT EXISTS rule_override_sets (
+    registry TEXT NOT NULL PRIMARY KEY,
+    generation INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;
+
+-- Overridden rule lists of a registry (`pattern` = '' for the registry-level
+-- default `access`, else a declared package pattern). Presence with zero rows
+-- in `rule_override_grants` represents an empty access list (`[]`).
+CREATE TABLE IF NOT EXISTS rule_overrides (
+    registry TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    action TEXT NOT NULL,
+    PRIMARY KEY (registry, pattern, action)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS rule_override_grants (
+    registry TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    action TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    principal TEXT NOT NULL,
+    PRIMARY KEY (registry, pattern, action, position)
+) STRICT, WITHOUT ROWID;
+
+-- The active Cloudflare CDN cache-tag target shared by replicas of this database.
+CREATE TABLE IF NOT EXISTS cdn_subscriptions (
+    singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
+    target TEXT NOT NULL
+) STRICT;
+
+-- Coalesced CDN cache invalidations (`package` = '*' for a full zone-tag purge,
+-- else a package name).
+CREATE TABLE IF NOT EXISTS cdn_purge_queue (
+    package TEXT NOT NULL PRIMARY KEY,
+    generation INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS cdn_purge_queue_by_generation
+    ON cdn_purge_queue (generation);
 
 CREATE TABLE IF NOT EXISTS staged_metadata (
     id TEXT PRIMARY KEY NOT NULL,
@@ -319,7 +455,8 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT NOT NULL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
     username_skeleton_hash TEXT UNIQUE,
-    bcrypt_hash TEXT NOT NULL
+    bcrypt_hash TEXT NOT NULL,
+    name_revision INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 -- Bearer tokens for SQL-backed and local SQLite auth.

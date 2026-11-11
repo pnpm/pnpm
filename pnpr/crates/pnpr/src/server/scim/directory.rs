@@ -1,101 +1,91 @@
-//! The accounts a SCIM client provisioned, kept as one record in the hosted
-//! store so every replica refuses the same deprovisioned account IDs.
+//! The accounts a SCIM client provisioned, kept as rows in `scim_users` so
+//! every replica refuses the same deprovisioned account IDs.
 
-use super::super::{
-    AppState, RegistryError,
-    managed_state::{WRITE_ATTEMPTS, read_with_deadline, store_registry_record},
+use super::{
+    super::{
+        AppState, RegistryError,
+        managed_state::{WRITE_ATTEMPTS, read_with_deadline},
+    },
+    resources::apply_patch,
 };
-use pnpr_storage::{RegistryRecord, SCIM_DIRECTORY};
-use serde::{Deserialize, Serialize};
+use pnpr_storage::metadata::{
+    NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser,
+};
 use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{
-        Arc, Mutex, PoisonError, RwLock,
+        Mutex, PoisonError, RwLock,
         atomic::{AtomicBool, Ordering},
     },
 };
 
-/// Provisioned resources indexed by immutable account ID.
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub(super) struct Directory {
-    #[serde(default)]
-    pub(super) users: BTreeMap<String, ScimUser>,
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone)]
 pub(super) struct ScimUser {
-    #[serde(skip)]
     pub(super) username: String,
     pub(super) active: bool,
-    /// Removed resources remain as tombstones and are not listed. Their names may be reused.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub(super) removed: bool,
-    /// How many writes have made the user inactive. A replica that sees it
-    /// change ends its own browser sessions for the user, even when a later
-    /// write has made the user active again before the replica reloaded.
-    #[serde(default)]
-    pub(super) deprovisions: u64,
     /// The attributes other than `userName` and `active`, as the client sent
     /// them.
-    #[serde(default)]
     pub(super) attributes: Map<String, Value>,
 }
 
-impl Directory {
-    /// Store `user` as the account ID, carrying over its deprovision count and
-    /// counting this write if it makes the user inactive.
-    pub(super) fn store(&mut self, user_id: &str, mut user: ScimUser) -> ScimUser {
-        let previous = self.users.get(user_id);
-        user.deprovisions = previous.map(|previous| previous.deprovisions).unwrap_or(0);
-        if !user.active && previous.is_none_or(|previous| previous.active) {
-            user.deprovisions += 1;
-        }
-        self.users.insert(user_id.to_string(), user.clone());
-        user
-    }
+#[derive(Debug, Default)]
+pub(super) struct ScimTracker {
+    pub(super) since_generation: u64,
+    pub(super) deprovisions: HashMap<String, u64>,
 }
 
 /// This replica's copy of the directory's account IDs, each with whether it is
 /// active.
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
-    active_by_id: RwLock<Arc<BTreeMap<String, bool>>>,
-    /// The deprovision count of each user as this replica last read it.
-    seen: Mutex<HashMap<String, u64>>,
+    active_by_id: RwLock<BTreeMap<String, bool>>,
+    tracker: Mutex<ScimTracker>,
     /// Set by a failed read of the directory, cleared by the next successful
-    /// read or write.
+    /// read.
     unreadable: AtomicBool,
 }
 
 impl ScimState {
-    fn publish(&self, state: &AppState, directory: &Directory) {
-        let active_by_id = directory.users
-            .iter()
-            .map(|(name, user)| (name.clone(), user.active))
-            .collect();
-        *self.active_by_id.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(active_by_id);
+    fn since_generation(&self) -> u64 {
+        self.tracker.lock().unwrap_or_else(PoisonError::into_inner).since_generation
+    }
+
+    fn apply_statuses(&self, state: &AppState, statuses: &[ScimStatus]) {
+        if !statuses.is_empty() {
+            let mut active_by_id =
+                self.active_by_id.write().unwrap_or_else(PoisonError::into_inner);
+            for status in statuses {
+                active_by_id.insert(status.user_id.clone(), status.active);
+            }
+        }
         self.unreadable.store(false, Ordering::Release);
-        let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
-        for name in newly_deprovisioned(&mut seen, directory) {
-            state.inner.identity.oidc.revoke_user_sessions(&name);
+        let revoked = {
+            let mut tracker = self.tracker.lock().unwrap_or_else(PoisonError::into_inner);
+            record_status_deltas(&mut tracker, statuses)
+        };
+        for user_id in revoked {
+            state.inner.identity.oidc.revoke_user_sessions(&user_id);
         }
     }
 }
 
-/// The users `directory` has deprovisioned since `seen` was last updated,
-/// which it then records.
-pub(super) fn newly_deprovisioned(
-    seen: &mut HashMap<String, u64>,
-    directory: &Directory,
+/// Record incremental `statuses` in `tracker` and return the user IDs whose
+/// deprovision count increased since `tracker` last observed them.
+pub(super) fn record_status_deltas(
+    tracker: &mut ScimTracker,
+    statuses: &[ScimStatus],
 ) -> Vec<String> {
-    directory.users
-        .iter()
-        .filter(|(name, user)| {
-            seen.insert((*name).clone(), user.deprovisions).unwrap_or(0) != user.deprovisions
-        })
-        .map(|(name, _)| name.clone())
-        .collect()
+    let mut revoked = Vec::new();
+    for status in statuses {
+        tracker.since_generation = tracker.since_generation.max(status.generation);
+        let previous =
+            tracker.deprovisions.insert(status.user_id.clone(), status.deprovisions).unwrap_or(0);
+        if previous != status.deprovisions {
+            revoked.push(status.user_id.clone());
+        }
+    }
+    revoked
 }
 
 /// Whether a SCIM client deprovisioned the account ID. Always `false` without
@@ -108,8 +98,6 @@ pub(in super::super) fn is_deprovisioned(
     Ok(directory_entry(state, user_id)? == Some(false))
 }
 
-/// Whether the account ID is active in the directory, or `None` if the directory
-/// does not hold it.
 fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, RegistryError> {
     let Some(scim) = &state.inner.identity.managed.scim else {
         return Ok(None);
@@ -126,13 +114,13 @@ fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, Regi
         .copied())
 }
 
-/// Read the directory and publish its account IDs. After a failed read
-/// [`is_deprovisioned`] fails closed until a read succeeds. Reports whether the read
-/// succeeded.
+/// Read SCIM status changes since the last generation and publish them. After
+/// a failed read [`is_deprovisioned`] fails closed until a read succeeds.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
-    match read_with_deadline(read_directory(state)).await {
-        Ok((directory, _)) => {
-            scim.publish(state, &directory);
+    let since = scim.since_generation();
+    match read_with_deadline(state.inner.storage.read_scim_statuses_since(since)).await {
+        Ok(statuses) => {
+            scim.apply_statuses(state, &statuses);
             true
         }
         Err(err) => {
@@ -143,47 +131,212 @@ pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimStat
     }
 }
 
-pub(super) async fn read_directory(
-    state: &AppState,
-) -> Result<(Directory, Option<pnpr_storage::MetadataRecord>), RegistryError> {
-    let kind = RegistryRecord::ScimUsers;
-    let stored = state.inner.storage.read_registry_record(kind, SCIM_DIRECTORY).await?;
-    let directory = match &stored {
-        Some(bytes) => serde_json::from_slice(&bytes.bytes)
-            .map_err(|err| RegistryError::Internal {
-                reason: format!("the stored SCIM directory is unreadable: {err}"),
-            })?,
-        None => Directory::default(),
+async fn sync_scim_state(state: &AppState, user_id: &str, active: bool) {
+    let managed = &state.inner.identity.managed;
+    let Some(scim) = &managed.scim else {
+        return;
     };
-    Ok((directory, stored))
+    scim.active_by_id
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(user_id.to_string(), active);
+    if !active {
+        state.inner.identity.oidc.revoke_user_sessions(user_id);
+    }
+    if !reload_directory(state, scim).await {
+        managed.schedule_retry();
+    }
 }
 
-/// Apply `edit` to the stored directory and store the result, rereading and
-/// reapplying it when another writer replaced it first. The result applies
-/// on this replica at once.
-pub(super) async fn update_directory<Edit, Output>(
+pub(super) async fn insert_user(
     state: &AppState,
-    edit: Edit,
-) -> Result<Output, RegistryError>
-where
-    Edit: Fn(&mut Directory) -> Result<Output, RegistryError>,
-{
+    user_id: &str,
+    user: &ScimUser,
+) -> Result<StoredScimUser, RegistryError> {
     let managed = &state.inner.identity.managed;
-    let scim = managed.scim.as_ref().ok_or(RegistryError::NotFound)?;
+    let _reload = managed.reload.lock().await;
+    let new_user = NewScimUser {
+        user_id: user_id.to_string(),
+        active: user.active,
+        attributes: user.attributes.clone(),
+    };
+    let stored = state.inner.storage
+        .insert_scim_user(new_user)
+        .await?
+        .ok_or_else(|| RegistryError::AdminConflict {
+            reason: "the SCIM user already exists".to_string(),
+        })?;
+    sync_scim_state(state, &stored.user_id, stored.active).await;
+    Ok(stored)
+}
+
+pub(super) async fn replace_user(
+    state: &AppState,
+    user_id: &str,
+    user: &ScimUser,
+) -> Result<(), RegistryError> {
+    let managed = &state.inner.identity.managed;
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
-        let (mut directory, stored) = read_directory(state).await?;
-        let output = edit(&mut directory)?;
-        let bytes = serde_json::to_vec(&directory)?;
-        let kind = RegistryRecord::ScimUsers;
-        if store_registry_record(state, kind, SCIM_DIRECTORY, stored.as_ref(), &bytes).await? {
-            scim.publish(state, &directory);
-            return Ok(output);
+        let (stored, login) = load_scim_account(state, user_id).await?;
+        let Some(claimed) =
+            apply_conditional_rename(state, user_id, &login, Some(&user.username)).await?
+        else {
+            continue;
+        };
+        let new_user = NewScimUser {
+            user_id: user_id.to_string(),
+            active: user.active,
+            attributes: user.attributes.clone(),
+        };
+        if commit_user_write(state, user_id, stored.generation, new_user, claimed.as_ref())
+            .await?
+            .is_some()
+        {
+            return Ok(());
         }
     }
     Err(RegistryError::AdminConflict {
-        reason: "the SCIM directory kept changing; retry the request".to_string(),
+        reason: "the SCIM user kept changing; retry the request".to_string(),
     })
+}
+
+pub(super) async fn patch_user(
+    state: &AppState,
+    user_id: &str,
+    patch: &Value,
+) -> Result<ScimUser, RegistryError> {
+    let managed = &state.inner.identity.managed;
+    let _reload = managed.reload.lock().await;
+    for _ in 0..WRITE_ATTEMPTS {
+        let (stored, login) = load_scim_account(state, user_id).await?;
+        let mut candidate = ScimUser {
+            username: String::new(),
+            active: stored.active,
+            attributes: stored.attributes,
+        };
+        apply_patch(&mut candidate, patch)?;
+        let requested_rename =
+            (!candidate.username.is_empty()).then_some(candidate.username.as_str());
+        let Some(claimed) =
+            apply_conditional_rename(state, user_id, &login, requested_rename).await?
+        else {
+            continue;
+        };
+        let write = NewScimUser {
+            user_id: user_id.to_string(),
+            active: candidate.active,
+            attributes: candidate.attributes.clone(),
+        };
+        if commit_user_write(state, user_id, stored.generation, write, claimed.as_ref())
+            .await?
+            .is_some()
+        {
+            if candidate.username.is_empty() {
+                candidate.username = state.inner.identity.auth.users
+                    .account_name(user_id)
+                    .await?
+                    .unwrap_or(login.username);
+            }
+            return Ok(candidate);
+        }
+    }
+    Err(RegistryError::AdminConflict {
+        reason: "the SCIM user kept changing; retry the request".to_string(),
+    })
+}
+
+struct ClaimedRename {
+    previous: String,
+    applied: String,
+    revision: u64,
+}
+
+async fn load_scim_account(
+    state: &AppState,
+    user_id: &str,
+) -> Result<(StoredScimUser, pnpr_auth::AccountLogin), RegistryError> {
+    let stored =
+        state.inner.storage.read_scim_user(user_id).await?.ok_or(RegistryError::NotFound)?;
+    let login = state.inner.identity.auth.users
+        .account_login(user_id)
+        .await?
+        .ok_or(RegistryError::NotFound)?;
+    Ok((stored, login))
+}
+
+async fn apply_conditional_rename(
+    state: &AppState,
+    user_id: &str,
+    login: &pnpr_auth::AccountLogin,
+    requested: Option<&str>,
+) -> Result<Option<Option<ClaimedRename>>, RegistryError> {
+    let Some(target) = requested else {
+        return Ok(Some(None));
+    };
+    match state.inner.identity.auth.users.rename_user_if_current(user_id, login.revision, target)
+        .await?
+    {
+        pnpr_auth::UserRename::Renamed(revision) => Ok(Some(Some(ClaimedRename {
+            previous: login.username.clone(),
+            applied: target.to_string(),
+            revision,
+        }))),
+        pnpr_auth::UserRename::CurrentChanged => Ok(None),
+    }
+}
+
+async fn commit_user_write(
+    state: &AppState,
+    user_id: &str,
+    expected_generation: u64,
+    write: NewScimUser,
+    claimed: Option<&ClaimedRename>,
+) -> Result<Option<StoredScimUser>, RegistryError> {
+    match state.inner.storage.replace_scim_user(Some(expected_generation), write).await {
+        Ok(ScimUserWrite::Written(saved)) => {
+            sync_scim_state(state, &saved.user_id, saved.active).await;
+            Ok(Some(saved))
+        }
+        Ok(ScimUserWrite::Conflict) => {
+            rollback_rename(state, user_id, claimed).await;
+            Ok(None)
+        }
+        Ok(ScimUserWrite::NotFound) => {
+            rollback_rename(state, user_id, claimed).await;
+            Err(RegistryError::NotFound)
+        }
+        Err(err) => {
+            rollback_rename(state, user_id, claimed).await;
+            Err(err)
+        }
+    }
+}
+
+async fn rollback_rename(state: &AppState, user_id: &str, claimed: Option<&ClaimedRename>) {
+    if let Some(claimed) = claimed
+        && claimed.previous != claimed.applied
+        && let Err(err) = state.inner.identity.auth.users.rename_user_if_current(
+            user_id,
+            claimed.revision,
+            &claimed.previous,
+        )
+        .await
+    {
+        tracing::warn!(error = %err, user_id, "could not roll back SCIM username after aborted write");
+    }
+}
+
+pub(super) async fn remove_user(state: &AppState, user_id: &str) -> Result<(), RegistryError> {
+    let managed = &state.inner.identity.managed;
+    let _reload = managed.reload.lock().await;
+    match state.inner.storage.remove_scim_user(user_id).await? {
+        ScimUserRemoval::Removed(status) => {
+            sync_scim_state(state, &status.user_id, false).await;
+            Ok(())
+        }
+        ScimUserRemoval::NotFound => Err(RegistryError::NotFound),
+    }
 }
 
 /// Run [`deprovision`] again for a user the directory holds as inactive,
@@ -193,8 +346,7 @@ pub(super) async fn clean_up_before_reactivating(
     state: &AppState,
     user_id: &str,
 ) -> Result<(), RegistryError> {
-    let (directory, _) = read_directory(state).await?;
-    if directory.users.get(user_id).is_some_and(|user| !user.active) {
+    if state.inner.storage.read_scim_user(user_id).await?.is_some_and(|user| !user.active) {
         deprovision(state, user_id).await?;
     }
     Ok(())

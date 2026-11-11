@@ -1,33 +1,10 @@
 //! Metadata in a SQL database.
 //!
-//! An npm packument is stored as rows: one per accepted version manifest,
-//! README, tag, deprecation, and the package-level fields. A version's rows
-//! are insert-only; tags, deprecations, and package fields change without
-//! touching them. Another ecosystem's document is stored whole. Reads render
-//! the packument from those rows through the fragment cache in [`render`].
-//!
-//! The schema, the queries, and the rules they enforce are shared by every
-//! database. What differs between databases is behind [`adapter::Adapter`]:
-//! [`sqlite::SqliteAdapter`] keeps the database in one embedded file, and
-//! `libsql::LibsqlAdapter` in a libSQL primary, such as Turso, with an
-//! optional embedded replica.
-//!
-//! Every operation runs on the blocking pool. A write runs in one
-//! serializable transaction, after taking the database's write lock, so
-//! writers queue rather than conflict. A compare-and-set reads the generation it
-//! replaces inside its own transaction. A write reads everything it compares
-//! with in one [`adapter::Connection::query_all`] as it begins, and decides
-//! in Rust, so a remote database answers it in one round trip and takes the
-//! writes with the commit in another. A write the adapter refused for a
-//! conflict runs again from the start. A read runs in one read transaction,
-//! one committed snapshot. The render caches are shared by every read.
-//!
-//! A read that may lag, a [`Freshness::Bounded`] one, goes to the replica
-//! when the adapter has one; [`SqlMetadata::read_present`] and
-//! [`SqlMetadata::read_if`] read the primary when a lagging replica misses. A
-//! [`Freshness::AtLeast`] read there first checks the catalog's generation: a
-//! replica found behind is synced, and read from the primary when the sync
-//! does not bring it far enough.
+//! Package documents are stored as normalized rows per ecosystem — accepted
+//! version manifests, READMEs, tags, deprecations, crate versions, Python
+//! distribution files, OCI manifests and tags, plus package-level state
+//! versioned by `packages.state_version` — and rendered through the fragment
+//! and view caches in [`render`].
 
 #[cfg(feature = "backend-libsql")]
 pub(crate) use pnpr_sql::libsql;
@@ -38,30 +15,40 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
-pub(crate) use records::RecordKey;
+pub use rule_overrides::{
+    RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrideSet, StoredRuleOverrides,
+};
+pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser};
 pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
+pub use team_rosters::{StoredTeam, StoredTeamRoster, TeamRosterWrite};
 pub(crate) use view::PackageMetadata;
 
 mod batch;
 mod blobs;
 mod cache;
+mod cargo_rows;
 mod cdn;
 mod commit;
 mod fence;
 mod log;
 mod mappings;
 mod notes;
+mod oci_rows;
 mod packument;
 mod publications;
 mod publish;
+mod pypi_rows;
 mod reclaims;
 mod records;
 mod removed;
 mod render;
+mod rule_overrides;
 mod schema_monitor;
+mod scim;
 mod staged;
 mod tags;
+mod team_rosters;
 mod transactions;
 mod versions;
 mod view;

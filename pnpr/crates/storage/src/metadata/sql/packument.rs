@@ -7,7 +7,7 @@
 use crate::{metadata::ARCHIVE_MANIFEST_FIELD, publish::PACKUMENT_FORMAT_VERSION};
 use pnpr_error::{RegistryError, Result};
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) const TAGS: &str = "dist-tags";
 pub(super) const VERSIONS: &str = "versions";
@@ -198,4 +198,76 @@ fn check_format_version(packument: &Value) -> Result<()> {
 
 fn bad_request(reason: &str) -> RegistryError {
     RegistryError::BadRequest { reason: reason.to_string() }
+}
+
+pub(super) struct Assembled {
+    pub(super) tags: BTreeMap<String, String>,
+    pub(super) versions: Vec<(String, Arc<str>)>,
+    pub(super) published: Vec<(String, String)>,
+}
+
+pub(super) fn write_packument(
+    state: &Map<String, Value>,
+    assembled: &Assembled,
+) -> Result<Vec<u8>> {
+    let fragment_bytes: usize = assembled.versions
+        .iter()
+        .map(|(_, fragment)| fragment.len())
+        .sum();
+    let mut out = Vec::with_capacity(fragment_bytes + 1024);
+    out.push(b'{');
+    let missing = [TAGS, VERSIONS]
+        .into_iter()
+        .filter(|field| !state.contains_key(*field));
+    let fields = state
+        .iter()
+        .map(|(field, value)| (field.as_str(), value));
+    for (index, (field, stored)) in fields
+        .chain(missing.map(|field| (field, &Value::Null)))
+        .enumerate()
+    {
+        if index > 0 {
+            out.push(b',');
+        }
+        serde_json::to_writer(&mut out, field)?;
+        out.push(b':');
+        write_placed(&mut out, field, stored, assembled)?;
+    }
+    out.push(b'}');
+    Ok(out)
+}
+
+fn write_placed(
+    out: &mut Vec<u8>,
+    field: &str,
+    stored: &Value,
+    assembled: &Assembled,
+) -> Result<()> {
+    match field {
+        TAGS => serde_json::to_writer(out, &assembled.tags)?,
+        VERSIONS => {
+            out.push(b'{');
+            for (index, (version, fragment)) in assembled.versions.iter().enumerate() {
+                if index > 0 {
+                    out.push(b',');
+                }
+                serde_json::to_writer(&mut *out, version)?;
+                out.push(b':');
+                out.extend_from_slice(fragment.as_bytes());
+            }
+            out.push(b'}');
+        }
+        TIME => {
+            let mut time = stored
+                .as_object()
+                .cloned()
+                .unwrap_or_default();
+            for (version, published_at) in &assembled.published {
+                time.insert(version.clone(), Value::String(published_at.clone()));
+            }
+            serde_json::to_writer(out, &time)?;
+        }
+        _ => serde_json::to_writer(out, stored)?,
+    }
+    Ok(())
 }

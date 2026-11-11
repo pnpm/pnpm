@@ -156,12 +156,23 @@ async fn a_grant_stores_only_the_lists_it_changes() {
 
     let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
     let record = storage
-        .read_registry_record(pnpr_storage::RegistryRecord::RuleOverrides, "npm/local")
+        .read_rule_overrides("npm/local")
         .await
         .unwrap()
         .unwrap();
-    let stored: Value = serde_json::from_slice(&record.bytes).unwrap();
-    assert_eq!(stored, json!({ "packages": { "@acme/app": { "access": ["root", "team:devs"] } } }));
+    let mut expected_packages = std::collections::BTreeMap::new();
+    expected_packages.insert(
+        "@acme/app".to_string(),
+        pnpr_storage::metadata::StoredPackageOverride {
+            access: Some(vec!["root".to_string(), "team:devs".to_string()]),
+            publish: None,
+            unpublish: None,
+        },
+    );
+    assert_eq!(
+        record.overrides,
+        pnpr_storage::metadata::StoredRuleOverrides { access: None, packages: expected_packages },
+    );
 }
 
 #[tokio::test]

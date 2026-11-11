@@ -829,3 +829,39 @@ async fn committed_password_changes_revoke_tokens_when_replica_refresh_fails() {
         assert_eq!(backend.lookup(&token).await.unwrap(), None);
     }
 }
+
+#[tokio::test]
+async fn conditional_renames_track_revisions_and_roll_back_unsynced_primary_writes() {
+    let mut backend = local_backend(MaxUsers::Unlimited).await;
+    let id = backend.provision_user("example-user").await.unwrap();
+    assert_eq!(
+        backend.account_login(&id).await.unwrap(),
+        Some(crate::AccountLogin { username: "example-user".to_string(), revision: 0 }),
+    );
+    assert_eq!(
+        backend.rename_user_if_current(&id, 0, "claimed").await.unwrap(),
+        crate::UserRename::Renamed(1),
+    );
+    backend.rename_user(&id, "admin-named").await.unwrap();
+    assert_eq!(
+        backend.rename_user_if_current(&id, 1, "stale").await.unwrap(),
+        crate::UserRename::CurrentChanged,
+    );
+    let current = backend
+        .account_login(&id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current, crate::AccountLogin { username: "admin-named".to_string(), revision: 2 });
+
+    backend.backend.is_replica = true;
+    assert!(backend.rename_user_if_current(&id, current.revision, "unsynced").await.is_err());
+    assert_eq!(
+        backend
+            .account_name(&id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("admin-named"),
+    );
+}

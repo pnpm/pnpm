@@ -136,8 +136,8 @@ impl SqlMetadata {
             let mut results = connection
                 .query_all(&[package_row_query(&key), mapped])?
                 .into_iter();
-            let generation =
-                package_row_from(results.next().unwrap_or_default())?.map(|row| row.generation);
+            let generation = package_row_from(&key, results.next().unwrap_or_default())?
+                .map(|row| row.generation);
             let mappings = results
                 .next()
                 .unwrap_or_default()
@@ -210,7 +210,7 @@ fn unmap(
         .query_all(&[package_row_query(key), mapped])?
         .into_iter();
     let generation =
-        package_row_from(results.next().unwrap_or_default())?.map(|row| row.generation);
+        package_row_from(key, results.next().unwrap_or_default())?.map(|row| row.generation);
     if generation != expected {
         return Ok(None);
     }

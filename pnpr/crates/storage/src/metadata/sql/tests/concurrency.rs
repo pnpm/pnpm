@@ -136,8 +136,8 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
         connection.execute_batch("BEGIN IMMEDIATE").unwrap();
         connection
             .execute(
-                "INSERT INTO packages (catalog, ecosystem, name, generation, state)
-                 VALUES ('', 'npm', 'pkg', 1, X'7B7D')",
+                "INSERT INTO packages (catalog, ecosystem, name, generation, state_version, state)
+                 VALUES ('', 'npm', 'pkg', 1, 1, X'7B7D')",
                 [],
             )
             .unwrap();

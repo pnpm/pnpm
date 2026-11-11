@@ -156,3 +156,20 @@ pub(crate) fn username_conflict(username: &str, exact_match: bool) -> RegistryEr
         confusable_username()
     }
 }
+
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+pub(crate) fn name_revision_bounds(expected_revision: u64) -> Result<Option<(i64, i64, u64)>> {
+    let Ok(expected) = i64::try_from(expected_revision) else {
+        return Ok(None);
+    };
+    let next_revision = expected_revision
+        .checked_add(1)
+        .ok_or_else(|| RegistryError::Internal {
+            reason: "account name revision overflowed".to_string(),
+        })?;
+    let next = i64::try_from(next_revision)
+        .map_err(|_| RegistryError::Internal {
+            reason: "account name revision overflowed".to_string(),
+        })?;
+    Ok(Some((expected, next, next_revision)))
+}

@@ -279,8 +279,21 @@ impl UserBackend for LibsqlAuth {
         self.account_name_by_id(user_id).await
     }
 
+    async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
+        self.account_login_by_id(user_id).await
+    }
+
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
         self.rename_account(user_id, username).await
+    }
+
+    async fn rename_user_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        username: &str,
+    ) -> Result<crate::UserRename> {
+        self.rename_account_if_current(user_id, expected_revision, username).await
     }
 
     async fn check_readiness(&self) -> Result<()> {

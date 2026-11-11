@@ -18,35 +18,17 @@ pub(crate) struct RecordWriteError {
     pub(crate) may_have_committed: bool,
 }
 
-pub(crate) enum RecordKey {
-    Registry { kind: String, name: String },
-    Staged(String),
-}
-
-impl RecordKey {
-    fn identity(&self) -> (&str, &str, Vec<Param<'_>>) {
-        match self {
-            Self::Registry { kind, name } => (
-                "registry_records",
-                "kind = ?1 AND name = ?2",
-                vec![Param::Text(kind), Param::Text(name)],
-            ),
-            Self::Staged(id) => ("staged_metadata", "id = ?1", vec![Param::Text(id)]),
-        }
-    }
-}
-
 impl SqlMetadata {
-    pub(crate) async fn read_record(
+    pub(crate) async fn read_staged_record(
         self: &Arc<Self>,
-        key: RecordKey,
+        id: &str,
     ) -> Result<Option<MetadataRecord>> {
+        let id = id.to_string();
         self.read(String::new(), Freshness::Current, move |connection, _| {
-            let (table, predicate, parameters) = key.identity();
             connection
                 .query_optional(
-                    &format!("SELECT generation, body FROM {table} WHERE {predicate}"),
-                    &parameters,
+                    "SELECT generation, body FROM staged_metadata WHERE id = ?1",
+                    params![id],
                 )?
                 .map(|mut row| Ok(MetadataRecord { generation: row.get(0)?, bytes: row.get(1)? }))
                 .transpose()
@@ -54,50 +36,46 @@ impl SqlMetadata {
         .await
     }
 
-    pub(crate) async fn write_record(
+    pub(crate) async fn write_staged_record(
         self: &Arc<Self>,
-        key: RecordKey,
+        id: &str,
         expected: Option<i64>,
         body: &[u8],
     ) -> std::result::Result<Option<MetadataRecord>, RecordWriteError> {
+        let id = id.to_string();
         let body = body.to_vec();
         let commit_started = Arc::new(AtomicBool::new(false));
         let committing = Arc::clone(&commit_started);
         self.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
-            let (table, predicate, mut parameters) = key.identity();
-            let generation = next_generation(&*transaction, table, predicate, &parameters, expected)?;
-            let Some(generation) = generation else { return Ok(None) };
-            parameters.push(Param::Integer(generation));
-            parameters.push(Param::Blob(&body));
-            let statement = match key {
-                RecordKey::Registry { .. } => "INSERT INTO registry_records (kind, name, generation, body) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (kind, name) DO UPDATE SET generation = excluded.generation, body = excluded.body",
-                RecordKey::Staged(_) => "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO UPDATE SET generation = excluded.generation, body = excluded.body",
+            let Some(generation) = next_staged_generation(&*transaction, &id, expected)? else {
+                return Ok(None);
             };
-            transaction.execute(statement, &parameters)?;
-            if matches!(key, RecordKey::Registry { .. }) {
-                super::cdn::enqueue(&*transaction, "*")?;
-            }
+            let parameters = [Param::Text(&id), Param::Integer(generation), Param::Blob(&body)];
+            transaction.execute(
+                "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3)
+                 ON CONFLICT (id) DO UPDATE SET generation = excluded.generation, body = excluded.body",
+                &parameters,
+            )?;
             committing.store(true, Ordering::Release);
             transaction.commit()?;
             Ok(Some(MetadataRecord { generation, bytes: body.clone() }))
-        }).await.map_err(|error| RecordWriteError {
+        })
+        .await
+        .map_err(|error| RecordWriteError {
             error,
             may_have_committed: commit_started.load(Ordering::Acquire),
         })
     }
 
-    pub(crate) async fn remove_record(self: &Arc<Self>, key: RecordKey) -> Result<bool> {
+    pub(crate) async fn remove_staged_record(self: &Arc<Self>, id: &str) -> Result<bool> {
+        let id = id.to_string();
         self.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
-            let (table, predicate, parameters) = key.identity();
             let exists = transaction
-                .query_optional(&format!("SELECT 1 FROM {table} WHERE {predicate}"), &parameters)?
+                .query_optional("SELECT 1 FROM staged_metadata WHERE id = ?1", params![id])?
                 .is_some();
-            transaction.execute(&format!("DELETE FROM {table} WHERE {predicate}"), &parameters)?;
-            if exists && matches!(key, RecordKey::Registry { .. }) {
-                super::cdn::enqueue(&*transaction, "*")?;
-            }
+            transaction.execute("DELETE FROM staged_metadata WHERE id = ?1", params![id])?;
             transaction.commit()?;
             Ok(exists)
         })
@@ -132,16 +110,28 @@ impl SqlMetadata {
     }
 }
 
-fn next_generation(
+pub(super) fn advance_record_generation(connection: &dyn Connection) -> Result<i64> {
+    let mut row = connection
+        .query_optional("SELECT generation FROM record_generation WHERE singleton = 1", params![])?
+        .ok_or_else(|| RegistryError::Internal {
+            reason: "the metadata record generation is missing".to_string(),
+        })?;
+    let generation = row.get::<i64>(0)? + 1;
+    connection.execute(
+        "UPDATE record_generation SET generation = ?1 WHERE singleton = 1",
+        params![generation],
+    )?;
+    Ok(generation)
+}
+
+fn next_staged_generation(
     connection: &dyn Connection,
-    table: &str,
-    predicate: &str,
-    parameters: &[Param<'_>],
+    id: &str,
     expected: Option<i64>,
 ) -> Result<Option<i64>> {
-    let statement = format!("SELECT generation FROM {table} WHERE {predicate}");
+    let parameters = [Param::Text(id)];
     let queries = [
-        Query::new(&statement, parameters),
+        Query::new("SELECT generation FROM staged_metadata WHERE id = ?1", &parameters),
         query!("SELECT generation FROM record_generation WHERE singleton = 1"),
     ];
     let mut results = connection.query_all(&queries)?.into_iter();

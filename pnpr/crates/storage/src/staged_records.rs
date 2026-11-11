@@ -22,13 +22,13 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
 
 impl Storage {
     pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<MetadataRecord>> {
-        self.database.read_record(staged_key(stage_id)?).await
+        self.database.read_staged_record(validated_stage_id(stage_id)?).await
     }
 
     /// Commit metadata for a newly stored body. A failed commit is removed
     /// before its body, since its acknowledgement may have been lost.
     pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        match self.database.write_record(staged_key(stage_id)?, None, bytes).await {
+        match self.database.write_staged_record(validated_stage_id(stage_id)?, None, bytes).await {
             Ok(Some(_)) => Ok(()),
             Ok(None) => Err(RegistryError::Internal {
                 reason: format!("staged record {stage_id} already exists"),
@@ -58,7 +58,7 @@ impl Storage {
         bytes: &[u8],
     ) -> Result<Option<MetadataRecord>> {
         self.database
-            .write_record(staged_key(stage_id)?, Some(expected.generation), bytes)
+            .write_staged_record(validated_stage_id(stage_id)?, Some(expected.generation), bytes)
             .await
             .map_err(|failure| failure.error)
     }
@@ -88,7 +88,7 @@ impl Storage {
     /// reader, and an error here would misreport that while leaving nothing
     /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
-        let removed = self.database.remove_record(staged_key(stage_id)?).await?;
+        let removed = self.database.remove_staged_record(validated_stage_id(stage_id)?).await?;
         if let Err(err) = self.remove_staged_body(stage_id).await {
             tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
         }
@@ -163,8 +163,4 @@ impl PipelineRunKey<'_> {
             validated_record_name(self.run_id)?,
         ))
     }
-}
-
-fn staged_key(stage_id: &str) -> Result<crate::metadata::sql::RecordKey> {
-    Ok(crate::metadata::sql::RecordKey::Staged(validated_stage_id(stage_id)?.to_string()))
 }

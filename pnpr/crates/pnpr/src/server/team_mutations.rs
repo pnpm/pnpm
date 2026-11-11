@@ -1,11 +1,14 @@
 use super::{
-    AppState, Identity, RegistryError, Response, StatusCode, json, organizations::team_registry,
-    parse_json_body, require_admin, require_caller, team_rosters::update_team_roster,
+    AppState, Identity, RegistryError, Response, StatusCode, json,
+    organizations::team_registry,
+    parse_json_body, require_admin, require_caller,
+    team_rosters::{
+        add_member_to_team, create_team_in_roster, destroy_team_in_roster, remove_member_from_team,
+    },
 };
 use axum::{body::Bytes, response::IntoResponse};
-use pnpr_config::{Management, Team, Teams, validate_member_name, validate_team_name};
+use pnpr_config::{Management, validate_member_name, validate_team_name};
 use serde::Deserialize;
-use std::collections::BTreeSet;
 
 /// The registry and scope a team mutation addresses.
 pub(super) struct TeamScope<'a> {
@@ -49,7 +52,7 @@ pub(super) async fn create_team(
         let team = parse_json_body::<NewTeam>(body)?.name;
         validate_team_name(&team).map_err(|reason| RegistryError::BadRequest { reason })?;
         let id = pnpr_auth::new_principal_id();
-        update_team_roster(state, registry, |teams| insert_team(teams, &id, &team)).await?;
+        create_team_in_roster(state, registry, &id, &team).await?;
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -75,22 +78,7 @@ pub(super) async fn destroy_team(
 ) -> Response {
     let result = async {
         let registry = admin_roster(state, identity, &target, "destroy a team")?;
-        let id = team_id(state, registry, team)?;
-        if state.inner.config.routing.hosted[registry].rules.references_team(&id) {
-            return Err(RegistryError::AdminConflict {
-                reason: format!(
-                    "team {team:?} is named by this registry's `packages:` rules; remove it \
-                     from the configuration first",
-                ),
-            });
-        }
-        update_team_roster(state, registry, |teams| {
-            teams
-                .shift_remove(&id)
-                .map(drop)
-                .ok_or(RegistryError::NotFound)
-        })
-        .await?;
+        destroy_team_in_roster(state, registry, team).await?;
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -122,12 +110,7 @@ pub(super) async fn add_team_member(
             .account_id(&user)
             .await?
             .ok_or(RegistryError::NotFound)?;
-        let id = team_id(state, registry, team)?;
-        update_team_roster(state, registry, |teams| {
-            team_members(teams, &id)?.insert(user_id.clone());
-            Ok(())
-        })
-        .await?;
+        add_member_to_team(state, registry, team, &user_id).await?;
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -156,12 +139,7 @@ pub(super) async fn remove_team_member(
     let result = async {
         let registry = admin_roster(state, identity, &target, "remove a team member")?;
         let (user_id, user) = member_removal(state, body).await?;
-        let id = team_id(state, registry, team)?;
-        update_team_roster(state, registry, |teams| {
-            team_members(teams, &id)?.remove(&user_id);
-            Ok(())
-        })
-        .await?;
+        remove_member_from_team(state, registry, team, &user_id).await?;
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -196,29 +174,6 @@ fn admin_roster<'a>(
     require_caller(identity, &format!("@{scope}"))?;
     require_admin(state, identity, action, format!("on @{scope}"))?;
     Ok(registry)
-}
-
-fn insert_team(teams: &mut Teams, id: &str, team: &str) -> Result<(), RegistryError> {
-    if teams
-        .values()
-        .any(|existing| existing.name == team)
-    {
-        return Err(RegistryError::AdminConflict {
-            reason: format!("team {team:?} already exists"),
-        });
-    }
-    teams.insert(id.to_string(), Team::new(team, BTreeSet::default()));
-    Ok(())
-}
-
-fn team_members<'a>(
-    teams: &'a mut Teams,
-    team: &str,
-) -> Result<&'a mut BTreeSet<String>, RegistryError> {
-    teams
-        .get_mut(team)
-        .map(|team| &mut team.members)
-        .ok_or(RegistryError::NotFound)
 }
 
 pub(super) fn respond(result: Result<impl IntoResponse, RegistryError>) -> Response {

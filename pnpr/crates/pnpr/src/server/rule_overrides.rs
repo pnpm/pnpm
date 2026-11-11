@@ -1,19 +1,21 @@
 use super::{
     AppState, RegistryError,
-    ecosystem::sha256_hex,
-    managed_state::{WRITE_ATTEMPTS, read_with_deadline, store_registry_record},
+    managed_state::{WRITE_ATTEMPTS, canonical_registry_key, read_with_deadline},
 };
 use pnpr_config::{TeamDirectory, check_owners_supported, compile_access_list};
 use pnpr_policy::{AccessList, AccessToken, RuleOverride, RuleTable};
 use pnpr_registry::{Ecosystem, PackagePattern};
-use pnpr_storage::RegistryRecord;
+use pnpr_storage::metadata::{RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrides};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, PoisonError},
+};
 
-/// What an admin changed in a registry's rules, as stored and as the admin
-/// API takes it. Each list replaces the YAML's list of the same place; an
-/// omitted list keeps it.
-#[derive(Debug, Default, Serialize, Deserialize)]
+/// What an admin changed in a registry's rules, as the admin API takes it.
+/// Each list replaces the YAML's list of the same place; an omitted list keeps
+/// it.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub(super) struct RuleChanges {
     /// The registry-level `access:`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -25,7 +27,7 @@ pub(super) struct RuleChanges {
     pub(super) extra: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub(super) struct PackageChanges {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) access: Option<Vec<String>>,
@@ -52,43 +54,57 @@ enum Compile {
 /// that cannot be read or applied fail closed: every list of the registry
 /// admits nobody until a read succeeds. Reports whether the read succeeded.
 pub(super) async fn reload_rules(state: &AppState, registry: &str, base: &RuleTable) -> bool {
-    let (table, read) = match read_with_deadline(read_rules(state, registry, base)).await {
-        Ok((table, _)) => (table, true),
+    let loaded = loaded_rule_generation(state, registry);
+    match read_with_deadline(poll_rules(state, registry, base, loaded)).await {
+        Ok(None) => true,
+        Ok(Some((generation, table))) => {
+            publish_rules(state, registry, Some(generation), table);
+            true
+        }
         Err(err) => {
             tracing::error!(registry, error = %err, "could not apply a registry's stored rules; it admits nobody");
-            (deny_all(base), false)
+            publish_rules(state, registry, None, deny_all(base));
+            false
         }
-    };
-    publish_rules(state, registry, table);
-    read
+    }
 }
 
-/// `registry`'s rules and their version, both from one read of the stored
-/// changes, so the version always names the rules it comes with.
+async fn poll_rules(
+    state: &AppState,
+    registry: &str,
+    base: &RuleTable,
+    loaded: Option<Option<u64>>,
+) -> Result<Option<(Option<u64>, RuleTable)>, RegistryError> {
+    let canonical = canonical_registry_key(state, registry);
+    let current = state.inner.storage.read_rule_overrides_generation(&canonical).await?;
+    if loaded == Some(current) {
+        return Ok(None);
+    }
+    let (table, generation) = read_rules(state, registry, base).await?;
+    Ok(Some((generation, table)))
+}
+
+/// `registry`'s rules and their generation, both from one read of the stored
+/// overrides, so the version always names the rules it comes with.
 async fn read_rules(
     state: &AppState,
     registry: &str,
     base: &RuleTable,
-) -> Result<(RuleTable, String), RegistryError> {
-    let canonical = super::managed_state::canonical_registry_key(state, registry);
-    let Some(bytes) =
-        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, &canonical).await?
-    else {
-        return Ok((base.clone(), rules_version(None)));
+) -> Result<(RuleTable, Option<u64>), RegistryError> {
+    let canonical = canonical_registry_key(state, registry);
+    let Some(stored) = state.inner.storage.read_rule_overrides(&canonical).await? else {
+        return Ok((base.clone(), None));
     };
-    let changes = parse_changes(registry, Some(&bytes.bytes))?;
+    let changes = changes_from_stored(stored.overrides);
     let table = apply_changes(state, registry, base, changes, Compile::Stored)
         .map_err(|reason| RegistryError::Internal { reason })?;
-    Ok((table, rules_version(Some(&bytes.bytes))))
+    Ok((table, Some(stored.generation)))
 }
 
 /// The version of a registry's stored rule changes, for `ETag` and
 /// `If-Match`. Absent or empty overrides have the version `config`.
-pub(super) fn rules_version(stored: Option<&[u8]>) -> String {
-    stored
-        .filter(|bytes| *bytes != b"{}")
-        .map(sha256_hex)
-        .unwrap_or_else(|| "config".to_string())
+pub(super) fn rules_version(generation: Option<u64>) -> String {
+    generation.map(|generation| generation.to_string()).unwrap_or_else(|| "config".to_string())
 }
 
 /// `registry`'s rules and their version. See [`read_rules`].
@@ -100,8 +116,8 @@ pub(super) async fn current_rules(
         let hosted = &state.inner.config.routing.hosted[registry];
         return Ok((hosted.rules.snapshot(), rules_version(None)));
     };
-    let (table, version) = read_rules(state, registry, base).await?;
-    Ok((Arc::new(table), version))
+    let (table, generation) = read_rules(state, registry, base).await?;
+    Ok((Arc::new(table), rules_version(generation)))
 }
 
 /// Store `changes` as the rules of `registry`, replacing what was stored, and
@@ -109,9 +125,7 @@ pub(super) async fn current_rules(
 /// registry's YAML rules and current roster before anything is written.
 ///
 /// With `expected`, the write lands only while the stored changes still have
-/// one of those versions; otherwise the last writer wins. Resetting the rules
-/// stores the empty set of changes, so it is conditional the same way.
-/// Returns the rules stored and their version.
+/// one of those versions; otherwise the last writer wins.
 pub(super) async fn replace_rules(
     state: &AppState,
     registry: &str,
@@ -120,18 +134,25 @@ pub(super) async fn replace_rules(
 ) -> Result<(RuleTable, String), RegistryError> {
     let managed = &state.inner.identity.managed;
     let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
-    let canonical = super::managed_state::canonical_registry_key(state, registry);
-    let bytes = serde_json::to_vec(&changes)?;
+    let canonical = canonical_registry_key(state, registry);
+    let stored = stored_from_changes(&changes);
     let table = apply_changes(state, registry, base, changes, Compile::Strict)
         .map_err(|reason| RegistryError::BadRequest { reason })?;
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
-        let kind = RegistryRecord::RuleOverrides;
-        let stored = state.inner.storage.read_registry_record(kind, &canonical).await?;
-        check_version(registry, stored.as_ref().map(|record| record.bytes.as_slice()), expected)?;
-        if store_registry_record(state, kind, registry, stored.as_ref(), &bytes).await? {
-            publish_rules(state, registry, table.clone());
-            return Ok((table, rules_version(Some(&bytes))));
+        let expected_gen = match expected {
+            Some(versions) => {
+                let current = state.inner.storage.read_rule_overrides_generation(&canonical).await?;
+                check_version(registry, current, versions)?;
+                Some(current)
+            }
+            None => None,
+        };
+        if let RuleOverridesWrite::Written(generation) =
+            state.inner.storage.replace_rule_overrides(&canonical, expected_gen, &stored).await?
+        {
+            publish_rules(state, registry, Some(generation), table.clone());
+            return Ok((table, rules_version(generation)));
         }
     }
     Err(RegistryError::AdminConflict {
@@ -141,9 +162,7 @@ pub(super) async fn replace_rules(
 
 /// Apply `edit` to the stored rule changes of `registry` and store the
 /// result, rereading and reapplying it when another writer replaced them
-/// first. `edit` sees the registry's YAML rules too. The result is checked
-/// like a `PUT` before anything is written, and applies on this replica at
-/// once.
+/// first.
 pub(super) async fn update_rules<Edit>(
     state: &AppState,
     registry: &str,
@@ -154,26 +173,23 @@ where
 {
     let managed = &state.inner.identity.managed;
     let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
-    let canonical = super::managed_state::canonical_registry_key(state, registry);
+    let canonical = canonical_registry_key(state, registry);
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
-        let kind = RegistryRecord::RuleOverrides;
-        let stored = state.inner.storage.read_registry_record(kind, &canonical).await?;
+        let stored_set = state.inner.storage.read_rule_overrides(&canonical).await?;
+        let current_gen = stored_set.as_ref().map(|set| set.generation);
         let mut changes =
-            parse_changes(registry, stored.as_ref().map(|record| record.bytes.as_slice()))?;
-        let ecosystem =
-            state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
-        if ecosystem == Ecosystem::Cargo || ecosystem == Ecosystem::Pypi {
-            for pkg in changes.packages.values_mut() {
-                pkg.unpublish = None;
-            }
-        }
+            stored_set.map(|set| changes_from_stored(set.overrides)).unwrap_or_default();
+        strip_unsupported_unpublish(state, registry, &mut changes);
         edit(&mut changes, base)?;
-        let bytes = serde_json::to_vec(&changes)?;
+        let stored = stored_from_changes(&changes);
         let table = apply_changes(state, registry, base, changes, Compile::Strict)
             .map_err(|reason| RegistryError::BadRequest { reason })?;
-        if store_registry_record(state, kind, registry, stored.as_ref(), &bytes).await? {
-            publish_rules(state, registry, table);
+        if let RuleOverridesWrite::Written(generation) =
+            state.inner.storage.replace_rule_overrides(&canonical, Some(current_gen), &stored)
+                .await?
+        {
+            publish_rules(state, registry, Some(generation), table);
             return Ok(());
         }
     }
@@ -182,35 +198,96 @@ where
     })
 }
 
-fn parse_changes(registry: &str, stored: Option<&[u8]>) -> Result<RuleChanges, RegistryError> {
-    let Some(bytes) = stored else {
-        return Ok(RuleChanges::default());
-    };
-    serde_json::from_slice(bytes)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("the stored rules of registry {registry:?} are unreadable: {err}"),
-        })
+fn strip_unsupported_unpublish(state: &AppState, registry: &str, changes: &mut RuleChanges) {
+    let ecosystem = state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
+    if ecosystem == Ecosystem::Cargo || ecosystem == Ecosystem::Pypi {
+        for pkg in changes.packages.values_mut() {
+            pkg.unpublish = None;
+        }
+    }
 }
 
 fn check_version(
     registry: &str,
-    stored: Option<&[u8]>,
-    expected: Option<&[String]>,
+    current: Option<u64>,
+    expected: &[String],
 ) -> Result<(), RegistryError> {
-    match expected {
-        Some(expected) if !expected.contains(&rules_version(stored)) => {
-            Err(RegistryError::PreconditionFailed {
-                resource: format!("the rules of registry {registry:?}"),
-                expected: expected.join(", "),
-            })
+    if expected.contains(&rules_version(current)) {
+        return Ok(());
+    }
+    Err(RegistryError::PreconditionFailed {
+        resource: format!("the rules of registry {registry:?}"),
+        expected: expected.join(", "),
+    })
+}
+
+fn loaded_rule_generation(state: &AppState, registry: &str) -> Option<Option<u64>> {
+    state.inner.identity.managed.rule_generations
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(registry)
+        .copied()
+}
+
+fn publish_rules(
+    state: &AppState,
+    registry: &str,
+    generation: Option<Option<u64>>,
+    table: RuleTable,
+) {
+    if let Some(hosted) = state.inner.config.routing.hosted.get(registry) {
+        hosted.rules.replace(table);
+    }
+    let mut loaded = state.inner.identity.managed.rule_generations
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    match generation {
+        Some(generation) => {
+            loaded.insert(registry.to_string(), generation);
         }
-        _ => Ok(()),
+        None => {
+            loaded.remove(registry);
+        }
     }
 }
 
-fn publish_rules(state: &AppState, registry: &str, table: RuleTable) {
-    if let Some(hosted) = state.inner.config.routing.hosted.get(registry) {
-        hosted.rules.replace(table);
+fn stored_from_changes(changes: &RuleChanges) -> StoredRuleOverrides {
+    StoredRuleOverrides {
+        access: changes.access.clone(),
+        packages: changes.packages
+            .iter()
+            .map(|(pattern, pkg)| {
+                (
+                    pattern.clone(),
+                    StoredPackageOverride {
+                        access: pkg.access.clone(),
+                        publish: pkg.publish.clone(),
+                        unpublish: pkg.unpublish.clone(),
+                    },
+                )
+            })
+            .collect(),
+    }
+}
+
+fn changes_from_stored(stored: StoredRuleOverrides) -> RuleChanges {
+    RuleChanges {
+        access: stored.access,
+        packages: stored.packages
+            .into_iter()
+            .map(|(pattern, pkg)| {
+                (
+                    pattern,
+                    PackageChanges {
+                        access: pkg.access,
+                        publish: pkg.publish,
+                        unpublish: pkg.unpublish,
+                        extra: BTreeMap::new(),
+                    },
+                )
+            })
+            .collect(),
+        extra: BTreeMap::new(),
     }
 }
 

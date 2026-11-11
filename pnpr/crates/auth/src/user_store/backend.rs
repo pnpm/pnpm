@@ -1,5 +1,6 @@
 use super::{
-    Change, Registration, StoredAccount, UserStore, active_user_count, check_username_skeleton,
+    Change, Registration, StoredAccount, UserStore, Users, active_user_count,
+    check_username_skeleton,
 };
 use crate::{
     PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation, UserRemoval, dummy_verify,
@@ -207,35 +208,44 @@ impl UserBackend for UserStore {
             .cloned())
     }
 
+    async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
+        self.sync_from_disk_if_path()?;
+        let state = self.snapshot();
+        let Some(username) = state.names_by_id.get(user_id) else {
+            return Ok(None);
+        };
+        let revision = state.users.get(username).map_or(0, |account| account.name_revision);
+        Ok(Some(crate::AccountLogin { username: username.clone(), revision }))
+    }
+
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
         validate_username(username)?;
-        let id = user_id.to_string();
-        let name = username.to_string();
+        let (id, name) = (user_id.to_string(), username.to_string());
         self.update(move |users| {
-            let is_current = users
-                .get(&name)
-                .is_some_and(|account| {
-                    account.id == id && account.password_hash != crate::DELETED_USER_HASH
-                });
-            if is_current {
-                return Ok(Change::Keep(()));
-            }
-            if users.contains_key(&name) {
-                return Err(RegistryError::AdminConflict {
-                    reason: format!("username {name:?} is taken"),
-                });
-            }
-            check_username_skeleton(users, &name, Some(&id))?;
-            let old = users
-                .iter()
-                .find(|(_, account)| {
-                    account.id == id && account.password_hash != crate::DELETED_USER_HASH
-                })
-                .map(|(name, _)| name.clone())
-                .ok_or(RegistryError::NotFound)?;
-            let account = users.remove(&old).ok_or(RegistryError::NotFound)?;
-            users.insert(name, account);
+            let (old, current_revision) = find_active_login(users, &id)?;
+            let next_revision = checked_next_revision(current_revision)?;
+            move_account_login(users, &id, &old, name, next_revision)?;
             Ok(Change::Write(()))
+        })
+        .await
+    }
+
+    async fn rename_user_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        username: &str,
+    ) -> Result<crate::UserRename> {
+        validate_username(username)?;
+        let next_revision = checked_next_revision(expected_revision)?;
+        let (id, name) = (user_id.to_string(), username.to_string());
+        self.update(move |users| {
+            let (old, current_revision) = find_active_login(users, &id)?;
+            if current_revision != expected_revision {
+                return Ok(Change::Keep(crate::UserRename::CurrentChanged));
+            }
+            move_account_login(users, &id, &old, name, next_revision)?;
+            Ok(Change::Write(crate::UserRename::Renamed(next_revision)))
         })
         .await
     }
@@ -291,4 +301,44 @@ impl UserStore {
         })
         .await
     }
+}
+
+fn checked_next_revision(revision: u64) -> Result<u64> {
+    revision
+        .checked_add(1)
+        .ok_or_else(|| RegistryError::Internal {
+            reason: "account name revision overflowed".to_string(),
+        })
+}
+
+fn find_active_login(users: &Users, user_id: &str) -> Result<(String, u64)> {
+    users
+        .iter()
+        .find(|(_, account)| {
+            account.id == user_id && account.password_hash != crate::DELETED_USER_HASH
+        })
+        .map(|(login, account)| (login.clone(), account.name_revision))
+        .ok_or(RegistryError::NotFound)
+}
+
+fn move_account_login(
+    users: &mut Users,
+    user_id: &str,
+    old: &str,
+    name: String,
+    next_revision: u64,
+) -> Result<()> {
+    if old == name {
+        let account = users.get_mut(old).ok_or(RegistryError::NotFound)?;
+        account.name_revision = next_revision;
+        return Ok(());
+    }
+    if users.contains_key(&name) {
+        return Err(RegistryError::AdminConflict { reason: format!("username {name:?} is taken") });
+    }
+    check_username_skeleton(users, &name, Some(user_id))?;
+    let mut account = users.remove(old).ok_or(RegistryError::NotFound)?;
+    account.name_revision = next_revision;
+    users.insert(name, account);
+    Ok(())
 }
