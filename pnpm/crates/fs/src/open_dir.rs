@@ -1,4 +1,4 @@
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 use crate::remove_dirent;
 use std::{
     ffi::{OsStr, OsString},
@@ -22,6 +22,8 @@ use std::{
 
 #[cfg(unix)]
 mod unix;
+#[cfg(windows)]
+mod windows;
 
 /// Size and timestamps of a regular file inspected through [`OpenDir`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,14 +35,17 @@ pub struct ChildFileStat {
 
 /// A directory held open while its children are opened or removed.
 ///
-/// On Unix a child is reached through the open directory, so a link put in
-/// the directory's place after the open is not followed. On other
-/// platforms every operation resolves the directory's path again.
+/// On Unix a child is reached through the open directory descriptor, so a link
+/// put in the directory's place after the open is not followed. On Windows
+/// every opened component is held without `FILE_SHARE_DELETE`, preventing
+/// ancestors from being renamed or replaced while child operations run.
 #[derive(Debug)]
 pub struct OpenDir {
     path: PathBuf,
     #[cfg(unix)]
     handle: fs::File,
+    #[cfg(windows)]
+    pinned: windows::PinnedChain,
 }
 
 impl OpenDir {
@@ -56,7 +61,13 @@ impl OpenDir {
         Ok(Self { path: path.to_path_buf(), handle })
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    pub fn open(path: &Path) -> io::Result<Self> {
+        let pinned = windows::open_root(path)?;
+        Ok(Self { path: path.to_path_buf(), pinned })
+    }
+
+    #[cfg(not(any(unix, windows)))]
     pub fn open(path: &Path) -> io::Result<Self> {
         if fs::metadata(path)?.is_dir() {
             Ok(Self { path: path.to_path_buf() })
@@ -76,7 +87,13 @@ impl OpenDir {
         }
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    pub fn open_child_dir(&self, name: &OsStr) -> io::Result<Option<Self>> {
+        Ok(windows::open_child_dir(&self.path, &self.pinned, name)?
+            .map(|(path, pinned)| Self { path, pinned }))
+    }
+
+    #[cfg(not(any(unix, windows)))]
     pub fn open_child_dir(&self, name: &OsStr) -> io::Result<Option<Self>> {
         let path = self.path.join(name);
         if is_dir_no_follow(&path)? { Ok(Some(Self { path })) } else { Ok(None) }
@@ -128,6 +145,24 @@ impl OpenDir {
         Ok(canonicalize(&self.path)?.filter(|canonical| canonical.is_dir()))
     }
 
+    /// Duplicate this directory handle so a caller can own an independent
+    /// [`OpenDir`] anchored to the same directory.
+    pub fn try_reopen(&self) -> io::Result<Self> {
+        #[cfg(unix)]
+        {
+            let handle = unix::open_dir_at(self.handle.as_fd(), c".")?;
+            Ok(Self { path: self.path.clone(), handle: handle.into() })
+        }
+        #[cfg(windows)]
+        {
+            Ok(Self { path: self.path.clone(), pinned: self.pinned.clone() })
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            Self::open(&self.path)
+        }
+    }
+
     /// Remove the directory `name`, directly inside this one, with
     /// everything in it. Returns `false` and leaves the entry in place when
     /// `name` is not a directory: a file, a symbolic link, or nothing.
@@ -142,7 +177,12 @@ impl OpenDir {
         }
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    pub fn remove_child_dir(&self, name: &OsStr) -> io::Result<bool> {
+        windows::remove_child_dir(self, name)
+    }
+
+    #[cfg(not(any(unix, windows)))]
     pub fn remove_child_dir(&self, name: &OsStr) -> io::Result<bool> {
         let path = self.path.join(name);
         if !is_dir_no_follow(&path)? {
@@ -173,18 +213,7 @@ impl OpenDir {
                 _ => return Ok(None),
             }
         }
-        if let Some(dir) = current { Ok(Some(dir)) } else { self.reopen().map(Some) }
-    }
-
-    #[cfg(unix)]
-    fn reopen(&self) -> io::Result<Self> {
-        let handle = unix::open_dir_at(self.handle.as_fd(), c".")?;
-        Ok(Self { path: self.path.clone(), handle: handle.into() })
-    }
-
-    #[cfg(not(unix))]
-    fn reopen(&self) -> io::Result<Self> {
-        Self::open(&self.path)
+        if let Some(dir) = current { Ok(Some(dir)) } else { self.try_reopen().map(Some) }
     }
 
     /// Inspect the regular file `name` directly inside this directory without
@@ -195,10 +224,14 @@ impl OpenDir {
         unix::stat_file_at(self.handle.as_fd(), &c_name(name)?)
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     pub fn child_file_stat(&self, name: &OsStr) -> io::Result<Option<ChildFileStat>> {
-        let path = self.path.join(name);
-        let metadata = match fs::symlink_metadata(&path) {
+        windows::stat_child_file(&self.path, name)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    pub fn child_file_stat(&self, name: &OsStr) -> io::Result<Option<ChildFileStat>> {
+        let metadata = match fs::symlink_metadata(self.path.join(name)) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
@@ -209,6 +242,27 @@ impl OpenDir {
         let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
         let accessed = metadata.accessed().unwrap_or(modified);
         Ok(Some(ChildFileStat { len: metadata.len(), modified, accessed }))
+    }
+
+    /// Whether `name` directly inside this directory is a symbolic link or
+    /// reparse point.
+    #[cfg(unix)]
+    pub fn has_symlink_child(&self, name: &OsStr) -> io::Result<bool> {
+        unix::is_symlink_at(self.handle.as_fd(), &c_name(name)?)
+    }
+
+    #[cfg(windows)]
+    pub fn has_symlink_child(&self, name: &OsStr) -> io::Result<bool> {
+        windows::is_reparse_child(&self.path, name)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    pub fn has_symlink_child(&self, name: &OsStr) -> io::Result<bool> {
+        match fs::symlink_metadata(self.path.join(name)) {
+            Ok(metadata) => Ok(metadata.file_type().is_symlink()),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 
     /// Remove the regular file `name` directly inside this directory without
@@ -239,7 +293,23 @@ impl OpenDir {
         unix::unlink_empty_dir_at(self.handle.as_fd(), &c_name(name)?)
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    pub fn remove_empty_child_dir(&self, name: &OsStr) -> io::Result<bool> {
+        if !windows::is_real_child_dir(&self.path, name)? {
+            return Ok(false);
+        }
+        match fs::remove_dir(self.path.join(name)) {
+            Ok(()) => Ok(true),
+            Err(error)
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
+            {
+                Ok(false)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
     pub fn remove_empty_child_dir(&self, name: &OsStr) -> io::Result<bool> {
         let path = self.path.join(name);
         if !is_dir_no_follow(&path)? {
@@ -272,7 +342,7 @@ fn c_name(name: &OsStr) -> io::Result<CString> {
 }
 
 /// Whether a directory, and not a link to one, is at `path`.
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn is_dir_no_follow(path: &Path) -> io::Result<bool> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => Ok(metadata.file_type().is_dir()),

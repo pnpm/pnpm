@@ -32,7 +32,8 @@ pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
         super::release_record_logs::reconcile_configured_logs(&storage, config).await?;
     }
     claim_ephemeral_cache_dir(config).await?;
-    storage.reset_cache_from_other_layout().await
+    storage.reset_cache_from_other_layout().await?;
+    crate::cache_maintenance::sync_cache_secret_on_startup(config).await
 }
 
 /// Reclaim blob uploads abandoned before an unclean shutdown, and any left
@@ -168,9 +169,11 @@ async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
 }
 
 async fn ensure_only_ephemeral_entries(cache_dir: &std::path::Path) -> pnpr_error::Result<()> {
+    use crate::config_validation::{CacheDirCheck, is_ignorable_cache_entry};
+
     let mut entries = tokio::fs::read_dir(cache_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
-        if !crate::config_validation::is_ignorable_cache_entry(&entry.file_name(), true) {
+        if !is_ignorable_cache_entry(&entry.file_name(), CacheDirCheck::ClaimedWithMarker) {
             return Err(persistent_cache_secret_error());
         }
     }
@@ -181,27 +184,11 @@ async fn write_ephemeral_cache_marker(
     marker: &std::path::Path,
     fingerprint: &str,
 ) -> pnpr_error::Result<EphemeralMarkerState> {
-    use tokio::io::AsyncWriteExt as _;
-    match tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(marker)
-        .await
-    {
-        Ok(mut file) => {
-            let written = async {
-                file.write_all(fingerprint.as_bytes()).await?;
-                file.flush().await
-            }
-            .await;
-            if let Err(err) = written {
-                drop(file);
-                let _ = tokio::fs::remove_file(marker).await;
-                return Err(err.into());
-            }
-            Ok(EphemeralMarkerState::Created)
-        }
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+    match pnpr_storage::write_atomic_new(marker, fingerprint.as_bytes()).await {
+        Ok(()) => Ok(EphemeralMarkerState::Created),
+        Err(pnpr_error::RegistryError::Io(err))
+            if err.kind() == std::io::ErrorKind::AlreadyExists =>
+        {
             let stored = tokio::fs::read_to_string(marker).await.unwrap_or_default();
             if stored.trim() == fingerprint {
                 Ok(EphemeralMarkerState::MatchedExisting)
@@ -209,7 +196,7 @@ async fn write_ephemeral_cache_marker(
                 Err(persistent_cache_secret_error())
             }
         }
-        Err(err) => Err(err.into()),
+        Err(err) => Err(err),
     }
 }
 

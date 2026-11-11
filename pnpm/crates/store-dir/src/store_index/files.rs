@@ -15,6 +15,7 @@ use std::{
     fs, io,
     io::Write,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 /// Directory under the store root that holds a per-package-file index. Its
@@ -24,7 +25,7 @@ pub const INDEX_DIR: &str = "index";
 
 /// Directory under the store root that holds the aliases of a per-package-file
 /// index.
-const ALIAS_DIR: &str = "index-aliases";
+pub(super) const ALIAS_DIR: &str = "index-aliases";
 
 /// Prefix of the temporary files an entry is written to before the rename.
 /// Scans skip it, so a temporary file left by a crashed writer is never
@@ -38,6 +39,7 @@ const KEY_LEN_SIZE: usize = size_of::<u32>();
 #[derive(Clone)]
 pub(super) struct FilesIndex {
     dir: PathBuf,
+    anchor: Option<Arc<pnpm_fs::OpenDir>>,
 }
 
 impl FilesIndex {
@@ -46,7 +48,11 @@ impl FilesIndex {
     pub(super) fn detect(store_root: &Path) -> Option<FilesIndex> {
         let dir = store_root.join(INDEX_DIR);
         dir.is_dir()
-            .then_some(FilesIndex { dir })
+            .then_some(FilesIndex { dir, anchor: None })
+    }
+
+    pub(super) fn anchored(dir: PathBuf, anchor: Arc<pnpm_fs::OpenDir>) -> FilesIndex {
+        FilesIndex { dir, anchor: Some(anchor) }
     }
 
     /// Switch the store at `store_root` to this backend.
@@ -59,7 +65,7 @@ impl FilesIndex {
     /// The aliases of this index's rows, kept in a sibling directory so a
     /// scan of the rows never reads one.
     pub(super) fn aliases(&self) -> FilesIndex {
-        FilesIndex { dir: self.dir.with_file_name(ALIAS_DIR) }
+        FilesIndex { dir: self.dir.with_file_name(ALIAS_DIR), anchor: self.anchor.clone() }
     }
 
     /// The file of `key`, sharded by the first byte of the key's SHA-256 like
@@ -204,6 +210,12 @@ impl FilesIndex {
 
     pub(super) fn remove(&self, key: &str) -> Result<(), StoreIndexError> {
         let path = self.entry_path(key);
+        match fs::symlink_metadata(&path) {
+            Ok(meta) if !meta.file_type().is_file() => return Ok(()),
+            Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(source) => return Err(StoreIndexError::WriteEntry { path, source }),
+            Ok(_) => {}
+        }
         match fs::remove_file(&path) {
             Err(source) if source.kind() != io::ErrorKind::NotFound => {
                 Err(StoreIndexError::WriteEntry { path, source })
@@ -234,16 +246,19 @@ impl FilesIndex {
     fn entry_paths(&self) -> Result<Vec<PathBuf>, StoreIndexError> {
         let mut paths = Vec::new();
         for shard in read_dir_paths(&self.dir)? {
-            if shard.is_dir() {
-                paths.extend(
-                    read_dir_paths(&shard)?
-                        .into_iter()
-                        .filter(|path| !is_temp_file(path)),
-                );
+            if !fs::symlink_metadata(&shard).is_ok_and(|meta| meta.file_type().is_dir()) {
+                continue;
             }
+            paths.extend(
+                read_dir_paths(&shard)?.into_iter().filter(|path| is_regular_entry_file(path)),
+            );
         }
         Ok(paths)
     }
+}
+
+fn is_regular_entry_file(path: &Path) -> bool {
+    !is_temp_file(path) && fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_file())
 }
 
 fn is_temp_file(path: &Path) -> bool {

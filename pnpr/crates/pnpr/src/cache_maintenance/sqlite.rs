@@ -1,43 +1,81 @@
-use super::{CacheGcEffect, Duration, HashSet, Path, PathBuf, SystemTime};
-use pnpm_store_dir::{StoreDir, StoreIndex, decode_package_files_index};
+use super::{
+    CacheGcEffect, Duration, Path, PathBuf, SystemTime, store_index::store_index_family_bytes,
+};
+use pnpm_fs::OpenDir;
 use rusqlite::{Connection, OpenFlags};
-use std::time::UNIX_EPOCH;
+use std::{ffi::OsStr, time::UNIX_EPOCH};
 
 const SQLITE_BUSY_WAIT: Duration = Duration::from_secs(5);
 const EMPTY_VERDICT_DB_BYTES: u64 = 12 * 1024;
 const SQLITE_PAGE_BYTES: u64 = 4096;
+const VERDICT_DIR: &str = "resolver-cache";
+const VERDICT_DB: &str = "lockfile-verdicts.sqlite";
+const VERDICT_WAL: &str = "lockfile-verdicts.sqlite-wal";
+const VERDICT_FAMILY: [&str; 4] =
+    [VERDICT_DB, VERDICT_WAL, "lockfile-verdicts.sqlite-shm", "lockfile-verdicts.sqlite-journal"];
 
 pub(super) struct VerdictExpiry {
     pub(super) reclaimed_bytes: u64,
+    pub(super) deferred_free_bytes: u64,
     pub(super) cutoff_ms: i64,
 }
 
-fn verdict_db_path(cache_dir: &Path) -> PathBuf {
-    cache_dir.join("resolver-cache").join("lockfile-verdicts.sqlite")
+struct AnchoredVerdictDb {
+    dir: OpenDir,
+    db_path: PathBuf,
 }
 
-fn store_index_db_path(cache_dir: &Path) -> PathBuf {
-    StoreDir::new(cache_dir.join("resolver-store")).root().join("index.db")
-}
-
-fn sqlite_family_bytes(db_path: &Path) -> u64 {
-    let Some(base_name) = db_path.file_name().and_then(|name| name.to_str()) else {
-        return 0;
-    };
-    ["", "-wal", "-shm", "-journal"]
-        .into_iter()
-        .filter_map(|suffix| {
-            std::fs::metadata(db_path.with_file_name(format!("{base_name}{suffix}"))).ok()
+fn open_verdict_dir(cache_dir: &Path) -> Option<AnchoredVerdictDb> {
+    let root = OpenDir::open(cache_dir).ok()?;
+    if root
+        .has_symlink_child(OsStr::new(VERDICT_DIR))
+        .ok()?
+    {
+        return None;
+    }
+    let dir = root
+        .open_child_dir(OsStr::new(VERDICT_DIR))
+        .ok()??;
+    if VERDICT_FAMILY
+        .iter()
+        .any(|name| {
+            dir.has_symlink_child(OsStr::new(name))
+                .unwrap_or(true)
         })
-        .map(|meta| meta.len())
+    {
+        return None;
+    }
+    dir.child_file_stat(OsStr::new(VERDICT_DB))
+        .ok()??;
+    let anchored_dir = dir.canonical_path().ok()??;
+    Some(AnchoredVerdictDb { dir, db_path: anchored_dir.join(VERDICT_DB) })
+}
+
+fn verdict_family_bytes(dir: &OpenDir) -> u64 {
+    VERDICT_FAMILY
+        .iter()
+        .filter_map(|name| {
+            dir.child_file_stat(OsStr::new(name))
+                .ok()
+                .flatten()
+        })
+        .map(|stat| stat.len)
         .sum()
+}
+
+fn verdict_wal_bytes(dir: &OpenDir) -> u64 {
+    dir.child_file_stat(OsStr::new(VERDICT_WAL))
+        .ok()
+        .flatten()
+        .map_or(0, |stat| stat.len)
 }
 
 pub(super) async fn resolver_sqlite_bytes(cache_dir: &Path) -> u64 {
     let root = cache_dir.to_path_buf();
     tokio::task::spawn_blocking(move || {
-        sqlite_family_bytes(&verdict_db_path(&root))
-            + sqlite_family_bytes(&store_index_db_path(&root))
+        let verdict =
+            open_verdict_dir(&root).map_or(0, |verdict| verdict_family_bytes(&verdict.dir));
+        verdict + store_index_family_bytes(&root)
     })
     .await
     .unwrap_or(0)
@@ -48,47 +86,74 @@ pub(super) async fn expire_verdict_rows(
     max_age: Duration,
     effect: CacheGcEffect,
 ) -> VerdictExpiry {
-    let db_path = verdict_db_path(cache_dir);
-    tokio::task::spawn_blocking(move || expire_verdict_rows_sync(&db_path, max_age, effect))
+    let root = cache_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || expire_verdict_rows_sync(&root, max_age, effect))
         .await
-        .unwrap_or(VerdictExpiry { reclaimed_bytes: 0, cutoff_ms: 0 })
+        .unwrap_or(VerdictExpiry { reclaimed_bytes: 0, deferred_free_bytes: 0, cutoff_ms: 0 })
 }
 
 fn expire_verdict_rows_sync(
-    db_path: &Path,
+    cache_dir: &Path,
     max_age: Duration,
     effect: CacheGcEffect,
 ) -> VerdictExpiry {
     let ttl_ms = i64::try_from(max_age.as_millis()).unwrap_or(i64::MAX);
     let cutoff_ms = now_ms().saturating_sub(ttl_ms);
-    if !db_path.is_file() {
-        return VerdictExpiry { reclaimed_bytes: 0, cutoff_ms };
+    let Some(verdict) = open_verdict_dir(cache_dir) else {
+        return VerdictExpiry { reclaimed_bytes: 0, deferred_free_bytes: 0, cutoff_ms };
+    };
+    let (reclaimed_bytes, deferred_free_bytes) = match effect {
+        CacheGcEffect::DryRun => estimate_expired_verdict_bytes(&verdict, cutoff_ms),
+        CacheGcEffect::Apply => (delete_expired_verdict_rows(&verdict, cutoff_ms), 0),
+    };
+    VerdictExpiry { reclaimed_bytes, deferred_free_bytes, cutoff_ms }
+}
+
+fn estimate_expired_verdict_bytes(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -> (u64, u64) {
+    let wal_bytes = verdict_wal_bytes(&verdict.dir);
+    let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
+        return (0, 0);
+    };
+    let (expired_weight, total_weight) = query_verdict_weights(&conn, cutoff_ms);
+    if expired_weight == 0 || total_weight == 0 {
+        return (0, 0);
     }
-    let reclaimed_bytes = match effect {
-        CacheGcEffect::DryRun => estimate_expired_verdict_bytes(db_path, cutoff_ms),
-        CacheGcEffect::Apply => delete_expired_verdict_rows(db_path, cutoff_ms),
-    };
-    VerdictExpiry { reclaimed_bytes, cutoff_ms }
+    let page_size = pragma_u64(&conn, "page_size").max(SQLITE_PAGE_BYTES);
+    let freelist = pragma_u64(&conn, "freelist_count");
+    let max_reclaimable = verdict_family_bytes(&verdict.dir).saturating_sub(EMPTY_VERDICT_DB_BYTES);
+    let live_reclaimable = max_reclaimable
+        .saturating_sub(freelist.saturating_mul(page_size))
+        .saturating_sub(wal_bytes);
+    let est_new_pages =
+        proportional_bytes(live_reclaimable, expired_weight, total_weight) / page_size;
+    let post_freelist = freelist.saturating_add(est_new_pages);
+    let post_bytes = post_freelist.saturating_mul(page_size);
+    if should_vacuum_counts(post_freelist, pragma_u64(&conn, "page_count")) {
+        (post_bytes.saturating_add(wal_bytes).min(max_reclaimable), 0)
+    } else {
+        (0, est_new_pages.saturating_mul(page_size))
+    }
 }
 
-fn estimate_expired_verdict_bytes(db_path: &Path, cutoff_ms: i64) -> u64 {
-    let Ok(conn) = open_sqlite_readonly(db_path) else {
-        return 0;
-    };
-    let bytes: i64 = conn
-        .query_row(
-            "SELECT COALESCE(SUM(LENGTH(hash) + LENGTH(policy) + 16), 0)
-             FROM lockfile_verdicts WHERE verified_at_ms <= ?1",
-            [cutoff_ms],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    u64::try_from(bytes).unwrap_or(0)
+fn query_verdict_weights(conn: &Connection, cutoff_ms: i64) -> (u64, u64) {
+    conn.query_row(
+        "SELECT
+             COALESCE(SUM(CASE WHEN verified_at_ms <= ?1 THEN 2 * LENGTH(hash) + LENGTH(policy) + 24 ELSE 0 END), 0),
+             COALESCE(SUM(2 * LENGTH(hash) + LENGTH(policy) + 24), 0)
+         FROM lockfile_verdicts",
+        [cutoff_ms],
+        |row| {
+            let exp = u64::try_from(row.get::<_, i64>(0)?).unwrap_or(0);
+            let tot = u64::try_from(row.get::<_, i64>(1)?).unwrap_or(0);
+            Ok((exp, tot))
+        },
+    )
+    .unwrap_or((0, 0))
 }
 
-fn delete_expired_verdict_rows(db_path: &Path, cutoff_ms: i64) -> u64 {
-    let before = sqlite_family_bytes(db_path);
-    let Ok(conn) = open_sqlite(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE) else {
+fn delete_expired_verdict_rows(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -> u64 {
+    let before = verdict_family_bytes(&verdict.dir);
+    let Ok(conn) = open_sqlite(&verdict.db_path, OpenFlags::SQLITE_OPEN_READ_WRITE) else {
         return 0;
     };
     let deleted = conn
@@ -101,121 +166,150 @@ fn delete_expired_verdict_rows(db_path: &Path, cutoff_ms: i64) -> u64 {
         compact_sqlite(&conn);
     } else {
         let _ = conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
+        return 0;
     }
     drop(conn);
-    before.saturating_sub(sqlite_family_bytes(db_path))
+    before.saturating_sub(verdict_family_bytes(&verdict.dir))
 }
 
-pub(super) async fn trim_verdict_db_to_fit(
-    cache_dir: &Path,
-    excess_bytes: u64,
-    min_verified_at_ms: Option<i64>,
-    effect: CacheGcEffect,
-) -> u64 {
-    let db_path = verdict_db_path(cache_dir);
-    tokio::task::spawn_blocking(move || {
-        trim_verdict_db_sync(&db_path, excess_bytes, min_verified_at_ms, effect)
-    })
-    .await
-    .unwrap_or(0)
+pub(super) struct VerdictTrimParams {
+    pub(super) excess_bytes: u64,
+    pub(super) min_verified_at_ms: Option<i64>,
+    pub(super) deferred_free_bytes: u64,
+    pub(super) effect: CacheGcEffect,
 }
 
-fn trim_verdict_db_sync(
-    db_path: &Path,
-    excess_bytes: u64,
-    min_verified_at_ms: Option<i64>,
-    effect: CacheGcEffect,
-) -> u64 {
-    if excess_bytes == 0 || !db_path.is_file() {
+pub(super) async fn trim_verdict_db_to_fit(cache_dir: &Path, params: VerdictTrimParams) -> u64 {
+    let root = cache_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || trim_verdict_db_sync(&root, &params))
+        .await
+        .unwrap_or(0)
+}
+
+fn trim_verdict_db_sync(cache_dir: &Path, params: &VerdictTrimParams) -> u64 {
+    if params.excess_bytes == 0 {
         return 0;
     }
-    match effect {
-        CacheGcEffect::DryRun => {
-            estimate_oldest_verdict_bytes(db_path, excess_bytes, min_verified_at_ms)
-        }
-        CacheGcEffect::Apply => delete_oldest_verdict_rows(db_path, excess_bytes),
+    let Some(verdict) = open_verdict_dir(cache_dir) else {
+        return 0;
+    };
+    match params.effect {
+        CacheGcEffect::DryRun => estimate_oldest_verdict_bytes(&verdict, params),
+        CacheGcEffect::Apply => delete_oldest_verdict_rows(&verdict, params.excess_bytes),
     }
 }
 
-fn estimate_oldest_verdict_bytes(
-    db_path: &Path,
-    excess_bytes: u64,
-    min_verified_at_ms: Option<i64>,
-) -> u64 {
-    let Ok(conn) = open_sqlite_readonly(db_path) else {
+fn estimate_oldest_verdict_bytes(verdict: &AnchoredVerdictDb, params: &VerdictTrimParams) -> u64 {
+    let before = verdict_family_bytes(&verdict.dir);
+    let wal_bytes = verdict_wal_bytes(&verdict.dir);
+    let max_reclaimable = before.saturating_sub(EMPTY_VERDICT_DB_BYTES);
+    let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
         return 0;
     };
-    let floor = min_verified_at_ms.unwrap_or(i64::MIN);
-    let Ok(mut stmt) = conn.prepare(
-        "SELECT LENGTH(hash) + LENGTH(policy) + 16
-         FROM lockfile_verdicts
-         WHERE verified_at_ms > ?1
-         ORDER BY verified_at_ms ASC, rowid ASC",
-    ) else {
-        return 0;
-    };
-    let Ok(rows) = stmt.query_map([floor], |row| row.get::<_, i64>(0)) else {
-        return 0;
-    };
-    sum_until_target(rows.flatten(), excess_bytes)
-}
-
-fn sum_until_target(rows: impl Iterator<Item = i64>, target: u64) -> u64 {
-    let mut reclaimed = 0u64;
-    for row in rows {
-        reclaimed = reclaimed.saturating_add(u64::try_from(row).unwrap_or(0));
-        if reclaimed >= target {
-            break;
-        }
+    let page_size = pragma_u64(&conn, "page_size").max(SQLITE_PAGE_BYTES);
+    let free_bytes = freelist_bytes(&conn).saturating_add(params.deferred_free_bytes);
+    let non_row_savings = free_bytes.saturating_add(wal_bytes);
+    if max_reclaimable == 0 {
+        return wal_bytes.min(before);
     }
-    reclaimed
+    let needed_from_rows = params.excess_bytes.saturating_sub(non_row_savings);
+    let live_reclaimable = max_reclaimable.saturating_sub(non_row_savings);
+    if needed_from_rows == 0 {
+        return non_row_savings.min(max_reclaimable);
+    }
+    if needed_from_rows >= live_reclaimable {
+        return max_reclaimable;
+    }
+    let floor = params.min_verified_at_ms.unwrap_or(i64::MIN);
+    let row_bytes =
+        estimate_trimmed_row_bytes(&conn, live_reclaimable, needed_from_rows, floor, page_size);
+    non_row_savings.saturating_add(row_bytes).min(max_reclaimable)
 }
 
-fn delete_oldest_verdict_rows(db_path: &Path, excess_bytes: u64) -> u64 {
-    let before = sqlite_family_bytes(db_path);
-    let Ok(conn) = open_sqlite(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE) else {
+fn estimate_trimmed_row_bytes(
+    conn: &Connection,
+    reclaimable: u64,
+    excess_bytes: u64,
+    floor_ms: i64,
+    page_size: u64,
+) -> u64 {
+    let Some(weights) = load_row_weights(conn, floor_ms) else {
+        return 0;
+    };
+    let Some((count, total_weight)) = select_row_prefix(&weights, reclaimable, excess_bytes) else {
+        return 0;
+    };
+    let selected_weight: u64 = weights.iter().take(count).sum();
+    let raw = proportional_bytes(reclaimable, selected_weight, total_weight);
+    (raw / page_size).saturating_mul(page_size)
+}
+
+fn delete_oldest_verdict_rows(verdict: &AnchoredVerdictDb, excess_bytes: u64) -> u64 {
+    let before = verdict_family_bytes(&verdict.dir);
+    let wal_bytes = verdict_wal_bytes(&verdict.dir);
+    let Ok(conn) = open_sqlite(&verdict.db_path, OpenFlags::SQLITE_OPEN_READ_WRITE) else {
         return 0;
     };
     let free_bytes = freelist_bytes(&conn);
-    let needed_from_rows = excess_bytes.saturating_sub(free_bytes);
-    let live_reclaimable = before.saturating_sub(EMPTY_VERDICT_DB_BYTES).saturating_sub(free_bytes);
-    let deleted = if needed_from_rows == 0 {
-        0
-    } else if needed_from_rows >= live_reclaimable {
-        conn.execute("DELETE FROM lockfile_verdicts", [])
-            .unwrap_or(0)
-    } else if let Some(limit) = rows_to_delete(&conn, live_reclaimable, needed_from_rows) {
-        conn.execute(
-            "DELETE FROM lockfile_verdicts WHERE rowid IN (
-                 SELECT rowid FROM lockfile_verdicts
-                 ORDER BY verified_at_ms ASC, rowid ASC LIMIT ?1
-             )",
-            [limit],
-        )
-        .unwrap_or(0)
-    } else {
-        0
-    };
-    if deleted > 0 || free_bytes > 0 || wal_has_frames(db_path) {
+    let non_row_savings = free_bytes.saturating_add(wal_bytes);
+    let needed_from_rows = excess_bytes.saturating_sub(non_row_savings);
+    let live_reclaimable =
+        before.saturating_sub(EMPTY_VERDICT_DB_BYTES).saturating_sub(non_row_savings);
+    let deleted = execute_verdict_trim(&conn, live_reclaimable, needed_from_rows);
+    if deleted > 0 || free_bytes > 0 {
         compact_sqlite(&conn);
+    } else if wal_bytes > 0 {
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
     }
     drop(conn);
-    before.saturating_sub(sqlite_family_bytes(db_path))
+    before.saturating_sub(verdict_family_bytes(&verdict.dir))
 }
 
-fn rows_to_delete(conn: &Connection, reclaimable: u64, excess_bytes: u64) -> Option<i64> {
+fn execute_verdict_trim(conn: &Connection, live_reclaimable: u64, needed_from_rows: u64) -> usize {
+    if needed_from_rows == 0 || live_reclaimable == 0 {
+        return 0;
+    }
+    if needed_from_rows >= live_reclaimable {
+        return conn
+            .execute("DELETE FROM lockfile_verdicts", [])
+            .unwrap_or(0);
+    }
+    let Some(weights) = load_row_weights(conn, i64::MIN) else {
+        return 0;
+    };
+    let Some((count, _)) = select_row_prefix(&weights, live_reclaimable, needed_from_rows) else {
+        return 0;
+    };
+    let limit = i64::try_from(count).unwrap_or(i64::MAX);
+    conn.execute(
+        "DELETE FROM lockfile_verdicts WHERE rowid IN (
+             SELECT rowid FROM lockfile_verdicts
+             ORDER BY verified_at_ms ASC, rowid ASC LIMIT ?1
+         )",
+        [limit],
+    )
+    .unwrap_or(0)
+}
+
+fn load_row_weights(conn: &Connection, floor_ms: i64) -> Option<Vec<u64>> {
     let mut stmt = conn
         .prepare(
             "SELECT 2 * LENGTH(hash) + LENGTH(policy) + 24
-             FROM lockfile_verdicts ORDER BY verified_at_ms ASC, rowid ASC",
+             FROM lockfile_verdicts
+             WHERE verified_at_ms > ?1
+             ORDER BY verified_at_ms ASC, rowid ASC",
         )
         .ok()?;
-    let weights: Vec<u64> = stmt
-        .query_map([], |row| row.get::<_, i64>(0))
+    let weights = stmt
+        .query_map([floor_ms], |row| row.get::<_, i64>(0))
         .ok()?
         .flatten()
         .map(|val| u64::try_from(val).unwrap_or(0))
         .collect();
+    Some(weights)
+}
+
+fn select_row_prefix(weights: &[u64], reclaimable: u64, excess_bytes: u64) -> Option<(usize, u64)> {
     let total_weight: u64 = weights.iter().sum();
     if total_weight == 0 || reclaimable == 0 {
         return None;
@@ -224,97 +318,42 @@ fn rows_to_delete(conn: &Connection, reclaimable: u64, excess_bytes: u64) -> Opt
     let target_weight =
         (u128::from(total_weight) * u128::from(target_bytes)).div_ceil(u128::from(reclaimable));
     let mut cumulative = 0u128;
-    let mut count = 0i64;
-    for weight in weights {
-        count += 1;
+    for (idx, &weight) in weights.iter().enumerate() {
         cumulative += u128::from(weight);
         if cumulative >= target_weight {
-            break;
+            return Some((idx + 1, total_weight));
         }
     }
-    (count > 0).then_some(count)
+    (!weights.is_empty()).then_some((weights.len(), total_weight))
 }
 
-pub(super) async fn prune_store_index_digests(
-    cache_dir: &Path,
-    removed_digests: HashSet<String>,
-) -> u64 {
-    if removed_digests.is_empty() {
+fn proportional_bytes(total_bytes: u64, part_weight: u64, total_weight: u64) -> u64 {
+    if total_weight == 0 {
         return 0;
     }
-    let root = cache_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || prune_store_index_sync(&root, &removed_digests))
-        .await
-        .unwrap_or(0)
-}
-
-fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -> u64 {
-    let store_dir = StoreDir::new(cache_dir.join("resolver-store"));
-    let db_path = store_dir.root().join("index.db");
-    if !db_path.is_file()
-        && !store_dir
-            .root()
-            .join(pnpm_store_dir::INDEX_DIR)
-            .is_dir()
-    {
-        return 0;
-    }
-    let before = sqlite_family_bytes(&db_path);
-    let Ok(mut index) = StoreIndex::open_in(&store_dir) else {
-        return 0;
-    };
-    let mut keys = Vec::new();
-    let _ = index.for_each_raw(|key, data| {
-        if let Ok(pkg) = decode_package_files_index(&data)
-            && package_references_removed_digest(&pkg, removed_digests)
-        {
-            keys.push(key);
-        }
-        Ok::<(), pnpm_store_dir::StoreIndexError>(())
-    });
-    let _ = index.delete_many(&keys);
-    drop(index);
-    before.saturating_sub(sqlite_family_bytes(&db_path))
-}
-
-fn package_references_removed_digest(
-    pkg: &pnpm_store_dir::PackageFilesIndex,
-    removed_digests: &HashSet<String>,
-) -> bool {
-    pkg.files
-        .values()
-        .any(|file| removed_digests.contains(&file.digest))
-        || pkg.side_effects
-            .iter()
-            .flatten()
-            .flat_map(|(_, diff)| diff.added.iter().flatten())
-            .any(|(_, file)| removed_digests.contains(&file.digest))
+    u64::try_from((u128::from(total_bytes) * u128::from(part_weight)) / u128::from(total_weight))
+        .unwrap_or(u64::MAX)
 }
 
 fn open_sqlite(db_path: &Path, flags: OpenFlags) -> rusqlite::Result<Connection> {
-    let conn = Connection::open_with_flags(db_path, flags)?;
+    let conn = Connection::open_with_flags(db_path, flags | OpenFlags::SQLITE_OPEN_NOFOLLOW)?;
     conn.busy_timeout(SQLITE_BUSY_WAIT)?;
     Ok(conn)
 }
 
-fn open_sqlite_readonly(db_path: &Path) -> rusqlite::Result<Connection> {
-    if !wal_has_frames(db_path)
+fn open_sqlite_readonly(db_path: &Path, wal_bytes: u64) -> rusqlite::Result<Connection> {
+    if wal_bytes == 0
         && let Some(uri) = immutable_sqlite_uri(db_path)
-    {
-        return Connection::open_with_flags(
+        && let Ok(conn) = Connection::open_with_flags(
             uri,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
-        );
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_URI
+                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )
+    {
+        return Ok(conn);
     }
     open_sqlite(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-}
-
-fn wal_has_frames(db_path: &Path) -> bool {
-    let Some(base_name) = db_path.file_name().and_then(|name| name.to_str()) else {
-        return false;
-    };
-    std::fs::metadata(db_path.with_file_name(format!("{base_name}-wal")))
-        .is_ok_and(|meta| meta.len() > 0)
 }
 
 fn immutable_sqlite_uri(db_path: &Path) -> Option<String> {
@@ -325,8 +364,10 @@ fn immutable_sqlite_uri(db_path: &Path) -> Option<String> {
 }
 
 fn should_vacuum(conn: &Connection) -> bool {
-    let freelist = pragma_u64(conn, "freelist_count");
-    let pages = pragma_u64(conn, "page_count");
+    should_vacuum_counts(pragma_u64(conn, "freelist_count"), pragma_u64(conn, "page_count"))
+}
+
+fn should_vacuum_counts(freelist: u64, pages: u64) -> bool {
     freelist >= 16 && freelist.saturating_mul(4) >= pages
 }
 

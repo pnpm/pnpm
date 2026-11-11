@@ -38,9 +38,10 @@ enum Backend {
     Sqlite {
         conn: Connection,
         // Fields drop in order: close SQLite before releasing its process
-        // lease and before restoring the store root's mtime.
+        // lease, directory anchor, and store-root mtime guard.
         #[cfg(target_os = "wasi")]
         _lease: Arc<wasi_lease::IndexLease>,
+        _anchor: Option<pnpm_fs::OpenDir>,
         _root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
     },
     Files(files::FilesIndex),
@@ -89,11 +90,27 @@ impl StoreIndex {
         #[cfg(target_os = "wasi")] lease: Arc<wasi_lease::IndexLease>,
         root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
     ) -> Self {
+        Self::sqlite_with_anchor(
+            conn,
+            #[cfg(target_os = "wasi")]
+            lease,
+            root_mtime,
+            None,
+        )
+    }
+
+    fn sqlite_with_anchor(
+        conn: Connection,
+        #[cfg(target_os = "wasi")] lease: Arc<wasi_lease::IndexLease>,
+        root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
+        anchor: Option<pnpm_fs::OpenDir>,
+    ) -> Self {
         StoreIndex {
             backend: Backend::Sqlite {
                 conn,
                 #[cfg(target_os = "wasi")]
                 _lease: lease,
+                _anchor: anchor,
                 _root_mtime: root_mtime,
             },
         }
@@ -509,6 +526,8 @@ mod queries;
 mod schema;
 
 mod aliases;
+
+mod anchored;
 
 mod error;
 

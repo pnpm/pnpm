@@ -40,7 +40,8 @@ defaultRegistry: main
 ```
 
 Pass it with `-c`, and create the first account with
-[`pnpr add-user`](cli.md#add-user):
+[`pnpr add-user`](cli.md#add-user). Generate `PNPR_SECRET` once, store it
+securely, and supply the same value on every restart:
 
 ```sh
 export PNPR_SECRET="$(openssl rand -hex 32)"

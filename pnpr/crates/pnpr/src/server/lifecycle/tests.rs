@@ -205,23 +205,17 @@ async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
     let first_config = Config::from_yaml(&config_path, listen, None).unwrap();
     assert!(!first_config.has_configured_secret);
     let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
-    let serve_task = tokio::spawn(super::serve_listener(first_config, listener));
-
-    for _ in 0..200 {
-        if cache_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    let addr = listener.local_addr().unwrap();
+    let mut serve_task = tokio::spawn(super::serve_listener(first_config, listener));
+    wait_for_http_ping(addr, &mut serve_task).await;
     assert!(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER).exists());
+    serve_task.abort();
+    let _ = serve_task.await;
 
     let stale_private =
         cache_dir.join("~upstreams/ephemeral-run-digest/packages/pkg/document.json");
     tokio::fs::create_dir_all(stale_private.parent().unwrap()).await.unwrap();
     tokio::fs::write(&stale_private, b"{}").await.unwrap();
-
-    serve_task.abort();
-    let _ = serve_task.await;
 
     let restart_without_secret = Config::from_yaml(&config_path, listen, None).unwrap();
     let listener2 = tokio::net::TcpListener::bind(listen).await.unwrap();
@@ -240,13 +234,9 @@ async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
     .unwrap();
     let configured_restart = Config::from_yaml(&config_path, listen, None).unwrap();
     let listener3 = tokio::net::TcpListener::bind(listen).await.unwrap();
-    let serve_task3 = tokio::spawn(super::serve_listener(configured_restart, listener3));
-    for _ in 0..200 {
-        if !stale_private.exists() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    let addr3 = listener3.local_addr().unwrap();
+    let mut serve_task3 = tokio::spawn(super::serve_listener(configured_restart, listener3));
+    wait_for_http_ping(addr3, &mut serve_task3).await;
     serve_task3.abort();
     let _ = serve_task3.await;
     assert!(!stale_private.exists(), "startup with configured secret prunes prior ephemeral dirs");
@@ -300,26 +290,42 @@ async fn wait_for_http_ping(
     addr: SocketAddr,
     serve_task: &mut tokio::task::JoinHandle<pnpr_error::Result<()>>,
 ) {
-    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
-    for _ in 0..300 {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while tokio::time::Instant::now() < deadline {
         if serve_task.is_finished() {
             let res = serve_task.await.expect("serve_listener task panicked");
             panic!("serve_listener exited before answering /-/ping: {res:?}");
         }
-        if let Ok(mut stream) = tokio::net::TcpStream::connect(addr).await
-            && stream
-                .write_all(b"GET /-/ping HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
-                .await
-                .is_ok()
-        {
-            let mut buf = Vec::new();
-            if stream.read_to_end(&mut buf).await.is_ok() && buf.starts_with(b"HTTP/1.1 200") {
-                return;
-            }
+        let step = deadline
+            .saturating_duration_since(tokio::time::Instant::now())
+            .min(Duration::from_millis(50));
+        if tokio::time::timeout(step, try_http_ping(addr)).await == Ok(true) {
+            return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
+    if serve_task.is_finished() {
+        let res = serve_task.await.expect("serve_listener task panicked");
+        panic!("serve_listener exited before answering /-/ping: {res:?}");
+    }
     panic!("timed out waiting for HTTP 200 on /-/ping at {addr}");
+}
+
+async fn try_http_ping(addr: SocketAddr) -> bool {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let Ok(mut stream) = tokio::net::TcpStream::connect(addr).await else {
+        return false;
+    };
+    if stream
+        .write_all(b"GET /-/ping HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await.is_ok() && buf.starts_with(b"HTTP/1.1 200")
 }
 
 #[tokio::test]
@@ -382,4 +388,57 @@ async fn artifacts_only_startup_prunes_private_scopes_on_secret_rotation() {
     assert!(!stale_private.exists(), "artifacts-only startup must prune rotated private scopes");
     let stored = std::fs::read_to_string(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER)).unwrap();
     assert_eq!(stored.trim(), pnpr_config::cache_secret_fingerprint(&config.cache_secret));
+}
+
+#[tokio::test]
+async fn prepare_storage_purges_rotated_private_scopes_for_embedded_routers() {
+    let tmp = TempDir::new().unwrap();
+    let storage_dir = tmp.path().join("storage");
+    let cache_dir = tmp.path().join("cache");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(
+        cache_dir.join(pnpr_config::CACHE_SECRET_MARKER),
+        pnpr_config::cache_secret_fingerprint(b"old-secret-key-32-bytes-00000001"),
+    )
+    .unwrap();
+    let stale_private = cache_dir.join("resolver-cache/v12/metadata-private/old-scope/pkg.jsonl");
+    std::fs::create_dir_all(stale_private.parent().unwrap()).unwrap();
+    std::fs::write(&stale_private, b"{}").unwrap();
+    let stale_upstream = cache_dir.join("~upstreams/old-upstream-ns/packages/pkg/document.json");
+    std::fs::create_dir_all(stale_upstream.parent().unwrap()).unwrap();
+    std::fs::write(&stale_upstream, b"{}").unwrap();
+
+    let config_path = tmp.path().join("embedded.yaml");
+    std::fs::write(
+        &config_path,
+        format!(
+            "storage: {}\ncache: {}\nsecret: new-secret-key-32-bytes-00000002\n",
+            storage_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+
+    super::prepare_storage(&config).await.unwrap();
+    assert!(!stale_private.exists(), "prepare_storage must purge rotated private resolver scopes");
+    assert!(!stale_upstream.exists(), "prepare_storage must purge rotated private upstream dirs");
+    let stored = std::fs::read_to_string(cache_dir.join(pnpr_config::CACHE_SECRET_MARKER)).unwrap();
+    assert_eq!(stored.trim(), pnpr_config::cache_secret_fingerprint(&config.cache_secret));
+}
+
+#[tokio::test]
+async fn concurrent_same_config_ephemeral_claims_both_succeed() {
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().join("same-secret-ephemeral-cache");
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let mut cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    cfg.storage.cache_dir = cache_dir;
+
+    let claim_a = super::claim_ephemeral_cache_dir(&cfg);
+    let claim_b = super::claim_ephemeral_cache_dir(&cfg);
+    let (res_a, res_b) = tokio::join!(claim_a, claim_b);
+    res_a.unwrap();
+    res_b.unwrap();
 }

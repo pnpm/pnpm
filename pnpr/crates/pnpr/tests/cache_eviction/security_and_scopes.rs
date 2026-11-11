@@ -405,9 +405,11 @@ async fn failed_private_scope_cleanup_preserves_old_secret_marker_for_retry() {
     use std::os::unix::fs::PermissionsExt as _;
 
     // SAFETY: `geteuid` takes no arguments and is always safe to call.
-    if unsafe { libc::geteuid() } == 0 {
-        return;
-    }
+    let euid = unsafe { libc::geteuid() };
+    assert_ne!(
+        euid, 0,
+        "chmod 0o555 does not restrict root; run this test as an unprivileged user",
+    );
 
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));

@@ -74,6 +74,20 @@ pub(super) fn stat_file_at(
     parent: BorrowedFd<'_>,
     name: &CStr,
 ) -> io::Result<Option<ChildFileStat>> {
+    let Some(stat) = lstat_at(parent, name)? else {
+        return Ok(None);
+    };
+    if (stat.st_mode & libc::S_IFMT) != libc::S_IFREG {
+        return Ok(None);
+    }
+    Ok(Some(child_file_stat(&stat)))
+}
+
+pub(super) fn is_symlink_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<bool> {
+    Ok(lstat_at(parent, name)?.is_some_and(|stat| (stat.st_mode & libc::S_IFMT) == libc::S_IFLNK))
+}
+
+fn lstat_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<libc::stat>> {
     let mut stat = MaybeUninit::<libc::stat>::uninit();
     // SAFETY: `name` is NUL-terminated, `parent` stays open, and `stat` is writable.
     let rc = unsafe {
@@ -89,11 +103,7 @@ pub(super) fn stat_file_at(
         return if error.kind() == ErrorKind::NotFound { Ok(None) } else { Err(error) };
     }
     // SAFETY: `fstatat` succeeded and initialized `stat`.
-    let stat = unsafe { stat.assume_init() };
-    if (stat.st_mode & libc::S_IFMT) != libc::S_IFREG {
-        return Ok(None);
-    }
-    Ok(Some(child_file_stat(&stat)))
+    Ok(Some(unsafe { stat.assume_init() }))
 }
 
 fn child_file_stat(stat: &libc::stat) -> ChildFileStat {

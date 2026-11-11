@@ -179,3 +179,14 @@ fn count_dir_contents_counts_regular_files_only() {
         assert_eq!(bytes, 11);
     }
 }
+
+#[cfg(windows)]
+#[test]
+fn windows_backslash_paths_classify_temps_sqlite_and_cas_digests() {
+    let cache = Path::new(r"C:\pnpr\cache");
+    assert!(is_cache_tmp_file(cache, Path::new(r"C:\pnpr\cache\resolver-store\v11\tmp\_tmp_1_0")));
+    let wal = Path::new(r"C:\pnpr\cache\resolver-cache\lockfile-verdicts.sqlite-wal");
+    assert!(is_managed_sqlite_file(cache, wal));
+    let cas = Path::new(r"C:\pnpr\cache\resolver-store\v11\files\0a\bcdef01234-exec");
+    assert_eq!(cas_digest_of_store_file(cache, cas), Some("0abcdef01234".to_string()));
+}

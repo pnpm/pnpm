@@ -9,10 +9,11 @@ mod eviction;
 mod inventory;
 mod orphans;
 mod sqlite;
+mod store_index;
 
 use crate::{Config, Result};
 use eviction::{DryRunAdjustments, evict_and_prune_cache};
-use orphans::{prune_orphaned_namespaces, prune_private_resolver_scopes_only};
+use orphans::{PrivateScopePolicy, prune_orphaned_namespaces, prune_private_resolver_scopes_only};
 use pnpm_fs::ChildFileStat;
 use std::{
     collections::HashSet,
@@ -122,31 +123,40 @@ async fn sweep_staging_cache(
     }
 }
 
-async fn should_prune_private_resolver_scopes(cache_dir: &Path, config: &Config) -> bool {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MarkerDirPolicy {
+    CreateIfMissing,
+    ExistingOnly,
+}
+
+async fn should_prune_private_resolver_scopes(
+    cache_dir: &Path,
+    config: &Config,
+) -> PrivateScopePolicy {
     let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
     let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
     match fs::read_to_string(&marker).await {
-        Ok(stored) => {
-            let trimmed = stored.trim();
-            !trimmed.is_empty() && trimmed != fingerprint
-        }
-        Err(_) => !config.has_configured_secret,
+        Ok(stored) if stored.trim() == fingerprint => PrivateScopePolicy::Keep,
+        _ => PrivateScopePolicy::Prune,
     }
 }
 
 async fn sync_configured_cache_marker(
     config: &Config,
     effect: CacheGcEffect,
-    create_dir: bool,
+    dir_policy: MarkerDirPolicy,
 ) -> Result<()> {
     if !config.has_configured_secret || !matches!(effect, CacheGcEffect::Apply) {
         return Ok(());
     }
     let cache_dir = &config.storage.cache_dir;
-    if create_dir {
-        fs::create_dir_all(cache_dir).await?;
-    } else if !fs::try_exists(cache_dir).await.unwrap_or(false) {
-        return Ok(());
+    match dir_policy {
+        MarkerDirPolicy::CreateIfMissing => fs::create_dir_all(cache_dir).await?,
+        MarkerDirPolicy::ExistingOnly => {
+            if !fs::try_exists(cache_dir).await.unwrap_or(false) {
+                return Ok(());
+            }
+        }
     }
     let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
     let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
@@ -154,37 +164,44 @@ async fn sync_configured_cache_marker(
 }
 
 pub(crate) async fn sync_cache_secret_on_startup(config: &Config) -> Result<()> {
+    crate::config_validation::validate_cache_paths(config)?;
     let cache_dir = &config.storage.cache_dir;
-    let clean = if should_prune_private_resolver_scopes(cache_dir, config).await {
-        let active = active_cache_namespaces(config);
-        prune_private_resolver_scopes_only(cache_dir, &active, CacheGcEffect::Apply).await?
-    } else {
-        true
+    let clean = match should_prune_private_resolver_scopes(cache_dir, config).await {
+        PrivateScopePolicy::Prune => {
+            let active = active_cache_namespaces(config);
+            prune_private_resolver_scopes_only(cache_dir, &active, CacheGcEffect::Apply).await?
+        }
+        PrivateScopePolicy::Keep => true,
     };
     if clean {
-        sync_configured_cache_marker(config, CacheGcEffect::Apply, true).await?;
+        sync_configured_cache_marker(
+            config,
+            CacheGcEffect::Apply,
+            MarkerDirPolicy::CreateIfMissing,
+        )
+        .await?;
     }
     Ok(())
 }
 
 /// Run a complete cache collection pass according to the given options.
 pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<CacheReport> {
-    collect_cache_inner(config, options, false).await
+    collect_cache_inner(config, options, MarkerDirPolicy::ExistingOnly).await
 }
 
 async fn collect_cache_inner(
     config: &Config,
     options: &CacheGcOptions,
-    create_marker_dir: bool,
+    marker_dir_policy: MarkerDirPolicy,
 ) -> Result<CacheReport> {
     crate::config_validation::validate_cache_paths(config)?;
     let cache_dir = &config.storage.cache_dir;
     let active = active_cache_namespaces(config);
-    let prune_private = should_prune_private_resolver_scopes(cache_dir, config).await;
+    let private_scopes = should_prune_private_resolver_scopes(cache_dir, config).await;
     let outcome =
-        prune_orphaned_namespaces(cache_dir, &active, prune_private, options.effect).await?;
+        prune_orphaned_namespaces(cache_dir, &active, private_scopes, options.effect).await?;
     if outcome.private_scopes_clean {
-        sync_configured_cache_marker(config, options.effect, create_marker_dir).await?;
+        sync_configured_cache_marker(config, options.effect, marker_dir_policy).await?;
     }
     let mut report = outcome.report;
     if matches!(options.scope, CacheGcScope::OrphansOnly) {
@@ -217,7 +234,7 @@ pub async fn prune_orphaned_namespaces_startup(config: &Config) -> Result<CacheR
         max_age: config.storage.cache.max_age,
         scope: CacheGcScope::Full,
     };
-    collect_cache_inner(config, &opts, true).await
+    collect_cache_inner(config, &opts, MarkerDirPolicy::CreateIfMissing).await
 }
 
 /// Run a periodic eviction pass using configured size and age limits.

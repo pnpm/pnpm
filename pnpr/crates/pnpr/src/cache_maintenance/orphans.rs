@@ -11,6 +11,12 @@ pub(super) struct OrphanPruneOutcome {
     pub(super) private_scopes_clean: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PrivateScopePolicy {
+    Keep,
+    Prune,
+}
+
 #[derive(Clone, Copy)]
 enum ScopeFilter {
     All,
@@ -22,13 +28,13 @@ enum ScopeFilter {
 pub(super) async fn prune_orphaned_namespaces(
     cache_dir: &Path,
     active: &HashSet<String>,
-    prune_private_resolver: bool,
+    private_scopes: PrivateScopePolicy,
     effect: CacheGcEffect,
 ) -> Result<OrphanPruneOutcome> {
     let root = cache_dir.to_path_buf();
     let active = active.clone();
     tokio::task::spawn_blocking(move || {
-        prune_orphaned_namespaces_sync(&root, &active, prune_private_resolver, effect)
+        prune_orphaned_namespaces_sync(&root, &active, private_scopes, effect)
     })
     .await
     .map_err(|err| io::Error::other(err.to_string()))?
@@ -63,7 +69,7 @@ pub(super) async fn prune_private_resolver_scopes_only(
 fn prune_orphaned_namespaces_sync(
     cache_dir: &Path,
     active: &HashSet<String>,
-    prune_private_resolver: bool,
+    private_scopes: PrivateScopePolicy,
     effect: CacheGcEffect,
 ) -> Result<OrphanPruneOutcome> {
     let mut outcome = OrphanPruneOutcome {
@@ -78,7 +84,7 @@ fn prune_orphaned_namespaces_sync(
     };
     prune_orphan_prefix(&root_dir, "~upstreams", active, effect, &mut outcome);
     prune_orphan_prefix(&root_dir, "~public", active, effect, &mut outcome);
-    if prune_private_resolver {
+    if matches!(private_scopes, PrivateScopePolicy::Prune) {
         prune_private_resolver_scopes(&root_dir, effect, &mut outcome);
     }
     Ok(outcome)

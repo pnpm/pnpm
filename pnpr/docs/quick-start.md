@@ -54,7 +54,8 @@ dependency confusion.
 
 ## Start the server
 
-Generate a secret and start `pnpr`:
+Generate a secret once, store it securely, and reuse the same `PNPR_SECRET`
+value across restarts:
 
 ```sh
 export PNPR_SECRET="$(openssl rand -hex 32)"

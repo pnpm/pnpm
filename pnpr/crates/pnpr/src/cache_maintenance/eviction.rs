@@ -6,10 +6,17 @@ use super::{
     },
     is_abandoned_tmp_age,
     sqlite::{
-        VerdictExpiry, expire_verdict_rows, prune_store_index_digests, resolver_sqlite_bytes,
+        VerdictExpiry, VerdictTrimParams, expire_verdict_rows, resolver_sqlite_bytes,
         trim_verdict_db_to_fit,
     },
+    store_index::prune_store_index_digests,
 };
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SkippedCasPolicy {
+    RetainForSizeCheck,
+    CountTowardsSize,
+}
 
 pub(super) struct DryRunAdjustments {
     pub(super) pruned_dirs: HashSet<PathBuf>,
@@ -122,7 +129,7 @@ async fn evict_cache(
     for file in inv.files {
         evict_file_if_expired(cache_dir, file, max_age, &mut state).await;
     }
-    flush_pending_cas(cache_dir, &mut state, true).await;
+    flush_pending_cas(cache_dir, &mut state, SkippedCasPolicy::RetainForSizeCheck).await;
     if let Some(limit) = max_size {
         enforce_max_size(cache_dir, limit, &mut state).await;
     }
@@ -132,7 +139,7 @@ async fn evict_cache(
 async fn flush_pending_cas(
     cache_dir: &Path,
     state: &mut EvictionState,
-    retain_skipped: bool,
+    policy: SkippedCasPolicy,
 ) -> u64 {
     let pending = std::mem::take(&mut state.pending_cas);
     if pending.is_empty() {
@@ -143,7 +150,13 @@ async fn flush_pending_cas(
             .iter()
             .map(|(_, digest)| digest.clone())
             .collect();
-        state.report.bytes_reclaimed += prune_store_index_digests(cache_dir, digests).await;
+        match prune_store_index_digests(cache_dir, digests).await {
+            Ok(reclaimed) => state.report.bytes_reclaimed += reclaimed,
+            Err(err) => {
+                tracing::warn!(error = %err, "pruning resolver store index failed; retaining CAS files");
+                return retain_all_pending_cas(pending, state, policy);
+            }
+        }
     }
     let mut skipped_bytes = 0u64;
     for (file, _) in pending {
@@ -151,14 +164,30 @@ async fn flush_pending_cas(
             state.report.files_evicted += 1;
             state.report.bytes_reclaimed += file.size;
         } else {
-            skipped_bytes += file.size;
-            if retain_skipped {
-                state.retained_bytes += file.size;
-                state.retained.push(file);
-            }
+            skipped_bytes += retain_cas_entry(file, state, policy);
         }
     }
     skipped_bytes
+}
+
+fn retain_all_pending_cas(
+    pending: Vec<(CachedFile, String)>,
+    state: &mut EvictionState,
+    policy: SkippedCasPolicy,
+) -> u64 {
+    pending
+        .into_iter()
+        .map(|(file, _)| retain_cas_entry(file, state, policy))
+        .sum()
+}
+
+fn retain_cas_entry(file: CachedFile, state: &mut EvictionState, policy: SkippedCasPolicy) -> u64 {
+    let size = file.size;
+    if matches!(policy, SkippedCasPolicy::RetainForSizeCheck) {
+        state.retained_bytes += size;
+        state.retained.push(file);
+    }
+    size
 }
 
 async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionState) {
@@ -179,13 +208,19 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
         }
         total_size = select_lru_entry(cache_dir, entry, total_size, state).await;
     }
-    total_size += flush_pending_cas(cache_dir, state, false).await;
+    total_size += flush_pending_cas(cache_dir, state, SkippedCasPolicy::CountTowardsSize).await;
     let updated_sqlite = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
     let remaining_total = total_size.saturating_sub(sqlite_bytes).saturating_add(updated_sqlite);
     if remaining_total > limit {
-        let floor = state.verdict_expiry.as_ref().map(|exp| exp.cutoff_ms);
-        state.report.bytes_reclaimed +=
-            trim_verdict_db_to_fit(cache_dir, remaining_total - limit, floor, state.effect).await;
+        let params = VerdictTrimParams {
+            excess_bytes: remaining_total - limit,
+            min_verified_at_ms: state.verdict_expiry.as_ref().map(|exp| exp.cutoff_ms),
+            deferred_free_bytes: state.verdict_expiry
+                .as_ref()
+                .map_or(0, |exp| exp.deferred_free_bytes),
+            effect: state.effect,
+        };
+        state.report.bytes_reclaimed += trim_verdict_db_to_fit(cache_dir, params).await;
     }
 }
 

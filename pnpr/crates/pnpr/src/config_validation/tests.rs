@@ -222,7 +222,7 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
     validate_startup_config(&mut valid_subdir).unwrap();
 
     let mut equal_paths = valid_subdir.clone();
-    equal_paths.storage.cache_dir = storage.clone();
+    equal_paths.storage.cache_dir = storage;
     let err = validate_startup_config(&mut equal_paths).unwrap_err().to_string();
     assert!(err.contains("cache path must not equal or contain"), "{err}");
 
@@ -238,13 +238,57 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
     let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
     assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
 
-    #[cfg(unix)]
-    {
-        let link = tmp.path().join("cache-link");
-        std::os::unix::fs::symlink(&storage, &link).unwrap();
-        let mut symlink_equal = valid_subdir;
-        symlink_equal.storage.cache_dir = link;
-        let err = validate_startup_config(&mut symlink_equal).unwrap_err().to_string();
-        assert!(err.contains("cache path must not equal or contain"), "{err}");
-    }
+    sqlite_in_cache.features.registry.enabled = false;
+    sqlite_in_cache.features.resolver.enabled = true;
+    let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
+    assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
+
+    let mut users_in_cache = valid_subdir.clone();
+    users_in_cache.storage.cache_dir = tmp.path().join("users-cache");
+    users_in_cache.identity.auth.users.file =
+        Some(users_in_cache.storage.cache_dir.join("users.json"));
+    let err = validate_startup_config(&mut users_in_cache).unwrap_err().to_string();
+    assert!(err.contains("auth file path must not live inside"), "{err}");
+
+    let mut tokens_in_cache = valid_subdir;
+    tokens_in_cache.storage.cache_dir = tmp.path().join("tokens-cache");
+    tokens_in_cache.identity.auth.tokens.file =
+        Some(tokens_in_cache.storage.cache_dir.join("tokens.db"));
+    let err = validate_startup_config(&mut tokens_in_cache).unwrap_err().to_string();
+    assert!(err.contains("auth file path must not live inside"), "{err}");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_symlinked_cache_paths_including_dot_dot_segments() {
+    let tmp = tempfile::tempdir().unwrap();
+    let storage = tmp.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+
+    let mut base = base_config();
+    base.has_configured_secret = true;
+    base.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
+    base.storage.hosted_dir = storage.clone();
+    base.storage.metadata = MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage));
+
+    let link = tmp.path().join("cache-link");
+    std::os::unix::fs::symlink(&storage, &link).unwrap();
+    let mut symlink_equal = base.clone();
+    symlink_equal.storage.cache_dir = link;
+    let err = validate_startup_config(&mut symlink_equal).unwrap_err().to_string();
+    assert!(err.contains("cache path must not equal or contain"), "{err}");
+
+    let else_deep = tmp.path().join("else/deep");
+    let else_hosted = tmp.path().join("else/hosted");
+    std::fs::create_dir_all(&else_deep).unwrap();
+    std::fs::create_dir_all(&else_hosted).unwrap();
+    let deep_link = tmp.path().join("deep-link");
+    std::os::unix::fs::symlink(&else_deep, &deep_link).unwrap();
+
+    let mut dotdot = base;
+    dotdot.storage.cache_dir = tmp.path().join("else");
+    dotdot.storage.hosted_dir = deep_link.join("../hosted");
+    dotdot.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("outside-meta.sqlite"));
+    let err = validate_startup_config(&mut dotdot).unwrap_err().to_string();
+    assert!(err.contains("cache path must not equal or contain"), "{err}");
 }

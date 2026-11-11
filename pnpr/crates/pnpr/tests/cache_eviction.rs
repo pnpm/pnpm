@@ -2,6 +2,7 @@
 //! and LRU/TTL eviction across upstream and resolver caches.
 
 mod security_and_scopes;
+mod sqlite_security;
 
 use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
 use pnpr::{

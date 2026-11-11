@@ -19,6 +19,14 @@ const CACHE_OVERLAPS_HOSTED_STORAGE: &str =
     "cache path must not equal or contain the storage directory";
 const CACHE_CONTAINS_METADATA_DB: &str =
     "database.url SQLite path must not live inside the disposable cache directory";
+const CACHE_CONTAINS_AUTH_FILE: &str =
+    "auth file path must not live inside the disposable cache directory";
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CacheDirCheck {
+    Unmarked,
+    ClaimedWithMarker,
+}
 
 /// Validate startup settings without opening databases or creating files.
 ///
@@ -42,41 +50,39 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     if norm_hosted.starts_with(&norm_cache) {
         return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
     }
-    if config.features.registry.enabled
-        && let MetadataBackend::Sqlite(db_path) = &config.storage.metadata
+    if let MetadataBackend::Sqlite(db_path) = &config.storage.metadata
         && !db_path.as_os_str().is_empty()
         && normalize_config_path(db_path)?.starts_with(&norm_cache)
     {
         return Err(invalid(CACHE_CONTAINS_METADATA_DB));
     }
+    for auth_file in
+        [&config.identity.auth.users.file, &config.identity.auth.tokens.file].into_iter().flatten()
+    {
+        if !auth_file.as_os_str().is_empty()
+            && normalize_config_path(auth_file)?.starts_with(&norm_cache)
+        {
+            return Err(invalid(CACHE_CONTAINS_AUTH_FILE));
+        }
+    }
     Ok(())
 }
 
 fn normalize_config_path(path: &Path) -> Result<PathBuf> {
-    let absolute = std::path::absolute(path)?;
-    let lexical = pnpm_fs::lexical_normalize(&absolute);
-    let mut tail = Vec::new();
-    let mut current = lexical.as_path();
-    while let Some(parent) = current.parent() {
-        match fs::canonicalize(current) {
-            Ok(mut resolved) => {
-                resolved.extend(tail.iter().rev());
-                return Ok(resolved);
-            }
-            Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
-                if let Some(name) = current.file_name() {
-                    tail.push(name);
-                }
-                current = parent;
-            }
-            Err(_) => return Ok(lexical),
-        }
-    }
-    Ok(lexical)
+    Ok(pnpm_fs::resolve_path_with_symlinks(path)?)
 }
 
-pub(crate) fn is_ignorable_cache_entry(name: &OsStr, allow_marker: bool) -> bool {
-    name == "lost+found" || (allow_marker && name == CACHE_SECRET_MARKER)
+pub(crate) fn is_ignorable_cache_entry(name: &OsStr, check: CacheDirCheck) -> bool {
+    if name == "lost+found" {
+        return true;
+    }
+    matches!(check, CacheDirCheck::ClaimedWithMarker)
+        && (name == CACHE_SECRET_MARKER || is_cache_secret_temp(name))
+}
+
+fn is_cache_secret_temp(name: &OsStr) -> bool {
+    name.as_encoded_bytes().starts_with(b".cache-secret.tmp.")
+        && pnpr_storage::is_atomic_write_temp_path(Path::new(name))
 }
 
 pub(crate) fn validate_cache_secret(config: &Config) -> Result<()> {
@@ -111,7 +117,7 @@ fn validate_ephemeral_cache_dir(cache_dir: &Path, cache_secret: &[u8]) -> Result
     };
     for entry in entries {
         let entry = entry?;
-        if !is_ignorable_cache_entry(&entry.file_name(), false) {
+        if !is_ignorable_cache_entry(&entry.file_name(), CacheDirCheck::Unmarked) {
             return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
         }
     }

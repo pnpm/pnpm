@@ -321,3 +321,17 @@ fn open_descendant_and_remove_child_file_reject_substituted_symlink() {
             .unwrap(),
     );
 }
+
+#[test]
+fn has_symlink_child_and_try_reopen_distinguish_links_and_real_entries() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(root.path()).unwrap();
+
+    assert!(dir.has_symlink_child("link".as_ref()).unwrap());
+    assert!(!dir.has_symlink_child("real".as_ref()).unwrap());
+    assert!(!dir.has_symlink_child("missing".as_ref()).unwrap());
+
+    let reopened = dir.try_reopen().unwrap();
+    assert_eq!(reopened.canonical_path().unwrap(), dir.canonical_path().unwrap());
+}
