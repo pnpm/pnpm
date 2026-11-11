@@ -305,3 +305,65 @@ async fn the_record_address_decides_the_revision() {
     let picked = with_release_record(&ctx, &registry, picked, None).await.expect("read");
     assert_eq!(picked.dist.revision, None);
 }
+
+#[tokio::test]
+async fn local_release_records_retry_transient_statuses_but_not_denials() {
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    for status in [503, 403] {
+        let mut server = mockito::Server::new_async().await;
+        let failed = server
+            .mock("GET", "/acme/1.0.0+r0")
+            .with_status(status)
+            .expect(1)
+            .create_async()
+            .await;
+        let retries = usize::from(status == 503);
+        let succeeded = server
+            .mock("GET", "/acme/1.0.0+r0")
+            .with_body(record("acme", "1.0.0"))
+            .expect(retries)
+            .create_async()
+            .await;
+        let registry = format!("{}/", server.url());
+        let mut install = Install::new(&registry, true);
+        let hook = Arc::new(LocalRecord::default());
+        install.auth_headers =
+            AuthHeaders::default().with_route_hook(Arc::<LocalRecord>::clone(&hook));
+        let mut ctx = install.ctx(None, NetworkPolicy::default());
+        ctx.metadata.http.retry_opts = RetryOpts {
+            retries: 1,
+            factor: 1,
+            min_timeout: Duration::ZERO,
+            max_timeout: Duration::ZERO,
+        };
+        let picked = listed("acme", InstallV2Entry::External, &json!({}));
+        let result = with_release_record(&ctx, &registry, picked, None).await;
+        assert_eq!(result.is_ok(), status == 503);
+        assert_eq!(hook.calls.load(Ordering::SeqCst), 1 + retries);
+        failed.assert_async().await;
+        succeeded.assert_async().await;
+    }
+}
+
+#[derive(Default)]
+struct LocalRecord {
+    calls: std::sync::atomic::AtomicUsize,
+}
+
+impl pnpm_network::UpstreamRouteHook for LocalRecord {
+    fn authorize(&self, _: &str, _: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn fetch_local(
+        &self,
+        url: &str,
+        _: reqwest::header::HeaderMap,
+    ) -> Option<pnpm_network::LocalResponse> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let url = url.to_string();
+        Some(Box::pin(async move { reqwest::get(url).await.unwrap() }))
+    }
+}

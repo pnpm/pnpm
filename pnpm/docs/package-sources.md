@@ -228,6 +228,12 @@ pnpm add RexSkz/test-git-subdir-fetch.git#beta\&path:/packages/simple-react-app
 
 Installs from the `beta` branch and only the subdirectory at `/packages/simple-react-app`.
 
+pnpm also accepts npm's syntax, which separates the parameters with `::`:
+
+```sh
+pnpm add RexSkz/test-git-subdir-fetch.git#beta::path:packages/simple-react-app
+```
+
 #### How Git dependencies are resolved
 
 Added in: v12.0.0 (pnpm v12 only)

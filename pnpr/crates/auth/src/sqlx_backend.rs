@@ -8,13 +8,12 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    DEFAULT_BCRYPT_COST, NewToken, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome,
-    UserBackend, UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash,
-    sha256_hex,
-    token_store::{mint_token, unix_seconds},
+    DEFAULT_BCRYPT_COST, PasswordChange, TokenRecord, UpsertOutcome, UserBackend, UserCreation,
+    UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash, token_store::unix_millis,
     verify_returning_user, with_auth_timeout,
 };
 mod request_pool;
+mod tokens;
 use request_pool::RequestPool;
 
 use crate::validation::validate_username;
@@ -36,7 +35,7 @@ pub(crate) struct SqlAuth<Db> {
     timeout: Duration,
 }
 
-const CAP_RECONCILE_INTERVAL_SECS: u64 = 60;
+const CAP_RECONCILE_INTERVAL_MILLIS: u64 = 60_000;
 
 impl<Db> SqlAuth<Db> {
     fn new(db: Db, max_users: MaxUsers, timeout: Duration) -> Self {
@@ -74,12 +73,12 @@ impl<Db> SqlAuth<Db> {
     where
         Db: AuthSqlBackend,
     {
-        let now = unix_seconds();
+        let now = unix_millis();
         let next = self.next_cap_reconcile_at.load(Ordering::Relaxed);
         if now < next {
             return Ok(false);
         }
-        let updated_next = now.saturating_add(CAP_RECONCILE_INTERVAL_SECS);
+        let updated_next = now.saturating_add(CAP_RECONCILE_INTERVAL_MILLIS);
         if self.next_cap_reconcile_at
             .compare_exchange(next, updated_next, Ordering::Relaxed, Ordering::Relaxed)
             .is_err()
@@ -127,7 +126,24 @@ impl<Db> SqlAuth<Db> {
 trait AuthSqlBackend: Send + Sync {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
     async fn account_name(&self, user_id: &str) -> Result<Option<String>>;
+    async fn account_login(&self, _user_id: &str) -> Result<Option<crate::AccountLogin>> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account renames are not supported by this account backend"
+                .to_string(),
+        })
+    }
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()>;
+    async fn rename_user_if_current(
+        &self,
+        _user_id: &str,
+        _expected_revision: u64,
+        _username: &str,
+    ) -> Result<crate::UserRename> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account renames are not supported by this account backend"
+                .to_string(),
+        })
+    }
     async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
         let mut accounts = Vec::new();
         for username in self.list_usernames().await? {
@@ -325,89 +341,23 @@ where
         with_auth_timeout(self.timeout, self.db.account_name(user_id)).await
     }
 
+    async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
+        with_auth_timeout(self.timeout, self.db.account_login(user_id)).await
+    }
+
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
         validate_username(username)?;
         self.db.rename_user(user_id, username).await
     }
 
-    async fn check_readiness(&self) -> Result<()> {
-        self.check_db_readiness().await
-    }
-}
-
-#[async_trait]
-impl<Db> TokenBackend for SqlAuth<Db>
-where
-    Db: AuthSqlBackend,
-{
-    async fn issue_token(
+    async fn rename_user_if_current(
         &self,
         user_id: &str,
-        new_token: NewToken,
-    ) -> Result<(String, TokenRecord)> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, user_id);
-        let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds();
-        let record = TokenRecord {
-            owner_name: None,
-            user_id: user_id.to_string(),
-            created_at: now,
-            last_used_at: now,
-            readonly: new_token.readonly,
-            cidr_whitelist: new_token.cidr_whitelist,
-            name: new_token.name,
-            expires_at: new_token.expires_at,
-            scopes: new_token.scopes,
-            kind: new_token.kind,
-        };
-        self.db.insert_token(&token_hash, &record).await?;
-        Ok((raw, record))
-    }
-
-    async fn issue(&self, user_id: &str) -> Result<String> {
-        let (raw, _) = self.issue_token(user_id, NewToken::default()).await?;
-        Ok(raw)
-    }
-
-    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
-        with_auth_timeout(self.timeout, self.db.touch_token(key, now)).await
-    }
-
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
-        let now = unix_seconds();
-        match record {
-            Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r.user_id)),
-            _ => Ok(None),
-        }
-    }
-
-    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
-        let now = unix_seconds();
-        match record {
-            Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r)),
-            _ => Ok(None),
-        }
-    }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        with_auth_timeout(self.timeout, self.db.find_token(key)).await
-    }
-
-    async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
-        with_auth_timeout(self.timeout, self.db.list_tokens(user_id)).await
-    }
-
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
-            return Ok(None);
-        };
-        self.db.delete_token(key).await?;
-        Ok(Some(record))
+        expected_revision: u64,
+        username: &str,
+    ) -> Result<crate::UserRename> {
+        validate_username(username)?;
+        self.db.rename_user_if_current(user_id, expected_revision, username).await
     }
 
     async fn check_readiness(&self) -> Result<()> {

@@ -77,6 +77,11 @@ pub trait Connection {
         None
     }
 
+    /// Dialect-specific `CREATE TABLE` statement for `hosted_store`.
+    fn hosted_store_table(&self) -> &'static str {
+        "CREATE TABLE IF NOT EXISTS hosted_store (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL) STRICT"
+    }
+
     /// Run one DDL statement in a migration step. On backends where DDL
     /// commits implicitly (`MySQL`), checks `information_schema` before
     /// `CREATE [UNIQUE] INDEX` and `ALTER TABLE ... ADD COLUMN` so an

@@ -4,9 +4,9 @@
 //! state as rows of a SQL database and renders documents from them. The
 //! registry's handlers reach one namespace of it through [`Storage`]: reading
 //! a package view, committing a package document, changing a tag, removing a
-//! package. The database also owns removed-package claims, registry records,
-//! and staged-publish metadata. Archives and staged bodies stay in the hosted
-//! backend.
+//! package. The database also owns removed-package claims, SCIM accounts, team
+//! rosters, rule overrides, CDN invalidations, and staged-publish metadata.
+//! Archives and staged bodies stay in the hosted backend.
 
 pub(crate) mod sql;
 
@@ -24,7 +24,12 @@ pub use publication::{
     RecordedOutcome, ReleaseRecords,
 };
 pub(crate) use sql::PackageMetadata;
-pub use sql::{CdnInvalidation, Mapping, RenderStats, SqlMetadata, TagHistoryEntry, Unmapping};
+pub use sql::{
+    CdnInvalidation, Mapping, NewScimUser, RenderStats, RuleOverridesWrite, ScimStatus,
+    ScimUserRemoval, ScimUserWrite, SqlMetadata, StoredPackageOverride, StoredRuleOverrideSet,
+    StoredRuleOverrides, StoredScimUser, StoredTeam, StoredTeamRoster, TagHistoryEntry,
+    TeamRosterWrite, Unmapping,
+};
 pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};
 
@@ -45,21 +50,21 @@ use std::{fmt, sync::Arc};
 /// inputs the profile derived it from.
 pub const ARCHIVE_MANIFEST_FIELD: &str = "_archiveManifest";
 
-/// A committed state of one hosted catalog: the organization namespace a
-/// package lives in. Every committed mutation advances its catalog's counter,
-/// so two generations of one catalog order its commits. Counters of different
-/// catalogs are unrelated and never compared.
+/// A committed state of one hosted namespace. Every committed mutation
+/// advances its namespace's counter, so two generations of one namespace order
+/// its commits. Counters of different namespaces are unrelated and never
+/// compared.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Generation {
-    /// The organization namespace; empty for the default one.
-    pub catalog: String,
+    /// The hosted namespace; empty for the default one.
+    pub namespace: String,
     pub value: u64,
 }
 
 impl fmt::Display for Generation {
-    /// `<catalog>:<value>`, the token a response carries.
+    /// `<namespace>:<value>`, the token a response carries.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}:{}", self.catalog, self.value)
+        write!(formatter, "{}:{}", self.namespace, self.value)
     }
 }
 
@@ -199,7 +204,7 @@ impl Storage {
         self.metadata.read_view(name).await
     }
 
-    /// [`Self::read_hosted_package_view`] at catalog generation `generation`
+    /// [`Self::read_hosted_package_view`] at namespace generation `generation`
     /// or later, such as the generation a client has already seen. With an
     /// embedded replica behind it, the read waits for the replica to sync or
     /// reads the primary.

@@ -7,10 +7,11 @@ use serde_json::Value;
 
 use crate::server::parse_json_body;
 
-const SECONDS_PER_DAY: u64 = 86_400;
-/// `9999-12-31T23:59:59Z`, the last Unix-second timestamp that formats as a
-/// four-digit-year RFC 3339 string.
-const MAX_TOKEN_TIMESTAMP_SECONDS: u64 = 253_402_300_799;
+const MILLIS_PER_SECOND: u64 = 1_000;
+const MILLIS_PER_DAY: u64 = 86_400_000;
+/// `9999-12-31T23:59:59.999Z`, the last Unix-millisecond timestamp that formats
+/// as a four-digit-year RFC 3339 string.
+const MAX_TOKEN_TIMESTAMP_MILLIS: u64 = 253_402_300_799_999;
 const MAX_TOKEN_KIND_CHARS: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,7 +23,7 @@ pub(super) enum TokenAccess {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TokenExpiry {
     Never,
-    AfterSeconds(u64),
+    AfterMillis(u64),
     AtTimestamp(u64),
 }
 
@@ -30,15 +31,15 @@ impl TokenExpiry {
     pub(super) fn resolve(self, now: u64) -> Result<Option<u64>, RegistryError> {
         match self {
             Self::Never => Ok(None),
-            Self::AfterSeconds(seconds) => now
-                .checked_add(seconds)
-                .filter(|&ts| ts <= MAX_TOKEN_TIMESTAMP_SECONDS)
+            Self::AfterMillis(millis) => now
+                .checked_add(millis)
+                .filter(|&ts| ts <= MAX_TOKEN_TIMESTAMP_MILLIS)
                 .map(Some)
                 .ok_or_else(|| RegistryError::BadRequest {
                     reason: "expiry timestamp overflows supported range".to_string(),
                 }),
             Self::AtTimestamp(ts) => {
-                if ts <= now || ts > MAX_TOKEN_TIMESTAMP_SECONDS {
+                if ts <= now || ts > MAX_TOKEN_TIMESTAMP_MILLIS {
                     return Err(RegistryError::BadRequest {
                         reason: "expiry must be in the future".to_string(),
                     });
@@ -49,12 +50,20 @@ impl TokenExpiry {
     }
 }
 
+/// What the credential that calls the token API may pass on to a token it
+/// creates without a password.
+pub(super) struct CredentialLimits {
+    pub(super) cidr_whitelist: Vec<String>,
+    pub(super) expires_at: Option<u64>,
+}
+
 pub(super) struct ValidatedTokenRequest {
     password: Option<String>,
     access: TokenAccess,
     cidr_whitelist: Vec<String>,
     name: Option<String>,
     expiry: TokenExpiry,
+    latest_expiry: Option<u64>,
     kind: Option<String>,
 }
 
@@ -63,8 +72,28 @@ impl ValidatedTokenRequest {
         self.password.as_deref()
     }
 
+    /// Narrow the request to `limits`. Without a requested CIDR whitelist the
+    /// token takes the caller's. A requested network outside the caller's
+    /// whitelist is refused. The token expires no later than the caller's
+    /// credential.
+    pub(super) fn within(mut self, limits: CredentialLimits) -> Result<Self, RegistryError> {
+        if !limits.cidr_whitelist.is_empty() {
+            if self.cidr_whitelist.is_empty() {
+                self.cidr_whitelist = limits.cidr_whitelist;
+            } else {
+                check_cidr_whitelist_within(&self.cidr_whitelist, &limits.cidr_whitelist)?;
+            }
+        }
+        self.latest_expiry = limits.expires_at;
+        Ok(self)
+    }
+
     pub(super) fn into_new_token(self, now: u64) -> Result<pnpr_auth::NewToken, RegistryError> {
-        let expires_at = self.expiry.resolve(now)?;
+        let requested_expiry = self.expiry.resolve(now)?;
+        let expires_at = match (requested_expiry, self.latest_expiry) {
+            (Some(requested), Some(latest)) => Some(requested.min(latest)),
+            (requested, latest) => requested.or(latest),
+        };
         let readonly = match self.access {
             TokenAccess::ReadOnly => true,
             TokenAccess::ReadWrite => false,
@@ -127,6 +156,7 @@ pub(super) fn parse_and_validate_token_request(
         cidr_whitelist,
         name: payload.name,
         expiry,
+        latest_expiry: None,
         kind: payload.kind,
     })
 }
@@ -198,6 +228,29 @@ fn validate_cidr_whitelist(whitelist: &[String]) -> Result<(), RegistryError> {
     Ok(())
 }
 
+fn check_cidr_whitelist_within(
+    requested: &[String],
+    allowed: &[String],
+) -> Result<(), RegistryError> {
+    let allowed = pnpr_config::IpNetworkSet::new(
+        allowed
+            .iter()
+            .filter_map(|entry| pnpr_config::IpNetwork::parse(entry.trim()).ok()),
+    );
+    for entry in requested {
+        let inside = pnpr_config::IpNetwork::parse(entry.trim())
+            .is_ok_and(|network| allowed.covers(&network));
+        if !inside {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "CIDR whitelist entry {entry} is outside the calling token's CIDR whitelist",
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn validate_kind(kind: Option<&str>) -> Result<(), RegistryError> {
     if let Some(kind) = kind
         && kind.chars().count() > MAX_TOKEN_KIND_CHARS
@@ -220,7 +273,7 @@ fn parse_token_expiry(
         (None, Some(0)) => Err(RegistryError::BadRequest {
             reason: "expires_in must be greater than 0".to_string(),
         }),
-        (None, Some(seconds)) => Ok(TokenExpiry::AfterSeconds(seconds)),
+        (None, Some(seconds)) => expiry_from_seconds(seconds),
         (Some(val), None) => parse_expires_value(val),
         (None, None) => Ok(TokenExpiry::Never),
     }
@@ -257,12 +310,21 @@ fn parse_expires_string(raw: &str) -> Result<TokenExpiry, RegistryError> {
         .map_err(|_| RegistryError::BadRequest {
             reason: format!("unsupported expires format: {raw}"),
         })?;
-    let Ok(timestamp) = u64::try_from(dt.timestamp()) else {
+    let Ok(timestamp) = u64::try_from(dt.timestamp_millis()) else {
         return Err(RegistryError::BadRequest {
             reason: "expiry must be in the future".to_string(),
         });
     };
     Ok(TokenExpiry::AtTimestamp(timestamp))
+}
+
+fn expiry_from_seconds(seconds: u64) -> Result<TokenExpiry, RegistryError> {
+    let millis = seconds
+        .checked_mul(MILLIS_PER_SECOND)
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: "expiry timestamp overflows supported range".to_string(),
+        })?;
+    Ok(TokenExpiry::AfterMillis(millis))
 }
 
 fn expiry_from_days(days: u64) -> Result<TokenExpiry, RegistryError> {
@@ -271,10 +333,10 @@ fn expiry_from_days(days: u64) -> Result<TokenExpiry, RegistryError> {
             reason: "expires must be greater than 0 days".to_string(),
         });
     }
-    let seconds = days
-        .checked_mul(SECONDS_PER_DAY)
+    let millis = days
+        .checked_mul(MILLIS_PER_DAY)
         .ok_or_else(|| RegistryError::BadRequest {
             reason: "expiry timestamp overflows supported range".to_string(),
         })?;
-    Ok(TokenExpiry::AfterSeconds(seconds))
+    Ok(TokenExpiry::AfterMillis(millis))
 }

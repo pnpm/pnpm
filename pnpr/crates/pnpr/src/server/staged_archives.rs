@@ -1,12 +1,6 @@
-//! `PUT` and `HEAD /-/pnpr/v0/artifacts/blob?integrity=<sha512-...>` with no
-//! owner: stage a release archive by integrity ahead of the publish commit
-//! that references it
+//! `PUT` and `HEAD /-/pnpr/v0/publish/archives/{integrity}`: stage a release
+//! archive by integrity ahead of the publish commit that references it
 //! ([atomic workspace publication](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-atomic-workspace-publication.md)).
-//!
-//! The same route with an `organization` owner stores a shared build
-//! artifact's blob instead (see [`super::pnpr_protocol`]); [`serve_put_blob`]
-//! and [`serve_head_blob`] choose between the two by whether the query names
-//! an owner.
 //!
 //! A staged archive belongs to the principal that uploaded it, and only a
 //! commit by that principal can claim it. Nothing is published by staging:
@@ -17,14 +11,11 @@ use super::{
     AppState, AuthedCaller, Body, Identity, MAX_PUBLISH_BODY_BYTES, Response, State, StatusCode,
     header, private_no_cache,
 };
-use axum::{
-    http::{HeaderMap, Uri},
-    response::IntoResponse,
-};
+use axum::{extract::Path, http::HeaderMap, response::IntoResponse};
 use futures_util::StreamExt as _;
 use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
 use pnpr_error::RegistryError;
-use pnpr_storage::{StagedArchiveKey, Storage};
+use pnpr_storage::{BlobId, StagedArchiveKey, Storage};
 use sha2::{Digest as _, Sha512};
 use std::{
     collections::HashMap,
@@ -106,53 +97,46 @@ const MIN_UPLOAD_BYTES_PER_SECOND: u64 = 256 * 1024;
 /// The most an upload reserves before its bytes arrive.
 const INITIAL_BUFFER_BYTES: u64 = 1024 * 1024;
 
-/// `PUT /-/pnpr/v0/artifacts/blob`: a release archive without an owner, a
-/// shared artifact's blob with one.
-pub(super) async fn serve_put_blob(
+/// The archive a staging route names. The route may also name the registry
+/// it is mounted under, which staging ignores.
+#[derive(serde::Deserialize)]
+pub(super) struct ArchivePath {
+    integrity: String,
+}
+
+/// `PUT /-/pnpr/v0/publish/archives/{integrity}`: stage a release archive.
+pub(super) async fn serve_stage_archive(
     state: State<AppState>,
     caller: AuthedCaller,
-    uri: Uri,
+    Path(ArchivePath { integrity }): Path<ArchivePath>,
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    if names_owner(&uri) {
-        if let Err(response) = artifact_caller(&state, &headers).await {
-            return response;
-        }
-        return super::serve_upload_artifact_blob(state, caller, uri, headers, body).await;
-    }
-    if !state.inner.config.features.registry.enabled {
+    if state.inner.config.routing.hosted.is_empty() {
         return private_no_cache(StatusCode::NOT_FOUND.into_response());
     }
     private_no_cache(
-        stage_archive(&state, &caller.0, &uri, &headers, body).await
+        stage_archive(&state, &caller.0, integrity, &headers, body).await
             .map_or_else(IntoResponse::into_response, |created| {
                 if created { StatusCode::CREATED } else { StatusCode::OK }.into_response()
             }),
     )
 }
 
-/// `HEAD /-/pnpr/v0/artifacts/blob`: whether a release archive is staged
-/// without an owner, whether a shared artifact's blob is stored with one.
-pub(super) async fn serve_head_blob(
+/// `HEAD /-/pnpr/v0/publish/archives/{integrity}`: whether the caller holds
+/// the archive staged.
+pub(super) async fn serve_staged_archive_size(
     state: State<AppState>,
     caller: AuthedCaller,
-    uri: Uri,
-    headers: HeaderMap,
+    Path(ArchivePath { integrity }): Path<ArchivePath>,
 ) -> Response {
-    if names_owner(&uri) {
-        if let Err(response) = artifact_caller(&state, &headers).await {
-            return response;
-        }
-        return super::serve_artifact_blob_size(state, caller, uri).await;
-    }
-    if !state.inner.config.features.registry.enabled {
+    if state.inner.config.routing.hosted.is_empty() {
         return private_no_cache(StatusCode::NOT_FOUND.into_response());
     }
     let result = async {
         let principal = principal(&caller.0)?;
-        let digest = query_digest(&uri)?;
-        state.inner.storage.staged_archive_size(&StagedArchiveKey { principal, digest: &digest })
+        let blob_id = archive_blob_id(&integrity)?;
+        state.inner.storage.staged_archive_size(&StagedArchiveKey { principal, blob_id: &blob_id })
             .await
     }
     .await;
@@ -163,39 +147,20 @@ pub(super) async fn serve_head_blob(
     })
 }
 
-/// Admit a shared artifact's blob request as the artifact surface does for
-/// its other routes: only when the surface is served, and only for a caller
-/// its protocol credentials identify. The release archive routes skip this
-/// and accept the registry's credentials.
-async fn artifact_caller(state: &AppState, headers: &HeaderMap) -> Result<(), Response> {
-    if state.inner.builds.artifacts.is_none() {
-        return Err(private_no_cache(StatusCode::NOT_FOUND.into_response()));
-    }
-    match super::request_access::caller_user_id(state, headers).await {
-        Ok(Some(_)) => Ok(()),
-        Ok(None) => {
-            Err(RegistryError::Unauthenticated { resource: "shared artifacts".to_string() }
-                .into_response())
-        }
-        Err(error) => Err(error.into_response()),
-    }
-}
-
 /// Stage the archive streamed in `body` for the caller. `Ok(false)` when the
 /// caller had it staged already, which renews it.
 async fn stage_archive(
     state: &AppState,
     identity: &Identity,
-    uri: &Uri,
+    integrity: String,
     headers: &HeaderMap,
     body: Body,
 ) -> Result<bool, RegistryError> {
     let principal = principal(identity)?;
-    let integrity = query_integrity(uri)?;
-    let digest = archive_digest(&integrity)?;
+    let blob_id = archive_blob_id(&integrity)?;
     let size = declared_size(headers)?;
     let storage = &state.inner.storage;
-    let key = StagedArchiveKey { principal, digest: &digest };
+    let key = StagedArchiveKey { principal, blob_id: &blob_id };
     // The principal's own permit first, so its uploads queue behind each
     // other rather than taking every permit of the server.
     let _principal_upload = state.inner.locks
@@ -347,13 +312,13 @@ pub(super) async fn claim_staged_archive(
         bad_request(format!(
             "{filename} references the staged archive {integrity}, which the publishing account \
              has not staged or which has expired; upload it again with \
-             PUT /-/pnpr/v0/artifacts/blob?integrity=<integrity> before publishing",
+             PUT /-/pnpr/v0/publish/archives/<integrity> before publishing",
         ))
     };
     let principal = claimant.ok_or_else(not_staged)?;
-    let digest = archive_digest(integrity)?;
+    let blob_id = archive_blob_id(integrity)?;
     storage
-        .read_staged_archive(&StagedArchiveKey { principal, digest: &digest })
+        .read_staged_archive(&StagedArchiveKey { principal, blob_id: &blob_id })
         .await?
         .ok_or_else(not_staged)
 }
@@ -363,7 +328,7 @@ pub(super) async fn claim_staged_archive(
 #[derive(Default)]
 pub(super) struct StagedReferences {
     principal: Option<String>,
-    digests: Vec<String>,
+    blob_ids: Vec<BlobId>,
 }
 
 impl StagedReferences {
@@ -405,28 +370,28 @@ impl StagedReferences {
         }
         // Each distinct archive is looked up once, and counted once per
         // reference.
-        let mut references: HashMap<String, u64> = HashMap::new();
+        let mut references: HashMap<BlobId, u64> = HashMap::new();
         for integrity in integrities {
             *references
-                .entry(archive_digest(integrity)?)
+                .entry(archive_blob_id(integrity)?)
                 .or_default() += 1;
         }
         let mut total = 0_u64;
-        for (digest, count) in &references {
-            let key = StagedArchiveKey { principal, digest };
+        for (blob_id, count) in &references {
+            let key = StagedArchiveKey { principal, blob_id };
             // One that is missing is reported, with its attachment, when it
             // is claimed.
             let size = storage.claimable_staged_archive_size(&key).await?.unwrap_or(0);
             total = total.saturating_add(size.saturating_mul(*count));
         }
-        let digests = references.into_keys().collect();
+        let blob_ids = references.into_keys().collect();
         if total > limit {
             return Err(bad_request(format!(
                 "the publish references {total} bytes of staged archives, more than the {limit} \
                  one publish may take",
             )));
         }
-        Ok(Self { principal: Some(principal.to_string()), digests })
+        Ok(Self { principal: Some(principal.to_string()), blob_ids })
     }
 
     /// Retire the archives the committed request claimed, so they stop
@@ -434,8 +399,8 @@ impl StagedReferences {
     /// expires anyway.
     pub(super) async fn release(self, storage: &Storage) {
         let Some(principal) = self.principal.as_deref() else { return };
-        for digest in &self.digests {
-            let key = StagedArchiveKey { principal, digest };
+        for blob_id in &self.blob_ids {
+            let key = StagedArchiveKey { principal, blob_id };
             if let Err(error) = storage.retire_staged_archive(&key).await {
                 tracing::warn!(%error, "a claimed staged archive was not retired");
             }
@@ -453,36 +418,11 @@ pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {
         })
 }
 
-/// The hex SHA-512 digest a staged archive with `integrity` is stored under.
-pub(super) fn archive_digest(integrity: &str) -> Result<String, RegistryError> {
-    blob_id(integrity).map_err(|err| bad_request(err.to_string()))
-}
-
-/// Whether a blob request names a shared artifact's owner.
-fn names_owner(uri: &Uri) -> bool {
-    query_pairs(uri).any(|(key, _)| matches!(key.as_ref(), "organization" | "publisher"))
-}
-
-fn query_integrity(uri: &Uri) -> Result<String, RegistryError> {
-    let mut integrities = query_pairs(uri)
-        .filter(|(key, _)| key == "integrity")
-        .map(|(_, value)| value.into_owned());
-    match (integrities.next(), integrities.next()) {
-        (Some(integrity), None) => Ok(integrity),
-        _ => Err(bad_request("a staged archive request names one integrity".to_string())),
-    }
-}
-
-fn query_digest(uri: &Uri) -> Result<String, RegistryError> {
-    archive_digest(&query_integrity(uri)?)
-}
-
-fn query_pairs(uri: &Uri) -> url::form_urlencoded::Parse<'_> {
-    url::form_urlencoded::parse(
-        uri.query()
-            .unwrap_or_default()
-            .as_bytes(),
-    )
+/// The hosted-store identity a staged archive with `integrity` is stored under.
+pub(super) fn archive_blob_id(integrity: &str) -> Result<BlobId, RegistryError> {
+    let digest = blob_id(integrity).map_err(|err| bad_request(err.to_string()))?;
+    BlobId::parse(&format!("sha512-{digest}"))
+        .ok_or_else(|| bad_request(format!("invalid staged archive integrity {integrity:?}")))
 }
 
 fn bad_request(reason: String) -> RegistryError {

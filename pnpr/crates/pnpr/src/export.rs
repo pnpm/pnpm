@@ -28,17 +28,17 @@ pub async fn export_storage(
     let mut report = ExportReport { out_dir: out.to_path_buf(), ..Default::default() };
 
     let namespaces = configured_hosted_namespaces(config);
-    for org in namespaces {
-        let org_storage = storage.for_hosted(&org, Ecosystem::Npm);
-        let base_out = if org.is_empty() { out.to_path_buf() } else { out.join(&org) };
+    for namespace in namespaces {
+        let npm_storage = storage.for_hosted(&namespace, Ecosystem::Npm);
+        let base_out = if namespace.is_empty() { out.to_path_buf() } else { out.join(&namespace) };
 
-        let package_names = org_storage
+        let package_names = npm_storage
             .hosted_package_names()
             .await
             .map_err(|err| miette::miette!("failed to list hosted packages: {err}"))?;
 
         for pkg_name in package_names {
-            export_package(&org_storage, &pkg_name, &base_out, &mut report).await?;
+            export_package(&npm_storage, &pkg_name, &base_out, &mut report).await?;
         }
     }
 
@@ -61,16 +61,16 @@ pub(crate) async fn open_hosted_storage(config: &Config) -> miette::Result<Stora
 }
 
 pub(crate) fn configured_hosted_namespaces(config: &Config) -> Vec<String> {
-    let mut orgs = Vec::new();
+    let mut namespaces = Vec::new();
     for hosted in config.routing.hosted.values() {
-        if !orgs.contains(&hosted.org) {
-            orgs.push(hosted.org.clone());
+        if !namespaces.contains(&hosted.namespace) {
+            namespaces.push(hosted.namespace.clone());
         }
     }
-    if orgs.is_empty() {
-        orgs.push(String::new());
+    if namespaces.is_empty() {
+        namespaces.push(String::new());
     }
-    orgs
+    namespaces
 }
 
 async fn export_package(

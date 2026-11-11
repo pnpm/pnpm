@@ -340,3 +340,21 @@ test('resolveNodeRuntime() includes win32-arm64 target on win-x64 variant for No
   })
 })
 
+
+test('resolveNodeRuntime() picks again a locked runtime from another release channel', async () => {
+  const nightly = '26.0.0-nightly20260101abcdef'
+  const resolveLocked = (bareSpecifier: string) => resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    offline: true,
+  }, { alias: 'node', bareSpecifier }, {
+    currentPkg: {
+      id: `node@runtime:${nightly}`,
+      version: nightly,
+      resolution: { type: 'variations', variants: [] },
+    },
+  } as never)
+
+  await expect(resolveLocked('runtime:nightly/^26')).resolves.toMatchObject({ id: `node@runtime:${nightly}` })
+  await expect(resolveLocked('runtime:rc/^26')).rejects.toThrow(/Offline Node.js resolution is not supported/)
+  await expect(resolveLocked('runtime:^26')).rejects.toThrow(/Offline Node.js resolution is not supported/)
+})

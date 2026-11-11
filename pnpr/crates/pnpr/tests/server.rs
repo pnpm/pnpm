@@ -1,3 +1,6 @@
+#[path = "server/resolver_local.rs"]
+mod resolver_local;
+
 #[path = "server/registry_discovery.rs"]
 mod registry_discovery;
 
@@ -64,7 +67,7 @@ mod audit;
 #[path = "server/web_login.rs"]
 mod web_login;
 
-use crate::registry_groups;
+use crate::multi_ecosystem;
 
 use axum::{
     Router,
@@ -114,9 +117,9 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
 /// the given registry-level default `access:`. Unpublish defaults to any
 /// authenticated user, the registry-mock contract these fixtures always ran
 /// under (the safe per-registry default would deny destructive writes).
-fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
+fn hosted_with_access(namespace: &str, access: &str) -> HostedConfig {
     HostedConfig::new(
-        org,
+        namespace,
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
             .with_default_unpublish(AccessList::from_tokens(["$authenticated"])),
     )
@@ -624,9 +627,9 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     config
 }
 
-/// Seed a hosted package directly into `org`'s namespace of the hosted store
-/// at `storage` (`""` for the default namespace), as a publish would have.
-fn seed_hosted(storage: &Path, org: &str, pkg: &str) {
+/// Seed a hosted package directly into `namespace` of the hosted store at
+/// `storage` (`""` for the default namespace), as a publish would have.
+fn seed_hosted(storage: &Path, namespace: &str, pkg: &str) {
     let packument = json!({
         "name": pkg,
         "dist-tags": { "latest": "1.0.0" },
@@ -635,7 +638,7 @@ fn seed_hosted(storage: &Path, org: &str, pkg: &str) {
             "shasum": "abc",
         } } },
     });
-    write_hosted_packument(storage, org, pkg, &packument);
+    write_hosted_packument(storage, namespace, pkg, &packument);
 }
 
 fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
@@ -645,24 +648,30 @@ fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
     write_hosted_packument(storage, "", pkg, &packument);
 }
 
-/// The packument of `pkg` in `org`'s namespace of the hosted store at
-/// `storage`, as its metadata holds it.
-fn read_hosted_packument(storage: &Path, org: &str, pkg: &str) -> Option<Value> {
-    pnpr_fixtures::read_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg)
+/// The packument of `pkg` in `namespace` of the hosted store at `storage`,
+/// as its metadata holds it.
+fn read_hosted_packument(storage: &Path, namespace: &str, pkg: &str) -> Option<Value> {
+    pnpr_fixtures::read_hosted_document(storage, namespace, pnpr_storage::Ecosystem::Npm, pkg)
         .map(|bytes| serde_json::from_slice(&bytes).unwrap())
 }
 
-fn write_hosted_packument(storage: &Path, org: &str, pkg: &str, packument: &Value) {
+fn write_hosted_packument(storage: &Path, namespace: &str, pkg: &str, packument: &Value) {
     let bytes = serde_json::to_vec(packument).unwrap();
-    pnpr_fixtures::write_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg, &bytes);
+    pnpr_fixtures::write_hosted_document(
+        storage,
+        namespace,
+        pnpr_storage::Ecosystem::Npm,
+        pkg,
+        &bytes,
+    );
 }
 
-/// The grouped config declares `internal` and the `main` router over it in
-/// every ecosystem; a caller who cannot see them gets neither, and no default.
-fn assert_grouped_ecosystem(directory: &Value, ecosystem: Ecosystem, visible: bool) {
+/// A caller who cannot see a registry or its router gets neither in the
+/// directory, and no default.
+fn assert_ecosystem_directory(directory: &Value, ecosystem: Ecosystem, visible: bool) {
     assert_eq!(
         directory["defaultRegistries"][ecosystem.as_str()],
-        if visible { json!("main") } else { Value::Null },
+        if visible { json!(format!("{ecosystem}-main")) } else { Value::Null },
     );
     let entries: Vec<_> = directory["registries"]
         .as_array()
@@ -674,9 +683,9 @@ fn assert_grouped_ecosystem(directory: &Value, ecosystem: Ecosystem, visible: bo
     if !visible {
         return;
     }
-    assert_eq!(entries[0]["name"], "internal");
-    assert_eq!(entries[1]["name"], "main");
-    assert_eq!(entries[1]["sources"], json!(["internal"]));
+    assert_eq!(entries[0]["name"], format!("{ecosystem}-internal"));
+    assert_eq!(entries[1]["name"], format!("{ecosystem}-main"));
+    assert_eq!(entries[1]["sources"], json!([format!("{ecosystem}-internal")]));
 }
 
 /// The registry directory as one caller sees it.

@@ -1,8 +1,8 @@
-//! The sequenced entries of each catalog's transparency logs, one log per
-//! catalog and ecosystem.
+//! The sequenced entries of each namespace's transparency logs, one log per
+//! namespace and ecosystem.
 
-use super::{PackageKey, adapter::Connection, packument::ORDINARY};
-use crate::transparency_log::LogId;
+use super::{PackageKey, adapter::Connection};
+use crate::transparency_log::{ImportedLogEntry, LogId, RawLogState};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use std::ops::Range;
@@ -16,10 +16,10 @@ pub(super) fn entries(
 ) -> Result<Vec<Vec<u8>>> {
     let rows = connection.query(
         "SELECT entry FROM log_entries
-         WHERE catalog = ?1 AND ecosystem = ?2 AND idx >= ?3 AND idx < ?4
+         WHERE namespace = ?1 AND ecosystem = ?2 AND idx >= ?3 AND idx < ?4
          ORDER BY idx",
         params![
-            log.catalog,
+            log.namespace,
             log.ecosystem.as_str(),
             to_column(indexes.start),
             to_column(indexes.end)
@@ -40,8 +40,8 @@ pub(super) fn entries(
 /// The number of entries sequenced in `log`.
 pub(super) fn size(connection: &dyn Connection, log: &LogId) -> Result<u64> {
     let mut row = connection.query_one(
-        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2",
-        params![log.catalog, log.ecosystem.as_str()],
+        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?2",
+        params![log.namespace, log.ecosystem.as_str()],
     )?;
     Ok(u64::try_from(row.get::<i64>(0)?).unwrap_or_default())
 }
@@ -49,11 +49,49 @@ pub(super) fn size(connection: &dyn Connection, log: &LogId) -> Result<u64> {
 /// The tree `log` was integrated to: its size and root.
 pub(super) fn head(connection: &dyn Connection, log: &LogId) -> Result<Option<(u64, Vec<u8>)>> {
     let row = connection.query_optional(
-        "SELECT size, root FROM log_heads WHERE catalog = ?1 AND ecosystem = ?2",
-        params![log.catalog, log.ecosystem.as_str()],
+        "SELECT size, root FROM log_heads WHERE namespace = ?1 AND ecosystem = ?2",
+        params![log.namespace, log.ecosystem.as_str()],
     )?;
-    row.map(|mut row| Ok((u64::try_from(row.get::<i64>(0)?).unwrap_or_default(), row.get(1)?)))
-        .transpose()
+    row.map(parse_head_row).transpose()
+}
+
+/// The integrated tree head and sequenced entry count of `log` in one round trip.
+pub(super) fn head_and_size(connection: &dyn Connection, log: &LogId) -> Result<RawLogState> {
+    let ecosystem = log.ecosystem.as_str();
+    let reads = [
+        query!(
+            "SELECT size, root FROM log_heads WHERE namespace = ?1 AND ecosystem = ?2",
+            &log.namespace,
+            ecosystem,
+        ),
+        query!(
+            "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?2",
+            &log.namespace,
+            ecosystem,
+        ),
+    ];
+    let [head_rows, size_rows] =
+        <[Vec<super::adapter::Row>; 2]>::try_from(connection.query_all(&reads)?)
+            .map_err(|_| RegistryError::Internal {
+                reason: "a metadata batch did not answer every read of a log".to_string(),
+            })?;
+    let head = head_rows
+        .into_iter()
+        .next()
+        .map(parse_head_row)
+        .transpose()?;
+    let sequenced = size_rows
+        .into_iter()
+        .next()
+        .map(|mut row| row.get::<i64>(0))
+        .transpose()?
+        .and_then(|count| u64::try_from(count).ok())
+        .unwrap_or_default();
+    Ok(RawLogState { head, sequenced })
+}
+
+fn parse_head_row(mut row: super::adapter::Row) -> Result<(u64, Vec<u8>)> {
+    Ok((u64::try_from(row.get::<i64>(0)?).unwrap_or_default(), row.get(1)?))
 }
 
 /// Record that `log` was integrated to the tree of `size` entries with
@@ -65,13 +103,13 @@ pub(super) fn advance_head(
     root: &[u8],
 ) -> Result<()> {
     let transaction = super::batch::WriteTransaction::begin(connection)?;
-    if head(connection, log)?.is_some_and(|(current, _)| current >= size) {
+    if head(&*transaction, log)?.is_some_and(|(current, _)| current >= size) {
         return transaction.commit();
     }
     transaction.execute(
-        "INSERT INTO log_heads (catalog, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT (catalog, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
-        params![log.catalog, log.ecosystem.as_str(), to_column(size), root],
+        "INSERT INTO log_heads (namespace, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (namespace, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
+        params![log.namespace, log.ecosystem.as_str(), to_column(size), root],
     )?;
     transaction.commit()
 }
@@ -79,16 +117,16 @@ pub(super) fn advance_head(
 /// Every log with a sequenced entry, with the number of its entries.
 pub(super) fn sizes(connection: &dyn Connection) -> Result<Vec<(LogId, u64)>> {
     let rows = connection.query(
-        "SELECT catalog, ecosystem, MAX(idx) + 1 FROM log_entries GROUP BY catalog, ecosystem",
+        "SELECT namespace, ecosystem, MAX(idx) + 1 FROM log_entries GROUP BY namespace, ecosystem",
         params![],
     )?;
     rows.into_iter()
         .map(|mut row| {
-            let catalog: String = row.get(0)?;
+            let namespace: String = row.get(0)?;
             let ecosystem: String = row.get(1)?;
             let ecosystem = parse_ecosystem(&ecosystem)?;
             let size = u64::try_from(row.get::<i64>(2)?).unwrap_or_default();
-            Ok((LogId { catalog, ecosystem }, size))
+            Ok((LogId { namespace, ecosystem }, size))
         })
         .collect()
 }
@@ -100,18 +138,131 @@ pub(super) fn record_entry(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<(u64, String)>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let row = connection.query_optional(
         "SELECT log_index, digest FROM release_records
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-           AND revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version],
     )?;
     row.map(|mut row| {
         let index = u64::try_from(row.get::<i64>(0)?).unwrap_or_default();
         Ok((index, row.get(1)?))
     })
     .transpose()
+}
+
+/// Append `imported`, starting at `start`, to `log`, verifying any prefix a
+/// concurrent recovery already wrote and recording rolled-back npm versions in
+/// `removed_versions` so their identities cannot be republished.
+pub(super) fn import_entries(
+    connection: &dyn Connection,
+    log: &LogId,
+    start: u64,
+    imported: &[ImportedLogEntry],
+) -> Result<()> {
+    if imported.is_empty() {
+        return Ok(());
+    }
+    let transaction = super::batch::WriteTransaction::begin(connection)?;
+    let current = verify_import_overlap(&*transaction, log, start, imported)?;
+    let end = start + u64::try_from(imported.len()).unwrap_or_default();
+    if current < end {
+        let skip = usize::try_from(current - start).unwrap_or(imported.len());
+        insert_imported_entries(&*transaction, log, current, &imported[skip..])?;
+        record_reimported_npm_versions(&*transaction, log, &imported[skip..])?;
+    }
+    transaction.commit()
+}
+
+fn verify_import_overlap(
+    connection: &dyn Connection,
+    log: &LogId,
+    start: u64,
+    imported: &[ImportedLogEntry],
+) -> Result<u64> {
+    let current = size(connection, log)?;
+    if current < start {
+        return Err(RegistryError::Internal {
+            reason: format!(
+                "the log {log} shrank from {start} to {current} entries during recovery",
+            ),
+        });
+    }
+    let end = start + u64::try_from(imported.len()).unwrap_or_default();
+    let overlap_end = current.min(end);
+    if overlap_end > start {
+        let existing = entries(connection, log, start..overlap_end)?;
+        for (offset, existing_bytes) in existing.iter().enumerate() {
+            if existing_bytes.as_slice() != imported[offset].bytes.as_slice() {
+                let index = start + u64::try_from(offset).unwrap_or_default();
+                return Err(RegistryError::Internal {
+                    reason: format!(
+                        "the log {log} at entry {index} disagrees with its stored entry bundle",
+                    ),
+                });
+            }
+        }
+    }
+    Ok(current)
+}
+
+fn insert_imported_entries(
+    transaction: &dyn Connection,
+    log: &LogId,
+    current: u64,
+    imported: &[ImportedLogEntry],
+) -> Result<()> {
+    for (offset, item) in imported.iter().enumerate() {
+        let index = current + u64::try_from(offset).unwrap_or_default();
+        transaction.execute(
+            "INSERT INTO log_entries (namespace, ecosystem, idx, entry) VALUES (?1, ?2, ?3, ?4)",
+            params![log.namespace, log.ecosystem.as_str(), to_column(index), item.bytes.as_slice()],
+        )?;
+    }
+    Ok(())
+}
+
+fn record_reimported_npm_versions(
+    transaction: &dyn Connection,
+    log: &LogId,
+    imported: &[ImportedLogEntry],
+) -> Result<()> {
+    if log.ecosystem != Ecosystem::Npm {
+        return Ok(());
+    }
+    let generation = super::namespace_generation(transaction, &log.namespace)? + 1;
+    let mut recorded_any = false;
+    for (name, version) in imported.iter().filter_map(|item| item.npm_version.as_ref()) {
+        if version_is_live(transaction, &log.namespace, name, version)? {
+            continue;
+        }
+        transaction.execute(
+            "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT DO NOTHING",
+            params![log.namespace, Ecosystem::Npm.as_str(), name, version, to_column(generation)],
+        )?;
+        recorded_any = true;
+    }
+    if recorded_any {
+        super::advance_namespace(transaction, &log.namespace, generation)?;
+    }
+    Ok(())
+}
+
+fn version_is_live(
+    connection: &dyn Connection,
+    namespace: &str,
+    name: &str,
+    version: &str,
+) -> Result<bool> {
+    Ok(connection
+        .query_optional(
+            "SELECT 1 FROM versions
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+            params![namespace, Ecosystem::Npm.as_str(), name, version],
+        )?
+        .is_some())
 }
 
 fn parse_ecosystem(text: &str) -> Result<Ecosystem> {

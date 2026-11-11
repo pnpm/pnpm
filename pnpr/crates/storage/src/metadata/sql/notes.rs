@@ -1,6 +1,6 @@
 //! Version and publication notes.
 //!
-//! A note is keyed by its catalog, its kind, and its subject: a package
+//! A note is keyed by its namespace, its kind, and its subject: a package
 //! version (`ecosystem`, `name`, `subject` = version) or a publication
 //! (`ecosystem` and `name` empty, `subject` = its id).
 
@@ -28,7 +28,7 @@ const PUBLICATION: &str = "publication";
 /// What a note is attached to.
 #[derive(Debug, Clone)]
 pub(super) struct NoteSubject {
-    catalog: String,
+    namespace: String,
     kind: &'static str,
     ecosystem: String,
     name: String,
@@ -38,7 +38,7 @@ pub(super) struct NoteSubject {
 impl NoteSubject {
     pub(super) fn version(key: &PackageKey, version: &str) -> Self {
         Self {
-            catalog: key.catalog.clone(),
+            namespace: key.namespace.clone(),
             kind: VERSION,
             ecosystem: key.ecosystem.as_str().to_string(),
             name: key.name.clone(),
@@ -46,9 +46,9 @@ impl NoteSubject {
         }
     }
 
-    pub(super) fn publication(catalog: &str, id: u64) -> Self {
+    pub(super) fn publication(namespace: &str, id: u64) -> Self {
         Self {
-            catalog: catalog.to_string(),
+            namespace: namespace.to_string(),
             kind: PUBLICATION,
             ecosystem: String::new(),
             name: String::new(),
@@ -71,8 +71,8 @@ pub(super) fn read_note(
 fn note_query(subject: &NoteSubject) -> Query<'_> {
     query!(
         "SELECT text, modified_at, principal, initial_digest FROM notes
-         WHERE catalog = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
-        &subject.catalog,
+         WHERE namespace = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
+        &subject.namespace,
         subject.kind,
         &subject.ecosystem,
         &subject.name,
@@ -130,7 +130,11 @@ fn subject_key(subject: &NoteSubject) -> Result<Option<PackageKey>> {
     let ecosystem = pnpr_package_name::Ecosystem::all()
         .find(|known| known.as_str() == subject.ecosystem)
         .ok_or_else(|| RegistryError::BadRequest { reason: "unknown ecosystem".to_string() })?;
-    Ok(Some(PackageKey { catalog: subject.catalog.clone(), ecosystem, name: subject.name.clone() }))
+    Ok(Some(PackageKey {
+        namespace: subject.namespace.clone(),
+        ecosystem,
+        name: subject.name.clone(),
+    }))
 }
 
 /// The read that finds a row when the note's subject exists: the
@@ -142,17 +146,17 @@ fn subject_query<'query>(
 ) -> Query<'query> {
     match key {
         None => Query {
-            sql: "SELECT 1 FROM publications WHERE catalog = ?1 AND id = ?2",
+            sql: "SELECT 1 FROM publications WHERE namespace = ?1 AND id = ?2",
             params: vec![
-                super::adapter::Param::Text(&subject.catalog),
+                super::adapter::Param::Text(&subject.namespace),
                 super::adapter::Param::Integer(subject.subject.parse::<i64>().unwrap_or(-1)),
             ],
         },
         Some(key) if key.ecosystem != pnpr_package_name::Ecosystem::Npm => package_row_query(key),
         Some(key) => query!(
-            "SELECT 1 FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+            "SELECT 1 FROM versions WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
              AND version = ?4 LIMIT 1",
-            &key.catalog,
+            &key.namespace,
             &subject.ecosystem,
             &key.name,
             &subject.subject,
@@ -170,14 +174,14 @@ fn write_note(
 ) -> Result<()> {
     let now = now_millis();
     transaction.execute(
-        "INSERT INTO notes (catalog, kind, ecosystem, name, subject, text, modified_at, principal,
+        "INSERT INTO notes (namespace, kind, ecosystem, name, subject, text, modified_at, principal,
                             initial_digest)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-         ON CONFLICT (catalog, kind, ecosystem, name, subject) DO UPDATE SET
+         ON CONFLICT (namespace, kind, ecosystem, name, subject) DO UPDATE SET
            text = excluded.text, modified_at = excluded.modified_at,
            principal = excluded.principal, initial_digest = excluded.initial_digest",
         params![
-            subject.catalog,
+            subject.namespace,
             subject.kind,
             subject.ecosystem,
             subject.name,
@@ -192,41 +196,41 @@ fn write_note(
 }
 
 impl super::SqlMetadata {
-    /// The note of `version` of `name` in `org`.
+    /// The note of `version` of `name` in `namespace`.
     pub async fn version_note(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
         version: &str,
     ) -> Result<Option<Note>> {
-        let subject = NoteSubject::version(&package_key(name, org), version);
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+        let subject = NoteSubject::version(&package_key(name, namespace), version);
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             read_note(connection, &subject)
         })
         .await
     }
 
-    /// The current versions of `name` in `org` whose note holds text or the
-    /// digest it was published with, without the text. A note added later and
-    /// then deleted holds neither.
+    /// The current versions of `name` in `namespace` whose note holds text or
+    /// the digest it was published with, without the text. A note added later
+    /// and then deleted holds neither.
     pub async fn noted_versions(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
     ) -> Result<Vec<String>> {
-        let key = package_key(name, org);
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
-            let (catalog, ecosystem, name) = key.params();
+        let key = package_key(name, namespace);
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
+            let (namespace, ecosystem, name) = key.params();
             connection
                 .query(
                     "SELECT n.subject FROM notes n
-                     WHERE n.catalog = ?1 AND n.kind = 'version' AND n.ecosystem = ?2
+                     WHERE n.namespace = ?1 AND n.kind = 'version' AND n.ecosystem = ?2
                        AND n.name = ?3 AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
                        AND (n.ecosystem != 'npm' OR EXISTS (
-                         SELECT 1 FROM versions v WHERE v.catalog = n.catalog
+                         SELECT 1 FROM versions v WHERE v.namespace = n.namespace
                            AND v.ecosystem = n.ecosystem AND v.name = n.name
                            AND v.version = n.subject))",
-                    params![catalog, ecosystem, name],
+                    params![namespace, ecosystem, name],
                 )?
                 .into_iter()
                 .map(|mut row| row.get(0))
@@ -240,25 +244,25 @@ impl super::SqlMetadata {
     pub async fn set_version_note(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
         version: &str,
         change: NoteChange,
     ) -> Result<bool> {
-        let subject = NoteSubject::version(&package_key(name, org), version);
+        let subject = NoteSubject::version(&package_key(name, namespace), version);
         self.write(move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
         .await
     }
 
-    /// The note of publication `id` of `org`.
+    /// The note of publication `id` of `namespace`.
     pub async fn publication_note(
         self: &std::sync::Arc<Self>,
-        org: &str,
+        namespace: &str,
         id: u64,
     ) -> Result<Option<Note>> {
-        let subject = NoteSubject::publication(org, id);
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+        let subject = NoteSubject::publication(namespace, id);
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             read_note(connection, &subject)
         })
         .await
@@ -268,11 +272,11 @@ impl super::SqlMetadata {
     /// Answers `false` when the publication does not exist.
     pub async fn set_publication_note(
         self: &std::sync::Arc<Self>,
-        org: &str,
+        namespace: &str,
         id: u64,
         change: NoteChange,
     ) -> Result<bool> {
-        let subject = NoteSubject::publication(org, id);
+        let subject = NoteSubject::publication(namespace, id);
         self.write(move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
@@ -280,62 +284,62 @@ impl super::SqlMetadata {
     }
 }
 
-fn package_key(name: &CanonicalPackageName, org: &str) -> PackageKey {
+fn package_key(name: &CanonicalPackageName, namespace: &str) -> PackageKey {
     PackageKey {
-        catalog: org.to_string(),
+        namespace: namespace.to_string(),
         ecosystem: name.ecosystem(),
         name: name.as_str().to_string(),
     }
 }
 
 impl super::SqlMetadata {
-    /// Whether `version` of `name` in `org` is accepted and not removed.
+    /// Whether `version` of `name` in `namespace` is accepted and not removed.
     pub async fn has_version(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
         version: &str,
     ) -> Result<bool> {
-        let (key, version) = (package_key(name, org), version.to_string());
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
-            let (catalog, ecosystem, name) = key.params();
+        let (key, version) = (package_key(name, namespace), version.to_string());
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
+            let (namespace, ecosystem, name) = key.params();
             let found = connection.query_optional(
                 "SELECT 1 FROM versions
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-                params![catalog, ecosystem, name, version],
+                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+                params![namespace, ecosystem, name, version],
             )?;
             Ok(found.is_some())
         })
         .await
     }
 
-    /// The initial publication of every current version of `name` in `org`
-    /// whose publication note holds text or its publish-time digest, as
-    /// `(version, publication id)`. A removed version's publication stays
-    /// recorded but is not listed.
+    /// The initial publication of every current version of `name` in
+    /// `namespace` whose publication note holds text or its publish-time
+    /// digest, as `(version, publication id)`. A removed version's publication
+    /// stays recorded but is not listed.
     pub async fn noted_publications(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
-        org: &str,
+        namespace: &str,
     ) -> Result<Vec<(String, u64)>> {
-        let key = package_key(name, org);
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
-            let (catalog, ecosystem, name) = key.params();
+        let key = package_key(name, namespace);
+        self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
+            let (namespace, ecosystem, name) = key.params();
             let rows = connection.query(
                 "SELECT p.version, p.publication FROM (
                    SELECT m.version, MIN(m.publication) AS publication FROM publication_members m
-                   WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
+                   WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3
                      AND EXISTS (
-                       SELECT 1 FROM versions v WHERE v.catalog = m.catalog
+                       SELECT 1 FROM versions v WHERE v.namespace = m.namespace
                          AND v.ecosystem = m.ecosystem AND v.name = m.name
                          AND v.version = m.version)
                    GROUP BY m.version
                  ) p
                  WHERE EXISTS (
-                   SELECT 1 FROM notes n WHERE n.catalog = ?1 AND n.kind = 'publication'
+                   SELECT 1 FROM notes n WHERE n.namespace = ?1 AND n.kind = 'publication'
                      AND n.ecosystem = '' AND n.name = '' AND n.subject = CAST(p.publication AS TEXT)
                      AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL))",
-                params![catalog, ecosystem, name],
+                params![namespace, ecosystem, name],
             )?;
             rows.into_iter()
                 .map(|mut row| Ok((row.get(0)?, super::to_generation(row.get(1)?))))

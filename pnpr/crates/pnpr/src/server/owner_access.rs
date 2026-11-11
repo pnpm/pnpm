@@ -1,85 +1,85 @@
-//! Who may read and who may publish what an organization owns. Signed
+//! Who may read and who may publish what an artifact owner holds. Signed
 //! artifacts, compiler caches, and pipeline run records all answer to the
-//! organizations `artifacts.orgs` declares.
+//! owners `artifacts.owners` declares.
 
 use indexmap::IndexMap;
 use pnpr_config::StorageAccess;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
-use pnpr_shared_artifacts::{OrgAccess, OrgGrant};
+use pnpr_shared_artifacts::{OwnerAccess, OwnerGrant};
 
 use super::{AppState, require_caller};
 
 /// An authenticated caller, and what it may do with each declared
-/// organization.
-pub(super) struct CallerOrgs<'a> {
+/// artifact owner.
+pub(super) struct CallerOwners<'a> {
     username: String,
     identity: &'a Identity,
-    orgs: &'a IndexMap<String, StorageAccess>,
+    owners: &'a IndexMap<String, StorageAccess>,
 }
 
-impl<'a> CallerOrgs<'a> {
+impl<'a> CallerOwners<'a> {
     /// `Err` for an anonymous caller. `resource` names what it asked for.
     pub(super) fn new(
         state: &'a AppState,
         identity: &'a Identity,
         resource: &str,
     ) -> Result<Self, RegistryError> {
-        Ok(CallerOrgs {
+        Ok(CallerOwners {
             username: require_caller(identity, resource)?,
             identity,
-            orgs: &state.inner.config.features.artifacts.orgs,
+            owners: &state.inner.config.features.artifacts.owners,
         })
     }
 
-    /// `Ok` when the caller holds `grant` on `org`. An organization the
+    /// `Ok` when the caller holds `grant` on `owner`. An owner the
     /// caller cannot read answers as not found, so its existence is not
     /// disclosed.
     pub(super) fn authorize(
         &self,
-        org: &str,
-        grant: OrgGrant,
+        owner: &str,
+        grant: OwnerGrant,
         action: &'static str,
     ) -> Result<(), RegistryError> {
-        if !self.may_read(org) {
+        if !self.may_read(owner) {
             return Err(RegistryError::NotFound);
         }
         match grant {
-            OrgGrant::Publish if !self.may_publish(org) => Err(RegistryError::Forbidden {
+            OwnerGrant::Publish if !self.may_publish(owner) => Err(RegistryError::Forbidden {
                 user: self.username.clone(),
                 action,
-                resource: org.to_string(),
+                resource: owner.to_string(),
             }),
-            OrgGrant::Publish | OrgGrant::Read => Ok(()),
+            OwnerGrant::Publish | OwnerGrant::Read => Ok(()),
         }
     }
 
-    /// Every organization the caller may read.
+    /// Every artifact owner the caller may read.
     pub(super) fn readable(&self) -> impl Iterator<Item = &str> {
-        self.orgs
+        self.owners
             .iter()
             .filter(|(_, policy)| policy.access.allows(self.identity))
-            .map(|(org, _)| org.as_str())
+            .map(|(owner, _)| owner.as_str())
     }
 }
 
-impl OrgAccess for CallerOrgs<'_> {
+impl OwnerAccess for CallerOwners<'_> {
     fn username(&self) -> &str {
         &self.username
     }
 
-    fn may_read(&self, org: &str) -> bool {
-        self.orgs
-            .get(org)
+    fn may_read(&self, owner: &str) -> bool {
+        self.owners
+            .get(owner)
             .is_some_and(|policy| policy.access.allows(self.identity))
     }
 
     /// Publishing implies reading: a publisher that cannot see what it
     /// publishes could not tell its own artifact from another's.
-    fn may_publish(&self, org: &str) -> bool {
-        self.may_read(org)
-            && self.orgs
-                .get(org)
+    fn may_publish(&self, owner: &str) -> bool {
+        self.may_read(owner)
+            && self.owners
+                .get(owner)
                 .is_some_and(|policy| policy.publish.allows(self.identity))
     }
 }

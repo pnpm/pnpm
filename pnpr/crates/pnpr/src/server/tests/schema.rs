@@ -14,7 +14,12 @@ async fn cached_authentication_does_not_bypass_a_newer_database_schema() {
     assert_eq!(response.status(), StatusCode::OK);
     let database = pnpr_config::default_metadata_path(temp.path());
     let connection = rusqlite::Connection::open(database).unwrap();
-    connection.execute("INSERT INTO schema_migrations (version) SELECT MAX(version) + 1 FROM schema_migrations", []).unwrap();
+    connection
+        .execute(
+            "INSERT INTO schema_migrations (version, applied_at) SELECT MAX(version) + 1, 1 FROM schema_migrations",
+            [],
+        )
+        .unwrap();
     tokio::time::sleep(Duration::from_millis(1100)).await;
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {

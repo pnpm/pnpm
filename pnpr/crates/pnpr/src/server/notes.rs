@@ -59,7 +59,7 @@ async fn notes_target(
             &source,
             name.as_str(),
             Action::Publish,
-            Some(&target.org),
+            Some(&target.namespace),
         )
         .await
         .map_err(IntoResponse::into_response)?;
@@ -98,11 +98,11 @@ async fn read_version_note(
     let NotesTarget { database, name, target } = notes;
     // A removed version keeps its note and publication on record, but no
     // longer serves them.
-    if !database.has_version(name, &target.org, &version).await? {
+    if !database.has_version(name, &target.namespace, &version).await? {
         return Err(RegistryError::NotFound);
     }
-    let note = database.version_note(name, &target.org, &version).await?;
-    let publication = database.initial_publication(name, &target.org, &version).await?;
+    let note = database.version_note(name, &target.namespace, &version).await?;
+    let publication = database.initial_publication(name, &target.namespace, &version).await?;
     let access = match publication {
         Some(publication) => {
             readable_publication_note(state, identity, database, publication).await?
@@ -130,10 +130,10 @@ async fn resolve_tag(
     notes: &NotesTarget,
     version_or_tag: &str,
 ) -> Result<String, RegistryError> {
-    if notes.database.has_version(&notes.name, &notes.target.org, version_or_tag).await? {
+    if notes.database.has_version(&notes.name, &notes.target.namespace, version_or_tag).await? {
         return Ok(version_or_tag.to_string());
     }
-    let storage = state.inner.storage.for_hosted(&notes.target.org, Ecosystem::Npm);
+    let storage = state.inner.storage.for_hosted(&notes.target.namespace, Ecosystem::Npm);
     let Some(view) = storage.read_hosted_package_view(&notes.name).await? else {
         return Err(RegistryError::NotFound);
     };
@@ -160,7 +160,7 @@ async fn write_version_note(
     let deleted = text.is_none();
     let change = NoteChange { text, principal: principal.clone() };
     let NotesTarget { database, name, target } = notes;
-    if !database.set_version_note(name, &target.org, version, change).await? {
+    if !database.set_version_note(name, &target.namespace, version, change).await? {
         return Err(RegistryError::NotFound);
     }
     tracing::info!(

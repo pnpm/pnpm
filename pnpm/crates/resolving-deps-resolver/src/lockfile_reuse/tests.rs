@@ -610,6 +610,47 @@ fn prior_child_key_applies_the_satisfies_gate() {
     );
 }
 
+#[test]
+fn prior_child_key_admits_a_locked_runtime_its_range_still_admits() {
+    let snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({ "dependencies": { "node": "runtime:24.0.0" } }))
+            .expect("parse snapshot entry");
+    let prior_key = |bare_specifier| {
+        super::prior_child_key(
+            &snapshot,
+            "node",
+            bare_specifier,
+            &registry_context(default_registry()),
+        )
+        .map(|key| key.to_string())
+    };
+
+    assert_eq!(prior_key("runtime:^24.0.0").as_deref(), Some("node@runtime:24.0.0"));
+    assert_eq!(prior_key("runtime:rc/^24.0.0").as_deref(), Some("node@runtime:24.0.0"));
+    assert_eq!(prior_key("runtime:^25.0.0"), None);
+    assert_eq!(prior_key("runtime:lts"), None);
+}
+
+#[test]
+fn a_locked_nightly_runtime_is_reused_while_its_range_admits_it() {
+    let nightly = "runtime:25.0.0-nightly20250101abcdef";
+    let snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({ "dependencies": { "node": nightly } }))
+            .expect("parse snapshot entry");
+    let registries = registry_context(default_registry());
+    assert!(
+        super::prior_child_key(&snapshot, "node", "runtime:nightly/^25", &registries).is_some(),
+    );
+    assert!(
+        super::prior_child_key(&snapshot, "node", "runtime:nightly/^26", &registries).is_none(),
+    );
+
+    let lockfile = single_dep_lockfile("node", "runtime:nightly/^25", nightly);
+    assert!(
+        reusable_importer_dep(&lockfile, ".", "node", "runtime:nightly/^25", &registries).is_some(),
+    );
+}
+
 /// Covers <https://github.com/pnpm/pnpm/issues/16654>.
 #[test]
 fn prior_child_key_rejects_an_alias_ref_for_a_bare_range() {

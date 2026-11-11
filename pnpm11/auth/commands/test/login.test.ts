@@ -63,6 +63,7 @@ const createMockResponse = (init: {
     },
     headers: init.headers ?? {
       get: name => {
+        if (name === 'npm-notice') return null
         throw new Error(`Unexpected call to headers.get: ${name}`)
       },
     },
@@ -81,6 +82,10 @@ const createMockContext = (overrides?: MockContextOverrides): LoginContext => ({
     ...overrides?.process,
   },
 })
+
+const NOTICE_HEADERS: LoginFetchResponse['headers'] = {
+  get: name => name === 'npm-notice' ? 'Enter the code \u001b[31m1234-5678\u001b[0m' : null,
+}
 
 const OTP_CHALLENGE_HEADERS: LoginFetchResponse['headers'] = {
   get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null,
@@ -224,6 +229,39 @@ describe('login', () => {
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
     expect(globalInfo.mock.calls).toEqual([
+      [expect.stringContaining('https://example.com/auth/login')],
+      ['Press ENTER to open the URL in your browser.'],
+    ])
+  })
+
+  it('should print the sanitized npm-notice of the web login response before the login URL', async () => {
+    const globalInfo = jest.fn()
+    const context = createMockContext({
+      globalInfo,
+      readIniFile: async () => ({}),
+      writeIniFile: async () => {},
+      fetch: async url => {
+        if (url === 'https://example.com/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 202,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+            headers: NOTICE_HEADERS,
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({ ok: true, status: 200, json: { token: 'web-auth-token-123' } })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/custom/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/' }
+    await login({ context, opts })
+    expect(globalInfo.mock.calls).toEqual([
+      ['Enter the code [31m1234-5678[0m'],
       [expect.stringContaining('https://example.com/auth/login')],
       ['Press ENTER to open the URL in your browser.'],
     ])

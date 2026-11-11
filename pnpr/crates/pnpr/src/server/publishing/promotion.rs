@@ -38,12 +38,12 @@ pub(super) async fn promote_fenced(
     let mut promoted = Promoted::default();
     for index in 0..staged.len() {
         let stage = &mut staged[index];
-        let namespace = (stage.org.clone().unwrap_or_default(), stage.ecosystem);
+        let slice = (stage.namespace.clone().unwrap_or_default(), stage.ecosystem);
         promoted.fence.references.append(&mut stage.base.references);
-        let storage = state.inner.storage.for_hosted(&namespace.0, namespace.1);
+        let storage = state.inner.storage.for_hosted(&slice.0, slice.1);
         let slots = std::mem::take(&mut stage.slots);
         match promote_slots(&storage, slots, &stage.base.blobs).await {
-            Ok(archives) => promoted.add(&namespace, archives),
+            Ok(archives) => promoted.add(&slice, archives),
             Err(err) => {
                 for stage in &mut staged[index..] {
                     super::cleanup_tmp_slots(std::mem::take(&mut stage.slots)).await;
@@ -82,17 +82,17 @@ impl Promoted {
     /// fenced off first, which refuses that commit. What cannot be removed is
     /// left for `pnpr gc`.
     pub(super) async fn discard(&self, state: &AppState) {
-        let mut by_namespace: BTreeMap<&(String, Ecosystem), Vec<Uncommitted>> = BTreeMap::new();
-        for (namespace, blob) in &self.stored {
-            by_namespace
-                .entry(namespace)
+        let mut by_slice: BTreeMap<&(String, Ecosystem), Vec<Uncommitted>> = BTreeMap::new();
+        for (slice, blob) in &self.stored {
+            by_slice
+                .entry(slice)
                 .or_default()
                 .push(Uncommitted { blob: blob.clone(), may_fence: true });
         }
-        for ((org, ecosystem), stored) in by_namespace {
-            let storage = state.inner.storage.for_hosted(org, *ecosystem);
+        for ((namespace, ecosystem), stored) in by_slice {
+            let storage = state.inner.storage.for_hosted(namespace, *ecosystem);
             if let Err(err) = storage.remove_uncommitted(stored).await {
-                tracing::warn!(%org, %err, "a refused publish left archives for `pnpr gc`");
+                tracing::warn!(%namespace, %err, "a refused publish left archives for `pnpr gc`");
             }
         }
     }

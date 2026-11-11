@@ -18,6 +18,19 @@ pub enum UpdateReuseScope {
     Except(UpdateTargets),
 }
 
+/// What an edge reopened by [`UpdateReuseScope`] does with a locked runtime
+/// (`node@runtime:...`) that its specifier still admits. A runtime resolver
+/// does not read the lockfile's preferred versions, so this is how a reopened
+/// runtime edge keeps its pin the way a reopened npm edge does.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum LockedRuntimeReuse {
+    /// Pick the runtime again. `pacquet update`.
+    #[default]
+    Repick,
+    /// Keep the locked runtime. `pacquet dedupe`.
+    Keep,
+}
+
 /// The major and minor of a version, which is how far an exact update
 /// selector reaches. `pacquet update foo@1.2.3` targets only the copies of
 /// `foo` that could resolve to `1.2.3`: the same major, or -- on `0.x`,

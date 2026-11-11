@@ -125,19 +125,20 @@ async fn update_dist_tag(
         .map_err(IntoResponse::into_response)?;
     let target = resolve_write_target(state, identity, request.registry, &name)
         .map_err(IntoResponse::into_response)?;
+    // Under the lock, so a maintainer removed meanwhile can no longer move tags.
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     authorize_package(
         state,
         identity,
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-        Some(&target.org),
+        Some(&target.namespace),
     )
     .await
     .map_err(IntoResponse::into_response)?;
     let version = parse_tag_target(request.body).map_err(IntoResponse::into_response)?;
-    let storage = hosted_storage(state, Some(&target.org));
-    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
+    let storage = hosted_storage(state, Some(&target.namespace));
     let change =
         TagChange { tag: request.tag, target: version.as_deref(), principal: identity.user_id() };
     match storage.change_dist_tag(&name, change).await {

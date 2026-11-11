@@ -304,14 +304,12 @@ fn recursive_batch_publish_to_pnpr_stages_archives_before_the_commit() {
     )
     .expect("declare the registry pnpr");
     let lookups = server
-        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+        .mock("HEAD", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(404)
         .expect(2)
         .create();
     let uploads = server
-        .mock("PUT", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+        .mock("PUT", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .match_header("content-type", "application/octet-stream")
         .with_status(201)
         .expect(2)
@@ -352,8 +350,7 @@ fn recursive_batch_publish_to_another_registry_carries_archives_inline() {
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let staging = ["HEAD", "PUT"].map(|method| {
         server
-            .mock(method, "/-/pnpr/v0/artifacts/blob")
-            .match_query(Matcher::Any)
+            .mock(method, Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
             .expect(0)
             .create()
     });

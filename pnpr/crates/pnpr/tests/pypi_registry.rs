@@ -25,7 +25,12 @@ fn pypi_config(storage: PathBuf, upstream_url: &str) -> Config {
     mixed_router_config(
         storage,
         Ecosystem::Pypi,
-        HostedSource { name: "internal", org: "python", access: "$all", packages: &["demo-pkg"] },
+        HostedSource {
+            name: "internal",
+            namespace: "python",
+            access: "$all",
+            packages: &["demo-pkg"],
+        },
         ("pypiorg", upstream_url),
     )
 }
@@ -695,6 +700,30 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, common::python_wheel("demo-pkg", "2.0.0"));
+}
+
+#[tokio::test]
+async fn only_the_owner_uploads_to_a_claimed_project() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
+    let app =
+        router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
+    let upload = |token: String, version: &'static str| {
+        let app = app.clone();
+        async move {
+            let wheel = common::python_wheel("demo-pkg", version);
+            let filename = format!("demo_pkg-{version}-py3-none-any.whl");
+            let body = wheel_upload("demo-pkg", version, &filename, &wheel);
+            app.oneshot(upload_request(Some(&token), body)).await
+                .unwrap()
+                .status()
+        }
+    };
+    assert_eq!(upload(alice.clone(), "1.0.0").await, StatusCode::OK);
+    assert_eq!(upload(bob, "1.1.0").await, StatusCode::FORBIDDEN);
+    assert_eq!(upload(alice, "1.1.0").await, StatusCode::OK);
 }
 
 mod metadata;

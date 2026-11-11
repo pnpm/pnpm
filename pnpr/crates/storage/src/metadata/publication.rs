@@ -61,7 +61,7 @@ pub struct PublicationRequest {
 /// What a committed request produced, as recorded for its retries.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordedOutcome {
-    pub catalog: String,
+    pub namespace: String,
     pub generation: u64,
     pub publication: Option<u64>,
 }
@@ -80,7 +80,7 @@ pub struct PublicationCommit {
 /// A committed publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Publication {
-    pub catalog: String,
+    pub namespace: String,
     /// The generation that committed it.
     pub id: u64,
     pub name: Option<String>,

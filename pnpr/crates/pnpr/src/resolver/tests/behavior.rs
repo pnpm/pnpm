@@ -1,10 +1,10 @@
 use super::{
-    ALIAS_TOKEN, AccessList, Duration, Footprint, HashMap, Identity,
-    MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, Mutex, PrivateAccessDescriptor, ResolveRequest,
-    RouteContext, cached_resolution, config, config_for_registry, deps, lockfile,
-    private_alias_footprint, public_registry_config, registry_config, reject_inline_url_auth,
-    reject_invalid_patch_hashes, reject_off_allowlist_fetches, resolution_cache_key,
-    store_resolution, tarball_router, upstream_with_access, user,
+    AccessList, Duration, Footprint, HashMap, Identity, MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY,
+    Mutex, PrivateAccessDescriptor, ResolveRequest, RouteContext, alias_credential,
+    cached_resolution, config, config_for_registry, deps, lockfile, private_alias_footprint,
+    public_registry_config, registry_config, reject_inline_url_auth, reject_invalid_patch_hashes,
+    reject_off_allowlist_fetches, resolution_cache_key, store_resolution, tarball_router,
+    upstream_with_access, user,
 };
 
 /// The `registries` map is keyed by URL and carries declarations only. The
@@ -126,7 +126,7 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
-        credential_digest: pnpr_route::credential_digest(ALIAS_TOKEN),
+        credential_digest: alias_credential(),
         package: Some("@corp/secret".to_string()),
     });
     assert!(store_resolution(

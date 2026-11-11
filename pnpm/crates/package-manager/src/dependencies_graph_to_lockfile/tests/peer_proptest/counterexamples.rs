@@ -258,8 +258,11 @@ fn hashed_suffix_keeps_unshadowed_own_dependency_without_auto_install_peers() {
             Edge { target: 2, major: 1 },
         ]],
     };
-    let settings =
-        super::model::Settings { peers_suffix_max_length: 20, auto_install_peers: false };
+    let settings = super::model::Settings {
+        peers_suffix_max_length: 20,
+        auto_install_peers: false,
+        ..Default::default()
+    };
     let order = in_order(&workspace);
     let fresh =
         super::resolve_with(&workspace, &order, settings, Reuse::Fresh).expect("fresh resolve");
@@ -317,4 +320,418 @@ fn incremental_install_preserves_a_valid_optional_peer_pin() {
         fresh.peers.direct_dependencies_by_importer["packages/a"]["p0"].as_str(),
         "p0@2.0.0(p1@2.0.0)",
     );
+}
+
+#[test]
+fn frozen_check_accepts_the_injected_childrens_owner_peer_split() {
+    for optional in [false, true] {
+        for provider_major in [1, 2] {
+            let workspace = Workspace {
+                packages: vec![
+                    vec![
+                        PackageVersion {
+                            dependencies: direct(1, 1),
+                            peers: vec![peer(1, provider_major, optional, false)],
+                        },
+                        leaf(),
+                    ],
+                    vec![leaf(), leaf()],
+                ],
+                importers: vec![direct(1, provider_major), direct(0, 1)],
+            };
+            for peers_suffix_max_length in [20, 1000] {
+                let settings = super::Settings {
+                    auto_install_peers: false,
+                    injected: true,
+                    format: pnpm_lockfile::LockfileFormat::V13,
+                    peers_suffix_max_length,
+                    ..Default::default()
+                };
+                let resolved =
+                    super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh)
+                        .unwrap();
+                let lockfile = super::lockfile_with_settings(&resolved, &workspace, settings);
+                let fixture = super::fixture::Fixture::new(&workspace, settings);
+                fixture.frozen_check(&lockfile, settings).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn injected_cycle_is_independent_of_importer_order() {
+    let any_peer = |target, optional, also_dependency| Peer {
+        target,
+        range: PeerRange::Any,
+        optional,
+        also_dependency,
+    };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: direct(1, 1),
+                    peers: vec![any_peer(3, false, false)],
+                },
+                PackageVersion {
+                    dependencies: direct(3, 2),
+                    peers: vec![peer(1, 2, true, false), any_peer(3, true, true)],
+                },
+            ],
+            vec![peer_of(2, 2), leaf()],
+            vec![
+                PackageVersion { dependencies: direct(1, 2), peers: vec![peer(4, 1, true, false)] },
+                PackageVersion { dependencies: vec![], peers: vec![any_peer(4, false, false)] },
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 2 }, Edge { target: 1, major: 1 }],
+                    peers: vec![any_peer(4, false, false)],
+                },
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: direct(2, 1),
+                    peers: vec![peer(2, 1, false, false)],
+                },
+            ],
+        ],
+        importers: vec![
+            vec![Edge { target: 4, major: 2 }, Edge { target: 0, major: 2 }],
+            vec![Edge { target: 1, major: 1 }, Edge { target: 2, major: 1 }],
+        ],
+    };
+    let settings = super::Settings { injected: true, ..Default::default() };
+    let first = super::resolve_with(&workspace, &[0, 1], settings, Reuse::Fresh).unwrap();
+    let expected = outcome_of(&first, &workspace);
+    let lockfile = super::lockfile_with_settings(&first, &workspace, settings);
+    for order in [[0, 1], [1, 0]] {
+        for reuse in [Reuse::Fresh, Reuse::Install(&lockfile)] {
+            let result = super::resolve_with(&workspace, &order, settings, reuse).unwrap();
+            assert_eq!(expected, outcome_of(&result, &workspace));
+        }
+    }
+}
+
+#[test]
+fn v13_round_trip_preserves_missing_peer_in_dependency_cycle() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: direct(2, 1),
+                    peers: vec![peer(1, 2, false, false)],
+                },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+            vec![PackageVersion { dependencies: direct(0, 1), peers: vec![] }, leaf()],
+        ],
+        importers: vec![direct(2, 1)],
+    };
+    let settings = super::Settings {
+        auto_install_peers: false,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result = super::resolve_with(&workspace, &[0], settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+#[test]
+fn v13_round_trip_preserves_optional_peer_dependency_cycle() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(2, 1, true, true)] },
+                leaf(),
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 1 }, Edge { target: 0, major: 1 }],
+                    peers: vec![],
+                },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: direct(1, 2),
+                    peers: vec![peer(0, 1, false, false)],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![direct(0, 1)],
+    };
+    let settings = super::Settings {
+        auto_install_peers: false,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result = super::resolve_with(&workspace, &[0], settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+#[test]
+fn frozen_check_accepts_injected_catalog_optional_peer_dependency() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(1, 1, true, true)] },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![direct(1, 1), direct(0, 1)],
+    };
+    let settings = super::Settings {
+        auto_install_peers: false,
+        catalogs: true,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    let lockfile = super::lockfile_with_settings(&result, &workspace, settings);
+    super::fixture::Fixture::new(&workspace, settings).frozen_check(&lockfile, settings).unwrap();
+    let mut stale = lockfile.clone();
+    for (key, snapshot) in stale.snapshots.as_mut().unwrap() {
+        if key.name.to_string() == "shared"
+            && let Some(reference) = snapshot.optional_dependencies
+                .as_mut()
+                .and_then(|dependencies| dependencies.get_mut(&"p1".parse().unwrap()))
+        {
+            *reference = "2.0.0".parse().unwrap();
+        }
+    }
+    assert_ne!(stale.snapshots, lockfile.snapshots);
+    assert!(
+        super::fixture::Fixture::new(&workspace, settings).frozen_check(&stale, settings).is_err(),
+    );
+
+    let fixture = super::fixture::Fixture::new(&workspace, settings);
+    let provider_dir = fixture.root.path().join("provider");
+    std::fs::create_dir(&provider_dir).unwrap();
+    for (key, snapshot) in stale.snapshots.as_mut().unwrap() {
+        if key.name.to_string() == "shared"
+            && let Some(reference) = snapshot.optional_dependencies
+                .as_mut()
+                .and_then(|dependencies| dependencies.get_mut(&"p1".parse().unwrap()))
+        {
+            *reference = "file:provider".parse().unwrap();
+        }
+    }
+    for (version, fresh) in [("1.0.0", true), ("2.0.0", false)] {
+        std::fs::write(
+            provider_dir.join("package.json"),
+            serde_json::json!({ "name": "p1", "version": version }).to_string(),
+        )
+        .unwrap();
+        assert_eq!(fixture.frozen_check(&stale, settings).is_ok(), fresh, "{version}");
+    }
+}
+
+#[test]
+fn v13_round_trip_preserves_injected_peer_provider_variants() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![peer_of(1, 1), leaf()],
+            vec![
+                leaf(),
+                PackageVersion { dependencies: vec![], peers: vec![peer(0, 1, true, false)] },
+            ],
+        ],
+        importers: vec![
+            direct(0, 1),
+            vec![Edge { target: 0, major: 1 }, Edge { target: 1, major: 2 }],
+            direct(1, 2),
+        ],
+    };
+    let settings = super::Settings {
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+#[test]
+fn v13_round_trip_preserves_hashed_catalog_injected_peers() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![PackageVersion { dependencies: direct(2, 1), peers: vec![] }, peer_of(1, 2)],
+            vec![PackageVersion { dependencies: direct(0, 1), peers: vec![] }, leaf()],
+            vec![PackageVersion { dependencies: direct(0, 2), peers: vec![] }, peer_of(0, 1)],
+        ],
+        importers: vec![
+            vec![Edge { target: 1, major: 1 }, Edge { target: 2, major: 2 }],
+            direct(2, 2),
+        ],
+    };
+    let settings = super::Settings {
+        peers_suffix_max_length: 20,
+        catalogs: true,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+#[test]
+fn v13_round_trip_preserves_auto_installed_injected_peer_cycle() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![peer_of(2, 2), leaf()],
+            vec![
+                PackageVersion { dependencies: direct(2, 2), peers: vec![] },
+                PackageVersion { dependencies: direct(2, 1), peers: vec![] },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                peer_of(0, 1),
+            ],
+        ],
+        importers: vec![
+            vec![Edge { target: 2, major: 1 }, Edge { target: 1, major: 1 }],
+            direct(0, 2),
+            direct(1, 2),
+        ],
+    };
+    let settings = super::Settings {
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+#[test]
+fn v13_round_trip_preserves_injected_transitive_peer_cycle() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: direct(1, 1),
+                    peers: vec![peer(2, 2, false, false)],
+                },
+                leaf(),
+            ],
+            vec![depending_on(2, 2), leaf()],
+            vec![leaf(), peer_of(0, 1)],
+        ],
+        importers: vec![direct(2, 1), direct(0, 2), direct(1, 1)],
+    };
+    let settings = super::Settings {
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+#[test]
+fn v13_round_trip_preserves_hashed_auto_installed_peer_diamond() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![peer_of(1, 1), leaf()],
+            vec![leaf(), leaf()],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![peer(3, 1, false, false), peer(0, 1, true, true)],
+                },
+            ],
+            vec![peer_of(1, 1), leaf()],
+        ],
+        importers: vec![direct(2, 2)],
+    };
+    let settings = super::Settings {
+        peers_suffix_max_length: 20,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    assert_v13_round_trip(&result, &workspace, settings);
+}
+
+fn assert_v13_round_trip(
+    result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
+    workspace: &Workspace,
+    settings: super::Settings,
+) {
+    let legacy = super::lockfile_with_settings(
+        result,
+        workspace,
+        super::Settings { format: pnpm_lockfile::LockfileFormat::V9, ..settings },
+    );
+    let next = super::lockfile_with_settings(result, workspace, settings);
+    assert_eq!(next.importers, legacy.importers);
+    assert_eq!(next.snapshots, legacy.snapshots);
+    for (key, expected) in legacy.packages.as_ref().unwrap() {
+        let actual = &next.packages.as_ref().unwrap()[key];
+        assert_eq!(actual.peer_dependencies, expected.peer_dependencies, "{key}");
+        assert_eq!(actual.peer_dependencies_meta, expected.peer_dependencies_meta, "{key}");
+    }
+}
+
+#[test]
+fn frozen_check_rejects_stale_recorded_catalog_children() {
+    let workspace = Workspace {
+        packages: vec![vec![depending_on(1, 1), leaf()], vec![leaf(), leaf()]],
+        importers: vec![direct(1, 1)],
+    };
+    let settings = super::Settings {
+        catalogs: true,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let result =
+        super::resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    let lockfile = super::lockfile_with_settings(&result, &workspace, settings);
+    let fixture = super::fixture::Fixture::new(&workspace, settings);
+    fixture.frozen_check(&lockfile, settings).unwrap();
+    for version in [None, Some("2.0.0")] {
+        let mut stale = lockfile.clone();
+        let (_, shared) = stale.snapshots
+            .as_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|(key, _)| key.name.to_string() == "shared")
+            .unwrap();
+        let dependencies = shared.dependencies.as_mut().unwrap();
+        let alias = "p1".parse().unwrap();
+        match version {
+            Some(version) => {
+                dependencies.insert(alias, version.parse().unwrap());
+            }
+            None => {
+                dependencies.remove(&alias);
+            }
+        }
+        assert!(fixture.frozen_check(&stale, settings).is_err(), "stale child: {version:?}");
+    }
 }

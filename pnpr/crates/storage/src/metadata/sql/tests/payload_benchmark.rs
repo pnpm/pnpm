@@ -35,7 +35,7 @@ async fn measure(db: Db, layout: Layout) {
     let mut statements: Vec<_> = schema::statements(&tables).collect();
     statements.push(schema::MARKER_TABLE.to_string());
     statements.push(format!(
-        "INSERT INTO {} (version) VALUES ({})",
+        "INSERT INTO {} (version, applied_at) VALUES ({}, 1)",
         schema::MARKER,
         schema::SCHEMA_VERSION,
     ));
@@ -70,7 +70,7 @@ async fn measure(db: Db, layout: Layout) {
     let mut times = Vec::new();
     for sample in 0..16 {
         let key = PackageKey {
-            catalog: String::new(),
+            namespace: String::new(),
             ecosystem: Ecosystem::Npm,
             name: npm("sample-payload").as_str().to_string(),
         };

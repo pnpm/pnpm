@@ -18,10 +18,10 @@ pub use htpasswd::{
     verify_bcrypt, verify_returning_user, write_atomic,
 };
 pub use identify::identify;
-pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
+pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
 pub use owned_tokens::OwnedTokens;
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
-pub use token_store::{NewToken, TokenRecord, TokenStore};
+pub use token_store::{NewToken, TokenRecord, TokenStore, unix_millis};
 pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
@@ -30,7 +30,7 @@ mod password_login;
 use htpasswd::hash_bcrypt;
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex, unix_seconds};
+use token_store::{fresh_secret, sha256_hex};
 
 mod identify;
 mod last_used;
@@ -384,8 +384,31 @@ pub trait UserBackend: Send + Sync {
     /// Resolve an active account ID to its current login name.
     async fn account_name(&self, user_id: &str) -> Result<Option<String>>;
 
+    /// Resolve an active account ID to its current login name and rename revision.
+    async fn account_login(&self, _user_id: &str) -> Result<Option<AccountLogin>> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account renames are not supported by this account backend"
+                .to_string(),
+        })
+    }
+
     /// Change an account's login name without changing its ID or grants.
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()>;
+
+    /// Claim `username` for `user_id` only while its stored rename revision
+    /// equals `expected_revision`, advancing the revision even when `username`
+    /// matches the stored login name.
+    async fn rename_user_if_current(
+        &self,
+        _user_id: &str,
+        _expected_revision: u64,
+        _username: &str,
+    ) -> Result<UserRename> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account renames are not supported by this account backend"
+                .to_string(),
+        })
+    }
 
     /// Check that the user store backend is reachable and ready to process requests.
     async fn check_readiness(&self) -> Result<()> {
@@ -429,7 +452,7 @@ pub trait TokenBackend: Send + Sync {
     /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
     /// issued, was revoked, or expired.
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let now = unix_seconds();
+        let now = unix_millis();
         let record = self.find_by_key(&sha256_hex(raw.as_bytes())).await?;
         if let Some(ref r) = record
             && r.expires_at.is_some_and(|exp| exp <= now)
@@ -439,12 +462,12 @@ pub trait TokenBackend: Send + Sync {
         Ok(record)
     }
 
-    /// Update the last-used timestamp of the token identified by `key`.
+    /// Update the last-used timestamp (in Unix milliseconds) of the token identified by `key`.
     async fn touch_key(&self, _key: &str, _now: u64) -> Result<()> {
         Ok(())
     }
 
-    /// Update the last-used timestamp of the token by raw bearer token value.
+    /// Update the last-used timestamp (in Unix milliseconds) of the token by raw bearer token value.
     async fn touch(&self, raw: &str, now: u64) -> Result<()> {
         self.touch_key(&sha256_hex(raw.as_bytes()), now).await
     }
@@ -523,6 +546,22 @@ pub enum UserRemoval {
     Removed,
     /// There was no such account.
     NoSuchUser,
+}
+
+/// An active account's login name and monotonic rename revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountLogin {
+    pub username: String,
+    pub revision: u64,
+}
+
+/// What [`UserBackend::rename_user_if_current`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserRename {
+    /// The account's login name is now at the returned revision.
+    Renamed(u64),
+    /// Another writer changed the account's login revision first.
+    CurrentChanged,
 }
 
 #[cfg(test)]

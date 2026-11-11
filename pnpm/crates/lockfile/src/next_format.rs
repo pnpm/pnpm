@@ -96,6 +96,8 @@ pub struct NextSnapshotEntry {
     pub peer_dependencies: Option<HashMap<PkgName, NextRef>>,
     /// The peers bound below this package from outside it.
     pub transitive_peer_dependencies: Option<HashMap<PkgName, NextRef>>,
+    /// Overrides graph-derived unbound transitive peer names when present.
+    pub unbound_peer_dependencies: Option<Vec<String>>,
     pub optional: bool,
 }
 

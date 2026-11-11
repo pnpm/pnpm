@@ -2,6 +2,7 @@ use super::{
     LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params,
     retry_database_conflicts, validate_username,
 };
+use crate::validation::name_revision_bounds;
 
 impl LibsqlAuth {
     pub(super) async fn list_accounts_impl(&self) -> Result<Vec<crate::UserAccount>> {
@@ -87,22 +88,43 @@ impl LibsqlAuth {
         .await
     }
 
+    pub(super) async fn account_login_by_id(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<crate::AccountLogin>> {
+        self.pool.read(|conn| async move {
+            let rows = conn.query(
+                "SELECT username, name_revision FROM users WHERE id = ?1 AND bcrypt_hash <> '!'",
+                params![user_id],
+            )
+            .await?;
+            first_row(rows, |row| {
+                let username: String = row.get(0)?;
+                let revision = u64::try_from(row.get::<i64>(1)?).unwrap_or(0);
+                Ok(crate::AccountLogin { username, revision })
+            })
+            .await
+        })
+        .await
+    }
+
     pub(super) async fn rename_account(&self, user_id: &str, username: &str) -> Result<()> {
         validate_username(username)?;
-        let current = self.account_name_by_id(user_id).await?.ok_or(RegistryError::NotFound)?;
-        if current == username {
-            return Ok(());
-        }
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 match tx.execute(
-                    "UPDATE users SET username = ?2, username_skeleton_hash = ?3 WHERE id = ?1 AND bcrypt_hash <> '!'",
+                    "UPDATE users
+                     SET username = ?2, username_skeleton_hash = ?3, name_revision = name_revision + 1
+                     WHERE id = ?1 AND bcrypt_hash <> '!'",
                     params![user_id, username, crate::validation::username_skeleton_hash(username)],
                 )
                 .await
                 {
-                    Ok(0) => Err(RegistryError::NotFound),
+                    Ok(0) => {
+                        tx.rollback().await?;
+                        Err(RegistryError::NotFound)
+                    }
                     Ok(_) => {
                         tx.commit().await?;
                         Ok(())
@@ -119,6 +141,122 @@ impl LibsqlAuth {
         .await?;
         self.sync_replica().await?;
         Ok(())
+    }
+
+    pub(super) async fn rename_account_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        username: &str,
+    ) -> Result<crate::UserRename> {
+        validate_username(username)?;
+        let Some((expected, next, next_revision)) = name_revision_bounds(expected_revision)? else {
+            self.account_name_by_id(user_id).await?.ok_or(RegistryError::NotFound)?;
+            return Ok(crate::UserRename::CurrentChanged);
+        };
+        let outcome = retry_database_conflicts(|| {
+            self.pool.write(|conn| async move {
+                execute_conditional_rename(&conn, user_id, expected, next, username).await
+            })
+        })
+        .await?;
+        match outcome {
+            PrimaryRename::CurrentChanged => {
+                self.sync_replica().await?;
+                Ok(crate::UserRename::CurrentChanged)
+            }
+            PrimaryRename::Renamed { previous } => {
+                if let Err(err) = self.sync_replica().await {
+                    self.rollback_unsynced_rename(user_id, next_revision, username, &previous)
+                        .await;
+                    return Err(err);
+                }
+                Ok(crate::UserRename::Renamed(next_revision))
+            }
+        }
+    }
+
+    async fn rollback_unsynced_rename(
+        &self,
+        user_id: &str,
+        revision: u64,
+        applied: &str,
+        previous: &str,
+    ) {
+        if applied == previous {
+            return;
+        }
+        let Ok(Some((expected, next, _))) = name_revision_bounds(revision) else {
+            return;
+        };
+        let _ = self.pool.write(|conn| async move {
+            execute_conditional_rename(&conn, user_id, expected, next, previous).await
+        })
+        .await;
+    }
+}
+
+enum PrimaryRename {
+    Renamed { previous: String },
+    CurrentChanged,
+}
+
+async fn execute_conditional_rename(
+    conn: &libsql::Connection,
+    user_id: &str,
+    expected: i64,
+    next: i64,
+    username: &str,
+) -> Result<PrimaryRename> {
+    let tx = conn.transaction().await?;
+    let rows = tx.query(
+        "SELECT username, name_revision FROM users WHERE id = ?1 AND bcrypt_hash <> '!'",
+        params![user_id],
+    )
+    .await?;
+    let Some((previous, actual)) =
+        first_row(rows, |row| Ok((row.get::<String>(0)?, row.get::<i64>(1)?))).await?
+    else {
+        tx.rollback().await?;
+        return Err(RegistryError::NotFound);
+    };
+    if actual != expected {
+        tx.rollback().await?;
+        return Ok(PrimaryRename::CurrentChanged);
+    }
+    apply_primary_rename(tx, user_id, expected, next, username, previous).await
+}
+
+async fn apply_primary_rename(
+    tx: libsql::Transaction,
+    user_id: &str,
+    expected: i64,
+    next: i64,
+    username: &str,
+    previous: String,
+) -> Result<PrimaryRename> {
+    let skeleton = crate::validation::username_skeleton_hash(username);
+    match tx.execute(
+        "UPDATE users SET username = ?2, username_skeleton_hash = ?3, name_revision = ?4
+         WHERE id = ?1 AND name_revision = ?5 AND bcrypt_hash <> '!'",
+        params![user_id, username, skeleton, next, expected],
+    )
+    .await
+    {
+        Ok(0) => {
+            tx.rollback().await?;
+            Ok(PrimaryRename::CurrentChanged)
+        }
+        Ok(_) => {
+            tx.commit().await?;
+            Ok(PrimaryRename::Renamed { previous })
+        }
+        Err(err) if is_unique_violation(&err) => {
+            let conflict = classify_username_conflict(&tx, username).await?;
+            tx.rollback().await?;
+            Err(conflict)
+        }
+        Err(err) => Err(err.into()),
     }
 }
 

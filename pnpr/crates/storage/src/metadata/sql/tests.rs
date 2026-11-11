@@ -6,6 +6,7 @@ mod batched_reads;
 mod blobs;
 mod cdn;
 mod concurrency;
+mod ecosystems;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
@@ -416,22 +417,21 @@ async fn an_identical_write_commits_no_generation(db: Db) {
     assert_eq!(generation(&storage, "pkg").await, first);
 }
 
-async fn generations_advance_per_catalog(db: Db) {
+async fn generations_advance_per_namespace(db: Db) {
     let storage = storage(&db);
-    let org_a = storage.for_hosted("org-a", Ecosystem::Npm);
-    let org_b = storage.for_hosted("org-b", Ecosystem::Npm);
-    write(&org_a, "one", &packument("one", &["1.0.0"])).await;
-    write(&org_a, "two", &packument("two", &["1.0.0"])).await;
-    write(&org_b, "one", &packument("one", &["1.0.0"])).await;
-    let token = |catalog: &str, value| Some(Generation { catalog: catalog.to_string(), value });
-    assert_eq!(generation(&org_a, "one").await, token("org-a", 1));
-    assert_eq!(generation(&org_a, "two").await, token("org-a", 2));
-    assert_eq!(generation(&org_b, "one").await, token("org-b", 1));
-    assert_eq!(token("org-b", 1).unwrap().to_string(), "org-b:1");
+    let ns_a = storage.for_hosted("ns-a", Ecosystem::Npm);
+    let ns_b = storage.for_hosted("ns-b", Ecosystem::Npm);
+    write(&ns_a, "one", &packument("one", &["1.0.0"])).await;
+    write(&ns_a, "two", &packument("two", &["1.0.0"])).await;
+    write(&ns_b, "one", &packument("one", &["1.0.0"])).await;
+    let token =
+        |namespace: &str, value| Some(Generation { namespace: namespace.to_string(), value });
+    assert_eq!(generation(&ns_a, "one").await, token("ns-a", 1));
+    assert_eq!(generation(&ns_a, "two").await, token("ns-a", 2));
+    assert_eq!(generation(&ns_b, "one").await, token("ns-b", 1));
+    assert_eq!(token("ns-b", 1).unwrap().to_string(), "ns-b:1");
     assert!(
-        org_a
-            .read_hosted_document(&npm("other"))
-            .await
+        ns_a.read_hosted_document(&npm("other")).await
             .unwrap()
             .is_none(),
     );
@@ -577,7 +577,7 @@ async fn tag_moves_are_recorded(db: Db) {
             (Some("1.0.0"), None, Some("bob")),
         ],
     );
-    let generation = Some(Generation { catalog: String::new(), value: 2 });
+    let generation = Some(Generation { namespace: String::new(), value: 2 });
     assert_eq!(unchanged, TagUpdate::Committed { generation, moved: false });
     let missing = storage
         .change_dist_tag(&npm("absent"), set)
@@ -830,51 +830,11 @@ async fn a_removed_version_is_never_accepted_again(db: Db) {
     assert!(matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { .. })));
 }
 
-async fn another_ecosystem_stores_its_document_whole(db: Db) {
-    let storage = storage(&db).for_hosted("org", Ecosystem::Cargo);
-    let name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
-    storage.write_hosted_document_if_current(&name, b"not json", None, None).await.unwrap();
-    assert_eq!(
-        storage
-            .read_hosted_document(&name)
-            .await
-            .unwrap()
-            .unwrap(),
-        b"not json",
-    );
-    let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
-    assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);
-    let current = storage
-        .read_hosted_document_for_update(&name)
-        .await
-        .unwrap()
-        .unwrap();
-    storage
-        .write_hosted_document_if_current(&name, b"", Some(&current.version), None)
-        .await
-        .unwrap();
-    storage.write_hosted_document_if_current(&name, b"", None, None).await.unwrap();
-    assert!(
-        storage
-            .read_hosted_document(&name)
-            .await
-            .unwrap()
-            .is_none(),
-    );
-    assert!(
-        storage
-            .hosted_package_names()
-            .await
-            .unwrap()
-            .is_empty(),
-    );
-}
-
 conformance! {
     a_packument_reads_back_as_written,
     an_accepted_version_cannot_change,
     an_identical_write_commits_no_generation,
-    generations_advance_per_catalog,
+    generations_advance_per_namespace,
     a_write_from_a_stale_read_conflicts,
     a_tag_change_reuses_every_fragment,
     a_deprecation_rerenders_one_fragment,
@@ -886,7 +846,6 @@ conformance! {
     a_removed_version_is_never_accepted_again,
     an_archive_manifest_record_is_the_accepted_interpretation,
     an_archive_manifest_record_must_name_a_profile,
-    another_ecosystem_stores_its_document_whole,
 }
 
 #[cfg(feature = "backend-mysql")]

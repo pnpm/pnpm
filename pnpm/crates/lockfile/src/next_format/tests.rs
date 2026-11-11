@@ -1,6 +1,6 @@
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::{fmt::Write as _, path::Path};
 
 fn parse(yaml: &str) -> Lockfile {
     Lockfile::parse(yaml, Path::new("pnpm-lock.yaml"))
@@ -1037,4 +1037,426 @@ fn converting_a_recorded_directory_to_v9_omits_the_new_fields() {
     lockfile.lockfile_version = crate::LockfileFormat::V9.version();
     let written = lockfile.to_yaml_string().expect("write v9 lockfile");
     assert!(!written.contains("specifiers"), "{written}");
+}
+
+#[test]
+fn nested_peer_references_round_trip_within_the_depth_limit() {
+    for depth in [1, 8, 32] {
+        written_and_read(&peer_variant_chain(depth));
+    }
+}
+
+#[test]
+fn overly_deep_peer_references_return_a_format_error() {
+    let lockfile = as_next(peer_variant_chain(40));
+    let error = lockfile
+        .to_yaml_string()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("32 nested references"), "{error}");
+}
+
+#[test]
+fn round_trip_guard_rejects_changed_transitive_peer_names() {
+    let lockfile = parse(OPTIONAL_PEER_LOCKFILE);
+    let mut restored = super::RestoredSections {
+        importers: lockfile.importers.clone(),
+        snapshots: lockfile.snapshots.clone(),
+    };
+    restored.snapshots
+        .as_mut()
+        .unwrap()
+        .get_mut(&"container@3.2.2(buffer-impl@3.7.1)".parse().unwrap())
+        .unwrap()
+        .transitive_peer_dependencies = Some(vec!["buffer-impl".to_string()]);
+    assert!(super::write::check_round_trip(&lockfile, &restored).is_err());
+}
+
+fn peer_variant_chain(depth: usize) -> Lockfile {
+    let mut lockfile = parse(OPTIONAL_PEER_LOCKFILE);
+    let metadata =
+        lockfile.packages.as_ref().unwrap()[&"buffer-impl@3.7.1".parse().unwrap()].clone();
+    lockfile.importers.clear();
+    let packages = lockfile.packages.as_mut().unwrap();
+    let snapshots = lockfile.snapshots.as_mut().unwrap();
+    packages.clear();
+    snapshots.clear();
+    for major in [1, 2] {
+        let mut provider: crate::PackageKey = format!("leaf@{major}.0.0").parse().unwrap();
+        packages.insert(provider.clone(), metadata.clone());
+        snapshots.insert(provider.clone(), crate::SnapshotEntry::default());
+        for level in (0..depth).rev() {
+            let key: crate::PackageKey =
+                format!("layer-{level}@1.0.0({provider})").parse().unwrap();
+            packages.insert(key.without_peer(), metadata.clone());
+            snapshots.insert(
+                key.clone(),
+                crate::SnapshotEntry {
+                    dependencies: Some(std::collections::HashMap::from([(
+                        provider.name.clone(),
+                        crate::SnapshotDepRef::Plain(provider.suffix.clone()),
+                    )])),
+                    ..Default::default()
+                },
+            );
+            provider = key;
+        }
+    }
+    lockfile
+}
+
+#[test]
+fn peer_cycle_variants_use_consistent_nested_discriminators() {
+    let mut lockfile = peer_variant_chain(0);
+    let metadata = lockfile.packages
+        .as_ref()
+        .unwrap()
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    for major in [1, 2] {
+        for (name, other) in [("alpha", "beta"), ("beta", "alpha")] {
+            let key: crate::PackageKey =
+                format!("{name}@1.0.0({other}@1.0.0)(leaf@{major}.0.0)").parse().unwrap();
+            let provider: crate::PackageKey =
+                format!("{other}@1.0.0({name}@1.0.0)(leaf@{major}.0.0)").parse().unwrap();
+            lockfile.packages
+                .as_mut()
+                .unwrap()
+                .insert(key.without_peer(), metadata.clone());
+            lockfile.snapshots
+                .as_mut()
+                .unwrap()
+                .insert(
+                    key.clone(),
+                    crate::SnapshotEntry {
+                        dependencies: Some(std::collections::HashMap::from([
+                            (other.parse().unwrap(), crate::SnapshotDepRef::Plain(provider.suffix)),
+                            ("leaf".parse().unwrap(), format!("{major}.0.0").parse().unwrap()),
+                        ])),
+                        ..Default::default()
+                    },
+                );
+            if name == "alpha" {
+                lockfile.importers.insert(
+                    format!("project-{major}"),
+                    crate::ProjectSnapshot {
+                        dependencies: Some(std::collections::HashMap::from([(
+                            name.parse().unwrap(),
+                            crate::ResolvedDependencySpec {
+                                specifier: "1.0.0".to_string(),
+                                version: crate::ImporterDepVersion::Regular(key.suffix),
+                            },
+                        )])),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
+    }
+    written_and_read(&lockfile);
+}
+
+#[test]
+fn hashed_peer_keeps_an_ordinary_alias_as_a_dependency() {
+    for (peer_alias, ordinary_alias) in [("provider", "renamed"), ("renamed", "provider")] {
+        let suffix =
+            crate::PeerBindings::Explicit(vec!["provider@1.0.0".to_string()]).to_suffix(3).unwrap();
+        let lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      consumer:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+      {peer_alias}: '*'
+  provider@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+snapshots:
+  consumer@1.0.0{suffix}:
+    dependencies:
+      {peer_alias}: provider@1.0.0
+      {ordinary_alias}: provider@1.0.0
+  provider@1.0.0: {{}}
+",
+        ));
+        written_and_read(&lockfile);
+    }
+}
+
+#[test]
+fn hashed_transitive_peer_keeps_a_link_provider() {
+    let suffix = crate::PeerBindings::Explicit(vec!["provider@packages+provider".to_string()])
+        .to_suffix(3)
+        .unwrap();
+    let lockfile = parse(&format!(
+        r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      parent:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  parent@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  child@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+snapshots:
+  parent@1.0.0{suffix}:
+    dependencies:
+      child: 1.0.0{suffix}
+    transitivePeerDependencies:
+      - provider
+  child@1.0.0{suffix}:
+    dependencies:
+      provider: link:packages/provider
+",
+    ));
+    written_and_read(&lockfile);
+}
+
+#[test]
+fn hashed_transitive_peer_selects_the_bound_branch() {
+    for other_reference in ["2.0.0", "link:packages/provider"] {
+        let suffix =
+            crate::PeerBindings::Explicit(vec!["provider@1.0.0".to_string()]).to_suffix(3).unwrap();
+        let other_version = if other_reference.starts_with("link:") {
+            "packages+provider"
+        } else {
+            other_reference
+        };
+        let other_suffix = crate::PeerBindings::Explicit(vec![format!("provider@{other_version}")])
+            .to_suffix(3)
+            .unwrap();
+        let mut lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      parent:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  parent@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  first@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+  second@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+    peerDependencies:
+      provider: '*'
+  provider@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+  provider@2.0.0:
+    resolution: {{integrity: sha512-EEEE}}
+snapshots:
+  parent@1.0.0{suffix}:
+    dependencies:
+      first: 1.0.0{suffix}
+      second: 1.0.0{other_suffix}
+    transitivePeerDependencies:
+      - provider
+  first@1.0.0{suffix}:
+    dependencies:
+      provider: 1.0.0
+  second@1.0.0{other_suffix}:
+    dependencies:
+      provider: {other_reference}
+  provider@1.0.0: {{}}
+  provider@2.0.0: {{}}
+",
+        ));
+        let parent_key = format!("parent@1.0.0{suffix}").parse().unwrap();
+        let unbound_branch = format!("second@1.0.0{other_suffix}").parse().unwrap();
+        let bound_branch = format!("first@1.0.0{suffix}").parse().unwrap();
+        let branches = lockfile.snapshots
+            .as_mut()
+            .unwrap()
+            .get_mut(&parent_key)
+            .unwrap()
+            .dependencies
+            .as_mut()
+            .unwrap();
+        for (reference, target) in branches
+            .values_mut()
+            .zip([unbound_branch, bound_branch])
+        {
+            *reference = crate::SnapshotDepRef::Alias(target);
+        }
+        written_and_read(&lockfile);
+    }
+}
+
+#[test]
+fn hashed_transitive_peer_distinguishes_provider_peer_bindings() {
+    let suffix = |segments| crate::PeerBindings::Explicit(segments).to_suffix(3).unwrap();
+    let first_provider = suffix(vec!["nested@1.0.0".to_string()]);
+    let second_provider = suffix(vec!["nested@2.0.0".to_string()]);
+    let first = suffix(vec![format!("provider@1.0.0{first_provider}")]);
+    let second = suffix(vec![format!("provider@1.0.0{second_provider}")]);
+    let mut lockfile = parse(&format!(
+        r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      parent:
+        specifier: 1.0.0
+        version: 1.0.0{first}
+packages:
+  parent@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  child@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+  provider@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+    peerDependencies:
+      nested: '*'
+  nested@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+  nested@2.0.0:
+    resolution: {{integrity: sha512-EEEE}}
+snapshots:
+  parent@1.0.0{first}:
+    dependencies:
+      first: child@1.0.0{first}
+      second: child@1.0.0{second}
+    transitivePeerDependencies: [provider]
+  child@1.0.0{first}:
+    dependencies:
+      provider: 1.0.0{first_provider}
+  child@1.0.0{second}:
+    dependencies:
+      provider: 1.0.0{second_provider}
+  provider@1.0.0{first_provider}:
+    dependencies:
+      nested: 1.0.0
+  provider@1.0.0{second_provider}:
+    dependencies:
+      nested: 2.0.0
+  nested@1.0.0: {{}}
+  nested@2.0.0: {{}}
+",
+    ));
+    let parent = format!("parent@1.0.0{first}").parse().unwrap();
+    let branches = lockfile.snapshots
+        .as_mut()
+        .unwrap()
+        .get_mut(&parent)
+        .unwrap()
+        .dependencies
+        .as_mut()
+        .unwrap();
+    for (reference, target) in branches
+        .values_mut()
+        .zip([second, first])
+    {
+        *reference = crate::SnapshotDepRef::Alias(format!("child@1.0.0{target}").parse().unwrap());
+    }
+    written_and_read(&lockfile);
+}
+
+#[test]
+fn mixed_hashed_peer_groups_with_many_providers_round_trip() {
+    let hashed = |segment| crate::PeerBindings::Explicit(vec![segment]).to_suffix(3).unwrap();
+    let nested = hashed("nested@1.0.0".to_string());
+    let cycle = hashed("root@1.0.0".to_string());
+    let groups = (0..8)
+        .map(|index| {
+            if index == 7 {
+                format!("provider-{index}@1.0.0")
+            } else {
+                format!("provider-{index}@1.0.0{nested}")
+            }
+        })
+        .collect();
+    let suffix = crate::PeerBindings::Explicit(groups).to_suffix(3).unwrap();
+    let mut declarations = String::new();
+    let mut dependencies = String::new();
+    let mut packages = String::new();
+    let mut snapshots = String::new();
+    for index in 0..8 {
+        let (peer, version, provider_suffix) = if index == 7 {
+            ("root", format!("1.0.0{suffix}"), &cycle)
+        } else {
+            ("nested", "1.0.0".to_string(), &nested)
+        };
+        writeln!(declarations, "      provider-{index}: '*'").unwrap();
+        writeln!(dependencies, "      provider-{index}: 1.0.0{provider_suffix}").unwrap();
+        write!(
+            packages,
+            r"  provider-{index}@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      {peer}: '*'
+",
+        )
+        .unwrap();
+        write!(
+            snapshots,
+            r"  provider-{index}@1.0.0{provider_suffix}:
+    dependencies:
+      {peer}: {version}
+",
+        )
+        .unwrap();
+    }
+    let lockfile = parse(&format!(
+        r"lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+  peersSuffixMaxLength: 3
+importers:
+  .:
+    dependencies:
+      root:
+        specifier: 1.0.0
+        version: 1.0.0{suffix}
+packages:
+  root@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+{declarations}      own: '*'
+{packages}  own@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+  nested@1.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+snapshots:
+  root@1.0.0{suffix}:
+    dependencies:
+{dependencies}      own: 1.0.0
+{snapshots}  own@1.0.0: {{}}
+  nested@1.0.0: {{}}
+",
+    ));
+    written_and_read(&lockfile);
 }

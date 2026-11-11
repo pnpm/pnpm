@@ -239,6 +239,8 @@ Added in: v10.1.0
 
 When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster.
 
+With `nodeLinker: pnp`, pnpm skips this fast check and performs the install.
+
 When the check finds that nothing changed, pnpm skips the install, including the projects' own lifecycle scripts, such as `prepare`. Set this to `false` to run those scripts on every install.
 
 ### requiredScripts

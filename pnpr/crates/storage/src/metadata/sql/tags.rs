@@ -5,7 +5,7 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::{ORDINARY, PackumentRows, TIME},
+    packument::{PackumentRows, TIME},
     to_column,
 };
 use crate::{
@@ -44,10 +44,10 @@ pub(super) struct TagMove<'change> {
 }
 
 pub(super) fn stored_tags_query(key: &PackageKey) -> Query<'_> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     query!(
-        "SELECT tag, version FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        catalog,
+        "SELECT tag, version FROM tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        namespace,
         ecosystem,
         name,
     )
@@ -62,27 +62,27 @@ pub(super) fn tags_from_rows(rows: Vec<Row>) -> Result<BTreeMap<String, String>>
 
 /// Point the tag where `change` says and append the move to its history.
 pub(super) fn record_tag_move(commit: &Commit<'_>, change: &TagMove<'_>) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let generation = to_column(commit.generation);
     match change.target {
         Some(target) => commit.transaction.execute(
-            "INSERT INTO tags (catalog, ecosystem, name, tag, version, generation)
+            "INSERT INTO tags (namespace, ecosystem, name, tag, version, generation)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT (catalog, ecosystem, name, tag)
+             ON CONFLICT (namespace, ecosystem, name, tag)
              DO UPDATE SET version = excluded.version, generation = excluded.generation",
-            params![catalog, ecosystem, name, change.tag, target, generation],
+            params![namespace, ecosystem, name, change.tag, target, generation],
         )?,
         None => commit.transaction.execute(
-            "DELETE FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
-            params![catalog, ecosystem, name, change.tag],
+            "DELETE FROM tags WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
+            params![namespace, ecosystem, name, change.tag],
         )?,
     }
     commit.transaction.execute(
-        "INSERT INTO tag_history (catalog, ecosystem, name, tag, generation, previous, target,
+        "INSERT INTO tag_history (namespace, ecosystem, name, tag, generation, previous, target,
                                   principal, changed_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             change.tag,
@@ -108,9 +108,9 @@ pub(super) fn change_tag(
     }
     validate_dist_tag(&change.tag)?;
     let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
-    let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
+    let (mut batch, results) = Batch::begin_with(connection, &key.namespace, &reads)?;
     let mut results = results.into_iter();
-    let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
+    let Some(package) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
@@ -137,25 +137,22 @@ fn tag_target_query<'query>(
     key: &'query PackageKey,
     change: &'query OwnedTagChange,
 ) -> Query<'query> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     match change.target.as_deref() {
         Some(target) => query!(
             "SELECT version FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4
-               AND version = ?5 LIMIT 1",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4 LIMIT 1",
+            namespace,
             ecosystem,
             name,
-            ORDINARY,
             target,
         ),
         None => query!(
             "SELECT version FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4 LIMIT 1",
-            catalog,
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 LIMIT 1",
+            namespace,
             ecosystem,
             name,
-            ORDINARY,
         ),
     }
 }
@@ -193,7 +190,7 @@ fn move_tag(
         principal: change.principal.as_deref(),
     };
     record_tag_move(commit, &tag_move)?;
-    commit.write_state(&stamp_modified(&package.state)?)?;
+    commit.write_state(package.state_version, &stamp_modified(&package.state)?)?;
     Ok(true)
 }
 
@@ -212,7 +209,7 @@ fn stamp_modified(state: &[u8]) -> Result<Vec<u8>> {
 /// One recorded move of a tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagHistoryEntry {
-    /// The catalog generation that moved the tag.
+    /// The namespace generation that moved the tag.
     pub generation: u64,
     pub previous: Option<String>,
     /// `None` when the move removed the tag.
@@ -226,13 +223,13 @@ pub(super) fn tag_history(
     key: &PackageKey,
     tag: &str,
 ) -> Result<Vec<TagHistoryEntry>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     connection
         .query(
             "SELECT generation, previous, target, principal, changed_at FROM tag_history
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4
              ORDER BY generation",
-            params![catalog, ecosystem, name, tag],
+            params![namespace, ecosystem, name, tag],
         )?
         .into_iter()
         .map(|mut row| {

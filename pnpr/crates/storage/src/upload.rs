@@ -159,7 +159,7 @@ impl Storage {
     /// Reopen an upload of `repository` by id.
     ///
     /// `None` when no such upload is held, and equally when one is held for
-    /// another repository or another organization: an id is a capability over
+    /// another repository or another namespace: an id is a capability over
     /// the bytes its own client sent, not over the scratch space they passed
     /// through.
     pub async fn open_blob_upload(
@@ -295,11 +295,10 @@ impl Storage {
 
     /// Who an upload started here belongs to.
     ///
-    /// The repository alone is not enough. Every organization of an
-    /// object-store backend shares one uploads directory, so two of them
-    /// hosting the same repository name would otherwise reach each other's
-    /// uploads. The newline cannot appear in either half, so one owner has
-    /// exactly one spelling.
+    /// The repository alone is not enough. Every namespace of an object-store
+    /// backend shares one uploads directory, so two of them hosting the same
+    /// repository name would otherwise reach each other's uploads. The newline
+    /// cannot appear in either half, so one owner has exactly one spelling.
     fn upload_owner(&self, repository: &CanonicalPackageName) -> String {
         format!("{}\n{}", self.hosted.namespace(), repository.as_str())
     }

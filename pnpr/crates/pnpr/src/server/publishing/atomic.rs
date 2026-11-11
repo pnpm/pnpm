@@ -1,6 +1,6 @@
 //! Committing a publish as one metadata transaction: every archive is
 //! promoted first, then every document of the request commits under one
-//! generation of its organization's catalog, or none does. Readers see the
+//! generation of its hosted namespace, or none does. Readers see the
 //! whole request or nothing of it.
 //!
 //! The request's outcome commits with it. A retry of the same request by the
@@ -70,7 +70,7 @@ pub(in super::super) fn publication_request(
 const MAX_PUBLICATION_NAME: usize = 214;
 
 /// The publication name a batch body gives in its top-level `name`. A name
-/// is never a decimal number, so `/-/publications/<org>/<id-or-name>` reads
+/// is never a decimal number, so `/-/publications/<namespace>/<id-or-name>` reads
 /// a segment as one or the other.
 pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, RegistryError> {
     // An empty name names nothing.
@@ -99,20 +99,20 @@ pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, R
 }
 
 /// The response a retry of an already committed request gets: the outcome
-/// that request recorded in `catalog`, the one the retry targets. The caller
+/// that request recorded in `namespace`, the one the retry targets. The caller
 /// authorizes the retry as a publish first.
 pub(in super::super) async fn replayed_outcome(
     state: &AppState,
-    catalog: &str,
+    namespace: &str,
     request: Option<&PublicationRequest>,
 ) -> Result<Option<Response>, RegistryError> {
     let Some(request) = request else { return Ok(None) };
     let database = state.inner.storage.sql_metadata();
-    let Some(outcome) = database.recorded_outcome(catalog, request).await? else {
+    let Some(outcome) = database.recorded_outcome(namespace, request).await? else {
         return Ok(None);
     };
     let receipt = PublishReceipt {
-        generation: Some(Generation { catalog: outcome.catalog, value: outcome.generation }),
+        generation: Some(Generation { namespace: outcome.namespace, value: outcome.generation }),
         publication: outcome.publication,
         notices: Vec::new(),
     };
@@ -141,11 +141,8 @@ async fn commit_staged(
     notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
-    let orgs = staged
-        .iter()
-        .map(|stage| stage.org.as_deref().unwrap_or_default());
-    let catalog = match single_catalog(orgs) {
-        Ok(catalog) => catalog,
+    let namespace = match prepare_staged_namespace(state, &staged).await {
+        Ok(namespace) => namespace,
         Err(err) => {
             for stage in staged {
                 super::cleanup_tmp_slots(stage.slots).await;
@@ -157,7 +154,7 @@ async fn commit_staged(
     let rebases = super::rebase::rebase_bases(&mut staged);
     let (documents, logged) = batch_documents(staged);
     let publication = super::rebase::Publication {
-        catalog: &catalog,
+        namespace: &namespace,
         artifacts: promoted.artifacts.clone(),
         notes,
         request,
@@ -173,11 +170,34 @@ async fn commit_staged(
     };
     if !commit.replayed {
         for ecosystem in logged {
-            let log = LogId { catalog: catalog.clone(), ecosystem };
+            let log = LogId { namespace: namespace.clone(), ecosystem };
             super::super::release_record_logs::integrate_in_background(state, log);
         }
     }
     Ok(commit.into())
+}
+
+/// Resolve the single namespace of `staged` and reconcile every ecosystem's
+/// log it touches before committing, so entries in `.transparency-log/` from a
+/// newer store snapshot are re-imported (and their versions fenced off) before
+/// new entries are sequenced.
+async fn prepare_staged_namespace(
+    state: &AppState,
+    staged: &[StagedPublish],
+) -> Result<String, RegistryError> {
+    let namespaces = staged
+        .iter()
+        .map(|stage| stage.namespace.as_deref().unwrap_or_default());
+    let namespace = single_namespace(namespaces)?;
+    let ecosystems: std::collections::BTreeSet<_> = staged
+        .iter()
+        .map(|stage| stage.ecosystem)
+        .collect();
+    for ecosystem in ecosystems {
+        let log = LogId { namespace: namespace.clone(), ecosystem };
+        super::super::release_record_logs::ensure_reconciled(state, &log).await?;
+    }
+    Ok(namespace)
 }
 
 /// The documents a commit writes, and the ecosystems whose logs the records
@@ -204,15 +224,15 @@ fn batch_documents(
     (documents, logged)
 }
 
-/// The one organization every package of a publish belongs to. A
-/// transaction never spans organizations.
-pub(in super::super) fn single_catalog<'org>(
-    mut orgs: impl Iterator<Item = &'org str>,
+/// The one hosted namespace every package of a publish belongs to. A
+/// transaction never spans namespaces.
+pub(in super::super) fn single_namespace<'ns>(
+    mut namespaces: impl Iterator<Item = &'ns str>,
 ) -> Result<String, RegistryError> {
-    let first = orgs.next().unwrap_or_default();
-    if orgs.any(|org| org != first) {
+    let first = namespaces.next().unwrap_or_default();
+    if namespaces.any(|namespace| namespace != first) {
         return Err(RegistryError::BadRequest {
-            reason: "a publish spans more than one organization; publish each one separately"
+            reason: "a publish spans more than one namespace; publish each one separately"
                 .to_string(),
         });
     }

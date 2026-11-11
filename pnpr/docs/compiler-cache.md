@@ -11,14 +11,14 @@ developer machines. No pnpm workspace or `package.json` is involved.
 
 ## Declaring a cache
 
-A compiler cache belongs to an organization the server declares under
-[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces),
+A compiler cache belongs to an owner the server declares under
+[`artifacts.owners`](configuration.md#registry-resolver-and-artifact-surfaces),
 and is named after it:
 
 ```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
-  orgs:
+  owners:
     acme:
       access: [<workload-account-id>, <account-id-1>, <account-id-2>]
       publish: <workload-account-id>

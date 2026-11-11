@@ -46,7 +46,7 @@ sideEffectsCache:
       - native-addon
 ```
 
-The server side of both protocols, including the `artifacts.orgs` access
+The server side of both protocols, including the `artifacts.owners` access
 rules, the signed-envelope format, and the platform compatibility tags, is
 documented with pnpr.
 

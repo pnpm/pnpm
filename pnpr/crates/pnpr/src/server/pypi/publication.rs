@@ -1,9 +1,12 @@
 use super::{
-    super::{documents::stage_hosted_artifacts, publishing::commit_publishes},
+    super::{
+        documents::{HostedTarget, stage_hosted_artifacts},
+        publishing::commit_publishes,
+    },
     Action, AppState, AuthedCaller, BTreeMap, Bytes, CanonicalPackageName, DistributionKind,
     ECOSYSTEM, HeaderMap, Identity, ProjectDocument, ProjectFile, PublishTarget, RegistryError,
     RegistrySource, Request, Response, StagedPublish, State, StatusCode, TargetRegistry, Upload,
-    Yanked, authorize, bad_request, header, multipart, normalize_version, now_iso,
+    Yanked, authorize_package, bad_request, header, multipart, normalize_version, now_iso,
     parse_distribution_filename, parse_upload, private_no_cache, resolve_publish_target_for,
     sha256_hex,
 };
@@ -56,8 +59,7 @@ pub(super) async fn upload_file(
 /// that will record it is built. Publishing it is [`Self::publish`] on its
 /// own, or [`Self::stage`] as one package of a cross-ecosystem batch.
 pub(in super::super) struct PypiPublication {
-    pub(super) key: CanonicalPackageName,
-    pub(super) org: String,
+    pub(super) target: PypiTarget,
     pub(super) entry: ProjectFile,
     pub(super) content: Vec<u8>,
     metadata: Option<String>,
@@ -70,7 +72,7 @@ pub(in super::super) async fn validate_upload(
     registry: Option<&str>,
     upload: Upload,
 ) -> Result<PypiPublication, RegistryError> {
-    let target = authorize_upload(state, identity, registry, &upload)?;
+    let target = authorize_upload(state, identity, registry, &upload).await?;
     verify_upload(target, upload).await
 }
 
@@ -80,10 +82,13 @@ pub(in super::super) async fn validate_upload(
 /// spending anything on the file.
 pub(in super::super) struct PypiTarget {
     pub(super) key: CanonicalPackageName,
-    pub(super) org: String,
+    pub(super) namespace: String,
+    /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
+    pub(super) registry: String,
+    pub(super) publisher: Identity,
 }
 
-pub(in super::super) fn authorize_upload(
+pub(in super::super) async fn authorize_upload(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
@@ -114,15 +119,16 @@ pub(in super::super) fn authorize_upload(
             )));
         }
     }
-    let (source, org) =
+    let (source, namespace) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, project) {
-            PublishTarget::Hosted { source, org } => (source, org),
+            PublishTarget::Hosted { source, namespace } => (source, namespace),
             PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
-    authorize(state, identity, &RegistrySource::Hosted(source), project, Action::Publish)?;
-    Ok(PypiTarget { key, org })
+    let hosted = RegistrySource::Hosted(source.clone());
+    authorize_package(state, identity, &hosted, project, Action::Publish, Some(&namespace)).await?;
+    Ok(PypiTarget { key, namespace, registry: source, publisher: identity.clone() })
 }
 
 /// Check the file against the digest it was uploaded with, and build the
@@ -140,7 +146,6 @@ fn verify_distribution(
     target: PypiTarget,
     upload: Upload,
 ) -> Result<PypiPublication, RegistryError> {
-    let PypiTarget { key, org } = target;
     let sha256 = sha256_hex(&upload.content);
     if upload.sha256_digest
         .as_deref()
@@ -169,7 +174,7 @@ fn verify_distribution(
         data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
-    Ok(PypiPublication { key, org, entry, content: upload.content, metadata })
+    Ok(PypiPublication { target, entry, content: upload.content, metadata })
 }
 
 fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError> {
@@ -210,17 +215,17 @@ fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError
 
 impl PypiPublication {
     pub(in super::super) fn key(&self) -> &CanonicalPackageName {
-        &self.key
+        &self.target.key
     }
 
     /// The organization whose catalog the file is published into.
-    pub(in super::super) fn org(&self) -> &str {
-        &self.org
+    pub(in super::super) fn namespace(&self) -> &str {
+        &self.target.namespace
     }
 
     /// Publish this file on its own, in a transaction of one.
     pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
-        let _guard = state.inner.locks.packages.lock(self.key.as_str()).await;
+        let _guard = state.inner.locks.packages.lock(self.target.key.as_str()).await;
         let staged = self.stage(state).await?;
         commit_publishes(state, vec![staged]).await
     }
@@ -236,15 +241,16 @@ impl PypiPublication {
         if let Some(metadata) = &self.metadata {
             files.push((sidecar.as_str(), metadata.as_bytes()));
         }
+        let PypiTarget { key, namespace, registry, publisher } = &self.target;
         stage_hosted_artifacts(
             state,
-            &self.org,
-            &self.key,
+            &HostedTarget { namespace, registry, publisher },
+            key,
             &files,
             &refuse_existing_file(&self.entry.filename),
             ProjectDocument {
                 files: vec![self.entry.clone()],
-                ..ProjectDocument::new(self.key.as_str())
+                ..ProjectDocument::new(key.as_str())
             },
         )
         .await

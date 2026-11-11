@@ -199,6 +199,12 @@ pnpm add RexSkz/test-git-subdir-fetch.git#beta\&path:/packages/simple-react-app
 
 Installs from the `beta` branch and only the subdirectory at `/packages/simple-react-app`.
 
+pnpm also accepts npm's syntax, which separates the parameters with `::`:
+
+```sh
+pnpm add RexSkz/test-git-subdir-fetch.git#beta::path:packages/simple-react-app
+```
+
 #### How Git dependencies are resolved
 
 pnpm 11 keeps the specifier's transport as part of the recorded URL. Since v11.21.0 it records an SSH URL only when the specifier itself asks for one (`git+ssh://` or `git@host:...`): a shorthand like `owner/repo` resolves and records over HTTPS, so a lockfile written on a machine with SSH keys still installs on a CI runner without them. An SSH URL recorded by an older pnpm can be re-recorded over HTTPS with `pnpm update <package>`.

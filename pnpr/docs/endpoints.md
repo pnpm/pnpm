@@ -80,11 +80,11 @@ Every request routes through the registry graph:
   name that no source claims is a definitive `404`. There is no fall-through
   to another origin. A matched source that is unavailable is an error, never a
   `404`.
-- A registry's declared namespace is enforced **on every path to it**: a read
-  of a name outside the namespace is a definitive `404` answered before
-  storage or the upstream is consulted (through a router, on the default
-  base, and at the registry's own `/~<name>/` URL alike), and an off-namespace
-  publish is rejected.
+- A registry's claimed [`packages:`](configuration.md#the-packages-map) patterns
+  are enforced **on every path to it**: a read of an unclaimed name is a
+  definitive `404` answered before storage or the upstream is consulted (through
+  a router, on the default base, and at the registry's own `/~<name>/` URL
+  alike), and a publish of an unclaimed name is rejected.
 - **Writes** (publish, dist-tags, unpublish) must resolve to a hosted
   registry; a write that routes to an upstream is rejected.
 - The serving registry's matching `packages:` rule is enforced on every read
@@ -97,14 +97,48 @@ Every request routes through the registry graph:
 
 ## pnpr protocol endpoints
 
-The capability handshake is served when any of the four surfaces is enabled.
-Each protocol advertises its versions independently, so resolver-only and
-artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
+The capability handshake is served when any protocol surface is enabled. It is
+also available relative to each npm registry base, at `/npm/-/pnpr` and
+`/npm/~<name>/-/pnpr`. At npm bases it advertises only `publish`,
+`pnpmPublish`, and `records`. Root-only protocols have empty versions and
+features there. Use the server root to discover and call resolver, artifact,
+compiler cache, and pipeline endpoints. The `POST` endpoints require a valid pnpr
 `Authorization` header.
+
+The response has one capability map, `pnpr.protocols`. Clients must ignore
+unknown keys and unknown feature names. A missing protocol or an empty
+`versions` array means unsupported. Features apply to the advertised versions;
+disabled protocols advertise no features. Clients must select a version they
+support before using its features.
+
+| Protocol | Versions when enabled | Features and metadata |
+| --- | --- | --- |
+| `resolver` | `[0]` | `features`: `fixLockfile`, `verifyLockfile`, `projectTransforms`, `policyEcho`, `errorCodes`, `acceptedLockfileFormats`. `ecosystems` lists accepted package ecosystems. |
+| `publish` | `[0]` | Cross-ecosystem publish transaction. |
+| `pnpmPublish` | `[1]` | npm batch publish document format. |
+| `records` | `[1]` | Enabled when release record signing is configured. `manifestProfiles` lists supported install manifest profiles. |
+| `artifacts` | `[0]` | Experimental shared artifacts. |
+| `compilerCache` | `[0]` | Experimental compiler cache. |
+| `pipeline` | `[0]` | Experimental pipeline run records. |
+
+Every entry includes `versions`, `features`, and `experimental`. The artifacts,
+compiler cache, and pipeline protocols set `experimental: true`; their contracts
+may change. All pnpr surfaces remain experimental before 1.0.
+
+The supported HTTP protocol path remains `/v0/`, including after pnpr 1.0.
+Version numbers identify wire contracts, independently of the server release.
+There is no `/v1/` alias or deprecated path. A future incompatible contract must
+use a new path and advertise its version alongside the old one during a
+documented deprecation window. The `pnpmPublish` and `records` numbers identify
+document formats, rather than HTTP path versions.
+
+Project-transform support is advertised by the resolver's `projectTransforms`
+feature. Clients check it before sending a request that needs those transforms.
+Resolve responses no longer carry a separate capability header.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/pnpr` | Capability handshake. Returns `versions` for resolver protocols, `fixLockfile` for resolver versions that support lockfile repair, `ecosystems` for the ecosystems the resolver serves, `artifacts` for shared-artifact protocols, `publish` for the cross-ecosystem publish transaction, and `pipeline` for pipeline run records. Each version list is `[0]` when its surface is enabled and `[]` otherwise. `records` is `[1]` when hosted registries log their [release records](#release-record-logs), with the profiles they derive them under in `manifestProfiles`, and `[]` otherwise. A 404 means every surface is off. |
+| `GET` | `/-/pnpr` | Capability handshake returning `pnpr.protocols`. A 404 means every surface is off. |
 | `POST` | `/-/pnpr/v0/resolve` | Resolves one project or workspace against the registries and policy sent by the client. Returns `application/x-ndjson` frames. |
 | `POST` | `/-/pnpr/v0/verify-lockfile` | Verifies an existing lockfile under the client's registry and policy settings without resolving again. Returns `application/x-ndjson` frames. |
 
@@ -137,9 +171,19 @@ The `resolve` response is an NDJSON stream:
 | Frame | Description |
 | --- | --- |
 | `package` | One resolved tarball: `id`, `name`, `version`, `integrity`, `tarball`, and optional `unpackedSize` / `fileCount` / `requiresBuild`. |
-| `done` | Terminal success frame. For `resolve`, carries `lockfile` and `stats.totalPackages`; for `verify-lockfile`, only indicates success. |
+| `done` | Terminal success frame. For `resolve`, carries `lockfile` and `stats.totalPackages`; for npm `resolve` and `verify-lockfile`, also carries `appliedPolicies`. Clients must reject success when this echo is missing, incomplete, or differs from their requested policies. |
 | `violations` | Terminal policy failure frame. Carries rendered lockfile or OSV violations. |
 | `error` | Terminal server-side resolution or verification error. |
+
+For npm requests, `appliedPolicies` includes `autoInstallPeers`, `dedupePeers`,
+`excludeLinksFromLockfile`, `addMissingPeerTypes`, `projectScopedOptionalPeers`,
+`frozenLockfile`, `resolutionMode`, `trustLockfile`, `minimumReleaseAge`,
+`minimumReleaseAgeExclude`, `minimumReleaseAgeIgnoreMissingTime`, `trustPolicy`,
+`trustPolicyExclude`, and `trustPolicyIgnoreAfter`. Exclusion lists default to
+`[]`. Unset ages and an inactive trust policy are `null`.
+The verification endpoint echoes the same shape; clients check its verification
+policies without comparing resolution settings.
+Upgrade the pnpr server before upgrading clients that require this echo.
 
 ### Shared-artifact endpoints
 
@@ -150,16 +194,16 @@ of `resolver.enabled`. They serve
 the [shared side-effects cache](shared-side-effects-cache.md) proof of concept
 and, like the other `POST` resolver endpoints, require a pnpr `Authorization`
 header. Artifacts are owned by an organization, and
-[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces)
+[`artifacts.owners`](configuration.md#registry-resolver-and-artifact-surfaces)
 decides who may read and who may publish what each one owns.
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `PUT` | `/-/pnpr/v0/artifacts` | Stores one immutable opaque signed envelope in its organization's namespace. Every blob its manifest names is already stored or carried inline, base64-encoded, up to 64 MiB in all. Requires `publish` on that organization. At most eight variants per input key; a different artifact whose compatible consumers overlap an existing variant gets `409 Conflict`. |
-| `PUT` | `/-/pnpr/v0/artifacts/blob?organization=<name>&integrity=<sha512-…>` | Stores one blob, streamed from the request body, ahead of the envelope that names it. Requires `publish` on that organization and a `Content-Length` of at most 4 GiB. The blob is stored only if its bytes match the integrity. A blob nothing references yet is kept for at least an hour. |
-| `HEAD` | `/-/pnpr/v0/artifacts/blob?organization=<name>&integrity=<sha512-…>` | Whether the blob is stored, with its size as `Content-Length`. |
+| `PUT` | `/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}` | Stores one blob, streamed from the request body, ahead of the envelope that names it. Requires `publish` on that organization and a `Content-Length` of at most 4 GiB. The blob is stored only if its bytes match the integrity. A blob nothing references yet is kept for at least an hour. |
+| `HEAD` | `/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}` | Whether the blob is stored, with its size as `Content-Length`. |
+| `GET` | `/-/pnpr/v0/artifacts/blobs/{organization}/{integrity}` | Reads one blob. A blob the caller may not read answers `404`. |
 | `POST` | `/-/pnpr/v0/artifacts/resolve` | One batched lookup for candidate input keys. Returns at most eight signed variants per key; scanned envelope bytes plus the serialized response share one 16 MiB budget. |
-| `POST` | `/-/pnpr/v0/artifacts/blob` | Reads one owner-scoped blob by its SHA-512 integrity. |
 | `GET` `HEAD` `PUT` | `/-/pnpr/v0/compiler-cache/{cache}/{key}` | One [Cargo compilation cache](compiler-cache.md) entry, over the subset of WebDAV sccache uses. `PROPFIND` answers for virtual parent directories. Added in v0.1.0-alpha.11. |
 
 ### Cross-ecosystem endpoints
@@ -170,21 +214,21 @@ These belong to no single ecosystem, so they sit on the server root.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `PUT` | `/-/pnpr/v0/publish` | [Publish packages of any ecosystem](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) in one transaction. Advertised as `publish: [0]` in the handshake. |
-| `PUT` | `/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` | [Stages one release archive](ecosystems.md#staged-archives) for the caller, streamed from the request body, ahead of the publish that references it. Also under `/npm/`. Answers `201` when stored, `200` when the caller had it staged already, which renews it. Needs a signed-in caller and a `Content-Length` of at most 100 MiB. The archive is stored only if its bytes match the integrity. Only the caller can claim it, for 24 hours after its last upload. |
-| `HEAD` | `/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` | Whether the caller has the archive staged with at least an hour left, with its size as `Content-Length`. |
+| `PUT` | `/-/pnpr/v0/publish` | [Publish packages of any ecosystem](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) in one transaction. Advertised as `protocols.publish.versions: [0]` in the handshake. |
+| `PUT` | `/-/pnpr/v0/publish/archives/{integrity}` | [Stages one release archive](ecosystems.md#staged-archives) for the caller, streamed from the request body, ahead of the publish that references it. Also under `/npm/`. Answers `201` when stored, `200` when the caller had it staged already, which renews it. Needs a signed-in caller and a `Content-Length` of at most 100 MiB. The archive is stored only if its bytes match the integrity. Only the caller can claim it, for 24 hours after its last upload. |
+| `HEAD` | `/-/pnpr/v0/publish/archives/{integrity}` | Whether the caller has the archive staged with at least an hour left, with its size as `Content-Length`. |
 | `GET` | `/-/pnpr/v0/registries` | The [registry directory](discovery.md#the-registry-directory): the named registries, ecosystem endpoints, and routing order the caller may see. |
 
 ### Publication endpoints {#publication-endpoints}
 
 Served from the hosted [metadata database](storage.md#sqlite-metadata), SQLite or libSQL.
-A publication is a commit that introduced packages. Its id is the org
-generation it committed. `<org>` is `-` for registries without an `org`.
+A publication is a commit that introduced packages. Its id is the namespace
+generation it committed. `<namespace>` is `-` for registries in the default namespace.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/publications/<org>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
-| `GET` | `/-/publications/<org>?member=npm:<name>@<version>` | The publication that introduced that npm version. `404` when the caller may not read the package. Members of other ecosystems record no version, so they cannot be looked up this way. |
+| `GET` | `/-/publications/<namespace>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
+| `GET` | `/-/publications/<namespace>?member=npm:<name>@<version>` | The publication that introduced that npm version. `404` when the caller may not read the package. Members of other ecosystems record no version, so they cannot be looked up this way. |
 
 ### Release note endpoints {#release-note-endpoints}
 
@@ -201,7 +245,7 @@ and a single npm publish document can carry its version note in a top-level
 | `GET` | `/npm/<name>/<version>/notes` | The version's note as `text/markdown`. `<version>` may be a dist-tag. `204` when only the version's publication has a note, with a `Link: <…>; rel="publication-notes"` header. A version published with a note carries `PNPR-Note-Initial-Digest`, the digest of the text it was published with, even after an edit or deletion. |
 | `PUT`, `DELETE` | `/npm/<name>/<version>/notes` | Replace or delete the version's note. Requires the package's `publish` rule. |
 | `GET` | `/npm/<name>/-/notes` | Every note of the package as JSON, newest version first, at most 100 entries and 1 MiB, with `"truncated": true` when more exist. A version whose publication has a note the caller may read names it in `publication`, whose `url` is the note's path on the server, including the path of `public_url`, as in the `Link` header of the version route. |
-| `GET`, `PUT`, `DELETE` | `/-/publications/<org>/<id-or-name>/notes` | The publication's note. Reading needs read access to every member, writing needs every member's `publish` rule. |
+| `GET`, `PUT`, `DELETE` | `/-/publications/<namespace>/<id-or-name>/notes` | The publication's note. Reading needs read access to every member, writing needs every member's `publish` rule. |
 
 A response that anyone may read is cached `public, max-age=300`. Any other is
 `private, no-store`. pnpr keeps every earlier text of a note for recovery.
@@ -408,10 +452,10 @@ callers gets `Cache-Control: private, no-store` for its records.
 ### Release record logs
 
 With [`releaseRecords.logSigningKey`](configuration.md#releaserecords), each
-hosted organization's release records are appended to a transparency log, in
+hosted namespace's release records are appended to a transparency log, in
 the [C2SP tiled log](https://c2sp.org/tlog-tiles) format Go's checksum database
-uses. A registry address serves the log of the one hosted organization it
-reaches, under `/-/log/`. A registry that reaches no hosted organization, or
+uses. A registry address serves the log of the one hosted namespace it
+reaches, under `/-/log/`. A registry that reaches no hosted namespace, or
 several, serves no log.
 
 - `/-/log/checkpoint` is the log's latest
@@ -421,9 +465,9 @@ several, serves no log.
   log's hash tiles and entry bundles. A tile never changes once written, so it
   is cached forever.
 
-Anyone who may read a package of the organization reads its checkpoint and
+Anyone who may read a package of the namespace reads its checkpoint and
 hash tiles. An entry bundle names every package logged with it, so only a
-caller who may read every package of the organization gets the entry bundles;
+caller who may read every package of the namespace gets the entry bundles;
 anyone else gets a 404 for every bundle. When some package is closed to
 anonymous callers, these responses are `Cache-Control: private, no-store`.
 
@@ -738,14 +782,15 @@ resolver-only server that exposes no registry surface.
 | Method | Path | Description |
 | --- | --- | --- |
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
-| `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
+| `GET` | `/-/v1/login/device` | Browser page for SSO login (`loginUrl`). Asks for the code that `/-/v1/login` sent in its `npm-notice` header. |
+| `POST` | `/-/v1/login/device` | Takes the page's form. With one OIDC login provider, or with `provider` set, claims the login with `code` and redirects to the provider. With several providers and no `provider`, checks `code` and returns a page that asks which provider to sign in with. A code works once. pnpr refuses a request without `Sec-Fetch-Site: same-origin`, which current browsers send for a form on a pnpr page. Wrong codes are rate-limited per client address; accepted codes do not count. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
 | `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration. Passwords must contain at least 8 characters and at most 71 bytes. Returns a bearer token. |
 | `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
 | `POST` | `/-/npm/v1/user` | Change the authenticated user's password. Accepts `{"password":{"old":"current-password","new":"new-password"}}`. Revokes the account's existing bearer tokens. Also revokes browser sessions on the serving replica. |
-| `POST` | `/-/npm/v1/tokens` | Creates a bearer token for the authenticated caller after verifying `password`. Accepts `readonly` (`true` or `false`) or `packages_and_scopes_permission` (`"read-only"` or `"read-write"`), `cidr_whitelist`, `name`, `expires` (positive integer days or an RFC 3339 timestamp), and `expires_in` (positive integer seconds). Unsupported package, scope, organization, and stage-only restrictions return `400`. |
+| `POST` | `/-/npm/v1/tokens` | Creates a bearer token for the authenticated caller. An account with a password must send it as `password`. For an account without one, the caller must authenticate with a browser session or a token, and the new token expires no later than the calling session or token and stays within its CIDR whitelist. Accepts `readonly` (`true` or `false`) or `packages_and_scopes_permission` (`"read-only"` or `"read-write"`), `cidr_whitelist`, `name`, `expires` (positive integer days or an RFC 3339 timestamp), and `expires_in` (positive integer seconds). Unsupported package, scope, organization, and stage-only restrictions return `400`. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |
 | `DELETE` | `/-/npm/v1/tokens/token/{key}` | Revokes one of the caller's tokens by listing-side token key. |
 | `DELETE` | `/-/user/token/{token}` | npm logout endpoint. Revokes the raw bearer token in the path when it belongs to the authenticated caller. |

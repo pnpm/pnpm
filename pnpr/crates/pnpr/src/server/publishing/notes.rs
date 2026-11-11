@@ -73,10 +73,10 @@ fn entry_version(entry: &Value, ecosystem: Ecosystem) -> Option<(String, String)
 /// so the commit's own check covers it.
 pub(in super::super) async fn refuse_notes_of_published_python_versions(
     state: &AppState,
-    org: &str,
+    namespace: &str,
     notes: &PublishNotes,
 ) -> Result<(), RegistryError> {
-    let storage = state.inner.storage.for_hosted(org, Ecosystem::Pypi);
+    let storage = state.inner.storage.for_hosted(namespace, Ecosystem::Pypi);
     for note in notes.versions
         .iter()
         .filter(|note| note.ecosystem == Ecosystem::Pypi)

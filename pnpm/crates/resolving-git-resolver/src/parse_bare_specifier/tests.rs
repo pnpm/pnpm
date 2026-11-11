@@ -1,4 +1,6 @@
-use super::{PartialSpec, correct_url, parse_bare_specifier, parse_git_params};
+use super::{
+    PartialSpec, correct_url, git_spec_committish_and_path, parse_bare_specifier, parse_git_params,
+};
 
 #[test]
 fn rejects_non_git_url() {
@@ -38,6 +40,39 @@ fn parse_git_params_splits_semver_path_committish() {
     let params = parse_git_params(Some("beta&path:/packages/x"));
     assert_eq!(params.git_committish.as_deref(), Some("beta"));
     assert_eq!(params.path.as_deref(), Some("/packages/x"));
+}
+
+#[test]
+fn parse_git_params_accepts_npm_double_colon_separator() {
+    let params = parse_git_params(Some("v1.2.3::path:packages/x"));
+    assert_eq!(params.git_committish.as_deref(), Some("v1.2.3"));
+    assert_eq!(params.path.as_deref(), Some("packages/x"));
+
+    let params = parse_git_params(Some("semver:^1.0.0::path:packages/x"));
+    assert_eq!(params.git_range.as_deref(), Some("^1.0.0"));
+    assert!(params.git_committish.is_none());
+    assert_eq!(params.path.as_deref(), Some("packages/x"));
+}
+
+#[test]
+fn parse_git_params_skips_empty_params() {
+    let params = parse_git_params(Some("v1.2.3::path:packages/x::"));
+    assert_eq!(params.git_committish.as_deref(), Some("v1.2.3"));
+    assert_eq!(params.path.as_deref(), Some("packages/x"));
+}
+
+#[test]
+fn git_spec_committish_and_path_reads_npm_double_colon_separator() {
+    assert_eq!(
+        git_spec_committish_and_path("github:owner/repo#v1.2.3::path:packages/x"),
+        Some((Some("v1.2.3".to_string()), Some("packages/x".to_string()))),
+    );
+    assert_eq!(
+        git_spec_committish_and_path(
+            "git+https://example.com/owner/repo.git#main::path:packages/x"
+        ),
+        Some((Some("main".to_string()), Some("packages/x".to_string()))),
+    );
 }
 
 #[test]

@@ -11,10 +11,6 @@ fn archive(integrity: &str, bytes: &'static [u8]) -> StagedArchive<'static> {
     StagedArchive { integrity: integrity.to_owned(), bytes }
 }
 
-fn integrity_query(integrity: &str) -> Matcher {
-    Matcher::UrlEncoded("integrity".to_owned(), integrity.to_owned())
-}
-
 #[test]
 fn an_attachment_names_its_staged_archive_instead_of_carrying_it() {
     let mut document = json!({
@@ -35,23 +31,20 @@ async fn only_archives_the_registry_lacks_are_uploaded() {
     let registry =
         parse_supported_registry_url(&format!("{}/npm/", server.url())).unwrap().normalized_url;
     let stored = server
-        .mock("HEAD", "/npm/-/pnpr/v0/artifacts/blob")
-        .match_query(integrity_query(STORED))
+        .mock("HEAD", "/npm/-/pnpr/v0/publish/archives/sha512-c3RvcmVk")
         .match_header("authorization", "Bearer t")
         .with_status(200)
         .expect(1)
         .create_async()
         .await;
     let missing = server
-        .mock("HEAD", "/npm/-/pnpr/v0/artifacts/blob")
-        .match_query(integrity_query(MISSING))
+        .mock("HEAD", "/npm/-/pnpr/v0/publish/archives/sha512-bWlzc2luZw%3D%3D")
         .with_status(404)
         .expect(1)
         .create_async()
         .await;
     let upload = server
-        .mock("PUT", "/npm/-/pnpr/v0/artifacts/blob")
-        .match_query(integrity_query(MISSING))
+        .mock("PUT", "/npm/-/pnpr/v0/publish/archives/sha512-bWlzc2luZw%3D%3D")
         .match_header("authorization", "Bearer t")
         .match_header("content-type", "application/octet-stream")
         .match_body("missing")
@@ -81,14 +74,12 @@ async fn a_refused_upload_fails_with_what_the_registry_answered() {
     let registry =
         parse_supported_registry_url(&format!("{}/", server.url())).unwrap().normalized_url;
     server
-        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Any)
+        .mock("HEAD", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(404)
         .create_async()
         .await;
     server
-        .mock("PUT", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Any)
+        .mock("PUT", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(400)
         .with_body("over the limit")
         .create_async()
@@ -115,14 +106,12 @@ async fn a_refused_upload_keeps_only_the_start_of_a_long_answer() {
     let registry =
         parse_supported_registry_url(&format!("{}/", server.url())).unwrap().normalized_url;
     server
-        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Any)
+        .mock("HEAD", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(404)
         .create_async()
         .await;
     server
-        .mock("PUT", "/-/pnpr/v0/artifacts/blob")
-        .match_query(Matcher::Any)
+        .mock("PUT", Matcher::Regex("^/-/pnpr/v0/publish/archives/sha512-".to_string()))
         .with_status(400)
         .with_body("x".repeat(super::ERROR_BODY_LIMIT * 4))
         .create_async()

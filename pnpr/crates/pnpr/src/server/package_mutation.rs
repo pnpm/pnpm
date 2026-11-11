@@ -24,8 +24,8 @@ use pnpr_policy::Identity;
 use pnpr_storage::{DocumentWrite, metadata::validate_document_dist_tags};
 
 use super::{
-    Action, AppState, RegistrySource, authorize_package, hosted_storage, parse_json_body,
-    resolve_write_target,
+    Action, AppState, RegistrySource, WriteTarget, authorize_package, hosted_storage,
+    parse_json_body, resolve_write_target,
 };
 
 /// Apply a partial unpublish based on its revision, or an owner update.
@@ -44,41 +44,59 @@ pub(super) async fn update_packument(
         Ok(target) => target,
         Err(err) => return err.into_response(),
     };
-    let source = RegistrySource::Hosted(target.source.clone());
-    let org = target.org;
-    let storage = hosted_storage(state, Some(&org));
-
     let incoming_val: Value = match parse_json_body(body) {
         Ok(val) => val,
         Err(err) => return err.into_response(),
     };
-
     if incoming_val.get("maintainers").is_some() && incoming_val.get("versions").is_none() {
-        if let Err(err) =
-            authorize_package(state, identity, &source, name.as_str(), Action::Publish, Some(&org))
-                .await
-        {
-            return err.into_response();
-        }
-        return update_package_maintainers(
-            state,
-            identity,
-            &target.source,
-            &storage,
-            &name,
-            &incoming_val,
-        )
-        .await;
+        return apply_maintainer_update(state, identity, &target, &name, &incoming_val).await;
     }
+    apply_packument_rewrite(state, identity, &target, (&name, revision), incoming_val).await
+}
 
-    if let Err(err) = authorize_rewrite(state, identity, &source, name.as_str(), Some(&org)).await {
+async fn apply_maintainer_update(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    name: &CanonicalPackageName,
+    incoming_val: &Value,
+) -> Response {
+    let source = RegistrySource::Hosted(target.source.clone());
+    if let Err(err) = authorize_package(
+        state,
+        identity,
+        &source,
+        name.as_str(),
+        Action::Publish,
+        Some(&target.namespace),
+    )
+    .await
+    {
         return err.into_response();
     }
-    let mut packument = match submitted_packument(incoming_val, (&name, revision)) {
+    let storage = hosted_storage(state, Some(&target.namespace));
+    update_package_maintainers(state, identity, &target.source, &storage, name, incoming_val).await
+}
+
+async fn apply_packument_rewrite(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    (name, revision): (&CanonicalPackageName, &str),
+    incoming_val: Value,
+) -> Response {
+    let source = RegistrySource::Hosted(target.source.clone());
+    if let Err(err) =
+        authorize_rewrite(state, identity, &source, name.as_str(), Some(&target.namespace)).await
+    {
+        return err.into_response();
+    }
+    let mut packument = match submitted_packument(incoming_val, (name, revision)) {
         Ok(packument) => packument,
         Err(err) => return err.into_response(),
     };
-    rewrite_packument(state, identity, &target.source, &storage, &name, &mut packument).await
+    let storage = hosted_storage(state, Some(&target.namespace));
+    rewrite_packument(state, identity, &target.source, &storage, name, &mut packument).await
 }
 
 async fn read_hosted_packument(
@@ -248,10 +266,10 @@ pub(super) async fn authorize_rewrite(
     identity: &Identity,
     source: &RegistrySource,
     name: &str,
-    org: Option<&str>,
+    namespace: Option<&str>,
 ) -> Result<(), RegistryError> {
     for action in [Action::Publish, Action::Unpublish] {
-        authorize_package(state, identity, source, name, action, org).await?;
+        authorize_package(state, identity, source, name, action, namespace).await?;
     }
     Ok(())
 }

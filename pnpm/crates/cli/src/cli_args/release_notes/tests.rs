@@ -11,7 +11,7 @@ fn version(text: &str) -> Version {
 
 fn publication(id: &str) -> serde_json::Value {
     json!({
-        "org": "example",
+        "namespace": "example",
         "id": id,
         "name": format!("release-{id}"),
         "url": format!("/-/publications/example/{id}/notes"),
@@ -175,7 +175,7 @@ async fn a_publication_is_read_from_its_url_under_a_path_prefix() {
     let list = json!({ "notes": [{
         "version": "1.1.0",
         "publication": {
-            "org": "example",
+            "namespace": "example",
             "id": "p1",
             "url": "/registry/-/publications/example/p1/notes",
         },
@@ -204,7 +204,7 @@ async fn a_publication_url_on_another_origin_is_not_read() {
     let list = json!({ "notes": [{
         "version": "1.1.0",
         "text": "note",
-        "publication": { "org": "example", "id": "p1", "url": "https://elsewhere.example/notes" },
+        "publication": { "namespace": "example", "id": "p1", "url": "https://elsewhere.example/notes" },
     }] });
     let _list = server
         .mock("GET", "/pkg/-/notes")

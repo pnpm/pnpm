@@ -18,13 +18,13 @@ impl Request {
         if self.token_forbids_pull(source_key.as_str())? {
             return Ok(None);
         }
-        let source_org = match hosted_read_namespace(
+        let source_namespace = match hosted_read_namespace(
             &self.state,
             &self.identity,
             &source,
             source_key.as_str(),
         ) {
-            Ok(org) => org,
+            Ok(namespace) => namespace,
             Err(
                 RegistryError::Unauthenticated { .. }
                 | RegistryError::Forbidden { .. }
@@ -32,7 +32,7 @@ impl Request {
             ) => return Ok(None),
             Err(err) => return Err(err),
         };
-        let source_storage = self.state.inner.storage.for_hosted(&source_org, ECOSYSTEM);
+        let source_storage = self.state.inner.storage.for_hosted(&source_namespace, ECOSYSTEM);
         let Some((body, _)) =
             source_storage.open_hosted_blob(&source_key, &digest.blob_filename()).await?
         else {
@@ -55,11 +55,11 @@ impl Request {
         if self.method != Method::POST {
             return method_not_allowed();
         }
-        let (key, org) = match self.publish_target(name) {
-            Ok(target) => target,
+        let (key, namespace) = match self.publish_target(name).await {
+            Ok(target) => (target.key, target.namespace),
             Err(refusal) => return refusal.respond(),
         };
-        let storage = self.state.inner.storage.for_hosted(&org, ECOSYSTEM);
+        let storage = self.state.inner.storage.for_hosted(&namespace, ECOSYSTEM);
         if let (Some(mount), Some(from)) =
             (query_param(Some(&self.query), "mount"), query_param(Some(&self.query), "from"))
         {
@@ -88,8 +88,8 @@ impl Request {
 
     /// `PATCH`/`PUT`/`GET`/`DELETE /v2/<name>/blobs/uploads/<id>`.
     pub(super) async fn upload(&self, name: &str, id: &str, body: Body) -> Response {
-        let (key, org) = match self.publish_target(name) {
-            Ok(target) => target,
+        let (key, namespace) = match self.session_target(name) {
+            Ok(target) => (target.key, target.namespace),
             Err(refusal) => return refusal.respond(),
         };
         // One upload is one sequence of bytes, so its requests are serialized:
@@ -97,7 +97,7 @@ impl Request {
         // and the promotion, would store bytes that are not the digest they
         // are stored under.
         let _guard = self.state.inner.locks.packages.lock(&upload_lock_key(id)).await;
-        let storage = self.state.inner.storage.for_hosted(&org, ECOSYSTEM);
+        let storage = self.state.inner.storage.for_hosted(&namespace, ECOSYSTEM);
         let upload = match storage.open_blob_upload(&key, id).await {
             Ok(Some(upload)) => upload,
             Ok(None) => return error(ErrorCode::BlobUploadUnknown, "no such upload"),

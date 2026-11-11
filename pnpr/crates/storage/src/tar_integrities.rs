@@ -62,8 +62,8 @@ impl DerivedTar {
     }
 }
 
-/// The hosted-backend namespace of the tar-integrity tables. A leading `.`
-/// keeps it apart from every organization and package name, and out of the
+/// The hosted-backend record directory of the tar-integrity tables. A leading
+/// `.` keeps it apart from every namespace and package name, and out of the
 /// hosted inventories.
 pub(super) const NAMESPACE: &str = ".tar-integrity";
 
@@ -150,8 +150,8 @@ impl Storage {
     /// `dist.integrity` of the `.tgz` each was derived from.
     ///
     /// The table lives in the hosted backend, so every replica shares it, and
-    /// it is shared by every organization: each value is a function of its
-    /// key, so it says nothing a reader of the version's metadata could not
+    /// it is shared by every namespace: each value is a function of its key,
+    /// so it says nothing a reader of the version's metadata could not
     /// compute. An unreadable table reads as empty.
     pub async fn read_tar_integrities(
         &self,

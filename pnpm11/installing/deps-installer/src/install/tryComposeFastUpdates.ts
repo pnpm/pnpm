@@ -4,7 +4,7 @@ import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 
-import { type DroppedEdges, peerSuffixesAreIndependentOf } from './droppedEdges.js'
+import { type DroppedEdges, includeDroppedSubtrees, peerContextsAreIndependentOf } from './droppedEdges.js'
 import { pruneUnreferencedCatalogEntries, tryFastUpdateCatalogs } from './tryFastUpdateCatalogs.js'
 import { tryFastUpdateCatalogVersions } from './tryFastUpdateCatalogVersions.js'
 import { tryFastUpdateIgnoredOptionalDependencies } from './tryFastUpdateIgnoredOptionalDependencies.js'
@@ -169,6 +169,7 @@ async function applyCatalogsUpdate (
  * rewrite, not a prune — leaves the caller on the full-resolution path.
  */
 function finishGraphEdits (candidate: LockfileObject, edits: GraphEdits): boolean {
+  const affected = edits.dropped.size > 0 ? includeDroppedSubtrees(candidate, edits.dropped) : edits.dropped
   if (edits.dropped.size > 0 || edits.optionalFlagsAreStale) {
     const pruned = pruneSharedLockfile(candidate)
     if (pruned.packages == null) {
@@ -180,7 +181,7 @@ function finishGraphEdits (candidate: LockfileObject, edits: GraphEdits): boolea
   if (edits.dropped.size > 0) {
     // Pruned first: a peer-dependent package that the removals themselves
     // make unreachable needs no rekeying, so only the survivors are checked.
-    if (!peerSuffixesAreIndependentOf(candidate, edits.dropped)) return false
+    if (!peerContextsAreIndependentOf(candidate, affected)) return false
     pruneUnreferencedCatalogEntries(candidate)
   }
   return true

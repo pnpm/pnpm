@@ -1,4 +1,4 @@
-//! The [`PackageMetadata`] of one `(catalog, ecosystem)` namespace.
+//! The [`PackageMetadata`] of one `(namespace, ecosystem)` slice.
 
 use super::{
     Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, removed, render, tags,
@@ -12,20 +12,20 @@ use pnpr_error::Result;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::sync::Arc;
 
-/// The metadata of one `(catalog, ecosystem)` namespace: what the registry's
+/// The metadata of one `(namespace, ecosystem)` slice: what the registry's
 /// handlers reach through [`crate::Storage`] to read a package view, commit a
 /// package document, change a tag, or remove a package.
 #[derive(Debug, Clone)]
 pub(crate) struct PackageMetadata {
     pub(super) database: Arc<SqlMetadata>,
-    pub(super) catalog: String,
+    pub(super) namespace: String,
     pub(super) ecosystem: Ecosystem,
 }
 
 impl PackageMetadata {
-    /// The catalog of this namespace.
-    pub(crate) fn catalog(&self) -> &str {
-        &self.catalog
+    /// The hosted namespace of this slice.
+    pub(crate) fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     pub(crate) fn ecosystem(&self) -> Ecosystem {
@@ -34,7 +34,7 @@ impl PackageMetadata {
 
     pub(super) fn key(&self, name: &CanonicalPackageName) -> PackageKey {
         PackageKey {
-            catalog: self.catalog.clone(),
+            namespace: self.namespace.clone(),
             ecosystem: self.ecosystem,
             name: name.as_str().to_string(),
         }
@@ -46,7 +46,7 @@ impl PackageMetadata {
         freshness: Freshness,
     ) -> Result<Option<PackageView>> {
         let key = self.key(name);
-        self.database.read(self.catalog.clone(), freshness, move |connection, cache| {
+        self.database.read(self.namespace.clone(), freshness, move |connection, cache| {
             render::read_view(connection, cache, &key)
         })
         .await
@@ -61,7 +61,7 @@ impl PackageMetadata {
         self.read_view_with(name, Freshness::Bounded).await
     }
 
-    /// [`Self::read_view`] at catalog generation `generation` or later, such
+    /// [`Self::read_view`] at namespace generation `generation` or later, such
     /// as one a client has already seen.
     pub(crate) async fn read_view_at_least(
         &self,
@@ -169,7 +169,7 @@ impl PackageMetadata {
         let key = self.key(name);
         let read = LookupRead::new(key.clone(), lookup);
         let (view, (blobs, artifacts)) = self.database.read(
-            self.catalog.clone(),
+            self.namespace.clone(),
             Freshness::Current,
             move |connection, cache| {
                 let (view, rows) = render::read_view_with(connection, cache, &key, read.queries())?;
@@ -234,12 +234,13 @@ impl PackageMetadata {
 
     /// The names of every package with metadata, sorted.
     pub(crate) async fn package_names(&self) -> Result<Vec<String>> {
-        let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
-        self.database.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
+        let (namespace, ecosystem) = (self.namespace.clone(), self.ecosystem);
+        self.database.read(namespace.clone(), Freshness::Bounded, move |connection, _| {
             connection
                 .query(
-                    "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
-                    params![catalog, ecosystem.as_str()],
+                    "SELECT name FROM packages
+                     WHERE namespace = ?1 AND ecosystem = ?2 ORDER BY name",
+                    params![namespace, ecosystem.as_str()],
                 )?
                 .into_iter()
                 .map(|mut row| row.get(0))
@@ -251,31 +252,41 @@ impl PackageMetadata {
     /// The names of every package that has at least one published version,
     /// sorted.
     pub(crate) async fn published_package_names(&self) -> Result<Vec<String>> {
-        let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
-        self.database.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
-            let rows = match ecosystem {
-                Ecosystem::Npm => connection.query(
-                    "SELECT p.name FROM packages p
-                         WHERE p.catalog = ?1 AND p.ecosystem = ?2
-                           AND EXISTS (
-                               SELECT 1 FROM versions v
-                               WHERE v.catalog = p.catalog
-                                 AND v.ecosystem = p.ecosystem
-                                 AND v.name = p.name
-                                 AND v.revision_key = ?3
-                           )
-                         ORDER BY p.name",
-                    params![catalog, ecosystem.as_str(), super::packument::ORDINARY],
-                )?,
-                Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => connection.query(
-                    "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
-                    params![catalog, ecosystem.as_str()],
-                )?,
-            };
-            rows.into_iter()
-                .map(|mut row| row.get(0))
-                .collect()
+        let (namespace, ecosystem) = (self.namespace.clone(), self.ecosystem);
+        self.database.read(namespace.clone(), Freshness::Bounded, move |connection, _| {
+            query_published_names(connection, &namespace, ecosystem)
         })
         .await
     }
+}
+
+fn query_published_names(
+    connection: &dyn super::adapter::Connection,
+    namespace: &str,
+    ecosystem: Ecosystem,
+) -> Result<Vec<String>> {
+    let table = match ecosystem {
+        Ecosystem::Npm => "versions",
+        Ecosystem::Cargo => "cargo_versions",
+        Ecosystem::Pypi => "pypi_files",
+        Ecosystem::Oci => "oci_manifests",
+    };
+    connection
+        .query(
+            &format!(
+                "SELECT p.name FROM packages p
+                 WHERE p.namespace = ?1 AND p.ecosystem = ?2
+                   AND EXISTS (
+                       SELECT 1 FROM {table} item
+                       WHERE item.namespace = p.namespace
+                         AND item.ecosystem = p.ecosystem
+                         AND item.name = p.name
+                   )
+                 ORDER BY p.name",
+            ),
+            params![namespace, ecosystem.as_str()],
+        )?
+        .into_iter()
+        .map(|mut row| row.get(0))
+        .collect()
 }

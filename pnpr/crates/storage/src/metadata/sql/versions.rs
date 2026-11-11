@@ -3,14 +3,14 @@
 use super::{
     PackageKey,
     adapter::Connection,
-    commit::Commit,
-    packument::{ORDINARY, Readme, VersionRows},
+    commit::{Commit, parse_json, parse_optional_json},
+    packument::{Interpretation, Readme, VersionRows},
     to_column,
 };
 use crate::metadata::ArtifactMember;
 use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
 use pnpr_error::{RegistryError, Result};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
 /// Insert the rows of a version the store has not accepted yet, with the
@@ -24,17 +24,16 @@ pub(super) fn insert_version(
     record: Option<&[u8]>,
 ) -> Result<()> {
     refuse_removed(commit, removed, version)?;
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO versions (catalog, ecosystem, name, version, revision_key, integrity,
+        "INSERT INTO versions (namespace, ecosystem, name, version, integrity,
                                published_at, accepted_generation)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             version,
-            ORDINARY,
             rows.integrity(),
             rows.published_at,
             to_column(commit.generation),
@@ -61,20 +60,19 @@ pub(super) fn insert_version(
 }
 
 fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let manifest = serde_json::to_string(&rows.manifest)?;
     let inputs = serde_json::to_string(&rows.interpretation.inputs)?;
-    let accepted_digest = super::commit::accepted_digest(rows)?;
+    let accepted_digest = accepted_digest(rows)?;
     commit.transaction.execute(
-        "INSERT INTO accepted_manifests (catalog, ecosystem, name, version, revision_key, profile,
+        "INSERT INTO accepted_manifests (namespace, ecosystem, name, version, profile,
                                          manifest, inputs, accepted_digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             version,
-            ORDINARY,
             rows.interpretation.profile,
             manifest,
             inputs,
@@ -82,6 +80,50 @@ fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRo
         ],
     )?;
     Ok(())
+}
+
+/// What a version was accepted as.
+pub(super) struct AcceptedRows {
+    pub(super) manifest: Map<String, Value>,
+    pub(super) readme: Readme,
+    pub(super) interpretation: Interpretation,
+}
+
+/// The accepted manifest, README, and interpretation of `version`, for a
+/// restatement whose digest differs, such as one with its fields in another
+/// order.
+pub(super) fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
+    let (namespace, ecosystem, name) = commit.key.params();
+    let mut row = commit.transaction.query_one(
+        "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
+         FROM accepted_manifests m
+         LEFT JOIN readmes r USING (namespace, ecosystem, name, version)
+         WHERE m.namespace = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4",
+        params![namespace, ecosystem, name, version],
+    )?;
+    let manifest: String = row.get(0)?;
+    let text: Option<String> = row.get(1)?;
+    let filename: Option<String> = row.get(2)?;
+    let profile: String = row.get(3)?;
+    let inputs: String = row.get(4)?;
+    let readme = Readme {
+        text: parse_optional_json(text.as_deref())?,
+        filename: parse_optional_json(filename.as_deref())?,
+    };
+    let interpretation = Interpretation { profile, inputs: parse_json(&inputs)? };
+    Ok(AcceptedRows { manifest: parse_json(&manifest)?, readme, interpretation })
+}
+
+/// The digest of what a version's insert-only rows hold: its manifest,
+/// README, and interpretation.
+pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
+    let input = serde_json::to_vec(&(
+        &rows.manifest,
+        &rows.readme.text,
+        &rows.readme.filename,
+        &rows.interpretation,
+    ))?;
+    Ok(ssri::Integrity::from(input).to_string())
 }
 
 /// Insert the exact bytes of a version's release record. They must be a
@@ -94,7 +136,7 @@ fn insert_release_record(
     profile: &str,
     bytes: &[u8],
 ) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let invalid = |reason: String| RegistryError::Internal {
         reason: format!("the release record of {name}@{version} {reason}"),
     };
@@ -116,16 +158,15 @@ fn insert_release_record(
     // The record keeps the index its entry was just sequenced at, the log's
     // last.
     commit.transaction.execute(
-        "INSERT INTO release_records (catalog, ecosystem, name, version, revision_key, profile,
+        "INSERT INTO release_records (namespace, ecosystem, name, version, profile,
                                       record, digest, log_index)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                 (SELECT MAX(idx) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2))",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
+                 (SELECT MAX(idx) FROM log_entries WHERE namespace = ?1 AND ecosystem = ?2))",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             version,
-            ORDINARY,
             profile,
             record.bytes(),
             record.digest().to_string(),
@@ -134,18 +175,18 @@ fn insert_release_record(
     Ok(())
 }
 
-/// Append `entry` to the log of the commit's catalog and ecosystem, at the
+/// Append `entry` to the log of the commit's namespace and ecosystem, at the
 /// next index. The commit holds the database's write lock, so no other
 /// commit takes the same index. The index is computed by the statement
 /// itself, so sequencing waits for no answer and adds no round trip to a
 /// remote primary.
 fn sequence_log_entry(commit: &Commit<'_>, entry: &[u8]) -> Result<()> {
-    let (catalog, ecosystem, _) = commit.key.params();
+    let (namespace, ecosystem, _) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO log_entries (catalog, ecosystem, idx, entry)
+        "INSERT INTO log_entries (namespace, ecosystem, idx, entry)
          SELECT ?1, ?2, COALESCE(MAX(idx) + 1, 0), ?3 FROM log_entries
-         WHERE catalog = ?1 AND ecosystem = ?2",
-        params![catalog, ecosystem, entry],
+         WHERE namespace = ?1 AND ecosystem = ?2",
+        params![namespace, ecosystem, entry],
     )?;
     Ok(())
 }
@@ -156,12 +197,11 @@ pub(super) fn read_release_record(
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<Vec<u8>>> {
-    let (catalog, ecosystem, name) = key.params();
+    let (namespace, ecosystem, name) = key.params();
     let row = connection.query_optional(
         "SELECT record FROM release_records
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-           AND revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![namespace, ecosystem, name, version],
     )?;
     row.map(|mut row| row.get(0))
         .transpose()
@@ -183,17 +223,15 @@ fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<
     if readme.is_empty() {
         return Ok(());
     }
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO readmes (catalog, ecosystem, name, version, revision_key, readme,
-                              readme_filename)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO readmes (namespace, ecosystem, name, version, readme, readme_filename)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             version,
-            ORDINARY,
             json_text(readme.text.as_ref())?,
             json_text(readme.filename.as_ref())?,
         ],
@@ -207,22 +245,22 @@ pub(super) fn write_deprecation(
     version: &str,
     deprecated: Option<&Value>,
 ) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     let Some(deprecated) = deprecated else {
         commit.transaction.execute(
             "DELETE FROM annotations
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            params![catalog, ecosystem, name, version],
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+            params![namespace, ecosystem, name, version],
         )?;
         return Ok(());
     };
     commit.transaction.execute(
-        "INSERT INTO annotations (catalog, ecosystem, name, version, deprecated, generation)
+        "INSERT INTO annotations (namespace, ecosystem, name, version, deprecated, generation)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT (catalog, ecosystem, name, version)
+         ON CONFLICT (namespace, ecosystem, name, version)
          DO UPDATE SET deprecated = excluded.deprecated, generation = excluded.generation",
         params![
-            catalog,
+            namespace,
             ecosystem,
             name,
             version,
@@ -239,21 +277,21 @@ fn json_text(value: Option<&Value>) -> Result<Option<String>> {
 
 /// Remove a version, keeping its identity so it is never accepted again.
 pub(super) fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
+    let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+         SELECT namespace, ecosystem, name, version, ?5 FROM versions
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
          ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, version, to_column(commit.generation)],
+        params![namespace, ecosystem, name, version, to_column(commit.generation)],
     )?;
     for table in VERSION_TABLES {
         commit.transaction.execute(
             &format!(
                 "DELETE FROM {table}
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
             ),
-            params![catalog, ecosystem, name, version],
+            params![namespace, ecosystem, name, version],
         )?;
     }
     Ok(())

@@ -17,8 +17,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// The files of one package a JSON array names that are mapped, with the
 /// blobs they are mapped to.
-const MAPPED: &str = "SELECT artifact, integrity FROM artifact_blobs
-     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+const MAPPED: &str = "SELECT artifact, blob_id FROM artifact_blobs
+     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
        AND artifact IN (SELECT value FROM json_each(?4))";
 
 /// How a commit depends on an incarnation of a blob.
@@ -83,14 +83,14 @@ impl FenceRead {
         })
     }
 
-    pub(super) fn queries<'read>(&'read self, catalog: &'read str) -> Vec<Query<'read>> {
+    pub(super) fn queries<'read>(&'read self, namespace: &'read str) -> Vec<Query<'read>> {
         let rows = self.ids
             .iter()
-            .map(|(ecosystem, ids)| query!(ROWS, catalog, ecosystem.as_str(), ids.as_str()));
+            .map(|(ecosystem, ids)| query!(ROWS, namespace, ecosystem.as_str(), ids.as_str()));
         let mapped = self.referenced
             .iter()
             .map(|((ecosystem, name), files)| {
-                query!(MAPPED, catalog, ecosystem.as_str(), name.as_str(), files.as_str())
+                query!(MAPPED, namespace, ecosystem.as_str(), name.as_str(), files.as_str())
             });
         rows.chain(mapped).collect()
     }
@@ -157,14 +157,14 @@ impl FenceRead {
     pub(super) fn write(
         &self,
         transaction: &dyn Connection,
-        catalog: &str,
+        namespace: &str,
         check: &FenceCheck,
     ) -> Result<()> {
         for (ecosystem, artifact) in &check.created {
-            write_live(transaction, (catalog, *ecosystem), artifact)?;
+            write_live(transaction, (namespace, *ecosystem), artifact)?;
         }
         for artifact in &self.fence.artifacts {
-            write_mapping(transaction, catalog, artifact)?;
+            write_mapping(transaction, namespace, artifact)?;
         }
         Ok(())
     }
@@ -193,19 +193,19 @@ fn depends(row: Option<&BlobRow>, incarnation: u64) -> Option<Dependency> {
 /// Make `artifact`'s incarnation the live one of its blob.
 fn write_live(
     transaction: &dyn Connection,
-    (catalog, ecosystem): (&str, Ecosystem),
+    (namespace, ecosystem): (&str, Ecosystem),
     artifact: &ArtifactBlob,
 ) -> Result<()> {
     let sql =
-        "INSERT INTO blobs (catalog, ecosystem, integrity, incarnation, state, size, changed_at)
+        "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
          VALUES (?1, ?2, ?3, ?4, 'live', ?5, ?6)
-         ON CONFLICT (catalog, ecosystem, integrity) DO UPDATE
+         ON CONFLICT (namespace, ecosystem, blob_id) DO UPDATE
          SET incarnation = excluded.incarnation, state = 'live', size = excluded.size,
              changed_at = excluded.changed_at";
     transaction.execute(
         sql,
         params![
-            catalog,
+            namespace,
             ecosystem.as_str(),
             artifact.blob.id.as_str(),
             to_column(artifact.blob.incarnation),
@@ -220,19 +220,19 @@ fn write_live(
 /// so a collection that scanned the earlier one leaves it.
 fn write_mapping(
     transaction: &dyn Connection,
-    catalog: &str,
+    namespace: &str,
     artifact: &ArtifactBlob,
 ) -> Result<()> {
     let sql = "INSERT INTO artifact_blobs
-             (catalog, ecosystem, name, artifact, version, integrity, mapped_at, mapping)
+             (namespace, ecosystem, name, artifact, version, blob_id, mapped_at, mapping)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?8, ?7)
-         ON CONFLICT (catalog, ecosystem, name, artifact) DO UPDATE
+         ON CONFLICT (namespace, ecosystem, name, artifact) DO UPDATE
          SET mapped_at = excluded.mapped_at, mapping = excluded.mapping
-         WHERE artifact_blobs.integrity = excluded.integrity";
+         WHERE artifact_blobs.blob_id = excluded.blob_id";
     transaction.execute(
         sql,
         params![
-            catalog,
+            namespace,
             artifact.ecosystem.as_str(),
             artifact.name,
             artifact.artifact,

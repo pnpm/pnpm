@@ -57,7 +57,7 @@ registries:
   crates:
     type: hosted
     ecosystem: cargo
-    org: crates
+    namespace: crates
     packages:
       my-crate: {}
   crates-io:
@@ -68,7 +68,7 @@ registries:
   python:
     type: hosted
     ecosystem: pypi
-    org: python
+    namespace: python
     packages:
       my-package: {}
   pypi-org:
@@ -86,48 +86,28 @@ defaultRegistry: main
 For a `cargo` upstream, `url` is a sparse index root; for `pypi`, a Simple API
 root.
 
-### Reusing a name across ecosystems
+### Defaults for each ecosystem
 
-Group the registries under an ecosystem key to give each protocol its own
-registry of the same name:
+Registry names are unique across the configuration. Declare every registry
+directly under `registries:` and select its protocol with `ecosystem:`.
+Nesting registries under ecosystem keys is rejected.
+
+`defaultRegistry` can name a shared router, as above, or select a target for
+each ecosystem:
 
 ```yaml title="pnpr.yaml"
-registries:
-  npm:
-    internal:
-      type: hosted
-      packages:
-        '@example/*': {}
-    public:
-      type: upstream
-      url: https://registry.npmjs.org/
-      public: true
-    main:
-      type: router
-      sources: [internal, public]
-  cargo:
-    internal:
-      type: hosted
-    main:
-      type: router
-      sources: [internal]
-
 defaultRegistry:
-  npm: main
-  cargo: main
+  npm: local
+  cargo: crates
+  pypi: python
 ```
 
-`/npm/~internal` and `/cargo/~internal` are then independent registries. Router
-sources resolve within their own group and cannot cross into another, and each
-ecosystem gets its own default. Access rules, teams, upstream credentials, and
-caches belong to the individual registry.
+Each target must serve the selected ecosystem. A default does not change a
+registry's ecosystem or storage namespace.
 
-A grouped hosted registry defaults its `org` to its own `<name>`, and each
-ecosystem stores its packages under its own `<ecosystem>/` directory in that
-namespace. Set `org` explicitly to choose another namespace (`org: ''` for the
-default namespace). Two hosted registries of the same ecosystem cannot share an
-`org` namespace. The flat configuration format and its shared
-`defaultRegistry: main` remain supported.
+Hosted registries use the [default storage namespace](storage.md#layout) when
+`namespace` is omitted. Set `namespace` to choose another namespace. Two hosted
+registries of the same ecosystem cannot share a `namespace`.
 
 ## Cargo
 
@@ -163,8 +143,9 @@ publishing new versions.
 crates it hosts. Each result reports the crate's newest release that is not
 yanked; a crate whose releases are all yanked reports its newest release.
 
-`cargo owner` is not supported. Listing, adding, or removing owners returns
-HTTP `501 Not Implemented` with a Cargo error message.
+The account that first publishes a crate becomes its
+[owner](configuration.md#the-packages-map). `cargo owner` is not supported. Listing, adding, or removing
+owners returns HTTP `501 Not Implemented` with a Cargo error message.
 
 ## Python
 
@@ -175,7 +156,8 @@ so installers can resolve dependencies without downloading the whole wheel.
 A Python registry serves the Simple Repository API at `/pypi/simple/` (PEP 503
 HTML and PEP 691 JSON, chosen by `Accept`), files at
 `/pypi/files/<project>/<filename>`, and accepts uploads on the legacy API at
-`/pypi/legacy/`. A named registry answers under `/pypi/~<name>/...`.
+`/pypi/legacy/`. A named registry answers under `/pypi/~<name>/...`. The
+account that first uploads to a project becomes its [owner](configuration.md#the-packages-map).
 
 ```sh
 pip install --index-url https://pnpr.example.com/pypi/simple/ my-package
@@ -266,15 +248,16 @@ the version-conflict check all run up front, and any entry that fails one of the
 aborts the whole batch before a byte is written.
 
 **A batch that passes its checks is committed as one transaction.** It commits
-as one generation of its org, so it lands whole or leaves nothing behind, and a
-read sees the whole release or none of it:
+as one generation of its namespace, so it lands whole or leaves nothing behind,
+and a read sees the whole release or none of it:
 
 - Losing a write race, to another writer publishing the same file between the
   check and the commit, fails the whole batch with `409`, and nothing is
   published. The bytes that won the slot are someone else's published release,
   and overwriting them would be the worse outcome. Republishing the batch after
   bumping the conflicting version completes the release.
-- Every entry must belong to the same org. A batch that spans orgs is refused.
+- Every entry must belong to the same namespace. A batch that spans namespaces
+  is refused.
 - A retry gets the original response back while none of its published npm versions
   have been unpublished and none of its published OCI manifests have been deleted
   by digest. Retrying cannot restore an unpublished npm version. After deletion
@@ -287,9 +270,9 @@ read sees the whole release or none of it:
   publish. A caller whose permission was revoked since gets `403` and can
   read the outcome from the publication or the package.
 - The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
-  field in the body names it. The name must be unique within the org, at most
-  214 bytes long, and not a decimal number, which would read as a publication
-  id.
+  field in the body names it. The name must be unique within the namespace, at
+  most 214 bytes long, and not a decimal number, which would read as a
+  publication id.
   See [publication endpoints](endpoints.md#publication-endpoints).
 - A top-level `"notes"` field is the publication's release note, and a
   `"notes"` field in an npm, Cargo, or Python entry is the note of the version
@@ -313,8 +296,11 @@ A publisher can upload each archive on its own before the publish that
 references it, so one request body need not carry a whole release:
 
 ```text
-PUT /-/pnpr/v0/artifacts/blob?integrity=sha512-…
+PUT /-/pnpr/v0/publish/archives/sha512-…
 ```
+
+The integrity is one percent-encoded path segment, so its `/`, `+`, and `=`
+are sent as `%2F`, `%2B`, and `%3D`.
 
 The route is also mounted under `/npm/` and a named npm registry's
 `/npm/~<registry>/`. A staged archive belongs to the account that uploaded it,

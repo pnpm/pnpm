@@ -44,6 +44,7 @@
 
 pub(crate) use verify_lockfile::handle_verify_lockfile;
 
+mod request_auth;
 mod streaming;
 use streaming::{StreamedResolveInputs, stream_resolve_response};
 
@@ -76,7 +77,7 @@ use pnpr_config::Config as RegistryConfig;
 use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_route::{Footprint, RouteContext, RouteHook};
+use pnpr_route::{Footprint, RouteContext};
 
 use axum::{
     body::{Body, Bytes},
@@ -87,9 +88,7 @@ use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pnpm_network::{
-    AuthHeaders, GuardedDnsResolver, ThrottledClient, UpstreamRouteHook, native_dns_resolver,
-};
+use pnpm_network::{AuthHeaders, GuardedDnsResolver, ThrottledClient, native_dns_resolver};
 use pnpm_package_manager::build_resolution_verifiers;
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
@@ -139,7 +138,7 @@ pub(crate) struct Resolver {
     route_context: Arc<RouteContext>,
     /// Public URL clients use for pnpr-hosted and `/~<name>/` endpoint
     /// tarball URLs.
-    public_url: String,
+    local_registry: crate::server::LocalRegistry,
     cache: ResolverCache,
     index: IndexCache,
 }
@@ -198,8 +197,13 @@ impl Resolver {
         cell: &'a OnceLock<Resolver>,
         config: &RegistryConfig,
         osv_index: Option<Arc<OsvIndex>>,
+        state: &crate::server::AppState,
     ) -> &'a Resolver {
-        cell.get_or_init(|| Resolver::build(config, osv_index))
+        cell.get_or_init(|| {
+            let mut resolver = Resolver::build(config, osv_index);
+            resolver.local_registry.attach(state);
+            resolver
+        })
     }
 
     fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
@@ -230,31 +234,10 @@ impl Resolver {
             configs: Mutex::new(HashMap::new()),
             osv_index,
             route_context,
-            public_url: config.http.public_url.clone(),
+            local_registry: crate::server::LocalRegistry::new(config.http.public_url.clone()),
             cache: ResolverCache::new(cache_dir, config),
             index: IndexCache::new(config.http.packument_ttl),
         }
-    }
-
-    /// Build the request's [`AuthHeaders`] with the route hook installed:
-    /// every metadata/tarball fetch is classified against this server's
-    /// route policy for `identity`, the pnpr-managed credential (never the
-    /// client's) is selected, and the touched private routes accumulate in
-    /// `footprint`. The client's forwarded `auth_headers` are kept on the
-    /// value (so `to_by_scope` still reflects them) but no longer consulted.
-    fn hooked_auth(
-        &self,
-        request: &ResolveRequest,
-        identity: &Identity,
-        footprint: &Arc<Mutex<Footprint>>,
-    ) -> Arc<AuthHeaders> {
-        let hook: Arc<dyn UpstreamRouteHook> = Arc::new(RouteHook::new(
-            Arc::clone(&self.route_context),
-            identity.clone(),
-            Arc::clone(footprint),
-            Arc::clone(&self.cache.secret),
-        ));
-        Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
 
     /// Where `registry`'s Cargo sparse-index files are cached. The origin
@@ -488,7 +471,7 @@ fn frozen_lockfile_response(
         .map(|sizes| frozen_package_frames(config, tarball_router, &lockfile, &sizes))
         .unwrap_or_default();
     let applied = protocol::AppliedPolicies::from_request(request);
-    frames.push(done_frame(&lockfile, Some(&applied)));
+    frames.push(done_frame(&lockfile, &applied));
     Some(ndjson_frames(&frames))
 }
 
@@ -511,7 +494,7 @@ fn cached_resolution_response(
         identity,
     )?;
     let applied = protocol::AppliedPolicies::from_request(request);
-    Some(ndjson_single_frame(&done_frame(&lockfile, Some(&applied))))
+    Some(ndjson_single_frame(&done_frame(&lockfile, &applied)))
 }
 
 /// What a finished resolution offers the resolution cache.
@@ -588,7 +571,7 @@ fn request_tarball_router(
     TarballRouter::new(
         Arc::clone(&runtime.route_context),
         identity.clone(),
-        runtime.public_url.clone(),
+        runtime.local_registry.public_url.clone(),
         config
             .resolved_registries()
             .into_iter()

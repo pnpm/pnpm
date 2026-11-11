@@ -147,9 +147,11 @@ fn transitive_peer_names(
         .iter()
         .flatten()
         .map(|(name, _)| name.to_string());
-    let mut names: Vec<String> = bound
-        .chain(unbound_below.iter().cloned())
-        .collect();
+    let mut names: Vec<String> = bound.collect();
+    match &entry.unbound_peer_dependencies {
+        Some(unbound) => names.extend(unbound.iter().cloned()),
+        None => names.extend(unbound_below.iter().cloned()),
+    }
     names.sort_unstable();
     names.dedup();
     (!names.is_empty()).then_some(names)

@@ -1,6 +1,6 @@
 use super::{
-    Features, Registry, RegistryError, RoutingConfig, org_collision_error, registry_err,
-    validate_org_namespace, validate_registry_key,
+    Features, Registry, RegistryError, RoutingConfig, namespace_collision_error, registry_err,
+    validate_namespace, validate_registry_key,
 };
 
 impl Features {
@@ -31,12 +31,12 @@ impl RoutingConfig {
     /// Ready the registry graph for serving: fold every upstream into the graph
     /// as a pattern-less upstream registry, then apply every invariant YAML
     /// loading enforces — URL-safe registry names, path-safe and collision-free
-    /// hosted `org` namespaces, and the graph validation itself. This covers
+    /// hosted `namespace` partitions, and the graph validation itself. This covers
     /// embedders that build [`Self::upstreams`], [`Self::hosted`], or
     /// [`Self::registries`] programmatically, so [`pnpr_registry::Registries::resolve`] is the
     /// only dispatch table for `/~<name>/` traffic and a programmatically-built
-    /// config fails closed like a YAML load. An embedder that wants a
-    /// namespace bound on an upstream declares its registry entry (with
+    /// config fails closed like a YAML load. An embedder that wants
+    /// package patterns bound on an upstream declares its registry entry (with
     /// patterns) before serving.
     pub fn ensure_valid_registry_graph(
         &mut self,
@@ -111,7 +111,7 @@ impl RoutingConfig {
         Ok(())
     }
 
-    /// Each hosted serving row names a hosted registry and claims an org no
+    /// Each hosted serving row names a hosted registry and claims a namespace no
     /// earlier row claimed.
     ///
     /// The mirror of the upstream collision in [`Self::ensure_upstreams_in_graph`]:
@@ -121,7 +121,7 @@ impl RoutingConfig {
     pub(super) fn ensure_hosted_rows_match_graph(&self) -> Result<(), RegistryError> {
         for (index, (name, hosted)) in self.hosted.iter().enumerate() {
             validate_registry_key(name)?;
-            validate_org_namespace(name, &hosted.org)?;
+            validate_namespace(name, &hosted.namespace)?;
             if let Some(kind) = self.registries.get(name)
                 && !matches!(kind, Registry::Hosted { .. })
             {
@@ -137,11 +137,11 @@ impl RoutingConfig {
                 .iter()
                 .take(index)
                 .find(|(other_name, existing)| {
-                    existing.org == hosted.org
+                    existing.namespace == hosted.namespace
                         && self.registries.ecosystem(other_name).unwrap_or_default() == ecosystem
                 })
             {
-                return Err(org_collision_error(name, &hosted.org, other));
+                return Err(namespace_collision_error(name, &hosted.namespace, other));
             }
         }
         Ok(())

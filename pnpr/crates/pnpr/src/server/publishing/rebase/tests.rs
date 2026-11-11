@@ -120,7 +120,7 @@ fn a_client_revision_precondition_forbids_rebasing() {
             ..StagedBase::default()
         },
         slots: Vec::new(),
-        org: None,
+        namespace: None,
         publisher: None,
         verification: Verification::default(),
     }];

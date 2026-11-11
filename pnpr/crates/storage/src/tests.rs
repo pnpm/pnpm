@@ -1,8 +1,12 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig,
-    RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig, Storage,
+    atomic_write::create_tmp_file_with, fs,
 };
-use crate::archives::testing::{served, store_file};
+use crate::{
+    archives::testing::{served, store_file},
+    metadata::{RuleOverridesWrite, StoredRuleOverrides, StoredTeam},
+};
+use std::collections::BTreeSet;
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
@@ -148,10 +152,10 @@ async fn each_namespace_stores_an_archive_under_its_key() {
         keys.push(promoted.artifact.blob.key());
     }
     assert_eq!(keys[0], keys[1], "the same bytes have one key");
-    for org in ["", "npm~internal"] {
+    for namespace in ["", "npm~internal"] {
         let path = crate::layout::local_archive_path(
             &tmp.path().join("storage"),
-            org,
+            namespace,
             pnpr_package_name::Ecosystem::Npm,
             &keys[0],
         );
@@ -160,22 +164,24 @@ async fn each_namespace_stores_an_archive_under_its_key() {
 }
 
 #[tokio::test]
-async fn an_org_named_like_a_package_is_its_own_namespace() {
+async fn a_namespace_named_like_a_package_is_isolated() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let org = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
+    let named = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
     storage
         .write_hosted_document_if_current(&pkg("acme"), b"{}", None, None)
         .await
         .unwrap();
-    org.write_hosted_document_if_current(&pkg("tool"), b"{}", None, None).await
+    named
+        .write_hosted_document_if_current(&pkg("tool"), b"{}", None, None)
+        .await
         .unwrap();
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme"]);
     storage
         .remove_package(&pkg("acme"), None)
         .await
         .unwrap();
-    assert_eq!(org.hosted_package_names().await.unwrap(), ["tool"]);
+    assert_eq!(named.hosted_package_names().await.unwrap(), ["tool"]);
 }
 
 #[tokio::test]
@@ -185,11 +191,244 @@ async fn a_store_without_packages_gets_the_layout_marker() {
     fs::create_dir_all(tmp.path().join("storage/.team-rosters")).await.unwrap();
     storage.ensure_hosted_layout().await.unwrap();
     let marker = fs::read(tmp.path().join("storage/layout.json")).await.unwrap();
+    let parsed = serde_json::from_slice::<crate::layout::LayoutMarker>(&marker).unwrap();
+    assert_eq!(parsed.layout, crate::layout::LAYOUT_VERSION);
+    let store_id = parsed.store_id.expect("store_id written to layout.json");
+    assert_eq!(store_id.len(), 32);
+    assert!(
+        store_id
+            .chars()
+            .all(|ch| matches!(ch, '0'..='9' | 'a'..='f')),
+    );
     assert_eq!(
-        serde_json::from_slice::<crate::layout::LayoutMarker>(&marker).unwrap(),
-        crate::layout::LayoutMarker { layout: crate::layout::LAYOUT_VERSION },
+        storage.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(store_id.clone()),
     );
     storage.ensure_hosted_layout().await.unwrap();
+    let marker_after = fs::read(tmp.path().join("storage/layout.json")).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<crate::layout::LayoutMarker>(&marker_after).unwrap().store_id,
+        Some(store_id),
+    );
+}
+
+#[tokio::test]
+async fn mismatched_or_half_bound_store_and_database_are_refused() {
+    let tmp_a = TempDir::new().unwrap();
+    let storage_a = storage_in(&tmp_a);
+    storage_a.ensure_hosted_layout().await.unwrap();
+
+    let tmp_b = TempDir::new().unwrap();
+    let storage_b = storage_in(&tmp_b);
+    storage_b.ensure_hosted_layout().await.unwrap();
+
+    // Store A paired with database B: differing store_ids.
+    let cross = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp_a.path().join("storage"),
+        tmp_a.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp_b.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let err = cross
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("bound to store"), "{err}");
+    assert!(cross.ensure_hosted_layout().await.is_err());
+
+    // Populated store paired with an empty database.
+    let empty_db = TempDir::new().unwrap();
+    let store_only = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp_a.path().join("storage"),
+        tmp_a.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(empty_db.path().join("fresh.sqlite")),
+    )
+    .unwrap();
+    let err = store_only
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("no store_id in hosted_store"), "{err}");
+    assert!(store_only.ensure_hosted_layout().await.is_err());
+    assert!(store_only.write_hosted_layout_marker().await.is_err());
+    assert_eq!(
+        store_only.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Unmarked { has_data: false },
+    );
+
+    // Bound database paired with an unmarked empty store.
+    let empty_store = TempDir::new().unwrap();
+    let db_only = Storage::new(
+        &HostedStoreConfig::Fs,
+        empty_store.path().join("storage"),
+        empty_store.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp_a.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let err = db_only
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("has no layout.json"), "{err}");
+    assert!(db_only.ensure_hosted_layout().await.is_err());
+    assert!(db_only.write_hosted_layout_marker().await.is_err());
+    assert!(
+        !empty_store
+            .path()
+            .join("storage/layout.json")
+            .exists(),
+    );
+
+    // Store with `{"layout": 2}` and no `store_id`.
+    let no_id = TempDir::new().unwrap();
+    fs::create_dir_all(no_id.path().join("storage")).await.unwrap();
+    fs::write(
+        no_id.path().join("storage/layout.json"),
+        format!(r#"{{"layout":{}}}"#, crate::layout::LAYOUT_VERSION),
+    )
+    .await
+    .unwrap();
+    let legacy_marker = storage_in(&no_id);
+    let err = legacy_marker
+        .check_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("has no store_id"), "{err}");
+    assert!(legacy_marker.ensure_hosted_layout().await.is_err());
+}
+
+#[tokio::test]
+async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_databases() {
+    // 1. Interrupted after `begin_store_claim` and before `layout.json` is written.
+    let tmp_before_marker = TempDir::new().unwrap();
+    let initial = storage_in(&tmp_before_marker);
+    let pending_nonce = crate::layout::new_store_id();
+    assert_eq!(
+        initial.database.begin_store_claim(pending_nonce.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(pending_nonce),
+    );
+    drop(initial);
+
+    let restarted = storage_in(&tmp_before_marker);
+    restarted.ensure_hosted_layout().await.unwrap();
+    assert!(matches!(
+        restarted.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(_),
+    ));
+
+    // 2. Interrupted after `layout.json` is written and before `confirm_store_claim` completes.
+    let tmp = TempDir::new().unwrap();
+    let first_boot = storage_in(&tmp);
+    let db_nonce = crate::layout::new_store_id();
+    assert_eq!(
+        first_boot.database.begin_store_claim(db_nonce.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(db_nonce.clone()),
+    );
+    let candidate = format!("{}{}", &db_nonce[..16], &crate::layout::new_store_id()[..16]);
+    fs::create_dir_all(tmp.path().join("storage")).await.unwrap();
+    fs::write(
+        tmp.path().join("storage/layout.json"),
+        serde_json::to_vec(&crate::layout::LayoutMarker {
+            layout: crate::layout::LAYOUT_VERSION,
+            store_id: Some(candidate.clone()),
+        })
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    drop(first_boot);
+
+    // Another initializer with a separate empty database refuses to bind to the marker.
+    let other_db = TempDir::new().unwrap();
+    let other_storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(other_db.path().join("other.sqlite")),
+    )
+    .unwrap();
+    assert!(other_storage.write_hosted_layout_marker().await.is_err());
+    assert_eq!(
+        other_storage.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Unmarked { has_data: false },
+    );
+
+    // A newly constructed Storage instance after restart completes the confirmation.
+    let restarted_after_marker = storage_in(&tmp);
+    restarted_after_marker.ensure_hosted_layout().await.unwrap();
+    assert_eq!(
+        restarted_after_marker.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(candidate),
+    );
+
+    // 3. Initializer A creates pending claim N for store X, initializer B shares N and writes a
+    // marker to store Y, and a conflicting marker lands in store X before A writes its marker.
+    // A's failure does not erase N, so B can still confirm store Y.
+    let race_dir = TempDir::new().unwrap();
+    let shared_db = pnpr_config::MetadataBackend::Sqlite(race_dir.path().join("shared.sqlite"));
+    let store_x = race_dir.path().join("store-x");
+    let store_y = race_dir.path().join("store-y");
+    let init_a = Storage::new(
+        &HostedStoreConfig::Fs,
+        store_x.clone(),
+        race_dir.path().join("cache-a"),
+        &shared_db,
+    )
+    .unwrap();
+    let init_b = Storage::new(
+        &HostedStoreConfig::Fs,
+        store_y.clone(),
+        race_dir.path().join("cache-b"),
+        &shared_db,
+    )
+    .unwrap();
+    let race_nonce = crate::layout::new_store_id();
+    assert_eq!(
+        init_a.database.begin_store_claim(race_nonce.clone()).await.unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(race_nonce.clone()),
+    );
+    assert_eq!(
+        init_b.database
+            .begin_store_claim(crate::layout::new_store_id())
+            .await
+            .unwrap(),
+        crate::metadata::sql::StoreClaim::Pending(race_nonce.clone()),
+    );
+    let candidate_b = format!("{}{}", &race_nonce[..16], &crate::layout::new_store_id()[..16]);
+    fs::create_dir_all(&store_y).await.unwrap();
+    fs::write(
+        store_y.join("layout.json"),
+        serde_json::to_vec(&crate::layout::LayoutMarker {
+            layout: crate::layout::LAYOUT_VERSION,
+            store_id: Some(candidate_b.clone()),
+        })
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    fs::create_dir_all(&store_x).await.unwrap();
+    fs::write(
+        store_x.join("layout.json"),
+        serde_json::to_vec(&crate::layout::LayoutMarker {
+            layout: crate::layout::LAYOUT_VERSION,
+            store_id: Some(crate::layout::new_store_id()),
+        })
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert!(init_a.claim_and_write_layout_marker().await.is_err());
+    init_b.ensure_hosted_layout().await.unwrap();
+    assert_eq!(
+        init_b.database.store_binding().await.unwrap(),
+        crate::metadata::sql::StoreBinding::Bound(candidate_b),
+    );
 }
 
 #[tokio::test]
@@ -328,69 +567,56 @@ async fn grouped_registries_with_same_local_name_keep_records_isolated() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    let npm_record = b"npm-team-roster";
-    let pypi_record = b"pypi-team-roster";
+    let npm_teams = [StoredTeam {
+        id: "t-npm".to_string(),
+        name: "npm-team".to_string(),
+        members: BTreeSet::new(),
+    }];
+    let pypi_teams = [StoredTeam {
+        id: "t-pypi".to_string(),
+        name: "pypi-team".to_string(),
+        members: BTreeSet::new(),
+    }];
 
-    assert!(
-        storage
-            .create_registry_record(RegistryRecord::TeamRoster, "npm/shared", npm_record)
-            .await
-            .unwrap(),
-    );
-    assert!(
-        storage
-            .create_registry_record(RegistryRecord::TeamRoster, "pypi/shared", pypi_record)
-            .await
-            .unwrap(),
-    );
+    storage.replace_team_roster("npm/shared", &npm_teams).await.unwrap();
+    storage.replace_team_roster("pypi/shared", &pypi_teams).await.unwrap();
 
     assert_eq!(
         storage
-            .read_registry_record(RegistryRecord::TeamRoster, "npm/shared")
+            .read_team_roster("npm/shared")
             .await
             .unwrap()
             .unwrap()
-            .bytes,
-        npm_record.to_vec(),
+            .teams,
+        npm_teams,
     );
     assert_eq!(
         storage
-            .read_registry_record(RegistryRecord::TeamRoster, "pypi/shared")
+            .read_team_roster("pypi/shared")
             .await
             .unwrap()
             .unwrap()
-            .bytes,
-        pypi_record.to_vec(),
+            .teams,
+        pypi_teams,
     );
-    assert!(
-        storage.remove_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-    );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        None,
-    );
+    assert!(storage.remove_team_roster("npm/shared").await.unwrap());
+    assert_eq!(storage.read_team_roster("npm/shared").await.unwrap(), None);
 }
 
 #[tokio::test]
-async fn replace_registry_record_returns_conflict_if_record_is_absent() {
+async fn replace_rule_overrides_returns_conflict_if_record_is_absent() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
+    let overrides =
+        StoredRuleOverrides { access: Some(vec!["$all".to_string()]), ..Default::default() };
     let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            &super::MetadataRecord { bytes: b"expected-val".to_vec(), generation: 1 },
-            b"new-val",
-        )
+        .replace_rule_overrides("npm/shared", Some(Some(1)), &overrides)
         .await
         .unwrap();
-    assert!(write_result.is_none());
+    assert_eq!(write_result, RuleOverridesWrite::Conflict);
 
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        None,
-    );
+    assert_eq!(storage.read_rule_overrides("npm/shared").await.unwrap(), None);
 }
 
 #[test]
@@ -407,15 +633,27 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
     let max_len_repo = ["a"; 128].join("/");
     assert_eq!(max_len_repo.len(), 255);
     let repos = ["acme", "acme/blobs", "acme/app", "acme/app/tool", max_len_repo.as_str()];
+    let digest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
+    let make_doc = |repo: &str| {
+        serde_json::to_vec(&serde_json::json!({
+            "formatVersion": 1,
+            "name": repo,
+            "manifests": [{
+                "digest": digest,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "size": 1,
+            }],
+            "tags": [],
+        }))
+        .unwrap()
+    };
 
     for repo in repos {
         let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
-        let doc = format!(r#"{{"repository":"{repo}"}}"#);
+        let doc = make_doc(repo);
         assert_eq!(
-            storage
-                .write_hosted_document_if_current(&name, doc.as_bytes(), None, None)
-                .await
-                .unwrap(),
+            storage.write_hosted_document_if_current(&name, &doc, None, None).await.unwrap(),
             DocumentWrite::Written,
         );
         store_file(&storage, &name, "sha256-deadbeef", repo.as_bytes()).await;
@@ -423,14 +661,14 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
 
     for repo in repos {
         let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
-        let expected_doc = format!(r#"{{"repository":"{repo}"}}"#);
+        let expected_doc = make_doc(repo);
         assert_eq!(
             storage
                 .read_hosted_document(&name)
                 .await
                 .unwrap()
                 .as_deref(),
-            Some(expected_doc.as_bytes()),
+            Some(expected_doc.as_slice()),
         );
     }
 

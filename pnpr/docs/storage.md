@@ -25,16 +25,15 @@ The hosted store has the same layout on disk and in a bucket:
 
 ```text
 <storage>/
-  layout.json                     marks the layout version
-  default/<ecosystem>/            registries without an org
-  orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
-<namespace>/archives/<shard>/<identity>.<incarnation>
+  layout.json                         marks the layout version and store id
+  default/<ecosystem>/                registries in the default namespace
+  namespaces/<namespace>/<ecosystem>/ one partition per namespace and ecosystem
+<partition>/archives/<shard>/<identity>.<incarnation>
 ```
 
-`<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry declared
-under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems)
-without an `org` uses its own registry name as its `org`, under
-`orgs/<name>/<ecosystem>/`, for example `orgs/internal/npm/`. In an org name,
+`<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry without
+a `namespace` uses `default/<ecosystem>/`. Set `namespace` explicitly to store
+its packages under `namespaces/<namespace>/<ecosystem>/`. In a namespace name,
 lowercase letters, digits, `.`, `_` and `-` are kept. Every other byte is
 written as `!` and two hex digits.
 
@@ -74,7 +73,12 @@ archive, including blobs allowed by the [OCI size limit](configuration.md#oci).
 [reclaim](cli.md#gc) removed and a later publish stores again take the next
 incarnation, so a key is never written again once a reclaim may remove it.
 
-pnpr refuses to start on a store written by a newer pnpr, or on one in an
+When pnpr initializes an empty hosted store and metadata database, it writes a
+random `store_id` into `layout.json` and into the metadata database's
+`hosted_store` table. pnpr refuses to start, collect (`pnpr gc`), verify
+(`pnpr verify`), export (`pnpr export`), or migrate (`pnpr migrate-storage`)
+when `layout.json` and `hosted_store` hold different store IDs or when only one
+side holds one. It also refuses a store written by a newer pnpr, or one in an
 earlier layout, including the one pnpr used before `layout.json` existed: move
 to a fresh storage directory or bucket prefix, wipe pnpr's metadata tables, and
 republish. A cache in another layout is emptied on startup and refilled on
@@ -127,10 +131,11 @@ With SQL metadata:
   every move of a tag: when it moved, from which version to which, and who
   moved it. A publish, a document update, and a dist-tag change each record
   the user who made them.
-- Every change to an org's packages advances that org's generation. A hosted
-  npm package response, and the response to a dist-tag change, carry it in a
-  `pnpr-generation` header as `<org>:<generation>`, with an empty org for
-  registries without one. Generations of different orgs are unrelated.
+- Every change to a namespace's packages advances that namespace's generation.
+  A hosted npm package response, and the response to a dist-tag change, carry
+  it in a `pnpr-generation` header as `<namespace>:<generation>`, with an empty
+  namespace for registries in the default namespace. Generations of different
+  namespaces are unrelated.
 - pnpr renders package documents from the database and caches them by
   version, so a dist-tag change or a new release does not re-render the
   versions that did not change.
@@ -150,7 +155,7 @@ The SQLite and libSQL metadata tables use rowid storage for package state,
 accepted manifests, READMEs, release records, and log entries. Large payloads
 stay out of the interior pages used to look up their keys.
 
-Metadata timestamps use milliseconds since the Unix epoch and the server's
+SQL timestamps use milliseconds since the Unix epoch and the server's
 application clock. Package publication times must use RFC 3339. Responses
 render them in UTC with millisecond precision.
 
@@ -161,9 +166,8 @@ deletions do not retain earlier text for restoration.
 
 pnpr creates its metadata and auth tables in an empty database and records each
 applied migration step in `schema_migrations`, starting with step `1` for the
-1.0 schema. Its `applied_at` column holds Unix seconds, or `0` for steps applied
-before pnpr recorded application times. Running servers probe the primary
-database version at most once per second.
+1.0 schema. Its `applied_at` column holds milliseconds since the Unix epoch.
+Running servers probe the primary database version at most once per second.
 Requests use the last compatible result while a probe runs or the primary is
 unreachable. After a probe detects a version newer than the server supports,
 that server refuses further requests except liveness probes until it restarts.
@@ -178,8 +182,12 @@ pnpr refuses a database from a newer release. It refuses a database whose
 some of pnpr's tables. It also refuses a pre-1.0 database without
 `schema_migrations` (such as one holding `schema_version`,
 `auth_schema_migrations`, or unmarked tables) before changing anything in it.
-To replace a pre-1.0 database, drop its pnpr tables or delete the SQLite file
-and its `-wal` and `-shm` files so pnpr creates the 1.0 schema afresh.
+To replace a pre-1.0 database, drop its pnpr tables (or delete the SQLite file
+and its `-wal` and `-shm` files) together with the hosted store, or move to a
+fresh hosted store (such as a new storage directory or bucket prefix) and a
+fresh metadata database (moving the storage directory replaces the default
+SQLite file only when `database.url` is not set), so pnpr initializes both with
+a new store ID.
 
 ## PostgreSQL and MySQL metadata
 

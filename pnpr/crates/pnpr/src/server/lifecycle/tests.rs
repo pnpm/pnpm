@@ -89,7 +89,7 @@ async fn startup_and_periodic_sweeps_reclaim_s3_staging_files_past_request_timeo
 }
 
 #[tokio::test(start_paused = true)]
-async fn startup_sweep_reclaims_local_hosted_archive_temps_across_orgs() {
+async fn startup_sweep_reclaims_local_hosted_archive_temps_across_namespaces() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
     let config_path = tmp.path().join("config.yaml");
@@ -101,7 +101,7 @@ secret: test-secret-key-32-chars-long-12
 registries:
   acme-reg:
     type: hosted
-    org: acme
+    namespace: acme
 ",
         storage = tmp.path().join("storage").display(),
         cache = tmp.path().join("cache").display(),
@@ -155,4 +155,32 @@ async fn shutdown_drain_returns_when_requests_finish() {
     .await
     .unwrap();
     assert_eq!(start.elapsed(), Duration::from_secs(1));
+}
+
+#[tokio::test(start_paused = true)]
+async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store() {
+    let tmp = TempDir::new().unwrap();
+    let hosted_config = s3_config(&tmp);
+    let hosted_storage = Storage::from_config(&hosted_config.storage).unwrap();
+    hosted_storage.ensure_hosted_layout().await.unwrap();
+    let blob_id = pnpr_storage::BlobId::of_bytes(Ecosystem::Npm, b"staged-tarball");
+    let key = pnpr_storage::StagedArchiveKey { principal: "alice", blob_id: &blob_id };
+    assert!(hosted_storage.stage_archive(&key, b"staged-tarball".to_vec()).await.unwrap());
+
+    let mut proxy_config = hosted_config.clone();
+    proxy_config.routing.hosted.clear();
+    proxy_config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
+    super::load_startup_auth(&proxy_config).await.unwrap();
+    tokio::time::advance(Duration::from_hours(2)).await;
+    tokio::task::yield_now().await;
+
+    assert_eq!(
+        hosted_storage
+            .read_staged_archive(&key)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(b"staged-tarball".as_slice()),
+    );
 }

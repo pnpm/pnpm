@@ -1,39 +1,37 @@
 use super::{Db, storage};
-use crate::RegistryRecord;
+use crate::metadata::StoredTeam;
+use std::collections::BTreeSet;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires PNPR_TEST_MYSQL_URL"]
 async fn oversized_keys_fail_without_truncating_or_advancing_generation() {
     let db = Db::network("PNPR_TEST_MYSQL_URL").await;
     let storage = storage(&db);
-    let kind = RegistryRecord::TeamRoster;
     let boundary = "x".repeat(512);
-    assert!(storage.create_registry_record(kind, &boundary, b"original").await.unwrap());
-    let original = storage
-        .read_registry_record(kind, &boundary)
-        .await
-        .unwrap()
-        .unwrap();
+    let original_team = [StoredTeam {
+        id: "t-1".to_string(),
+        name: "original".to_string(),
+        members: BTreeSet::new(),
+    }];
+    let original = storage.replace_team_roster(&boundary, &original_team).await.unwrap();
     assert!(
         storage
-            .create_registry_record(kind, &format!("{boundary}x"), b"replacement")
+            .replace_team_roster(&format!("{boundary}x"), &[])
             .await
             .is_err(),
     );
     assert_eq!(
         storage
-            .read_registry_record(kind, &boundary)
+            .read_team_roster(&boundary)
             .await
             .unwrap()
             .unwrap()
-            .bytes,
-        b"original",
+            .teams,
+        original_team,
     );
-    assert!(storage.create_registry_record(kind, "next", b"next").await.unwrap());
     let next = storage
-        .read_registry_record(kind, "next")
+        .replace_team_roster("next", &[])
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(next.generation, original.generation + 1);
 }

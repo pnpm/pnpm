@@ -1,40 +1,30 @@
 use super::{
-    directory::{Directory, ScimUser, newly_deprovisioned},
+    directory::{ScimTracker, ScimUser, record_status_deltas},
     resources::apply_patch,
 };
+use pnpr_storage::metadata::ScimStatus;
 use serde_json::json;
-use std::collections::HashMap;
 
 fn user(active: bool) -> ScimUser {
     ScimUser { active, ..ScimUser::default() }
 }
 
-#[test]
-fn every_deactivation_is_counted_and_survives_reactivation() {
-    let mut directory = Directory::default();
-    directory.store("alice", user(true));
-    directory.store("alice", user(false));
-    directory.store("alice", user(false));
-    assert_eq!(directory.users["alice"].deprovisions, 1);
-    directory.store("alice", user(true));
-    assert_eq!(directory.users["alice"].deprovisions, 1);
-    directory.store("alice", user(false));
-    assert_eq!(directory.users["alice"].deprovisions, 2);
+fn status(user_id: &str, active: bool, deprovisions: u64, generation: u64) -> ScimStatus {
+    ScimStatus { user_id: user_id.to_string(), active, deprovisions, generation }
 }
 
 #[test]
 fn a_replica_ends_sessions_of_users_deprovisioned_since_its_last_read() {
-    let mut directory = Directory::default();
-    directory.store("alice", user(true));
-    directory.store("bob", user(true));
-    let mut seen = HashMap::new();
-    assert!(newly_deprovisioned(&mut seen, &directory).is_empty());
+    let mut tracker = ScimTracker::default();
+    let initial = [status("alice", true, 0, 1), status("bob", true, 0, 2)];
+    assert!(record_status_deltas(&mut tracker, &initial).is_empty());
+    assert_eq!(tracker.since_generation, 2);
 
     // Deactivated and reactivated between two reads of this replica.
-    directory.store("alice", user(false));
-    directory.store("alice", user(true));
-    assert_eq!(newly_deprovisioned(&mut seen, &directory), ["alice"]);
-    assert!(newly_deprovisioned(&mut seen, &directory).is_empty());
+    let delta = [status("alice", true, 1, 4)];
+    assert_eq!(record_status_deltas(&mut tracker, &delta), ["alice"]);
+    assert_eq!(tracker.since_generation, 4);
+    assert!(record_status_deltas(&mut tracker, &[]).is_empty());
 }
 
 #[test]

@@ -1,13 +1,12 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::PkgNameVerPeer;
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
 
-/// The providers one key's peer bindings name, without their own peers:
-/// peer segments may omit them (`dedupePeers`). `None` for a hashed
-/// suffix, which names none.
+/// The providers one key's peer bindings name. Provider groups may omit
+/// their own peers (`dedupePeers`). Unrecovered hashes name no providers.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundProviders(Option<HashSet<PkgNameVerPeer>>);
+pub struct BoundProviders(Option<HashMap<PkgNameVerPeer, HashSet<PkgNameVerPeer>>>);
 
 impl BoundProviders {
     /// The providers `key`'s peer suffix names. Empty when `key` has no
@@ -16,7 +15,7 @@ impl BoundProviders {
     pub fn from_key(key: &PkgNameVerPeer) -> Self {
         match PeerBindings::from_key(key) {
             Some(bindings) => Self::of(&bindings),
-            None => BoundProviders(Some(HashSet::new())),
+            None => Self::from_providers([]),
         }
     }
 
@@ -25,13 +24,19 @@ impl BoundProviders {
     pub fn of(bindings: &PeerBindings) -> Self {
         match bindings {
             PeerBindings::Hashed => BoundProviders(None),
-            PeerBindings::Explicit(_) => BoundProviders(Some(
-                bindings
-                    .providers()
-                    .map(|provider| provider.without_peer())
-                    .collect(),
-            )),
+            PeerBindings::Explicit(_) => Self::from_providers(bindings.providers()),
         }
+    }
+
+    fn from_providers(providers: impl IntoIterator<Item = PkgNameVerPeer>) -> Self {
+        let mut indexed: HashMap<_, HashSet<_>> = HashMap::new();
+        for provider in providers {
+            indexed
+                .entry(provider.without_peer())
+                .or_default()
+                .insert(provider);
+        }
+        BoundProviders(Some(indexed))
     }
 
     /// Whether the suffix was hashed (`peersSuffixMaxLength`) rather than
@@ -47,7 +52,20 @@ impl BoundProviders {
     pub fn binds(&self, target: &PkgNameVerPeer) -> bool {
         self.0
             .as_ref()
-            .is_none_or(|providers| providers.contains(&target.without_peer()))
+            .is_none_or(|providers| providers.contains_key(&target.without_peer()))
+    }
+
+    /// Matches the full provider key when recorded, or any peer context when
+    /// the recorded group omits the provider's peers.
+    pub(crate) fn binds_snapshot(&self, target: &PkgNameVerPeer) -> bool {
+        let bare = target.without_peer();
+        self.0
+            .as_ref()
+            .is_none_or(|providers| {
+                providers
+                    .get(&bare)
+                    .is_some_and(|keys| keys.contains(target) || keys.contains(&bare))
+            })
     }
 }
 

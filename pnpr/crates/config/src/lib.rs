@@ -15,7 +15,7 @@ pub use byte_size::{ByteSize, parse_byte_size};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use hosted::{HostedConfig, Management};
-pub use ip_network::{IpNetwork, parse_trusted_proxies};
+pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;
@@ -51,8 +51,8 @@ mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
     FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock,
-    RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock, RemovedUpstreamsBlock,
+    RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
 mod gc;
@@ -74,8 +74,8 @@ use release_records::{ReleaseRecordsFile, build_release_records_config};
 
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, org_collision_error, registry_err, resolve_file_registries,
-    validate_org_namespace, validate_registry_key, validate_registry_name,
+    ResolvedFileRegistries, namespace_collision_error, registry_err, resolve_file_registries,
+    validate_namespace, validate_registry_key, validate_registry_name,
 };
 
 mod s3;
@@ -278,8 +278,8 @@ pub struct RoutingConfig {
     /// self-referential router fails startup rather than serving the wrong
     /// origin.
     pub registries: Registries,
-    /// Hosted registries, keyed by registry id. Each owns an `org` storage/serving
-    /// namespace and an access policy gating its packages. The only registry kind
+    /// Hosted registries, keyed by registry id. Each owns a storage `namespace`
+    /// and an access policy gating its packages. The only registry kind
     /// that accepts writes.
     pub hosted: IndexMap<String, HostedConfig>,
     /// The registries, by key, that declare `tarballs: tar`: their metadata
@@ -410,7 +410,7 @@ impl Default for ResolverFeature {
 
 /// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
 /// Off by default while the surface is a proof of concept. Who may read and
-/// publish runs is [`ArtifactsFeature::orgs`].
+/// publish runs is [`ArtifactsFeature::owners`].
 #[derive(Debug, Default, Clone)]
 pub struct PipelineFeature {
     /// Master switch for the run submission, listing, and viewer endpoints.
@@ -472,7 +472,7 @@ fn build_features(
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            orgs: parse_storage_access(artifacts_file.orgs)?,
+            owners: parse_storage_access(artifacts_file.owners)?,
             quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
         pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },

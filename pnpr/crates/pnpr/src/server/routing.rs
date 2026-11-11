@@ -19,10 +19,7 @@ mod account_handlers;
 use account_handlers::account_routes;
 
 mod protocol_routes;
-use protocol_routes::{
-    artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes,
-    staged_archive_routes_under,
-};
+use protocol_routes::{artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes};
 
 mod team_handlers;
 use team_handlers::team_routes;
@@ -272,8 +269,6 @@ fn surface_routes(
     }
     if surfaces.artifacts {
         router = artifacts_routes(state, router);
-    } else if surfaces.registry {
-        router = staged_archive_routes(router);
     }
     if surfaces.pipeline {
         router = pipeline_routes(state, router);
@@ -292,13 +287,16 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     let npm = npm_registry_routes();
     // One publish transaction for packages of any ecosystem. It answers here
     // rather than inside the npm surface.
-    let mut router = router
+    let mut router = staged_archive_routes(router, "")
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
-        .route("/-/publications/{org}", get(super::publications::serve_member_publication))
-        .route("/-/publications/{org}/{publication}", get(super::publications::serve_publication))
+        .route("/-/publications/{namespace}", get(super::publications::serve_member_publication))
         .route(
-            "/-/publications/{org}/{publication}/notes",
+            "/-/publications/{namespace}/{publication}",
+            get(super::publications::serve_publication),
+        )
+        .route(
+            "/-/publications/{namespace}/{publication}/notes",
             get(super::publications::serve_publication_note)
                 .put(super::publications::serve_publication_note)
                 .delete(super::publications::serve_publication_note)
@@ -336,23 +334,19 @@ fn npm_registry_routes() -> Router<AppState> {
     // registry URL; under a named registry, its npm entries are addressed
     // through that registry. The archives a publish references are staged
     // beside it, under the same base.
-    let mut router = staged_archive_routes(
-        Router::new()
-            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
-            .route("/~{registry}/-/pnpr/v0/publish", put(batch::serve_registry_publish)),
-    );
-    router = staged_archive_routes_under(router, "/~{registry}");
+    let mut router = Router::new()
+        .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+        .route("/~{registry}/-/pnpr/v0/publish", put(batch::serve_registry_publish));
+    router = staged_archive_routes(router, "");
+    router = staged_archive_routes(router, "/~{registry}");
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
         let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
         let with_audit = super::security_audit::routes(with_teams, base)
+            .route(&path("/-/pnpr"), get(super::serve_npm_handshake))
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
             .route(&path("/-/log/{*resource}"), get(super::log_routes::get_log_resource))
-            .route(
-                &path("/-/npm/v1/attestations/{*spec}"),
-                get(super::attestations::get_attestations),
-            )
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
@@ -406,6 +400,7 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
 fn npm_version_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
     let path = |tail: &str| format!("{base}{tail}");
     router
+        .route(&path("/-/npm/v1/attestations/{*spec}"), get(super::attestations::get_attestations))
         .route(
             &path("/-/package/{name}/visibility"),
             axum::routing::any(note_handlers::unsupported_npm_route),
@@ -443,4 +438,16 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
             post(staged::approve_staged).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
         )
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+}
+
+pub(super) fn local_registry_router(config: &Config) -> Router<AppState> {
+    if config.features.registry.enabled && config.routing.registries.has_ecosystem(Ecosystem::Npm) {
+        let mut packages = Router::new();
+        for base in ["", "/~{registry}"] {
+            packages = npm_package_routes(packages, base);
+        }
+        Router::new().nest(&Ecosystem::Npm.base_path(), packages)
+    } else {
+        Router::new()
+    }
 }

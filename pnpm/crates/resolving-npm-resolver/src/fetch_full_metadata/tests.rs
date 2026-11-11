@@ -829,7 +829,42 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
 
 #[tokio::test]
 async fn fetch_full_metadata_returns_not_modified_on_304() {
+    conditional_metadata(MetadataRoute::Remote, MetadataResponses::NotModified).await;
+}
+
+#[tokio::test]
+async fn local_metadata_preserves_conditional_headers() {
+    conditional_metadata(MetadataRoute::Local, MetadataResponses::NotModified).await;
+}
+
+#[tokio::test]
+async fn local_metadata_retries_transient_statuses() {
+    conditional_metadata(MetadataRoute::Local, MetadataResponses::TransientThenNotModified).await;
+}
+
+enum MetadataRoute {
+    Remote,
+    Local,
+}
+
+enum MetadataResponses {
+    NotModified,
+    TransientThenNotModified,
+}
+
+async fn conditional_metadata(route: MetadataRoute, responses: MetadataResponses) {
     let mut server = mockito::Server::new_async().await;
+    let failed = match responses {
+        MetadataResponses::TransientThenNotModified => Some(
+            server
+                .mock("GET", "/acme")
+                .with_status(503)
+                .expect(1)
+                .create_async()
+                .await,
+        ),
+        MetadataResponses::NotModified => None,
+    };
     let mock = server
         .mock("GET", "/acme")
         .match_header("if-none-match", r#"W/"fresh""#)
@@ -841,16 +876,25 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::default();
+    let (auth_headers, registry) = match route {
+        MetadataRoute::Local => (
+            AuthHeaders::default()
+                .with_route_hook(std::sync::Arc::new(LocalMetadata {
+                    target: format!("{registry}acme"),
+                })),
+            "https://local.invalid/",
+        ),
+        MetadataRoute::Remote => (AuthHeaders::default(), registry.as_str()),
+    };
     let opts = FetchFullMetadataOptions {
-        registry: &registry,
+        registry,
         full_metadata: true,
         etag: Some(r#"W/"fresh""#),
         modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
         http: crate::MetadataHttpClient {
             http_client: &http_client,
             auth_headers: &auth_headers,
-            retry_opts: no_retry_opts(),
+            retry_opts: fast_retry_opts(),
         },
     };
 
@@ -860,6 +904,35 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
         "expected NotModified, got: {outcome:?}",
     );
     mock.assert_async().await;
+    if let Some(failed) = failed {
+        failed.assert_async().await;
+    }
+}
+
+struct LocalMetadata {
+    target: String,
+}
+
+impl pnpm_network::UpstreamRouteHook for LocalMetadata {
+    fn authorize(&self, _: &str, _: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn fetch_local(
+        &self,
+        _: &str,
+        headers: reqwest::header::HeaderMap,
+    ) -> Option<pnpm_network::LocalResponse> {
+        let target = self.target.clone();
+        Some(Box::pin(async move {
+            reqwest::Client::new()
+                .get(target)
+                .headers(headers)
+                .send()
+                .await
+                .unwrap()
+        }))
+    }
 }
 
 /// A registry that accepts each connection, reads the request, writes

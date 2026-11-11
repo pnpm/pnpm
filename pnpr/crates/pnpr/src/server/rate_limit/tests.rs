@@ -284,3 +284,45 @@ fn distributed_failures_exhaust_the_default_account_limit() {
     );
     assert!(limiter.check(Some(next), "bob").is_ok());
 }
+
+#[test]
+fn refunded_code_submissions_do_not_use_up_the_limit() {
+    let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 3, 5);
+    let ip = Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)));
+    for _ in 0..10 {
+        assert!(limiter.reserve_web_login_code(ip, None).is_ok());
+        limiter.refund_web_login_code(ip, None);
+    }
+    for _ in 0..3 {
+        assert!(limiter.reserve_web_login_code(ip, None).is_ok());
+    }
+    assert!(limiter.reserve_web_login_code(ip, None).is_err());
+    assert!(limiter.check_and_record_web_login(ip, None).is_ok(), "the start limit is separate");
+}
+
+#[test]
+fn wrong_codes_cannot_use_up_the_records_that_login_starts_need() {
+    let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 2, 5);
+    for index in 0..1024u32 {
+        let ip = IpAddr::V4(Ipv4Addr::from(index + 1));
+        assert!(
+            limiter
+                .reserve_web_login_code(Some(ip), None)
+                .is_ok(),
+            "IP #{index}",
+        );
+    }
+    let over_capacity_ip = Some(IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1)));
+    assert!(limiter.reserve_web_login_code(over_capacity_ip, None).is_err());
+    assert!(limiter.check_and_record_web_login(over_capacity_ip, None).is_ok());
+}
+
+#[test]
+fn refunded_code_records_free_their_slot() {
+    let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 2, 5);
+    for index in 0..2048u32 {
+        let ip = Some(IpAddr::V4(Ipv4Addr::from(index + 1)));
+        assert!(limiter.reserve_web_login_code(ip, None).is_ok(), "IP #{index}");
+        limiter.refund_web_login_code(ip, None);
+    }
+}

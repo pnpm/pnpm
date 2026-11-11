@@ -65,7 +65,10 @@ enum PypiFrame {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum VerifyFrame {
-    Done,
+    Done {
+        #[serde(rename = "appliedPolicies")]
+        applied_policies: super::AppliedPolicies,
+    },
     Error {
         message: String,
         #[serde(default)]
@@ -237,7 +240,14 @@ impl PnprClient {
         }
 
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
-            VerifyFrame::Done => Ok(Some(())),
+            VerifyFrame::Done { applied_policies } => {
+                super::resolve::applied_policies::assert_verification_policies(
+                    &applied_policies,
+                    &opts.verification,
+                    opts.trust_lockfile,
+                )?;
+                Ok(Some(()))
+            }
             VerifyFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
             VerifyFrame::Violations { violations } => {
                 Err(PnprClientError::Verification(build_verify_error(violations)))

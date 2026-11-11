@@ -99,7 +99,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 
 ### migrate-storage
 
-Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in the database selected by `database.url`. S3 deployments support libSQL, PostgreSQL, or MySQL metadata. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `database.url` at it. A run that is not `--dry-run` refuses local SQLite metadata.
+Migrates hosted package blobs and transparency log records from local filesystem storage to an S3-compatible object store. Package metadata stays in the database selected by `database.url`. S3 deployments support libSQL, PostgreSQL, or MySQL metadata. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `database.url` at it. A run that is not `--dry-run` refuses local SQLite metadata.
 
 ```sh
 # Preview packages and blobs that would be transferred
@@ -207,7 +207,7 @@ no key pnpr stores archives under is never removed.
 For unmapped archives, `gc` logs each reclaimed archive's key and size at info
 level under the [`pnpr::audit` target](configuration.md#admin-audit-logs).
 When it unmaps an unreachable image blob, the removal record also names
-the repository. Collection logs include the organization and ecosystem.
+the repository. Collection logs include the namespace and ecosystem.
 Successful removals are logged even if another archive cannot be removed.
 
 The metadata database fences every removal; no step depends on timing. A

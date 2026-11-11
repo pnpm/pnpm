@@ -37,14 +37,18 @@ pub(in super::super) fn ecosystem_package_keys(
     Ok(normalized)
 }
 
-/// Two hosted registries of the same ecosystem sharing an `org` would read and
+/// Two hosted registries of the same ecosystem sharing a `namespace` would read and
 /// write the same storage namespace, so a package published to one would
 /// surface through the other — breaking the declared-provenance isolation.
 /// Rejected at load, whether the config came from YAML or an embedder.
-pub(in super::super) fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
+pub(in super::super) fn namespace_collision_error(
+    name: &str,
+    namespace: &str,
+    other: &str,
+) -> RegistryError {
     RegistryError::InvalidConfig {
         reason: format!(
-            "hosted registry {name:?} reuses the `org` namespace {org:?} already claimed by \
+            "hosted registry {name:?} reuses the `namespace` {namespace:?} already claimed by \
              registry {other:?}; two hosted registries cannot share a namespace",
         ),
     }
@@ -73,22 +77,25 @@ pub(in super::super) fn validate_registry_name(name: &str) -> Result<(), Registr
     })
 }
 
-/// A hosted registry's `org` becomes a storage path/key segment (`Storage::for_hosted`),
-/// so it must be empty (the flat root) or one safe component under the same
+/// A hosted registry's `namespace` becomes a storage path/key segment (`Storage::for_hosted`),
+/// so it must be empty (the default namespace) or one safe component under the same
 /// rules as every other on-disk segment (no separators, traversal, leading
 /// dot, or Windows drive prefix) — otherwise a crafted config could read or
-/// write outside the storage root. The leading-dot rule also keeps an org
+/// write outside the storage root. The leading-dot rule also keeps a namespace
 /// from aliasing the reserved dot-directories inside the storage root (the
 /// default `.pnpr-cache` wipeable cache and the `.metadata` database), which
 /// would put authoritative packages under a path an operator is told is safe
 /// to delete.
-pub(in super::super) fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
-    if org.is_empty() || pnpr_package_name::is_safe_path_segment(org) {
+pub(in super::super) fn validate_namespace(
+    name: &str,
+    namespace: &str,
+) -> Result<(), RegistryError> {
+    if namespace.is_empty() || pnpr_package_name::is_safe_path_segment(namespace) {
         return Ok(());
     }
     Err(RegistryError::InvalidConfig {
         reason: format!(
-            "hosted registry {name:?} has an invalid `org` {org:?}: it must be a single path-safe \
+            "hosted registry {name:?} has an invalid `namespace` {namespace:?}: it must be a single path-safe \
              segment (no `/`, `\\`, `:`, leading `.`, or traversal)",
         ),
     })

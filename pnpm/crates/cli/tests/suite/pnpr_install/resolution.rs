@@ -1,8 +1,9 @@
 use super::{
     AddMockedRegistry, CONFLICTED_DEPENDENCY, CommandExtra, CommandTempCwd, IS_POSITIVE_PATCH,
     Path, assert_merged_conflicted_lockfile, configure_pnpr_auth, fs, get_all_files,
-    is_symlink_or_junction, pacquet_at, point_npmrc_registry_at, read_workspace_lockfile,
-    start_pnpr, start_pnpr_for, workspace_importer_version, write_conflicted_lockfile_fixture,
+    is_symlink_or_junction, pacquet_at, pnpr_done_frame, point_npmrc_registry_at,
+    read_workspace_lockfile, start_pnpr, start_pnpr_for, workspace_importer_version,
+    write_conflicted_lockfile_fixture,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -258,8 +259,8 @@ fn add_missing_peer_types_resolves_via_pnpr() {
     drop((root, mock_instance));
 }
 
-/// A server that predates `addMissingPeerTypes` drops it from the request
-/// and returns a lockfile resolved without it, which the client must not save.
+/// A server confirms `addMissingPeerTypes` but returns a lockfile resolved
+/// without it. The client must not save the inconsistent lockfile.
 #[test]
 fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types() {
     let CommandTempCwd {
@@ -278,7 +279,7 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     let resolve_mock = older_server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
-        .with_body(format!("{done}\n"))
+        .with_body_from_request(move |request| pnpr_done_frame(request, done.clone()))
         .expect(1)
         .create();
 
@@ -297,7 +298,7 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     assert!(!output.status.success());
     assert!(format!("{stdout}{stderr}").contains(
         "ERR_PNPM_PNPR_SERVER_IGNORED_ADD_MISSING_PEER_TYPES"
-    ),);
+    ));
     assert!(!workspace.join("pnpm-lock.yaml").exists());
     resolve_mock.assert();
 
@@ -405,7 +406,9 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         .mock("POST", "/-/pnpr/v0/verify-lockfile")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\"}\n")
+        .with_body_from_request(|request| {
+            pnpr_done_frame(request, serde_json::json!({ "type": "done" }))
+        })
         .expect(1)
         .create();
 
@@ -590,7 +593,9 @@ fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
         .mock("POST", "/-/pnpr/v0/verify-lockfile")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body("{\"type\":\"done\"}\n")
+        .with_body_from_request(|request| {
+            pnpr_done_frame(request, serde_json::json!({ "type": "done" }))
+        })
         .expect(1)
         .create();
     let no_resolve = verifier

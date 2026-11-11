@@ -1,7 +1,7 @@
 use super::{
     PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
     ResolvedPackage, VerifyError, build_verify_error,
-    resolve::{Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, parse_frame},
+    resolve::{Frame, parse_frame},
 };
 use indexmap::IndexMap;
 use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
@@ -38,7 +38,7 @@ async fn lockfile_repair_rejects_a_server_without_the_capability() {
         .mock("GET", "/-/pnpr")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"pnpr":{"versions":[0]}}"#)
+        .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]}}}}"#)
         .create_async()
         .await;
 
@@ -61,14 +61,13 @@ async fn lockfile_repair_uses_an_advertised_capability() {
         .mock("GET", "/-/pnpr")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"pnpr":{"versions":[0],"fixLockfile":[0]}}"#)
+        .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms","fixLockfile"]}}}}"#)
         .create_async()
         .await;
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
-        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
         .create_async()
         .await;
 
@@ -91,6 +90,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
     let options = resolve_projects_options();
     let response_lockfile = matching_transform_lockfile(&options);
     let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(json!({
@@ -115,8 +115,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustLockfile": true,
             "updatePatches": true,
         })))
-        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
         .create_async()
         .await;
 
@@ -193,9 +192,10 @@ async fn does_not_check_a_project_the_server_did_not_return() {
     // response leaves out carries no importer to compare a publish directory
     // against, and the merge only takes the importers the server did return.
     let lockfile = matching_transform_lockfile(&options);
+    let applied = matching_applied_policies(&options);
     let result = resolve_mock_frames(
         options,
-        vec![json!({ "type": "done", "lockfile": lockfile })],
+        vec![json!({ "type": "done", "lockfile": lockfile, "appliedPolicies": applied })],
         true,
         |_| {},
     )
@@ -233,7 +233,7 @@ async fn rejects_an_old_server_before_consuming_package_frames() {
 }
 
 #[tokio::test]
-async fn a_project_transform_header_preserves_streaming_prefetch() {
+async fn advertised_project_transforms_preserve_streaming_prefetch() {
     let frames =
         vec![mock_package_frame(), json!({ "type": "error", "message": "resolution stopped" })];
     let mut prefetched = Vec::new();
@@ -335,9 +335,10 @@ async fn assert_protocol_rejected(
     lockfile: Value,
     expected_message: &str,
 ) {
+    let applied = matching_applied_policies(&options);
     let Err(PnprClientError::Protocol(message)) = resolve_mock_frames(
         options,
-        vec![json!({ "type": "done", "lockfile": lockfile })],
+        vec![json!({ "type": "done", "lockfile": lockfile, "appliedPolicies": applied })],
         true,
         |_| {},
     )
@@ -360,12 +361,13 @@ async fn resolve_mock_frames(
         .collect::<Vec<_>>()
         .concat();
     let mut server = mockito::Server::new_async().await;
-    let mut resolve_mock = server.mock("POST", "/-/pnpr/v0/resolve").with_body(body);
-    if supports_project_transforms {
-        resolve_mock =
-            resolve_mock.with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION);
-    }
-    let resolve_mock = resolve_mock.create_async().await;
+    let _handshake = mock_transform_handshake(&mut server, supports_project_transforms).await;
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_body(body)
+        .expect(usize::from(supports_project_transforms))
+        .create_async()
+        .await;
 
     let result =
         PnprClient::new(server.url()).resolve_projects_streaming(options, on_package).await;
@@ -515,6 +517,7 @@ async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
 #[tokio::test]
 async fn pipeline_report_redirects_are_not_followed() {
     let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
     let redirect = server
         .mock("PUT", "/-/pnpr/v0/pipeline/runs")
         .with_status(307)
@@ -553,8 +556,7 @@ async fn negotiates_v0_when_supported_by_handshake() {
         .with_body(
             json!({
                 "pnpr": {
-                    "versions": [0],
-                    "fixLockfile": [0]
+                    "protocols": { "resolver": { "versions": [0], "features": ["fixLockfile", "projectTransforms"] } }
                 }
             })
             .to_string(),
@@ -566,21 +568,11 @@ async fn negotiates_v0_when_supported_by_handshake() {
     let done = json!({
         "type": "done",
         "lockfile": matching_transform_lockfile(&options),
-        "appliedPolicies": {
-            "autoInstallPeers": false,
-            "dedupePeers": true,
-            "excludeLinksFromLockfile": false,
-            "addMissingPeerTypes": true,
-            "frozenLockfile": false,
-            "resolutionMode": "time-based",
-            "minimumReleaseAge": 1440,
-            "trustPolicy": "no-downgrade"
-        }
+        "appliedPolicies": matching_applied_policies(&options)
     });
 
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
-        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{done}\n"))
         .create_async()
         .await;
@@ -599,6 +591,7 @@ async fn negotiates_v0_when_supported_by_handshake() {
 #[tokio::test]
 async fn structured_error_codes_are_preserved() {
     let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
     let error_frame = json!({
         "type": "error",
         "message": "outdated lockfile",
@@ -607,7 +600,6 @@ async fn structured_error_codes_are_preserved() {
 
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
-        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{error_frame}\n"))
         .create_async()
         .await;
@@ -630,6 +622,7 @@ async fn structured_error_codes_are_preserved() {
 #[tokio::test]
 async fn unknown_frames_are_ignored() {
     let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
     let warning_frame = json!({
         "type": "warning",
         "message": "new version available"
@@ -638,21 +631,11 @@ async fn unknown_frames_are_ignored() {
     let done_frame = json!({
         "type": "done",
         "lockfile": matching_transform_lockfile(&options),
-        "appliedPolicies": {
-            "autoInstallPeers": false,
-            "dedupePeers": true,
-            "excludeLinksFromLockfile": false,
-            "addMissingPeerTypes": true,
-            "frozenLockfile": false,
-            "resolutionMode": "time-based",
-            "minimumReleaseAge": 1440,
-            "trustPolicy": "no-downgrade"
-        }
+        "appliedPolicies": matching_applied_policies(&options)
     });
 
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
-        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{warning_frame}\n{done_frame}\n"))
         .create_async()
         .await;
@@ -669,26 +652,20 @@ async fn unknown_frames_are_ignored() {
 #[tokio::test]
 async fn fails_when_server_ignores_trust_policy() {
     let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
     let mut opts = resolve_projects_options();
     opts.verification.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
 
+    let mut mismatched_policies = matching_applied_policies(&opts);
+    mismatched_policies["trustPolicy"] = json!("off");
     let done = json!({
         "type": "done",
         "lockfile": matching_transform_lockfile(&opts),
-        "appliedPolicies": {
-            "autoInstallPeers": true,
-            "dedupePeers": true,
-            "excludeLinksFromLockfile": false,
-            "addMissingPeerTypes": false,
-            "frozenLockfile": false,
-            "resolutionMode": "highest",
-            "trustPolicy": "off"
-        }
+        "appliedPolicies": mismatched_policies
     });
 
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
-        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{done}\n"))
         .create_async()
         .await;
@@ -700,4 +677,176 @@ async fn fails_when_server_ignores_trust_policy() {
         "expected error when server ignores trustPolicy, got: {err}",
     );
     resolve_mock.assert_async().await;
+}
+
+async fn mock_transform_handshake(
+    server: &mut mockito::ServerGuard,
+    supported: bool,
+) -> mockito::Mock {
+    server
+        .mock("GET", "/-/pnpr")
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({ "pnpr": { "protocols": { "resolver": {
+            "versions": [0], "features": if supported { vec!["projectTransforms"] } else { vec![] }
+        } } } })
+            .to_string(),
+        )
+        .expect_at_least(0)
+        .create_async()
+        .await
+}
+
+#[tokio::test]
+async fn capability_handshake_ignores_unknown_protocols_and_features() {
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({ "pnpr": { "future": true, "protocols": {
+            "resolver": { "versions": [0, 99], "features": ["futureFeature"], "future": 1 },
+            "futureProtocol": { "versions": [42] }
+        } } })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let client = PnprClient::new(server.url());
+    client.handshake().await.unwrap();
+    assert_eq!(client.negotiated_resolver_version().await.unwrap(), 0);
+    handshake.assert_async().await;
+}
+
+fn matching_applied_policies(options: &ResolveProjectsOptions) -> Value {
+    let mut applied = serde_json::to_value(&options.verification).unwrap();
+    let object = applied.as_object_mut().unwrap();
+    object.extend(
+        serde_json::to_value(&options.resolution)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone(),
+    );
+    object.insert("frozenLockfile".into(), json!(options.reuse.frozen_lockfile));
+    object.insert("trustLockfile".into(), json!(options.reuse.trust_lockfile));
+    applied
+}
+
+#[tokio::test]
+async fn resolve_rejects_missing_applied_policies() {
+    for field in [
+        "appliedPolicies",
+        "minimumReleaseAge",
+        "minimumReleaseAgeExclude",
+        "minimumReleaseAgeIgnoreMissingTime",
+        "trustPolicy",
+        "trustPolicyExclude",
+        "trustPolicyIgnoreAfter",
+        "trustLockfile",
+        "projectScopedOptionalPeers",
+    ] {
+        let options = resolve_projects_options();
+        let mut done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": matching_applied_policies(&options) });
+        if field == "appliedPolicies" {
+            done.as_object_mut()
+                .unwrap()
+                .remove(field);
+        } else {
+            done["appliedPolicies"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+        }
+        let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
+        assert!(matches!(result, Err(PnprClientError::Protocol(_))), "{field}: {result:?}");
+    }
+}
+
+#[tokio::test]
+async fn verify_requires_matching_applied_policies() {
+    for field in [
+        "success",
+        "appliedPolicies",
+        "minimumReleaseAge",
+        "minimumReleaseAgeExclude",
+        "minimumReleaseAgeIgnoreMissingTime",
+        "trustPolicy",
+        "trustPolicyExclude",
+        "trustPolicyIgnoreAfter",
+        "trustLockfile",
+    ] {
+        let mut options = resolve_projects_options();
+        options.reuse.lockfile =
+            Some(serde_json::from_value(matching_transform_lockfile(&options)).unwrap());
+        let mut applied = matching_applied_policies(&options);
+        if field != "success" && field != "appliedPolicies" {
+            applied[field] = mismatched_policy(field);
+        }
+        let mut done = json!({ "type": "done", "appliedPolicies": applied });
+        if field == "appliedPolicies" {
+            done.as_object_mut()
+                .unwrap()
+                .remove(field);
+        }
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/-/pnpr/v0/verify-lockfile")
+            .with_body(format!("{done}\n"))
+            .create_async()
+            .await;
+        let result = PnprClient::new(server.url())
+            .verify_lockfile(
+                crate::VerifyLockfileOptions::from_resolve_projects_options(&options).unwrap(),
+            )
+            .await;
+        if field == "success" {
+            result.unwrap();
+        } else {
+            assert!(matches!(result, Err(PnprClientError::Protocol(_))), "{field}: {result:?}");
+        }
+        mock.assert_async().await;
+    }
+}
+
+fn mismatched_policy(field: &str) -> Value {
+    match field {
+        "minimumReleaseAge" | "trustPolicyIgnoreAfter" => json!(0),
+        "minimumReleaseAgeExclude" | "trustPolicyExclude" => json!([]),
+        "minimumReleaseAgeIgnoreMissingTime" | "projectScopedOptionalPeers" => json!(true),
+        "trustPolicy" => json!(null),
+        "trustLockfile" | "addMissingPeerTypes" => json!(false),
+        _ => panic!("no mismatch for {field}"),
+    }
+}
+
+#[tokio::test]
+async fn resolve_rejects_mismatched_policies() {
+    for field in [
+        "minimumReleaseAge",
+        "minimumReleaseAgeExclude",
+        "minimumReleaseAgeIgnoreMissingTime",
+        "trustPolicy",
+        "trustPolicyExclude",
+        "trustPolicyIgnoreAfter",
+        "trustLockfile",
+        "addMissingPeerTypes",
+        "projectScopedOptionalPeers",
+    ] {
+        let options = resolve_projects_options();
+        let mut applied = matching_applied_policies(&options);
+        applied[field] = mismatched_policy(field);
+        let done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": applied });
+        let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
+        let Err(PnprClientError::Protocol(message)) = result else {
+            panic!("{field}: expected a protocol error, got {result:?}");
+        };
+        let expected_message = match field {
+            "addMissingPeerTypes" => "pnpr server ignored requested addMissingPeerTypes (expected Some(true), got false)".to_string(),
+            "projectScopedOptionalPeers" => "pnpr server ignored requested projectScopedOptionalPeers (expected Some(false), got true)".to_string(),
+            _ => format!("pnpr server ignored requested {field}"),
+        };
+        assert_eq!(message, expected_message, "{field}");
+    }
 }

@@ -83,6 +83,8 @@ struct StoredImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
+    #[serde(default)]
+    owners: Vec<String>,
 }
 
 impl From<StoredImageDocument> for ImageDocument {
@@ -92,10 +94,11 @@ impl From<StoredImageDocument> for ImageDocument {
             name,
             mut manifests,
             mut tags,
+            owners,
         } = stored;
         manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Self { format_version, name, manifests, tags }
+        Self { format_version, name, manifests, tags, owners }
     }
 }
 
@@ -119,6 +122,10 @@ pub struct ImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
+    /// The account IDs that may publish to this repository, recorded by its first
+    /// publish. When empty, `$owners` admits only admins.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owners: Vec<String>,
 }
 
 impl Default for ImageDocument {
@@ -128,6 +135,7 @@ impl Default for ImageDocument {
             name: String::new(),
             manifests: Vec::new(),
             tags: Vec::new(),
+            owners: Vec::new(),
         }
     }
 }
