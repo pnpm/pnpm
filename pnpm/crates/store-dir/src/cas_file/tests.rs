@@ -154,7 +154,7 @@ fn write_cas_file_from_reader_matches_write_cas_file() {
                 .permissions()
                 .mode();
             assert_eq!(
-                pnpm_fs::file_mode::is_executable(mode),
+                pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from_mode(mode)),
                 executable,
                 "streamed CAS file mode {mode:o} must match executable = {executable}",
             );
@@ -384,13 +384,14 @@ fn cas_file_path_by_mode_rejects_invalid_hex() {
 #[test]
 #[cfg(unix)]
 fn a_cas_write_reports_the_mode_of_the_blob() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::PermissionsExt;
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
     let store_dir = StoreDir::new(dir.path());
-    let on_disk_mode =
-        |file: &pnpm_fs::StoreFile| std::fs::metadata(&file.path).unwrap().mode() & 0o777;
+    let on_disk_mode = |file: &pnpm_fs::StoreFile| {
+        pnpm_fs::FileMode::from_permissions(&std::fs::metadata(&file.path).unwrap().permissions())
+    };
 
     let content = b"written twice";
     let first = store_dir.write_cas_file(content, false).unwrap().file;
@@ -409,16 +410,6 @@ fn a_cas_write_reports_the_mode_of_the_blob() {
         .unwrap()
         .file;
 
-    assert_eq!(
-        buffered
-            .mode()
-            .map(|mode| mode & 0o7777),
-        Some(0o640),
-    );
-    assert_eq!(
-        streamed
-            .mode()
-            .map(|mode| mode & 0o7777),
-        Some(0o640),
-    );
+    assert_eq!(buffered.mode(), Some(pnpm_fs::FileMode::from_mode(0o640)));
+    assert_eq!(streamed.mode(), Some(pnpm_fs::FileMode::from_mode(0o640)));
 }

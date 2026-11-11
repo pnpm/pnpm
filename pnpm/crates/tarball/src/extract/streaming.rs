@@ -389,7 +389,8 @@ pub(super) fn entry_meta<Source: Read>(
     if ignore_file_pattern.is_some_and(|filter| filter(&cleaned_path)) {
         return Ok(None);
     }
-    Ok(Some(EntryMeta { cleaned_path, executable: file_mode::is_executable(mode), mode, size }))
+    let executable = file_mode::is_executable(pnpm_fs::FileMode::from_mode(mode));
+    Ok(Some(EntryMeta { cleaned_path, executable, mode, size }))
 }
 
 /// The running state of a streaming extraction: the CAFS rows written so

@@ -18,7 +18,7 @@ pub fn check(directory: &Path, mode: &str) {
         assert!(reader.contains_key(key).unwrap());
     }
     if mode == "hold" {
-        pnpm_fs::file_mode::set_path_permissions(&root.join("index.db"), 0o600).unwrap();
+        pnpm_fs::file_mode::set_path_permissions(&root.join("index.db"), pnpm_fs::FileMode::from_mode(0o600)).unwrap();
         let connection = rusqlite::Connection::open(root.join("index.db")).unwrap();
         connection.execute_batch("PRAGMA cache_size=1; BEGIN IMMEDIATE; UPDATE package_index SET data=zeroblob(262144);").unwrap();
         println!("store-lease-held");
@@ -41,7 +41,7 @@ fn check_cas(directory: &Path) {
     check_unreadable_directory_grant(directory);
     let root = directory.join("cas-probe");
     std::fs::create_dir_all(&root).unwrap();
-    pnpm_fs::file_mode::set_path_permissions(&root, 0o2770).unwrap();
+    pnpm_fs::file_mode::set_path_permissions(&root, pnpm_fs::FileMode::from_mode(0o2770)).unwrap();
     let store = pnpm_store_dir::StoreDir::new(&root);
     assert_eq!(store.root(), &root.join("v11-wasm"));
     assert_eq!(pnpm_store_dir::StoreDir::new(root.join("v11")).root(), &root.join("v11/v11-wasm"));
@@ -63,7 +63,7 @@ fn check_cas(directory: &Path) {
 fn check_unreadable_directory_grant(directory: &Path) {
     let template = directory.join("unreadable-directory-grant");
     std::fs::create_dir(&template).unwrap();
-    pnpm_fs::file_mode::set_path_permissions(&template, 0o2770).unwrap();
+    pnpm_fs::file_mode::set_path_permissions(&template, pnpm_fs::FileMode::from_mode(0o2770)).unwrap();
     let child = template.join("child");
     std::fs::create_dir(&child).unwrap();
     let opened = std::fs::File::open(&child).unwrap();

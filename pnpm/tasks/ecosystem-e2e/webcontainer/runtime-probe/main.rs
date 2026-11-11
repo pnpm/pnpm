@@ -221,13 +221,13 @@ async fn check_secure_filesystem(directory: &Path) {
     pnpm_fs::write_atomic_private(&credential, b"secret").expect("private atomic write");
     let executable = directory.join("executable");
     pnpm_fs::write_atomic(&executable, b"script").expect("atomic write");
-    pnpm_fs::file_mode::set_path_permissions(&executable, 0o755).expect("executable permissions");
+    pnpm_fs::file_mode::set_path_permissions(&executable, pnpm_fs::FileMode::from_mode(0o755)).expect("executable permissions");
     pnpm_fs::executable_access(&executable).expect("host executable access");
     assert!(pnpm_fs::executable_access(&credential).is_err());
     let linked = directory.join("linked");
     pnpm_fs::create_symlink(&credential, &linked, false).expect("WASI symlink");
     assert_eq!(std::fs::read(&linked).expect("read symlink"), b"secret");
-    assert!(pnpm_fs::file_mode::set_path_permissions(&linked, 0o777).is_err());
+    assert!(pnpm_fs::file_mode::set_path_permissions(&linked, pnpm_fs::FileMode::from_mode(0o777)).is_err());
     std::fs::remove_file(&linked).expect("remove symlink");
     std::fs::hard_link(&credential, &linked).expect("hardlink");
     assert_eq!(pnpm_fs::file_link_count(&File::open(&credential).unwrap()).unwrap(), 2);

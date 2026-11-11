@@ -7,6 +7,7 @@ use creation::FileCreation;
 use crate::rename_with_retry;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_ffi_fs::FileMode;
 use std::{
     fs::{self, File},
     hash::{BuildHasher, Hasher},
@@ -146,7 +147,7 @@ pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
     ensure(file_path, content, mode, Repair::Rename).map(drop)
 }
@@ -173,8 +174,8 @@ pub fn ensure_cas_file(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
-    mode: Option<u32>,
-) -> Result<Option<u32>, EnsureFileError> {
+    mode: Option<FileMode>,
+) -> Result<Option<FileMode>, EnsureFileError> {
     ensure(file_path, content, mode, Repair::InPlace)
 }
 
@@ -186,7 +187,7 @@ pub fn ensure_file_atomically(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
     let lock = cas_write_lock(file_path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -207,9 +208,9 @@ enum Repair {
 fn ensure(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     repair: Repair,
-) -> Result<Option<u32>, EnsureFileError> {
+) -> Result<Option<FileMode>, EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
     let lock = cas_write_lock(file_path);
@@ -312,9 +313,9 @@ static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
 fn verify_or_rewrite(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     repair: Repair,
-) -> Result<Option<u32>, EnsureFileError> {
+) -> Result<Option<FileMode>, EnsureFileError> {
     let rewrite = || write_atomic(file_path, content, mode);
     let read_error =
         |error| EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error };
@@ -352,10 +353,10 @@ fn bytes_match(file_path: &Path, content: &[u8], meta: &fs::Metadata) -> io::Res
 fn repair_file(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     repair: Repair,
-    existing_mode: Option<u32>,
-) -> Result<Option<u32>, EnsureFileError> {
+    existing_mode: Option<FileMode>,
+) -> Result<Option<FileMode>, EnsureFileError> {
     let mut source = content;
     let repaired = matches!(repair, Repair::InPlace)
         && overwrite_file_in_place(file_path, &mut source)
@@ -424,8 +425,8 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
-) -> Result<Option<u32>, EnsureFileError> {
+    mode: Option<FileMode>,
+) -> Result<Option<FileMode>, EnsureFileError> {
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
     let name = file_path
         .file_name()
@@ -465,7 +466,7 @@ pub struct TempFile {
     pub file: File,
     /// The file's permission bits, which the create reads anyway on Unix.
     /// `None` when it did not read them.
-    pub mode: Option<u32>,
+    pub mode: Option<FileMode>,
 }
 
 /// Create a uniquely-named file inside `dir` with `O_CREAT | O_EXCL`
@@ -487,7 +488,7 @@ pub struct TempFile {
 pub fn create_exclusive_temp_file(
     dir: &Path,
     base: &str,
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<TempFile, EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never

@@ -87,7 +87,7 @@ pub fn files_maps<'a>(
 
 /// An overlay's entry under `filename` can be a build output at another
 /// store path, so an entry takes the mode only when its path matches.
-fn record_mode(maps: &[&FilesMap], filename: &str, path: &Path, mode: u32) {
+fn record_mode(maps: &[&FilesMap], filename: &str, path: &Path, mode: pnpm_fs::FileMode) {
     for files in maps {
         if let Some(file) = files.get(filename)
             && file.path == path

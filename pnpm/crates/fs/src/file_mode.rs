@@ -9,15 +9,16 @@ mod directory;
 #[cfg(unix)]
 use directory::is_unchangeable;
 
+use pnpm_ffi_fs::FileMode;
 use std::{io, path::Path};
 
 /// The POSIX mode `metadata` carries, or `None` off Unix.
 #[must_use]
-pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<u32> {
+pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<FileMode> {
     #[cfg(unix)]
     return {
         use std::os::unix::fs::MetadataExt;
-        Some(metadata.mode())
+        Some(FileMode::from_mode(metadata.mode()))
     };
     #[cfg(not(unix))]
     {
@@ -30,11 +31,11 @@ pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<u32> {
 pub const EXEC_MASK: u32 = 0b001_001_001;
 
 /// All can read and execute, but only owner can write (`rwxr-xr-x`).
-pub const EXEC_MODE: u32 = 0b111_101_101;
+pub const EXEC_MODE: FileMode = FileMode::from_mode(0b111_101_101);
 
 /// All can read and write (`rw-rw-rw-`), the create mode for
 /// non-executable entries.
-pub const BASE_FILE_MODE: u32 = 0b110_110_110;
+pub const BASE_FILE_MODE: FileMode = FileMode::from_mode(0b110_110_110);
 
 /// The mode a fresh store write gives an entry of `executable`'s class
 /// under `umask`. The store creates every file this way
@@ -42,8 +43,9 @@ pub const BASE_FILE_MODE: u32 = 0b110_110_110;
 /// mode is what a store write would have produced, whatever umask
 /// populated the store (pnpm/pnpm#3807).
 #[must_use]
-pub fn store_entry_mode(executable: bool, umask: Umask) -> u32 {
-    (if executable { EXEC_MODE } else { BASE_FILE_MODE }) & !umask.mask() & 0o777
+pub fn store_entry_mode(executable: bool, umask: Umask) -> FileMode {
+    let base = if executable { EXEC_MODE } else { BASE_FILE_MODE };
+    FileMode::from_mode(base.mode() & !umask.mask() & 0o777)
 }
 
 /// Whether a store inode of `mode` can be linked where [`store_entry_mode`]
@@ -55,8 +57,9 @@ pub fn store_entry_mode(executable: bool, umask: Umask) -> u32 {
 /// already grants them through the store. Every other bit must match, so a
 /// store populated under a wider umask is still not linked (pnpm/pnpm#3807).
 #[must_use]
-pub fn store_inode_mode_is_linkable(mode: u32, desired: u32) -> bool {
+pub fn store_inode_mode_is_linkable(mode: FileMode, desired: FileMode) -> bool {
     const GROUP_OTHER_WRITE: u32 = 0o022;
+    let (mode, desired) = (mode.mode(), desired.mode());
     (mode ^ desired) & 0o777 & !GROUP_OTHER_WRITE == 0 && mode & !desired & 0o002 == 0
 }
 
@@ -89,8 +92,26 @@ pub fn current_umask() -> Umask {
 /// Whether a file mode has *any* executable bit set (`u+x`, `g+x`, or
 /// `o+x`). Matches pnpm's `modeIsExecutable`.
 #[must_use]
-pub fn is_executable(mode: u32) -> bool {
-    mode & EXEC_MASK != 0
+pub fn is_executable(mode: FileMode) -> bool {
+    mode.mode() & EXEC_MASK != 0
+}
+
+/// The permission bits pnpm records for a store entry built from
+/// `metadata`: the permission bits alone on Unix, and a fixed `0o644`
+/// where the host has none, which is why a mode difference is not
+/// compared on those hosts.
+#[must_use]
+pub fn file_mode_of(metadata: &std::fs::Metadata) -> FileMode {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        FileMode::from_mode(metadata.permissions().mode() & 0o777)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        FileMode::from_mode(0o644)
+    }
 }
 
 /// Whether a CAS file path encodes "executable" via the `-exec` suffix
@@ -188,21 +209,20 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
 }
 
 /// Set Unix permission bits without following a final symlink. No-op on Windows.
-pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
+pub fn set_path_permissions(path: &Path, mode: FileMode) -> io::Result<()> {
     #[cfg(unix)]
     {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
         let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path))?;
-        if file.metadata()?.permissions().mode() & 0o7777 != mode {
-            file.set_permissions(Permissions::from_mode(mode))?;
+        if FileMode::from_permissions(&file.metadata()?.permissions()) != mode {
+            file.set_permissions(mode.into())?;
         }
     }
     #[cfg(target_os = "wasi")]
     {
         let file =
             crate::ensure_file::retry_on_fd_pressure(|| crate::wasi_fs::open_nofollow(path))?;
-        if crate::wasi_fs::file_mode(&file)? & 0o7777 != mode {
-            crate::wasi_fs::set_file_mode(&file, mode)?;
+        if FileMode::from_mode(crate::wasi_fs::file_mode(&file)?) != mode {
+            crate::wasi_fs::set_file_mode(&file, mode.mode())?;
         }
     }
     #[cfg(not(any(unix, target_os = "wasi")))]
@@ -219,22 +239,18 @@ pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]
     return {
-        use std::{
-            fs::Permissions,
-            os::unix::fs::{MetadataExt, PermissionsExt},
-        };
-        let mode = file.metadata()?.mode();
-        if mode & EXEC_MASK == EXEC_MASK {
+        let mode = FileMode::from_permissions(&file.metadata()?.permissions());
+        if mode.mode() & EXEC_MASK == EXEC_MASK {
             return Ok(());
         }
-        file.set_permissions(Permissions::from_mode(mode | EXEC_MASK))
+        file.set_permissions(FileMode::from_mode(mode.mode() | EXEC_MASK).into())
     };
 
     #[cfg(target_os = "wasi")]
     {
-        let mode = crate::wasi_fs::file_mode(file)?;
-        if mode & EXEC_MASK != EXEC_MASK {
-            crate::wasi_fs::set_file_mode(file, mode | EXEC_MASK)?;
+        let mode = FileMode::from_mode(crate::wasi_fs::file_mode(file)?);
+        if mode.mode() & EXEC_MASK != EXEC_MASK {
+            crate::wasi_fs::set_file_mode(file, mode.mode() | EXEC_MASK)?;
         }
         Ok(())
     }
@@ -252,7 +268,8 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
 /// Setuid, setgid, and sticky are not copied onto a file. Owner read and
 /// write are always set so the creating process can finish the write.
 #[must_use]
-pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
+pub fn inherited_file_mode(parent_mode: FileMode, executable: bool) -> FileMode {
+    let parent_mode = parent_mode.mode();
     let mut mode = parent_mode & 0o664;
     if executable {
         if parent_mode & 0o100 != 0 {
@@ -265,7 +282,7 @@ pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
             mode |= 0o001;
         }
     }
-    mode | 0o600
+    FileMode::from_mode(mode | 0o600)
 }
 
 /// Open-mode ceiling for a new file, and the bits to add after create.
@@ -280,16 +297,16 @@ pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
 /// `parent` cannot be stated, the requested mode is used unchanged.
 #[cfg(unix)]
 #[must_use]
-pub fn unix_creation_mode(parent: &Path, requested: Option<u32>) -> UnixCreationMode {
+pub fn unix_creation_mode(parent: &Path, requested: Option<FileMode>) -> UnixCreationMode {
     // Group and other permission bits are the low 6 bits.
-    if requested.is_some_and(|mode| mode.trailing_zeros() >= 6) {
+    if requested.is_some_and(|mode| mode.mode().trailing_zeros() >= 6) {
         return UnixCreationMode { open_mode: requested, grant_mode: None };
     }
     let executable = requested.is_some_and(is_executable);
     match std::fs::metadata(parent) {
         Ok(meta) => {
-            use std::os::unix::fs::PermissionsExt;
-            let wanted = inherited_file_mode(meta.permissions().mode(), executable);
+            let wanted =
+                inherited_file_mode(FileMode::from_permissions(&meta.permissions()), executable);
             UnixCreationMode { open_mode: Some(wanted), grant_mode: Some(wanted) }
         }
         Err(_) => UnixCreationMode { open_mode: requested, grant_mode: None },
@@ -300,8 +317,8 @@ pub fn unix_creation_mode(parent: &Path, requested: Option<u32>) -> UnixCreation
 #[cfg(unix)]
 #[derive(Clone, Copy)]
 pub struct UnixCreationMode {
-    pub open_mode: Option<u32>,
-    pub grant_mode: Option<u32>,
+    pub open_mode: Option<FileMode>,
+    pub grant_mode: Option<FileMode>,
 }
 
 #[cfg(unix)]
@@ -310,14 +327,14 @@ impl UnixCreationMode {
     pub fn apply_to(&self, options: &mut std::fs::OpenOptions) {
         use std::os::unix::fs::OpenOptionsExt;
         if let Some(open_mode) = self.open_mode {
-            options.mode(open_mode);
+            options.mode(open_mode.mode());
         }
     }
 
     /// Add the post-create bits to a file opened with [`Self::apply_to`].
     /// Returns the file's permission bits as [`grant_mode_bits`] does,
     /// `None` when there is nothing to grant.
-    pub fn grant(&self, file: &std::fs::File) -> io::Result<Option<u32>> {
+    pub fn grant(&self, file: &std::fs::File) -> io::Result<Option<FileMode>> {
         match self.grant_mode {
             Some(wanted) => grant_mode_bits(file, wanted),
             None => Ok(None),
@@ -333,20 +350,19 @@ impl UnixCreationMode {
 /// Returns the file's permission bits afterwards, `None` when they could
 /// not be read.
 #[cfg(unix)]
-pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<Option<u32>> {
-    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+pub fn grant_mode_bits(file: &std::fs::File, wanted: FileMode) -> io::Result<Option<FileMode>> {
     let current = match file.metadata() {
-        Ok(meta) => meta.permissions().mode() & 0o777,
+        Ok(meta) => FileMode::from_permissions(&meta.permissions()).mode() & 0o777,
         Err(error) if is_unchangeable(&error) => return Ok(None),
         Err(error) => return Err(error),
     };
-    let merged = current | (wanted & 0o777);
+    let merged = current | (wanted.mode() & 0o777);
     if merged == current {
-        return Ok(Some(current));
+        return Ok(Some(FileMode::from_mode(current)));
     }
-    match file.set_permissions(Permissions::from_mode(merged)) {
-        Ok(()) => Ok(Some(merged)),
-        Err(error) if is_unchangeable(&error) => Ok(Some(current)),
+    match file.set_permissions(FileMode::from_mode(merged).into()) {
+        Ok(()) => Ok(Some(FileMode::from_mode(merged))),
+        Err(error) if is_unchangeable(&error) => Ok(Some(FileMode::from_mode(current))),
         Err(error) => Err(error),
     }
 }

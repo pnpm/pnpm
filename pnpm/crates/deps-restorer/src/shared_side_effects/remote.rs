@@ -257,7 +257,7 @@ pub(super) async fn stage_artifact(
     let mut downloaded = HashMap::<String, Vec<u8>>::new();
     let mut stored = HashMap::<(String, u32), pnpm_fs::StoreFile>::new();
     let mut added = HashMap::<String, CafsFileInfo>::new();
-    let mut staged_modes = HashMap::<String, u32>::new();
+    let mut staged_modes = HashMap::<String, pnpm_fs::FileMode>::new();
     for file in &artifact.payload.manifest.added {
         let (blob, info) =
             stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await?;
@@ -378,8 +378,9 @@ pub(super) async fn stage_artifact_blob(
         let bytes = download_artifact_file(context, artifact, file).await?;
         downloaded.insert(file.integrity.clone(), bytes);
     }
+    let executable = pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from_mode(file.mode));
     let blob = context.config.store_dir
-        .write_cas_file(&downloaded[&file.integrity], pnpm_fs::file_mode::is_executable(file.mode))
+        .write_cas_file(&downloaded[&file.integrity], executable)
         .map_err(|error| (error.to_string(), false))?
         .file;
     stored.insert(storage_key, blob.clone());

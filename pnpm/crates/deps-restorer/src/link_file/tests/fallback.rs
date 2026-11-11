@@ -153,15 +153,12 @@ fn tier_after(method: PackageImportMethod, tier: u8) -> u8 {
 fn store_entry(dir: &Path) -> StoreFile {
     let source = write_source(dir, STORE_ENTRY, b"store content\n");
     #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&source, fs::Permissions::from_mode(desired_mode())).unwrap();
-    }
+    fs::set_permissions(&source, desired_mode().into()).unwrap();
     source
 }
 
 #[cfg(unix)]
-fn desired_mode() -> u32 {
+fn desired_mode() -> pnpm_fs::FileMode {
     pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask())
 }
 
@@ -173,18 +170,11 @@ fn error_code(error: &io::Error) -> (io::ErrorKind, Option<i32>) {
 fn assert_materialized(source: &Path, target: &Path, context: &str) {
     assert_eq!(fs::read(target).unwrap(), fs::read(source).unwrap(), "{context}: content");
     #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        assert_eq!(
-            fs::metadata(target)
-                .unwrap()
-                .permissions()
-                .mode()
-                & 0o7777,
-            desired_mode(),
-            "{context}: mode",
-        );
-    }
+    assert_eq!(
+        pnpm_fs::FileMode::from_permissions(&fs::metadata(target).unwrap().permissions()),
+        desired_mode(),
+        "{context}: mode",
+    );
 }
 
 fn assert_copied(source: &Path, target: &Path, context: &str) {
