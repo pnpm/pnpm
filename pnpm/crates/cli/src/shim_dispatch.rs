@@ -141,23 +141,12 @@ impl ShimLaunch {
     }
 
     /// Set [`PREPARING_ENV`] for a shim launch that no enclosing dispatch
-    /// has marked. Must run on the main thread before any other thread
-    /// exists (see [`crate::main`]).
-    pub(crate) fn mark_preparation(&self) {
+    /// has marked.
+    pub(crate) fn mark_preparation(&self, single_threaded: &pnpm_ffi_process::SingleThreaded) {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
             return;
         }
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "the processes the dispatch spawns while it prepares its program have to \
-                      inherit the mark, so it has to be in the environment"
-        )]
-        // SAFETY: `crate::main` calls this before `run_on_big_stack` spawns
-        // the startup thread, so no other thread exists that could access
-        // the environment concurrently.
-        unsafe {
-            std::env::set_var(PREPARING_ENV, "1");
-        }
+        single_threaded.set_var(PREPARING_ENV, "1");
         SET_PREPARING_ENV.store(true, Ordering::Relaxed);
     }
 

@@ -11,6 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-ffi-fs = { workspace = true }
 pnpm-package-name = { workspace = true }
 pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-matcher = { workspace = true }

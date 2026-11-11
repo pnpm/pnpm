@@ -144,26 +144,15 @@ fn is_hardlinked_metadata(_path: &Path, metadata: &fs::Metadata) -> bool {
 
 #[cfg(windows)]
 fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
-    use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
-    };
-
     if !metadata.is_file() {
         return false;
     }
-    let Ok(file) = fs::File::open(path) else {
-        return true;
-    };
-    let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
-    // SAFETY: `file` owns a valid handle and `info` points to writable storage
-    // of the structure initialized by `GetFileInformationByHandle`.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), info.as_mut_ptr()) } == 0 {
-        return true;
+    // A file whose link count cannot be read is treated as hardlinked, so
+    // an unreadable entry is left alone rather than rewritten.
+    match pnpm_ffi_fs::file_information(path) {
+        Ok(info) => info.hard_links > 1,
+        Err(_) => true,
     }
-    // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
-    let info = unsafe { info.assume_init() };
-    info.nNumberOfLinks > 1
 }
 
 #[cfg(not(any(unix, windows, target_os = "wasi")))]

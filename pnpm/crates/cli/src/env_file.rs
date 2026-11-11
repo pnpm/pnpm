@@ -49,25 +49,34 @@ pub enum EnvFileError {
     Read { path: PathBuf, source: std::io::Error },
 }
 
-/// Load each file in order, layering its variables into the process
-/// environment. Later files override earlier files, and variables the
-/// environment already defines are left untouched.
-pub fn load<PathItem: AsRef<Path>>(paths: &[PathItem]) -> miette::Result<()> {
+/// Load each file in order, handing every variable it defines to `set`.
+/// Later files override earlier files, and variables the environment
+/// already defines are left untouched.
+fn load<PathItem: AsRef<Path>>(
+    paths: &[PathItem],
+    mut set: impl FnMut(&str, &str),
+) -> miette::Result<()> {
     let mut loaded_keys = HashSet::new();
     for path in paths {
-        load_one(path.as_ref(), &mut loaded_keys)?;
+        load_one(path.as_ref(), &mut loaded_keys, &mut set)?;
     }
     Ok(())
 }
 
-/// Scan `argv` for `--env-file` paths and load them. Runs on the main
-/// thread before the startup thread exists (see [`crate::main`]), which is
-/// what makes the `set_var` calls in [`load`] sound. Best-effort by
-/// necessity: around an option this binary does not know, the width
-/// computation can only guess, but such a command line is rejected or
-/// forwarded to another pnpm anyway.
-pub fn load_from_argv(argv: &[OsString]) -> miette::Result<()> {
-    load(&scan(argv).0)
+/// Scan `argv` for `--env-file` paths and load them.
+///
+/// `single_threaded` is what permits the environment change, and so what
+/// pins this call to the stretch of `main` before any thread starts.
+/// Best-effort by necessity: around an option this binary does not know,
+/// the width computation can only guess, but such a command line is
+/// rejected or forwarded to another pnpm anyway.
+pub fn load_from_argv(
+    argv: &[OsString],
+    single_threaded: &pnpm_ffi_process::SingleThreaded,
+) -> miette::Result<()> {
+    load(&scan(argv).0, |name: &str, value: &str| {
+        single_threaded.set_var(name, value);
+    })
 }
 
 /// Remove the `--env-file` tokens from an argv that still carries the
@@ -82,7 +91,11 @@ pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
 /// file. Without stripping it, the first key would carry a leading U+FEFF.
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
-fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()> {
+fn load_one(
+    path: &Path,
+    loaded_keys: &mut HashSet<String>,
+    mut set: impl FnMut(&str, &str),
+) -> miette::Result<()> {
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
@@ -96,17 +109,7 @@ fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
-            #[expect(
-                clippy::disallowed_methods,
-                reason = "`node --env-file` makes the pairs real environment variables, so even \
-                          a native dependency's `getenv` sees them"
-            )]
-            // SAFETY: `load` runs on the main thread before `run_on_big_stack`
-            // spawns the startup thread, so no other thread exists that
-            // could access the environment concurrently.
-            unsafe {
-                std::env::set_var(key, value);
-            }
+            set(key, value);
         }
     }
     Ok(())

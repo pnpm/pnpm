@@ -40,16 +40,13 @@ pub(super) fn terminate_process(pid: u32, separate_process_group: bool, stop: St
 /// [`super::spawn_child`] created, a positive one a child or a descendant
 /// pnpm listed.
 pub(super) fn signal(target: i32, stop: Stop) {
-    // SAFETY: plain `kill`; ESRCH is harmless when the target exited
-    // concurrently.
-    let sent = unsafe { libc::kill(target, stop.signal()) } == 0;
-    let error = (!sent).then(std::io::Error::last_os_error);
+    let outcome = pnpm_ffi_signal::try_signal_target(kill_target(target), stop.signal());
     tracing::debug!(
         target: "pacquet::process_tracker",
         target_pid = target,
         signal = stop.signal(),
-        sent,
-        error = error.map(tracing::field::display),
+        sent = outcome.is_ok(),
+        error = outcome.err().map(tracing::field::display),
         "signal",
     );
 }
@@ -67,16 +64,25 @@ pub(super) fn signal_group(leader: u32, stop: Stop) {
 /// While it does, its id cannot be handed to another process or group, so
 /// a signal to it reaches only the group pnpm created.
 pub(super) fn group_has_member(target: i32) -> bool {
-    // SAFETY: signal 0 only probes.
-    unsafe { libc::kill(target, 0) == 0 }
+    pnpm_ffi_signal::target_exists(kill_target(target))
 }
 
 /// Whether `pid` is in a process group that one of `targets` signals.
 pub(super) fn in_signalled_group(pid: i32, targets: &[i32]) -> bool {
-    // SAFETY: `getpgid` only reads the process table, and fails with -1 for a
-    // process that has exited.
-    let group = unsafe { libc::getpgid(pid) };
-    group > 0 && targets.contains(&-group)
+    u32::try_from(pid)
+        .ok()
+        .and_then(pnpm_ffi_signal::process_group_of)
+        .is_some_and(|group| group > 0 && targets.contains(&-group))
+}
+
+/// Read a signed target the way `kill` reads one: a negative number is the
+/// process group that the matching positive number leads.
+fn kill_target(target: i32) -> pnpm_ffi_signal::Target {
+    if target < 0 {
+        pnpm_ffi_signal::Target::Group(target.unsigned_abs())
+    } else {
+        pnpm_ffi_signal::Target::Process(target.unsigned_abs())
+    }
 }
 
 /// A descendant of a task, found through the parent links of a process
@@ -91,23 +97,34 @@ pub(super) fn in_signalled_group(pid: i32, targets: &[i32]) -> bool {
 pub(super) struct Descendant {
     pid: i32,
     #[cfg(target_os = "linux")]
-    pidfd: Option<std::os::fd::OwnedFd>,
+    pinned: Option<pnpm_ffi_signal::PinnedTarget>,
 }
 
 impl Descendant {
     /// The descendant `pid` that the listing gave `parent`, or `None` once it
     /// is no longer that process.
     fn find(pid: u32, parent: u32) -> Option<Self> {
-        let pid = i32::try_from(pid).ok()?;
+        let signed = i32::try_from(pid).ok()?;
         #[cfg(target_os = "linux")]
         {
-            let pidfd = linux::pin(pid, parent)?;
-            Some(Self { pid, pidfd })
+            let pinned = match pnpm_ffi_signal::PinnedTarget::pin(pid) {
+                pnpm_ffi_signal::Pin::Target(pinned) => Some(pinned),
+                // Nothing to pin on this kernel, so the id is signalled as
+                // it is and there is no reuse the check below could catch.
+                pnpm_ffi_signal::Pin::Unsupported => None,
+                pnpm_ffi_signal::Pin::Gone => return None,
+            };
+            // With the process pinned its id cannot be reused, so the parent
+            // `/proc` gives it now is the one the pinned process has.
+            if pinned.is_some() && linux::parent_of(signed)? != parent {
+                return None;
+            }
+            Some(Self { pid: signed, pinned })
         }
         #[cfg(not(target_os = "linux"))]
         {
             let _ = parent;
-            Some(Self { pid })
+            Some(Self { pid: signed })
         }
     }
 
@@ -117,15 +134,14 @@ impl Descendant {
 
     pub(super) fn signal(&self, stop: Stop) {
         #[cfg(target_os = "linux")]
-        if let Some(pidfd) = &self.pidfd {
-            let sent = linux::signal(pidfd, stop.signal());
-            let error = (!sent).then(std::io::Error::last_os_error);
+        if let Some(pinned) = &self.pinned {
+            let outcome = pinned.signal(stop.signal());
             tracing::debug!(
                 target: "pacquet::process_tracker",
                 pid = self.pid,
                 signal = stop.signal(),
-                sent,
-                error = error.map(tracing::field::display),
+                sent = outcome.is_ok(),
+                error = outcome.err().map(tracing::field::display),
                 "signal a descendant through its pidfd",
             );
             return;
@@ -157,31 +173,11 @@ pub(super) fn descendant_processes(roots: &[u32]) -> Vec<Descendant> {
     descendants
 }
 
-/// Pinning a process and signalling it through a pidfd.
+/// Reading a process's parent from `/proc`.
 #[cfg(target_os = "linux")]
 mod linux {
-    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-
-    /// A pidfd for `pid` while it is still the child of `parent`. `Some(None)`
-    /// when the kernel has no pidfds, which leaves the pid to be signalled as
-    /// it is; `None` when `pid` is gone or is another process now.
-    pub(super) fn pin(pid: i32, parent: u32) -> Option<Option<OwnedFd>> {
-        // SAFETY: `pidfd_open` takes a pid and flags and returns a new file
-        // descriptor, which `OwnedFd` then owns alone.
-        let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
-        if fd < 0 {
-            let unsupported = std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOSYS);
-            return unsupported.then_some(None);
-        }
-        // SAFETY: see above; `fd` is a valid descriptor nothing else owns.
-        let pidfd = unsafe { OwnedFd::from_raw_fd(i32::try_from(fd).ok()?) };
-        // With the pidfd open the pid cannot be reused, so the process
-        // `/proc` describes now is the one the pidfd holds.
-        (parent_of(pid)? == parent).then_some(Some(pidfd))
-    }
-
     /// The parent pid `/proc` gives `pid`.
-    fn parent_of(pid: i32) -> Option<u32> {
+    pub(super) fn parent_of(pid: i32) -> Option<u32> {
         let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
         let (_, fields) = stat.rsplit_once(") ")?;
         fields
@@ -189,22 +185,6 @@ mod linux {
             .nth(1)?
             .parse()
             .ok()
-    }
-
-    /// Whether the signal was sent.
-    pub(super) fn signal(pidfd: &OwnedFd, signal: libc::c_int) -> bool {
-        // SAFETY: `pidfd_send_signal` takes the pidfd, the signal, no
-        // `siginfo`, and no flags. It fails harmlessly once the process
-        // exited.
-        unsafe {
-            libc::syscall(
-                libc::SYS_pidfd_send_signal,
-                pidfd.as_raw_fd(),
-                signal,
-                std::ptr::null::<libc::siginfo_t>(),
-                0,
-            ) == 0
-        }
     }
 }
 

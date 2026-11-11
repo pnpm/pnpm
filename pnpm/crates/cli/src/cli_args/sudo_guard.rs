@@ -20,8 +20,7 @@ use super::config::{ConfigArgs, ConfigSubcommand};
 pub(crate) fn check_sudo(command: &CliCommand) -> miette::Result<()> {
     #[cfg(unix)]
     {
-        // SAFETY: geteuid is always safe to call.
-        let euid = unsafe { libc::geteuid() };
+        let euid = pnpm_ffi_process::effective_user_id();
         let sudo_user = std::env::var("SUDO_USER").ok();
         check_sudo_as(command, euid, sudo_user.as_deref())?;
     }

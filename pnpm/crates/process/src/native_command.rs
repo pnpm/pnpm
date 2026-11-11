@@ -240,18 +240,14 @@ impl AsyncCommand {
         self
     }
 
-    #[cfg(unix)]
-    /// # Safety
+    /// Arrange for the child to close every descriptor it inherits except
+    /// its stdio.
     ///
-    /// The function must be safe to run in the child process after `fork` and before `exec`.
-    pub unsafe fn pre_exec<Function>(&mut self, function: Function) -> &mut Self
-    where
-        Function: FnMut() -> io::Result<()> + Send + Sync + 'static,
-    {
-        unsafe {
-            // SAFETY: the caller guarantees the function is safe to run between `fork` and `exec`.
-            self.inner.pre_exec(function)
-        };
+    /// A passthrough rather than a way to reach the command itself, which
+    /// a caller could spawn without the lock [`Self::spawn`] takes.
+    #[cfg(target_vendor = "apple")]
+    pub fn inherit_only_stdio(&mut self) -> &mut Self {
+        pnpm_ffi_process::inherit_only_stdio(self.inner.as_std_mut());
         self
     }
 

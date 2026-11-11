@@ -139,26 +139,10 @@ fn probe(dir: &Path, kind: ParentKind) -> io::Result<ParentShape> {
 /// link itself, so a reparse point held this way passes only as a root.
 #[cfg(windows)]
 fn probe_attributes(dir: &Path, kind: ParentKind) -> io::Result<ParentShape> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::{
-        FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT, GetFileAttributesW,
-        INVALID_FILE_ATTRIBUTES,
-    };
-
-    let path = dir
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect::<Vec<_>>();
-    // SAFETY: `path` is NUL-terminated and remains alive for the duration of the call.
-    let attributes = unsafe { GetFileAttributesW(path.as_ptr()) };
-    if attributes == INVALID_FILE_ATTRIBUTES {
-        return Err(io::Error::last_os_error());
-    }
+    let attributes = pnpm_ffi_fs::file_attributes(dir)?;
     Ok(ParentShape {
-        is_dir: attributes & FILE_ATTRIBUTE_DIRECTORY != 0,
-        is_symlink: matches!(kind, ParentKind::Owned)
-            && attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0,
+        is_dir: attributes.is_directory,
+        is_symlink: matches!(kind, ParentKind::Owned) && attributes.is_reparse_point,
     })
 }
 

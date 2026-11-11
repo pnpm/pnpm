@@ -280,11 +280,7 @@ fn a_runtime_install_does_not_dispatch_its_own_shim_again() {
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     };
-    let group = i32::try_from(shim.id()).unwrap();
-    // SAFETY: the group is the one this test's shim leads.
-    unsafe {
-        libc::killpg(group, libc::SIGKILL);
-    }
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Group(shim.id()), libc::SIGKILL);
     if status.is_none() {
         shim.wait().unwrap();
     }

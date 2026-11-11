@@ -193,13 +193,7 @@ pub(super) fn held_mirror_file_cap() -> usize {
 
 #[cfg(unix)]
 pub(super) fn soft_open_file_limit() -> Option<usize> {
-    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-    // SAFETY: plain libc call; `limit` is a properly initialised
-    // out-parameter and the pointer does not outlive the call.
-    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) } != 0 {
-        return None;
-    }
-    usize::try_from(limit.rlim_cur).ok()
+    pnpm_ffi_process::soft_open_file_limit()
 }
 
 /// Windows has no `RLIMIT_NOFILE`; the per-process handle capacity is

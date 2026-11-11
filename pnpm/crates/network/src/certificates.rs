@@ -1,12 +1,5 @@
 use super::{Certificate, Identity, LazyLock, RegistryTls, TlsConfig, TlsError};
 
-#[cfg(target_vendor = "apple")]
-use core_foundation::{base::TCFType, string::CFString};
-#[cfg(target_vendor = "apple")]
-use security_framework::{policy::SecPolicy, secure_transport::SslProtocolSide};
-#[cfg(target_vendor = "apple")]
-use security_framework_sys::{base::SecPolicyRef, policy::SecPolicyCreateSSL};
-
 /// Which trust anchors a client built by
 /// [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) verifies registry certificates
 /// against.
@@ -57,7 +50,7 @@ pub(super) fn is_platform_verifier_available() -> bool {
         let Ok(cert) = SecCertificate::from_der(der.as_ref()) else {
             return false;
         };
-        let Some(policy) = ssl_policy(SslProtocolSide::SERVER, "registry.npmjs.org") else {
+        let Some(policy) = pnpm_ffi_security::server_ssl_policy("registry.npmjs.org") else {
             return false;
         };
         let Ok(trust) = SecTrust::create_with_certificates(&[cert], &[policy]) else {
@@ -72,45 +65,6 @@ pub(super) fn is_platform_verifier_available() -> bool {
         }
     });
     *AVAILABLE
-}
-
-/// A server `SecPolicy` for `hostname`, or `None` when `Security.framework`
-/// declines to create one.
-///
-/// `SecPolicy::create_ssl` cannot report that refusal. It hands the C API's
-/// return value to `core-foundation`'s `wrap_under_create_rule`, which
-/// asserts the reference is non-NULL and panics with "Attempted to create a
-/// NULL object" otherwise. A framework that will not hand out a policy is
-/// one of the shapes an unusable platform verifier takes, so the probe asks
-/// the C API directly and reads the NULL as "no platform verifier", which
-/// sends the client builder to [`TrustRoots::Bundled`].
-///
-/// `std::panic::catch_unwind` around the panicking call would not do:
-/// releases are built with `panic = "abort"`, which turns the unwind into
-/// the very abort this avoids.
-#[cfg(target_vendor = "apple")]
-fn ssl_policy(protocol_side: SslProtocolSide, hostname: &str) -> Option<SecPolicy> {
-    let hostname = CFString::new(hostname);
-    let is_server = protocol_side == SslProtocolSide::SERVER;
-    // SAFETY: `SecPolicyCreateSSL` is a plain C function that only reads
-    // `hostname`, which is alive for the duration of the call.
-    let policy = unsafe { SecPolicyCreateSSL(is_server.into(), hostname.as_concrete_TypeRef()) };
-    ssl_policy_from_ref(policy)
-}
-
-/// Take ownership of the reference [`ssl_policy`] got, reading NULL as
-/// "no policy" rather than as the panic `wrap_under_create_rule` raises.
-///
-/// Separate from [`ssl_policy`] so a test can drive the NULL branch without
-/// a restricted `trustd`.
-#[cfg(target_vendor = "apple")]
-fn ssl_policy_from_ref(policy: SecPolicyRef) -> Option<SecPolicy> {
-    if policy.is_null() {
-        return None;
-    }
-    // SAFETY: `SecPolicyCreateSSL` returns a +1 reference, which the create
-    // rule adopts.
-    Some(unsafe { SecPolicy::wrap_under_create_rule(policy) })
 }
 
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust

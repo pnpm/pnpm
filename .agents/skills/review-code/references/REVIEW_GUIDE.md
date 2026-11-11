@@ -59,7 +59,11 @@ Look especially for:
 - registry/network/auth mistakes: token leakage, proxy handling, redirect behavior, TLS
   assumptions, cache poisoning, integrity/hash verification, and downgrade/confusion attacks;
 - Rust memory, concurrency, and unsafe-FFI issues in pacquet, including panic-on-untrusted-input
-  denial of service.
+  denial of service. [UNSAFE_POLICY.md](../../../../UNSAFE_POLICY.md) is the standard. An
+  `unsafe` outside the crates it names is a finding on its own. So is a `// SAFETY:`
+  comment that does not name every precondition the callee states, and what establishes it.
+  `cargo test -p pnpm-unsafe-audit` checks the mechanical half, so what review adds is
+  whether each safety argument holds and whether a safe alternative was looked for.
 
 Advisory regression themes — recurring classes from past pnpm advisories:
 

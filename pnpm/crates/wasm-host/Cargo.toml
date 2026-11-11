@@ -11,8 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-futures-util = { workspace = true }
-serde = { workspace = true }
+pnpm-ffi-webcontainer = { path = "../ffi-webcontainer" }
 serde_json = { workspace = true }
 
 [lints]

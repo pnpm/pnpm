@@ -1,0 +1,21 @@
+[package]
+name = "pnpm-ffi-webcontainer"
+description = "Safe abstractions over the WebContainer supervisor's imports"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+futures-util = { workspace = true }
+libc = { workspace = true }
+pnpm-webcontainer-sys = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

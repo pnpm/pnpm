@@ -12,6 +12,9 @@ tokio = { workspace = true }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "process", "signal"] }
 
+[target.'cfg(target_vendor = "apple")'.dependencies]
+pnpm-ffi-process = { workspace = true }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-wasm-host = { path = "../wasm-host" }
 serde = { workspace = true }

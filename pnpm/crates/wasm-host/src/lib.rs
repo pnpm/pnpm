@@ -4,12 +4,7 @@
 //! is borrowed only during an import call, never while an operation is pending.
 
 #[cfg(target_family = "wasm")]
-pub use request::{HostError, Request, close_resource, request};
-
-#[cfg(target_family = "wasm")]
-mod bindings;
-#[cfg(target_family = "wasm")]
-mod request;
+pub use pnpm_ffi_webcontainer::{HostError, Request, close_resource, request};
 
 #[cfg(target_family = "wasm")]
 #[must_use]

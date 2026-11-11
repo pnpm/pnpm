@@ -1,264 +1,26 @@
-use std::{ffi::CString, io, path::Path};
+//! The WASI build's filesystem calls, and the policy pnpm wraps around
+//! them.
+//!
+//! The calls themselves are safe abstractions in
+//! [`pnpm_ffi_fs`] and [`pnpm_ffi_webcontainer::fs`]: the first for what
+//! WASI's own interface reaches, the second for what only the supervisor
+//! can do. What is here is what pnpm decides on top of them, such as which
+//! mode a new file inherits and how long a contended lock is waited for.
 
-pub(crate) fn symlink(target: &Path, link: &Path) -> io::Result<()> {
-    let target = CString::new(target.as_os_str().as_encoded_bytes())
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let link = CString::new(link.as_os_str().as_encoded_bytes())
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    // SAFETY: both pointers refer to live, NUL-terminated strings. symlink
-    // only reads them and retains neither pointer after returning.
-    if unsafe { libc::symlink(target.as_ptr(), link.as_ptr()) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
+pub use pnpm_ffi_fs::file_link_count;
+pub(crate) use pnpm_ffi_fs::{FileIdentity, open_for_overwrite, path_identity, symlink};
+pub use pnpm_ffi_webcontainer::fs::{
+    check_file_owner, create_new, executable_access, file_mode, grant_directory_mode_beneath,
+    open_directory_nofollow_beneath, open_nofollow, register_sqlite_permissions,
+};
+pub(crate) use pnpm_ffi_webcontainer::fs::{
+    current_umask, path_mode, secure_directory, set_file_mode, user_id,
+};
 
-#[derive(PartialEq, Eq)]
-pub(crate) struct FileIdentity {
-    device: libc::dev_t,
-    inode: libc::ino_t,
-}
+use std::{io, path::Path};
 
-pub(crate) fn path_identity(path: &Path) -> io::Result<FileIdentity> {
-    let path = CString::new(path.as_os_str().as_encoded_bytes())
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
-    // SAFETY: path is NUL-terminated and metadata points to writable storage
-    // of the exact type lstat initializes on success.
-    if unsafe { libc::lstat(path.as_ptr(), metadata.as_mut_ptr()) } != 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: successful lstat initialized metadata.
-    let metadata = unsafe { metadata.assume_init() };
-    Ok(FileIdentity { device: metadata.st_dev, inode: metadata.st_ino })
-}
-
-pub(crate) fn file_identity(file: &std::fs::File) -> io::Result<FileIdentity> {
-    let metadata = file_metadata(file)?;
-    Ok(FileIdentity { device: metadata.st_dev, inode: metadata.st_ino })
-}
-
-/// Count hard links to an already opened file.
-pub fn file_link_count(file: &std::fs::File) -> io::Result<u64> {
-    file_metadata(file).map(|metadata| metadata.st_nlink)
-}
-
-fn file_metadata(file: &std::fs::File) -> io::Result<libc::stat> {
-    use std::os::fd::AsRawFd;
-    let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
-    // SAFETY: file keeps its descriptor open and metadata is writable
-    // storage of the exact type fstat initializes on success.
-    if unsafe { libc::fstat(file.as_raw_fd(), metadata.as_mut_ptr()) } != 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: successful fstat initialized metadata.
-    Ok(unsafe { metadata.assume_init() })
-}
-
-pub(crate) fn open_for_overwrite(path: &Path) -> io::Result<std::fs::File> {
-    use std::os::fd::FromRawFd;
-    let path = CString::new(path.as_os_str().as_encoded_bytes())
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    // SAFETY: path is NUL-terminated; these flags do not create a file,
-    // so open takes no variadic mode argument.
-    let descriptor =
-        unsafe { libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK) };
-    if descriptor < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: successful open returned a descriptor owned by this call.
-    Ok(unsafe { std::fs::File::from_raw_fd(descriptor) })
-}
-
-/// Exclusively create a file with the requested host permission bits.
-pub fn create_new(path: &Path, mode: u32) -> io::Result<std::fs::File> {
-    with_absolute_path(path, |path| {
-        let mut descriptor = 0;
-        // SAFETY: the host reads the live path slice and initializes the output
-        // synchronously. No pointer is retained across the imported call.
-        check(unsafe { host::create_new(path.as_ptr(), path.len(), mode, &raw mut descriptor) })?;
-        owned_file(descriptor)
-    })
-}
-
-/// Open a host file without following its final symlink or blocking on a FIFO.
-pub fn open_nofollow(path: &Path) -> io::Result<std::fs::File> {
-    with_absolute_path(path, |path| {
-        let mut descriptor = 0;
-        // SAFETY: the host reads the live path slice and initializes the output
-        // synchronously. No pointer is retained across the imported call.
-        check(unsafe { host::open_nofollow(path.as_ptr(), path.len(), &raw mut descriptor) })?;
-        owned_file(descriptor)
-    })
-}
-
-/// Open a descendant directory after rejecting symlinks below `template`.
-/// The template itself may be a symlink. The host's path walk and final open
-/// are separate operations because the WebContainer host does not provide
-/// descriptor-stable `openat`.
-pub fn open_directory_nofollow_beneath(path: &Path, template: &Path) -> io::Result<std::fs::File> {
-    with_absolute_path(path, |path| {
-        with_absolute_path(template, |template| {
-            let mut descriptor = 0;
-            // SAFETY: both live path slices and the writable output remain
-            // valid for the synchronous imported call.
-            check(unsafe {
-                host::open_directory_nofollow_beneath(
-                    path.as_ptr(),
-                    path.len(),
-                    template.as_ptr(),
-                    template.len(),
-                    &raw mut descriptor,
-                )
-            })?;
-            owned_file(descriptor)
-        })
-    })
-}
-
-/// Grant inherited bits through Linux directory handles when the host can
-/// resolve `/proc/self/fd`. Other hosts return `Unsupported` for the caller's
-/// WASI descriptor fallback.
-pub fn grant_directory_mode_beneath(path: &Path, template: &Path, extra: u32) -> io::Result<()> {
-    with_absolute_path(path, |path| {
-        with_absolute_path(template, |template| {
-            // SAFETY: both path slices stay live until the synchronous host
-            // call returns; it retains neither pointer.
-            check(unsafe {
-                host::grant_directory_mode_beneath(
-                    path.as_ptr(),
-                    path.len(),
-                    template.as_ptr(),
-                    template.len(),
-                    extra,
-                )
-            })
-        })
-    })
-}
-
-fn owned_file(descriptor: u32) -> io::Result<std::fs::File> {
-    use std::os::fd::FromRawFd;
-    let descriptor = descriptor.try_into().map_err(|_| io::ErrorKind::InvalidData)?;
-    // SAFETY: successful host open transfers ownership of this WASI descriptor.
-    Ok(unsafe { std::fs::File::from_raw_fd(descriptor) })
-}
-
-pub(crate) fn file_mode(file: &std::fs::File) -> io::Result<u32> {
-    use std::os::fd::AsRawFd;
-    let mut mode = 0;
-    // SAFETY: file keeps the descriptor alive and mode is writable for the
-    // synchronous imported call.
-    check(unsafe { host::fmode(file.as_raw_fd(), &raw mut mode) })?;
-    Ok(mode)
-}
-
-/// Checks execute access using the supervising process's credentials.
-pub fn executable_access(path: &Path) -> io::Result<()> {
-    with_absolute_path(path, |path| {
-        // SAFETY: the host reads the live path slice synchronously and retains no pointer.
-        check(unsafe { host::path_access_executable(path.as_ptr(), path.len()) })
-    })
-}
-
-/// Apply database permissions atomically when its `SQLite` sidecars are created.
-pub fn register_sqlite_permissions(path: &Path, registered: bool) -> io::Result<()> {
-    with_absolute_path(path, |path| {
-        // SAFETY: the host reads the live path slice synchronously and retains no pointer.
-        check(unsafe { host::sqlite_register(path.as_ptr(), path.len(), u32::from(registered)) })
-    })
-}
-
-/// Refuse cross-user stores whose private lease namespaces cannot coordinate.
-pub fn check_file_owner(file: &std::fs::File) -> io::Result<()> {
-    use std::os::fd::AsRawFd;
-    // SAFETY: file keeps its WASI descriptor live for the synchronous host call.
-    check(unsafe { host::check_owner(file.as_raw_fd()) })
-}
-
-pub(crate) fn set_file_mode(file: &std::fs::File, mode: u32) -> io::Result<()> {
-    use std::os::fd::AsRawFd;
-    // SAFETY: file keeps its WASI descriptor alive for the imported call.
-    check(unsafe { host::fchmod(file.as_raw_fd(), mode) })
-}
-
-pub(crate) fn path_mode(path: &Path) -> io::Result<u32> {
-    with_absolute_path(path, |path| {
-        let mut mode = 0;
-        // SAFETY: path is readable and mode is writable until the synchronous
-        // call completes; the host retains neither pointer.
-        check(unsafe { host::lmode(path.as_ptr(), path.len(), &raw mut mode) })?;
-        Ok(mode)
-    })
-}
-
-pub(crate) fn user_id() -> u32 {
-    // SAFETY: this import reads the host user identity and takes no pointers.
-    unsafe { host::uid() }
-}
-
-pub(crate) fn secure_directory(path: &Path) -> io::Result<()> {
-    with_absolute_path(path, |path| {
-        // SAFETY: the host reads the live path slice synchronously.
-        check(unsafe { host::secure_directory(path.as_ptr(), path.len()) })
-    })
-}
-
-pub(crate) fn current_umask() -> u32 {
-    // SAFETY: this import reads the host's mask and takes no pointers.
-    unsafe { host::umask() }
-}
-
-fn with_absolute_path<Value>(
-    path: &Path,
-    operation: impl FnOnce(&[u8]) -> io::Result<Value>,
-) -> io::Result<Value> {
-    let absolute = std::path::absolute(path)?;
-    operation(absolute.as_os_str().as_encoded_bytes())
-}
-
-fn check(errno: i32) -> io::Result<()> {
-    if errno == 0 { Ok(()) } else { Err(io::Error::from_raw_os_error(errno)) }
-}
-
-mod host {
-    #[link(wasm_import_module = "pnpm_fs")]
-    unsafe extern "C" {
-        pub(super) fn create_new(
-            path: *const u8,
-            length: usize,
-            mode: u32,
-            output: *mut u32,
-        ) -> i32;
-        pub(super) fn open_nofollow(path: *const u8, length: usize, output: *mut u32) -> i32;
-        pub(super) fn open_directory_nofollow_beneath(
-            path: *const u8,
-            length: usize,
-            template: *const u8,
-            template_length: usize,
-            output: *mut u32,
-        ) -> i32;
-        pub(super) fn grant_directory_mode_beneath(
-            path: *const u8,
-            length: usize,
-            template: *const u8,
-            template_length: usize,
-            extra: u32,
-        ) -> i32;
-        pub(super) fn open_lock(path: *const u8, length: usize, output: *mut u32) -> i32;
-        pub(super) fn try_lock(descriptor: i32, exclusive: u32) -> i32;
-        pub(super) fn sqlite_register(path: *const u8, length: usize, registered: u32) -> i32;
-        pub(super) fn check_owner(descriptor: i32) -> i32;
-        pub(super) fn path_access_executable(path: *const u8, length: usize) -> i32;
-        pub(super) fn fchmod(descriptor: i32, mode: u32) -> i32;
-        pub(super) fn fmode(descriptor: i32, output: *mut u32) -> i32;
-        pub(super) fn lmode(path: *const u8, length: usize, output: *mut u32) -> i32;
-        pub(super) fn umask() -> u32;
-        pub(super) fn uid() -> u32;
-        pub(super) fn secure_directory(path: *const u8, length: usize) -> i32;
-    }
-}
+pub(crate) use pnpm_ffi_fs::file_identity;
+pub(crate) use pnpm_ffi_webcontainer::fs::open_lock;
 
 /// Exclusively create a file with private or inherited parent permissions.
 pub fn create_inheriting_mode(
@@ -297,38 +59,20 @@ fn grant_file_mode(file: &std::fs::File, wanted: u32) -> io::Result<()> {
     }
 }
 
-pub(crate) fn open_lock(path: &Path) -> io::Result<std::fs::File> {
-    with_absolute_path(path, |path| {
-        let mut descriptor = 0;
-        // SAFETY: path is readable and the output descriptor is writable
-        // throughout the synchronous host call.
-        check(unsafe { host::open_lock(path.as_ptr(), path.len(), &raw mut descriptor) })?;
-        owned_file(descriptor)
-    })
-}
-
 /// Try to hold a host process lease until this file is closed.
 pub fn try_lock_file(
     file: &std::fs::File,
     mode: crate::LockMode,
 ) -> Result<(), std::fs::TryLockError> {
-    match host_try_lock(file, mode) {
+    let exclusivity = match mode {
+        crate::LockMode::Exclusive => pnpm_ffi_webcontainer::fs::Exclusivity::Exclusive,
+        crate::LockMode::Shared => pnpm_ffi_webcontainer::fs::Exclusivity::Shared,
+    };
+    match pnpm_ffi_webcontainer::fs::try_lock(file, exclusivity) {
         0 => Ok(()),
         libc::EAGAIN => Err(std::fs::TryLockError::WouldBlock),
         errno => Err(std::fs::TryLockError::Error(io::Error::from_raw_os_error(errno))),
     }
-}
-
-/// The host takes the mode as an `exclusive` flag and answers with an errno.
-fn host_try_lock(file: &std::fs::File, mode: crate::LockMode) -> i32 {
-    use std::os::fd::AsRawFd;
-    let exclusive = match mode {
-        crate::LockMode::Exclusive => 1,
-        crate::LockMode::Shared => 0,
-    };
-    // SAFETY: the borrow keeps the descriptor open across the call, and
-    // the host takes both arguments by value.
-    unsafe { host::try_lock(file.as_raw_fd(), exclusive) }
 }
 
 /// Acquire a host file lease, failing after 30 seconds of contention.

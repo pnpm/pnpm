@@ -1,4 +1,3 @@
-mod open_directory;
 use crate::{FindWorkspaceProjectsError, directory_patterns::negated_directory_pattern};
 use derive_more::{Display, Error};
 use miette::Diagnostic;

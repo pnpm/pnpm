@@ -16,6 +16,13 @@ crates = [
   "pnpm-detect-libc",
   "pnpm-diagnostics",
   "pnpm-env-replace",
+  "pnpm-ffi-fs",
+  "pnpm-ffi-process",
+  "pnpm-ffi-security",
+  "pnpm-ffi-signal",
+  "pnpm-ffi-sqlite",
+  "pnpm-ffi-terminal",
+  "pnpm-ffi-webcontainer",
   "pnpm-fs",
   "pnpm-git-utils",
   "pnpm-graph-hasher",
@@ -28,10 +35,12 @@ crates = [
   "pnpm-process",
   "pnpm-reporter",
   "pnpm-semver-include-prerelease",
+  "pnpm-signal-registry",
   "pnpm-text-sanitize",
   "pnpm-text-section",
   "pnpm-transparency-log",
   "pnpm-wasm-host",
+  "pnpm-webcontainer-sys",
   "pnpm-which",
   "pnpm-yaml-document-sync",
 ]
@@ -39,7 +48,7 @@ crates = [
 [[layer]]
 name = "model"
 description = "Names, specifiers, and the formats pnpm reads and writes: manifests, lockfiles, workspace and store layout."
-max_transitive_dependencies = 18
+max_transitive_dependencies = 24
 crates = [
   "pnpm-catalogs-config",
   "pnpm-catalogs-protocol-parser",
@@ -79,7 +88,7 @@ crates = [
 [[layer]]
 name = "service"
 description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
-max_transitive_dependencies = 35
+max_transitive_dependencies = 43
 crates = [
   "pnpm-cargo-resolver",
   "pnpm-cmd-shim",
@@ -176,6 +185,7 @@ crates = [
   "pnpm-network-web-auth-testing",
   "pnpm-registry-mock",
   "pnpm-testing-utils",
+  "pnpm-unsafe-audit",
   "pnpr-fixtures",
 ]
 
@@ -231,16 +241,16 @@ pnpm-auth-commands = 9
 pnpm-catalogs-config = 2
 pnpm-catalogs-protocol-parser = 1
 pnpm-catalogs-resolver = 3
-pnpm-cli = 78
+pnpm-cli = 82
 pnpm-cmd-shim = 2
-pnpm-config = 21
+pnpm-config = 22
 pnpm-config-parse-overrides = 3
 pnpm-crypto-shasums-file = 4
 pnpm-default-reporter = 4
 pnpm-deps-inspection = 11
 pnpm-deps-inspection-peers = 10
 pnpm-deps-path = 2
-pnpm-deps-restorer = 32
+pnpm-deps-restorer = 33
 pnpm-detect-libc = 1
 pnpm-directory-fetcher = 5
 pnpm-engine-pm-yarn-resolver = 6
@@ -249,19 +259,21 @@ pnpm-engine-runtime-deno-resolver = 7
 pnpm-engine-runtime-node-resolver = 7
 pnpm-engine-size-probe = 7
 pnpm-env-installer = 16
-pnpm-executor = 5
+pnpm-executor = 9
 pnpm-exportable-manifest = 5
-pnpm-fs = 2
+pnpm-ffi-fs = 1
+pnpm-ffi-webcontainer = 1
+pnpm-fs = 7
 pnpm-fs-packlist = 3
 pnpm-git-fetcher = 12
 pnpm-git-utils = 1
 pnpm-github-actions = 8
 pnpm-global = 6
 pnpm-graph-hasher = 3
-pnpm-hooks = 4
+pnpm-hooks = 5
 pnpm-http = 1
-pnpm-injected-deps-syncer = 6
-pnpm-install-coordinator = 2
+pnpm-injected-deps-syncer = 7
+pnpm-install-coordinator = 3
 pnpm-integrated-benchmark = 6
 pnpm-local-spec = 2
 pnpm-lockfile = 12
@@ -270,18 +282,18 @@ pnpm-lockfile-preferred-versions = 6
 pnpm-lockfile-verification = 6
 pnpm-micro-benchmark = 13
 pnpm-modules-yaml = 2
-pnpm-napi = 29
-pnpm-network = 2
+pnpm-napi = 30
+pnpm-network = 3
 pnpm-network-web-auth = 5
 pnpm-network-web-auth-testing = 3
 pnpm-pack = 13
 pnpm-package-is-installable = 3
-pnpm-package-manager = 61
+pnpm-package-manager = 62
 pnpm-package-manifest = 4
 pnpm-patching = 5
 pnpm-platform-variants = 2
 pnpm-pnpr-client = 10
-pnpm-process = 1
+pnpm-process = 2
 pnpm-publish = 13
 pnpm-python-installer = 19
 pnpm-python-resolver = 1
@@ -296,18 +308,19 @@ pnpm-resolving-deps-resolver = 19
 pnpm-resolving-git-resolver = 10
 pnpm-resolving-jsr-specifier-parser = 1
 pnpm-resolving-local-resolver = 7
-pnpm-resolving-npm-resolver = 14
+pnpm-resolving-npm-resolver = 15
 pnpm-resolving-parse-wanted-dependency = 1
 pnpm-resolving-resolver-base = 5
 pnpm-resolving-tarball-resolver = 9
-pnpm-rust-toolchain = 8
-pnpm-store-dir = 7
+pnpm-rust-toolchain = 9
+pnpm-store-dir = 9
 pnpm-tarball = 8
 pnpm-testing-utils = 4
 pnpm-version-policy = 1
 pnpm-versioning = 3
+pnpm-wasm-host = 1
 pnpm-which = 1
-pnpm-workspace = 5
+pnpm-workspace = 6
 pnpm-workspace-manifest-writer = 7
 pnpm-workspace-projects-filter = 7
 pnpm-workspace-projects-graph = 6
@@ -342,7 +355,7 @@ pnpr-upstream = 6
 pnpm-auth-commands = 4
 pnpm-catalogs-config = 2
 pnpm-catalogs-resolver = 1
-pnpm-cli = 23
+pnpm-cli = 24
 pnpm-cmd-shim = 1
 pnpm-config = 9
 pnpm-config-parse-overrides = 1

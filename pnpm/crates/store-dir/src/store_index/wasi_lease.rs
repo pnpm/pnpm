@@ -22,8 +22,7 @@ pub(super) fn acquire(database: &Path, recover: bool) -> Result<Arc<IndexLease>,
 }
 
 fn acquire_inner(database: &Path, recover: bool) -> io::Result<Arc<IndexLease>> {
-    // SAFETY: sqlite3_threadsafe returns a compile-time constant and takes no pointers.
-    if unsafe { rusqlite::ffi::sqlite3_threadsafe() } == 0 {
+    if !pnpm_ffi_sqlite::is_threadsafe() {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "WASI SQLite requires SQLITE_THREADSAFE=1",
