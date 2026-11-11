@@ -28,6 +28,10 @@ The `catalog:` protocol is also supported, allowing you to use versions defined 
 pnx shx@catalog:
 ```
 
+## Inside a project that pins pnpm
+
+Since v12.19.1, `pnx` switches to the pnpm version the project pins when [`pmOnFail`](../settings/cli.md#pmonfail) is `download`, as other commands do. With any other `pmOnFail` value, or when the project pins another package manager, `pnx` runs with the pnpm you invoked and does not check the pin.
+
 ## Running a package manager or a runtime
 
 Added in: v12.0.0-rc.6 (pnpm v12 only)

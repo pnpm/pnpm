@@ -248,6 +248,27 @@ fn dlx_installs_and_runs_packages_bin() {
     drop(root);
 }
 
+/// The error for a project pinned to yarn tells the user to run yarn through
+/// `pnpm dlx`, so `dlx` must not fail the same check.
+#[test]
+fn dlx_runs_in_a_project_pinned_to_another_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(workspace.join("package.json"), r#"{"packageManager":"yarn@4.0.0"}"#)
+        .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["dlx", "@foo/touch-file-one-bin"])
+        .output()
+        .expect("run pacquet dlx");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "dlx failed\nstderr:\n{stderr}");
+    assert!(workspace.join("touch.txt").exists(), "the package's bin should run");
+
+    drop(root);
+}
+
 /// Packages built by lifecycle scripts only load on the Node.js major they
 /// were built with, so a dlx cache entry is reused within the major of the
 /// `node` on `PATH` and not across majors.
