@@ -225,7 +225,8 @@ function referenceSatisfiesWantedSpec (
   const bareSpecifier = getRangeOfLockedPackage(wantedDep, { name, registryName }, opts.registries)
   if (bareSpecifier == null) return false
   const runtimeRange = preferredRef.startsWith('runtime:') ? rangeOfRuntimeSelector(bareSpecifier) : undefined
-  if (runtimeRange != null) return semver.satisfies(version, runtimeRange)
+  // Release channels such as `rc` and `nightly` publish only prereleases.
+  if (runtimeRange != null) return semver.satisfies(version, runtimeRange, { includePrerelease: true })
   if (!semver.validRange(bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
