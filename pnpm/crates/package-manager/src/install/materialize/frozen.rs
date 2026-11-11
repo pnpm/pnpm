@@ -157,7 +157,8 @@ impl<'a> MaterializationInputs<'a, '_> {
 
 fn assert_supported_lockfile_major(lockfile: &Lockfile) {
     let major = lockfile.lockfile_version.major;
-    debug_assert!(matches!(major, 9 | 12 | 13));
+    let supported = matches!(major, 9 | 12 | 13);
+    debug_assert!(supported);
 }
 
 #[cfg(not(feature = "runtime-provisioning"))]
