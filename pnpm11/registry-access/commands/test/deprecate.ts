@@ -135,8 +135,8 @@ test('deprecate and undeprecate name their command on the packument PUT', async 
     const registryUrl = 'https://registry.example.com/'
     const packument = (deprecated?: string) => ({ name: 'pkg', versions: { '1.0.0': { name: 'pkg', version: '1.0.0', deprecated } } })
     const mockPool = getMockAgent().get('https://registry.example.com')
-    mockPool.intercept({ method: 'GET', path: '/pkg' }).reply(200, packument())
-    mockPool.intercept({ method: 'GET', path: '/pkg' }).reply(200, packument('old'))
+    mockPool.intercept({ method: 'GET', path: '/pkg?write=true' }).reply(200, packument())
+    mockPool.intercept({ method: 'GET', path: '/pkg?write=true' }).reply(200, packument('old'))
     mockPool.intercept({ method: 'PUT', path: '/pkg', headers: { 'npm-command': 'deprecate' } }).reply(200, {})
     mockPool.intercept({ method: 'PUT', path: '/pkg', headers: { 'npm-command': 'undeprecate' } }).reply(200, {})
 

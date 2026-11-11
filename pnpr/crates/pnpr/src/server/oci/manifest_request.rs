@@ -2,9 +2,11 @@ use super::{
     Action, Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
     ImageDocument, Method, OciPublication, Refusal, RegistryError, RegistrySource, Request,
     Response, ResponseBody, StatusCode, authorize, collect_body, created, error, header,
-    hosted_manifest_response, insert_header, method_not_allowed, no_content, read_hosted_document,
-    read_manifest_bytes, registry_error, unknown_repository,
+    hosted_manifest_response, insert_header, lookup_in_hosted_document, method_not_allowed,
+    no_content, read_manifest_bytes, registry_error, unknown_repository,
 };
+use pnpr_oci::ManifestRemoval;
+use pnpr_storage::metadata::HostedLookup;
 
 impl Request {
     /// `HEAD`/`GET`/`PUT`/`DELETE /v2/<name>/manifests/<reference>`.
@@ -25,20 +27,22 @@ impl Request {
             Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let document = match read_hosted_document::<ImageDocument>(
+        let requested = reference.to_string();
+        let entry = match lookup_in_hosted_document::<ImageDocument, _>(
             &self.state,
             &self.identity,
             &repo.source,
             &repo.key,
+            move |document| document.resolve(&requested).cloned(),
         )
         .await
         {
-            Ok(Some(document)) => document,
-            Ok(None) => return unknown_repository(name).respond(),
+            Ok(HostedLookup::Found(entry)) => entry,
+            Ok(HostedLookup::Absent) => return unknown_repository(name).respond(),
+            Ok(HostedLookup::Missing) => {
+                return error(ErrorCode::ManifestUnknown, "no such manifest or tag");
+            }
             Err(err) => return registry_error(err),
-        };
-        let Some(entry) = document.resolve(reference).cloned() else {
-            return error(ErrorCode::ManifestUnknown, "no such manifest or tag");
         };
         // A manifest is small enough to answer from memory, and the response
         // carries its digest and media type either way.
@@ -100,11 +104,15 @@ impl Request {
             return registry_error(err);
         }
         let _guard = self.state.inner.locks.packages.lock(repo.key.as_str()).await;
+        let mut referenced_child = None;
         let outcome = repo.storage.update_hosted_document_with_retry(
             &repo.key,
             DOCUMENT_WRITE_RETRIES,
             None,
-            |existing| remove_manifest_or_tag(existing, &repo.key, reference),
+            |existing| {
+                referenced_child = None;
+                remove_manifest_or_tag(existing, &repo.key, reference, &mut referenced_child)
+            },
         )
         .await;
         match outcome {
@@ -112,7 +120,12 @@ impl Request {
                 self.log_oci_manifest_deleted(repo.key.as_str(), reference);
                 no_content(StatusCode::ACCEPTED)
             }
-            Ok(_) => error(ErrorCode::ManifestUnknown, "no such manifest or tag"),
+            Ok(DocumentUpdate::NotFound) => match referenced_child {
+                Some(digest) => {
+                    error(ErrorCode::Denied, format!("{digest} is referenced by a retained index"))
+                }
+                None => error(ErrorCode::ManifestUnknown, "no such manifest or tag"),
+            },
             Err(err) => registry_error(err),
         }
     }
@@ -154,6 +167,7 @@ fn remove_manifest_or_tag(
     bytes: Option<&[u8]>,
     key: &CanonicalPackageName,
     reference: &str,
+    referenced_child: &mut Option<Digest>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let Some(bytes) = bytes else { return Ok(None) };
     let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
@@ -164,12 +178,20 @@ fn remove_manifest_or_tag(
             supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
         });
     }
-    let removed = match Digest::parse(reference) {
-        Ok(digest) => document.remove_manifest(&digest),
-        Err(_) => document.remove_tag(reference),
-    };
-    if !removed {
-        return Ok(None);
+    match Digest::parse(reference) {
+        Ok(digest) => match document.remove_manifest(&digest) {
+            ManifestRemoval::Removed => {}
+            ManifestRemoval::NotFound => return Ok(None),
+            ManifestRemoval::ReferencedByIndex => {
+                *referenced_child = Some(digest);
+                return Ok(None);
+            }
+        },
+        Err(_) => {
+            if !document.remove_tag(reference) {
+                return Ok(None);
+            }
+        }
     }
     if document.manifests().is_empty() {
         return Ok(Some(Vec::new()));

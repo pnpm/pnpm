@@ -83,9 +83,12 @@ async fn read_rules(
 }
 
 /// The version of a registry's stored rule changes, for `ETag` and
-/// `If-Match`. A registry with no stored changes has the version `config`.
+/// `If-Match`. Absent or empty overrides have the version `config`.
 pub(super) fn rules_version(stored: Option<&[u8]>) -> String {
-    stored.map(sha256_hex).unwrap_or_else(|| "config".to_string())
+    stored
+        .filter(|bytes| *bytes != b"{}")
+        .map(sha256_hex)
+        .unwrap_or_else(|| "config".to_string())
 }
 
 /// `registry`'s rules and their version. See [`read_rules`].

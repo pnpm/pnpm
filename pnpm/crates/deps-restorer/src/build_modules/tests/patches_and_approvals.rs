@@ -83,6 +83,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         HashMap::from([(
             pkg_key.without_peer(),
             pnpm_lockfile::PackageMetadata {
+                specifiers: None,
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),

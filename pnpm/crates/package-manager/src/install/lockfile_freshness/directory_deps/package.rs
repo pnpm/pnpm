@@ -31,6 +31,7 @@ fn read_and_override_manifest(
         &injected,
         check.parsed_overrides,
         check.config.root_project_manifest_dir(check.lockfile_dir),
+        check.workspace.catalogs,
     )
     .ok_or_else(|| dep.outdated())
 }
@@ -41,10 +42,12 @@ pub(in crate::install::lockfile_freshness) fn overridden_unhooked_manifest(
     injected: &InjectedDirectory<'_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     lockfile_dir: &std::path::Path,
+    catalogs: &pnpm_catalogs_types::Catalogs,
 ) -> Option<PackageManifest> {
     let mut manifest = unhooked_manifest(injected)?;
     if let Some(parsed) = parsed_overrides {
         crate::VersionsOverrider::new(parsed, lockfile_dir)
+            .with_catalogs(catalogs)
             .apply(&mut manifest, Some(injected.dir));
     }
     Some(manifest)
@@ -61,6 +64,7 @@ pub(super) fn check_single_directory_dep_freshness(
     ),
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
+    let dep = &declared_context(dep, pkg_meta);
     let local_manifest = read_and_override_manifest(check, dep)?;
     let Some(snapshot) = snapshot else {
         return Err(dep.outdated());
@@ -70,8 +74,31 @@ pub(super) fn check_single_directory_dep_freshness(
     if !visited.first_visit(pkg_key, dep, &local_manifest, scope) {
         return Ok(());
     }
+    if pkg_meta.specifiers.is_some() {
+        return super::recorded::check_recorded_directory(
+            check,
+            (dep, scope),
+            (&local_manifest, snapshot, pkg_meta),
+            visited,
+        );
+    }
+    check_legacy_directory(check, (dep, scope), (&local_manifest, snapshot, pkg_meta), visited)
+}
+
+/// The check for an entry without `specifiers`, which an older pnpm wrote.
+/// It takes no new fixes and goes at the next lockfile major (pnpm/tasks#228).
+fn check_legacy_directory(
+    check: &ImporterSatisfactionCheck<'_>,
+    (dep, scope): (&LocalDepContext<'_>, &AliasScope),
+    (local_manifest, snapshot, pkg_meta): (
+        &PackageManifest,
+        &pnpm_lockfile::SnapshotEntry,
+        &pnpm_lockfile::PackageMetadata,
+    ),
+    visited: &mut Visited,
+) -> Result<(), FreshnessCheckError> {
     let peers = PeerShadowing::of(
-        &local_manifest,
+        local_manifest,
         |name| scope.contains(name),
         check.config.auto_install_peers,
     );
@@ -83,10 +110,23 @@ pub(super) fn check_single_directory_dep_freshness(
     check_local_dep_children_freshness(
         check,
         (dep, &children_scope),
-        &local_manifest,
+        local_manifest,
         snapshot,
         &peers.shadowed,
         visited,
     )?;
-    peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
+    peers.check_local_peer_deps_freshness(dep, local_manifest, pkg_meta)
+}
+
+fn declared_context<'a>(
+    dep: &LocalDepContext<'a>,
+    metadata: &pnpm_lockfile::PackageMetadata,
+) -> LocalDepContext<'a> {
+    let declared_by_path =
+        match metadata.specifiers.as_ref().and_then(|recorded| recorded.manifest_source) {
+            Some(pnpm_lockfile::DirectoryManifestSource::Path) => true,
+            Some(pnpm_lockfile::DirectoryManifestSource::Workspace) => false,
+            None => dep.declared_by_path,
+        };
+    LocalDepContext { declared_by_path, ..*dep }
 }

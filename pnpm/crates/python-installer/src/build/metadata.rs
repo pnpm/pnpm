@@ -166,7 +166,7 @@ impl Shared<'_> {
             }
             interpreter = selected;
         }
-        bail!("dynamic Python metadata at {} did not select a stable interpreter", root.display())
+        bail!("dynamic Python metadata at {} did not select a stable interpreter", root.display());
     }
 
     /// Prepare the metadata of a shared membership's members with the
@@ -200,7 +200,7 @@ impl Shared<'_> {
         bail!(
             "dynamic Python metadata in the workspace at {} did not select a stable interpreter",
             root.display(),
-        )
+        );
     }
 
     /// Prepare one project's metadata with `interpreter` and record it on

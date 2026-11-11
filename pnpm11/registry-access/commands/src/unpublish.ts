@@ -174,7 +174,7 @@ async function fetchPackument (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<PackumentResponse> {
-  const response = await fetchFromRegistry(packageUrl, {
+  const response = await fetchFromRegistry(`${packageUrl}?write=true`, {
     authHeaderValue: authHeader,
     fullMetadata: true,
   })

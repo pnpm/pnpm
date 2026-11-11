@@ -154,6 +154,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
     let registry = format!("{}/", server.url());
     let get_mock = server
         .mock("GET", "/test-pkg")
+        .match_query(mockito::Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create_async()
@@ -208,6 +209,7 @@ async fn a_partial_unpublish_shares_one_otp_across_the_put_and_the_tarball_delet
     let registry = format!("{}/", server.url());
     let get_mock = server
         .mock("GET", "/test-pkg")
+        .match_query(mockito::Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .expect(2)
@@ -258,6 +260,7 @@ async fn a_partial_unpublish_deletes_the_tarball_under_the_registry_path() {
     let registry = format!("{}/npm/", server.url());
     let get_mock = server
         .mock("GET", "/npm/test-pkg")
+        .match_query(mockito::Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(two_version_packument(&format!("{}/npm", server.url())))
         .expect(2)

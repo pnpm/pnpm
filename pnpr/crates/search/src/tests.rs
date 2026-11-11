@@ -123,4 +123,50 @@ fn malformed_maintainers_do_not_produce_invalid_search_users() {
         assert_eq!(entry["package"]["maintainers"], json!([]));
         assert!(entry["package"].get("links").is_none());
     }
+    let without_maintainers = json!({ "versions": { "1.0.0": {} } });
+    let entry = super::build_search_entry("example-package", &without_maintainers).unwrap();
+    assert_eq!(entry["package"]["maintainers"], json!([]));
+}
+
+#[test]
+fn search_projects_publisher_to_npm_username_without_user_id() {
+    use serde_json::json;
+
+    let packument = json!({
+        "versions": {
+            "1.0.0": {
+                "_npmUser": {
+                    "name": "example-publisher",
+                    "userId": "account-1",
+                    "email": "publisher@example.com",
+                },
+            },
+        },
+    });
+    let entry = super::build_search_entry("example-package", &packument).unwrap();
+    assert_eq!(
+        entry["package"]["publisher"],
+        json!({ "username": "example-publisher", "email": "publisher@example.com" }),
+    );
+    assert!(entry["package"]["publisher"].get("userId").is_none());
+
+    for invalid in [json!(null), json!({ "userId": "account-1" }), json!(42)] {
+        let packument = json!({ "versions": { "1.0.0": { "_npmUser": invalid } } });
+        let entry = super::build_search_entry("example-package", &packument).unwrap();
+        assert!(entry["package"].get("publisher").is_none());
+    }
+}
+
+#[test]
+fn packuments_without_versions_are_omitted_from_search() {
+    use serde_json::json;
+
+    for packument in [
+        json!({ "name": "empty-package", "versions": {} }),
+        json!({ "name": "empty-package", "maintainers": [{ "name": "example-owner" }], "versions": {} }),
+        json!({ "name": "missing-versions" }),
+    ] {
+        assert!(super::build_search_entry("empty-package", &packument).is_none());
+        assert!(!super::packument_has_maintainer(&packument, "example-owner"));
+    }
 }

@@ -194,6 +194,45 @@ fn update_config_catalog_applies_to_outdated() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn update_config_version_selector_override_applies_to_catalog_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "catalog-hook-override-project",
+            "version": "1.0.0",
+            "dependencies": { (CATALOG_DEP): "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ hooks: {{ updateConfig (config) {{ config.catalogs = {{ default: {{ '{CATALOG_DEP}': '^100.0.0' }} }}; config.overrides = {{ ...config.overrides, '{CATALOG_DEP}@^100.0.0': '100.0.0' }}; return config }} }} }}",
+        ),
+    )
+    .expect("write pnpmfile");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let dep_name = CATALOG_DEP.parse().expect("package name");
+    let dependency = &wanted.importers["."].dependencies.as_ref().expect("dependencies")[&dep_name];
+    assert_eq!(dependency.specifier, "100.0.0");
+    assert_eq!(dependency.version.to_string(), "100.0.0");
+
+    drop((root, mock_instance));
+}
+
 /// The workspace shape of pnpm/pnpm#15047: `b` depends on workspace
 /// package `a`, whose `peerDependencies` use a catalog only the
 /// `updateConfig` hook provides. `peers check` resolves that catalog when

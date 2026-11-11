@@ -75,6 +75,9 @@ impl SqlMetadata {
                 RecordKey::Staged(_) => "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO UPDATE SET generation = excluded.generation, body = excluded.body",
             };
             transaction.execute(statement, &parameters)?;
+            if matches!(key, RecordKey::Registry { .. }) {
+                super::cdn::enqueue(&*transaction, "*")?;
+            }
             committing.store(true, Ordering::Release);
             transaction.commit()?;
             Ok(Some(MetadataRecord { generation, bytes: body.clone() }))
@@ -92,6 +95,9 @@ impl SqlMetadata {
                 .query_optional(&format!("SELECT 1 FROM {table} WHERE {predicate}"), &parameters)?
                 .is_some();
             transaction.execute(&format!("DELETE FROM {table} WHERE {predicate}"), &parameters)?;
+            if exists && matches!(key, RecordKey::Registry { .. }) {
+                super::cdn::enqueue(&*transaction, "*")?;
+            }
             transaction.commit()?;
             Ok(exists)
         })

@@ -1,5 +1,5 @@
 use super::{
-    super::adapter::{Adapter, Connection, ReadSource},
+    super::adapter::{Adapter, Connection, ReadSource, Snapshot},
     Db, config,
 };
 use crate::{Storage, Store, metadata::SqlMetadata};
@@ -32,7 +32,7 @@ impl Adapter for LostAcknowledgement {
         &self,
         source: ReadSource,
         operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
-    ) -> Result<()> {
+    ) -> Result<Snapshot> {
         self.inner.read(source, operation)
     }
 

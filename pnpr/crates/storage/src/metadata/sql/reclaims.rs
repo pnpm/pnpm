@@ -119,18 +119,21 @@ impl SqlMetadata {
         catalog: &str,
         ecosystem: Ecosystem,
         lease: Duration,
-    ) -> Result<Vec<BlobRef>> {
+    ) -> Result<BTreeMap<BlobRef, u64>> {
         let catalog = catalog.to_string();
         let lease = i64::try_from(lease.as_millis()).unwrap_or(i64::MAX);
         self.read(catalog.clone(), Freshness::Current, move |connection, _| {
             let now = crate::publish::now_millis();
-            let sql = "SELECT integrity, incarnation FROM blobs
+            let sql = "SELECT integrity, incarnation, size FROM blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND state = 'reclaiming'
                    AND changed_at <= ?4 - ?3";
             connection
                 .query(sql, params![catalog, ecosystem.as_str(), lease, now])?
                 .into_iter()
-                .map(blob_ref_from)
+                .map(|mut row| {
+                    let size = to_generation(row.get(2)?);
+                    Ok((blob_ref_from(row)?, size))
+                })
                 .collect()
         })
         .await

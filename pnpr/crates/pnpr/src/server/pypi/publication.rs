@@ -1,12 +1,14 @@
 use super::{
+    super::{documents::stage_hosted_artifacts, publishing::commit_publishes},
     Action, AppState, AuthedCaller, BTreeMap, Bytes, CanonicalPackageName, DistributionKind,
     ECOSYSTEM, HeaderMap, Identity, ProjectDocument, ProjectFile, PublishTarget, RegistryError,
     RegistrySource, Request, Response, StagedPublish, State, StatusCode, TargetRegistry, Upload,
     Yanked, authorize, bad_request, header, multipart, normalize_version, now_iso,
     parse_distribution_filename, parse_upload, private_no_cache, resolve_publish_target_for,
-    sha256_hex, stage_hosted_artifact, store_hosted_artifact,
+    sha256_hex,
 };
 use axum::{extract::FromRequest as _, response::IntoResponse};
+use pnpr_pypi::CoreMetadata;
 
 /// `POST legacy/` — the legacy upload API `twine` speaks.
 pub(super) async fn post_upload(
@@ -17,10 +19,9 @@ pub(super) async fn post_upload(
     request: Request,
 ) -> Response {
     if matches!(identity, Identity::Anonymous) {
-        return private_no_cache(
-            RegistryError::Unauthenticated { resource: "Python uploads".to_string() }
-                .into_response(),
-        );
+        return private_no_cache(super::upload_errors::response(RegistryError::Unauthenticated {
+            resource: "Python uploads".to_string(),
+        }));
     }
     let body = match Bytes::from_request(request, &state).await {
         Ok(body) => body,
@@ -29,7 +30,7 @@ pub(super) async fn post_upload(
     let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body).await
     {
         Ok(()) => StatusCode::OK.into_response(),
-        Err(err) => err.into_response(),
+        Err(err) => super::upload_errors::response(err),
     };
     private_no_cache(response)
 }
@@ -59,6 +60,7 @@ pub(in super::super) struct PypiPublication {
     pub(super) org: String,
     pub(super) entry: ProjectFile,
     pub(super) content: Vec<u8>,
+    metadata: Option<String>,
 }
 
 /// Every check a legacy-API upload must pass before anything is written.
@@ -146,7 +148,8 @@ fn verify_distribution(
     {
         return Err(bad_request("sha256_digest does not match the uploaded file"));
     }
-    verify_distribution_metadata(&upload)?;
+    let metadata = verify_distribution_metadata(&upload)?;
+    let metadata = upload.filename.ends_with(".whl").then_some(metadata);
     let entry = ProjectFile {
         filename: upload.filename,
         url: None,
@@ -154,15 +157,22 @@ fn verify_distribution(
         requires_python: upload.requires_python,
         yanked: Yanked::Flag(false),
         size: Some(upload.content.len() as u64),
-        core_metadata: None,
+        core_metadata: metadata
+            .as_ref()
+            .map(|metadata| {
+                CoreMetadata::Hashes(BTreeMap::from([(
+                    "sha256".to_string(),
+                    sha256_hex(metadata.as_bytes()),
+                )]))
+            }),
         dist_info_metadata: None,
         data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
-    Ok(PypiPublication { key, org, entry, content: upload.content })
+    Ok(PypiPublication { key, org, entry, content: upload.content, metadata })
 }
 
-fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
+fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError> {
     let metadata = if upload.filename.ends_with(".tar.gz") {
         pnpr_pypi::archive::metadata_from_sdist(&upload.content, &upload.filename)
     } else {
@@ -173,7 +183,7 @@ fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
         )
     }
     .map_err(bad_request)?;
-    let metadata = std::str::from_utf8(&metadata).map_err(bad_request)?;
+    let metadata = String::from_utf8(metadata).map_err(bad_request)?;
     for field in ["Name", "Version"] {
         let count = metadata
             .lines()
@@ -189,13 +199,13 @@ fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
         }
     }
     pnpm_python_resolver::WheelMetadata::parse_for(
-        metadata,
+        &metadata,
         &upload.name.parse().map_err(bad_request)?,
         &upload.version.parse().map_err(bad_request)?,
         &upload.filename,
     )
     .map_err(|err| bad_request(format!("{err:#}")))?;
-    Ok(())
+    Ok(metadata)
 }
 
 impl PypiPublication {
@@ -210,19 +220,9 @@ impl PypiPublication {
 
     /// Publish this file on its own, in a transaction of one.
     pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
-        store_hosted_artifact(
-            state,
-            &self.org,
-            &self.key,
-            &self.entry.filename.clone(),
-            &self.content,
-            refuse_existing_file(&self.entry.filename),
-            ProjectDocument {
-                files: vec![self.entry.clone()],
-                ..ProjectDocument::new(self.key.as_str())
-            },
-        )
-        .await
+        let _guard = state.inner.locks.packages.lock(self.key.as_str()).await;
+        let staged = self.stage(state).await?;
+        commit_publishes(state, vec![staged]).await
     }
 
     /// Stage this file as one package of a larger transaction. The caller
@@ -231,12 +231,16 @@ impl PypiPublication {
         self,
         state: &AppState,
     ) -> Result<StagedPublish, RegistryError> {
-        stage_hosted_artifact(
+        let sidecar = format!("{}.metadata", self.entry.filename);
+        let mut files = vec![(self.entry.filename.as_str(), self.content.as_slice())];
+        if let Some(metadata) = &self.metadata {
+            files.push((sidecar.as_str(), metadata.as_bytes()));
+        }
+        stage_hosted_artifacts(
             state,
             &self.org,
             &self.key,
-            &self.entry.filename.clone(),
-            &self.content,
+            &files,
             &refuse_existing_file(&self.entry.filename),
             ProjectDocument {
                 files: vec![self.entry.clone()],

@@ -78,7 +78,10 @@ fn optional_peer_bound_from_the_root_round_trips() {
             r#"		"container@3.2.2": {"#
             r#"			"integrity": "sha512-BBBB","#
             r#"			"peerDependencies": {"#
-            r#"				"buffer-impl": {"version": "3.7.1", "below": true},"#
+            r#"				"buffer-impl": {"#
+            r#"					"version": "3.7.1","#
+            r#"					"below": true,"#
+            "				},"
             "			},"
             r#"			"dependencies": {"#
             r#"				"fs-impl": "4.8.4","#
@@ -89,7 +92,11 @@ fn optional_peer_bound_from_the_root_round_trips() {
             r#"			"integrity": "sha512-CCCC","#
             r#"			"peerDependencies": {"#
             r#"				"abort-impl": "*","#
-            r#"				"buffer-impl": {"specifier": "*", "version": "3.7.1", "optional": true},"#
+            r#"				"buffer-impl": {"#
+            r#"					"specifier": "*","#
+            r#"					"version": "3.7.1","#
+            r#"					"optional": true,"#
+            "				},"
             "			},"
             r#"			"dependencies": {"#
             r#"				"path-impl": "3.1.2","#
@@ -371,7 +378,12 @@ fn patched_packages_carry_no_hash() {
     });
     let (yaml, _) = written_and_read(&lockfile);
     assert!(
-        yaml.contains("\t\t\t\t\"foo\": {\"specifier\": \"^2.0.0\", \"version\": \"2.1.0\"},\n"),
+        yaml.contains(concat!(
+            "\t\t\t\t\"foo\": {\n",
+            "\t\t\t\t\t\"specifier\": \"^2.0.0\",\n",
+            "\t\t\t\t\t\"version\": \"2.1.0\",\n",
+            "\t\t\t\t},\n",
+        )),
         "{yaml}",
     );
     assert!(
@@ -497,7 +509,10 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             r#"			"default": {"#
             r#"				"@scope/renamed": "npm:@scope/real@1.0.0","#
             r#"				"pinned": "3.0.0","#
-            r#"				"tool": {"specifier": "^2.0.0", "version": "2.1.0"},"#
+            r#"				"tool": {"#
+            r#"					"specifier": "^2.0.0","#
+            r#"					"version": "2.1.0","#
+            "				},"
             "			},"
             "		},"
             "	},"
@@ -510,16 +525,28 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             r#"				"injected": "workspace:*","#
             r#"				"injected-alias": "workspace:injected@*","#
             r#"				"pinned": "catalog:","#
-            r#"				"ranged": {"specifier": "^1.0.0", "version": "1.2.3"},"#
-            r#"				"shared": {"specifier": "workspace:*", "version": "link:../shared"},"#
+            r#"				"ranged": {"#
+            r#"					"specifier": "^1.0.0","#
+            r#"					"version": "1.2.3","#
+            "				},"
+            r#"				"shared": {"#
+            r#"					"specifier": "workspace:*","#
+            r#"					"version": "link:../shared","#
+            "				},"
             r#"				"tool": "catalog:","#
             "			},"
             "		},"
             ""
             r#"		"packages/app": {"#
             r#"			"dependencies": {"#
-            r#"				"lib": {"specifier": "file:../lib", "version": "file:packages/lib"},"#
-            r#"				"pinned-link": {"specifier": "1.0.0", "version": "link:../pinned-link"},"#
+            r#"				"lib": {"#
+            r#"					"specifier": "file:../lib","#
+            r#"					"version": "file:packages/lib","#
+            "				},"
+            r#"				"pinned-link": {"#
+            r#"					"specifier": "1.0.0","#
+            r#"					"version": "link:../pinned-link","#
+            "				},"
             "			},"
             "		},"
             "	},"
@@ -608,7 +635,10 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
             r#"			"dependencies": {"#
             r#"				"@scope/a": "workspace:^","#
             r#"				"a-alias": "workspace:@scope/a@*","#
-            r#"				"tool": {"specifier": "workspace:*", "version": "link:../tool"},"#
+            r#"				"tool": {"#
+            r#"					"specifier": "workspace:*","#
+            r#"					"version": "link:../tool","#
+            "				},"
             "			},"
             "		},"
             "	},"
@@ -746,6 +776,69 @@ fn current_lockfile_stays_suffixed_under_the_next_version() {
     assert_eq!(read, lockfile);
 }
 
+#[test]
+fn packages_named_after_metadata_keys_still_render_across_lines() {
+    let text = text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "catalogs:"
+        "  default:"
+        "    engines:"
+        "      specifier: ^1.0.0"
+        "      version: 1.0.0"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      os:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0(resolution@1.0.0)"
+        "      resolution:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+        ""
+        "packages:"
+        ""
+        "  engines@1.0.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        ""
+        "  os@1.0.0:"
+        "    resolution: {integrity: sha512-BBBB}"
+        "    engines: {node: '>=18'}"
+        "    peerDependencies:"
+        "      resolution: ^1.0.0"
+        ""
+        "  resolution@1.0.0:"
+        "    resolution: {integrity: sha512-CCCC}"
+        ""
+        "snapshots:"
+        ""
+        "  engines@1.0.0: {}"
+        ""
+        "  os@1.0.0(resolution@1.0.0):"
+        "    dependencies:"
+        "      resolution: 1.0.0"
+        ""
+        "  resolution@1.0.0: {}"
+    };
+    let (yaml, _) = written_and_read(&parse(text));
+    eprintln!("yaml:\n{yaml}");
+    assert!(
+        yaml.contains("\t\t\t\t\"engines\": {\n\t\t\t\t\t\"specifier\": \"^1.0.0\",\n\t\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t},\n"),
+        "{yaml}",
+    );
+    assert!(
+        yaml.contains("\t\t\t\t\"os\": {\n\t\t\t\t\t\"specifier\": \"^1.0.0\",\n\t\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t},\n"),
+        "{yaml}",
+    );
+    assert!(
+        yaml.contains("\t\t\t\t\"resolution\": {\n\t\t\t\t\t\"specifier\": \"^1.0.0\",\n\t\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t},\n"),
+        "{yaml}",
+    );
+    assert!(yaml.contains("\t\t\t\"engines\": {\"node\": \">=18\"},\n"), "{yaml}");
+}
+
 /// Round-trips every lockfile listed in `PNPM_NEXT_LOCKFILE_CORPUS`,
 /// separated by the platform's path separator.
 #[test]
@@ -756,8 +849,7 @@ fn corpus_round_trips() {
     let mut failures = Vec::new();
     let mut converted = 0;
     for path in corpus.lines().map(Path::new) {
-        let Ok(text) = std::fs::read_to_string(path) else { continue };
-        let Ok(Some(lockfile)) = Lockfile::parse(&text, path) else { continue };
+        let Some((text, lockfile)) = corpus_input(path) else { continue };
         if !parallel_parse_matches_whole(&text, &lockfile) {
             failures.push(format!("{}: the parallel parse differs", path.display()));
         }
@@ -823,6 +915,17 @@ fn compare_timings() {
     }
 }
 
+/// A corpus lockfile in today's format, parsed. `None` for a file that
+/// cannot be read or parsed, or that is already in the next format.
+fn corpus_input(path: &Path) -> Option<(String, Lockfile)> {
+    let text = std::fs::read_to_string(path).ok()?;
+    if super::parse::declares_next_format(&crate::extract_main_document(&text)) {
+        return None;
+    }
+    let lockfile = Lockfile::parse(&text, path).ok()??;
+    Some((text, lockfile))
+}
+
 /// Whether `lockfile`, parsed section by section, equals `text` parsed whole.
 fn parallel_parse_matches_whole(text: &str, lockfile: &Lockfile) -> bool {
     let whole: Lockfile = serde_saphyr::from_str(&crate::extract_main_document(text))
@@ -854,6 +957,7 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
             packages
                 .entry(key.clone())
                 .or_insert_with(|| crate::PackageMetadata {
+                    specifiers: None,
                     resolution: crate::LockfileResolution::Directory(crate::DirectoryResolution {
                         directory: directory.clone(),
                     }),
@@ -875,4 +979,62 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
         lockfile.packages = None;
     }
     lockfile
+}
+
+#[test]
+fn directory_specifiers_survive_next_format_round_trip() {
+    for specifiers in [
+        serde_json::json!({}),
+        serde_json::json!({ "manifestSource": "path" }),
+        serde_json::json!({ "manifestSource": "workspace" }),
+        serde_json::json!({
+            "dependencies": { "host": "workspace:../host", "registry": "catalog:" },
+            "optionalDependencies": { "extra": "npm:alias@^1" },
+            "dependenciesMeta": { "host": { "injected": true } }
+        }),
+    ] {
+        let lockfile = parse(&format!(
+            "lockfileVersion: '9.0'\nimporters: {{}}\npackages:\n  local@file:../local:\n    resolution: {{type: directory, directory: ../local}}\n    specifiers: {specifiers}\nsnapshots:\n  local@file:../local: {{}}\n",
+        ));
+        let (written, restored) = written_and_read(&lockfile);
+        assert!(written.contains(r#""specifiers""#), "{written}");
+        let metadata = restored.packages
+            .expect("package entries")
+            .remove(&"local@file:../local".parse().expect("package key"))
+            .expect("directory entry");
+        assert_eq!(
+            serde_json::to_value(metadata.specifiers).expect("serialize specifiers"),
+            specifiers,
+        );
+    }
+}
+
+#[test]
+fn a_directory_without_recorded_inputs_keeps_the_legacy_fallback() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  local@file:local:\n    resolution: {type: directory, directory: local}\nsnapshots:\n  local@file:local: {}\n",
+    );
+    let (written, restored) = written_and_read(&lockfile);
+    assert!(!written.contains("specifiers"), "{written}");
+    let packages = restored.packages.expect("package entries");
+    assert_eq!(
+        packages
+            .values()
+            .next()
+            .expect("directory metadata")
+            .specifiers,
+        None,
+    );
+}
+
+#[test]
+fn converting_a_recorded_directory_to_v9_omits_the_new_fields() {
+    let mut lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  local@file:local:\n    resolution: {type: directory, directory: local}\n    specifiers: {dependencies: {child: '^1'}}\nsnapshots:\n  local@file:local: {}\n",
+    );
+    let (_, restored) = written_and_read(&lockfile);
+    lockfile = restored;
+    lockfile.lockfile_version = crate::LockfileFormat::V9.version();
+    let written = lockfile.to_yaml_string().expect("write v9 lockfile");
+    assert!(!written.contains("specifiers"), "{written}");
 }

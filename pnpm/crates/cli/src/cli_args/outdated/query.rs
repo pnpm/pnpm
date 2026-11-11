@@ -93,7 +93,9 @@ impl OutdatedRun {
         // override resolves against does not matter here.
         let project_dir = project_dir(manifest);
         let mut overridden = manifest.clone();
-        VersionsOverrider::new(&overrides, project_dir).apply(&mut overridden, Some(project_dir));
+        VersionsOverrider::new(&overrides, project_dir)
+            .with_catalogs(&self.catalogs)
+            .apply(&mut overridden, Some(project_dir));
         Ok(Cow::Owned(overridden))
     }
 

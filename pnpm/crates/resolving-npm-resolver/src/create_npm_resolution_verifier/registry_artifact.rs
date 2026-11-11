@@ -106,8 +106,7 @@ fn unaddressed_revision_violation(
     registry: &str,
 ) -> Option<ResolutionVerification> {
     let revision_addressed = TarballRevision::try_from(requested)
-        .ok()
-        .is_some_and(|revision| {
+        .is_ok_and(|revision| {
             has_complete_sha512_digest(integrity)
                 && tarball.is_some_and(|tarball| {
                     is_revision_registry_tarball_url(tarball, name, version, revision, registry)

@@ -287,8 +287,7 @@ pub(crate) fn prune_workspace_hoists(
     for (project_id, aliases) in prior {
         if project_id
             .parse()
-            .ok()
-            .is_some_and(|key| {
+            .is_ok_and(|key| {
                 current_lockfile.packages
                     .as_ref()
                     .is_some_and(|packages| packages.contains_key(&key))

@@ -749,3 +749,50 @@ async fn a_packument_rewrite_whose_removal_record_fails_leaves_the_packument_unc
     assert!(restored["versions"]["1.1.0"].is_object());
     assert!(restored["versions"]["1.0.0"].is_object());
 }
+
+#[tokio::test]
+async fn staged_publish_approval_rejects_malformed_body_without_claiming_stage() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  'staged-bad-body':\n    access: $all\n    publish: $authenticated\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let doc = publish_doc("staged-bad-body", "1.0.0", b"v1");
+    let res = app
+        .clone()
+        .oneshot(authed_post("/npm/-/stage/package/staged-bad-body", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let stage_id = body_json(res.into_body()).await["stageId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let approve_path = format!("/npm/-/stage/{stage_id}/approve");
+
+    for bad_body in ["{not-json", "[]"] {
+        let req = Request::builder()
+            .method("POST")
+            .uri(&approve_path)
+            .header("Authorization", format!("Bearer {alice_token}"))
+            .header("content-type", "application/json")
+            .body(Body::from(bad_body))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "{bad_body}");
+        let err = body_json(res.into_body()).await;
+        let message = err["error"].as_str().unwrap();
+        assert!(message.starts_with("Bad request: invalid request body:"), "{message}");
+    }
+
+    let req = Request::builder()
+        .method("POST")
+        .uri(&approve_path)
+        .header("Authorization", format!("Bearer {alice_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+}

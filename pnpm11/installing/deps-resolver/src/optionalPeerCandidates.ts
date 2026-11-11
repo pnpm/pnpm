@@ -1,3 +1,4 @@
+import type { CatalogResolver } from '@pnpm/catalogs.resolver'
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -91,8 +92,8 @@ function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
 }
 
 /** The peers a package resolved from `manifest` takes. */
-export function getManifestPeers (manifest: PackageManifest): CandidatePeers {
-  return toCandidatePeers(getPeerSet(manifest).taken)
+export function getManifestPeers (manifest: PackageManifest, catalogResolver: CatalogResolver): CandidatePeers {
+  return toCandidatePeers(getPeerSet(manifest, catalogResolver).taken)
 }
 
 function toCandidatePeers (peers: PeerDependencies): CandidatePeers {

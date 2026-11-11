@@ -11,10 +11,13 @@ import { getContextForSingleImporter } from '@pnpm/installing.context'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
-import type {
-  PackageFileInfo,
-  PackageFilesIndex,
-  SideEffectsDiff,
+import {
+  getFilePathByModeInCafs,
+  type PackageFileInfo,
+  type PackageFilesIndex,
+  readManifestFromCafs,
+  type SideEffectsDiff,
+  verifyFileIntegrityAsync,
 } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
 import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
@@ -175,7 +178,7 @@ async function findModifiedPackages (
   const storeIndex = new StoreIndex(storeDir)
   try {
     const modified = await pFilter(pkgs, async (pkg) =>
-      isPackageModified(storeIndex, pkg, pkg.targetDir), { concurrency: 8 })
+      isPackageModified(storeIndex, pkg, storeDir), { concurrency: 8 })
 
     return modified.map(({ depPath }) => depPath)
   } finally {
@@ -186,8 +189,9 @@ async function findModifiedPackages (
 async function isPackageModified (
   storeIndex: StoreIndex,
   pkg: PkgToCheck,
-  targetDir: string
+  storeDir: string
 ): Promise<boolean> {
+  const { targetDir } = pkg
   const pkgIndexFilePath = pickStoreIndexKey(pkg.resolution, pkg.id, { built: true })
   const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
   if (!pkgFilesIndex) {
@@ -200,6 +204,8 @@ async function isPackageModified (
     return true
   }
   const fileEntries = getMapEntries<PackageFileInfo>(pkgFilesIndex.files)
+  const requiresBuild = await indexRequiresBuild(pkgFilesIndex, fileEntries, storeDir)
+  if (requiresBuild == null) return true
   const dintFiles = toDintFiles(fileEntries, pkgFilesIndex.algo)
   if (await dint.check(targetDir, dintFiles)) {
     return false
@@ -207,13 +213,25 @@ async function isPackageModified (
   if (await checkSideEffects(pkgFilesIndex, targetDir, fileEntries)) {
     return false
   }
-  const requiresBuild =
-    pkgFilesIndex.requiresBuild === true ||
-    pkgRequiresBuild(pkgFilesIndex.manifest, pkgFilesIndex.files)
   if (requiresBuild && isIsolatedDir(targetDir, fileEntries.map(([filePath]) => filePath))) {
     return false
   }
   return true
+}
+
+async function indexRequiresBuild (
+  index: PackageFilesIndex,
+  fileEntries: Array<[string, PackageFileInfo]>,
+  storeDir: string
+): Promise<boolean | undefined> {
+  if (index.requiresPrepare != null && index.manifest == null) {
+    const manifestFile = fileEntries.find(([filename]) => filename === 'package.json')?.[1]
+    if (manifestFile == null) return pkgRequiresBuild(undefined, index.files)
+    const manifestPath = getFilePathByModeInCafs(storeDir, manifestFile.digest, manifestFile.mode)
+    if (!await verifyFileIntegrityAsync(manifestPath, { algorithm: index.algo, digest: manifestFile.digest })) return undefined
+    return pkgRequiresBuild(readManifestFromCafs(new Map([['package.json', manifestPath]])), index.files)
+  }
+  return index.requiresBuild === true || pkgRequiresBuild(index.manifest, index.files)
 }
 
 function toDintFiles (
@@ -261,4 +279,3 @@ async function checkSideEffects (
   )
   return sideEffectsChecks.some(Boolean)
 }
-

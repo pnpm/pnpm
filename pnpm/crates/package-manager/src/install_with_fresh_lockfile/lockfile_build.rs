@@ -371,6 +371,7 @@ pub(super) fn build_fresh_lockfile(
         time: merge_recorded_time(inputs.prior.lockfile, inputs.resolution.time),
         settings: crate::fast_update_settings::lockfile_settings_from_config(config),
         metadata_sources: crate::PackageMetadataSources {
+            lockfile_format: config.lockfile_format,
             registry_options_by_url: &config.registry_options_by_url,
             registries: &registries,
             registries_by_prefix: &registries_by_prefix,

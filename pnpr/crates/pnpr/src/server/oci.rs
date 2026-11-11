@@ -54,7 +54,7 @@ mod publication;
 
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
-    documents::read_hosted_document,
+    documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
     hosted_read_namespace, private_no_cache, resolve_ecosystem_source,
 };

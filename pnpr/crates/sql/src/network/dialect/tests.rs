@@ -91,7 +91,7 @@ fn mysql_select_upserts_omit_row_alias() {
     let (sql, _) = Dialect::Mysql
         .statement(
             "INSERT INTO removed_versions (name, generation) SELECT value, ?2 FROM (SELECT value FROM json_each(?1)) AS removed WHERE value != '' ON CONFLICT (name) DO UPDATE SET generation = excluded.generation",
-            &[Param::Text("[\"sha256-a\"]"), Param::Integer(7)],
+            &[Param::Text(r#"["sha256-a"]"#), Param::Integer(7)],
         )
         .unwrap();
     assert!(!sql.contains("AS excluded"), "{sql}");

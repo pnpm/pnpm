@@ -164,7 +164,8 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
 
 const DUMMY_BCRYPT_BODY: &str = "L6Bc/AlTQHyd9liGgGEZyOFLPHNgyxeEPfgYfBCVxJ7JIlwxyVU3u";
 
-pub(super) async fn dummy_verify(password: &str, cost: u32) {
+/// Perform a bcrypt verification without an account to mask account existence.
+pub async fn dummy_verify(password: &str, cost: u32) {
     let dummy_hash = format!("$2y${:02}${DUMMY_BCRYPT_BODY}", cost.clamp(4, 31));
     let _ = verify_bcrypt(password.to_string(), dummy_hash).await;
 }

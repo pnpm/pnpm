@@ -35,6 +35,11 @@ mod mysql;
 pub use mysql::{options as mysql_options, pool as mysql_pool, timeout_sql as mysql_timeout_sql};
 
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod startup;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+pub use startup::{Checkout, StartupConnection, connect_startup};
+
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 fn invalid_pool_size() -> RegistryError {
     RegistryError::InvalidConfig {
         reason: "database.maxConnections must be greater than 0".to_string(),

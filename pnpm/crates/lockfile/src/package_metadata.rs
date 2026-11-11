@@ -55,6 +55,37 @@ pub struct PackageMetadata {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specifiers: Option<DeclaredSpecifiers>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeclaredSpecifiers {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_source: Option<DirectoryManifestSource>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub optional_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies_meta: Option<HashMap<String, serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DirectoryManifestSource {
+    Path,
+    Workspace,
 }
 
 /// What a package bundles inside its own tarball, as pnpm records it: the

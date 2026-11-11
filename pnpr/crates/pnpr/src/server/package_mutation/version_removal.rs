@@ -9,11 +9,10 @@ use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite};
 use serde_json::{Map, Value};
 
 /// Remove `version` from `name`'s packument when it still lists it, and
-/// reclaim the archives only it mapped. Reports whether it was listed. A
-/// `dist-tags` entry naming it moves to the highest version left, or goes
-/// when none is. A commit another writer lands first is read again and the
-/// removal retried. The commit records the removed version and former
-/// maintainers together.
+/// reclaim the archives only it mapped. Reports whether it was listed. The
+/// `latest` tag naming it moves to the highest version left, or goes when
+/// none is. Other tags naming it are removed. Concurrent commits cause a retry.
+/// The removed version and former maintainers are recorded together.
 pub(super) async fn remove_listed_version(
     storage: &pnpr_storage::Storage,
     identity: &Identity,
@@ -59,7 +58,7 @@ async fn try_remove_listed_version(
     }
 }
 
-/// Drop `version` from `packument`, with its `time` entry, and move the
+/// Drop `version` from `packument`, with its `time` entry, and update the
 /// tags that named it. Reports whether the packument listed it.
 fn drop_version(packument: &mut Map<String, Value>, version: &str) -> bool {
     let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) else {
@@ -82,15 +81,21 @@ fn drop_version(packument: &mut Map<String, Value>, version: &str) -> bool {
     true
 }
 
-/// Point every tag naming `version` at `highest`, or drop it without one.
 fn move_tags(tags: &mut Map<String, Value>, version: &str, highest: Option<&str>) {
-    let Some(highest) = highest else {
-        tags.retain(|_, target| target.as_str() != Some(version));
-        return;
-    };
-    for target in tags.values_mut() {
-        if target.as_str() == Some(version) {
-            *target = Value::String(highest.to_string());
+    tags.retain(|tag, target| {
+        if target.as_str() != Some(version) {
+            return true;
         }
-    }
+        if tag == "latest"
+            && let Some(highest) = highest
+        {
+            *target = Value::String(highest.to_string());
+            return true;
+        }
+        false
+    });
 }
+
+#[cfg(test)]
+#[path = "version_removal_tests.rs"]
+mod tests;

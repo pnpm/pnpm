@@ -185,10 +185,18 @@ where
             Ok(stream) => return Ok(stream),
             Err(error) => error.into(),
         };
+        let target = pnpr_config::redact_connection_url(&uri.to_string());
+        let cause = std::iter::successors(Some(&*error as &(dyn StdError + 'static)), |&error| {
+            error.source()
+        })
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ");
+        let cause = pnpr_error::redact_url_credentials(&cause);
         if !retries_timed_out_dials.load(Ordering::Relaxed) || !is_timeout(&*error) {
-            return Err(error);
+            return Err(cause.into());
         }
-        tracing::warn!(host = uri.host(), %error, ?delay, "libSQL database dial timed out, retrying");
+        tracing::warn!(%target, error = %cause, ?delay, "libSQL database dial timed out, retrying");
         tokio::time::sleep(delay).await;
         delay = (delay * 2).min(MAX_DIAL_RETRY_DELAY);
     }

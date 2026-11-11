@@ -412,6 +412,49 @@ fn request_timeout_defaults_and_overrides() {
 }
 
 #[test]
+fn packument_ttl_rejects_an_invalid_interval() {
+    let yaml = "storage: ./s\npackumentTtl: forever\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("packumentTtl")),
+        "expected InvalidConfig naming packumentTtl, got {err:?}",
+    );
+}
+
+#[test]
+fn max_tarball_size_defaults_to_100_mib() {
+    let config = Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.max_tarball_bytes, crate::HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
+    assert_eq!(config.http.max_tarball_bytes, 100 * 1024 * 1024);
+}
+
+#[test]
+fn max_tarball_size_accepts_a_byte_size_or_a_byte_count() {
+    let sized = "storage: ./s\nmaxTarballSize: 512MiB\n";
+    let config = Config::from_yaml_str(sized, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.max_tarball_bytes, 512 * 1024 * 1024);
+
+    let counted = "storage: ./s\nmaxTarballSize: 120000000\n";
+    let config = Config::from_yaml_str(counted, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.max_tarball_bytes, 120_000_000);
+}
+
+#[test]
+fn max_tarball_size_rejects_an_invalid_size_and_zero() {
+    for yaml in [
+        "storage: ./s\nmaxTarballSize: huge\n",
+        "storage: ./s\nmaxTarballSize: 0\n",
+        "storage: ./s\nmaxTarballSize: \"18446744073709551616\"\n",
+    ] {
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("maxTarballSize")),
+            "expected InvalidConfig naming maxTarballSize for {yaml:?}, got {err:?}",
+        );
+    }
+}
+
+#[test]
 fn package_documents_default_to_a_64_kib_threshold_and_a_30_day_window() {
     let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
     assert_eq!(config.http.package_documents, crate::PackageDocumentsConfig::default());
@@ -518,4 +561,20 @@ fn gc_lease_must_be_positive() {
 fn gc_refuses_unknown_keys() {
     let result = Config::from_yaml_str("gc:\n  leese: 1h\n", Path::new("/config"), listen(), None);
     assert!(matches!(result, Err(RegistryError::InvalidConfig { .. })), "{result:?}");
+}
+
+#[test]
+fn cloudflare_cdn_validates_identifiers_and_redacts_credentials() {
+    let yaml = "cloudflareCdn:\n  zoneId: '0123456789abcdef0123456789abcdef'\n  apiToken: secret-token\n  cacheTag: example-registry\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).unwrap();
+    let cdn = config.http.cloudflare_cdn.unwrap();
+    assert_eq!(cdn.cache_tag, "example-registry");
+    assert!(!format!("{cdn:?}").contains("secret-token"));
+    for invalid in [
+        yaml.replace("example-registry", "bad,tag"),
+        yaml.replace("secret-token", "'bad token'"),
+        yaml.replace("0123456789abcdef0123456789abcdef", "../other"),
+    ] {
+        assert!(Config::from_yaml_str(&invalid, Path::new("/config"), listen(), None).is_err());
+    }
 }

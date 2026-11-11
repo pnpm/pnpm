@@ -14,8 +14,8 @@
 //! would, and copies the archive into its package before it commits.
 
 use super::{
-    AppState, AuthedCaller, Body, Identity, MAX_TARBALL_BYTES, Response, State, StatusCode, header,
-    private_no_cache,
+    AppState, AuthedCaller, Body, Identity, MAX_PUBLISH_BODY_BYTES, Response, State, StatusCode,
+    header, private_no_cache,
 };
 use axum::{
     http::{HeaderMap, Uri},
@@ -238,8 +238,9 @@ fn receive_deadline(size: u64) -> std::time::Duration {
 }
 
 /// The `Content-Length` of a staged archive upload, within one archive's
-/// limit.
+/// limit: the same cap an inline publish of it has.
 fn declared_size(headers: &HeaderMap) -> Result<u64, RegistryError> {
+    let limit = MAX_PUBLISH_BODY_BYTES as u64;
     let size = headers
         .get(header::CONTENT_LENGTH)
         .and_then(|length| {
@@ -250,9 +251,9 @@ fn declared_size(headers: &HeaderMap) -> Result<u64, RegistryError> {
                 .ok()
         })
         .ok_or_else(|| bad_request("a staged archive upload needs a Content-Length".to_string()))?;
-    if size > MAX_TARBALL_BYTES {
+    if size > limit {
         return Err(bad_request(format!(
-            "the archive is {size} bytes, over the {MAX_TARBALL_BYTES}-byte limit of one archive",
+            "the archive is {size} bytes, over the {limit}-byte limit of one archive",
         )));
     }
     Ok(size)

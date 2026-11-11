@@ -50,10 +50,11 @@ pub(crate) fn is_effective_local_file_dep(
     spec: &str,
 ) -> bool {
     (is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec))
-        && !is_dep_replaced_by_override(overrides, group, alias, spec)
+        && !is_dep_replaced_by_override(catalogs, overrides, group, alias, spec)
 }
 
 pub(crate) fn is_dep_replaced_by_override(
+    catalogs: &Catalogs,
     overrides: &[VersionOverride],
     group: DependencyGroup,
     alias: &str,
@@ -64,7 +65,13 @@ pub(crate) fn is_dep_replaced_by_override(
         .any(|entry| {
             !entry.converge
                 && entry.parent_pkg.is_none()
-                && crate::overrides::matches_target(&entry.target_pkg, Some(group), alias, spec)
+                && crate::overrides::matches_target(
+                    &entry.target_pkg,
+                    Some(group),
+                    alias,
+                    spec,
+                    catalogs,
+                )
         })
 }
 

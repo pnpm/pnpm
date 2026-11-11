@@ -573,3 +573,27 @@ async fn sigterm_signal_handler_installs_cleanly() {
             .is_err(),
     );
 }
+
+#[tokio::test]
+async fn unsupported_npm_package_endpoints_explain_the_refusal() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://upstream.invalid", tmp.path().to_path_buf()));
+    for endpoint in ["visibility", "collaborators"] {
+        for method in ["GET", "PUT", "DELETE"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(format!("/npm/-/package/example/{endpoint}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+            let body = body_json(response.into_body()).await;
+            assert_eq!(body["error"], "unsupported_route");
+        }
+    }
+}

@@ -562,3 +562,26 @@ pub(super) fn test_database_name(directory: &tempfile::TempDir) -> String {
             .to_ascii_lowercase(),
     )
 }
+
+pub(super) async fn assert_startup_uses_one_connection<Auth, Connect, Connecting>(
+    settings: &pnpr_config::SqlBackendSettings,
+    connect: Connect,
+) where
+    Connect: FnOnce(pnpr_config::SqlBackendSettings) -> Connecting,
+    Connecting: std::future::Future<Output = Result<Auth>>,
+{
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let proxy_address = listener.local_addr().unwrap();
+    let (credentials, endpoint) = settings.url.rsplit_once('@').unwrap();
+    let (server_address, database) = endpoint.split_once('/').unwrap();
+    let server_address = server_address.to_string();
+    let mut proxied = settings.clone();
+    proxied.url = format!("{credentials}@{proxy_address}/{database}");
+    let proxy = tokio::spawn(async move {
+        let (mut client, _) = listener.accept().await.unwrap();
+        let mut server = tokio::net::TcpStream::connect(server_address).await.unwrap();
+        tokio::io::copy_bidirectional(&mut client, &mut server).await
+    });
+    drop(connect(proxied).await.unwrap());
+    proxy.await.unwrap().unwrap();
+}

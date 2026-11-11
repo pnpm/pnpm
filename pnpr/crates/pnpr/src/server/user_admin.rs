@@ -3,7 +3,7 @@
 
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, json,
-    json_response, private_no_cache, require_admin, team_mutations::respond,
+    json_response, parse_json_body, private_no_cache, require_admin, team_mutations::respond,
     tokens::token_response_object,
 };
 use crate::UserRemoval;
@@ -78,12 +78,22 @@ async fn put_user(
     let result = async {
         require_admin(&state, &identity, "manage", format!("user {:?}", path.user))?;
         let password = parse_password(&body)?;
-        let (status, action) =
-            match state.inner.identity.auth.put_user(&path.user, &password).await? {
-                Some(UserPut::Created) => (StatusCode::CREATED, "user.create"),
-                Some(UserPut::PasswordChanged) => (StatusCode::OK, "user.password_update"),
-                None => return Err(RegistryError::NotFound),
-            };
+        let updated = state.inner.identity.auth.put_user(&path.user, &password).await;
+        if let Err(error) = &updated {
+            state.inner.identity.oidc.revoke_committed_password_sessions(error);
+        }
+        let (status, action, id) = match updated? {
+            Some(UserPut::Created) => (
+                StatusCode::CREATED,
+                "user.create",
+                state.inner.identity.auth.users.account_id(&path.user).await?,
+            ),
+            Some(UserPut::PasswordChanged { user_id }) => {
+                state.inner.identity.oidc.revoke_user_sessions(&user_id);
+                (StatusCode::OK, "user.password_update", Some(user_id))
+            }
+            None => return Err(RegistryError::NotFound),
+        };
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -92,7 +102,6 @@ async fn put_user(
             user = %path.user,
             "admin action performed on user",
         );
-        let id = state.inner.identity.auth.users.account_id(&path.user).await?;
         Ok(json_response(status, &json!({ "id": id, "name": path.user })))
     };
     respond(result.await)
@@ -186,10 +195,7 @@ async fn revoke_user_token(
 }
 
 fn parse_password(body: &Bytes) -> Result<String, RegistryError> {
-    let NewPassword { password } = serde_json::from_slice(body)
-        .map_err(|err| RegistryError::BadRequest {
-            reason: format!("invalid request body: {err}"),
-        })?;
+    let NewPassword { password } = parse_json_body(body)?;
     if password.is_empty() {
         return Err(RegistryError::BadRequest { reason: "password must not be empty".to_string() });
     }
@@ -215,10 +221,7 @@ async fn rename_user(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "rename", format!("account {:?}", path.user))?;
-        let RenameUser { name } = serde_json::from_slice(&body)
-            .map_err(|err| RegistryError::BadRequest {
-                reason: format!("invalid request body: {err}"),
-            })?;
+        let RenameUser { name } = parse_json_body(&body)?;
         state.inner.identity.auth.users.rename_user(&path.user, &name).await?;
         tracing::info!(
             target: "pnpr::audit",

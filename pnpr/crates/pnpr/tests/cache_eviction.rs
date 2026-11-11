@@ -349,3 +349,71 @@ async fn ttl_eviction_covers_the_tar_variants() {
     assert_eq!(report.files_evicted, 1);
     assert!(!variant.exists(), "an expired variant is evicted");
 }
+
+#[tokio::test]
+async fn cache_gc_reclaims_stale_s3_staging_files_without_cache_caps() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let staging_base = pnpr_storage::cache_staging_tmp_base(tmp.path());
+
+    let stale_staged = pnpr_storage::unique_tmp_path(&staging_base);
+    let payload = vec![0xCD; 2048];
+    create_file_with_age(&stale_staged, &payload, Duration::from_mins(2));
+
+    let fresh_staged = pnpr_storage::unique_tmp_path(&staging_base);
+    create_file_with_age(&fresh_staged, &payload, Duration::from_secs(5));
+
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::Apply,
+        max_size: None,
+        max_age: None,
+        scope: CacheGcScope::Full,
+    };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.files_evicted, 1);
+    assert_eq!(report.bytes_reclaimed, payload.len() as u64);
+    assert!(!stale_staged.exists());
+    assert!(fresh_staged.exists());
+}
+
+#[tokio::test]
+async fn cache_gc_dry_run_counts_stale_staging_files_without_removing_them() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let staging_base = pnpr_storage::cache_staging_tmp_base(tmp.path());
+
+    let stale_staged = pnpr_storage::unique_tmp_path(&staging_base);
+    let payload = vec![0xEF; 1024];
+    create_file_with_age(&stale_staged, &payload, Duration::from_mins(2));
+
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::DryRun,
+        max_size: None,
+        max_age: None,
+        scope: CacheGcScope::Full,
+    };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.files_evicted, 1);
+    assert_eq!(report.bytes_reclaimed, payload.len() as u64);
+    assert!(stale_staged.exists());
+}
+
+#[tokio::test]
+async fn aggressive_cache_eviction_preserves_in_flight_staging_files() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let staging_base = pnpr_storage::cache_staging_tmp_base(tmp.path());
+
+    let in_flight_staged = pnpr_storage::unique_tmp_path(&staging_base);
+    create_file_with_age(&in_flight_staged, b"in-flight-publish", Duration::from_secs(5));
+
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::Apply,
+        max_size: Some(0),
+        max_age: Some(Duration::ZERO),
+        scope: CacheGcScope::Full,
+    };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.files_evicted, 0);
+    assert!(in_flight_staged.exists());
+}

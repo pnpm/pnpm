@@ -77,10 +77,11 @@ fn alias_first_char_class_excludes_dot_underscore_slash() {
 }
 
 #[test]
-fn only_a_dot_prefixed_workspace_spec_names_a_directory() {
+fn path_shaped_workspace_specs_name_a_directory() {
     assert!(is_workspace_path_specifier("workspace:../foo"));
     assert!(is_workspace_path_specifier("workspace:./foo"));
+    assert!(is_workspace_path_specifier("workspace:/abs/foo"));
+    assert!(is_workspace_path_specifier("workspace:C:/abs/foo"));
     assert!(!is_workspace_path_specifier("workspace:~/foo"));
-    assert!(!is_workspace_path_specifier("workspace:/abs/foo"));
     assert!(!is_workspace_path_specifier("workspace:@scope/pkg@^1.0.0"));
 }

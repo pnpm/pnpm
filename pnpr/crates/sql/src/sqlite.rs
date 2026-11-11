@@ -89,7 +89,7 @@ impl Adapter for SqliteAdapter {
         &self,
         _source: ReadSource,
         operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
-    ) -> Result<()> {
+    ) -> Result<crate::adapter::Snapshot> {
         let idle = lock(&self.readers).pop();
         let connection = match idle {
             Some(connection) => connection,
@@ -104,7 +104,7 @@ impl Adapter for SqliteAdapter {
                 readers.push(connection);
             }
         }
-        output
+        output.map(|()| crate::adapter::Snapshot::Current)
     }
 
     fn is_retryable(&self, error: &RegistryError) -> bool {

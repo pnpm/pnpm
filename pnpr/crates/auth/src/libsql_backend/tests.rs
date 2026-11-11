@@ -662,10 +662,11 @@ async fn libsql_tokens_persist_scopes_and_kind() {
 #[tokio::test]
 async fn libsql_schema_migrations_refuses_future_version() {
     let backend = local_backend(MaxUsers::Unlimited).await;
+    let future = pnpr_sql::schema::SCHEMA_VERSION + 1;
     backend.pool
         .connect()
         .unwrap()
-        .execute("INSERT INTO schema_migrations (version) VALUES (2)", ())
+        .execute("INSERT INTO schema_migrations (version) VALUES (?1)", [future])
         .await
         .unwrap();
 
@@ -676,7 +677,7 @@ async fn libsql_schema_migrations_refuses_future_version() {
     .unwrap_err();
     let err_str = err.to_string();
     assert!(
-        err_str.contains("schema version 2"),
+        err_str.contains(&format!("schema version {future}")),
         "expected error about newer version, got: {err_str}",
     );
 }
@@ -776,4 +777,55 @@ async fn libsql_concurrent_confusable_registrations_create_only_one_account() {
 async fn libsql_password_policy_applies_to_registration_and_login() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     crate::validation::tests::assert_password_policy(&*backend).await;
+}
+
+#[tokio::test]
+async fn password_updates_preserve_a_concurrent_admin_reset() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::password_login::tests::assert_password_update_keeps_concurrent_resets(&*backend).await;
+}
+
+#[tokio::test]
+async fn committed_password_changes_revoke_tokens_when_replica_refresh_fails() {
+    enum PasswordWrite {
+        Admin,
+        Profile,
+    }
+    for write in [PasswordWrite::Admin, PasswordWrite::Profile] {
+        let mut backend = local_backend(MaxUsers::Unlimited).await;
+        backend.create_user("example-user", "old-password").await.unwrap();
+        let id = backend
+            .account_id("example-user")
+            .await
+            .unwrap()
+            .unwrap();
+        let token = backend.issue(&id).await.unwrap();
+        let hash = backend
+            .password_hash("example-user")
+            .await
+            .unwrap()
+            .unwrap();
+        backend.backend.is_replica = true;
+        let LocalBackend { backend, _dir } = backend;
+        let backend = std::sync::Arc::new(backend);
+        let auth = crate::AuthState {
+            users: std::sync::Arc::clone(&backend) as std::sync::Arc<dyn UserBackend>,
+            tokens: std::sync::Arc::clone(&backend) as std::sync::Arc<dyn TokenBackend>,
+        };
+        let error = match write {
+            PasswordWrite::Profile => auth
+                .change_password_if_current(&id, "new-password", &hash)
+                .await
+                .unwrap_err(),
+            PasswordWrite::Admin => auth.change_password(&id, "new-password").await.unwrap_err(),
+        };
+        assert_eq!(error.committed_password_user(), Some(id.as_str()));
+        let stored = backend
+            .password_hash("example-user")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(crate::verify_bcrypt("new-password".to_string(), stored).await.unwrap());
+        assert_eq!(backend.lookup(&token).await.unwrap(), None);
+    }
 }

@@ -48,6 +48,7 @@ export function createDepsStatusReadPackageHook (
   parsedOverrides: VersionOverride[]
 ): ReadPackageHook | undefined {
   return createReadPackageHook({
+    catalogs: config.catalogs,
     ignoreCompatibilityDb: config.ignoreCompatibilityDb,
     lockfileDir: wantedLockfileDir,
     overridesRootDir: config.lockfileDir ?? config.workspaceDir ?? wantedLockfileDir,

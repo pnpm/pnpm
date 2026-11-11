@@ -729,3 +729,5 @@ fn empty_client_secret_is_rejected() {
     };
     assert!(err.to_string().contains("client secret cannot be empty"), "{err}");
 }
+
+mod password_cleanup;

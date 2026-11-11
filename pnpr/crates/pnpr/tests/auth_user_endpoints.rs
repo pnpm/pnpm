@@ -490,6 +490,12 @@ async fn revoke_token_by_key_rejects_revoking_someone_elses_token() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        body_json(response.into_body()).await["error"]
+            .as_str()
+            .unwrap()
+            .contains("alice"),
+    );
 
     // Bob's token must still work.
     let response = app
@@ -567,6 +573,12 @@ async fn logout_requires_caller_to_own_the_token() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        body_json(response.into_body()).await["error"]
+            .as_str()
+            .unwrap()
+            .contains("alice"),
+    );
 
     // Bob's token must still work.
     let response = app

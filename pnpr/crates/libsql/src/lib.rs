@@ -25,7 +25,7 @@ use pnpr_error::{RegistryError, Result};
 use std::{future::Future, path::Path, time::Duration};
 
 /// The connector for the database `settings` name, the settings of the
-/// config block `section`, such as `backend.libsql`. An auth token must not
+/// config block `section`, such as `database`. An auth token must not
 /// cross a cleartext link to a host other than loopback.
 ///
 /// # Errors
@@ -33,6 +33,16 @@ use std::{future::Future, path::Path, time::Duration};
 /// The settings send a token over plain HTTP, or the platform trust store
 /// cannot be loaded.
 pub fn connector(settings: &LibsqlSettings, section: &str) -> Result<LibsqlConnector> {
+    validate_settings(settings, section)?;
+    Ok(LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?)
+}
+
+/// Validate token transport without opening a connection or loading TLS roots.
+///
+/// # Errors
+///
+/// A token would cross an insecure connection.
+pub fn validate_settings(settings: &LibsqlSettings, section: &str) -> Result<()> {
     if settings.auth_token.is_some()
         && is_plain_http(&settings.url)
         && !is_url_secure_for_credentials(&settings.url)
@@ -44,7 +54,21 @@ pub fn connector(settings: &LibsqlSettings, section: &str) -> Result<LibsqlConne
             ),
         });
     }
-    Ok(LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?)
+    Ok(())
+}
+
+/// Add a redacted database target to a startup failure, preserving config errors.
+#[must_use]
+pub fn startup_error(settings: &LibsqlSettings, error: RegistryError) -> RegistryError {
+    match error {
+        RegistryError::InvalidConfig { .. } => error,
+        _ => RegistryError::StorageUnavailable {
+            reason: pnpr_error::redact_url_credentials(&format!(
+                "database {}: {error}",
+                pnpr_config::redact_connection_url(&settings.url),
+            )),
+        },
+    }
 }
 
 /// Open the database `settings` name, dialed with `connector`: an embedded
@@ -163,6 +187,20 @@ pub fn is_transaction_conflict(error: &LibsqlError) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether the server rejected a request because it no longer holds the
+/// connection's stream: the stream expired, or the server restarted and
+/// does not know its baton. The server ran nothing of that request, and the
+/// connection cannot send another. libsql does not expose Hrana's error type,
+/// so the response is read from the message.
+#[must_use]
+pub fn is_stale_stream(error: &RegistryError) -> bool {
+    let RegistryError::Libsql(LibsqlError::Hrana(error)) = error else {
+        return false;
+    };
+    let message = error.to_string();
+    message.contains("STREAM_EXPIRED") || message.contains("Received an invalid baton")
 }
 
 /// Whether `error` is a violated uniqueness constraint.

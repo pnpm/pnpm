@@ -13,7 +13,8 @@
 //! optional embedded replica.
 //!
 //! Every operation runs on the blocking pool. A write runs in one
-//! serializable transaction. A compare-and-set reads the generation it
+//! serializable transaction, after taking the database's write lock, so
+//! writers queue rather than conflict. A compare-and-set reads the generation it
 //! replaces inside its own transaction. A write reads everything it compares
 //! with in one [`adapter::Connection::query_all`] as it begins, and decides
 //! in Rust, so a remote database answers it in one round trip and takes the
@@ -22,9 +23,11 @@
 //! one committed snapshot. The render caches are shared by every read.
 //!
 //! A read that may lag, a [`Freshness::Bounded`] one, goes to the replica
-//! when the adapter has one. A [`Freshness::AtLeast`] read there first checks
-//! the catalog's generation: a replica found behind is synced, and read from
-//! the primary when the sync does not bring it far enough.
+//! when the adapter has one; [`SqlMetadata::read_present`] and
+//! [`SqlMetadata::read_if`] read the primary when a lagging replica misses. A
+//! [`Freshness::AtLeast`] read there first checks the catalog's generation: a
+//! replica found behind is synced, and read from the primary when the sync
+//! does not bring it far enough.
 
 #[cfg(feature = "backend-libsql")]
 pub(crate) use pnpr_sql::libsql;
@@ -33,6 +36,7 @@ pub(crate) use pnpr_sql::network;
 pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 
 pub use cache::RenderStats;
+pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
 pub(crate) use records::RecordKey;
 pub(crate) use staged::{StagedEntry, StagedId};
@@ -42,6 +46,7 @@ pub(crate) use view::PackageMetadata;
 mod batch;
 mod blobs;
 mod cache;
+mod cdn;
 mod commit;
 mod fence;
 mod log;
@@ -54,6 +59,7 @@ mod reclaims;
 mod records;
 mod removed;
 mod render;
+mod schema_monitor;
 mod staged;
 mod tags;
 mod transactions;
@@ -86,6 +92,7 @@ pub struct SqlMetadata {
     /// Held while the schema is checked, so concurrent first operations
     /// check it once.
     schema_check: Mutex<()>,
+    schema_monitor: schema_monitor::SchemaMonitor,
     cache: cache::RenderCache,
 }
 
@@ -140,7 +147,10 @@ impl Expected {
 impl SqlMetadata {
     #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
     pub(crate) fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Self> {
-        Ok(Self::with_adapter(network::adapter(settings)?, format!("{settings:?}")))
+        Ok(Self::with_adapter(
+            network::adapter(settings)?,
+            pnpr_config::redact_connection_url(&settings.url),
+        ))
     }
 
     /// The version of the schema this pnpr creates and reads. A database
@@ -168,7 +178,7 @@ impl SqlMetadata {
     #[cfg(feature = "backend-libsql")]
     #[must_use]
     pub fn open_libsql(settings: &pnpr_config::LibsqlSettings) -> Self {
-        let name = format!("{settings:?}");
+        let name = pnpr_config::redact_connection_url(&settings.url);
         Self::with_adapter(Box::new(libsql::LibsqlAdapter::new(settings.clone())), name)
     }
 
@@ -181,6 +191,7 @@ impl SqlMetadata {
             name,
             schema: OnceLock::new(),
             schema_check: Mutex::new(()),
+            schema_monitor: schema_monitor::SchemaMonitor::default(),
             cache: cache::RenderCache::default(),
         }
     }
@@ -191,15 +202,20 @@ impl SqlMetadata {
     /// the operator wipes pnpr's tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
-            return Ok(());
+            self.schema_monitor.result()?;
+            if self.schema_monitor.claim() {
+                self.schema_monitor.probe(&*self.adapter, &self.name);
+            }
+            return self.schema_monitor.result();
         }
-        let _check = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
+        let _initializing = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
         if self.schema.get().is_some() {
-            return Ok(());
+            return self.schema_monitor.result();
         }
         if let Some(stored) = schema::prepare_adapter_with_steps(&*self.adapter, schema::STEPS)? {
             return Err(schema::refused_error(&self.name, &stored));
         }
+        self.schema_monitor.checked();
         let _ = self.schema.set(());
         // A replica bootstrapped before the schema existed lacks its tables.
         // One that cannot sync now is left stale, and its reads sync first or
@@ -208,6 +224,23 @@ impl SqlMetadata {
             tracing::warn!(%error, "the metadata replica could not sync; reads use the primary");
         }
         Ok(())
+    }
+
+    /// Refuse a known incompatible schema and schedule at most one primary probe.
+    /// Requests retain the last compatible result while that probe is pending.
+    pub async fn check_schema(self: &Arc<Self>) -> Result<()> {
+        self.schema_monitor.result()?;
+        if self.schema.get().is_none() {
+            let metadata = Arc::clone(self);
+            return tokio::task::spawn_blocking(move || metadata.ensure_schema()).await?;
+        }
+        if self.schema_monitor.claim() {
+            let metadata = Arc::clone(self);
+            tokio::task::spawn_blocking(move || {
+                metadata.schema_monitor.probe(&*metadata.adapter, &metadata.name);
+            });
+        }
+        self.schema_monitor.result()
     }
 
     /// What rendering has done since the database was opened.
@@ -311,7 +344,7 @@ impl SqlMetadata {
         id_or_name: &str,
     ) -> Result<Option<Publication>> {
         let (catalog, id_or_name) = (catalog.to_string(), id_or_name.to_string());
-        self.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
+        self.read_present(move |connection, _| {
             publications::publication(connection, &catalog, &id_or_name)
         })
         .await
@@ -401,10 +434,7 @@ impl SqlMetadata {
             name: name.as_str().to_string(),
         };
         let version = version.to_string();
-        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
-            log::record_entry(connection, &key, &version)
-        })
-        .await
+        self.read_present(move |connection, _| log::record_entry(connection, &key, &version)).await
     }
 
     /// The metadata of `(org, ecosystem)`.

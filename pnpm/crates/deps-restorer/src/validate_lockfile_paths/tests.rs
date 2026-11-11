@@ -102,6 +102,7 @@ fn rejects_a_global_virtual_store_manifest_version_escape() {
     packages.insert(
         key.without_peer(),
         pnpm_lockfile::PackageMetadata {
+            specifiers: None,
             resolution: pnpm_lockfile::LockfileResolution::Tarball(
                 pnpm_lockfile::TarballResolution {
                     tarball: "file:vendor/dep.tgz".to_string(),

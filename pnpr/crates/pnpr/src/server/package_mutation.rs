@@ -24,7 +24,8 @@ use pnpr_policy::Identity;
 use pnpr_storage::{DocumentWrite, metadata::validate_document_dist_tags};
 
 use super::{
-    Action, AppState, RegistrySource, authorize_package, hosted_storage, resolve_write_target,
+    Action, AppState, RegistrySource, authorize_package, hosted_storage, parse_json_body,
+    resolve_write_target,
 };
 
 /// Apply a partial unpublish based on its revision, or an owner update.
@@ -47,9 +48,9 @@ pub(super) async fn update_packument(
     let org = target.org;
     let storage = hosted_storage(state, Some(&org));
 
-    let incoming_val: Value = match serde_json::from_slice(body) {
+    let incoming_val: Value = match parse_json_body(body) {
         Ok(val) => val,
-        Err(err) => return RegistryError::Json(err).into_response(),
+        Err(err) => return err.into_response(),
     };
 
     if incoming_val.get("maintainers").is_some() && incoming_val.get("versions").is_none() {

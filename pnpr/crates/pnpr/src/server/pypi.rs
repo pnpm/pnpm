@@ -21,11 +21,12 @@ pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
 mod management;
 mod metadata;
 mod publication;
+mod upload_errors;
 use publication::post_upload;
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
+    documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
@@ -315,15 +316,7 @@ async fn get_file(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
-            match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
-                Ok(Some(document)) if document.file(filename).is_some() => {
-                    serve_hosted_blob(&state, &identity, &source, &key, filename)
-                        .await
-                        .unwrap_or_else(IntoResponse::into_response)
-                }
-                Ok(_) => not_found(),
-                Err(err) => err.into_response(),
-            }
+            hosted_file(&state, &identity, &source, &key, filename).await
         }
         source @ RegistrySource::Upstream(_) => {
             file_via_upstream(&state, &identity, &source, &key, project, filename).await
@@ -375,4 +368,50 @@ async fn file_via_upstream(
     };
     serve_upstream_artifact(state, upstream, &namespace, key, filename, url.as_str(), &integrity)
         .await
+}
+
+async fn hosted_file(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &CanonicalPackageName,
+    filename: &str,
+) -> Response {
+    let metadata_request = filename.ends_with(".metadata");
+    let distribution = filename
+        .strip_suffix(".metadata")
+        .unwrap_or(filename)
+        .to_string();
+    let found = lookup_in_hosted_document(
+        state,
+        identity,
+        source,
+        key,
+        move |document: &ProjectDocument| {
+            let entry = document.file(&distribution)?;
+            if metadata_request {
+                entry.metadata()?;
+            }
+            Some(())
+        },
+    )
+    .await;
+    let mut response = match found {
+        Ok(lookup) => match lookup.found() {
+            Some(()) => serve_hosted_blob(state, identity, source, key, filename)
+                .await
+                .unwrap_or_else(IntoResponse::into_response),
+            None => return not_found(),
+        },
+        Err(err) => return err.into_response(),
+    };
+    if metadata_request && response.status() == StatusCode::OK {
+        response
+            .headers_mut()
+            .insert(
+                header::CONTENT_TYPE,
+                "text/plain; charset=utf-8".parse().expect("static content type"),
+            );
+    }
+    response
 }

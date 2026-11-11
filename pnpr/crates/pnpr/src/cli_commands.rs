@@ -361,7 +361,7 @@ async fn run_add_user_command(
         .map_err(|err| miette::miette!("{err}"))?
     {
         Some(pnpr_auth::UserPut::Created) => println!("User '{username}' created successfully."),
-        Some(pnpr_auth::UserPut::PasswordChanged) => {
+        Some(pnpr_auth::UserPut::PasswordChanged { .. }) => {
             println!("Password for user '{username}' updated successfully.");
         }
         None => return Err(miette::miette!("failed to create or update user '{username}'")),

@@ -89,6 +89,20 @@ async fn add_user_and_get_token(app: &axum::Router, username: &str, password: &s
         .to_string()
 }
 
+fn put_json_with_bearer(path: &str, token: &str, body: &Value) -> Request<Body> {
+    Request::put(path)
+        .header("content-type", "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(body).unwrap()))
+        .unwrap()
+}
+
+fn rfc3339_unix_seconds(raw: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .unwrap_or_else(|err| panic!("expected RFC 3339 timestamp, got {raw:?}: {err}"))
+        .timestamp()
+}
+
 #[tokio::test]
 async fn create_token_with_readonly_cidr_name_and_expires() {
     let tmp = TempDir::new().unwrap();
@@ -100,7 +114,7 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
         "readonly": true,
         "cidr_whitelist": ["10.0.0.0/8"],
         "name": "ci-token",
-        "expires": 3600
+        "expires": 7
     });
 
     let res = app
@@ -118,8 +132,14 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
     assert_eq!(body["readonly"], true);
     assert_eq!(body["cidr_whitelist"], json!(["10.0.0.0/8"]));
     assert_eq!(body["name"], "ci-token");
-    assert!(body["expires"].is_string());
-    assert!(body["created"].is_string());
+    let created_secs = rfc3339_unix_seconds(body["created"].as_str().unwrap());
+    let expires_secs = rfc3339_unix_seconds(body["expires"].as_str().unwrap());
+    let ttl_secs = expires_secs - created_secs;
+    assert!(
+        (7 * 86_400 - 2..=7 * 86_400 + 2).contains(&ttl_secs),
+        "expected ~7 days ({}s), got {ttl_secs}s",
+        7 * 86_400,
+    );
     assert!(body["updated"].is_string());
 
     let list_res = app
@@ -139,14 +159,13 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
 }
 
 #[tokio::test]
-async fn create_token_with_scopes_and_kind() {
+async fn create_token_with_kind() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
 
     let payload = json!({
         "password": "secret123",
-        "scopes": ["pkg:read", "pkg:write"],
         "kind": "granular"
     });
 
@@ -157,7 +176,6 @@ async fn create_token_with_scopes_and_kind() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_json(res.into_body()).await;
-    assert_eq!(body["scopes"], json!(["pkg:read", "pkg:write"]));
     assert_eq!(body["kind"], "granular");
 
     let list_res = app
@@ -168,11 +186,168 @@ async fn create_token_with_scopes_and_kind() {
     assert_eq!(list_res.status(), StatusCode::OK);
     let list_body = body_json(list_res.into_body()).await;
     let tokens = list_body["objects"].as_array().expect("array of tokens");
-    let found = tokens
-        .iter()
-        .find(|token| token["kind"] == "granular")
-        .expect("found granular token");
-    assert_eq!(found["scopes"], json!(["pkg:read", "pkg:write"]));
+    assert!(
+        tokens
+            .iter()
+            .any(|token| token["kind"] == "granular"),
+        "expected granular token in listing",
+    );
+}
+
+#[tokio::test]
+async fn npm12_granular_token_permissions_and_expiry_days() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+
+    let publish_res = app
+        .clone()
+        .oneshot(put_json_with_bearer(
+            "/npm/acme-pkg",
+            &login_token,
+            &crate::npm::publish_doc("acme-pkg", "1.0.0", b"v1"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish_res.status(), StatusCode::CREATED);
+
+    let ro_res = app
+        .clone()
+        .oneshot(post_json(
+            "/-/npm/v1/tokens",
+            &login_token,
+            json!({
+                "name": null,
+                "password": "secret123",
+                "description": "npm 12 read-only token",
+                "packages_all": true,
+                "packages_and_scopes_permission": "read-only",
+                "expires": 7,
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(ro_res.status(), StatusCode::OK);
+    let ro_body = body_json(ro_res.into_body()).await;
+    assert_eq!(ro_body["readonly"], true);
+    assert!(ro_body.get("name").is_none());
+    let ro_ttl = rfc3339_unix_seconds(ro_body["expires"].as_str().unwrap())
+        - rfc3339_unix_seconds(ro_body["created"].as_str().unwrap());
+    assert!((7 * 86_400 - 2..=7 * 86_400 + 2).contains(&ro_ttl));
+    let ro_token = ro_body["token"].as_str().unwrap();
+
+    for read_path in ["/-/whoami", "/npm/acme-pkg", "/npm/-/package/acme-pkg/dist-tags"] {
+        let read_res = app
+            .clone()
+            .oneshot(get_with_bearer(read_path, ro_token))
+            .await
+            .unwrap();
+        assert_eq!(read_res.status(), StatusCode::OK, "GET {read_path}");
+    }
+
+    let ro_tag_res = app
+        .clone()
+        .oneshot(put_json_with_bearer(
+            "/npm/-/package/acme-pkg/dist-tags/next",
+            ro_token,
+            &json!("1.0.0"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(ro_tag_res.status(), StatusCode::FORBIDDEN);
+
+    let ro_pub_res = app
+        .clone()
+        .oneshot(put_json_with_bearer(
+            "/npm/acme-pkg",
+            ro_token,
+            &crate::npm::publish_doc("acme-pkg", "1.0.1", b"v2"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(ro_pub_res.status(), StatusCode::FORBIDDEN);
+
+    let rw_res = app
+        .clone()
+        .oneshot(post_json(
+            "/-/npm/v1/tokens",
+            &login_token,
+            json!({
+                "name": "npm12-rw",
+                "password": "secret123",
+                "packages_all": true,
+                "packages_and_scopes_permission": "read-write",
+                "bypass_2fa": true,
+                "expires": "14",
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(rw_res.status(), StatusCode::OK);
+    let rw_body = body_json(rw_res.into_body()).await;
+    assert_eq!(rw_body["readonly"], false);
+    let rw_ttl = rfc3339_unix_seconds(rw_body["expires"].as_str().unwrap())
+        - rfc3339_unix_seconds(rw_body["created"].as_str().unwrap());
+    assert!((14 * 86_400 - 2..=14 * 86_400 + 2).contains(&rw_ttl));
+    let rw_token = rw_body["token"].as_str().unwrap();
+
+    let rw_tag_res = app
+        .clone()
+        .oneshot(put_json_with_bearer(
+            "/npm/-/package/acme-pkg/dist-tags/next",
+            rw_token,
+            &json!("1.0.0"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(rw_tag_res.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn create_token_rejects_unsupported_granular_restrictions_without_minting() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+
+    for payload in [
+        json!({
+            "password": "secret123",
+            "packages": ["acme-pkg"],
+            "packages_and_scopes_permission": "read-only",
+        }),
+        json!({ "password": "secret123", "packages": [] }),
+        json!({ "password": "secret123", "packages_all": false }),
+        json!({ "password": "secret123", "scopes": ["@acme"] }),
+        json!({ "password": "secret123", "orgs": ["acme"] }),
+        json!({ "password": "secret123", "orgs_permission": "read-only" }),
+        json!({ "password": "secret123", "packages_and_scopes_permission": "read-write-stage-only" }),
+        json!({ "password": "secret123", "packages_and_scopes_permission": "no-access" }),
+        json!({
+            "password": "secret123",
+            "readonly": true,
+            "packages_and_scopes_permission": "read-write",
+        }),
+        json!({ "password": "secret123", "expires": 7, "expires_in": 60 }),
+        json!({ "password": "secret123", "expires": 0 }),
+        json!({ "password": "secret123", "unknown_restriction": true }),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload.clone()))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "payload {payload}");
+    }
+
+    let list_res = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &login_token))
+        .await
+        .unwrap();
+    assert_eq!(list_res.status(), StatusCode::OK);
+    let list_body = body_json(list_res.into_body()).await;
+    let tokens = list_body["objects"].as_array().expect("array of tokens");
+    assert_eq!(tokens.len(), 1, "only the initial adduser token should exist");
 }
 
 #[tokio::test]
@@ -231,6 +406,10 @@ async fn create_token_password_verification_and_rate_limiting() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        body_json(res.into_body()).await["error"],
+        "Authentication required for password verification",
+    );
 
     let empty_payload = json!({});
     let res = app

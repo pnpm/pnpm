@@ -38,8 +38,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::{
-    Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize_package,
-    commit_publishes, json_response, not_found, private_no_cache,
+    Action, AppState, AuthedCaller, Identity, JsonObject, RegistrySource, TargetRegistry,
+    authorize_package, commit_publishes, json_response, not_found, parse_json_body,
+    private_no_cache,
     publishing::{
         ValidatedPublish, check_body_name, cleanup_tmp_slots, validate_staged_publish_name,
     },
@@ -188,8 +189,9 @@ pub(super) async fn approve_staged(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<StageIdPath>,
+    body: axum::body::Bytes,
 ) -> Response {
-    serve_staged_approve(&state, &identity, registry.as_deref(), &path.id).await
+    serve_staged_approve(&state, &identity, registry.as_deref(), &path.id, &body).await
 }
 
 pub(super) async fn get_staged_tarball(
@@ -219,9 +221,9 @@ async fn serve_staged_publish(
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
-    let incoming: Value = match serde_json::from_slice(body) {
+    let incoming: Value = match parse_json_body(body) {
         Ok(value) => value,
-        Err(err) => return RegistryError::Json(err).into_response(),
+        Err(err) => return err.into_response(),
     };
     if let Err(err) = check_body_name(&name, &incoming) {
         return err.into_response();

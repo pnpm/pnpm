@@ -295,10 +295,7 @@ fn phase_summary_reports_partition_and_means() {
     assert_eq!(partition.cold, 9);
     assert_eq!(summary.create_virtual_store_mean_ms, Some(150.0));
     assert_eq!(summary.link_slots[0].batch, "cold");
-    #[expect(clippy::float_cmp, reason = "deterministic mean of fixed fixture inputs is exact")]
-    {
-        assert_eq!(summary.link_slots[0].mean_ms, 30.0);
-    }
+    assert_eq!(summary.link_slots[0].mean_ms, 30.0);
 }
 
 fn peer_heavy_diagnostics(pacquet: (f64, f64), pnpm: (f64, f64)) -> super::BenchmarkDiagnostics {
@@ -381,10 +378,7 @@ fn pnpr_direct_ratios_pair_matching_revisions() {
 
     assert_eq!(ratios.len(), 1);
     assert_eq!(ratios[0].revision, "HEAD");
-    #[expect(clippy::float_cmp, reason = "deterministic ratio of fixed fixture inputs is exact")]
-    {
-        assert_eq!(ratios[0].ratio, 0.8);
-    }
+    assert_eq!(ratios[0].ratio, 0.8);
 }
 
 #[test]
@@ -764,4 +758,49 @@ fn registry_directory_reports_where_npm_is_served() {
 
     let without_directory = serve_registry_directory_once("HTTP/1.1 404 Not Found", "{}");
     assert!(!serves_npm_under_base_path(without_directory));
+}
+
+#[cfg(unix)]
+#[test]
+fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let storage = temp.path().join("cold-mock-storage");
+    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
+    let config: serde_json::Value = serde_saphyr::from_str(&yaml).unwrap();
+    let cache = Path::new(config["cache"].as_str().unwrap());
+    let server = super::server_config::cold_revision_mock_command(
+        "HEAD",
+        Path::new("pnpr"),
+        temp.path(),
+        4873,
+        "http://127.0.0.1:4873",
+        "http://127.0.0.1:4874",
+    );
+    let args: Vec<_> = server.get_args().collect();
+    let selected_cache = args
+        .windows(2)
+        .find(|pair| pair[0] == "--cache")
+        .unwrap()[1];
+    assert_eq!(Path::new(selected_cache), cache);
+    let metadata = storage.join(".metadata/metadata.sqlite");
+    fs::create_dir_all(metadata.parent().unwrap()).unwrap();
+    fs::create_dir_all(cache).unwrap();
+    fs::write(&metadata, b"server metadata").unwrap();
+    fs::write(cache.join("archive"), b"cached archive").unwrap();
+    fs::write(temp.path().join(".saved-pnpm-lock.yaml"), b"saved lockfile").unwrap();
+    let cleanup = BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr.cleanup();
+    let command = super::scripts::build_cleanup_command(
+        &cleanup,
+        [BenchId::PnprRevision("HEAD")].into_iter(),
+        |_| temp.path().to_path_buf(),
+    );
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    assert!(!cache.exists());
+    assert_eq!(fs::read(metadata).unwrap(), b"server metadata");
+    assert_eq!(fs::read(temp.path().join("pnpm-lock.yaml")).unwrap(), b"saved lockfile");
 }

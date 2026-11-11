@@ -1,3 +1,4 @@
+import type { CatalogResolver } from '@pnpm/catalogs.resolver'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
@@ -5,6 +6,7 @@ import type { PackageResponse } from '@pnpm/store.controller-types'
 import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash, type ProjectManifest } from '@pnpm/types'
 
 import type { WantedDependency } from './getWantedDependencies.js'
+import { lookUpCatalogEntry } from './lookUpCatalogEntry.js'
 import type { InfoFromLockfile, PeerDependencies, PeerSet, ResolvedPackage } from './resolutionTypes.js'
 
 export function getManifestFromResponse (
@@ -66,6 +68,7 @@ export function pkgIsLeaf (pkg: PackageManifest): boolean {
 
 export function getResolvedPackage (
   options: {
+    catalogResolver?: CatalogResolver
     dependencyLockfile?: PackageSnapshot
     pkgIdWithPatchHash: PkgIdWithPatchHash
     force: boolean
@@ -102,7 +105,7 @@ export function getResolvedPackage (
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patch: options.patch,
-    peers: getPeerSet(options.pkg),
+    peers: getPeerSet(options.pkg, options.catalogResolver),
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,
@@ -155,13 +158,24 @@ export function detectNamedRegistryCollision (
 
 /**
  * The {@link PeerSet} of `pkg`, whose `dependencies` no longer hold the names
- * its peers shadow in the scope it resolved in.
+ * its peers shadow in the scope it resolved in. With a `catalogResolver`, the
+ * `catalog:` ranges of the taken peers are resolved, so equivalent catalog
+ * references merge as one range. Declared ranges stay as written.
  */
-export function getPeerSet (pkg: ProjectManifest): PeerSet {
+export function getPeerSet (pkg: ProjectManifest, catalogResolver?: CatalogResolver): PeerSet {
+  const taken = peerDependenciesExcept(pkg, Object.keys(pkg.dependencies ?? {}))
   return {
     declared: peerDependenciesExcept(pkg, []),
-    taken: peerDependenciesExcept(pkg, Object.keys(pkg.dependencies ?? {})),
+    taken: catalogResolver == null ? taken : resolveCatalogPeers(catalogResolver, taken),
   }
+}
+
+function resolveCatalogPeers (catalogResolver: CatalogResolver, peers: PeerDependencies): PeerDependencies {
+  for (const [alias, peer] of Object.entries(peers)) {
+    const catalogEntry = lookUpCatalogEntry(catalogResolver, { alias, bareSpecifier: peer.version })
+    if (catalogEntry != null) peer.version = catalogEntry.specifier
+  }
+  return peers
 }
 
 function peerDependenciesExcept (pkg: ProjectManifest, dependencies: string[]): PeerDependencies {

@@ -43,7 +43,7 @@ impl Storage {
         self.hosted.open_archive(&blob.key()).await
     }
 
-    /// Open only the requested bytes, without reading the preceding content.
+    /// Open the requested bytes after verifying the stored archive.
     pub async fn open_hosted_blob_range(
         &self,
         name: &CanonicalPackageName,
@@ -98,11 +98,13 @@ impl Storage {
         filename: &str,
     ) -> Result<BlobSlot> {
         let tmp_path = self.hosted.reserve_archive_tmp().await?;
+        let guard = crate::TempFileGuard::new(tmp_path.clone());
         Ok(BlobSlot {
             tmp_path,
             name: name.clone(),
             filename: filename.to_string(),
             version: String::new(),
+            guard,
         })
     }
 
@@ -124,7 +126,7 @@ impl Storage {
     /// (see [`crate::metadata::BlobFence`]).
     pub async fn promote_blob_slot(
         &self,
-        slot: BlobSlot,
+        mut slot: BlobSlot,
         (id, size): (BlobId, u64),
         row: Option<&BlobRow>,
     ) -> Result<PromotedArchive> {
@@ -138,11 +140,12 @@ impl Storage {
         } else {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
         }
+        slot.guard.disarm();
         let artifact = ArtifactBlob {
             ecosystem: self.metadata.ecosystem(),
             name: slot.name.as_str().to_string(),
-            version: slot.version,
-            artifact: slot.filename,
+            version: std::mem::take(&mut slot.version),
+            artifact: std::mem::take(&mut slot.filename),
             blob,
             size,
         };
@@ -187,6 +190,32 @@ impl Storage {
             return Ok(Vec::new());
         }
         self.metadata.version_blobs(name, versions).await
+    }
+}
+
+/// The local temporary-file bases where hosted archive writes stage before
+/// promotion, across `namespaces` for a filesystem store or in the shared
+/// `.staging/` directory for an object store.
+#[must_use]
+pub fn archive_temp_bases(
+    config: &pnpr_config::StorageConfig,
+    namespaces: &[(String, pnpr_package_name::Ecosystem)],
+) -> Vec<std::path::PathBuf> {
+    match &config.hosted_backend {
+        pnpr_config::HostedStoreConfig::Fs => namespaces
+            .iter()
+            .map(|(org, ecosystem)| {
+                let mut base = config.hosted_dir.clone();
+                base.extend(crate::layout::namespace_segments(org, *ecosystem));
+                base.push(crate::ARCHIVES_DIR);
+                base.push("archive");
+                base
+            })
+            .collect(),
+        pnpr_config::HostedStoreConfig::S3(_)
+        | pnpr_config::HostedStoreConfig::ObjectStore { .. } => {
+            vec![crate::cache_staging_tmp_base(&config.cache_dir)]
+        }
     }
 }
 

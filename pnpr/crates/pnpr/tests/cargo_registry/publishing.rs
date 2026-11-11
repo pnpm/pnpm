@@ -207,7 +207,7 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
         .oneshot(publish_request(Some(&token), unclaimed))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
     let errors: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert!(
         errors["errors"][0]["detail"]
@@ -462,4 +462,29 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
+}
+
+#[tokio::test]
+async fn publishing_an_unclaimed_crate_names_the_packages_setting() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "publisher").await;
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    let mut request = publish_request(
+        Some(&token),
+        publish_body(&metadata("example-crate", "1.0.0"), &crate_archive("example-crate", "1.0.0")),
+    );
+    *request.uri_mut() = "/cargo/~crates/api/v1/crates/new".parse().unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body["errors"][0]["detail"]
+            .as_str()
+            .unwrap()
+            .contains("`packages:`"),
+    );
 }

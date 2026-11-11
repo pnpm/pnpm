@@ -3,7 +3,7 @@
 
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode,
-    json_response, private_no_cache,
+    json_response, parse_json_body, private_no_cache,
     registry_directory::management_name,
     require_admin,
     rule_overrides::{RuleChanges, current_rules, replace_rules, rules_view},
@@ -73,10 +73,7 @@ async fn put_rules(
     let result = async {
         let registry = managed_registry(&state, &identity, &path)?;
         let expected = if_match(&headers)?;
-        let changes: RuleChanges = serde_json::from_slice(&body)
-            .map_err(|err| RegistryError::BadRequest {
-                reason: format!("invalid request body: {err}"),
-            })?;
+        let changes: RuleChanges = parse_json_body(&body)?;
         if !changes.extra.is_empty()
             || changes.packages
                 .values()

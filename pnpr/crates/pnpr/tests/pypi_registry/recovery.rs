@@ -213,6 +213,14 @@ async fn publishers_yank_and_admins_delete_files() {
         .unwrap();
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["files"], json!([]));
+    assert_eq!(
+        app.clone()
+            .oneshot(get(&format!("{file}.metadata"), None))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
     let corrected = common::python_wheel_with_metadata(
         "demo-pkg",
         "1.0.0",

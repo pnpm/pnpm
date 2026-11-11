@@ -152,7 +152,7 @@ async fn get_repo_url_from_registry(
             Ok(pick_repository_url_from_package(&pkg, range)?)
         }
         FetchFullMetadataOutcome::NotModified => {
-            miette::bail!("registry returned 304 Not Modified unexpectedly")
+            miette::bail!("registry returned 304 Not Modified unexpectedly");
         }
     }
 }

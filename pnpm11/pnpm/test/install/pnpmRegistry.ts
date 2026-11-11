@@ -417,6 +417,56 @@ test('pnpm install with pnpr server resolves catalog references in dependencies 
   expect(fs.existsSync('packages/a/node_modules/is-positive')).toBe(true)
 })
 
+test('pnpm install resolves catalog dependencies of an injected workspace override target', async () => {
+  prepareWorkspace([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/target',
+      package: {
+        name: 'target',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:',
+        },
+      },
+    },
+    {
+      location: 'packages/deep/consumer',
+      package: {
+        name: 'consumer',
+        version: '1.0.0',
+        dependencies: {
+          target: '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/**'],
+    catalog: {
+      'is-positive': '1.0.0',
+    },
+    injectWorkspacePackages: true,
+    overrides: {
+      target: 'workspace:./packages/target',
+    },
+  })
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`]
+  )
+
+  expect(fs.existsSync('packages/deep/consumer/node_modules/target/node_modules/is-positive')).toBe(true)
+})
+
 test('pnpm install with pnpr server works in a workspace with multiple projects', async () => {
   prepareWorkspace([
     {

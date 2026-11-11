@@ -28,12 +28,13 @@ pub use up_to_date::{
 };
 
 use crate::install_state::{
-    Decision, OptimisticRepeatInstallCheck, Scope, catalogs_cache_matches, current_pnpmfiles,
-    file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules, first_setting_drift,
-    has_local_file_dep_requiring_install, has_local_file_override,
-    has_local_file_package_extension, local_file_deps, lockfile_modified_since,
-    manifest_has_required_peers, manifest_has_runtime_deps, materialized_shape_matches,
-    modified_at_or_after, recorded_elsewhere, records_registry_keys_of, validation,
+    Decision, LocalFileDependencyStatus, OptimisticRepeatInstallCheck, Scope,
+    catalogs_cache_matches, current_pnpmfiles, file_mtime, file_mtime_from_metadata,
+    filesystem_now_ms_in_modules, first_setting_drift, has_local_file_override,
+    has_local_file_package_extension, local_file_dependency_status, local_file_deps,
+    lockfile_modified_since, manifest_has_required_peers, manifest_has_runtime_deps,
+    materialized_shape_matches, modified_at_or_after, recorded_elsewhere, records_registry_keys_of,
+    validation,
 };
 
 mod current_lockfile;
@@ -195,9 +196,11 @@ fn local_file_blocks_fast_path(
     let overrides = parsed_overrides
         .as_deref()
         .unwrap_or(&[]);
-    match has_local_file_dep_requiring_install(check, overrides) {
-        Ok(true) => return Some(LOCAL_FILE_DEPENDENCY),
-        Ok(false) => {}
+    match local_file_dependency_status(check, overrides) {
+        Ok(LocalFileDependencyStatus::Current) => {}
+        Ok(LocalFileDependencyStatus::UnvouchedInjected)
+            if manifest_agreement::recorded_directories_are_current(check) => {}
+        Ok(_) => return Some(LOCAL_FILE_DEPENDENCY),
         Err(reason) => return Some(reason),
     }
     if has_local_file_override(overrides) {

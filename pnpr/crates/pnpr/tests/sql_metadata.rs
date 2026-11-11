@@ -706,3 +706,33 @@ async fn rejected_tag_rewrites_do_not_mark_versions_unpublished() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(packument(&app, &token).await.1["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
 }
+
+/// The published binaries are built with the default features, so those
+/// features must include every database `database.url` accepts. The pools
+/// connect lazily: nothing listens at these addresses.
+#[tokio::test]
+async fn the_default_build_opens_postgres_and_mysql_metadata() {
+    let databases = [
+        MetadataBackend::Postgres(network_settings("postgres://pnpr@127.0.0.1:1/pnpr")),
+        MetadataBackend::Mysql(network_settings("mysql://pnpr@127.0.0.1:1/pnpr")),
+    ];
+    for database in databases {
+        let tmp = TempDir::new().unwrap();
+        let opened = pnpr_storage::Storage::new(
+            &pnpr_config::HostedStoreConfig::Fs,
+            tmp.path().join("storage"),
+            tmp.path().join("cache"),
+            &database,
+        );
+        assert!(opened.is_ok(), "{database:?}: {:?}", opened.err());
+    }
+}
+
+fn network_settings(url: &str) -> pnpr_config::SqlBackendSettings {
+    pnpr_config::SqlBackendSettings {
+        url: url.to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(1),
+        startup_timeout: std::time::Duration::from_secs(1),
+    }
+}

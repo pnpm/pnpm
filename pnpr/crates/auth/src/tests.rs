@@ -1013,22 +1013,26 @@ async fn incompatible_auth_databases_are_refused_without_migration() {
 
 #[tokio::test]
 async fn schema_migrations_refuses_future_schema_version() {
+    let future = pnpr_sql::schema::SCHEMA_VERSION + 1;
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
 
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
         conn.execute_batch(
-            "CREATE TABLE schema_migrations (version INTEGER NOT NULL PRIMARY KEY) STRICT;
-             INSERT INTO schema_migrations (version) VALUES (1), (2);",
+            "CREATE TABLE schema_migrations (version INTEGER NOT NULL PRIMARY KEY) STRICT;",
         )
         .unwrap();
+        for version in 1..=future {
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (?1)", [version])
+                .unwrap();
+        }
     }
 
     let err = TokenStore::open(path).unwrap_err();
     let err_str = err.to_string();
     assert!(
-        err_str.contains("schema version 2"),
+        err_str.contains(&format!("schema version {future}")),
         "expected error about newer version, got: {err_str}",
     );
 }
@@ -1243,7 +1247,10 @@ async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
             .to_ascii_lowercase(),
     );
     let admin_pool = sqlx::PgPool::connect(&base_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_name}")))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
     let db_url = format!("{}/{db_name}", base_url.rsplit_once('/').unwrap().0);
     let settings = pnpr_config::SqlBackendSettings {
         url: db_url.clone(),
@@ -1284,7 +1291,7 @@ async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
         .unwrap();
     assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {db_name} WITH (FORCE)")))
         .execute(&admin_pool)
         .await
         .unwrap();
@@ -1308,7 +1315,10 @@ async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
             .to_ascii_lowercase(),
     );
     let admin_pool = sqlx::MySqlPool::connect(&base_url).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_name}")))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
     let db_url = format!("{}/{db_name}", base_url.rsplit_once('/').unwrap().0);
     let settings = pnpr_config::SqlBackendSettings {
         url: db_url.clone(),
@@ -1347,6 +1357,9 @@ async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
         .unwrap();
     assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {db_name}")))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
     admin_pool.close().await;
 }

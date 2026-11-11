@@ -14,9 +14,9 @@ pub(crate) use selectors::{matches_target, parse_declared_range};
 
 mod meta_only_peers;
 mod selectors;
-use selectors::semver_satisfies;
 
 use node_semver::{Range, Version};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
 use pnpm_local_spec::LocalSpec;
 use pnpm_matcher::WildcardMatcher;
@@ -51,6 +51,9 @@ pub struct VersionsOverrider {
     /// override are not recorded — the convergence override never
     /// governs them.
     converge_declared_ranges: Mutex<HashMap<String, HashSet<String>>>,
+    /// Workspace catalogs used to dereference `catalog:` dependency
+    /// specifiers when matching range-scoped overrides.
+    catalogs: Catalogs,
 }
 
 /// A convergence override's replacement value, with the exact version
@@ -76,14 +79,25 @@ struct ResolvedOverride {
 }
 
 impl ResolvedOverride {
+    fn new(override_entry: &VersionOverride, root_dir: &Path) -> Self {
+        Self {
+            parent_name_matcher: override_entry.parent_pkg
+                .as_ref()
+                .map(|parent| WildcardMatcher::new(&parent.name)),
+            target_name_matcher: WildcardMatcher::new(&override_entry.target_pkg.name),
+            inner: override_entry.clone(),
+            local_target: LocalSpec::parse_filesystem(&override_entry.new_bare_specifier, root_dir)
+                .or_else(|| {
+                    LocalSpec::parse_workspace_path(&override_entry.new_bare_specifier, root_dir)
+                }),
+        }
+    }
+
     /// The specifier this override writes into a manifest in
-    /// `manifest_dir`. A local target that cannot be rendered without
-    /// that directory is written as declared.
+    /// `manifest_dir`.
     fn render(&self, manifest_dir: Option<&Path>) -> String {
         match &self.local_target {
-            Some(target) if manifest_dir.is_some() || !target.needs_consumer_dir() => {
-                target.render(manifest_dir)
-            }
+            Some(target) => target.render(manifest_dir),
             _ => self.inner.new_bare_specifier.clone(),
         }
     }
@@ -128,26 +142,10 @@ impl VersionsOverrider {
                         version: Version::parse(&override_entry.new_bare_specifier).ok(),
                     },
                 );
-                continue;
-            }
-            let resolved = ResolvedOverride {
-                parent_name_matcher: override_entry.parent_pkg
-                    .as_ref()
-                    .map(|parent| WildcardMatcher::new(&parent.name)),
-                target_name_matcher: WildcardMatcher::new(&override_entry.target_pkg.name),
-                inner: override_entry.clone(),
-                local_target: LocalSpec::parse_filesystem(
-                    &override_entry.new_bare_specifier,
-                    root_dir,
-                )
-                .or_else(|| {
-                    LocalSpec::parse_workspace_path(&override_entry.new_bare_specifier, root_dir)
-                }),
-            };
-            if override_entry.parent_pkg.is_some() {
-                parent_scoped.push(resolved);
+            } else if override_entry.parent_pkg.is_some() {
+                parent_scoped.push(ResolvedOverride::new(override_entry, root_dir));
             } else {
-                generic.push(resolved);
+                generic.push(ResolvedOverride::new(override_entry, root_dir));
             }
         }
         VersionsOverrider {
@@ -155,7 +153,22 @@ impl VersionsOverrider {
             generic,
             converge,
             converge_declared_ranges: Mutex::new(HashMap::new()),
+            catalogs: Catalogs::new(),
         }
+    }
+
+    /// Dereference `catalog:` dependency specifiers against `catalogs`
+    /// when matching range-scoped overrides.
+    #[must_use]
+    pub fn with_catalogs(mut self, catalogs: &Catalogs) -> Self {
+        if self.parent_scoped
+            .iter()
+            .chain(&self.generic)
+            .any(|entry| entry.inner.target_pkg.bare_specifier.is_some())
+        {
+            self.catalogs.clone_from(catalogs);
+        }
+        self
     }
 
     /// `true` when the hook has no entries and can be skipped.
@@ -221,29 +234,6 @@ impl VersionsOverrider {
         let mut cloned = (*manifest).clone();
         self.apply_to_value(&mut cloned, manifest_dir);
         Arc::new(cloned)
-    }
-
-    fn applicable_parent_scoped<'b>(&'b self, manifest: &Value) -> Vec<&'b ResolvedOverride> {
-        let Some(manifest_name) = manifest.get("name").and_then(Value::as_str) else {
-            return Vec::new();
-        };
-        let manifest_version = manifest.get("version").and_then(Value::as_str);
-
-        self.parent_scoped
-            .iter()
-            .filter(|entry| {
-                let Some(parent) = entry.inner.parent_pkg.as_ref() else { return false };
-                let name_matches = entry.parent_name_matcher
-                    .as_ref()
-                    .is_some_and(|matcher| matcher.matches(manifest_name));
-                let range_matches = match (parent.bare_specifier.as_deref(), manifest_version) {
-                    (None, _) => true,
-                    (Some(_), None) => false,
-                    (Some(range), Some(version)) => semver_satisfies(version, range),
-                };
-                name_matches && range_matches
-            })
-            .collect()
     }
 
     fn has_applicable_override(&self, value: &Value) -> bool {

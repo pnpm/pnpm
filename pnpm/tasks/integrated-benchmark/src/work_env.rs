@@ -350,8 +350,8 @@ impl WorkEnv {
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
         // long-running server even while the client is cold. `cold-mock-storage`
-        // (only the cold-pnpr scenario) is wiped here too so the warmup run
-        // starts cold even on a reused work-env, not just the timed iterations.
+        // (only the cold-pnpr scenario) is wiped before the mock starts; timed
+        // iterations clear only its cache so its metadata database stays open.
         for dir in self
             .benchmarked_ids()
             .map(|id| self.bench_dir(id))

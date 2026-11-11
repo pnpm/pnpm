@@ -1,6 +1,6 @@
 //! The `catalogs` of the next format's `settings`. An entry is its specifier
 //! alone when the version follows from it, as an importer's dependency is,
-//! and `{specifier, version}` on one line otherwise.
+//! and `{specifier, version}` otherwise.
 //!
 //! A catalog entry records the bare version of an `npm:` alias, so
 //! `npm:name@1.2.3` implies `1.2.3` here, where an importer's dependency

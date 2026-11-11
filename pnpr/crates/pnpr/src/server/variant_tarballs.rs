@@ -104,17 +104,12 @@ async fn hosted_variant(
     revision: Option<u64>,
     tag: &str,
 ) -> Result<Option<Option<u64>>, RegistryError> {
-    let Some(bytes) = storage.read_hosted_document(package).await? else {
+    let Some(manifest) = storage.read_hosted_version(package, version).await? else {
         return Ok(None);
     };
-    let packument = serde_json::from_slice::<Value>(&bytes)?;
-    Ok(packument
-        .get("versions")
-        .and_then(|versions| versions.get(version))
-        .filter(|manifest| {
-            revision.is_none_or(|revision| {
-                revision == super::split_packuments::selected_revision(manifest)
-            })
-        })
-        .and_then(|manifest| variants::stored_variant_size(manifest, tag)))
+    let manifest = serde_json::from_str::<Value>(&manifest)?;
+    let selected = revision.is_none_or(|revision| {
+        revision == super::split_packuments::selected_revision(&manifest)
+    });
+    Ok(selected.then(|| variants::stored_variant_size(&manifest, tag)).flatten())
 }

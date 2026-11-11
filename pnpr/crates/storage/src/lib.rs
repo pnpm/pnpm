@@ -17,10 +17,13 @@ pub mod upload;
 pub use bounded_cache::BoundedCache;
 
 pub use atomic_write::{
-    remove_atomic_write_temps, unique_tmp_path, write_atomic, write_atomic_new,
+    TempSweep, count_stale_temps, remove_atomic_write_temps, sweep_stale_temps, unique_tmp_path,
+    write_atomic, write_atomic_new,
 };
 
-pub use blob_write::{BlobSlot, BlobWrite, SealedBlob};
+pub use s3::cache_staging_tmp_base;
+
+pub use blob_write::{BlobSlot, BlobWrite, SealedBlob, TempFileGuard};
 
 pub(crate) use local_store::read_dir_if_present;
 
@@ -30,7 +33,7 @@ pub(crate) use self::backend::HostedBackend;
 
 pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
 
-pub use archives::PromotedArchive;
+pub use archives::{PromotedArchive, archive_temp_bases};
 pub use blob_id::{BlobId, parse_blob_key};
 
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
@@ -50,6 +53,7 @@ pub use pnpr_package_name::Ecosystem;
 
 pub use tar_integrities::DerivedTar;
 
+mod archive_verification;
 mod bounded_cache;
 mod tar_integrities;
 mod upstream_cache;
@@ -274,7 +278,6 @@ impl Storage {
 
     /// Every name stored where this namespace keeps its archives, for
     /// maintenance that compares the store with its metadata.
-    #[must_use]
     pub fn hosted_archives(&self) -> BoxStream<'_, Result<StoredArchive>> {
         self.hosted.list_archives()
     }
@@ -295,6 +298,12 @@ impl Storage {
 
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.metadata.package_names().await
+    }
+
+    /// The names of every hosted package that has at least one published
+    /// version, sorted.
+    pub async fn hosted_published_package_names(&self) -> Result<Vec<String>> {
+        self.metadata.published_package_names().await
     }
 
     // --- Authoritative (hosted) store -----------------------------------

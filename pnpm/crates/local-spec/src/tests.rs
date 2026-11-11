@@ -151,6 +151,15 @@ fn keeps_a_reanchored_workspace_path_relative() {
 }
 
 #[test]
+fn keeps_an_absolute_workspace_path_absolute() {
+    let absolute = format!("workspace:{}/packages/target", ROOT.replace('\\', "/"));
+    assert_eq!(
+        render_workspace_path(&absolute, "packages/deep/consumer").as_deref(),
+        Some(absolute.as_str()),
+    );
+}
+
+#[test]
 fn declines_a_workspace_specifier_that_is_not_a_path() {
     for specifier in ["workspace:*", "workspace:^1.0.0", "workspace:foo@*", "./packages/target"] {
         assert_eq!(LocalSpec::parse_workspace_path(specifier, root()), None, "{specifier}");

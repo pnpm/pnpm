@@ -604,6 +604,37 @@ Can be specified as an integer number of seconds (e.g. `10`) or with a duration 
 packumentTtl: 30s
 ```
 
+## `maxTarballSize`
+
+The largest tarball pnpr fetches from an upstream registry. The same limit
+applies to Cargo crates and Python distributions fetched from an upstream. pnpr writes each
+proxied tarball to a temporary file while it verifies the integrity, so this
+bounds the disk each tarball can take. An upstream tarball that declares a size
+over the limit is refused with `502 Bad Gateway`. pnpm then fails the install
+with `ERR_PNPM_TARBALL_HTTP_STATUS`. When a cached upstream does not declare
+the size, pnpr is already streaming the tarball when it crosses the limit, so
+pnpr cuts the download off and the client reports a download error instead.
+pnpr verifies the tarball before it responds for an upstream with
+`cache: false` and for a [registry revision](https://pnpm.io/registry-revisions).
+There an over-limit tarball always gets `502 Bad Gateway`, whether the upstream
+declared the size or pnpr found it during the download.
+
+Defaults to `100MiB`. Takes an integer number of bytes or a size suffix such
+as `MB`, `MiB`, `GB`, or `GiB`, like [`cache.maxSize`](#storage-and-cache).
+Must be greater than zero. The limit applies to downloads: a tarball pnpr
+cached under a higher limit is still served from the cache.
+
+An npm publish request is at most 100 MiB of JSON, including metadata and
+base64-encoded attachments. Base64 increases the archive size by about a third,
+so an inline tarball must be smaller than 75 MiB.
+[Staged archives](ecosystems.md#staged-archives) accept archives up to 100 MiB
+without base64 encoding. This setting only affects tarballs proxied from
+upstream registries.
+
+```yaml title="pnpr.yaml"
+maxTarballSize: 256MiB
+```
+
 ## `packageDocuments`
 
 How pnpr serves its own package document, which pnpm asks for from a registry
@@ -663,7 +694,7 @@ gc:
 pnpr includes built-in protections against denial-of-service and brute-force attacks:
 
 - **Pre-buffer authorization**: Package publish and modification endpoints (`PUT /{pkg}`, `PUT /@{scope}/{pkg}`, `PUT /{pkg}/-rev/{rev}`) check caller authentication and write permissions before reading or buffering request payloads (up to 100 MiB). Unauthorized or unauthenticated requests are rejected immediately with `401 Unauthorized` or `403 Forbidden` without consuming server memory or network bandwidth.
-- **Login rate limiting**: Login attempts (`PUT /-/user/org.couchdb.user:...`) are rate-limited to mitigate password brute-force and CPU exhaustion from bcrypt password verification. Failed login attempts are throttled by client IP and by username with a `429 Too Many Requests` response and a `Retry-After` header.
+- **Login rate limiting**: Login attempts (`PUT /-/user/org.couchdb.user:...`) are rate-limited to mitigate password brute-force and CPU exhaustion from bcrypt password verification. Failed login attempts are throttled by client IP and by username across all client IPs with a `429 Too Many Requests` response and a `Retry-After` header. The account limit is higher than the IP limit, so one IP cannot exhaust it.
 - **Concurrency limits**: Intensive operations are governed by concurrency semaphores to protect against resource exhaustion (limiting concurrent password verifications and concurrent large payload buffering).
 - **Upstream request coalescing (singleflight)**: Concurrent requests for the same uncached upstream packument are coalesced so multiple concurrent requests result in only a single upstream fetch.
 
@@ -1026,3 +1057,14 @@ Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
 OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token` and
 `bearerToken`, and upstream `headers` values) fail fast at startup with a fatal configuration error. This prevents accidental fallback to
 empty credentials or per-process secrets when an environment variable is unset.
+
+## cloudflareCdn
+
+Optional global CDN invalidation for a registry served through a Cloudflare zone.
+`zoneId` must contain 32 hexadecimal characters. `apiToken` must be nonempty
+and contain no whitespace. `cacheTag` accepts 1 to 100 ASCII letters, digits,
+hyphens, or underscores. The API token needs
+Cache Purge permission for that zone. Use environment substitution for the token.
+
+See [CDN cache with push invalidation](cloudflare.md#cdn-cache-with-push-invalidation)
+for the matching Worker, retry behavior, and access-revocation delay.

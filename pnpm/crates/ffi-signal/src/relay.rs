@@ -44,7 +44,7 @@ pub fn try_signal_target(target: Target, signal: i32) -> std::io::Result<()> {
 /// kernel took it.
 ///
 /// The one place the call is written, so a caller reading the failure
-/// through [`std::io::Error::last_os_error`] sees this call's own: nothing
+/// through `std::io::Error::last_os_error` sees this call's own: nothing
 /// runs between the two.
 fn send(target: libc::pid_t, signal: i32) -> bool {
     // SAFETY: `kill` takes both arguments by value and writes no memory. A

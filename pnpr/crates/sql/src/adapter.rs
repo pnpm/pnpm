@@ -28,6 +28,15 @@ pub enum ReadSource {
     Replica,
 }
 
+/// How current the snapshot an [`Adapter::read`] ran on was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Snapshot {
+    /// The primary as of this read, or a replica synced during this read.
+    Current,
+    /// A replica synced before this read began, which may lag the primary.
+    Lagging,
+}
+
 /// A database connection of an [`Adapter`].
 ///
 /// A connection to a remote database may hold a statement that returns
@@ -96,7 +105,9 @@ pub trait Connection {
     /// every statement held so far.
     fn execute_batch(&self, sql: &str) -> Result<()>;
 
-    /// Begin a serializable write transaction. A conflict may abort it for retry.
+    /// Take the database's write lock, held until [`Self::commit`] or
+    /// [`Self::rollback`], and begin a serializable write transaction. A
+    /// conflict may abort it for retry.
     fn begin_write(&self) -> Result<()>;
 
     /// Begin a transaction that reads one committed snapshot.
@@ -199,7 +210,7 @@ pub trait Adapter: fmt::Debug + Send + Sync {
         &self,
         source: ReadSource,
         operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
-    ) -> Result<()>;
+    ) -> Result<Snapshot>;
 
     /// Whether `error` refused a write transaction for a conflict with
     /// another writer, after which the whole transaction may run again.
