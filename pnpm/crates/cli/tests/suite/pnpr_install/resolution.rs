@@ -259,8 +259,8 @@ fn add_missing_peer_types_resolves_via_pnpr() {
     drop((root, mock_instance));
 }
 
-/// A server that predates `addMissingPeerTypes` drops it from the request
-/// and returns a lockfile resolved without it, which the client must not save.
+/// A server confirms `addMissingPeerTypes` but returns a lockfile resolved
+/// without it. The client must not save the inconsistent lockfile.
 #[test]
 fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types() {
     let CommandTempCwd {
@@ -279,7 +279,7 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     let resolve_mock = older_server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
-        .with_body(format!("{done}\n"))
+        .with_body_from_request(move |request| pnpr_done_frame(request, done.clone()))
         .expect(1)
         .create();
 
@@ -296,7 +296,9 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("stdout:\n{stdout}\nstderr:\n{stderr}");
     assert!(!output.status.success());
-    assert!(format!("{stdout}{stderr}").contains("pnpr server omitted appliedPolicies"));
+    assert!(format!("{stdout}{stderr}").contains(
+        "ERR_PNPM_PNPR_SERVER_IGNORED_ADD_MISSING_PEER_TYPES"
+    ));
     assert!(!workspace.join("pnpm-lock.yaml").exists());
     resolve_mock.assert();
 

@@ -183,6 +183,7 @@ For npm requests, `appliedPolicies` includes `autoInstallPeers`, `dedupePeers`,
 `[]`. Unset ages and an inactive trust policy are `null`.
 The verification endpoint echoes the same shape; clients check its verification
 policies without comparing resolution settings.
+Upgrade the pnpr server before upgrading clients that require this echo.
 
 ### Shared-artifact endpoints
 
