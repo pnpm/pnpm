@@ -111,12 +111,14 @@ impl ExecArgs {
             config,
             reporter,
         )?;
-        let status =
-            spawn_in_dir(&command, dirs, config, self.shell_mode, ScriptOutput::Inherit, None)?;
-        if !status.success() {
-            exit_like(ScriptExit::Process(status));
-        }
-        Ok(())
+        run_prepared(&command, dirs, config, self.shell_mode)
+    }
+
+    /// Like [`Self::run`], but without the dependency verification. For a
+    /// caller that has already verified `dirs.project`.
+    pub(super) fn run_verified(self, dirs: ExecDirs<'_>, config: &Config) -> miette::Result<()> {
+        let command = prepare_command(self.command)?;
+        run_prepared(&command, dirs, config, self.shell_mode)
     }
 
     /// Execute the command across the `--filter`-selected workspace
@@ -130,6 +132,19 @@ impl ExecArgs {
     ) -> miette::Result<()> {
         recursive::exec_recursive(self, config, dir, reporter).await
     }
+}
+
+fn run_prepared(
+    command: &[String],
+    dirs: ExecDirs<'_>,
+    config: &Config,
+    shell_mode: bool,
+) -> miette::Result<()> {
+    let status = spawn_in_dir(command, dirs, config, shell_mode, ScriptOutput::Inherit, None)?;
+    if !status.success() {
+        exit_like(ScriptExit::Process(status));
+    }
+    Ok(())
 }
 
 /// Strip a surviving leading `--` and reject an empty command.

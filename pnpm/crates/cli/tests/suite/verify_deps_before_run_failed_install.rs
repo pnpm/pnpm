@@ -42,3 +42,36 @@ fn failed_install_warns_and_runs_the_script() {
 
     drop(root);
 }
+
+/// [pnpm/pnpm#17977](https://github.com/pnpm/pnpm/issues/17977)
+#[test]
+fn failed_install_warns_once_when_falling_back_to_exec() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let manifest = json!({
+        "name": "verify-deps-project",
+        "version": "0.0.0",
+        "dependencies": {
+            "@pnpm.e2e/this-package-does-not-exist": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    let output = pacquet
+        .with_arg("no-such-command")
+        .output()
+        .expect("spawn pacquet");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "the command does not exist:\n{stderr}");
+    assert!(
+        stderr.contains(r#"Command "no-such-command" not found"#),
+        "expected the exec fallback to run:\n{stderr}",
+    );
+    assert_eq!(
+        stderr.matches("The install that runs before scripts failed").count(),
+        1,
+        "{stderr}",
+    );
+
+    drop(root);
+}
