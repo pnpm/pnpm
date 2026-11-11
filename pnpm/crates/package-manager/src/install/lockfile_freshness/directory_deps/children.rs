@@ -64,18 +64,7 @@ pub(super) fn check_recorded_local_targets(
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
-    let child_catalogs: HashMap<_, _> = if dep.declared_by_path {
-        HashMap::new()
-    } else {
-        pnpm_resolving_deps_resolver::manifest_child_specs(local_manifest.value(), dep.name)
-            .map_err(|_| dep.outdated())?
-            .into_iter()
-            .filter_map(|child| {
-                parse_catalog_protocol(&child.bare_specifier)
-                    .map(|catalog| (child.alias.clone(), catalog.to_string()))
-            })
-            .collect()
-    };
+    let child_catalogs = local_child_catalogs(dep, local_manifest)?;
     for child in &children {
         if child.optional && !check.config.optional {
             continue;
@@ -94,6 +83,23 @@ pub(super) fn check_recorded_local_targets(
         check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
     }
     Ok(())
+}
+
+fn local_child_catalogs(
+    dep: &LocalDepContext<'_>,
+    manifest: &PackageManifest,
+) -> Result<HashMap<String, String>, FreshnessCheckError> {
+    if dep.declared_by_path {
+        return Ok(HashMap::new());
+    }
+    Ok(pnpm_resolving_deps_resolver::manifest_child_specs(manifest.value(), dep.name)
+        .map_err(|_| dep.outdated())?
+        .into_iter()
+        .filter_map(|child| {
+            parse_catalog_protocol(&child.bare_specifier)
+                .map(|catalog| (child.alias.clone(), catalog.to_string()))
+        })
+        .collect())
 }
 
 fn optional_peer_supplies_child(
