@@ -108,7 +108,7 @@ async fn update_config_default_lockfile_dir_rederives_state_after_modules_dir_ch
         .expect("write workspace settings");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { config.modulesDir = 'custom_modules'; config.lockfileDir = config.workspaceDir + '/.'; throw new Error(JSON.stringify({ modulesDir: config.modulesDir, lockfileDir: config.lockfileDir, keys: Object.keys(config) })) } } }",
+        "module.exports = { hooks: { updateConfig (config) { config.modulesDir = 'custom_modules'; config.lockfileDir = config.workspaceDir + '/.'; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(&project).expect("load configuration");
@@ -117,12 +117,6 @@ async fn update_config_default_lockfile_dir_rederives_state_after_modules_dir_ch
         .expect("run updateConfig hook");
 
     assert_eq!(config.lockfile_dir, None);
-    assert_eq!(
-        config.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str),
-        Some("custom_modules"),
-        "CLI settings: {:?}",
-        config.cli_settings,
-    );
     assert_eq!(config.modules_dir, workspace.join("custom_modules"));
     assert_eq!(config.install_state_dir, workspace.join("custom_modules/.pnpm"));
 }

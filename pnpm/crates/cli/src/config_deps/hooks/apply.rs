@@ -76,10 +76,6 @@ pub(super) fn apply_hook_delta(
     base_dir: &Path,
 ) -> Result<()> {
     let delta = filter_hook_delta(config, config_delta(input, current));
-    #[cfg(debug_assertions)]
-    if delta.get("lockfileDir").is_some() {
-        eprintln!("updateConfig hook delta: {delta}");
-    }
     let lockfile_dir_paths_before_hook =
         lockfile_dir_paths_before_hook(config, input, current, &delta, base_dir);
     // `config_delta` only walks keys present in the hook output, so a
