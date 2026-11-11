@@ -61,7 +61,9 @@ pub(crate) fn should_read_pin_lockfile(
     if can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state) {
         return true;
     }
-    invocation.entry_point != EntryPoint::UnknownFlag && version_satisfies(running_version, spec)
+    invocation.pin_handling == PinHandling::Enforce
+        && invocation.entry_point != EntryPoint::UnknownFlag
+        && version_satisfies(running_version, spec)
 }
 
 /// Pure decision over a pre-read [`PinInput`], [`Config`], and [`Invocation`].

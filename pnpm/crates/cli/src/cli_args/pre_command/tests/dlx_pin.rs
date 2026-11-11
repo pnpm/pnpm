@@ -1,7 +1,7 @@
 use super::{
     ConfigOverrides, EntryPoint, Invocation, PinHandling, PreCommandPlan, SwitchProcessState,
     TempDir, UNREADABLE_LOCKFILE_SETTING, pre_command_input, pre_command_plan_from_input,
-    write_dev_engine_manifest, write_manifest, write_workspace_manifest,
+    write_dev_engine_manifest, write_lockfile, write_manifest, write_workspace_manifest,
 };
 use pnpm_config::PNPM_VERSION;
 use std::{ffi::OsString, path::Path};
@@ -100,3 +100,25 @@ fn dlx_does_not_check_the_runtime_pin() {
 
     assert!(plan_for_dlx(root.path(), SWITCH_ALLOWED).is_none());
 }
+
+#[test]
+fn dlx_does_not_read_the_env_lockfile_when_it_cannot_switch() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        &format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{PNPM_VERSION}","onFail":"error"}}}}}}"#,
+        ),
+    );
+    write_lockfile(root.path(), MALFORMED_ENV_DOCUMENT);
+
+    let enforced = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SWITCH_ALLOWED,
+    );
+    assert!(enforced.is_err(), "the fixture must fail a command that reads it: {enforced:?}");
+    assert!(plan_for_dlx(root.path(), SWITCH_ALLOWED).is_none());
+}
+
+const MALFORMED_ENV_DOCUMENT: &str = "---\nlockfileVersion: [\n---\n";
