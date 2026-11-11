@@ -263,7 +263,7 @@ registries:
 | `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
-| `maxPackumentSize` | Maximum upstream npm package metadata response size. Defaults to `32 MiB`. Accepts a positive number of bytes or a size such as `64 MiB`. |
+| `maxPackumentSize` | Maximum upstream npm package metadata response size. Defaults to `64 MiB`. Accepts a positive number of bytes or a size such as `64 MiB`. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 | `search` | Opts this upstream into browser-facing search and organization discovery. Defaults to `false`. See [Browsing and discovery](discovery.md). |

@@ -446,3 +446,31 @@ async fn packument_body_limit_accepts_exact_size_and_rejects_overflow() {
         mock.assert_async().await;
     }
 }
+
+#[tokio::test]
+async fn default_packument_limit_accepts_large_registry_documents() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/example")
+        .with_status(200)
+        .with_chunked_body(|writer| {
+            let chunk = vec![b' '; 1024 * 1024];
+            for _ in 0..33 {
+                writer.write_all(&chunk)?;
+            }
+            Ok(())
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let client = upstream(server.url(), HeaderMap::new());
+    let name = CanonicalPackageName::parse("example", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let result = client
+        .fetch_packument(&name, &CacheValidators::default())
+        .await
+        .unwrap();
+    assert!(
+        matches!(result, PackumentFetch::Modified(body) if body.bytes.len() == 33 * 1024 * 1024),
+    );
+    mock.assert_async().await;
+}

@@ -74,7 +74,7 @@ pub struct UpstreamRequestPolicy {
 }
 
 impl UpstreamConfig {
-    pub const DEFAULT_MAX_PACKUMENT_SIZE: usize = 32 * 1024 * 1024;
+    pub const DEFAULT_MAX_PACKUMENT_SIZE: usize = 64 * 1024 * 1024;
     /// Verdaccio's `timeout` default (`30s`).
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Verdaccio's `max_fails` default (`2`).
