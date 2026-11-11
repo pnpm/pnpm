@@ -3,8 +3,8 @@
 
 use super::{super::NextFormatError, children};
 use crate::{
-    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef,
-    SnapshotEntry, split_peer_suffix_segments,
+    BoundProviders, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
+    SnapshotDepRef, SnapshotEntry, split_peer_suffix_segments,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -100,7 +100,6 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
         }
         #[expect(clippy::needless_collect, reason = "the search borrows `self` mutably")]
         let candidates: Vec<&'a PackageKey> = children(entry)
-            .filter(|(alias, _)| !own.contains(alias))
             .filter_map(|(alias, reference)| {
                 let (child_key, _) = self.snapshots.get_key_value(&reference.resolve(alias)?)?;
                 self.needs_from_outside(child_key, name).then_some(child_key)
@@ -123,11 +122,12 @@ impl<'a, 'own> ProviderFinder<'a, 'own> {
 }
 
 /// Non-transitive children whose providers appear in the peer groups.
-/// A hashed suffix uses the package's declared peers as candidates.
+/// Hashed groups use recovered providers when available, then declared peers.
 pub(super) fn own_peer_names<'a>(
     key: &PackageKey,
     entry: &'a SnapshotEntry,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    recovered: &BoundProviders,
 ) -> HashSet<&'a PkgName> {
     if key.suffix.peer().len() == key.suffix.patch_group().len() {
         return HashSet::new();
@@ -144,6 +144,9 @@ pub(super) fn own_peer_names<'a>(
         .filter(|(alias, reference)| {
             if let Some(segments) = &segments {
                 return names_provider(segments, alias, reference);
+            }
+            if !recovered.is_hashed() {
+                return binds_reference(recovered, alias, reference);
             }
             let name = alias.to_string();
             let optional_peer = metadata
@@ -205,4 +208,14 @@ pub(super) fn parse_peer_name(key: &PackageKey, name: &str) -> Result<PkgName, N
             referrer: key.to_string(),
             name: name.to_string(),
         })
+}
+
+pub(super) fn binds_reference(
+    providers: &BoundProviders,
+    alias: &PkgName,
+    reference: &SnapshotDepRef,
+) -> bool {
+    reference
+        .resolve(alias)
+        .is_some_and(|target| providers.binds(&target))
 }

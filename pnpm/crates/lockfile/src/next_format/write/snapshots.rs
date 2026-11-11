@@ -4,8 +4,8 @@
 use super::{
     importers::{importer_dependencies, next_importer, non_empty},
     peers::{
-        ProviderFinder, all_groups_named, names_provider, own_peer_names, provider_segments,
-        transitive_named_in_key,
+        ProviderFinder, all_groups_named, binds_reference, names_provider, own_peer_names,
+        provider_segments, transitive_named_in_key,
     },
     {
         super::{
@@ -15,7 +15,10 @@ use super::{
         Explicit, children,
     },
 };
-use crate::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry};
+use crate::{
+    BoundProviders, Lockfile, LockfileEntries, PackageKey, PackageMetadata, PkgName,
+    SnapshotDepRef, SnapshotEntry,
+};
 use naming::{BindingVariation, NamingBudget, binding_components, varying_bindings};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -162,7 +165,12 @@ impl<'a> Transitive<'a> {
 
     /// Finds the providers of the unnamed peers below `key`. A peer whose
     /// provider the key does not name is missing as far as the key goes.
-    fn find_unnamed(&mut self, finder: &mut ProviderFinder<'a, '_>, key: &'a PackageKey) {
+    fn find_unnamed(
+        &mut self,
+        finder: &mut ProviderFinder<'a, '_>,
+        key: &'a PackageKey,
+        providers: &BoundProviders,
+    ) {
         if self.unnamed.is_empty() {
             return;
         }
@@ -173,7 +181,10 @@ impl<'a> Transitive<'a> {
                 .filter(|reference| {
                     segments
                         .as_deref()
-                        .is_none_or(|segments| names_provider(segments, &alias, reference))
+                        .map_or_else(
+                            || binds_reference(providers, &alias, reference),
+                            |segments| names_provider(segments, &alias, reference),
+                        )
                 })
                 .cloned();
             if let Some(reference) = found {
@@ -188,9 +199,14 @@ impl<'a> Snapshots<'a> {
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     ) -> Result<Self, NextFormatError> {
+        let entries = LockfileEntries { packages, snapshots: Some(snapshots) };
+        let providers: HashMap<_, _> = snapshots
+            .par_iter()
+            .map(|(key, _)| (key, BoundProviders::of_snapshot(entries, key)))
+            .collect();
         let own_peers: HashMap<&PackageKey, HashSet<&PkgName>> = snapshots
             .par_iter()
-            .map(|(key, entry)| (key, own_peer_names(key, entry, packages)))
+            .map(|(key, entry)| (key, own_peer_names(key, entry, packages, &providers[key])))
             .collect();
         let prepared = snapshots
             .par_iter()
@@ -199,7 +215,7 @@ impl<'a> Snapshots<'a> {
         let mut finder = ProviderFinder::new(snapshots, &own_peers);
         let mut grouped: HashMap<PackageKey, Vec<Snapshot<'a>>> = HashMap::new();
         for (key, entry, mut transitive) in prepared {
-            transitive.find_unnamed(&mut finder, key);
+            transitive.find_unnamed(&mut finder, key, &providers[key]);
             grouped
                 .entry(key.without_peer())
                 .or_default()

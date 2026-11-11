@@ -62,6 +62,46 @@ snapshots:
 }
 
 #[test]
+fn bound_providers_recovers_mixed_cycle_cut_groups() {
+    let suffix = PeerBindings::Explicit(vec![
+        "bound@1.0.0(child@1.0.0)".to_string(),
+        "cut@1.0.0".to_string(),
+    ])
+    .to_suffix(3)
+    .unwrap();
+    let root = key(&format!("root@1.0.0{suffix}"));
+    let yaml = format!(
+        r"lockfileVersion: '9.0'
+packages:
+  root@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+      bound: ^1.0.0
+      cut: ^1.0.0
+      own: ^2.0.0
+snapshots:
+  '{root}':
+    dependencies:
+      bound: 1.0.0(child@1.0.0)
+      cut: 1.0.0(root@1.0.0)
+      own: 2.0.0
+",
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    let providers = BoundProviders::of_snapshot(
+        crate::LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: lockfile.snapshots.as_ref(),
+        },
+        &root,
+    );
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&key("bound@1.0.0")));
+    assert!(providers.binds(&key("cut@1.0.0")));
+    assert!(!providers.binds(&key("own@2.0.0")));
+}
+
+#[test]
 fn bound_providers_of_snapshot_recovers_hashed_peers_across_shared_descendant_branches() {
     let suffix = PeerBindings::Explicit(vec!["p@1.0.0".to_string(), "q@1.0.0".to_string()])
         .to_suffix(3)

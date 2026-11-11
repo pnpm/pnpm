@@ -1,5 +1,6 @@
 import * as dp from '@pnpm/deps.path'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import type { DepPath } from '@pnpm/types'
 
 /**
  * What the edges a fast update severed pointed at, each written the way a
@@ -16,16 +17,15 @@ export function recordDroppedEdge (dropped: DroppedEdges, alias: string, referen
 }
 
 /**
- * Whether no surviving package resolves a peer through one of `dropped`.
- *
- * A dropped package that some package reaches as a peer is embedded in that
- * package's key, so removing it would rekey the dependent rather than only
- * prune. A package the same alias still provides at another version is no
- * such peer: the suffix names the version, not the alias. A peer suffix pnpm
- * shortened into a hash names nothing that can be ruled out.
+ * Whether surviving peer contexts are independent of the removed subtrees.
+ * Shared peer dependents can change bindings after deduplication even when
+ * their provider remains reachable.
  */
-export function peerSuffixesAreIndependentOf (lockfile: LockfileObject, dropped: DroppedEdges): boolean {
-  return Object.keys(lockfile.packages ?? {}).every((depPath) => {
+export function peerContextsAreIndependentOf (lockfile: LockfileObject, dropped: DroppedEdges): boolean {
+  return Object.entries(lockfile.packages ?? {}).every(([depPath, snapshot]) => {
+    const { name } = dp.parse(depPath)
+    if (name != null && Object.keys(snapshot.peerDependencies ?? {}).length > 0 &&
+        (dropped.has(droppedPeerId(name, depPath)) || dropped.has(`${name}@`))) return false
     const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
     return peersIndex === -1 || peerSuffixIsIndependentOf(depPath.substring(peersIndex), dropped)
   })
@@ -62,4 +62,47 @@ function peerIdsIn (peers: string): string[] {
     .split('(')
     .flatMap((segment) => segment.split(')'))
     .filter((segment) => segment !== '' && !segment.startsWith('patch_hash='))
+}
+
+export function hasPeerContext (lockfile: LockfileObject, root: DepPath): boolean {
+  for (const [, snapshot] of walkSnapshots(lockfile, [root])) {
+    if (Object.keys(snapshot.peerDependencies ?? {}).length > 0) return true
+  }
+  return false
+}
+
+export function includeDroppedSubtrees (lockfile: LockfileObject, dropped: DroppedEdges): DroppedEdges {
+  const affected = new Set(dropped)
+  const roots = Object.keys(lockfile.packages ?? {}).filter((depPath) => {
+    const { name } = dp.parse(depPath)
+    return name != null && (dropped.has(droppedPeerId(name, depPath)) || dropped.has(`${name}@`))
+  }) as DepPath[]
+  for (const [depPath] of walkSnapshots(lockfile, roots)) {
+    const { name } = dp.parse(depPath)
+    if (name != null) recordDroppedEdge(affected, name, depPath)
+  }
+  return affected
+}
+
+function * walkSnapshots (lockfile: LockfileObject, roots: DepPath[]): Generator<[DepPath, PackageSnapshot]> {
+  const pending = [...roots]
+  const visited = new Set<DepPath>()
+  while (pending.length > 0) {
+    const depPath = pending.pop()!
+    if (visited.has(depPath)) continue
+    visited.add(depPath)
+    const snapshot = lockfile.packages?.[depPath]
+    if (snapshot == null) continue
+    yield [depPath, snapshot]
+    for (const child of childPaths(snapshot)) pending.push(child)
+  }
+}
+
+function * childPaths (snapshot: PackageSnapshot): Generator<DepPath> {
+  for (const dependencies of [snapshot.dependencies, snapshot.optionalDependencies]) {
+    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      const child = dp.refToRelative(reference, alias)
+      if (child != null) yield child
+    }
+  }
 }

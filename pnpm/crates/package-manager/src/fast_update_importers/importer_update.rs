@@ -135,8 +135,7 @@ pub(super) fn apply_importer_edge(
     true
 }
 /// Move a declared dependency onto the version its changed specifier resolves
-/// to. Safe without resolving because the target version is already in the
-/// lockfile, subtree and all.
+/// to, provided its locked subtree has no declared peers.
 pub(super) fn retarget_importer_dependency(
     dependency: &mut ResolvedDependencySpec,
     alias: &PkgName,
@@ -168,7 +167,9 @@ pub(super) fn retarget_importer_dependency(
         return false;
     }
     if moves {
-        if recorded.suffix.peer() != "" {
+        if recorded.suffix.peer() != ""
+            || plan.peer_dependents.contains(&(alias.clone(), wanted.version.clone()))
+        {
             return false;
         }
         let Ok(moved) = wanted.version.to_string().parse() else {
@@ -234,7 +235,9 @@ pub(super) fn importer_from_locked_versions(
             &range,
             plan.resolution_picks_lowest,
         )?;
-        if pick.peer_suffixed {
+        if pick.peer_suffixed
+            || plan.peer_dependents.contains(&(alias.clone(), pick.version.clone()))
+        {
             return None;
         }
         let dependency = ResolvedDependencySpec {
@@ -298,7 +301,9 @@ pub(super) fn add_importer_edge(
     ) else {
         return false;
     };
-    if wanted.peer_suffixed {
+    if wanted.peer_suffixed
+        || plan.peer_dependents.contains(&(alias.clone(), wanted.version.clone()))
+    {
         return false;
     }
     let wanted = wanted.version;

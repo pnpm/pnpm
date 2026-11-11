@@ -4,10 +4,10 @@ import * as dp from '@pnpm/deps.path'
 import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type DepPath, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
-import { type DroppedEdges, recordDroppedEdge } from './droppedEdges.js'
+import { type DroppedEdges, hasPeerContext, recordDroppedEdge } from './droppedEdges.js'
 import type { GraphEdits } from './tryComposeFastUpdates.js'
 import { getPeerNames } from './tryFastUpdateOverrides.js'
 import { isDirectoryDependency } from './tryFastUpdateSettings.js'
@@ -219,9 +219,7 @@ function repointImporterEdge (
   })
   if (wanted == null) return false
   if (wanted === version) return true
-  // Safe without resolving because the target version is already in
-  // the lockfile, subtree and all.
-  if (reference !== version) return false
+  if (reference !== version || hasPeerDependentSubtree(lockfile, edge.alias, wanted)) return false
   edge.importer[recordedIn]![edge.alias] = wanted
   recordDroppedEdge(context.edits.dropped, edge.alias, reference)
   return true
@@ -300,7 +298,7 @@ function writeImporterFromLockedVersions (
       specifier,
       resolutionPicksLowest: opts.resolutionPicksLowest,
     })
-    if (version == null) return false
+    if (version == null || hasPeerDependentSubtree(lockfile, alias, version)) return false
     const group = effectiveDependencyGroup(project.manifest, alias)
     ;(importer[group] ??= {})[alias] = version
     importer.specifiers[alias] = specifier
@@ -326,10 +324,7 @@ function recordImporterSettings (importer: ProjectSnapshot, manifest: ProjectMan
  * Record `alias` as a direct dependency of `importer` at the version the
  * lockfile already holds for it, under the group the manifest declares it in.
  *
- * Safe without resolving for the same reason a moved range is: the version
- * and its subtree are already recorded, and a subtree that resolved a peer
- * from outside itself would have left `alias` peer-suffixed, which
- * {@link lockedVersionResolutionWouldPick} refuses.
+ * Reusing a subtree in a new scope requires it to contain no declared peers.
  *
  * `false` leaves the caller on the full-resolution path.
  */
@@ -354,7 +349,7 @@ function addImporterEdge (
     specifier,
     resolutionPicksLowest: opts.resolutionPicksLowest,
   })
-  if (wanted == null) return false
+  if (wanted == null || hasPeerDependentSubtree(lockfile, alias, wanted)) return false
   // `time` carries a publish date per direct dependency, and only a
   // resolution can look up the one for a package this promotes into that
   // position.
@@ -495,4 +490,8 @@ function getManifestSpecifiers (manifest: ProjectManifest): Record<string, strin
 /** `record[key]`, without reading an inherited `Object.prototype` member. */
 function ownValue<Value> (record: Record<string, Value> | undefined, key: string): Value | undefined {
   return record != null && Object.hasOwn(record, key) ? record[key] : undefined
+}
+
+function hasPeerDependentSubtree (lockfile: LockfileObject, alias: string, version: string): boolean {
+  return hasPeerContext(lockfile, `${alias}@${version}` as DepPath)
 }

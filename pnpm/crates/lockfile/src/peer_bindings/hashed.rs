@@ -216,10 +216,7 @@ fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
 ) -> Option<HashSet<PkgNameVerPeer>> {
-    let total = candidates
-        .iter()
-        .try_fold(1_usize, |acc, targets| acc.checked_mul(targets.len() + 1))?;
-    if total > MAX_COMBINATIONS {
+    if !within_combination_limit(candidates) {
         return None;
     }
     let mut chosen = Vec::with_capacity(candidates.len());
@@ -230,7 +227,35 @@ fn match_candidates(
             return Some(matched);
         }
     }
-    None
+    // Cycle cuts can omit nested groups from only some providers.
+    let mixed = mixed_cycle_cut_candidates(candidates);
+    if !within_combination_limit(&mixed) {
+        return None;
+    }
+    find_matching_combination(&mixed, 0, &mut chosen, false, hash_hex)
+}
+
+fn within_combination_limit(candidates: &[Vec<PkgNameVerPeer>]) -> bool {
+    candidates
+        .iter()
+        .try_fold(1_usize, |count, targets| count.checked_mul(targets.len() + 1))
+        .is_some_and(|count| count <= MAX_COMBINATIONS)
+}
+
+fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<PkgNameVerPeer>> {
+    candidates
+        .iter()
+        .map(|targets| {
+            let mut variants = targets.clone();
+            for target in targets {
+                let bare = target.without_peer();
+                if !variants.contains(&bare) {
+                    variants.push(bare);
+                }
+            }
+            variants
+        })
+        .collect()
 }
 
 fn find_matching_combination<'a>(

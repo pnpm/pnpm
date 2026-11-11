@@ -5,7 +5,9 @@
 //! peer cycles.
 
 mod counterexamples;
+mod fast_update;
 mod fixture;
+mod hashed_cycles;
 mod model;
 
 use std::{collections::BTreeMap, sync::Arc};
