@@ -23,6 +23,22 @@ pub(super) fn admits_locked_version(
     locked_child_admits(alias, key, bare_specifier, registries)
 }
 
+/// Whether the range of a `runtime:` dependency of a package admits the
+/// runtime version locked as `key`. A snapshot records no specifier to compare
+/// a selector against, so a selector without a range admits nothing. `None`
+/// when `key` is not a runtime.
+pub(super) fn runtime_child_admits(key: &PkgNameVerPeer, bare_specifier: &str) -> Option<bool> {
+    if key.suffix.prefix() != Prefix::Runtime {
+        return None;
+    }
+    let locked_version = key.suffix.version_semver()?;
+    let admits = strip_tool_protocol(bare_specifier)
+        .map(|selector| split_release_channel(selector).1)
+        .and_then(|range| range.parse::<Range>().ok())
+        .is_some_and(|range| range.satisfies(locked_version));
+    Some(admits)
+}
+
 /// Whether a `tool:` / `runtime:` dependency keeps its locked version: a range selector
 /// names the locked release channel (`rc/^24` keeps only an `rc/` pin) and
 /// admits `locked_version`, and any other selector is unchanged.

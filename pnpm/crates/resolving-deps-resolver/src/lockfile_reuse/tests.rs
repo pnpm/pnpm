@@ -610,6 +610,27 @@ fn prior_child_key_applies_the_satisfies_gate() {
     );
 }
 
+#[test]
+fn prior_child_key_admits_a_locked_runtime_its_range_still_admits() {
+    let snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({ "dependencies": { "node": "runtime:24.0.0" } }))
+            .expect("parse snapshot entry");
+    let prior_key = |bare_specifier| {
+        super::prior_child_key(
+            &snapshot,
+            "node",
+            bare_specifier,
+            &registry_context(default_registry()),
+        )
+        .map(|key| key.to_string())
+    };
+
+    assert_eq!(prior_key("runtime:^24.0.0").as_deref(), Some("node@runtime:24.0.0"));
+    assert_eq!(prior_key("runtime:rc/^24.0.0").as_deref(), Some("node@runtime:24.0.0"));
+    assert_eq!(prior_key("runtime:^25.0.0"), None);
+    assert_eq!(prior_key("runtime:lts"), None);
+}
+
 /// Covers <https://github.com/pnpm/pnpm/issues/16654>.
 #[test]
 fn prior_child_key_rejects_an_alias_ref_for_a_bare_range() {

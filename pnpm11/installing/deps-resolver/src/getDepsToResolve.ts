@@ -137,9 +137,15 @@ function chooseLockedReference (
   }
   const lockedRef = lookup.lockedDependencies[alias]
   if (lockedRef && satisfiesWanted(lockedRef)) {
-    return { preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
+    return preferLockedReference(lockedRef, alias, lookup)
   }
   return {}
+}
+
+function preferLockedReference (lockedRef: string, alias: string, lookup: LockedReferenceLookup): LockedReferenceChoice {
+  // Runtime resolvers ignore preferred versions and keep only a locked reference.
+  if (lockedRef.startsWith('runtime:')) return { reference: lockedRef }
+  return { preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
 }
 
 /**
@@ -218,10 +224,24 @@ function referenceSatisfiesWantedSpec (
   const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   const bareSpecifier = getRangeOfLockedPackage(wantedDep, { name, registryName }, opts.registries)
   if (bareSpecifier == null) return false
+  const runtimeRange = preferredRef.startsWith('runtime:') ? rangeOfRuntimeSelector(bareSpecifier) : undefined
+  if (runtimeRange != null) return semver.satisfies(version, runtimeRange)
   if (!semver.validRange(bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
   return semver.satisfies(version, bareSpecifier, true)
+}
+
+/**
+ * The version range of a `runtime:` selector, without its release channel
+ * (`runtime:rc/^24` is `^24`). `undefined` for a selector that is not a range,
+ * such as `runtime:lts`.
+ */
+function rangeOfRuntimeSelector (bareSpecifier: string): string | undefined {
+  if (!bareSpecifier.startsWith('runtime:')) return undefined
+  const selector = bareSpecifier.slice('runtime:'.length)
+  const range = selector.slice(selector.indexOf('/') + 1)
+  return semver.validRange(range) == null ? undefined : range
 }
 
 /**
