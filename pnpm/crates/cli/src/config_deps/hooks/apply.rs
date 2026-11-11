@@ -91,12 +91,13 @@ pub(super) fn apply_hook_delta(
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     if delta.get("lockfileDir").is_some() {
+        let project_dir = config.dir.clone();
         let lockfile_dir = config.lockfile_dir
             .clone()
-            .unwrap_or_else(|| config.lockfile_dir_for(&config.dir).to_path_buf());
-        config.pin_lockfile_dir(&lockfile_dir, &config.dir);
+            .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
+        config.pin_lockfile_dir(&lockfile_dir, &project_dir);
         if config.lockfile_dir.is_none() {
-            let default_lockfile_dir = config.lockfile_dir_for(&config.dir).to_path_buf();
+            let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
             config.anchor_lockfile_paths(&default_lockfile_dir);
         }
     }
