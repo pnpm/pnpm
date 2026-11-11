@@ -151,17 +151,17 @@ pub(super) async fn cache_upstream_packument(
             if !upstream.caches() {
                 return Ok(Some(fetched.bytes));
             }
-            let (bytes, needs_backfill) = super::upstream_integrity::refresh_cached_packument(
+            let refreshed = super::upstream_integrity::refresh_cached_packument(
                 state,
                 namespace,
                 name,
                 fetched.bytes,
             )
             .await?;
-            if needs_backfill {
+            if refreshed.needs_backfill {
                 super::upstream_integrity::schedule(state, namespace, upstream, name);
             }
-            Ok(Some(bytes))
+            Ok(Some(refreshed.bytes))
         }
         PackumentFetch::NotFound => {
             // The 404 is authoritative: the package is gone from this origin,

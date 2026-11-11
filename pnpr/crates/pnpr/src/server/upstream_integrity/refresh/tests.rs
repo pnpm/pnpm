@@ -23,15 +23,15 @@ fn refresh_preserves_matching_pins_and_evicts_removed_or_changed_tarballs() {
         .unwrap()
         .remove("2.0.0");
     new["versions"]["3.0.0"]["dist"]["shasum"] = json!("changed");
-    let (bytes, removed, _) = reconcile(
+    let result = reconcile(
         Some(&serde_json::to_vec(&old).unwrap()),
         serde_json::to_vec(&new).unwrap(),
         &name,
     )
     .unwrap();
-    let doc: Value = serde_json::from_slice(&bytes).unwrap();
+    let doc: Value = serde_json::from_slice(&result.packument.bytes).unwrap();
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["integrity"], integrity);
-    let BlobEviction::Files(removed) = removed else {
+    let BlobEviction::Files(removed) = result.eviction else {
         panic!("valid metadata permits selective eviction");
     };
     assert_eq!(removed.len(), 2);
@@ -43,7 +43,7 @@ fn refresh_preserves_matching_pins_and_evicts_removed_or_changed_tarballs() {
 fn malformed_cached_metadata_is_replaced_after_purging_its_blobs() {
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let fresh = br#"{"versions":{}}"#.to_vec();
-    let (bytes, eviction, _) = reconcile(Some(b"malformed"), fresh.clone(), &name).unwrap();
-    assert_eq!(bytes, fresh);
-    assert!(matches!(eviction, BlobEviction::Package));
+    let result = reconcile(Some(b"malformed"), fresh.clone(), &name).unwrap();
+    assert_eq!(result.packument.bytes, fresh);
+    assert!(matches!(result.eviction, BlobEviction::Package));
 }

@@ -113,8 +113,8 @@ impl VersionRequest<'_> {
         cached: Option<&CachedPackument>,
         mut packument: Vec<u8>,
     ) -> Result<Vec<u8>, RegistryError> {
-        if version_tgz(&packument, name, self.version)
-            .is_some_and(|tgz| tgz.integrity_key.is_none())
+        if let Some(tgz) = version_tgz(&packument, name, self.version)
+            && tgz.integrity_key.is_none()
             && let Some(cached) = cached
         {
             if let RegistrySource::Upstream(id) = source {
@@ -124,8 +124,9 @@ impl VersionRequest<'_> {
                     &cached.namespace,
                     upstream,
                     name,
+                    &tgz.filename,
                 )
-                .await;
+                .await?;
             }
             if let Some(pinned) =
                 self.state.inner.storage.read_upstream_document_any(&cached.namespace, name).await?

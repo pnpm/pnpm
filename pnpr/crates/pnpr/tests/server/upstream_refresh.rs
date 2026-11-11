@@ -369,7 +369,12 @@ async fn version_downloads_refresh_metadata_before_serving_cached_bytes() {
 
 #[tokio::test]
 async fn cold_downloads_wait_for_missing_integrity() {
-    for route in ["/npm/foo/-/foo-1.0.0.tgz", "/npm/foo@1.0.0"] {
+    for (route, integrity) in [
+        ("/npm/foo/-/foo-1.0.0.tgz", None),
+        ("/npm/foo@1.0.0", None),
+        ("/npm/foo/-/foo-1.0.0.tgz", Some("")),
+        ("/npm/foo@1.0.0", Some("")),
+    ] {
         let mut upstream = mockito::Server::new_async().await;
         let bytes = b"archive requiring a pin";
         let mut doc = foo_packument(&upstream.url());
@@ -381,6 +386,12 @@ async fn cold_downloads_wait_for_missing_integrity() {
             .as_object_mut()
             .unwrap()
             .remove("shasum");
+        if let Some(integrity) = integrity {
+            doc["versions"]["1.0.0"]["dist"]["integrity"] = json!(integrity);
+        }
+        let (started, mut observed) = tokio::sync::mpsc::unbounded_channel();
+        let (release, ready) = std::sync::mpsc::channel();
+        let ready = std::sync::Mutex::new(ready);
         let metadata = upstream
             .mock("GET", "/foo")
             .with_status(200)
@@ -391,20 +402,31 @@ async fn cold_downloads_wait_for_missing_integrity() {
         let archive = upstream
             .mock("GET", "/foo/-/foo-1.0.0.tgz")
             .with_status(200)
-            .with_body(bytes)
+            .with_chunked_body(move |writer| {
+                started.send(()).unwrap();
+                ready
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(10))
+                    .unwrap();
+                writer.write_all(bytes)
+            })
             .expect(1)
             .create_async()
             .await;
         let tmp = TempDir::new().unwrap();
         let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
-        let response = app
-            .oneshot(
+        let request = tokio::spawn(
+            app.oneshot(
                 Request::get(route)
                     .body(Body::empty())
                     .unwrap(),
-            )
-            .await
-            .unwrap();
+            ),
+        );
+        observed.recv().await.unwrap();
+        assert!(!request.is_finished());
+        release.send(()).unwrap();
+        let response = request.await.unwrap().unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{route}");
         assert_eq!(body_bytes(response.into_body()).await, bytes, "{route}");
         metadata.assert_async().await;

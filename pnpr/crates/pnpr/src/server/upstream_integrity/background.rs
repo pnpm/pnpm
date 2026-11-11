@@ -50,21 +50,11 @@ pub(in crate::server) fn schedule(
     upstream: &Upstream,
     name: &CanonicalPackageName,
 ) {
-    start(state, namespace, upstream, name, true);
-}
-
-fn start(
-    state: &AppState,
-    namespace: &str,
-    upstream: &Upstream,
-    name: &CanonicalPackageName,
-    changed: bool,
-) {
     let key = (namespace.to_string(), name.as_str().to_string());
     {
         let mut jobs = state.inner.proxy.integrity_backfill.jobs.lock().unwrap();
         if let Some(job) = jobs.get_mut(&key) {
-            job.changed |= changed;
+            job.changed = true;
             return;
         }
         jobs.insert(key.clone(), PendingJob { changed: false, completion: watch::channel(()).0 });
@@ -80,9 +70,32 @@ pub(in crate::server) async fn wait_for_pin(
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-) {
-    start(state, namespace, upstream, name, false);
-    wait(state, namespace, name).await;
+    filename: &str,
+) -> Result<(), super::RegistryError> {
+    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name).await? else {
+        return Ok(());
+    };
+    let package = name.clone();
+    let filename = filename.to_string();
+    let eligible = state.inner.packuments.workers.run(move || {
+        let doc = serde_json::from_slice(&bytes)?;
+        Ok::<_, super::RegistryError>(
+            super::missing_integrity_tarballs(&doc, &package, None)
+                .into_iter()
+                .take(super::MAX_PINNED_VERSIONS_PER_PACKUMENT)
+                .any(|candidate| candidate.filename == filename),
+        )
+    })
+    .await??;
+    // Only refresh starts work; failed pins are retried at the next refresh.
+    if eligible
+        && tokio::time::timeout(upstream.timeout(), wait(state, namespace, name))
+            .await
+            .is_err()
+    {
+        tracing::warn!(package = %name.as_str(), "timed out waiting for integrity backfill");
+    }
+    Ok(())
 }
 
 pub(in crate::server) async fn wait(

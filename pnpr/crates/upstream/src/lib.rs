@@ -180,6 +180,12 @@ impl Upstream {
         self
     }
 
+    /// The configured upstream request deadline.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.http.timeout
+    }
+
     /// Per-upstream packument freshness window (`maxage`), or `None` to
     /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]

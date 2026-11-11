@@ -243,6 +243,7 @@ pub(super) fn tgz_integrity_key(dist: &serde_json::Map<String, Value>) -> Option
         return integrity
             .parse::<Integrity>()
             .ok()
+            .filter(|integrity| !integrity.hashes.is_empty())
             .map(|integrity| integrity.to_string());
     }
     let shasum = dist.get("shasum").and_then(Value::as_str)?;

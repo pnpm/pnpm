@@ -173,7 +173,7 @@ pub(super) async fn bind_tarball_to_packument(
     if result.is_ok() {
         return result;
     }
-    super::upstream_integrity::wait_for_pin(state, namespace, upstream, name).await;
+    super::upstream_integrity::wait_for_pin(state, namespace, upstream, name, filename).await?;
     let Some(packument) = state.inner.storage.read_upstream_document_any(namespace, name).await?
     else {
         return result;

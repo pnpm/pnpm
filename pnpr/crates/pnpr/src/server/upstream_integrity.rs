@@ -172,6 +172,10 @@ impl PackumentIntegrityResolver<'_> {
         &self,
         candidates: Vec<MissingIntegrityTarball>,
     ) -> Vec<StagedPin> {
+        let beyond_cap = candidates.len().saturating_sub(MAX_PINNED_VERSIONS_PER_PACKUMENT);
+        if beyond_cap > 0 {
+            tracing::warn!(package = %self.name.as_str(), beyond_cap, "leaving versions past the cap unpinned");
+        }
         stream::iter(candidates.into_iter().take(MAX_PINNED_VERSIONS_PER_PACKUMENT))
             .map(|candidate| async move {
                 match self.stage_pin(&candidate).await {

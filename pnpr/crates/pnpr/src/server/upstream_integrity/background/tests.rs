@@ -168,3 +168,81 @@ async fn a_refresh_during_backfill_retries_the_new_document() {
     old.assert_async().await;
     new.assert_async().await;
 }
+
+#[tokio::test]
+async fn failed_pins_are_not_retried_by_download_requests() {
+    let mut server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let upstream = &state.inner.proxy.upstreams["mirror"];
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let filename = "example-1.0.0.tgz";
+    let archive = server
+        .mock("GET", "/example/-/example-1.0.0.tgz")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    let doc = json!({"versions":{"1.0.0":{"dist":{"tarball":format!("{}/example/-/{filename}", server.url())}}}});
+    state.inner.storage
+        .write_upstream_document("test", &name, &serde_json::to_vec(&doc).unwrap())
+        .await
+        .unwrap();
+    schedule(&state, "test", upstream, &name);
+    wait(&state, "test", &name).await;
+    for _ in 0..2 {
+        super::wait_for_pin(&state, "test", upstream, &name, filename).await.unwrap();
+    }
+    assert!(
+        state.inner.proxy.integrity_backfill.jobs
+            .lock()
+            .unwrap()
+            .is_empty(),
+    );
+    archive.assert_async().await;
+}
+
+#[tokio::test]
+async fn pin_waits_are_bounded_and_skip_unusable_metadata() {
+    let server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let mut config = state.inner.config.routing.upstreams["mirror"].clone();
+    config.requests.timeout = Duration::from_millis(20);
+    let upstream = super::Upstream::new("mirror", &config);
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let filename = "example-1.0.0.tgz";
+    let mut doc = json!({"versions":{"1.0.0":{"dist":{"tarball":format!("{}/example/-/{filename}", server.url())}}}});
+    state.inner.storage
+        .write_upstream_document("test", &name, &serde_json::to_vec(&doc).unwrap())
+        .await
+        .unwrap();
+    state.inner.proxy.integrity_backfill.jobs
+        .lock()
+        .unwrap()
+        .insert(
+            ("test".to_string(), name.as_str().to_string()),
+            super::PendingJob { changed: false, completion: tokio::sync::watch::channel(()).0 },
+        );
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        super::wait_for_pin(&state, "test", &upstream, &name, filename),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    doc["versions"]["1.0.0"]["dist"]["integrity"] = json!("invalid");
+    state.inner.storage
+        .write_upstream_document("test", &name, &serde_json::to_vec(&doc).unwrap())
+        .await
+        .unwrap();
+    config.requests.timeout = Duration::from_secs(10);
+    let upstream = super::Upstream::new("mirror", &config);
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        super::wait_for_pin(&state, "test", &upstream, &name, filename),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+}
