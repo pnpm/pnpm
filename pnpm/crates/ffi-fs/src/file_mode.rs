@@ -42,12 +42,15 @@ impl FileMode {
     /// The bits as the platform's `mode_t`, a `u16` on macOS and a `u32` on
     /// Linux.
     ///
-    /// Infallible because the value is at most [`PERMISSION_BITS`], which
-    /// every platform's `mode_t` represents.
-    pub(crate) const fn narrow(self) -> libc::mode_t {
-        // Narrowing cannot lose a bit: the mask above bounds the value well
-        // inside the `u16` that macOS uses.
-        self.0 as libc::mode_t
+    /// # Panics
+    ///
+    /// If the value holds a bit above [`PERMISSION_BITS`], which every way
+    /// of building this type makes impossible. The conversion is written
+    /// fallibly so that one added later without that masking fails here,
+    /// rather than truncating in silence on a platform whose `mode_t` is a
+    /// `u16`.
+    pub(crate) fn narrow(self) -> libc::mode_t {
+        libc::mode_t::try_from(self.0).expect("a file mode holds no bit above the permission bits")
     }
 }
 
