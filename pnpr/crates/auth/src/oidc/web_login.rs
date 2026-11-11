@@ -120,6 +120,21 @@ impl OidcState {
         Some(login_id)
     }
 
+    /// Returns a claimed web login to pending, so its user code works again.
+    /// For a browser sign-in that could not start.
+    pub fn release_web_login(&self, login_id: &str) {
+        let mut logins = self.browser.web_logins.lock().expect("OIDC web login mutex poisoned");
+        let Some(entry) = logins.entries.get_mut(login_id) else {
+            return;
+        };
+        if !matches!(entry.state, WebLoginState::Claimed) {
+            return;
+        }
+        entry.state = WebLoginState::Pending;
+        let code_hash = entry.code_hash.clone();
+        logins.code_to_login.insert(code_hash, login_id.to_string());
+    }
+
     /// Fulfills a claimed web login with the issued session token.
     pub fn fulfill_web_login(&self, login_id: &str, token: String) -> Result<()> {
         let now = Utc::now().timestamp();

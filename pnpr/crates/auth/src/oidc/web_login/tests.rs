@@ -115,3 +115,17 @@ async fn max_entries_enforced() {
     }
     assert!(state.create_web_login().is_err());
 }
+
+#[tokio::test]
+async fn a_released_claim_makes_the_code_work_again() {
+    let state = oidc();
+    let tokens = state.create_web_login().expect("session created");
+    let login_id = state.claim_web_login(&tokens.user_code).expect("claimed");
+    state.release_web_login(&login_id);
+    let reclaimed = state.claim_web_login(&tokens.user_code).expect("claimed again");
+    assert_eq!(reclaimed, login_id);
+
+    state.fulfill_web_login(&login_id, "token".to_string()).expect("fulfilled");
+    state.release_web_login(&login_id);
+    assert!(state.claim_web_login(&tokens.user_code).is_none());
+}

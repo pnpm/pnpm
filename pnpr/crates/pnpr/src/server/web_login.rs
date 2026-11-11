@@ -148,8 +148,13 @@ pub(crate) async fn post_v1_login_device(
             Some("That code is unknown, expired, or already used. Run the login command again."),
         );
     };
-    redirect_to_provider(&state.inner.identity.oidc, &provider.name, LoginReturn::Cli { login_id })
-        .await
+    let oidc = &state.inner.identity.oidc;
+    let returns_to = LoginReturn::Cli { login_id: login_id.clone() };
+    redirect_to_provider(oidc, &provider.name, returns_to).await
+        .unwrap_or_else(|err| {
+            oidc.release_web_login(&login_id);
+            protect(err.into_response())
+        })
 }
 
 #[derive(Default)]

@@ -54,27 +54,28 @@ async fn login(
         Some("ui") => return bad_request("this pnpr does not serve the web UI"),
         Some(_) => return bad_request("return must be ui"),
     };
-    redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to).await
+    redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to)
+        .await
+        .unwrap_or_else(|err| protect(err.into_response()))
 }
 
 /// Send the browser to `provider` to sign in. Only this browser can finish
-/// the sign-in, because the callback requires the cookie set here.
+/// the sign-in, because the callback requires the cookie set here. `Err`
+/// means the sign-in did not start, so no browser can finish it.
 pub(super) async fn redirect_to_provider(
     oidc: &OidcState,
     provider: &str,
     returns_to: LoginReturn,
-) -> Response {
-    let response = match oidc.start(provider, returns_to).await {
-        Ok(start) => with_cookie(
-            Redirect::to(&start.url).into_response(),
-            &format!(
-                "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
-                start.state, start.browser_secret,
-            ),
+) -> Result<Response, RegistryError> {
+    let start = oidc.start(provider, returns_to).await?;
+    let response = with_cookie(
+        Redirect::to(&start.url).into_response(),
+        &format!(
+            "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
+            start.state, start.browser_secret,
         ),
-        Err(err) => err.into_response(),
-    };
-    protect(response)
+    );
+    Ok(protect(response))
 }
 
 #[derive(Deserialize)]

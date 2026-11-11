@@ -339,3 +339,19 @@ async fn code_guesses_are_rate_limited() {
         .unwrap();
     assert_eq!(throttled.status(), StatusCode::TOO_MANY_REQUESTS);
 }
+
+#[tokio::test]
+async fn a_sign_in_that_cannot_start_leaves_the_code_usable() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+    let (code, _, _) = start_login_at(&app, "/-/v1/login").await;
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(submit_code(&code, "company", Some("same-origin")))
+            .await
+            .unwrap();
+        assert!(response.status().is_server_error(), "{}", response.status());
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
+    }
+}
