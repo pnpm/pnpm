@@ -122,15 +122,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.install.lockfile_policy.ignore_manifest_check,
         );
         #[cfg(not(feature = "runtime-provisioning"))]
-        if !self.install.execution.skip_runtimes
-            && let Some(alias) = selected_runtime_dependency(
-                &scope.closure.lockfile,
-                &scope.closure.importer_ids,
-                scope.groups.included,
-            )
-        {
-            return Err(InstallError::RuntimeProvisioningUnavailable { alias });
-        }
+        ensure_runtime_provisioning(&scope, self.install.execution.skip_runtimes)?;
         let supported_lockfile_major =
             matches!(scope.lockfile().lockfile_version.major, 9 | 12 | 13);
         debug_assert!(supported_lockfile_major);
@@ -163,6 +155,24 @@ impl<'a> MaterializationInputs<'a, '_> {
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }
+}
+
+#[cfg(not(feature = "runtime-provisioning"))]
+fn ensure_runtime_provisioning(
+    scope: &FrozenScope<'_>,
+    skip_runtimes: bool,
+) -> Result<(), InstallError> {
+    if skip_runtimes {
+        return Ok(());
+    }
+    if let Some(alias) = selected_runtime_dependency(
+        &scope.closure.lockfile,
+        &scope.closure.importer_ids,
+        scope.groups.included,
+    ) {
+        return Err(InstallError::RuntimeProvisioningUnavailable { alias });
+    }
+    Ok(())
 }
 
 #[cfg(not(feature = "runtime-provisioning"))]
