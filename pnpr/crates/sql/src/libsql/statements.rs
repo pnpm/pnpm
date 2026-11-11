@@ -8,7 +8,7 @@ use std::cell::{Cell, RefCell};
 use tokio::runtime::Handle;
 
 /// What happened to a primary connection's Hrana stream during an operation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StreamState {
     Active,
     /// The current uncommitted transaction or unsent batch staged a write.
@@ -39,6 +39,21 @@ impl StreamState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StepKind {
+    Read,
+    Write,
+    Begin,
+    Commit,
+    Rollback,
+}
+
+pub(super) struct HeldStatement {
+    sql: String,
+    params: Vec<libsql::Value>,
+    step: StepKind,
+}
+
 /// One libSQL connection, run from a blocking thread.
 ///
 /// A connection to the primary sends its statements in batches, one HTTP
@@ -59,7 +74,7 @@ pub(super) struct Statements<'conn> {
     /// Whether the connection runs a read rather than a write.
     pub(super) read: bool,
     /// The statements waiting for the next batch to the primary.
-    pub(super) held: RefCell<Vec<(String, Vec<libsql::Value>)>>,
+    pub(super) held: RefCell<Vec<HeldStatement>>,
     pub(super) state: Cell<StreamState>,
 }
 
@@ -89,62 +104,38 @@ impl Statements<'_> {
         result
     }
 
-    fn note_write(&self) {
-        if !self.local && !self.read {
-            let next = match self.state.get() {
-                StreamState::Active => StreamState::StagedWrite,
-                StreamState::StagedWrite
-                | StreamState::Committed
-                | StreamState::CommitLater
-                | StreamState::LostBeforeCommit
-                | StreamState::LostAfterCommit => self.state.get(),
-            };
-            self.state.set(next);
+    fn advance_after_steps(&self, mut in_tx: bool, steps: &[StepKind]) {
+        if self.local || self.read {
+            return;
         }
-    }
-
-    fn note_rollback(&self) {
-        let next = match self.state.get() {
-            StreamState::StagedWrite => StreamState::Active,
-            StreamState::Active
-            | StreamState::Committed
-            | StreamState::CommitLater
-            | StreamState::LostBeforeCommit
-            | StreamState::LostAfterCommit => self.state.get(),
-        };
-        self.state.set(next);
-    }
-
-    fn note_completed_batch(&self) {
-        if !self.local && !self.read && self.conn.is_autocommit() {
-            let next = match self.state.get() {
-                StreamState::StagedWrite | StreamState::Committed => StreamState::Committed,
-                StreamState::Active
-                | StreamState::CommitLater
-                | StreamState::LostBeforeCommit
-                | StreamState::LostAfterCommit => self.state.get(),
-            };
-            self.state.set(next);
+        let mut state = self.state.get();
+        for &step in steps {
+            state = step_transition(state, &mut in_tx, step);
         }
+        self.state.set(state);
     }
 
-    fn hold(&self, sql: &str, params: &[Param<'_>]) {
+    fn hold(&self, sql: &str, params: &[Param<'_>], step: StepKind) {
         self.held
             .borrow_mut()
-            .push((sql.to_string(), to_params(params)));
+            .push(HeldStatement { sql: sql.to_string(), params: to_params(params), step });
     }
 
     /// Send every held statement as one batch, and return the rows of each.
     /// An answer for another number of statements than were sent fails.
     pub(super) fn send(&self) -> Result<Vec<Vec<Row>>> {
-        let statements = std::mem::take(&mut *self.held.borrow_mut());
-        if statements.is_empty() {
+        let held = std::mem::take(&mut *self.held.borrow_mut());
+        if held.is_empty() {
             return Ok(Vec::new());
         }
-        let sent = statements.len();
+        let in_tx = !self.conn.is_autocommit();
+        let (steps, statements): (Vec<_>, Vec<_>) = held
+            .into_iter()
+            .map(|item| (item.step, (item.sql, item.params)))
+            .unzip();
         let results = self.wait(async {
             let mut batch = self.conn.execute_batch_with_params(statements).await?;
-            self.note_completed_batch();
+            self.advance_after_steps(in_tx, &steps);
             let mut results = Vec::new();
             while let Some(step) = batch.next_stmt_row() {
                 results.push(match step {
@@ -154,7 +145,7 @@ impl Statements<'_> {
             }
             Ok(results)
         })?;
-        if results.len() != sent {
+        if results.len() != steps.len() {
             return Err(pnpr_error::RegistryError::Internal {
                 reason: "the libSQL primary did not answer every statement of a batch".to_string(),
             });
@@ -178,8 +169,7 @@ async fn collect_rows(mut rows: libsql::Rows) -> Result<Vec<Row>> {
 impl Connection for Statements<'_> {
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
         if !self.local {
-            self.note_write();
-            self.hold(sql, params);
+            self.hold(sql, params, classify_sql(sql));
             return Ok(());
         }
         self.wait(async { Ok(self.conn.execute(sql, to_params(params)).await?) })?;
@@ -205,10 +195,7 @@ impl Connection for Statements<'_> {
                 .collect();
         }
         for query in queries {
-            if !is_read_only_sql(query.sql) {
-                self.note_write();
-            }
-            self.hold(query.sql, &query.params);
+            self.hold(query.sql, &query.params, classify_sql(query.sql));
         }
         // `send` answers every statement it sent, the held ones before these.
         let mut results = self.send()?;
@@ -220,20 +207,13 @@ impl Connection for Statements<'_> {
     /// script again, and its rendering can differ from them.
     fn execute_batch(&self, sql: &str) -> Result<()> {
         self.send()?;
-        let is_rollback = sql
-            .trim()
-            .trim_end_matches(';')
-            .trim()
-            .eq_ignore_ascii_case("ROLLBACK");
-        if batch_stages_write(sql) {
-            self.note_write();
-        }
+        let in_tx_before = !self.conn.is_autocommit();
         self.wait(async {
             self.conn.execute_batch(sql).await?;
-            if is_rollback {
-                self.note_rollback();
-            } else {
-                self.note_completed_batch();
+            if !self.local && !self.read {
+                let in_tx_after = !self.conn.is_autocommit();
+                let next = script_transition(self.state.get(), in_tx_before, in_tx_after, sql);
+                self.state.set(next);
             }
             Ok(())
         })
@@ -243,7 +223,7 @@ impl Connection for Statements<'_> {
         if self.local {
             return self.execute("BEGIN IMMEDIATE", &[]);
         }
-        self.hold("BEGIN IMMEDIATE", &[]);
+        self.hold("BEGIN IMMEDIATE", &[], StepKind::Begin);
         Ok(())
     }
 
@@ -253,7 +233,7 @@ impl Connection for Statements<'_> {
         if self.local {
             return self.execute_batch("BEGIN READONLY");
         }
-        self.hold("BEGIN", &[]);
+        self.hold("BEGIN", &[], StepKind::Begin);
         Ok(())
     }
 
@@ -269,14 +249,14 @@ impl Connection for Statements<'_> {
                 self.state.set(StreamState::CommitLater);
                 return Ok(());
             }
-            if let [(begin, _)] = held.as_slice()
-                && begin.starts_with("BEGIN")
+            if let [only] = held.as_slice()
+                && is_begin_step(only.step)
             {
                 held.clear();
                 return Ok(());
             }
         }
-        self.hold("COMMIT", &[]);
+        self.hold("COMMIT", &[], StepKind::Commit);
         self.send().map(drop)
     }
 
@@ -290,9 +270,7 @@ impl Connection for Statements<'_> {
             return self.execute("ROLLBACK", &[]);
         }
         let held = std::mem::take(&mut *self.held.borrow_mut());
-        let unsent = held
-            .first()
-            .is_some_and(|(sql, _)| sql.starts_with("BEGIN"));
+        let unsent = held.first().is_some_and(|first| is_begin_step(first.step));
         let stream_lost = match self.state.get() {
             StreamState::LostBeforeCommit | StreamState::LostAfterCommit => true,
             StreamState::Active
@@ -302,7 +280,7 @@ impl Connection for Statements<'_> {
         };
         if unsent || stream_lost || self.conn.is_autocommit() {
             if !stream_lost {
-                self.note_rollback();
+                self.state.set(rollback_state(self.state.get()));
             }
             return Ok(());
         }
@@ -310,25 +288,136 @@ impl Connection for Statements<'_> {
     }
 }
 
-/// Whether `sql` is a single `SELECT` query, which cannot mutate SQLite state.
-fn is_read_only_sql(sql: &str) -> bool {
-    let trimmed = sql.trim_start();
-    !trimmed.contains(';')
-        && trimmed
-            .get(..6)
-            .is_some_and(|keyword| keyword.eq_ignore_ascii_case("SELECT"))
-        && trimmed
-            .as_bytes()
-            .get(6)
-            .is_some_and(|&byte| !byte.is_ascii_alphanumeric() && byte != b'_')
+fn is_begin_step(step: StepKind) -> bool {
+    match step {
+        StepKind::Begin => true,
+        StepKind::Read | StepKind::Write | StepKind::Commit | StepKind::Rollback => false,
+    }
 }
 
-fn batch_stages_write(sql: &str) -> bool {
-    let trimmed = sql.trim().trim_end_matches(';').trim();
-    !matches!(
-        trimmed.to_ascii_uppercase().as_str(),
-        "" | "BEGIN" | "BEGIN IMMEDIATE" | "COMMIT" | "ROLLBACK",
-    )
+fn stage_write(state: StreamState) -> StreamState {
+    match state {
+        StreamState::Active => StreamState::StagedWrite,
+        StreamState::StagedWrite
+        | StreamState::Committed
+        | StreamState::CommitLater
+        | StreamState::LostBeforeCommit
+        | StreamState::LostAfterCommit => state,
+    }
+}
+
+fn commit_state(state: StreamState) -> StreamState {
+    match state {
+        StreamState::StagedWrite | StreamState::Committed => StreamState::Committed,
+        StreamState::Active
+        | StreamState::CommitLater
+        | StreamState::LostBeforeCommit
+        | StreamState::LostAfterCommit => state,
+    }
+}
+
+fn rollback_state(state: StreamState) -> StreamState {
+    match state {
+        StreamState::StagedWrite => StreamState::Active,
+        StreamState::Active
+        | StreamState::Committed
+        | StreamState::CommitLater
+        | StreamState::LostBeforeCommit
+        | StreamState::LostAfterCommit => state,
+    }
+}
+
+pub(super) fn step_transition(state: StreamState, in_tx: &mut bool, step: StepKind) -> StreamState {
+    match step {
+        StepKind::Read => state,
+        StepKind::Begin => {
+            *in_tx = true;
+            state
+        }
+        StepKind::Write if *in_tx => stage_write(state),
+        StepKind::Write => StreamState::Committed,
+        StepKind::Commit => {
+            *in_tx = false;
+            commit_state(state)
+        }
+        StepKind::Rollback => {
+            *in_tx = false;
+            rollback_state(state)
+        }
+    }
+}
+
+pub(super) fn script_transition(
+    state: StreamState,
+    mut in_tx_before: bool,
+    in_tx_after: bool,
+    sql: &str,
+) -> StreamState {
+    let body = skip_sql_trivia(sql)
+        .trim_end()
+        .trim_end_matches(';')
+        .trim_end();
+    if body.is_empty() {
+        return state;
+    }
+    if !body.contains(';') {
+        return step_transition(state, &mut in_tx_before, classify_sql(body));
+    }
+    let begins = leading_word(body).eq_ignore_ascii_case("BEGIN");
+    if !in_tx_after || (!in_tx_before && !begins) {
+        return StreamState::Committed;
+    }
+    stage_write(state)
+}
+
+pub(super) fn classify_sql(sql: &str) -> StepKind {
+    let trimmed = skip_sql_trivia(sql);
+    let keyword = leading_word(trimmed);
+    if keyword.eq_ignore_ascii_case("SELECT") {
+        return StepKind::Read;
+    }
+    if keyword.eq_ignore_ascii_case("BEGIN") {
+        return StepKind::Begin;
+    }
+    if keyword.eq_ignore_ascii_case("COMMIT") || keyword.eq_ignore_ascii_case("END") {
+        return StepKind::Commit;
+    }
+    if keyword.eq_ignore_ascii_case("ROLLBACK") {
+        return classify_rollback(&trimmed[keyword.len()..]);
+    }
+    StepKind::Write
+}
+
+fn classify_rollback(rest: &str) -> StepKind {
+    let rest = skip_sql_trivia(rest);
+    let next = leading_word(rest);
+    let after = if next.eq_ignore_ascii_case("TRANSACTION") {
+        leading_word(skip_sql_trivia(&rest[next.len()..]))
+    } else {
+        next
+    };
+    if after.is_empty() { StepKind::Rollback } else { StepKind::Read }
+}
+
+fn leading_word(sql: &str) -> &str {
+    let end = sql
+        .bytes()
+        .position(|byte| !byte.is_ascii_alphanumeric() && byte != b'_')
+        .unwrap_or(sql.len());
+    &sql[..end]
+}
+
+fn skip_sql_trivia(mut sql: &str) -> &str {
+    loop {
+        sql = sql.trim_start();
+        if let Some(rest) = sql.strip_prefix("--") {
+            sql = rest.split_once('\n').map_or("", |(_, tail)| tail);
+        } else if let Some(rest) = sql.strip_prefix("/*") {
+            sql = rest.split_once("*/").map_or("", |(_, tail)| tail);
+        } else {
+            return sql;
+        }
+    }
 }
 
 fn to_params(params: &[Param<'_>]) -> Vec<libsql::Value> {

@@ -710,6 +710,23 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     assert_eq!(server.primary.stale_stream_rejections(), 2);
     assert_eq!(instance.catalog_generation("").await.unwrap(), 21);
 
+    // An autocommit write held until `WriteTransaction::begin` shares its batch
+    // with `BEGIN IMMEDIATE` and still commits before the transaction starts.
+    let batched_calls = Arc::new(AtomicUsize::new(0));
+    let batched_run = Arc::clone(&batched_calls);
+    let adapter_batched = Arc::clone(&adapter);
+    let primary_batched = Arc::clone(&server.primary);
+    let batched_err = tokio::task::spawn_blocking(move || {
+        batched_autocommit_write_then_expired_tx(&adapter_batched, &primary_batched, &batched_run)
+    })
+    .await
+    .unwrap()
+    .unwrap_err();
+    assert!(pnpr_libsql::is_stale_stream(&batched_err), "{batched_err:?}");
+    assert_eq!(batched_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(server.primary.stale_stream_rejections(), 3);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 31);
+
     // A read-only `SELECT` in autocommit mode makes no durable change, so a
     // stale stream in the transaction after it still replays the callback.
     let read_then_write_calls = Arc::new(AtomicUsize::new(0));
@@ -722,8 +739,29 @@ async fn write_does_not_replay_callback_after_an_earlier_batch_committed() {
     .unwrap()
     .unwrap();
     assert_eq!(read_then_write_calls.load(Ordering::SeqCst), 2);
-    assert_eq!(server.primary.stale_stream_rejections(), 3);
-    assert_eq!(instance.catalog_generation("").await.unwrap(), 22);
+    assert_eq!(server.primary.stale_stream_rejections(), 4);
+    assert_eq!(instance.catalog_generation("").await.unwrap(), 32);
+}
+
+fn batched_autocommit_write_then_expired_tx(
+    adapter: &pnpr_sql::libsql::LibsqlAdapter,
+    primary: &pnpr_libsql::testing::Primary,
+    calls: &AtomicUsize,
+) -> pnpr_error::Result<()> {
+    use pnpr_sql::adapter::{Adapter, WriteTransaction};
+
+    adapter.write(&mut |connection| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        connection.execute(
+            "UPDATE catalogs SET generation = generation + 10 WHERE catalog = ''",
+            &[],
+        )?;
+        let tx = WriteTransaction::begin(connection)?;
+        tx.query("SELECT generation FROM catalogs WHERE catalog = ''", &[])?;
+        primary.expire_next_stream();
+        tx.execute("UPDATE catalogs SET generation = generation + 1 WHERE catalog = ''", &[])?;
+        tx.commit()
+    })
 }
 
 fn read_then_write_with_first_attempt_expired(
