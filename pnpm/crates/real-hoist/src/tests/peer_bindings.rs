@@ -122,3 +122,28 @@ fn a_nested_peer_provider_moves_with_its_package_into_a_free_root_slot() {
         assert!(child_of(&client, "schema").references.borrow().contains("schema@2.0.0"));
     }
 }
+
+#[test]
+fn a_peer_provider_hoisted_above_a_nested_root_lets_copies_share_its_slot() {
+    let schema2 = tree_node("schema", "schema@2.0.0", &[], vec![]);
+    let client2 =
+        tree_node("client", "client@2.0.0(schema@2.0.0)", &["schema"], vec![Rc::clone(&schema2)]);
+    let wrapper_a2 = tree_node("wrapper-a", "wrapper-a@2.0.0", &[], vec![Rc::clone(&client2)]);
+    let wrapper_b2 = tree_node("wrapper-b", "wrapper-b@2.0.0", &[], vec![client2]);
+    let host = tree_node("host", "host@1.0.0", &[], vec![wrapper_a2, wrapper_b2]);
+    let root = tree_root(vec![
+        tree_node("client", "client@1.0.0", &[], vec![]),
+        schema2,
+        tree_node("wrapper-a", "wrapper-a@1.0.0", &[], vec![]),
+        tree_node("wrapper-b", "wrapper-b@1.0.0", &[], vec![]),
+        host,
+    ]);
+
+    let result = nm_hoist(&root, &HoistOpts::default());
+    dbg!(&result);
+    let host = child_of(&result, "host");
+    for wrapper in ["wrapper-a", "wrapper-b"] {
+        assert!(child_of(&host, wrapper).dependencies.borrow().is_empty());
+    }
+    assert!(child_of(&host, "client").references.borrow().contains("client@2.0.0(schema@2.0.0)"));
+}

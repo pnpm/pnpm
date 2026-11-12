@@ -120,7 +120,7 @@ fn refuse_shadowed(
     ctx: &HoistCtx<'_>,
     root_index: &HashMap<String, RcByPtr<HoisterResult>>,
 ) -> AbsorbDecision {
-    let &HoistCtx { root, used, .. } = ctx;
+    let &HoistCtx { used, .. } = ctx;
     let mut decision = decision;
 
     // Used-dependency refusal: the root's subtree already
@@ -156,7 +156,7 @@ fn refuse_shadowed(
     // the same grounds: the root copy may share the locator
     // and still resolve its peer from a different provider.
     if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
-        && would_shadow_peer(child, path, root, root_index)
+        && would_shadow_peer(child, path, ctx, root_index)
     {
         decision = AbsorbDecision::PeerShadow;
     }
@@ -224,12 +224,14 @@ pub(super) fn apply_decision(
 /// Refuse a hoist or dedup that changes a resolved peer provider, or fills
 /// a name the root receives as a peer. Snapshot edges take precedence
 /// over ancestor lookup, including edges already hoisted out of a node.
+/// A name the root lacks resolves through `ctx.used`, above the root.
 fn would_shadow_peer(
     candidate: &HoisterResult,
     ancestor_path: &[Rc<HoisterResult>],
-    root: &Rc<HoisterResult>,
+    ctx: &HoistCtx<'_>,
     root_index: &HashMap<String, RcByPtr<HoisterResult>>,
 ) -> bool {
+    let &HoistCtx { root, used, .. } = ctx;
     // Root-shadow guard. Pacquet's wrapper builds the `.` root with
     // empty `peer_names` (it's a `Workspace`-kind node), so in
     // practice this check never fires today — kept for parity with
@@ -256,7 +258,8 @@ fn would_shadow_peer(
                 None if parent_provider.is_none() => nested_peer_provider(candidate, peer_name),
                 None => None,
             }
-            .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)));
+            .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)))
+            .or_else(|| used.get(peer_name).map(Rc::clone));
             !target_provider.is_some_and(|target| same_locator(&target, &provider))
         })
 }
