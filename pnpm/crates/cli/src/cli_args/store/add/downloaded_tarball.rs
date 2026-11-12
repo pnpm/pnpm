@@ -180,7 +180,11 @@ impl AddOne<'_> {
 
     async fn lockfile_entries(&self) -> miette::Result<&LockfileEntries> {
         self.lockfile_entries.get_or_try_init(|| async {
-            LockfileEntries::load(self.config, &self.resolve_options.project.project_dir)
+            let config = self.config;
+            let project_dir = self.resolve_options.project.project_dir.clone();
+            tokio::task::spawn_blocking(move || LockfileEntries::load(config, &project_dir))
+                .await
+                .into_diagnostic()?
         })
         .await
     }
