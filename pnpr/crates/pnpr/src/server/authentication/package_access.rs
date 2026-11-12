@@ -87,11 +87,23 @@ pub(in crate::server) fn authorize_with_ownership(
     action: Action,
 ) -> Result<(), RegistryError> {
     let rules = source_rules(state, source).snapshot();
-    let is_owner = owns(state, identity, ownership, action);
-    if permission_list(&rules, package, action).allows_with_context(identity, is_owner) {
+    if allows_with_ownership(state, identity, &rules, (package, ownership), action) {
         return Ok(());
     }
     Err(denial(identity, package, action))
+}
+
+/// Whether `rules` allow `identity` to perform `action` on `package` given
+/// `ownership`.
+pub(in crate::server) fn allows_with_ownership(
+    state: &AppState,
+    identity: &Identity,
+    rules: &RuleTable,
+    (package, ownership): (&str, &Ownership<'_>),
+    action: Action,
+) -> bool {
+    let is_owner = owns(state, identity, ownership, action);
+    permission_list(rules, package, action).allows_with_context(identity, is_owner)
 }
 
 /// [`authorize_with_ownership`] against the maintainers an npm `packument`
@@ -179,20 +191,19 @@ async fn read_ownership(
     storage.read_package_owners(&canonical).await
 }
 
-/// Whether deciding `action` for `identity` on `package` in `source` requires
+/// Whether deciding `action` for `identity` on `package` under `rules` requires
 /// reading `package`'s recorded owners.
 pub(in crate::server) fn needs_package_owners(
     state: &AppState,
     identity: &Identity,
-    source: &RegistrySource,
+    rules: &RuleTable,
     package: &str,
     action: Action,
 ) -> bool {
     if !identity.is_authenticated() || is_admin(state, identity) {
         return false;
     }
-    let rules = source_rules(state, source).snapshot();
-    let list = permission_list(&rules, package, action);
+    let list = permission_list(rules, package, action);
     !list.allows(identity) && list.references_owners()
 }
 
