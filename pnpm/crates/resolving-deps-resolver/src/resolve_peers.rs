@@ -408,7 +408,7 @@ fn finish_resolved_workspace_peers(
         importers,
     );
     if settings.dedupe_injected_deps {
-        finished.dedupe_injected_deps(importers, lockfile_dir);
+        finished.dedupe_injected_deps(importers);
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,

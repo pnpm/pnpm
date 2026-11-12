@@ -1,3 +1,4 @@
+mod relocate;
 mod snapshots;
 
 use snapshots::{DeploySnapshots, convert_deploy_snapshots};
@@ -26,6 +27,13 @@ pub(super) struct ConvertCtx<'a> {
     pub(super) deploy_dir: &'a Path,
     pub(super) lockfile_dir: &'a Path,
     pub(super) deployed_project_root: &'a Path,
+    pub(super) references: ReferenceLocation,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ReferenceLocation {
+    Workspace,
+    Deploy,
 }
 
 pub(super) fn manifest_dependency_names(
@@ -50,16 +58,18 @@ pub(super) fn create_deploy_files(
     config: &Config,
     dependency_groups: &[DependencyGroup],
 ) -> miette::Result<DeployFiles> {
-    let input_snapshot = lockfile.importers
-        .get(project_id)
-        .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
     let deployed_project_root = lexical_normalize(&lockfile_dir.join(project_id));
-    let ctx = ConvertCtx {
+    let mut ctx = ConvertCtx {
         projects_by_path: &selected.projects_by_path,
         deploy_dir,
         lockfile_dir,
         deployed_project_root: &deployed_project_root,
+        references: ReferenceLocation::Workspace,
     };
+    let lockfile = &*relocate::prepare_source_lockfile(lockfile, &mut ctx)?;
+    let input_snapshot = lockfile.importers
+        .get(project_id)
+        .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
     let (declared_dependencies, peer_only_dependencies) =
         dependency_name_sets(&selected.project.manifest);
     let target_snapshot = deploy_snapshot(&DeployedDependencies {

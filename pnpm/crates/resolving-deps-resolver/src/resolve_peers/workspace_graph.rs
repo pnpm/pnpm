@@ -46,11 +46,7 @@ impl FinishedWorkspaceGraph {
         );
     }
 
-    pub(super) fn dedupe_injected_deps(
-        &mut self,
-        importers: &[&ImporterPeerInput],
-        lockfile_dir: &Path,
-    ) {
+    pub(super) fn dedupe_injected_deps(&mut self, importers: &[&ImporterPeerInput]) {
         // Collected again: the peer-dependent dedupe renamed variants.
         let unbound_optional_peers = self.unbound_optional_peers(importers);
         dedupe_injected_deps(
@@ -60,7 +56,6 @@ impl FinishedWorkspaceGraph {
                 .iter()
                 .map(|importer| (importer.id.clone(), importer.root_dir.clone()))
                 .collect(),
-            lockfile_dir,
             &unbound_optional_peers,
         );
     }

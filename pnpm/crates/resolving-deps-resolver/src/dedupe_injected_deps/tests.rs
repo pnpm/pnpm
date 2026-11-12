@@ -62,13 +62,7 @@ fn rewrites_childless_injected_dep_to_link() {
     roots.insert("project-1".to_string(), p1_root);
     roots.insert("project-2".to_string(), p2_root);
 
-    dedupe_injected_deps(
-        &mut graph,
-        &mut direct,
-        &roots,
-        &lockfile_dir,
-        &UnboundOptionalPeers::default(),
-    );
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
     let after = direct
         .get("project-2")
@@ -104,13 +98,7 @@ fn rewrites_scoped_injected_dep_to_link() {
     roots.insert("fixtures/host".to_string(), host_root);
     roots.insert("fixtures/host/pkg".to_string(), pkg_root);
 
-    dedupe_injected_deps(
-        &mut graph,
-        &mut direct,
-        &roots,
-        &lockfile_dir,
-        &UnboundOptionalPeers::default(),
-    );
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
     let after = direct
         .get("fixtures/host")
@@ -147,13 +135,7 @@ fn leaves_injected_dep_when_children_differ() {
     roots.insert("project-1".to_string(), p1_root);
     roots.insert("project-2".to_string(), p2_root);
 
-    dedupe_injected_deps(
-        &mut graph,
-        &mut direct,
-        &roots,
-        &lockfile_dir,
-        &UnboundOptionalPeers::default(),
-    );
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
     let after = direct
         .get("project-2")
@@ -190,13 +172,7 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
     roots.insert("project-1".to_string(), p1_root);
     roots.insert("project-2".to_string(), p2_root);
 
-    dedupe_injected_deps(
-        &mut graph,
-        &mut direct,
-        &roots,
-        &lockfile_dir,
-        &UnboundOptionalPeers::default(),
-    );
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
     let after = direct
         .get("project-2")
@@ -252,13 +228,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     roots.insert("project-1".to_string(), p1_root);
     roots.insert("project-2".to_string(), p2_root);
 
-    dedupe_injected_deps(
-        &mut graph,
-        &mut direct,
-        &roots,
-        &lockfile_dir,
-        &UnboundOptionalPeers::default(),
-    );
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
     let after = direct
         .get("project-2")
@@ -280,15 +250,9 @@ fn ignores_non_workspace_file_deps() {
     direct.insert(".".to_string(), BTreeMap::from([("some-tarball".to_string(), tarball)]));
 
     let mut roots = BTreeMap::new();
-    roots.insert(".".to_string(), lockfile_dir.clone());
+    roots.insert(".".to_string(), lockfile_dir);
 
-    dedupe_injected_deps(
-        &mut graph,
-        &mut direct,
-        &roots,
-        &lockfile_dir,
-        &UnboundOptionalPeers::default(),
-    );
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
     let after = direct
         .get(".")

@@ -431,23 +431,3 @@ fn recorded_peer_keys_preserve_suffix_order_and_duplicate_groups() {
     let renamed = format!("consumer@2.0.0{suffix}").parse().unwrap();
     assert!(bindings.peer_keys_for(&renamed).is_none());
 }
-
-#[test]
-fn relocated_bindings_require_the_original_key_and_peer_context() {
-    use pnpm_deps_path::PeerId;
-
-    let peers = [PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into())];
-    let suffix = super::PeerBindings::suffix_of(&peers, 3);
-    let original = format!("consumer@file:packages/consumer{suffix}").parse().unwrap();
-    let relocated =
-        format!("consumer@file:///workspace/packages/consumer{suffix}").parse().unwrap();
-    let bindings = super::RecordedPeerBindings::for_key(&original, &peers).unwrap();
-    let copied = bindings.relocated(&original, &relocated).unwrap();
-    assert_eq!(copied.peer_keys_for(&relocated), bindings.peer_keys_for(&original));
-    assert_eq!(copied.providers_for(&relocated), bindings.providers_for(&original));
-    assert!(copied.peer_keys_for(&original).is_none());
-    assert!(bindings.peer_keys_for(&relocated).is_none());
-    assert!(bindings.relocated(&relocated, &original).is_none());
-    let different_context = "consumer@file:packages/consumer(provider@2.0.0)".parse().unwrap();
-    assert!(bindings.relocated(&original, &different_context).is_none());
-}

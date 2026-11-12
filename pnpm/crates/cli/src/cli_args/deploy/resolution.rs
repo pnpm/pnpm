@@ -3,7 +3,7 @@ use super::{
     LockfileResolution, PackageKey, PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer,
     ProjectInfo, ProjectPathKey, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
     SnapshotDepRef, SnapshotEntry, TarballResolution, VersionPart, lexical_normalize,
-    relative_path, same_path,
+    lockfile::ReferenceLocation, relative_path, same_path,
 };
 
 pub(super) struct ResolveBases<'a> {
@@ -140,12 +140,15 @@ fn convert_snapshot_dep_map(
     Ok((!output.is_empty()).then_some(output))
 }
 
-fn convert_importer_dep_version(
+pub(super) fn convert_importer_dep_version(
     alias: &PkgName,
     version: &ImporterDepVersion,
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<ImporterDepVersion> {
+    if ctx.references == ReferenceLocation::Deploy {
+        return Ok(version.clone());
+    }
     if let Some(local) = resolve_importer_dep_version(version, bases) {
         return local_to_importer_dep_version(alias, &local, ctx);
     }
@@ -158,7 +161,9 @@ pub(super) fn convert_importer_version_to_snapshot_ref(
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<SnapshotDepRef> {
-    if let Some(local) = resolve_importer_dep_version(version, bases) {
+    if ctx.references == ReferenceLocation::Workspace
+        && let Some(local) = resolve_importer_dep_version(version, bases)
+    {
         return local_to_snapshot_dep_ref(alias, &local, ctx);
     }
     Ok(match version {
@@ -172,12 +177,15 @@ pub(super) fn convert_importer_version_to_snapshot_ref(
     })
 }
 
-fn convert_snapshot_dep_ref(
+pub(super) fn convert_snapshot_dep_ref(
     alias: &PkgName,
     dep_ref: &SnapshotDepRef,
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<SnapshotDepRef> {
+    if ctx.references == ReferenceLocation::Deploy {
+        return Ok(dep_ref.clone());
+    }
     if let Some(local) = resolve_snapshot_dep_ref(alias, dep_ref, bases) {
         return local_to_snapshot_dep_ref(alias, &local, ctx);
     }

@@ -108,6 +108,7 @@ impl Workspace {
             deploy_dir: &self.deploy_dir,
             lockfile_dir: &self.root,
             deployed_project_root: &deployed_project_root,
+            references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
         };
         approve_workspace_project_builds(&mut allow_builds, lockfile, &ctx)
             .expect("approve workspace project builds");
