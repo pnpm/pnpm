@@ -538,16 +538,5 @@ fn config_file_in(dir: Option<PathBuf>) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
-/// `tokens.db` next to the htpasswd file. The sibling layout lets an
-/// operator lock the auth directory down with a single chmod and
-/// stops the tokens file from leaking into a `storage` directory
-/// that may be served over HTTP through an unrelated misconfig.
-fn default_tokens_path_sibling_of(htpasswd: &Path) -> PathBuf {
-    htpasswd
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("tokens.db")
-}
-
 #[cfg(test)]
 mod tests;

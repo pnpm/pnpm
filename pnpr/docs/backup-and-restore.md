@@ -12,10 +12,7 @@ A pnpr instance stores two categories of data:
 1. **Authoritative data (required)**:
    - **Hosted storage (`storage`)**: Contains package archives stored by content digest, staged publish bodies (`.staged/`), and transparency log tiles, entry bundles, and checkpoints (`.transparency-log/`). Back this up regularly.
    - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): Holds package metadata, former maintainers, unpublished versions, and transparency log entries. It also stores team rosters, rule overrides, SCIM users, and staged-publish approval records in SQLite, libSQL, PostgreSQL, or MySQL.
-   - **Authentication and user state**:
-     - `users.json` file (when configured).
-     - SQLite token database (`tokens.db`, when configured).
-     - If using a networked auth backend (PostgreSQL, MySQL, or Turso/libSQL), back up the database according to provider documentation.
+   - **Accounts and tokens** live in the metadata database too, so its backup covers them. The database holds password and token hashes, so keep its backups readable only by the operator.
 2. **Disposable cache (`cache` / `.pnpr-cache`) (optional)**:
    - Upstream proxy packument and tarball cache.
    - Resolver query cache.
@@ -44,14 +41,7 @@ Why this order keeps both archives and the transparency log consistent:
 To back up while pnpr is stopped, stop pnpr and any scheduled `pnpr gc` jobs first so the archive includes a consistent SQLite database and its `-wal` file:
 
 ```sh
-(
-  cd /var/lib/pnpr || exit 1
-  set -- storage
-  for f in users.json tokens.db tokens.db-wal tokens.db-shm; do
-    [ -e "$f" ] && set -- "$@" "$f"
-  done
-  tar -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" "$@"
-)
+tar -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" -C /var/lib/pnpr storage
 ```
 
 The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
@@ -61,42 +51,36 @@ To back up while pnpr runs, your storage volume must provide point-in-time files
 With filesystem snapshots, follow the [snapshot order](#snapshot-order):
 
 1. Pause scheduled `pnpr gc` jobs and block package unpublishes, then wait for any running `pnpr gc` or unpublish operations to finish.
-2. Back up the metadata database (and `tokens.db`, when configured) first:
+2. Back up the metadata database first:
    ```sh
    sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
-   sqlite3 /var/lib/pnpr/tokens.db ".backup /mnt/backups/pnpr-tokens-$(date +%Y%m%d).db"
    ```
    For a `sqlite:` `database.url`, pass the path that URL names. For a PostgreSQL, MySQL, or libSQL `database.url`, take a provider snapshot or record a point-in-time recovery timestamp ($T_{\text{db}}$) instead.
-3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$), resume publishes, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage and `users.json`:
+3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$), resume publishes, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage:
    ```sh
-   (
-     cd /mnt/pnpr-snap || exit 1
-     set -- storage
-     [ -e users.json ] && set -- "$@" users.json
-     tar --exclude='storage/.metadata' --exclude='tokens.db*' -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" "$@"
-   )
+   tar --exclude='storage/.metadata' -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" -C /mnt/pnpr-snap storage
    ```
 4. Unmount and release the filesystem snapshot, then resume scheduled `pnpr gc` jobs and unpublishes.
 
-`pnpr export` writes the current package documents, tarballs, and auth records to a directory:
+`pnpr export` writes the current package documents and tarballs to a directory:
 
 ```sh
-pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
+pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d)
 ```
 
-An export does not include transparency logs, unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged publishes. Back up the [metadata database](storage.md#sqlite-metadata) and hosted storage to retain those records.
+An export does not include accounts, tokens, transparency logs, unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged publishes. Back up the [metadata database](storage.md#sqlite-metadata) and hosted storage to retain those records.
 
 ### Restore
 
 To restore local filesystem storage:
 
 1. Stop all running pnpr instances and scheduled `pnpr gc` jobs.
-2. Move aside or remove any existing `storage` directory and `tokens.db` sidecars so newer log bundles or stale SQLite write-ahead logs do not remain. Extract hosted storage and auth files into `/var/lib/pnpr`:
+2. Move aside or remove any existing `storage` directory so newer log bundles or stale SQLite write-ahead logs do not remain. Extract hosted storage into `/var/lib/pnpr`:
    ```sh
-   rm -rf /var/lib/pnpr/storage /var/lib/pnpr/tokens.db*
+   rm -rf /var/lib/pnpr/storage
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
-3. Restore the metadata and token databases so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
+3. Restore the metadata database so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
    - **SQLite**: Keep any `-wal` file extracted from an offline `tar` archive because it can hold committed transactions. When restoring a standalone `sqlite3 .backup` file or an external `sqlite:` database, delete destination `-wal` and `-shm` files before copying it into place.
    - **PostgreSQL, MySQL, or libSQL (`database.url`)**: Restore the database to $T_{\text{db}}$. When `replicaPath` is configured for libSQL, delete that local replica file and its `-wal` and `-shm` files before starting pnpr.
 4. Run `pnpr verify` to confirm all referenced package documents and archives match:

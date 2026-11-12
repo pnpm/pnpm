@@ -33,7 +33,6 @@ fn null_auth_and_cors_use_default_settings() {
     assert_eq!(parsed.identity.admins, default.identity.admins);
     assert_eq!(parsed.identity.auth.oidc.len(), default.identity.auth.oidc.len());
     assert_eq!(parsed.identity.auth.users.max_users, default.identity.auth.users.max_users);
-    assert_eq!(parsed.identity.auth.tokens.file, default.identity.auth.tokens.file);
     assert_eq!(parsed.http.cors.allowed_origins(), default.http.cors.allowed_origins());
 }
 
@@ -49,7 +48,7 @@ fn null_auth_and_cors_do_not_disable_mapping_validation() {
 #[test]
 fn null_defaulted_aggregate_config_fields_use_defaults() {
     let configs = [
-        "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  users: null\n  tokens: null\n",
+        "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  users: null\n",
         "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n",
         "artifacts:\n  owners: null\n  quota: null\n",
         "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      workloads: null\n      login:\n        users:\n          - {subject: sub, userId: alice, claims: null}\n",
@@ -175,10 +174,13 @@ fn resolve_relative_joins_relative_paths_to_base() {
 }
 
 #[test]
-fn backend_defaults_to_local_without_a_block() {
+fn accounts_default_to_the_sqlite_metadata_database() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert!(matches!(config.identity.backend, BackendConfig::Local));
+    assert!(matches!(
+        config.identity.backend,
+        BackendConfig::Sqlite(ref path) if *path == Path::new("/var/lib/pnpr/.metadata/metadata.sqlite"),
+    ));
 }
 
 #[test]

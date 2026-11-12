@@ -202,13 +202,7 @@ fn format_auth_summary(config: &Config) -> String {
         MaxUsers::Disabled => "disabled".to_string(),
     };
     let (backend, location) = match &config.identity.backend {
-        BackendConfig::Local => (
-            "accounts",
-            match &ht.file {
-                Some(path) => path.display().to_string(),
-                None => "in-memory".to_string(),
-            },
-        ),
+        BackendConfig::Sqlite(path) => ("sqlite", path.display().to_string()),
         BackendConfig::Libsql(settings) => {
             let url = sanitize_diagnostic_url(&settings.url);
             let location = match &settings.replica_path {

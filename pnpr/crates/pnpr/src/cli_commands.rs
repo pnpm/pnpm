@@ -61,9 +61,6 @@ pub enum Command {
         /// Target directory to export packages into.
         #[arg(long)]
         out: PathBuf,
-        /// Include auth files (users.json, tokens.db) in export.
-        #[arg(long)]
-        include_auth: bool,
     },
     /// Migrate hosted packages and blobs from local disk storage to S3.
     MigrateStorage {
@@ -89,18 +86,16 @@ pub enum Command {
         #[arg(long)]
         verify: bool,
     },
-    /// Import users from an existing Verdaccio or Apache htpasswd file.
+    /// Import users from an existing Verdaccio or Apache htpasswd file into
+    /// the SQLite metadata database.
     ImportHtpasswd {
         /// Path to source htpasswd file.
         #[arg(long)]
         source: PathBuf,
-        /// Path to the target JSON account file. Defaults to the configured account file.
-        #[arg(long)]
-        target: Option<PathBuf>,
-        /// Report what would be imported without writing to target file.
+        /// Report what would be imported without writing anything.
         #[arg(long)]
         dry_run: bool,
-        /// Overwrite conflicting credentials for existing users in destination file.
+        /// Overwrite the credentials of existing users whose credentials differ.
         #[arg(long)]
         overwrite: bool,
     },
@@ -130,7 +125,7 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::Verify { .. } => run_verify_command(config, command).await,
         Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
-        Command::ImportHtpasswd { .. } => run_import_command(config, command),
+        Command::ImportHtpasswd { .. } => run_import_command(config, command).await,
         Command::AddUser { username, password } => {
             run_add_user_command(config, username, password).await
         }
@@ -168,10 +163,10 @@ async fn run_verify_command(config: &Config, command: Command) -> miette::Result
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Export { out, include_auth } = command else {
+    let Command::Export { out } = command else {
         return Ok(());
     };
-    run_export(config, out, include_auth).await
+    run_export(config, out).await
 }
 
 async fn run_migrate_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -199,11 +194,14 @@ async fn run_migrate_command(config: &Config, command: Command) -> miette::Resul
     run_migrate_storage(config, options).await
 }
 
-fn run_import_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::ImportHtpasswd { source, target, dry_run, overwrite } = command else {
+async fn run_import_command(config: &Config, command: Command) -> miette::Result<()> {
+    let Command::ImportHtpasswd { source, dry_run, overwrite } = command else {
         return Ok(());
     };
-    run_import_htpasswd(config, source, target, dry_run, overwrite)
+    let options = crate::htpasswd_import::HtpasswdImportOptions { source, dry_run, overwrite };
+    let report = crate::htpasswd_import::import_htpasswd(config, &options).await?;
+    print!("{}", crate::htpasswd_import::format_import_report(&report));
+    Ok(())
 }
 
 fn run_config_check() -> miette::Result<()> {
@@ -235,33 +233,9 @@ async fn run_verify(config: &Config, check_hashes: bool) -> miette::Result<()> {
     Ok(())
 }
 
-async fn run_export(config: &Config, out: PathBuf, include_auth: bool) -> miette::Result<()> {
-    let report = crate::export::export_storage(config, &out, include_auth).await?;
+async fn run_export(config: &Config, out: PathBuf) -> miette::Result<()> {
+    let report = crate::export::export_storage(config, &out).await?;
     print!("{}", crate::export::format_export_report(&report));
-    Ok(())
-}
-
-fn run_import_htpasswd(
-    config: &Config,
-    source: PathBuf,
-    target: Option<PathBuf>,
-    dry_run: bool,
-    overwrite: bool,
-) -> miette::Result<()> {
-    let target = target.or_else(|| config.identity.auth.users.file.clone());
-    let Some(target) = target else {
-        return Err(miette::miette!(
-            "no target account file specified and none configured in identity.auth.users.file; pass --target <path>"
-        ));
-    };
-    let options = crate::htpasswd_import::HtpasswdImportOptions {
-        source,
-        target: Some(target),
-        dry_run,
-        overwrite,
-    };
-    let report = crate::htpasswd_import::import_htpasswd(&options)?;
-    print!("{}", crate::htpasswd_import::format_import_report(&report));
     Ok(())
 }
 
@@ -340,13 +314,6 @@ async fn run_add_user_command(
     username: String,
     password: Option<String>,
 ) -> miette::Result<()> {
-    if matches!(config.identity.backend, pnpr_config::BackendConfig::Local)
-        && config.identity.auth.users.file.is_none()
-    {
-        return Err(miette::miette!(
-            "standalone add-user requires a persistent auth backend (configure auth.users.file or a database backend)"
-        ));
-    }
     let password = match password {
         Some(password) => password,
         None => read_password()?,

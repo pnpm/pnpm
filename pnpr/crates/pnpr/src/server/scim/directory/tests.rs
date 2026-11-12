@@ -112,14 +112,14 @@ async fn superseded_deactivation_preserves_post_reactivation_tokens_and_director
 }
 
 struct CountingStatusBackend {
-    inner: Arc<pnpr_auth::UserStore>,
+    inner: Arc<pnpr_auth::SqliteAuth>,
     revisions_calls: std::sync::atomic::AtomicUsize,
     apply_calls: std::sync::atomic::AtomicUsize,
     fail_post_reconcile_name: std::sync::atomic::AtomicBool,
 }
 
 impl CountingStatusBackend {
-    fn new(inner: Arc<pnpr_auth::UserStore>) -> Self {
+    fn new(inner: Arc<pnpr_auth::SqliteAuth>) -> Self {
         Self {
             inner,
             revisions_calls: std::sync::atomic::AtomicUsize::new(0),
@@ -239,14 +239,13 @@ async fn directory_reload_skips_writes_for_already_reconciled_accounts() {
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
         Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
-    let store = Arc::new(pnpr_auth::UserStore::in_memory());
+    let store =
+        Arc::new(pnpr_auth::SqliteAuth::in_memory(pnpr_config::MaxUsers::Unlimited).unwrap());
     let counting = Arc::new(CountingStatusBackend::new(Arc::clone(&store)));
-    let tokens = Arc::new(pnpr_auth::OwnedTokens::new(
-        pnpr_auth::TokenStore::in_memory(),
-        Arc::clone(&store),
-    ));
-    let auth =
-        AuthState { users: Arc::clone(&counting) as Arc<dyn pnpr_auth::UserBackend>, tokens };
+    let auth = AuthState {
+        users: Arc::clone(&counting) as Arc<dyn pnpr_auth::UserBackend>,
+        tokens: store,
+    };
     let (state, _) = crate::server::state_and_router(config, auth, None).unwrap();
 
     let active_spec = super::ScimUser {
@@ -313,14 +312,13 @@ async fn failed_post_reconcile_name_lookup_does_not_mark_directory_unreadable() 
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
         Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
-    let store = Arc::new(pnpr_auth::UserStore::in_memory());
+    let store =
+        Arc::new(pnpr_auth::SqliteAuth::in_memory(pnpr_config::MaxUsers::Unlimited).unwrap());
     let counting = Arc::new(CountingStatusBackend::new(Arc::clone(&store)));
-    let tokens = Arc::new(pnpr_auth::OwnedTokens::new(
-        pnpr_auth::TokenStore::in_memory(),
-        Arc::clone(&store),
-    ));
-    let auth =
-        AuthState { users: Arc::clone(&counting) as Arc<dyn pnpr_auth::UserBackend>, tokens };
+    let auth = AuthState {
+        users: Arc::clone(&counting) as Arc<dyn pnpr_auth::UserBackend>,
+        tokens: store,
+    };
     let (state, _) = crate::server::state_and_router(config, auth, None).unwrap();
 
     let active_spec = super::ScimUser {
@@ -363,80 +361,4 @@ async fn failed_post_reconcile_name_lookup_does_not_mark_directory_unreadable() 
 
     assert!(super::is_deprovisioned(&state, &member_one).unwrap());
     assert!(!super::is_deprovisioned(&state, &member_two).unwrap());
-}
-
-#[tokio::test]
-async fn directory_reload_retries_failed_token_revocation_until_reconciled() {
-    let temp = tempfile::TempDir::new().unwrap();
-    let users_path = temp.path().join("users.json");
-    let tokens_path = temp.path().join("tokens.db");
-    let mut config =
-        Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
-    config.identity.auth.scim =
-        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
-    let store = Arc::new(
-        pnpr_auth::UserStore::open_with_cost(users_path, pnpr_config::MaxUsers::Unlimited, 4)
-            .unwrap(),
-    );
-    let tokens = Arc::new(pnpr_auth::OwnedTokens::new(
-        pnpr_auth::TokenStore::open(tokens_path.clone()).unwrap(),
-        Arc::clone(&store),
-    ));
-    let auth = AuthState {
-        users: Arc::clone(&store) as Arc<dyn pnpr_auth::UserBackend>,
-        tokens: Arc::clone(&tokens) as Arc<dyn pnpr_auth::TokenBackend>,
-    };
-    let (state, _) = crate::server::state_and_router(config, auth.clone(), None).unwrap();
-
-    let active_spec = super::ScimUser {
-        username: "member-one".to_string(),
-        active: true,
-        attributes: serde_json::Map::new(),
-    };
-    let (member_id, _) = super::create_user(&state, "member-one", &active_spec)
-        .await
-        .unwrap();
-    let token = auth.tokens.issue(&member_id).await.unwrap();
-    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), Some(member_id.clone()));
-
-    let current = state.inner.storage
-        .read_scim_user(&member_id)
-        .await
-        .unwrap()
-        .unwrap();
-    state.inner.storage
-        .replace_scim_user(
-            Some(current.generation),
-            pnpr_storage::metadata::NewScimUser {
-                user_id: member_id.clone(),
-                active: false,
-                attributes: serde_json::Map::new(),
-            },
-        )
-        .await
-        .unwrap();
-
-    let fault = rusqlite::Connection::open(&tokens_path).unwrap();
-    fault
-        .execute_batch(
-            "CREATE TRIGGER fail_revocation BEFORE DELETE ON tokens
-             BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
-        )
-        .unwrap();
-
-    let directory = ScimState::default();
-    assert!(!super::reload_directory(&state, &directory).await);
-    assert_eq!(
-        auth.users.account_status(&member_id).await.unwrap(),
-        Some(pnpr_auth::AccountStatus::Deactivated),
-    );
-    assert!(!super::reload_directory(&state, &directory).await);
-
-    fault.execute_batch("DROP TRIGGER fail_revocation;").unwrap();
-
-    assert!(super::reload_directory(&state, &directory).await);
-    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
-
-    super::replace_user(&state, &member_id, &active_spec).await.unwrap();
-    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
 }

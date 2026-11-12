@@ -229,7 +229,7 @@ impl Config {
             has_configured_secret: secrets.has_configured,
             http,
             storage,
-            identity: build_identity_config(&file.auth, base_dir, backend)?,
+            identity: build_identity_config(&file.auth, backend)?,
             features,
             routing,
             release_records: super::build_release_records_config(file.release_records.take())?,

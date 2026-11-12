@@ -107,7 +107,6 @@ impl RegistryError {
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
             RegistryError::CorruptArchive { .. } => "corrupt_archive",
             RegistryError::Internal { .. } => "internal",
-            RegistryError::InvalidUsersFile { .. } => "invalid_users_file",
             RegistryError::Bcrypt(_) => "bcrypt",
             RegistryError::Sqlite(_) => "sqlite",
             #[cfg(feature = "backend-libsql")]
@@ -135,7 +134,6 @@ impl RegistryError {
             }
             RegistryError::InvalidConfig { .. }
             | RegistryError::Internal { .. }
-            | RegistryError::InvalidUsersFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,

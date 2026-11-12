@@ -564,20 +564,21 @@ async fn startup_and_periodic_sweeps_delete_expired_tokens() {
     let mut config = s3_config(&tmp);
     config.features.registry.enabled = false;
     config.features.resolver.enabled = true;
-    let tokens_path = tmp.path().join("tokens.db");
-    config.identity.auth.tokens.file = Some(tokens_path.clone());
+    let auth_path = tmp.path().join("metadata.sqlite");
+    config.identity.backend = pnpr_config::BackendConfig::Sqlite(auth_path.clone());
 
     let now = pnpr_auth::unix_millis();
-    let seeded = pnpr_auth::TokenStore::open(tokens_path).unwrap();
+    let seeded = pnpr_auth::SqliteAuth::open(&auth_path, pnpr_config::MaxUsers::Disabled).unwrap();
+    let alice = pnpr_auth::UserBackend::provision_user(&seeded, "alice").await.unwrap();
     let (already_expired, _) = seeded
         .issue_token(
-            "alice",
+            &alice,
             pnpr_auth::NewToken::new().with_expires_at(Some(now.saturating_sub(1_000))),
         )
         .await
         .unwrap();
     let (kept_token, _) = seeded
-        .issue_token("alice", pnpr_auth::NewToken::new())
+        .issue_token(&alice, pnpr_auth::NewToken::new())
         .await
         .unwrap();
     drop(seeded);
@@ -683,7 +684,7 @@ async fn failing_expired_token_sweep_does_not_abort_startup() {
     }
 
     let auth = pnpr_auth::AuthState {
-        users: std::sync::Arc::new(pnpr_auth::UserStore::in_memory()),
+        users: pnpr_auth::AuthState::in_memory().users,
         tokens: std::sync::Arc::new(FailingSweepTokens),
     };
     super::sweep_expired_tokens(&auth).await;

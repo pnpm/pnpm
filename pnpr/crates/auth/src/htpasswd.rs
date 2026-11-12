@@ -1,4 +1,4 @@
-use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result};
+use super::{HashMap, RegistryError, Result};
 use crate::validation::validate_username;
 
 // ---------------------------------------------------------------
@@ -89,95 +89,6 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
         diff |= left_byte ^ right_byte;
     }
     diff == 0
-}
-
-/// Hold the shared edit lock before reading, merging, and writing an htpasswd file.
-pub fn lock_htpasswd(path: &Path) -> Result<std::fs::File> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let lock_file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path.with_extension("htpasswd.lock"))?;
-    lock_file.lock()?;
-    Ok(lock_file)
-}
-
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    write_atomic_with(path, bytes, NewFileMode::KeepExisting)
-}
-
-/// [`write_atomic`] that gives the file mode 0600 on Unix, whatever mode a
-/// file it replaces had. On Windows the file inherits its directory's ACL.
-pub fn write_private_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    write_atomic_with(path, bytes, NewFileMode::OwnerOnly)
-}
-
-#[derive(Clone, Copy)]
-enum NewFileMode {
-    /// The mode of the file being replaced, or owner-only for a new file.
-    KeepExisting,
-    OwnerOnly,
-}
-
-fn write_atomic_with(path: &Path, bytes: &[u8], new_file_mode: NewFileMode) -> Result<()> {
-    use std::io::Write as _;
-
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let tmp = unique_tmp_path(path);
-    {
-        #[cfg(unix)]
-        let mut file = {
-            use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
-            let mode = match (new_file_mode, std::fs::symlink_metadata(path)) {
-                (NewFileMode::KeepExisting, Ok(meta)) if !meta.file_type().is_symlink() => {
-                    meta.permissions().mode()
-                }
-                _ => 0o600,
-            };
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(mode)
-                .open(&tmp)?
-        };
-        // Windows files have no Unix mode to set.
-        #[cfg(not(unix))]
-        let _ = new_file_mode;
-        #[cfg(not(unix))]
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-    }
-    std::fs::rename(&tmp, path)?;
-    Ok(())
-}
-
-pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
-    let mut name = base
-        .file_name()
-        .map(std::ffi::OsStr::to_os_string)
-        .unwrap_or_default();
-    name.push(format!(".tmp.{pid}.{counter}"));
-    match base.parent() {
-        Some(parent) => parent.join(name),
-        None => PathBuf::from(name),
-    }
 }
 
 // ---------------------------------------------------------------

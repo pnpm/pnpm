@@ -17,7 +17,6 @@ secret: ${PNPR_SECRET}
 
 auth:
   users:
-    file: ./users.json
     # Allow one user to self-register, for the publish step below.
     maxUsers: 1
 

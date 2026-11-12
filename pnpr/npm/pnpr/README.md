@@ -253,9 +253,9 @@ Before changing it on an existing registry, move or restore its package metadata
 into the target database. Changing the URL does not copy data. An empty database
 has no published packages.
 
-Without a shared database, users live in an htpasswd file and tokens in a local
-SQLite database (see `auth:` above). Replicas using the same shared database see
-the same accounts, tokens, and package metadata.
+Without a shared database, users and tokens live in the local SQLite metadata
+database. Replicas using the same shared database see the same accounts, tokens,
+and package metadata.
 
 pnpr supports these databases:
 
@@ -321,9 +321,9 @@ database:
 
 MySQL needs InnoDB with its default 16 KiB page size.
 
-When the `database:` block is absent, auth stays on local disk and the
-`auth.htpasswd` / `auth.tokens` settings apply as before. The
-`auth.htpasswd.maxUsers` registration cap is honored either way.
+When the `database:` block is absent, users and tokens stay in the local SQLite
+metadata database. The `auth.users.maxUsers` registration cap is honored either
+way.
 
 ### Running several replicas
 

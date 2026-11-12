@@ -231,7 +231,7 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
     let err = validate_startup_config(&mut cache_contains_storage).unwrap_err().to_string();
     assert!(err.contains("cache path must not equal or contain"), "{err}");
 
-    let mut sqlite_in_cache = valid_subdir.clone();
+    let mut sqlite_in_cache = valid_subdir;
     sqlite_in_cache.storage.cache_dir = tmp.path().join("separate-cache");
     sqlite_in_cache.storage.metadata =
         MetadataBackend::Sqlite(sqlite_in_cache.storage.cache_dir.join("metadata.sqlite"));
@@ -242,20 +242,6 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
     sqlite_in_cache.features.resolver.enabled = true;
     let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
     assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
-
-    let mut users_in_cache = valid_subdir.clone();
-    users_in_cache.storage.cache_dir = tmp.path().join("users-cache");
-    users_in_cache.identity.auth.users.file =
-        Some(users_in_cache.storage.cache_dir.join("users.json"));
-    let err = validate_startup_config(&mut users_in_cache).unwrap_err().to_string();
-    assert!(err.contains("auth file path must not live inside"), "{err}");
-
-    let mut tokens_in_cache = valid_subdir;
-    tokens_in_cache.storage.cache_dir = tmp.path().join("tokens-cache");
-    tokens_in_cache.identity.auth.tokens.file =
-        Some(tokens_in_cache.storage.cache_dir.join("tokens.db"));
-    let err = validate_startup_config(&mut tokens_in_cache).unwrap_err().to_string();
-    assert!(err.contains("auth file path must not live inside"), "{err}");
 }
 
 #[cfg(unix)]

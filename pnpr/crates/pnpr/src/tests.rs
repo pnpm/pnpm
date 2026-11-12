@@ -265,7 +265,7 @@ fn served_from(yaml: &str, storage: &std::path::Path) -> pnpr::Config {
     let mut config =
         pnpr::Config::from_yaml(&path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
     let mut paths = StorageArgs { storage: Some(storage.to_path_buf()), cache: None };
-    apply_storage_overrides(&mut config, &mut paths, &pnpr::ConfigSource::Cli(path));
+    apply_storage_overrides(&mut config, &mut paths);
     config
 }
 
@@ -273,10 +273,12 @@ fn served_from(yaml: &str, storage: &std::path::Path) -> pnpr::Config {
 fn a_storage_override_takes_the_default_metadata_database_along() {
     let storage = std::path::Path::new("/srv/pnpr");
     let config = served_from("storage: ./storage\n", storage);
-    assert_eq!(
-        config.storage.metadata,
-        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(storage)),
-    );
+    let metadata = pnpr_config::default_metadata_path(storage);
+    assert_eq!(config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(metadata.clone()));
+    assert!(matches!(
+        config.identity.backend,
+        pnpr_config::BackendConfig::Sqlite(ref path) if *path == metadata,
+    ));
 }
 
 #[test]

@@ -206,9 +206,6 @@ fn is_status_reconciled(
     generation: u64,
     lifecycle: pnpr_auth::AccountLifecycle,
 ) -> bool {
-    if current.pending_token_revocation {
-        return false;
-    }
     match current.status {
         pnpr_auth::AccountStatus::Deleted => true,
         pnpr_auth::AccountStatus::Active | pnpr_auth::AccountStatus::Deactivated => {

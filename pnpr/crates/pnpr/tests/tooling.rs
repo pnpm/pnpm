@@ -53,22 +53,16 @@ fn create_hosting_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
 fn create_test_config_with(dir: &Path, registries: &str) -> (Config, tempfile::NamedTempFile) {
     let storage_dir = dir.join("storage");
     let cache_dir = dir.join("cache");
-    let users_file = dir.join("users.json");
     std::fs::create_dir_all(&storage_dir).unwrap();
     std::fs::create_dir_all(&cache_dir).unwrap();
-    std::fs::write(&users_file, "{}").unwrap();
 
     let yaml = format!(
         r"
 storage: '{}'
 cache: '{}'
-auth:
-  users:
-    file: '{}'
 {registries}",
         storage_dir.display(),
         cache_dir.display(),
-        users_file.display(),
     );
 
     let config_file = tempfile::NamedTempFile::new().unwrap();
@@ -92,43 +86,55 @@ async fn test_config_check_nonexistent() {
     assert!(err.to_string().contains("does not exist"));
 }
 
+/// The login names and password hashes stored in the metadata database of
+/// `config`.
+fn stored_accounts(config: &Config) -> Vec<(String, String)> {
+    let pnpr::BackendConfig::Sqlite(path) = &config.identity.backend else {
+        panic!("test configs keep accounts in their SQLite metadata database");
+    };
+    if !path.exists() {
+        return Vec::new();
+    }
+    let connection = rusqlite::Connection::open(path).unwrap();
+    let mut statement =
+        connection.prepare("SELECT username, password_hash FROM users ORDER BY username").unwrap();
+    statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
 #[tokio::test]
 async fn test_htpasswd_import() {
     let dir = TempDir::new().unwrap();
+    let (config, _config_file) = create_test_config(dir.path());
     let source = dir.path().join("source-htpasswd");
-    let target = dir.path().join("target-htpasswd");
 
     let source_content =
         "user1:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=\nuser2:$2y$10$abcdefghijklmnopqrstuu\n";
     std::fs::write(&source, source_content).unwrap();
 
     // 1. Dry run
-    let dry_run_opts = HtpasswdImportOptions {
-        source: source.clone(),
-        target: Some(target.clone()),
-        dry_run: true,
-        overwrite: false,
-    };
-    let dry_rep = import_htpasswd(&dry_run_opts).unwrap();
+    let dry_run_opts =
+        HtpasswdImportOptions { source: source.clone(), dry_run: true, overwrite: false };
+    let dry_rep = import_htpasswd(&config, &dry_run_opts).await.unwrap();
     assert_eq!(dry_rep.merged, 2);
     assert_eq!(dry_rep.sha_count, 1);
     assert_eq!(dry_rep.bcrypt_count, 1);
-    assert!(!target.exists());
+    assert!(stored_accounts(&config).is_empty());
 
     // 2. Real import
-    let real_opts = HtpasswdImportOptions {
-        source,
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: false,
-    };
-    let real_rep = import_htpasswd(&real_opts).unwrap();
+    let real_opts = HtpasswdImportOptions { source, dry_run: false, overwrite: false };
+    let real_rep = import_htpasswd(&config, &real_opts).await.unwrap();
     assert_eq!(real_rep.merged, 2);
-    assert!(target.exists());
-
-    let target_content = std::fs::read_to_string(&target).unwrap();
-    assert!(target_content.contains("{SHA}"));
-    assert!(target_content.contains("$2y$"));
+    assert_eq!(
+        stored_accounts(&config),
+        [
+            ("user1".to_string(), "{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=".to_string()),
+            ("user2".to_string(), "$2y$10$abcdefghijklmnopqrstuu".to_string()),
+        ],
+    );
 }
 
 #[tokio::test]
@@ -166,7 +172,7 @@ async fn test_export_storage() {
         b"fake tarball bytes",
     );
 
-    let report = export_storage(&config, &export_out, true).await.unwrap();
+    let report = export_storage(&config, &export_out).await.unwrap();
     assert_eq!(report.packages_exported, 1);
     assert_eq!(report.versions_exported, 1);
     assert_eq!(report.blobs_exported, 1);
@@ -175,31 +181,6 @@ async fn test_export_storage() {
     assert!(formatted.contains("Export completed successfully"));
     assert!(export_out.join("demo-pkg/package.json").exists());
     assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tgz").exists());
-}
-
-#[tokio::test]
-async fn export_with_auth_copies_tokens_but_never_over_the_live_auth_files() {
-    let dir = TempDir::new().unwrap();
-    let (config, _cfg_file) = create_test_config(dir.path());
-    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
-    let tokens_path = config.identity.auth.tokens.file.clone().unwrap();
-    let store = pnpr_auth::TokenStore::open(tokens_path.clone()).unwrap();
-    let raw = pnpr_auth::TokenBackend::issue(&store, "alice").await.unwrap();
-
-    let export_out = dir.path().join("exported");
-    export_storage(&config, &export_out, true).await.unwrap();
-    let exported = pnpr_auth::TokenStore::open(export_out.join("tokens.db")).unwrap();
-    assert_eq!(
-        pnpr_auth::TokenBackend::lookup(&exported, &raw).await.unwrap().as_deref(),
-        Some("alice"),
-    );
-
-    let err = export_storage(&config, tokens_path.parent().unwrap(), true).await.unwrap_err();
-    assert!(err.to_string().contains("would replace"), "{err}");
-    assert_eq!(
-        pnpr_auth::TokenBackend::lookup(&store, &raw).await.unwrap().as_deref(),
-        Some("alice"),
-    );
 }
 
 #[tokio::test]
@@ -239,7 +220,7 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     assert!(report.corrupted_blobs[0].contains("no recorded tar integrity"));
 
     let export_out = dir.path().join("exported");
-    let exported = export_storage(&config, &export_out, true).await.unwrap();
+    let exported = export_storage(&config, &export_out).await.unwrap();
     assert_eq!(exported.blobs_exported, 1);
     assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tar.zst").exists());
 }
@@ -599,12 +580,11 @@ async fn test_verify_and_export_attestations() {
     assert_eq!(rep.orphaned_blobs.len(), 0);
 
     let export_out = dir.path().join("export-signed");
-    let exp_rep = export_storage(&config, &export_out, false).await.unwrap();
+    let exp_rep = export_storage(&config, &export_out).await.unwrap();
     assert_eq!(exp_rep.packages_exported, 1);
     assert_eq!(exp_rep.blobs_exported, 2);
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.tgz").exists());
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
-    assert!(!export_out.join("users.json").exists());
 }
 
 #[test]
@@ -790,32 +770,20 @@ registries:
     assert!(output.contains("user=REDACTED"), "{output}");
 }
 
-#[test]
-fn test_htpasswd_import_malformed_and_collisions() {
+#[tokio::test]
+async fn test_htpasswd_import_malformed_and_collisions() {
     let dir = TempDir::new().unwrap();
+    let (config, _config_file) = create_test_config(dir.path());
     let source = dir.path().join("source-malformed");
-    let target = dir.path().join("target-users");
 
     // 1. Malformed SHA hash is rejected
     std::fs::write(&source, "baduser:{SHA}not-valid-base64\n").unwrap();
-    let opts = HtpasswdImportOptions {
-        source: source.clone(),
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: false,
-    };
-    assert!(import_htpasswd(&opts).is_err());
+    let opts = HtpasswdImportOptions { source: source.clone(), dry_run: false, overwrite: false };
+    assert!(import_htpasswd(&config, &opts).await.is_err());
 
     // 2. Existing user collision handling without and with overwrite
-    pnpr_auth::UserStore::import_password_hashes(
-        &target,
-        [("alice".to_string(), "$2y$10$abcdefghijklmnopqrstuu".to_string())].into(),
-        pnpr_auth::PasswordImport {
-            collisions: pnpr_auth::PasswordCollisions::Keep,
-            mode: pnpr_auth::ImportMode::Persist,
-        },
-    )
-    .unwrap();
+    std::fs::write(&source, "alice:$2y$10$abcdefghijklmnopqrstuu\n").unwrap();
+    import_htpasswd(&config, &opts).await.unwrap();
     // Incoming source has alice with a different hash
     std::fs::write(
         &source,
@@ -823,34 +791,17 @@ fn test_htpasswd_import_malformed_and_collisions() {
     )
     .unwrap();
 
-    let no_ow_opts = HtpasswdImportOptions {
-        source: source.clone(),
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: false,
-    };
-    let rep = import_htpasswd(&no_ow_opts).unwrap();
+    let rep = import_htpasswd(&config, &opts).await.unwrap();
     assert_eq!(rep.merged, 1); // bob was merged
-    assert_eq!(rep.collisions.len(), 1); // alice collided
-    assert!(rep.collisions[0].contains("alice"));
-
-    // Check alice was NOT overwritten
-    let content = std::fs::read_to_string(&target).unwrap();
-    assert!(content.contains("$2y$10$abcdefghijklmnopqrstuu"));
+    assert_eq!(rep.collisions, ["alice"]);
+    assert_eq!(stored_accounts(&config)[0].1, "$2y$10$abcdefghijklmnopqrstuu");
 
     // 3. With overwrite: true, alice gets replaced (bob is already identical)
-    let ow_opts = HtpasswdImportOptions {
-        source,
-        target: Some(target.clone()),
-        dry_run: false,
-        overwrite: true,
-    };
-    let rep2 = import_htpasswd(&ow_opts).unwrap();
+    let ow_opts = HtpasswdImportOptions { source, dry_run: false, overwrite: true };
+    let rep2 = import_htpasswd(&config, &ow_opts).await.unwrap();
     assert_eq!(rep2.merged, 1);
     assert_eq!(rep2.collisions.len(), 0);
-
-    let content2 = std::fs::read_to_string(&target).unwrap();
-    assert!(content2.contains("{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g="));
+    assert_eq!(stored_accounts(&config)[0].1, "{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=");
 }
 
 #[tokio::test]
@@ -950,12 +901,9 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
         );
         assert!(verify_storage(bad, &verify_opts).await.is_err());
         assert!(
-            pnpr::run_command(
-                bad,
-                pnpr::Command::Export { out: export_out.clone(), include_auth: false },
-            )
-            .await
-            .is_err(),
+            pnpr::run_command(bad, pnpr::Command::Export { out: export_out.clone() },)
+                .await
+                .is_err(),
         );
         assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
     }

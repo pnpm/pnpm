@@ -22,8 +22,6 @@ const CACHE_CONTAINS_METADATA_DB: &str =
     "database.url SQLite path must not live inside the disposable cache directory";
 const CACHE_CONTAINS_REPLICA_DB: &str =
     "libSQL replicaPath must not live inside the disposable cache directory";
-const CACHE_CONTAINS_AUTH_FILE: &str =
-    "auth file path must not live inside the disposable cache directory";
 const CACHE_CONTAINS_OSV_DB: &str =
     "osv.path must not live inside or contain the disposable cache directory";
 
@@ -79,9 +77,6 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
             &norm_cache,
             CACHE_CONTAINS_REPLICA_DB,
         )?;
-    }
-    for auth_file in [&config.identity.auth.users.file, &config.identity.auth.tokens.file] {
-        reject_path_inside_cache(auth_file.as_deref(), &norm_cache, CACHE_CONTAINS_AUTH_FILE)?;
     }
     let default_osv;
     let effective_osv = match config.osv.path.as_deref() {
@@ -188,7 +183,7 @@ fn uses_shared_backend(config: &Config) -> bool {
         }
     };
     let shared_identity = match &config.identity.backend {
-        BackendConfig::Local => false,
+        BackendConfig::Sqlite(_) => false,
         BackendConfig::Libsql(_) | BackendConfig::Postgres(_) | BackendConfig::Mysql(_) => true,
     };
     shared_hosted || shared_metadata || shared_identity
@@ -272,7 +267,7 @@ fn validate_metadata_backend(metadata: &MetadataBackend) -> Result<()> {
 
 fn validate_identity_backend(backend: &BackendConfig) -> Result<()> {
     match backend {
-        BackendConfig::Local => Ok(()),
+        BackendConfig::Sqlite(_) => Ok(()),
         BackendConfig::Postgres(settings) => validate_postgres(settings),
         BackendConfig::Mysql(settings) => validate_mysql(settings),
         BackendConfig::Libsql(settings) => validate_libsql(settings),

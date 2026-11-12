@@ -87,15 +87,16 @@ pnpr verify --skip-hashes
 ### export
 
 Exports hosted packages, packuments, and tarball blobs to a local directory.
+Accounts and tokens are not exported. Back up the
+[metadata database](backup-and-restore.md) to keep them.
 
 ```sh
-pnpr export --out /mnt/backups/pnpr-export --include-auth
+pnpr export --out /mnt/backups/pnpr-export
 ```
 
 | Flag | Description |
 | --- | --- |
 | `--out <dir>` | Destination directory for exported packages and files. Required. |
-| `--include-auth` | Include configured auth files (`users.json`, `tokens.db`) in the output directory (excluded by default). On Unix, the files get mode `0600`, also when they replace an earlier export. The export refuses an output directory that holds the configured auth files. |
 
 ### migrate-storage
 
@@ -132,24 +133,23 @@ pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
 
 ### import-htpasswd
 
-Imports users from an Apache or Verdaccio `htpasswd` file into pnpr's user store. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login).
+Imports users from an Apache or Verdaccio `htpasswd` file into the SQLite metadata database. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login). The whole file is imported in one transaction, so the command can run next to a running server.
 
-Run this command as an offline maintenance step while pnpr is stopped, or specify an unshared `--target` path.
+The command refuses a config whose `database.url` names a libSQL, PostgreSQL, or MySQL database.
 
 ```sh
 # Preview users that would be imported
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import and merge with pnpr's configured account file
+# Import into the metadata database
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 
 | Flag | Description |
 | --- | --- |
 | `--source <path>` | Path to the source htpasswd file to import. Required. |
-| `--target <path>` | Path to the destination JSON account file. Defaults to `auth.users.file` from config. |
-| `--dry-run` | Preview imported user counts without writing to target file. |
-| `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
+| `--dry-run` | Preview imported user counts without writing anything. |
+| `--overwrite` | Overwrite the credentials of existing users whose credentials differ (skipped by default). |
 
 ### add-user
 
@@ -157,10 +157,10 @@ Creates a user account, or changes the password of an existing one. Use it to
 create an account, then use the printed immutable account ID in `auth.admins`.
 A new account never inherits tokens or grants from a reused login name.
 
-The command needs `auth.users.file` or a database backend. With the
-account file, edits share a lock with the running server. Password changes
-preserve the account ID and revoke the account's tokens, also on a running
-server.
+The command writes to the configured metadata database and can run next to a
+running server. A password change preserves the account ID and revokes the
+account's tokens. A server that reads a libSQL embedded replica sees the
+revocation after its next sync.
 
 ```sh
 # Prompts for the password
