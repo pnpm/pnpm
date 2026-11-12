@@ -264,12 +264,14 @@ impl Walker<'_> {
         {
             return;
         }
-        let mut refresh_counts: HashMap<NodeId, u8> = HashMap::default();
+        let max_refreshes = parents_direct.len().saturating_add(1);
+        let mut refresh_counts: HashMap<NodeId, usize> = HashMap::default();
         loop {
             pending.extend(self.evict_newly_stale_recorded_deps(
                 parents_direct,
                 root,
                 &refresh_counts,
+                max_refreshes,
             ));
             if pending.is_empty() || self.traversal.snapshot_budget.exceeded {
                 break;
@@ -286,7 +288,8 @@ impl Walker<'_> {
         &mut self,
         parents_direct: &[DirectDep],
         root: &RootWalk,
-        refresh_counts: &HashMap<NodeId, u8>,
+        refresh_counts: &HashMap<NodeId, usize>,
+        max_refreshes: usize,
     ) -> Vec<DirectDep> {
         let scope = self.opts.project_dir.clone();
         let Some(scoped) = self.traversal.snapshot_budget.scope_paths.get(&scope) else {
@@ -294,17 +297,23 @@ impl Walker<'_> {
         };
         let stale_ids: Vec<NodeId> = scoped.by_direct_dep
             .iter()
-            .filter(|(node_id, entry)| {
-                refresh_counts
-                    .get(*node_id)
-                    .copied()
-                    .unwrap_or(0)
-                    < 2
-                    && !self.direct_dep_budget_matches(entry, &root.importer_parents)
-            })
+            .filter(|(_, entry)| !self.direct_dep_budget_matches(entry, &root.importer_parents))
             .map(|(node_id, _)| node_id.clone())
             .collect();
         if stale_ids.is_empty() {
+            return Vec::new();
+        }
+        if stale_ids
+            .iter()
+            .any(|node_id| {
+                refresh_counts
+                    .get(node_id)
+                    .copied()
+                    .unwrap_or(0)
+                    >= max_refreshes
+            })
+        {
+            self.traversal.snapshot_budget.exceeded = true;
             return Vec::new();
         }
         let stale_set: HashSet<NodeId> = stale_ids.into_iter().collect();
@@ -346,7 +355,7 @@ impl Walker<'_> {
             if self.traversal.snapshot_budget.exceeded {
                 return;
             }
-            if self.traversal.visited_this_call.contains(&dep.node_id) {
+            if self.has_recorded_direct_budget(&dep.node_id) {
                 continue;
             }
             self.remember_parent_context_if_peer_provider(
@@ -357,6 +366,12 @@ impl Walker<'_> {
             self.resolve_and_record_direct_budget(dep, root);
         }
         self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
+    }
+
+    fn has_recorded_direct_budget(&self, node_id: &NodeId) -> bool {
+        self.traversal.snapshot_budget.scope_paths
+            .get(&self.opts.project_dir)
+            .is_some_and(|scoped| scoped.by_direct_dep.contains_key(node_id))
     }
 
     fn resolve_and_record_direct_budget(&mut self, dep: &DirectDep, root: &RootWalk) {
