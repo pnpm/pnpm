@@ -43,7 +43,7 @@ pub(crate) struct OciFile {
     max_manifest_size: Option<ByteSize>,
 }
 
-pub(crate) fn build_oci_config(file: OciFile) -> Result<OciConfig, RegistryError> {
+pub(crate) fn build_oci_config(file: &OciFile) -> Result<OciConfig, RegistryError> {
     let default = OciConfig::default();
     let max_blob_bytes = match &file.max_blob_size {
         Some(raw) => parse_positive_byte_size("oci.maxBlobSize", raw)?,

@@ -181,14 +181,7 @@ impl RouteContext {
         // built-in public routes, so they are both allowlisted and classified
         // public without any operator config (and ahead of any upstream
         // credential for the same origin — public wins).
-        let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
-            .into_iter()
-            .chain(
-                routing.route_policy.public
-                    .iter()
-                    .filter_map(|route| RouteMatcher::from_public_route(route).ok()),
-            )
-            .collect();
+        let public_routes = public_route_matchers(&routing.route_policy);
         let aliases = routing.upstreams
             .iter()
             .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
@@ -546,6 +539,19 @@ const NPMJS_ORIGIN: &str = "//registry.npmjs.org/";
 /// Nerf-darted origin of the JSR registry's npm compatibility layer, the
 /// registry pnpm's built-in `@jsr` scope route points at.
 const JSR_ORIGIN: &str = "//npm.jsr.io/";
+
+/// The built-in public routes, then the operator-declared ones that
+/// [`validate_public_routes`] accepts.
+fn public_route_matchers(policy: &RoutePolicy) -> Vec<RouteMatcher> {
+    [RouteMatcher::npmjs(), RouteMatcher::jsr()]
+        .into_iter()
+        .chain(
+            policy.public
+                .iter()
+                .filter_map(|route| RouteMatcher::from_public_route(route).ok()),
+        )
+        .collect()
+}
 
 /// Check every operator-declared public route.
 ///

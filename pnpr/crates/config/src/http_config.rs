@@ -29,7 +29,7 @@ pub(super) fn build_http_config(
         public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
         cors,
         ui,
-        oci: build_oci_config(std::mem::take(&mut file.oci))?,
+        oci: build_oci_config(&file.oci)?,
         packument_ttl,
         max_tarball_bytes,
         trusted_proxies,
