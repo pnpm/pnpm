@@ -74,9 +74,9 @@ pub(super) fn sync_from_database(
     Ok(())
 }
 
-/// Write a consistent copy of the token database at `source` to `dest`,
-/// including commits still in its write-ahead log. The copy is readable only
-/// by its owner.
+/// Write a consistent copy of the token database at `source` to `dest` with
+/// [`write_private_atomic`](crate::write_private_atomic), including commits
+/// still in its write-ahead log.
 pub fn export_token_database(source: &Path, dest: &Path) -> Result<()> {
     let connection =
         Connection::open_with_flags(source, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;

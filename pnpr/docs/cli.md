@@ -95,7 +95,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 | Flag | Description |
 | --- | --- |
 | `--out <dir>` | Destination directory for exported packages and files. Required. |
-| `--include-auth` | Include configured auth files (`users.json`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
+| `--include-auth` | Include configured auth files (`users.json`, `tokens.db`) in the output directory (excluded by default). On Unix, the files get mode `0600`, also when they replace an earlier export. The export refuses an output directory that holds the configured auth files. |
 
 ### migrate-storage
 

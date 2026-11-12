@@ -112,8 +112,8 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     write_atomic_with(path, bytes, NewFileMode::KeepExisting)
 }
 
-/// [`write_atomic`] that leaves the file readable only by its owner, whatever
-/// mode a file it replaces had.
+/// [`write_atomic`] that gives the file mode 0600 on Unix, whatever mode a
+/// file it replaces had. On Windows the file inherits its directory's ACL.
 pub fn write_private_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     write_atomic_with(path, bytes, NewFileMode::OwnerOnly)
 }

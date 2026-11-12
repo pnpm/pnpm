@@ -23,7 +23,7 @@ pub async fn export_storage(
 ) -> miette::Result<ExportReport> {
     fs::create_dir_all(out).await.into_diagnostic()?;
     if include_auth {
-        refuse_live_token_database(config, out)?;
+        refuse_live_auth_files(config, out)?;
     }
 
     let storage = open_hosted_storage(config).await?;
@@ -189,17 +189,21 @@ async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
     Ok(())
 }
 
-fn refuse_live_token_database(config: &Config, out: &Path) -> miette::Result<()> {
-    let Some(tokens) = config.identity.auth.tokens.file.as_deref() else {
-        return Ok(());
-    };
-    if !is_same_file(tokens, &out.join("tokens.db")) {
-        return Ok(());
+fn refuse_live_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
+    let auth = &config.identity.auth;
+    let live =
+        [(auth.users.file.as_deref(), "users.json"), (auth.tokens.file.as_deref(), "tokens.db")];
+    for (file, name) in live {
+        if let Some(file) = file
+            && is_same_file(file, &out.join(name))
+        {
+            let file = file.display();
+            return Err(miette::miette!(
+                "the export would replace {file}; choose another output directory",
+            ));
+        }
     }
-    let tokens = tokens.display();
-    Err(miette::miette!(
-        "the export would replace the token database {tokens}; choose another output directory",
-    ))
+    Ok(())
 }
 
 fn is_same_file(existing: &Path, candidate: &Path) -> bool {
