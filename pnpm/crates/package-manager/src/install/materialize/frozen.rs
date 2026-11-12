@@ -50,6 +50,11 @@ impl<'a> MaterializationInputs<'a, '_> {
         }
     }
 
+    fn relink_every_slot_bin(&self) -> bool {
+        self.modules.relink_every_slot_bin
+            || self.install.context.config.enable_global_virtual_store
+    }
+
     fn frozen_installer<'b>(
         &'b mut self,
         scope: &'b FrozenScope<'a>,
@@ -59,8 +64,6 @@ impl<'a> MaterializationInputs<'a, '_> {
         previously_skipped: &'b pnpm_deps_restorer::SkippedSnapshots,
     ) -> InstallFrozenLockfile<'b> {
         let seed = self.take_frozen_seed(frozen_verification_override);
-        let relink_every_slot_bin = self.modules.relink_every_slot_bin
-            || self.install.context.config.enable_global_virtual_store;
         InstallFrozenLockfile {
             drivers: pnpm_deps_restorer::FrozenInstallDrivers {
                 config: self.install.context.config,
@@ -87,7 +90,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 unbuilt_builds: prior_unbuilt_builds,
                 previously_skipped,
                 prune: self.modules.prune,
-                relink_every_slot_bin,
+                relink_every_slot_bin: self.relink_every_slot_bin(),
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,
