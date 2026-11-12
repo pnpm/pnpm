@@ -47,7 +47,7 @@ async fn handshake_rejects_a_non_pnpr_server() {
 
     let client = PnprClient::new(server.url());
     let err = client.handshake().await.expect_err("a non-pnpr server should be rejected");
-    assert!(err.to_string().contains("not a pnpr server"), "got: {err}");
+    assert!(err.to_string().contains("/-/pnpr returned 404"), "got: {err}");
     mock.assert_async().await;
 }
 

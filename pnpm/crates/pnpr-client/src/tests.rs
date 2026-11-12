@@ -880,3 +880,28 @@ async fn http_errors_preserve_codes_and_display_the_reason() {
     assert!(message.ends_with(": Resolution denied"), "{message}");
     response.assert_async().await;
 }
+
+#[tokio::test]
+async fn handshake_errors_preserve_the_server_code() {
+    let mut server = mockito::Server::new_async().await;
+    let response = server
+        .mock("GET", "/-/pnpr")
+        .with_status(503)
+        .with_body(
+            json!({
+                "error": "Service Unavailable",
+                "reason": "Service Unavailable",
+                "code": "ERR_PNPR_STORAGE_UNAVAILABLE"
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+    let error = PnprClient::new(server.url()).handshake().await.unwrap_err();
+    let PnprClientError::Server { message, code } = error else {
+        panic!("expected a server error");
+    };
+    assert_eq!(code.as_deref(), Some("ERR_PNPR_STORAGE_UNAVAILABLE"));
+    assert!(message.ends_with(": Service Unavailable"), "{message}");
+    response.assert_async().await;
+}
