@@ -4,7 +4,7 @@ use super::{
 };
 
 #[test]
-fn truncated_provider_keys_retain_nested_pins_without_overriding_nearer_pins() {
+fn truncated_provider_keys_retain_nested_pins_without_overriding_encoded_pins() {
     let mut lockfile = peer_context_lockfile(
         None,
         [
@@ -78,4 +78,14 @@ fn sibling_providers_keep_distinct_pins_at_the_same_depth() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "app", |_| true);
     assert_eq!(versions["peer"], HashSet::from_iter(["1.0.0".into(), "2.0.0".into()]));
     assert_eq!(versions["nested"], HashSet::from_iter(["3.0.0".into(), "4.0.0".into()]));
+}
+
+#[test]
+fn independent_explicit_provider_paths_keep_pins_at_different_depths() {
+    let mut lockfile = peer_context_lockfile(None, []);
+    lockfile.importers.insert("app".into(), serde_json::from_value(serde_json::json!({
+        "dependencies": {"consumer": {"specifier":"1.0.0", "version":"1.0.0(left@1.0.0(peer@1.0.0))(right@1.0.0(bridge@1.0.0(peer@2.0.0)))"}}
+    })).unwrap());
+    let versions = importer_locked_peer_versions(Some(&lockfile), "app", |_| true);
+    assert_eq!(versions["peer"], HashSet::from_iter(["1.0.0".into(), "2.0.0".into()]));
 }
