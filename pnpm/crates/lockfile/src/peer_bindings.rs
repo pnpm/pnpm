@@ -11,6 +11,7 @@ use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_p
 pub struct RecordedPeerBindings {
     key: PkgNameVerPeer,
     providers: BoundProviders,
+    peer_keys: Vec<PkgNameVerPeer>,
 }
 
 impl RecordedPeerBindings {
@@ -36,13 +37,21 @@ impl RecordedPeerBindings {
         if !is_peer_suffix_hash(hash) {
             return None;
         }
-        let bindings = PeerBindings::Explicit(
-            peers
-                .iter()
-                .map(PeerId::as_segment)
-                .collect(),
-        );
-        Some(Arc::new(Self { key: key.clone(), providers: BoundProviders::of(&bindings) }))
+        let mut segments: Vec<_> = peers
+            .iter()
+            .map(PeerId::as_segment)
+            .collect();
+        segments.sort();
+        let peer_keys: Vec<_> = PeerBindings::Explicit(segments).providers().collect();
+        let providers = BoundProviders::from_providers(peer_keys.iter().cloned());
+        Some(Arc::new(Self { key: key.clone(), providers, peer_keys }))
+    }
+
+    /// Provider keys in suffix order, preserving duplicate groups.
+    /// Returns `None` when the snapshot has been rekeyed.
+    #[must_use]
+    pub fn peer_keys_for(&self, key: &PkgNameVerPeer) -> Option<&[PkgNameVerPeer]> {
+        (key == &self.key).then_some(&self.peer_keys)
     }
 
     pub(crate) fn providers_for(&self, key: &PkgNameVerPeer) -> Option<&BoundProviders> {

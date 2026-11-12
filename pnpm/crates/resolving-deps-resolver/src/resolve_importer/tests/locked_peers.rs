@@ -814,3 +814,77 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
         );
     }
 }
+
+#[test]
+fn recorded_hashed_pins_match_explicit_pins() {
+    use pnpm_deps_path::PeerId;
+    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+
+    for snapshot in [
+        SnapshotEntry::default(),
+        snapshot_with_dependencies([
+            ("first", alias_dependency("provider@1.0.0(nested@2.0.0)")),
+            ("second", alias_dependency("provider@1.0.0(nested@2.0.0)")),
+        ]),
+    ] {
+        let peers = vec![
+            PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into()),
+            PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into()),
+        ];
+        let versions = |max_length| {
+            let key = format!("consumer@1.0.0{}", PeerBindings::suffix_of(&peers, max_length));
+            let mut snapshot = snapshot.clone();
+            snapshot.recorded_peer_bindings =
+                RecordedPeerBindings::for_dep_path(&key.clone().into(), &peers);
+            let lockfile = peer_context_lockfile(
+                Some(("consumer@1.0.0", peer_declaring_metadata(["first", "second"]))),
+                [(&key, snapshot)],
+            );
+            importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true)
+        };
+        let explicit = versions(1000);
+        assert!(!explicit.is_empty());
+        assert_eq!(versions(3), explicit);
+    }
+}
+
+#[test]
+fn retained_transitive_peer_pins_keep_descendant_aliases() {
+    use pnpm_deps_path::PeerId;
+    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+
+    let peers = [PeerId::DepPath("provider@1.0.0".into())];
+    let suffix = PeerBindings::suffix_of(&peers, 3);
+    let key = format!("parent@1.0.0{suffix}");
+    let recorded = RecordedPeerBindings::for_dep_path(&key.clone().into(), &peers);
+    assert!(recorded.is_some());
+    for bindings in [None, recorded] {
+        let mut parent =
+            snapshot_with_dependency("child", plain_dependency("1.0.0(provider@1.0.0)"));
+        parent.transitive_peer_dependencies = Some(vec!["peer".to_string()]);
+        parent.recorded_peer_bindings = bindings;
+        let mut lockfile = peer_context_lockfile(
+            Some(("child@1.0.0", peer_declaring_metadata(["peer"]))),
+            [
+                (key.as_str(), parent),
+                (
+                    "child@1.0.0(provider@1.0.0)",
+                    snapshot_with_dependency("peer", alias_dependency("provider@1.0.0")),
+                ),
+            ],
+        );
+        lockfile.importers.insert(
+            "app".to_string(),
+            serde_json::from_value(serde_json::json!({
+                "dependencies": {
+                    "parent": { "specifier": "1.0.0", "version": format!("1.0.0{suffix}") },
+                },
+            }))
+            .unwrap(),
+        );
+        assert_eq!(
+            importer_locked_peer_versions(Some(&lockfile), "app", |_| true),
+            HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+        );
+    }
+}
