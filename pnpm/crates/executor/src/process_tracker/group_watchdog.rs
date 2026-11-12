@@ -259,54 +259,93 @@ impl GroupWatchdog {
 
 /// The watchdog's `sh`. Under an inherited ignored `SIGCHLD` the kernel
 /// reaps it when it exits, and its pid may name another process by the time
-/// pnpm checks or signals it. On Linux a pidfd, opened while pnpm's pipe
-/// keeps the `sh` from exiting, addresses only the `sh`. Without pidfds the
-/// pid addresses it, and a `sh` reaped elsewhere is never signalled.
+/// pnpm checks or signals it.
 struct WatchdogProcess {
     child: Child,
+    address: WatchdogAddress,
+}
+
+/// What pnpm checks and signals the `sh` through.
+enum WatchdogAddress {
+    /// A pidfd, on Linux kernels that can both signal and wait on one. It
+    /// addresses only the `sh`, whatever later gets its pid.
     #[cfg(target_os = "linux")]
-    pidfd: Option<std::os::fd::OwnedFd>,
+    Pidfd(std::os::fd::OwnedFd),
+    /// The pid. A `sh` reaped elsewhere is never signalled, but one that
+    /// exits right after the check is.
+    Pid,
+    /// The `sh` had exited before pnpm could pin it, so its pid may name
+    /// another process. It is never signalled or waited on.
+    #[cfg(target_os = "linux")]
+    Gone,
 }
 
 impl WatchdogProcess {
     fn new(child: Child) -> Self {
-        Self {
-            #[cfg(target_os = "linux")]
-            pidfd: Self::open_pidfd(&child),
-            child,
-        }
-    }
-
-    /// A pidfd the kernel can both signal and wait on, or `None`.
-    #[cfg(target_os = "linux")]
-    fn open_pidfd(child: &Child) -> Option<std::os::fd::OwnedFd> {
-        let pidfd = linux::open(i32::try_from(child.id()).ok()?).ok()?;
-        linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT)?;
-        Some(pidfd)
+        Self { address: WatchdogAddress::of(child.id()), child }
     }
 
     /// Whether the `sh` has not exited, reaping it if it has.
     fn is_running(&mut self) -> bool {
-        #[cfg(target_os = "linux")]
-        if let Some(pidfd) = &self.pidfd {
-            return linux::exited(pidfd, libc::WNOHANG) == Some(false);
+        match &self.address {
+            #[cfg(target_os = "linux")]
+            WatchdogAddress::Pidfd(pidfd) => linux::exited(pidfd, libc::WNOHANG) == Some(false),
+            WatchdogAddress::Pid => matches!(self.child.try_wait(), Ok(None)),
+            #[cfg(target_os = "linux")]
+            WatchdogAddress::Gone => false,
         }
-        matches!(self.child.try_wait(), Ok(None))
     }
 
     /// Kill the `sh` unless it has exited, and reap it.
     fn stop(&mut self) {
-        #[cfg(target_os = "linux")]
-        if let Some(pidfd) = &self.pidfd {
-            linux::signal(pidfd, libc::SIGKILL);
-            linux::exited(pidfd, 0);
-            return;
-        }
-        if self.is_running() {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
+        match &self.address {
+            #[cfg(target_os = "linux")]
+            WatchdogAddress::Pidfd(pidfd) => {
+                linux::signal(pidfd, libc::SIGKILL);
+                linux::exited(pidfd, 0);
+            }
+            WatchdogAddress::Pid => {
+                if self.is_running() {
+                    let _ = self.child.kill();
+                    let _ = self.child.wait();
+                }
+            }
+            #[cfg(target_os = "linux")]
+            WatchdogAddress::Gone => {}
         }
     }
 }
 
+impl WatchdogAddress {
+    /// Address the child `pid`. pnpm's pipe keeps the `sh` from exiting on
+    /// its own, but a signal from elsewhere can end it before the pidfd
+    /// opens, so the pidfd is kept only once a wait finds a running child
+    /// behind it.
+    #[cfg(target_os = "linux")]
+    fn of(pid: u32) -> Self {
+        let Ok(pid) = i32::try_from(pid) else { return Self::Gone };
+        let pidfd = match linux::open(pid) {
+            Ok(pidfd) => pidfd,
+            Err(error) if error.raw_os_error() == Some(libc::ENOSYS) => return Self::Pid,
+            Err(_) => return Self::Gone,
+        };
+        match linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT) {
+            Some(false) => Self::Pidfd(pidfd),
+            None => Self::Pid,
+            Some(true) => {
+                linux::exited(&pidfd, libc::WNOHANG);
+                Self::Gone
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn of(_pid: u32) -> Self {
+        Self::Pid
+    }
+}
+
 mod spawn;
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests;
