@@ -48,6 +48,7 @@ interface ValidateModulesOptions {
   hoistPattern?: string[] | undefined
 
   publicHoistPattern?: string[] | undefined
+  virtualStoreOnly?: boolean
   global?: boolean
 }
 
@@ -102,9 +103,10 @@ function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptio
     )
   }
   // virtualStoreOnly installs (e.g. `pnpm fetch`) force empty hoist patterns
-  // into .modules.yaml; the follow-up install must complete linking, not purge.
+  // into .modules.yaml; neither fetch nor the follow-up install must purge.
   if (
     !modules.virtualStoreOnly &&
+    !opts.virtualStoreOnly &&
     !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
   ) {
     return new PnpmError(
@@ -172,7 +174,7 @@ function needsPurge (check: () => void, canPurge: boolean): boolean {
 }
 
 function checkHoistPattern (modules: Modules, opts: ValidateModulesOptions): void {
-  if (modules.virtualStoreOnly || equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) return
+  if (modules.virtualStoreOnly || opts.virtualStoreOnly || equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) return
   throw new PnpmError(
     'HOIST_PATTERN_DIFF',
     'This modules directory was created using a different hoist-pattern value.' +

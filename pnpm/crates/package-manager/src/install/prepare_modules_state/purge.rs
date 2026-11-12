@@ -150,7 +150,10 @@ pub(super) struct ManifestLinkProjects<'a> {
 pub(super) fn prune_excluded_direct_deps(
     context: &ExcludedGroupPrune<'_>,
 ) -> Result<(), InstallError> {
-    if context.eligibility.resolve_only || context.eligibility.is_inconsistent {
+    if context.eligibility.resolve_only
+        || context.eligibility.is_inconsistent
+        || context.config.virtual_store_only
+    {
         return Ok(());
     }
     let Some(modules) = context.modules_manifest else { return Ok(()) };

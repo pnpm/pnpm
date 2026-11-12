@@ -473,6 +473,121 @@ fn fetch_under_hoisted_defers_patches_and_builds_until_offline_install() {
     drop((root, mock_instance, store_dir));
 }
 
+#[test]
+fn fetch_under_hoisted_preserves_existing_hoisted_locations_and_ignored_builds() {
+    const BUILT_DEP: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    const BUILT_DEP_KEY: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let base_yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&yaml_path, format!("{base_yaml}nodeLinker: hoisted\nstrictDepBuilds: false\n"))
+        .expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { BUILT_DEP: "1.0.0" } }).to_string(),
+    )
+    .expect("write initial package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let modules_before_fetch = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect("install must write .modules.yaml");
+    assert!(
+        modules_before_fetch.hoisted_locations
+            .as_ref()
+            .is_some_and(|locations| locations.contains_key(BUILT_DEP_KEY)),
+    );
+    assert_eq!(
+        modules_before_fetch.ignored_builds
+            .as_ref()
+            .map(|ignored| ignored
+                .iter()
+                .map(pnpm_modules_yaml::DepPath::as_str)
+                .collect::<Vec<_>>()),
+        Some(vec![BUILT_DEP_KEY]),
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join(BUILT_DEP)
+            .join("generated-by-postinstall.js")
+            .exists(),
+    );
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                BUILT_DEP: "1.0.0",
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write updated package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
+
+    assert!(!workspace.join("node_modules/is-positive").exists());
+    let modules_after_fetch = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect("fetch must write .modules.yaml");
+    assert_eq!(modules_after_fetch.hoisted_locations, modules_before_fetch.hoisted_locations);
+    assert_eq!(modules_after_fetch.ignored_builds, modules_before_fetch.ignored_builds);
+
+    fs::write(
+        &yaml_path,
+        format!("{base_yaml}nodeLinker: hoisted\nallowBuilds:\n  '{BUILT_DEP}': true\n"),
+    )
+    .expect("approve build in pnpm-workspace.yaml");
+    pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("node_modules/is-positive").exists());
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(BUILT_DEP)
+            .join("generated-by-postinstall.js")
+            .exists(),
+    );
+    let modules_after_install =
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+            "node_modules",
+        ))
+        .expect("read .modules.yaml")
+        .expect("install must write .modules.yaml");
+    assert!(
+        modules_after_install.hoisted_locations
+            .as_ref()
+            .is_some_and(|locations| locations.contains_key("is-positive@1.0.0")),
+    );
+    assert_eq!(modules_after_install.ignored_builds, None);
+
+    drop((root, mock_instance, store_dir));
+}
+
 /// An env document pinning pnpm 99.0.0, recorded as the bare `pnpm` package
 /// without the platform packages its binary comes from.
 const LOCKED_PNPM_ENV_DOCUMENT: &str = r"---

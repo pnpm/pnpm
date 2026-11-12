@@ -514,6 +514,92 @@ test('fetch with nodeLinker=hoisted defers patches and builds until offline inst
   expect(modulesAfterInstall?.hoistedLocations).toBeDefined()
 })
 
+test('fetch with nodeLinker=hoisted preserves existing hoistedLocations and ignoredBuilds', async () => {
+  const initialManifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+  const project = prepare(initialManifest)
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    cacheDir,
+    dir: project.dir(),
+    hoistPattern: ['*'],
+    linkWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+    storeDir,
+    strictDepBuilds: false,
+  })
+
+  const modulesBeforeFetch = project.readModulesManifest()
+  expect(modulesBeforeFetch?.hoistedLocations?.['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0']).toBeDefined()
+  expect(modulesBeforeFetch?.hoistedLocations?.['is-positive@1.0.0']).toBeUndefined()
+  expect(Array.from(modulesBeforeFetch?.ignoredBuilds ?? [])).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(false)
+
+  const updatedManifest = {
+    dependencies: {
+      ...initialManifest.dependencies,
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync(path.resolve(project.dir(), 'package.json'), JSON.stringify(updatedManifest), 'utf8')
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    nodeLinker: 'hoisted',
+    storeDir,
+    strictDepBuilds: false,
+  })
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    cacheDir,
+    dir: project.dir(),
+    nodeLinker: 'hoisted',
+    storeDir,
+  })
+
+  project.storeHas('is-positive')
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/is-positive'))).toBe(false)
+  const modulesAfterFetch = project.readModulesManifest()
+  expect(modulesAfterFetch?.hoistedLocations).toStrictEqual(modulesBeforeFetch?.hoistedLocations)
+  expect(Array.from(modulesAfterFetch?.ignoredBuilds ?? [])).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    cacheDir,
+    dir: project.dir(),
+    frozenLockfile: true,
+    hoistPattern: ['*'],
+    linkWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+    offline: true,
+    storeDir,
+  })
+
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/is-positive'))).toBe(true)
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(true)
+  const modulesAfterInstall = project.readModulesManifest()
+  expect(modulesAfterInstall?.hoistedLocations?.['is-positive@1.0.0']).toBeDefined()
+  expect(Array.from(modulesAfterInstall?.ignoredBuilds ?? [])).toStrictEqual([])
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/14174
 // A dependency's lifecycle script resolves a sibling dependency's bin
 // through the `node_modules/.bin` linked next to it in the virtual store.

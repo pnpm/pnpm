@@ -42,9 +42,9 @@ fn check_modules_settings_diff(
     if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
         return Err(InstallError::VirtualStoreDirMaxLengthDiff);
     }
-    // A `virtualStoreOnly` install (`pnpm fetch`) records empty hoist
-    // patterns; the follow-up install completes the linking.
-    if modules.virtual_store_only != Some(true) {
+    // A `virtualStoreOnly` install (`pnpm fetch`) forces empty hoist
+    // patterns; neither `fetch` nor the follow-up install must fail on them.
+    if modules.virtual_store_only != Some(true) && !config.virtual_store_only {
         check_hoist_patterns_diff(modules, config)?;
     }
     check_compatibility(modules, config)

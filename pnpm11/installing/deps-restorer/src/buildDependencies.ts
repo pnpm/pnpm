@@ -31,9 +31,14 @@ export async function buildDependencies (
 }> {
   const { opts } = ctx
   const buildsOrPatchesApply = buildsDependenciesDuringInstall(opts) || Object.keys(opts.patchedDependencies ?? {}).length > 0
+  if (!buildsOrPatchesApply || opts.enableModulesDir === false) return {}
   // `nodeLinker: hoisted` has no virtual store, so `skipPostImportLinking`
   // materialized no package directories to patch or build.
-  if (!buildsOrPatchesApply || opts.enableModulesDir === false || (opts.nodeLinker === 'hoisted' && ctx.skipPostImportLinking)) return {}
+  if (opts.nodeLinker === 'hoisted' && ctx.skipPostImportLinking) {
+    return {
+      ignoredBuilds: addPreviouslyIgnoredBuilds(undefined, ctx, depGraph),
+    }
+  }
   const directNodes = collectDirectNodes(depGraph)
   const extraBinPaths = [...opts.extraBinPaths ?? []]
   if (opts.hoistPattern != null) {

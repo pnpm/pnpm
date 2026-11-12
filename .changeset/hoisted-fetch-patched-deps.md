@@ -5,4 +5,4 @@
 "pnpm": patch
 ---
 
-`pnpm fetch` no longer fails with `ENOENT` when `nodeLinker` is `hoisted` and the project configures `patchedDependencies` or `allowBuilds` [#18037](https://github.com/pnpm/pnpm/issues/18037).
+`pnpm fetch` no longer fails with `ENOENT` when `nodeLinker` is `hoisted` and the project configures `patchedDependencies` or `allowBuilds`. `pnpm fetch` no longer purges an existing `node_modules` directory [#18037](https://github.com/pnpm/pnpm/issues/18037).

@@ -152,8 +152,9 @@ pub(super) fn merge_committed_modules_metadata(
     {
         keep_recorded_layout(next_modules, recorded);
     }
-    if inputs.tree.config.virtual_store_only
-        && inputs.tree.node_linker == pnpm_config::NodeLinker::Hoisted
+    let skipped_hoisted_tree = inputs.tree.config.virtual_store_only
+        && inputs.tree.node_linker == pnpm_config::NodeLinker::Hoisted;
+    if skipped_hoisted_tree
         && !inputs.prior.is_inconsistent
         && let Some(previous) = inputs.prior.metadata
     {
@@ -163,7 +164,13 @@ pub(super) fn merge_committed_modules_metadata(
     if let (Some(previous), Some(current), Some(policy)) =
         (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)
     {
-        retain_current_ignored_builds(next_modules, previous, current, policy);
+        retain_current_ignored_builds(
+            next_modules,
+            previous,
+            current,
+            policy,
+            skipped_hoisted_tree,
+        );
     }
     if inputs.prior.filtered_install
         && !inputs.prior.is_inconsistent
@@ -352,12 +359,14 @@ pub(super) fn retain_current_ignored_builds(
     previous: &pnpm_modules_yaml::ModulesLayout,
     current: &Lockfile,
     allow_build_policy: &crate::AllowBuildPolicy,
+    defer_hoisted_builds: bool,
 ) {
     let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
     for dep_path in previous_ignored {
-        if current_contains_ignored_build(current, dep_path.as_str())
-            && allow_build_policy.check(dep_path.as_str()).is_none()
-        {
+        let decision = allow_build_policy.check(dep_path.as_str());
+        let still_unbuilt =
+            if defer_hoisted_builds { decision != Some(false) } else { decision.is_none() };
+        if current_contains_ignored_build(current, dep_path.as_str()) && still_unbuilt {
             next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
         }
     }
