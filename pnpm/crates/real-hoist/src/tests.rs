@@ -183,3 +183,8 @@ mod dependencies;
 mod behavior;
 
 mod peer_bindings;
+
+mod resolution;
+
+mod generated;
+pub(crate) use resolution::assert_resolves_as_declared;
