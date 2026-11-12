@@ -83,6 +83,8 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     fs::create_dir_all(cache.target.join("debug/incremental")).unwrap();
     fs::write(cache.target.join("debug/.fingerprint/stale"), "stale").unwrap();
     fs::write(cache.target.join("debug/incremental/state"), "keep").unwrap();
+    fs::create_dir_all(cache.target.join("debug/build/probe/1/fingerprint")).unwrap();
+    fs::create_dir_all(cache.target.join("debug/build/probe/1/out")).unwrap();
     assert!(
         !cache
             .restore(&root.path().join("missing"), "inputs")
@@ -90,7 +92,40 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     );
     cache.prepare("changed").unwrap();
     assert!(!cache.target.join("debug/.fingerprint").exists());
+    assert!(!cache.target.join("debug/build/probe/1/fingerprint").exists());
+    assert!(cache.target.join("debug/build/probe/1/out").exists());
     assert_eq!(fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(), "keep");
+}
+
+#[test]
+fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
+    let first_worktree = project();
+    let second_worktree = project();
+    let cache = tempfile::tempdir().unwrap();
+    let entry = cache.path().join("entry");
+    let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
+    let units = [
+        ("debug/.fingerprint/my-probe-1/bin-probe", true),
+        ("debug/.fingerprint/dep-2/run-build-script-build", true),
+        ("debug/.fingerprint/dep-3/lib-dep", false),
+        ("debug/build/my-probe/4/fingerprint/bin-probe", true),
+        ("debug/build/dep/5/fingerprint/run-build-script-build", true),
+        ("debug/build/dep/6/fingerprint/lib-dep", false),
+    ];
+    for (file, _) in units {
+        let path = publisher.target.join(file);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "").unwrap();
+    }
+    publisher
+        .publish(&entry, "inputs", &["my-probe".to_string()])
+        .unwrap();
+    let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
+    assert!(consumer.restore(&entry, "inputs").unwrap());
+    for (file, invalidated) in units {
+        let fingerprint = consumer.target.join(file);
+        assert_eq!(fingerprint.parent().unwrap().exists(), !invalidated, "{file}");
+    }
 }
 
 #[test]
