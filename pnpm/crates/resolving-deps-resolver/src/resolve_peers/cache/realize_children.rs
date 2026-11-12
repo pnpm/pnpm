@@ -32,6 +32,11 @@ impl Walker<'_> {
         &mut self,
         context: &DeferredChildContext<'_>,
     ) -> NodeOutput {
+        if self.traversal.snapshot_budget.poll_cancelled_amortized()
+            || self.traversal.snapshot_budget.is_stopped()
+        {
+            return self.peerless_output(super::DepPath::from(Arc::clone(&context.edge.pkg_id)));
+        }
         match self.deferred_child_resolution(context.walk.parent_refs, &context.edge.pkg_id) {
             DeferredChildResolution::Pure(dep_path) => {
                 let mut output = self.peerless_output(dep_path);
@@ -40,30 +45,50 @@ impl Walker<'_> {
                 output
             }
             DeferredChildResolution::Cached(mut cached) => {
+                self.remap_discovery_cached_peers(
+                    &mut cached.output.external_resolved_peers,
+                    context.walk.parent_refs,
+                );
                 cached.output.subtree_dep_paths = self.traversal.snapshot_budget
                     .replay_cached_subtree_for_mode(self.traversal.mode, &cached.output.dep_path);
                 cached.output
             }
             DeferredChildResolution::Materialize(pkg_id) => {
-                self.tree.dependencies_tree.insert(
-                    context.node_id.clone(),
-                    DependenciesTreeNode::new(pkg_id, TreeChildren::Lazy, context.depth),
-                );
-                let output = self.resolve_node(&context.node_id, context.walk);
-                if !self.caches.parent_pkgs_of_node.contains_key(&context.node_id)
-                    && !should_retain_materialized_node(
-                        &self.caches.retained_peer_node_ids,
-                        Some(&output),
-                        &context.node_id,
-                    )
-                {
-                    self.tree.dependencies_tree.remove(&context.node_id);
-                    self.caches.node_dep_paths.remove(&context.node_id);
-                    self.traversal.visited_this_call.remove(&context.node_id);
-                }
-                output
+                self.materialize_deferred_child(context, pkg_id)
             }
         }
+    }
+
+    fn materialize_deferred_child(
+        &mut self,
+        context: &DeferredChildContext<'_>,
+        pkg_id: Arc<str>,
+    ) -> NodeOutput {
+        self.tree.dependencies_tree.insert(
+            context.node_id.clone(),
+            DependenciesTreeNode::new(pkg_id, TreeChildren::Lazy, context.depth),
+        );
+        let output = self.resolve_node(&context.node_id, context.walk);
+        if !self.caches.parent_pkgs_of_node.contains_key(&context.node_id)
+            && !should_retain_materialized_node(
+                &self.caches.retained_peer_node_ids,
+                Some(&output),
+                &context.node_id,
+            )
+        {
+            self.discard_unretained_node(&context.node_id);
+        }
+        output
+    }
+
+    fn discard_unretained_node(&mut self, node_id: &NodeId) {
+        self.tree.dependencies_tree.remove(node_id);
+        self.caches.parent_pkgs_of_node.remove(node_id);
+        self.nodes.external_peers.remove(node_id);
+        if self.caches.node_dep_paths.remove(node_id).is_some() {
+            self.traversal.snapshot_budget.mark_dirty_provider(node_id);
+        }
+        self.traversal.visited_this_call.remove(node_id);
     }
 
     pub(in super::super) fn previously_resolved_children(
@@ -344,10 +369,7 @@ impl Walker<'_> {
             ) {
                 continue;
             }
-            self.tree.dependencies_tree.remove(child_id);
-            self.caches.parent_pkgs_of_node.remove(child_id);
-            self.caches.node_dep_paths.remove(child_id);
-            self.traversal.visited_this_call.remove(child_id);
+            self.discard_unretained_node(child_id);
         }
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
             node.children = TreeChildren::Lazy;

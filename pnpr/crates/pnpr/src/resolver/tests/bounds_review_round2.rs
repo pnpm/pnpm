@@ -28,7 +28,7 @@ use super::{
         Resolver,
         cargo::{IndexFetcher, solve::solve_cargo},
         dispatch::handle_resolve,
-        limits::{GraphLimitTracker, RESOLVE_TIMEOUT_CODE, STREAM_CHANNEL_CAPACITY},
+        limits::{CancelToken, GraphLimitTracker, RESOLVE_TIMEOUT_CODE, STREAM_CHANNEL_CAPACITY},
         protocol::{AppliedPolicies, ResolveRequest},
         request_tarball_router, serve_resolve_request,
         streaming::{
@@ -317,6 +317,7 @@ async fn finish_before_deadline_drops_sender_for_immediate_eof_and_skips_cache_o
         package_version_guard: None,
         tarball_router: tarball_router.clone(),
         graph_limit: Arc::clone(&graph_limit),
+        cancel: CancelToken::never(),
     });
     let task = StreamedResolve {
         client: Arc::clone(&resolver.client),

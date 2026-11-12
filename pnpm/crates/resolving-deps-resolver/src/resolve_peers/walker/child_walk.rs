@@ -44,7 +44,7 @@ impl Walker<'_> {
         let mut child_outputs = ChildOutputs::default();
         for repeated in [true, false] {
             for edge in children {
-                if self.traversal.snapshot_budget.exceeded {
+                if self.traversal.snapshot_budget.is_stopped() {
                     return child_outputs;
                 }
                 if walk.parent_refs.contains_key(&edge.alias) != repeated
@@ -101,7 +101,7 @@ impl Walker<'_> {
                     .filter(|(alias, _)| !walk.parent_refs.contains_key(*alias)),
             );
         for (alias, child_node_id) in ordered {
-            if self.traversal.snapshot_budget.exceeded {
+            if self.traversal.snapshot_budget.is_stopped() {
                 break;
             }
             if self.is_realized_backedge(&canonical_scc, pkg_id, child_node_id) {
@@ -150,7 +150,7 @@ impl Walker<'_> {
     ) -> Option<Arc<SubtreePaths>> {
         self.remember_provider_bindings(node_id, result.all_resolved_peers);
         let subtree_dep_paths = self.record_mode_subtree(node_id, result, dep_path_subtrees);
-        if self.traversal.snapshot_budget.exceeded {
+        if self.traversal.snapshot_budget.is_stopped() {
             return None;
         }
         if result.is_pure {
@@ -158,17 +158,17 @@ impl Walker<'_> {
             return subtree_dep_paths;
         }
         self.caches.retained_peer_node_ids.extend(result.all_resolved_peers.values().cloned());
-        self.caches.peers_cache
-            .entry(Arc::clone(pkg_id))
-            .or_default()
-            .push(PeersCacheItem {
+        self.caches.peers_cache.push(
+            pkg_id,
+            PeersCacheItem {
                 owner_node_id: node_id.clone(),
                 dep_path: result.dep_path.clone(),
                 resolved_peers: Arc::clone(result.all_resolved_peers),
                 missing_peers: Arc::clone(result.all_missing_peers),
                 missing_peers_of_children: Arc::clone(result.missing_peers_of_children),
                 subtree_missing_by_pkg: result.subtree_missing_by_pkg.clone(),
-            });
+            },
+        );
         subtree_dep_paths
     }
 

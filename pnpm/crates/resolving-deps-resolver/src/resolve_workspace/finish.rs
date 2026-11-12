@@ -49,14 +49,39 @@ pub(super) fn finish(
     )?;
     let time = broken_optional::forget_left_out(&mut merged_tree, &left_out, time);
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
+    check_workspace_peer_abort(&peers, settings)?;
+    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
+}
+
+fn check_workspace_peer_abort(
+    peers: &WorkspaceResolvePeersResult,
+    settings: &PassSettings,
+) -> Result<(), ResolveImporterError> {
+    match peers.abort {
+        Some(crate::PeerWalkAbort::Cancelled) => {
+            return Err(ResolveImporterError::Resolve(
+                ResolveDependencyTreeError::ResolutionCancelled,
+            ));
+        }
+        Some(crate::PeerWalkAbort::SnapshotLimitExceeded) => {
+            let max_snapshots = settings.max_snapshots.unwrap_or(0);
+            return Err(ResolveImporterError::Resolve(
+                ResolveDependencyTreeError::SnapshotLimitExceeded { max_snapshots },
+            ));
+        }
+        None => {}
+    }
+    if settings.cancel.is_cancelled() {
+        return Err(ResolveImporterError::Resolve(ResolveDependencyTreeError::ResolutionCancelled));
+    }
     if let Some(max_snapshots) = settings.max_snapshots
-        && (peers.snapshots_exceeded || peers.graph.len() > max_snapshots)
+        && peers.graph.len() > max_snapshots
     {
         return Err(ResolveImporterError::Resolve(
             ResolveDependencyTreeError::SnapshotLimitExceeded { max_snapshots },
         ));
     }
-    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
+    Ok(())
 }
 
 struct PeerInputs {
@@ -99,6 +124,7 @@ fn resolve_workspace_peers(
             dedupe_peer_dependents: settings.peers.dedupe_peer_dependents,
             resolve_peers_from_workspace_root: settings.peers.resolve_peers_from_workspace_root,
             max_snapshots: settings.max_snapshots,
+            cancel: settings.cancel.clone(),
         },
         ResolvePeersOptions {
             #[cfg(test)]

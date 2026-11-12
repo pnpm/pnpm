@@ -33,16 +33,16 @@ fn discovery_snapshot_budget_evicts_stale_paths_and_isolates_view_rebuild_reset(
     engine
         .check_snapshot_limit()
         .expect("peer-context change must not retain stale pre-hoist discovery paths");
-    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 2);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 2);
 
     workspace.tree.bump_revision();
     engine.discover(&workspace, &direct_after, &[], ResolvePeersOptions::default());
-    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 2);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 2);
 
     workspace.tree.record_children_rewrite();
     workspace.tree.bump_revision();
     engine.discover(&workspace, &direct_after, &[], ResolvePeersOptions::default());
-    assert!(engine.snapshot_budget.discovery_dep_paths.is_empty());
+    assert!(engine.snapshot_budget.live_paths.is_empty());
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn discovery_snapshot_budget_handles_aliased_child_peer_providers_without_loopin
 
     engine.discover(&workspace, &direct_round1, &direct_round1, ResolvePeersOptions::default());
     engine.check_snapshot_limit().expect("3 live snapshots fit within max_snapshots = 4");
-    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 3);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 3);
 
     workspace.tree.bump_revision();
     engine.discover(
@@ -150,7 +150,7 @@ fn discovery_snapshot_budget_handles_aliased_child_peer_providers_without_loopin
         ResolvePeersOptions::default(),
     );
     engine.check_snapshot_limit().expect("4 live snapshots fit within max_snapshots = 4");
-    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 4);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 4);
 }
 
 #[test]
@@ -199,20 +199,20 @@ fn discovery_snapshot_budget_converges_across_three_hop_direct_peer_chain() {
         ResolvePeersOptions::default(),
     );
     engine.check_snapshot_limit().expect("4 converged live snapshots fit within max_snapshots = 4");
-    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 4);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 4);
     assert!(
-        engine.snapshot_budget.discovery_dep_paths.contains(&DepPath::from(
+        engine.snapshot_budget.live_paths.contains(&DepPath::from(
             "pkg-a@1.0.0(pkg-b@1.0.0(pkg-c@1.0.0(pkg-e@1.0.0))(pkg-e@1.0.0))(pkg-e@1.0.0)",
         )),
         "expected converged 3-hop path for pkg-a, got: {:?}",
-        engine.snapshot_budget.discovery_dep_paths,
+        engine.snapshot_budget.live_paths,
     );
 }
 
 #[test]
-fn discovery_snapshot_budget_reports_failure_when_cyclic_refresh_cannot_converge() {
+fn discovery_snapshot_budget_collapses_cyclic_peers_and_converges_across_hoist_rounds() {
     let workspace = WorkspaceTreeCtx::default();
-    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(20));
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(3));
 
     let view = &mut engine.tree;
     for peer in ["pkg-a", "pkg-b", "pkg-e"] {
@@ -235,7 +235,20 @@ fn discovery_snapshot_budget_reports_failure_when_cyclic_refresh_cannot_converge
     add_lazy_direct_dep(&mut view.dependencies_tree, &mut direct_round2, "pkg-e", "pkg-e@1.0.0");
 
     engine.discover(&workspace, &direct_round1, &direct_round1, ResolvePeersOptions::default());
-    engine.check_snapshot_limit().expect("initial cyclic round fits within max_snapshots = 20");
+    engine
+        .check_snapshot_limit()
+        .expect("collapsed 2-node peer cycle fits within max_snapshots = 3");
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 2);
+    assert!(
+        engine.snapshot_budget.live_paths.contains(&DepPath::from("pkg-a@1.0.0(pkg-b@1.0.0)")),
+        "expected collapsed cyclic path for pkg-a in round 1, got: {:?}",
+        engine.snapshot_budget.live_paths,
+    );
+    assert!(
+        engine.snapshot_budget.live_paths.contains(&DepPath::from("pkg-b@1.0.0(pkg-a@1.0.0)")),
+        "expected collapsed cyclic path for pkg-b in round 1, got: {:?}",
+        engine.snapshot_budget.live_paths,
+    );
 
     workspace.tree.bump_revision();
     engine.discover(
@@ -244,18 +257,22 @@ fn discovery_snapshot_budget_reports_failure_when_cyclic_refresh_cannot_converge
         &direct_round2[2..],
         ResolvePeersOptions::default(),
     );
-    let err = engine
+    engine
         .check_snapshot_limit()
-        .expect_err("non-converging refresh must report failure rather than retain stale paths");
+        .expect("collapsed cyclic peers plus hoisted pkg-e fit within max_snapshots = 3");
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 3);
     assert!(
-        matches!(
-            err,
-            crate::ResolveImporterError::Resolve(
-                crate::resolve_dependency_tree::ResolveDependencyTreeError::SnapshotLimitExceeded {
-                    max_snapshots: 20,
-                },
-            ),
-        ),
-        "unexpected error: {err:?}",
+        engine.snapshot_budget.live_paths.contains(&DepPath::from(
+            "pkg-a@1.0.0(pkg-b@1.0.0)(pkg-e@1.0.0)",
+        )),
+        "expected converged path for pkg-a in round 2, got: {:?}",
+        engine.snapshot_budget.live_paths,
+    );
+    assert!(
+        engine.snapshot_budget.live_paths.contains(&DepPath::from(
+            "pkg-b@1.0.0(pkg-a@1.0.0)(pkg-e@1.0.0)",
+        )),
+        "expected converged path for pkg-b in round 2, got: {:?}",
+        engine.snapshot_budget.live_paths,
     );
 }

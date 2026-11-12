@@ -292,18 +292,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
             peers_suffix_max_length: 1000,
             auto_install_peers: true,
         },
-        hooks: pnpm_resolving_deps_resolver::WorkspaceResolveHooks {
-            read_package_log: None,
-            skipped_optional_log: None,
-            finalized_package: None,
-            deprecation_log: None,
-            manifests: pnpm_resolving_deps_resolver::ManifestTransformHooks {
-                manifest_hook: None,
-                overrides_hook: None,
-                pnpmfile_hook: None,
-            },
-            max_snapshots: None,
-        },
+        hooks: pnpm_resolving_deps_resolver::WorkspaceResolveHooks::default(),
         reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
             lockfile: None,
             subtrees: true,

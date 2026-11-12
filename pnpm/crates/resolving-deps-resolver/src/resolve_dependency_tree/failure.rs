@@ -8,9 +8,45 @@ use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, ResolveError,
     UnsupportedProtocolError,
 };
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use super::SkippedOptionalDependencyParent;
+
+/// Cooperative cancellation probe polled during synchronous and multi-pass
+/// dependency resolution stages.
+#[derive(Default, Clone)]
+pub struct ResolutionCancel(Option<Arc<dyn Fn() -> bool + Send + Sync>>);
+
+impl fmt::Debug for ResolutionCancel {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_tuple("ResolutionCancel")
+            .field(&self.0.as_ref().map(|_| ".."))
+            .finish()
+    }
+}
+
+impl ResolutionCancel {
+    #[must_use]
+    pub fn new(check: Arc<dyn Fn() -> bool + Send + Sync>) -> Self {
+        Self(Some(check))
+    }
+
+    #[must_use]
+    pub fn from_option(check: Option<Arc<dyn Fn() -> bool + Send + Sync>>) -> Self {
+        Self(check)
+    }
+
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.0.as_ref().is_some_and(|check| check())
+    }
+
+    #[must_use]
+    pub fn is_configured(&self) -> bool {
+        self.0.is_some()
+    }
+}
 
 /// The failed edge and the packages that led to it. The source retains its
 /// diagnostic code and help, including failures of locked optional edges.
@@ -186,6 +222,10 @@ pub enum ResolveDependencyTreeError {
         #[error(not(source))]
         max_snapshots: usize,
     },
+
+    #[display("resolution timed out")]
+    #[diagnostic(code(ERR_PNPR_RESOLVE_TIMEOUT))]
+    ResolutionCancelled,
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {

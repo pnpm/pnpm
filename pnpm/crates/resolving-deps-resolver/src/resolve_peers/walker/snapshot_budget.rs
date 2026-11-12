@@ -1,8 +1,17 @@
+mod cyclic_peers;
+mod live_paths;
+mod refresh;
+
 use super::{
     Arc, DepPath, DirectDep, HashMap, HashSet, NodeId, NodeOutput, ParentRef, ParentRefs,
     PeerWalkMode, RootWalk, Walker,
 };
+use crate::{PeerWalkAbort, ResolutionCancel};
+use live_paths::LivePaths;
+use refresh::{candidate_provider_ids, order_evicted_provider_first};
 use std::path::PathBuf;
+
+const CANCEL_POLL_MASK: u8 = 63;
 
 #[derive(Debug)]
 pub(in super::super) struct SubtreePaths {
@@ -12,6 +21,7 @@ pub(in super::super) struct SubtreePaths {
 
 #[derive(Debug)]
 pub(in super::super) struct DirectDepBudget {
+    pub(super) direct_dep: DirectDep,
     pub(super) subtree: Arc<SubtreePaths>,
     pub(super) importer_refs: Vec<(String, Option<ParentRef>)>,
     pub(super) provider_dep_paths: Vec<(NodeId, Option<DepPath>)>,
@@ -20,43 +30,146 @@ pub(in super::super) struct DirectDepBudget {
 #[derive(Debug, Default)]
 pub(in super::super) struct ScopedDiscoveryPaths {
     pub(super) by_direct_dep: HashMap<NodeId, DirectDepBudget>,
+    pub(super) dependents_by_provider: HashMap<NodeId, HashSet<NodeId>>,
     pub(super) canonical_subtrees: Vec<Arc<SubtreePaths>>,
+}
+
+impl ScopedDiscoveryPaths {
+    fn insert_direct_dep(&mut self, entry: DirectDepBudget) -> Option<DirectDepBudget> {
+        let node_id = entry.direct_dep.node_id.clone();
+        let previous = self.remove_direct_dep(&node_id);
+        for (provider_id, _) in &entry.provider_dep_paths {
+            self.dependents_by_provider
+                .entry(provider_id.clone())
+                .or_default()
+                .insert(node_id.clone());
+        }
+        self.by_direct_dep.insert(node_id, entry);
+        previous
+    }
+
+    fn remove_direct_dep(&mut self, node_id: &NodeId) -> Option<DirectDepBudget> {
+        let removed = self.by_direct_dep.remove(node_id)?;
+        for (provider_id, _) in &removed.provider_dep_paths {
+            if let Some(dependents) = self.dependents_by_provider.get_mut(provider_id) {
+                dependents.remove(node_id);
+                if dependents.is_empty() {
+                    self.dependents_by_provider.remove(provider_id);
+                }
+            }
+        }
+        Some(removed)
+    }
+}
+
+#[derive(Debug, Default)]
+pub(in super::super) struct CancelState {
+    probe: ResolutionCancel,
+    poll_tick: u8,
+}
+
+impl CancelState {
+    pub(in super::super) fn new(probe: ResolutionCancel) -> Self {
+        Self { probe, poll_tick: 0 }
+    }
+
+    pub(in super::super) fn set_probe(&mut self, probe: ResolutionCancel) {
+        self.probe = probe;
+    }
+
+    fn poll_probe(&self) -> bool {
+        self.probe.is_cancelled()
+    }
+
+    fn poll_probe_amortized(&mut self) -> bool {
+        if !self.probe.is_configured() {
+            return false;
+        }
+        let should_poll = (self.poll_tick & CANCEL_POLL_MASK) == 0;
+        self.poll_tick = self.poll_tick.wrapping_add(1);
+        should_poll && self.probe.is_cancelled()
+    }
 }
 
 #[derive(Debug, Default)]
 pub(in super::super) struct SnapshotBudget {
     pub(in super::super) max_snapshots: Option<usize>,
-    pub(in super::super) exceeded: bool,
-    pub(in super::super) discovery_dep_paths: HashSet<DepPath>,
+    pub(in super::super) abort: Option<PeerWalkAbort>,
+    pub(in super::super) cancel: CancelState,
+    pub(in super::super) live_paths: LivePaths,
     pub(super) cached_subtrees: HashMap<DepPath, Arc<SubtreePaths>>,
-    pub(super) visited_subtrees: HashMap<usize, Arc<SubtreePaths>>,
     pub(super) scope_paths: HashMap<Option<PathBuf>, ScopedDiscoveryPaths>,
+    pub(super) dirty_providers: HashSet<NodeId>,
+    pub(super) cyclic_peers_of: HashMap<NodeId, Arc<HashSet<NodeId>>>,
 }
 
 impl SnapshotBudget {
-    pub(in super::super) fn new(max_snapshots: Option<usize>) -> Self {
-        Self { max_snapshots, ..Self::default() }
+    pub(in super::super) fn with_limits(
+        max_snapshots: Option<usize>,
+        cancel: ResolutionCancel,
+    ) -> Self {
+        Self { max_snapshots, cancel: CancelState::new(cancel), ..Self::default() }
+    }
+
+    #[must_use]
+    pub(in super::super) fn is_stopped(&self) -> bool {
+        self.abort.is_some()
+    }
+
+    pub(in super::super) fn mark_exceeded(&mut self) {
+        self.abort.get_or_insert(PeerWalkAbort::SnapshotLimitExceeded);
+    }
+
+    pub(in super::super) fn poll_cancelled(&mut self) -> bool {
+        match self.abort {
+            Some(PeerWalkAbort::Cancelled) => return true,
+            Some(PeerWalkAbort::SnapshotLimitExceeded) | None => {}
+        }
+        if self.cancel.poll_probe() {
+            self.abort = Some(PeerWalkAbort::Cancelled);
+            return true;
+        }
+        false
+    }
+
+    pub(in super::super) fn poll_cancelled_amortized(&mut self) -> bool {
+        match self.abort {
+            Some(PeerWalkAbort::Cancelled) => return true,
+            Some(PeerWalkAbort::SnapshotLimitExceeded) | None => {}
+        }
+        if self.cancel.poll_probe_amortized() {
+            self.abort = Some(PeerWalkAbort::Cancelled);
+            return true;
+        }
+        false
+    }
+
+    pub(in super::super) fn is_cyclic_peer_pair(
+        &self,
+        node_id: &NodeId,
+        peer_node_id: &NodeId,
+    ) -> bool {
+        self.cyclic_peers_of
+            .get(node_id)
+            .is_some_and(|group| group.contains(peer_node_id))
+    }
+
+    pub(in super::super) fn mark_dirty_provider(&mut self, node_id: &NodeId) {
+        if self.max_snapshots.is_some() {
+            self.dirty_providers.insert(node_id.clone());
+        }
+    }
+
+    pub(in super::super) fn clear_in_flight(&mut self) {
+        self.live_paths.clear_in_flight();
     }
 
     pub(in super::super) fn reset_for_view(&mut self) {
-        self.discovery_dep_paths.clear();
+        self.live_paths.clear();
         self.cached_subtrees.clear();
-        self.visited_subtrees.clear();
         self.scope_paths.clear();
-    }
-
-    pub(in super::super) fn record_discovery_dep_path(&mut self, dep_path: &DepPath) -> bool {
-        let Some(max) = self.max_snapshots else {
-            return true;
-        };
-        if !self.discovery_dep_paths.contains(dep_path)
-            && self.discovery_dep_paths.len() >= max
-        {
-            self.exceeded = true;
-            return false;
-        }
-        self.discovery_dep_paths.insert(dep_path.clone());
-        true
+        self.dirty_providers.clear();
+        self.cyclic_peers_of.clear();
     }
 
     pub(super) fn settle_discovery_subtree(
@@ -64,12 +177,16 @@ impl SnapshotBudget {
         dep_path: &DepPath,
         children: Vec<Arc<SubtreePaths>>,
     ) -> Option<Arc<SubtreePaths>> {
-        self.max_snapshots?;
-        if !self.record_discovery_dep_path(dep_path) {
+        let max = self.max_snapshots?;
+        if self.is_stopped() {
+            return None;
+        }
+        if !self.live_paths.record_in_flight_dep_path(dep_path, max) {
+            self.mark_exceeded();
             return None;
         }
         let subtree = Arc::new(SubtreePaths { own: dep_path.clone(), children });
-        self.visited_subtrees.insert(Arc::as_ptr(&subtree) as usize, Arc::clone(&subtree));
+        self.live_paths.mark_in_flight_subtree(&subtree);
         self.cached_subtrees.insert(dep_path.clone(), Arc::clone(&subtree));
         Some(subtree)
     }
@@ -89,83 +206,72 @@ impl SnapshotBudget {
         &mut self,
         dep_path: &DepPath,
     ) -> Option<Arc<SubtreePaths>> {
-        self.max_snapshots?;
-        let subtree = self.cached_subtrees
-            .get(dep_path)
-            .cloned()
-            .unwrap_or_else(|| {
-                Arc::new(SubtreePaths { own: dep_path.clone(), children: Vec::new() })
-            });
-        self.record_subtree(&subtree);
-        (!self.exceeded).then_some(subtree)
-    }
-
-    fn record_subtree(&mut self, root: &Arc<SubtreePaths>) {
-        let mut stack = vec![root];
-        while let Some(node) = stack.pop() {
-            let ptr = Arc::as_ptr(node) as usize;
-            if self.visited_subtrees.contains_key(&ptr) {
-                continue;
-            }
-            if !self.record_discovery_dep_path(&node.own) {
-                return;
-            }
-            self.visited_subtrees.insert(ptr, Arc::clone(node));
-            stack.extend(node.children.iter());
+        let max = self.max_snapshots?;
+        if self.is_stopped() {
+            return None;
         }
-    }
-
-    pub(super) fn rebuild_live_dep_paths(&mut self) {
-        self.discovery_dep_paths.clear();
-        self.visited_subtrees.clear();
-        let mut stack: Vec<&Arc<SubtreePaths>> = Vec::new();
-        for scope in self.scope_paths.values() {
-            stack.extend(scope.by_direct_dep.values().map(|entry| &entry.subtree));
-            stack.extend(scope.canonical_subtrees.iter());
+        let subtree = Arc::clone(
+            self.cached_subtrees
+                .entry(dep_path.clone())
+                .or_insert_with(|| {
+                    Arc::new(SubtreePaths { own: dep_path.clone(), children: Vec::new() })
+                }),
+        );
+        if !self.live_paths.record_in_flight_subtree(&subtree, max) {
+            self.mark_exceeded();
+            return None;
         }
-        while let Some(node) = stack.pop() {
-            let ptr = Arc::as_ptr(node) as usize;
-            if self.visited_subtrees
-                .insert(ptr, Arc::clone(node))
-                .is_some()
-            {
-                continue;
-            }
-            self.discovery_dep_paths.insert(node.own.clone());
-            stack.extend(node.children.iter());
-        }
+        Some(subtree)
     }
 }
 
 impl Walker<'_> {
+    pub(super) fn evict_direct_dep(&mut self, node_id: &NodeId) -> Option<DirectDepBudget> {
+        let removed = self.traversal.snapshot_budget.scope_paths
+            .get_mut(&self.opts.project_dir)?
+            .remove_direct_dep(node_id)?;
+        self.traversal.snapshot_budget.live_paths.release_subtree(&removed.subtree);
+        Some(removed)
+    }
+
     pub(in super::super) fn evict_stale_scope_budget(
         &mut self,
         parents_direct: &[DirectDep],
         walk_direct: &[DirectDep],
         importer_parents: &ParentRefs,
     ) -> Vec<DirectDep> {
+        self.traversal.snapshot_budget.dirty_providers.clear();
         if self.traversal.snapshot_budget.max_snapshots.is_none() {
             return Vec::new();
         }
-        let scope = self.opts.project_dir.clone();
-        let (stale_ids, evicted_unwalked) =
+        let (stale_ids, evicted_candidates) =
             self.find_stale_scope_ids(parents_direct, walk_direct, importer_parents);
         let cleared_canonical = parents_direct.is_empty()
             && self.traversal.snapshot_budget.scope_paths
-                .get(&scope)
+                .get(&self.opts.project_dir)
                 .is_some_and(|scoped| !scoped.canonical_subtrees.is_empty());
         if stale_ids.is_empty() && !cleared_canonical {
             return Vec::new();
         }
-        let scoped = self.traversal.snapshot_budget.scope_paths.entry(scope).or_default();
         for node_id in stale_ids {
-            scoped.by_direct_dep.remove(&node_id);
+            self.evict_direct_dep(&node_id);
         }
         if cleared_canonical {
-            scoped.canonical_subtrees.clear();
+            self.release_canonical_scope_subtrees();
         }
-        self.traversal.snapshot_budget.rebuild_live_dep_paths();
-        evicted_unwalked
+        order_evicted_provider_first(evicted_candidates)
+    }
+
+    fn release_canonical_scope_subtrees(&mut self) {
+        let Some(scoped) =
+            self.traversal.snapshot_budget.scope_paths.get_mut(&self.opts.project_dir)
+        else {
+            return;
+        };
+        let subtrees = std::mem::take(&mut scoped.canonical_subtrees);
+        for subtree in &subtrees {
+            self.traversal.snapshot_budget.live_paths.release_subtree(subtree);
+        }
     }
 
     fn find_stale_scope_ids(
@@ -173,48 +279,52 @@ impl Walker<'_> {
         parents_direct: &[DirectDep],
         walk_direct: &[DirectDep],
         importer_parents: &ParentRefs,
-    ) -> (Vec<NodeId>, Vec<DirectDep>) {
+    ) -> (Vec<NodeId>, Vec<(DirectDep, Vec<NodeId>)>) {
         let Some(scoped) = self.traversal.snapshot_budget.scope_paths.get(&self.opts.project_dir)
         else {
             return (Vec::new(), Vec::new());
         };
-        let parent_ids: HashSet<NodeId> = parents_direct
+        let parent_by_id: HashMap<&NodeId, &DirectDep> = parents_direct
             .iter()
-            .map(|dep| dep.node_id.clone())
+            .map(|dep| (&dep.node_id, dep))
             .collect();
-        let walk_ids: HashSet<NodeId> = walk_direct
+        let walk_ids: HashSet<&NodeId> = walk_direct
             .iter()
-            .map(|dep| dep.node_id.clone())
+            .map(|dep| &dep.node_id)
             .collect();
-        let stale_ids: Vec<NodeId> = scoped.by_direct_dep
-            .iter()
-            .filter(|(node_id, entry)| {
-                !parent_ids.contains(*node_id)
-                    || walk_ids.contains(*node_id)
-                    || !self.direct_dep_budget_matches(entry, importer_parents)
-            })
-            .map(|(node_id, _)| node_id.clone())
-            .collect();
-        let stale_set: HashSet<&NodeId> = stale_ids.iter().collect();
-        let evicted_unwalked = parents_direct
-            .iter()
-            .filter(|dep| {
-                stale_set.contains(&dep.node_id)
-                    && !walk_ids.contains(&dep.node_id)
-                    && self.tree.dependencies_tree.contains_key(&dep.node_id)
-            })
-            .cloned()
-            .collect();
-        (stale_ids, evicted_unwalked)
+        let mut stale_ids = Vec::new();
+        let mut evicted_candidates = Vec::new();
+        for (node_id, entry) in &scoped.by_direct_dep {
+            let parent_dep = parent_by_id.get(node_id).copied();
+            let in_walk = walk_ids.contains(node_id);
+            if parent_dep.is_some()
+                && !in_walk
+                && self.direct_dep_budget_matches(entry, importer_parents)
+            {
+                continue;
+            }
+            stale_ids.push(node_id.clone());
+            if let Some(dep) = parent_dep
+                && !in_walk
+                && self.tree.dependencies_tree.contains_key(node_id)
+            {
+                evicted_candidates.push((
+                    dep.clone(),
+                    candidate_provider_ids(entry, importer_parents),
+                ));
+            }
+        }
+        (stale_ids, evicted_candidates)
     }
 
     pub(in super::super) fn record_direct_dep_budget(
         &mut self,
-        node_id: &NodeId,
+        dep: &DirectDep,
         output: &NodeOutput,
         importer_parents: &ParentRefs,
     ) {
         let Some(subtree) = output.subtree_dep_paths.as_ref() else {
+            self.traversal.snapshot_budget.clear_in_flight();
             return;
         };
         let importer_refs = output.external_resolved_peers
@@ -223,162 +333,47 @@ impl Walker<'_> {
             .map(|name| (name.clone(), importer_parents.get(name).cloned()))
             .collect();
         let provider_dep_paths = output.external_resolved_peers
-            .values()
-            .map(|peer_node_id| {
-                (peer_node_id.clone(), self.caches.node_dep_paths.get(peer_node_id).cloned())
+            .iter()
+            .map(|(name, peer_node_id)| {
+                let scoped_id = importer_parents
+                    .get(name)
+                    .and_then(|parent| parent.node_id.as_ref())
+                    .unwrap_or(peer_node_id);
+                (scoped_id.clone(), self.caches.node_dep_paths.get(scoped_id).cloned())
             })
             .collect();
+        let entry = DirectDepBudget {
+            direct_dep: dep.clone(),
+            subtree: Arc::clone(subtree),
+            importer_refs,
+            provider_dep_paths,
+        };
+        let budget = &mut self.traversal.snapshot_budget;
+        budget.live_paths.retain_subtree(subtree);
+        budget.live_paths.clear_in_flight();
         let scope = self.opts.project_dir.clone();
-        self.traversal.snapshot_budget.scope_paths
+        if let Some(previous) = budget.scope_paths
             .entry(scope)
             .or_default()
-            .by_direct_dep
-            .insert(
-                node_id.clone(),
-                DirectDepBudget { subtree: Arc::clone(subtree), importer_refs, provider_dep_paths },
-            );
+            .insert_direct_dep(entry)
+        {
+            budget.live_paths.release_subtree(&previous.subtree);
+        }
     }
 
     pub(super) fn record_canonical_budget(&mut self, output: &NodeOutput) {
         let Some(subtree) = output.subtree_dep_paths.as_ref() else {
+            self.traversal.snapshot_budget.clear_in_flight();
             return;
         };
         let scope = self.opts.project_dir.clone();
-        let canonical = &mut self.traversal.snapshot_budget.scope_paths
-            .entry(scope)
-            .or_default()
-            .canonical_subtrees;
+        let budget = &mut self.traversal.snapshot_budget;
+        let canonical = &mut budget.scope_paths.entry(scope).or_default().canonical_subtrees;
         if !canonical.iter().any(|seen| Arc::ptr_eq(seen, subtree)) {
             canonical.push(Arc::clone(subtree));
+            budget.live_paths.retain_subtree(subtree);
         }
-    }
-
-    pub(in super::super) fn refresh_unwalked_scope_budget(
-        &mut self,
-        parents_direct: &[DirectDep],
-        mut pending: Vec<DirectDep>,
-        root: &RootWalk,
-    ) {
-        if self.traversal.snapshot_budget.max_snapshots.is_none()
-            || self.traversal.snapshot_budget.exceeded
-        {
-            return;
-        }
-        let max_refreshes = parents_direct.len().saturating_add(1);
-        let mut refresh_counts: HashMap<NodeId, usize> = HashMap::default();
-        loop {
-            pending.extend(self.evict_newly_stale_recorded_deps(
-                parents_direct,
-                root,
-                &refresh_counts,
-                max_refreshes,
-            ));
-            if pending.is_empty() || self.traversal.snapshot_budget.exceeded {
-                break;
-            }
-            let batch = std::mem::take(&mut pending);
-            for dep in &batch {
-                *refresh_counts.entry(dep.node_id.clone()).or_default() += 1;
-            }
-            self.walk_budget_only_direct_deps(&batch, root);
-        }
-    }
-
-    fn evict_newly_stale_recorded_deps(
-        &mut self,
-        parents_direct: &[DirectDep],
-        root: &RootWalk,
-        refresh_counts: &HashMap<NodeId, usize>,
-        max_refreshes: usize,
-    ) -> Vec<DirectDep> {
-        let scope = self.opts.project_dir.clone();
-        let Some(scoped) = self.traversal.snapshot_budget.scope_paths.get(&scope) else {
-            return Vec::new();
-        };
-        let stale_ids: Vec<NodeId> = scoped.by_direct_dep
-            .iter()
-            .filter(|(_, entry)| !self.direct_dep_budget_matches(entry, &root.importer_parents))
-            .map(|(node_id, _)| node_id.clone())
-            .collect();
-        if stale_ids.is_empty() {
-            return Vec::new();
-        }
-        if stale_ids
-            .iter()
-            .any(|node_id| {
-                refresh_counts
-                    .get(node_id)
-                    .copied()
-                    .unwrap_or(0)
-                    >= max_refreshes
-            })
-        {
-            self.traversal.snapshot_budget.exceeded = true;
-            return Vec::new();
-        }
-        let stale_set: HashSet<NodeId> = stale_ids.into_iter().collect();
-        let scoped = self.traversal.snapshot_budget.scope_paths.entry(scope).or_default();
-        for node_id in &stale_set {
-            scoped.by_direct_dep.remove(node_id);
-        }
-        self.traversal.snapshot_budget.rebuild_live_dep_paths();
-        parents_direct
-            .iter()
-            .filter(|dep| {
-                stale_set.contains(&dep.node_id)
-                    && self.tree.dependencies_tree.contains_key(&dep.node_id)
-            })
-            .cloned()
-            .collect()
-    }
-
-    fn walk_budget_only_direct_deps(&mut self, pending: &[DirectDep], root: &RootWalk) {
-        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = pending
-            .iter()
-            .partition(|dep| {
-                !self.opts.scope.hoisted_peer_provider_node_ids.contains(&dep.node_id)
-            });
-        for dep in &own_direct {
-            self.remember_parent_context_if_peer_provider(
-                &dep.alias,
-                &dep.node_id,
-                &root.parent_dep_paths,
-            );
-        }
-        for dep in &own_direct {
-            if self.traversal.snapshot_budget.exceeded {
-                return;
-            }
-            self.resolve_and_record_direct_budget(dep, root);
-        }
-        for dep in &provider_direct {
-            if self.traversal.snapshot_budget.exceeded {
-                return;
-            }
-            if self.has_recorded_direct_budget(&dep.node_id) {
-                continue;
-            }
-            self.remember_parent_context_if_peer_provider(
-                &dep.alias,
-                &dep.node_id,
-                &root.parent_dep_paths,
-            );
-            self.resolve_and_record_direct_budget(dep, root);
-        }
-        self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
-    }
-
-    fn has_recorded_direct_budget(&self, node_id: &NodeId) -> bool {
-        self.traversal.snapshot_budget.scope_paths
-            .get(&self.opts.project_dir)
-            .is_some_and(|scoped| scoped.by_direct_dep.contains_key(node_id))
-    }
-
-    fn resolve_and_record_direct_budget(&mut self, dep: &DirectDep, root: &RootWalk) {
-        let output = self.resolve_node(&dep.node_id, &root.context());
-        if !self.traversal.snapshot_budget.exceeded {
-            self.record_direct_dep_budget(&dep.node_id, &output, &root.importer_parents);
-        }
+        budget.live_paths.clear_in_flight();
     }
 
     fn direct_dep_budget_matches(

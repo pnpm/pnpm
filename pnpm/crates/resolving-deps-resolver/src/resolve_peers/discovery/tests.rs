@@ -1,5 +1,6 @@
 //! Unit tests for the peer-hoist discovery engine.
 
+mod refresh_bounds;
 mod snapshot_budget;
 
 use super::{

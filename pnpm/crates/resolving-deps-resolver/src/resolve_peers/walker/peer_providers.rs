@@ -11,7 +11,11 @@ impl Walker<'_> {
     /// [`ParentRefs`] visible at it, fold the result with what its
     /// children reported, and render the depPath. Empty resolved-peers
     /// ⇒ pure node: depPath = `pkgIdWithPatchHash`.
-    pub(super) fn resolve_node_peers(&mut self, context: NodePeersContext<'_>) -> NodePeers {
+    pub(super) fn resolve_node_peers(
+        &mut self,
+        node_id: &NodeId,
+        context: NodePeersContext<'_>,
+    ) -> NodePeers {
         let mut own_resolved: HashMap<String, NodeId> = HashMap::default();
         let mut own_missing: HashMap<String, MissingPeerInfo> = HashMap::default();
         for (peer_name, peer_dep) in context.pkg.peer_set.taken() {
@@ -37,13 +41,14 @@ impl Walker<'_> {
             super::walk_context::merge_missing_peer_info(&mut all_missing, peer_alias, info);
         }
 
-        let dep_path = self.peer_dep_path(&context.pkg.id, &all_resolved);
+        let dep_path = self.peer_dep_path(node_id, &context.pkg.id, &all_resolved);
         NodePeers { own_resolved, all_resolved, all_missing, dep_path }
     }
 
     /// Empty resolved peers ⇒ pure node: depPath = `pkgIdWithPatchHash`.
     pub(super) fn peer_dep_path(
         &self,
+        node_id: &NodeId,
         pkg_id: &Arc<str>,
         all_resolved: &HashMap<String, NodeId>,
     ) -> DepPath {
@@ -52,7 +57,7 @@ impl Walker<'_> {
         }
         let peer_ids: Vec<PeerId> = all_resolved
             .iter()
-            .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
+            .map(|(peer_alias, peer_node_id)| self.build_peer_id(node_id, peer_alias, peer_node_id))
             .collect();
         let suffix =
             pnpm_lockfile::PeerBindings::suffix_of(&peer_ids, self.opts.peers_suffix_max_length);

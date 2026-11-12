@@ -48,6 +48,7 @@ impl ResolvedWorkspaceDependencies {
             &mut self.initialized.states,
             &self.workspace,
             self.settings.max_snapshots,
+            &self.settings.cancel,
         )
         .await?;
         finish(&self.settings, self.workspace, self.initialized, self.time)

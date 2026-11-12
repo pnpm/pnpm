@@ -290,18 +290,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
             peers_suffix_max_length: 1000,
             auto_install_peers: false,
         },
-        hooks: crate::WorkspaceResolveHooks {
-            read_package_log: None,
-            skipped_optional_log: None,
-            finalized_package: None,
-            deprecation_log: None,
-            manifests: crate::ManifestTransformHooks {
-                manifest_hook: None,
-                overrides_hook: None,
-                pnpmfile_hook: None,
-            },
-            max_snapshots: None,
-        },
+        hooks: crate::WorkspaceResolveHooks::default(),
         reuse: crate::WorkspaceLockfileReuse {
             lockfile: None,
             subtrees: true,

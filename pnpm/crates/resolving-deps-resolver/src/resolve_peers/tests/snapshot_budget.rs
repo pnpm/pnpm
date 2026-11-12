@@ -54,7 +54,10 @@ fn active_ancestors_unwind_without_growing_graph_past_max_snapshots() {
 
     walker.resolve_importer_dep(&direct[0], &root.context());
 
-    assert!(walker.traversal.snapshot_budget.exceeded);
+    assert_eq!(
+        walker.traversal.snapshot_budget.abort,
+        Some(crate::PeerWalkAbort::SnapshotLimitExceeded),
+    );
     let graph_len = walker.output.graph.len();
     assert!(graph_len <= 1, "active ancestors must unwind at cap, got {graph_len} entries");
     let record_len = walker.output.node_records.len();
@@ -86,6 +89,6 @@ fn resolve_peers_workspace_aborts_on_deep_chain_with_max_snapshots() {
             ..ResolvePeersOptions::default()
         },
     );
-    assert!(result.snapshots_exceeded);
+    assert_eq!(result.abort, Some(crate::PeerWalkAbort::SnapshotLimitExceeded));
     assert!(result.graph.is_empty());
 }

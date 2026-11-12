@@ -115,7 +115,7 @@ impl Walker<'_> {
     /// these, so it never calls this.
     pub(super) fn record_walked_node(&mut self, mut node: WalkedNode<'_>) {
         if self.exceeds_final_snapshot_budget(node.dep_path) {
-            self.traversal.snapshot_budget.exceeded = true;
+            self.traversal.snapshot_budget.mark_exceeded();
             return;
         }
         // Seeds both the node's record edges and its graph children, so
@@ -340,7 +340,9 @@ impl Walker<'_> {
             let candidate =
                 self.graph_node_for_record(node_id, record, dep_path, depth, final_dep_paths);
             insert_graph_node(&mut graph, candidate, &transitive_peer_dependencies_by_dep_path);
-            if self.traversal.snapshot_budget.max_snapshots.is_some_and(|max| graph.len() > max) {
+            if self.traversal.snapshot_budget.is_stopped()
+                || self.traversal.snapshot_budget.max_snapshots.is_some_and(|max| graph.len() > max)
+            {
                 break;
             }
         }
