@@ -3,6 +3,7 @@
 use super::{SqlMetadata, adapter::Connection, batch::WriteTransaction, transactions::Freshness};
 use crate::Storage;
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use std::sync::Arc;
 
 /// A package name, or `*` for every cached response, and its delivery generation.
@@ -12,6 +13,17 @@ pub struct CdnInvalidation {
     pub generation: i64,
 }
 
+const ENQUEUE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO cdn_purge_queue (package, generation)
+     SELECT ?1, generation FROM record_generation WHERE singleton = 1
+     AND EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)
+     ON CONFLICT (package) DO UPDATE SET generation = excluded.generation",
+    "INSERT INTO cdn_purge_queue (package, generation)
+     SELECT ?1, generation FROM record_generation WHERE singleton = 1
+     AND EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)
+     ON DUPLICATE KEY UPDATE generation = VALUES(generation)",
+);
+
 /// Subscription persists so writes by other processes also record invalidations.
 pub(super) fn enqueue(connection: &dyn Connection, package: &str) -> Result<()> {
     connection.execute(
@@ -19,15 +31,16 @@ pub(super) fn enqueue(connection: &dyn Connection, package: &str) -> Result<()> 
          AND EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)",
         params![],
     )?;
-    connection.execute(
-        "INSERT INTO cdn_purge_queue (package, generation)
-         SELECT ?1, generation FROM record_generation WHERE singleton = 1
-         AND EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)
-         ON CONFLICT (package) DO UPDATE SET generation = excluded.generation",
-        params![package],
-    )?;
+    connection.execute(ENQUEUE.get(connection.dialect()), params![package])?;
     Ok(())
 }
+
+const SUBSCRIBE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO cdn_subscriptions (singleton, target)
+     VALUES (1, ?1) ON CONFLICT DO NOTHING",
+    "INSERT INTO cdn_subscriptions (singleton, target)
+     VALUES (1, ?1) ON DUPLICATE KEY UPDATE singleton = cdn_subscriptions.singleton",
+);
 
 impl Storage {
     /// Enable transactional invalidation recording and invalidate pre-startup cache entries.
@@ -37,8 +50,7 @@ impl Storage {
             .write(move |connection| {
                 let transaction = WriteTransaction::begin(connection)?;
                 transaction.execute(
-                    "INSERT INTO cdn_subscriptions (singleton, target)
-                     VALUES (1, ?1) ON CONFLICT DO NOTHING",
+                    SUBSCRIBE.get(transaction.dialect()),
                     params![&target],
                 )?;
                 let mut registered = transaction

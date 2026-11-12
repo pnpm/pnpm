@@ -1,14 +1,32 @@
-use super::super::adapter::{Param, Query};
+use super::super::{
+    adapter::{Param, Query},
+    dialect::Dialect,
+};
 use pnpr_error::{RegistryError, Result};
 use std::{fmt::Write as _, time::Duration};
 
+/// The second key of a `PostgreSQL` advisory lock, so pnpr instances on
+/// different schemas of one database do not wait on each other's locks.
+macro_rules! schema_key {
+    () => {
+        "hashtext(COALESCE(current_schema(), ''))"
+    };
+}
+
 #[derive(Debug, Clone, Copy)]
-pub(super) enum Dialect {
+pub(super) enum NetworkDialect {
     Postgres,
     Mysql,
 }
 
-impl Dialect {
+impl NetworkDialect {
+    pub(super) const fn dialect(self) -> Dialect {
+        match self {
+            Self::Postgres => Dialect::Postgres,
+            Self::Mysql => Dialect::Mysql,
+        }
+    }
+
     pub(super) fn from_url(url: &str) -> Result<Self> {
         match url
             .split(':')
@@ -38,7 +56,9 @@ impl Dialect {
 
     pub(super) fn lock_schema(self, timeout: Duration) -> String {
         match self {
-            Self::Postgres => "SELECT 1 FROM pg_advisory_lock(70607832)".to_string(),
+            Self::Postgres => {
+                concat!("SELECT 1 FROM pg_advisory_lock(70607832, ", schema_key!(), ")").to_string()
+            }
             Self::Mysql => format!(
                 "SELECT GET_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())), {})",
                 timeout.as_secs_f64(),
@@ -48,7 +68,7 @@ impl Dialect {
 
     pub(super) fn unlock_schema(self) -> &'static str {
         match self {
-            Self::Postgres => "SELECT pg_advisory_unlock(70607832)",
+            Self::Postgres => concat!("SELECT pg_advisory_unlock(70607832, ", schema_key!(), ")"),
             Self::Mysql => "SELECT RELEASE_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())))",
         }
     }
@@ -59,7 +79,9 @@ impl Dialect {
     /// the transaction's snapshot holds every commit made under it.
     pub(super) fn lock_writes(self, timeout: Duration) -> String {
         match self {
-            Self::Postgres => "SELECT 1 FROM pg_advisory_lock(70607833)".to_string(),
+            Self::Postgres => {
+                concat!("SELECT 1 FROM pg_advisory_lock(70607833, ", schema_key!(), ")").to_string()
+            }
             Self::Mysql => format!(
                 "SELECT GET_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())), {})",
                 timeout.as_secs_f64(),
@@ -69,7 +91,7 @@ impl Dialect {
 
     pub(super) fn unlock_writes(self) -> &'static str {
         match self {
-            Self::Postgres => "SELECT pg_advisory_unlock(70607833)",
+            Self::Postgres => concat!("SELECT pg_advisory_unlock(70607833, ", schema_key!(), ")"),
             Self::Mysql => "DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
         }
     }
@@ -77,7 +99,9 @@ impl Dialect {
     /// `COMMIT`, then [`Self::unlock_writes`] in the same round trip.
     pub(super) fn commit_write(self) -> &'static str {
         match self {
-            Self::Postgres => "COMMIT; SELECT pg_advisory_unlock(70607833)",
+            Self::Postgres => {
+                concat!("COMMIT; SELECT pg_advisory_unlock(70607833, ", schema_key!(), ")")
+            }
             Self::Mysql => "COMMIT; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
         }
     }
@@ -85,7 +109,9 @@ impl Dialect {
     /// `ROLLBACK`, then [`Self::unlock_writes`] in the same round trip.
     pub(super) fn rollback_write(self) -> &'static str {
         match self {
-            Self::Postgres => "ROLLBACK; SELECT pg_advisory_unlock(70607833)",
+            Self::Postgres => {
+                concat!("ROLLBACK; SELECT pg_advisory_unlock(70607833, ", schema_key!(), ")")
+            }
             Self::Mysql => "ROLLBACK; DO RELEASE_LOCK(CONCAT('pnpr_write:', MD5(DATABASE())))",
         }
     }
@@ -117,56 +143,13 @@ impl Dialect {
         }
     }
 
-    pub(super) fn tables(self) -> String {
+    /// Syntax only the `SQLite` form of a [`DialectSql`](crate::DialectSql)
+    /// holds, refused in debug builds so a statement that skipped it fails.
+    fn sqlite_only(self) -> &'static [&'static str] {
         match self {
-            Self::Postgres => super::super::schema::TABLES
-                .replace(" STRICT, WITHOUT ROWID", "")
-                .replace(" STRICT", "")
-                .replace(" BLOB", " BYTEA")
-                .replace(" INTEGER", " BIGINT"),
-            Self::Mysql => include_str!("mysql.sql").to_string(),
+            Self::Postgres => &["json_each(", "json_extract("],
+            Self::Mysql => &["json_each(", "json_extract(", "ON CONFLICT"],
         }
-    }
-
-    fn functions(self, sql: &str) -> String {
-        let mut sql = sql.to_string();
-        if matches!(self, Self::Mysql) {
-            sql = sql.replace(
-                "SELECT value FROM json_each(",
-                "SELECT JSON_UNQUOTE(value) AS value FROM json_each(",
-            );
-        }
-        sql = self.json_arrays(&sql);
-        for index in 0..=1 {
-            let source = format!("json_extract(value, '$[{index}]')");
-            let target = match self {
-                Self::Postgres => format!("CAST(value AS JSON)->>{index}"),
-                Self::Mysql => format!("JSON_UNQUOTE(JSON_EXTRACT(value, '$[{index}]'))"),
-            };
-            sql = sql.replace(&source, &target);
-        }
-        sql
-    }
-
-    fn json_arrays(self, sql: &str) -> String {
-        let mut rendered = String::new();
-        let mut remaining = sql;
-        while let Some((before, after)) = remaining.split_once("json_each(") {
-            let Some((argument, after)) = after.split_once(')') else { break };
-            rendered.push_str(before);
-            let table = match self {
-                Self::Postgres => {
-                    format!("json_array_elements_text(CAST({argument} AS JSON)) AS elements(value)")
-                }
-                Self::Mysql => format!(
-                    "JSON_TABLE({argument}, '$[*]' COLUMNS (value JSON PATH '$')) AS elements",
-                ),
-            };
-            rendered.push_str(&table);
-            remaining = after;
-        }
-        rendered.push_str(remaining);
-        rendered
     }
 
     pub(super) fn statement<'value>(
@@ -204,11 +187,14 @@ impl Dialect {
         params: &[Param<'value>],
         ordered: &mut Vec<Param<'value>>,
     ) -> Result<String> {
-        let sql = self.functions(sql);
-        let sql = match self {
-            Self::Postgres => sql,
-            Self::Mysql => mysql_upsert(&sql)?,
-        };
+        if cfg!(debug_assertions)
+            && let Some(syntax) = self
+                .sqlite_only()
+                .iter()
+                .find(|syntax| sql.contains(**syntax))
+        {
+            panic!("statement with SQLite syntax `{syntax}` reached {self:?}: {sql}");
+        }
         let mut rendered = String::with_capacity(sql.len());
         let mut chars = sql.chars().peekable();
         let mut quoted = false;
@@ -250,81 +236,6 @@ fn next_parameter<'value>(
         .ok_or_else(|| RegistryError::Internal {
             reason: "metadata query has an invalid parameter index".to_string(),
         })
-}
-
-fn mysql_upsert(sql: &str) -> Result<String> {
-    let Some((insert, conflict)) = sql.split_once("ON CONFLICT") else {
-        return Ok(sql.to_string());
-    };
-    if conflict.trim() == "DO NOTHING" {
-        return ignore_duplicate(insert);
-    }
-    let (_, update) = conflict
-        .split_once("DO UPDATE")
-        .ok_or_else(|| RegistryError::Internal {
-            reason: "unsupported metadata upsert".to_string(),
-        })?;
-    let update = update
-        .trim()
-        .strip_prefix("SET")
-        .unwrap_or(update)
-        .trim();
-    let update = conditional_assignments(update, insert_table(insert)?);
-    if insert.contains("VALUES") {
-        return Ok(format!("{insert} AS excluded ON DUPLICATE KEY UPDATE {update}"));
-    }
-    let rendered = mysql_inserted_values(&update);
-    Ok(format!("{insert} ON DUPLICATE KEY UPDATE {rendered}"))
-}
-
-fn mysql_inserted_values(update: &str) -> String {
-    let mut rendered = String::new();
-    let mut remaining = update;
-    while let Some((before, after)) = remaining.split_once("excluded.") {
-        rendered.push_str(before);
-        let end = after
-            .find(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-            .unwrap_or(after.len());
-        let _ = write!(rendered, "VALUES({})", &after[..end]);
-        remaining = &after[end..];
-    }
-    rendered.push_str(remaining);
-    rendered
-}
-
-fn ignore_duplicate(insert: &str) -> Result<String> {
-    let column = insert
-        .split_once('(')
-        .and_then(|(_, columns)| columns.split(',').next())
-        .ok_or_else(|| RegistryError::Internal {
-            reason: "metadata insert has no columns".to_string(),
-        })?;
-    let table = insert_table(insert)?;
-    Ok(format!("{insert} ON DUPLICATE KEY UPDATE {column} = {table}.{column}"))
-}
-
-fn insert_table(insert: &str) -> Result<&str> {
-    insert
-        .split(|character: char| character.is_whitespace() || character == '(')
-        .filter(|token| !token.is_empty())
-        .nth(2)
-        .ok_or_else(|| RegistryError::Internal {
-            reason: "metadata insert has no table".to_string(),
-        })
-}
-
-fn conditional_assignments(update: &str, table: &str) -> String {
-    let Some((assignments, condition)) = update.split_once("WHERE") else {
-        return update.to_string();
-    };
-    assignments
-        .split(',')
-        .map(|assignment| {
-            let (column, value) = assignment.split_once('=').expect("static SQL assignment");
-            format!("{column} = IF({condition}, {value}, {table}.{})", column.trim())
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 #[cfg(test)]

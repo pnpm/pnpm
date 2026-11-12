@@ -122,10 +122,7 @@ fn clear_crate(
     removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-         SELECT namespace, ecosystem, name, version, ?4 FROM cargo_versions
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-         ON CONFLICT DO NOTHING",
+        removed::RECORD_REMOVED_CARGO_VERSIONS.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
@@ -211,17 +208,11 @@ fn remove_dropped_versions(
         .collect();
     let versions = super::blobs::json_array(&keys);
     commit.transaction.execute(
-        "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-         SELECT ?1, ?2, ?3, value, ?5
-         FROM (SELECT value FROM json_each(?4)) AS removed
-         WHERE value != ''
-         ON CONFLICT DO NOTHING",
+        removed::RECORD_REMOVED_CARGO_VERSION_LIST.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &versions, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
-        "DELETE FROM cargo_versions
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-           AND version IN (SELECT value FROM json_each(?4))",
+        removed::DELETE_CARGO_VERSION_LIST.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &versions],
     )?;
     Ok(true)

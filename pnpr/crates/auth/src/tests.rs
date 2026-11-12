@@ -1019,7 +1019,7 @@ async fn schema_migrations_refuses_future_schema_version() {
 
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch(pnpr_sql::schema::MARKER_TABLE).unwrap();
+        conn.execute_batch(pnpr_sql::schema::MARKER_TABLE.sqlite).unwrap();
         for version in 1..=future {
             conn.execute(
                 "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 1)",

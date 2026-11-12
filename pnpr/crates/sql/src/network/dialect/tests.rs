@@ -1,11 +1,12 @@
-use super::{Dialect, Param};
+use super::{NetworkDialect, Param};
+use crate::{Dialect, schema};
 
 #[test]
 fn placeholders_bind_in_occurrence_order_and_leave_literals_alone() {
     let params = [Param::Text("one"), Param::Integer(2)];
     for (dialect, expected) in [
-        (Dialect::Postgres, "SELECT $1, '?1', $2, 'it''s ?2', $3"),
-        (Dialect::Mysql, "SELECT ?, '?1', ?, 'it''s ?2', ?"),
+        (NetworkDialect::Postgres, "SELECT $1, '?1', $2, 'it''s ?2', $3"),
+        (NetworkDialect::Mysql, "SELECT ?, '?1', ?, 'it''s ?2', ?"),
     ] {
         let (sql, bound) =
             dialect.statement("SELECT ?2, '?1', ?1, 'it''s ?2', ?2", &params).unwrap();
@@ -15,49 +16,27 @@ fn placeholders_bind_in_occurrence_order_and_leave_literals_alone() {
 }
 
 #[test]
-fn mysql_upserts_do_not_ignore_other_constraint_errors() {
-    let (sql, _) = Dialect::Mysql
-        .statement(
-            "INSERT INTO records (name, body) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
-            &[Param::Text("example"), Param::Blob(b"payload")],
-        )
-        .unwrap();
-    assert_eq!(
-        sql,
-        "INSERT INTO records (name, body) VALUES (?, ?)  ON DUPLICATE KEY UPDATE name = records.name",
-    );
-}
-
-#[test]
-fn mysql_conditional_upserts_keep_both_values_when_the_condition_fails() {
-    let (sql, _) = Dialect::Mysql.statement(
-        "INSERT INTO records (name, body) VALUES (?1, ?2) ON CONFLICT (name) DO UPDATE SET body = excluded.body, name = excluded.name WHERE records.name = excluded.name",
-        &[Param::Text("example"), Param::Blob(b"payload")],
-    ).unwrap();
-    let sql = sql
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    assert!(
-        sql.contains("body = IF( records.name = excluded.name, excluded.body, records.body)"),
-        "{sql}",
-    );
-    assert!(sql.contains("AS excluded ON DUPLICATE KEY UPDATE"), "{sql}");
-    assert!(!sql.contains(" WHERE "), "{sql}");
-}
-
-#[test]
 fn dialect_schemas_have_the_same_tables_columns_and_keys() {
-    let original = schema_contract(crate::schema::TABLES);
+    let original = schema_contract(schema::TABLES.sqlite);
     for dialect in [Dialect::Postgres, Dialect::Mysql] {
-        assert_eq!(schema_contract(&dialect.tables()), original, "{dialect:?}");
+        assert_eq!(schema_contract(schema::TABLES.get(dialect)), original, "{dialect:?}");
     }
 }
 
+#[test]
+fn the_mysql_marker_table_carries_the_init_comment() {
+    let comment = format!("COMMENT='{}'", super::super::mysql_schema::INIT_COMMENT);
+    assert!(schema::MARKER_TABLE.mysql.ends_with(&comment));
+}
+
+/// The tables, columns, keys, and indexes `sql` creates, with column types
+/// mapped to `SQLite`'s. A partial index compares by its columns alone,
+/// because `MySQL` has none.
 fn schema_contract(sql: &str) -> Vec<String> {
     crate::schema::statements(sql)
-        .filter(|statement| statement.starts_with("CREATE TABLE"))
+        .filter(|statement| statement.starts_with("CREATE "))
         .map(|statement| {
+            let statement = statement.replace(" IF NOT EXISTS", "");
             let end = statement.rfind(')').unwrap();
             statement[..=end]
                 .replace("VARBINARY(512)", "TEXT")
@@ -73,27 +52,4 @@ fn schema_contract(sql: &str) -> Vec<String> {
                 .join(" ")
         })
         .collect()
-}
-
-#[test]
-fn mysql_upserts_accept_columns_adjacent_to_the_table() {
-    let (sql, _) = Dialect::Mysql
-        .statement(
-            "INSERT INTO records(name, body) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
-            &[Param::Text("example"), Param::Blob(b"payload")],
-        )
-        .unwrap();
-    assert!(sql.ends_with("name = records.name"), "{sql}");
-}
-
-#[test]
-fn mysql_select_upserts_omit_row_alias() {
-    let (sql, _) = Dialect::Mysql
-        .statement(
-            "INSERT INTO removed_oci_manifests (artifact, generation) SELECT value, ?2 FROM (SELECT value FROM json_each(?1)) AS removed WHERE value != '' ON CONFLICT (artifact) DO UPDATE SET generation = excluded.generation",
-            &[Param::Text(r#"["sha256-a"]"#), Param::Integer(7)],
-        )
-        .unwrap();
-    assert!(!sql.contains("AS excluded"), "{sql}");
-    assert!(sql.ends_with("ON DUPLICATE KEY UPDATE generation = VALUES(generation)"), "{sql}");
 }

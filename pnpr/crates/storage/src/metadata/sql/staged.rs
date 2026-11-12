@@ -17,6 +17,7 @@ use crate::{
     metadata::{StagedRecord, StagedState},
 };
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use std::sync::Arc;
 
 /// A principal's staged archive, by the identity of its bytes.
@@ -101,13 +102,21 @@ fn read_one(connection: &dyn Connection, id: &StagedId) -> Result<Option<StagedR
         .transpose()
 }
 
+const WRITE_STAGED: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO staged_archives (principal, blob_id, incarnation, staged_at, size, state)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (principal, blob_id) DO UPDATE
+     SET incarnation = excluded.incarnation, staged_at = excluded.staged_at,
+         size = excluded.size, state = excluded.state",
+    "INSERT INTO staged_archives (principal, blob_id, incarnation, staged_at, size, state)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     AS excluded ON DUPLICATE KEY UPDATE incarnation = excluded.incarnation, staged_at = excluded.staged_at,
+         size = excluded.size, state = excluded.state",
+);
+
 fn write(transaction: &dyn Connection, id: &StagedId, record: &StagedRecord) -> Result<()> {
     transaction.execute(
-        "INSERT INTO staged_archives (principal, blob_id, incarnation, staged_at, size, state)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT (principal, blob_id) DO UPDATE
-         SET incarnation = excluded.incarnation, staged_at = excluded.staged_at,
-             size = excluded.size, state = excluded.state",
+        WRITE_STAGED.get(transaction.dialect()),
         params![
             id.principal,
             id.blob_id.as_str(),

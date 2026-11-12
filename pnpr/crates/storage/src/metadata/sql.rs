@@ -66,6 +66,7 @@ use crate::{
 use adapter::{Adapter, Connection};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_sql::DialectSql;
 use std::{
     path::Path,
     sync::{Arc, Mutex, OnceLock, PoisonError},
@@ -151,7 +152,7 @@ impl SqlMetadata {
 
     /// The statements that create the schema, so a cache of databases can
     /// tell a layout that changed under one version apart.
-    pub const SCHEMA_TABLES: &'static str = schema::TABLES;
+    pub const SCHEMA_TABLES: &'static str = schema::TABLES.sqlite;
 
     /// Open the `SQLite` database at `path`, creating it and its directory if
     /// needed.
@@ -465,11 +466,17 @@ fn namespace_generation(connection: &dyn Connection, namespace: &str) -> Result<
     row.map_or(Ok(0), |mut row| Ok(to_generation(row.get(0)?)))
 }
 
+const ADVANCE_NAMESPACE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO namespaces (namespace, generation) VALUES (?1, ?2)
+     ON CONFLICT (namespace) DO UPDATE SET generation = excluded.generation",
+    "INSERT INTO namespaces (namespace, generation) VALUES (?1, ?2)
+     AS excluded ON DUPLICATE KEY UPDATE generation = excluded.generation",
+);
+
 /// Record `generation` as `namespace`'s current one.
 fn advance_namespace(connection: &dyn Connection, namespace: &str, generation: u64) -> Result<()> {
     connection.execute(
-        "INSERT INTO namespaces (namespace, generation) VALUES (?1, ?2)
-         ON CONFLICT (namespace) DO UPDATE SET generation = excluded.generation",
+        ADVANCE_NAMESPACE.get(connection.dialect()),
         params![namespace, to_column(generation)],
     )?;
     Ok(())

@@ -7,7 +7,7 @@
 //! database has no replica, so every read source is the database itself.
 
 use crate::{
-    adapter::{Adapter, Connection, Param, ReadSource, Row, Value},
+    adapter::{Adapter, Connection, Param, ReadSource, Row, Value, reject_nul},
     schema,
 };
 use pnpr_error::{RegistryError, Result};
@@ -122,12 +122,14 @@ fn lock<Value>(mutex: &Mutex<Value>) -> MutexGuard<'_, Value> {
 
 impl Connection for rusqlite::Connection {
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
+        reject_nul(params)?;
         let mut statement = self.prepare_cached(sql)?;
         statement.execute(rusqlite::params_from_iter(params))?;
         Ok(())
     }
 
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
+        reject_nul(params)?;
         let mut statement = self.prepare_cached(sql)?;
         let columns = statement.column_count();
         let mut rows = statement.query(rusqlite::params_from_iter(params))?;

@@ -10,7 +10,10 @@
 //! (`schema_migrations`), refuses pre-1.0 databases without [`MARKER`] or
 //! databases from a newer release, and runs each pending step in order.
 
-use crate::adapter::{Adapter, Connection, Value, WriteTransaction};
+use crate::{
+    adapter::{Adapter, Connection, Value, WriteTransaction},
+    dialect::DialectSql,
+};
 use pnpr_error::{RegistryError, Result};
 use std::{
     fmt,
@@ -40,11 +43,29 @@ pub const LEGACY_MARKER: &str = "schema_version";
 /// The pre-1.0 auth migrations table, refused without migration.
 pub const LEGACY_AUTH_MARKER: &str = "auth_schema_migrations";
 
-/// The statement that creates the [`MARKER`] table on `SQLite` and `libSQL`.
-pub const MARKER_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL) STRICT";
+/// The statement that creates the [`MARKER`] table. On `MySQL` its table
+/// comment marks a first migration still in progress, so an interrupted one
+/// can resume.
+pub const MARKER_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL)",
+    mysql: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL) ENGINE=InnoDB COMMENT='pnpr-init:1'",
+};
 
-/// The tables and indexes created by step 1.
-pub const TABLES: &str = include_str!("schema/tables.sql");
+/// The tables and indexes created by step 1. Every dialect's script creates
+/// the same tables, columns, keys, and indexes.
+pub const TABLES: DialectSql = DialectSql {
+    sqlite: include_str!("schema/tables.sql"),
+    postgres: include_str!("schema/postgres.sql"),
+    mysql: include_str!("schema/mysql.sql"),
+};
+
+/// The `hosted_store` table step 2 creates.
+pub const HOSTED_STORE_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS hosted_store (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL)",
+    mysql: "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id VARBINARY(512) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs",
+};
 
 /// One forward-only migration step.
 ///
@@ -64,8 +85,7 @@ const _: () = assert!(
 
 /// Step 1: the 1.0 metadata and auth schema.
 pub fn step_1(connection: &dyn Connection) -> Result<()> {
-    let tables = connection.schema_tables().unwrap_or_else(|| TABLES.to_string());
-    for statement in statements(&tables) {
+    for statement in statements(TABLES.get(connection.dialect())) {
         connection.execute_ddl(&statement)?;
     }
     Ok(())
@@ -73,7 +93,7 @@ pub fn step_1(connection: &dyn Connection) -> Result<()> {
 
 /// Step 2: the `hosted_store` table binding the database to its store.
 pub fn step_2(connection: &dyn Connection) -> Result<()> {
-    connection.execute_ddl(connection.hosted_store_table())
+    connection.execute_ddl(HOSTED_STORE_TABLE.get(connection.dialect()))
 }
 fn record_step(connection: &dyn Connection, version: i64) -> Result<()> {
     let applied_at = SystemTime::now()
@@ -240,8 +260,7 @@ fn prepare_transactional(connection: &dyn Connection, steps: &[Step]) -> Result<
             return Ok(None);
         }
         if current == 0 {
-            let marker = transaction.schema_marker().unwrap_or(MARKER_TABLE);
-            transaction.execute(marker, params![])?;
+            transaction.execute(MARKER_TABLE.get(transaction.dialect()), params![])?;
         }
         let next = current + 1;
         let index = usize::try_from(current).expect("0 <= current < steps.len()");
@@ -267,8 +286,7 @@ fn prepare_non_transactional(
         return Ok(None);
     }
     if current == 0 {
-        let marker = connection.schema_marker().unwrap_or(MARKER_TABLE);
-        connection.execute(marker, params![])?;
+        connection.execute(MARKER_TABLE.get(connection.dialect()), params![])?;
     }
     let start = usize::try_from(current).expect("0 <= current < steps.len()");
     for (index, step) in steps.iter().enumerate().skip(start) {
@@ -312,7 +330,7 @@ fn inspect_without_marker(
     if has(LEGACY_AUTH_MARKER) {
         return Ok(Inspection::Refused(Stored::Pre1_0Auth));
     }
-    if has("hosted_store") || table_names(TABLES).iter().any(|table| has(table)) {
+    if has("hosted_store") || table_names(TABLES.sqlite).iter().any(|table| has(table)) {
         return Ok(Inspection::Refused(Stored::Unmarked));
     }
     Ok(Inspection::Current(0))
@@ -380,7 +398,7 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 /// The tables a database marked with [`MARKER`] lacks, given whether it `has`
 /// each table.
 fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
-    let mut missing = table_names(TABLES)
+    let mut missing = table_names(TABLES.sqlite)
         .into_iter()
         .filter(|table| !has(table))
         .collect::<Vec<_>>();

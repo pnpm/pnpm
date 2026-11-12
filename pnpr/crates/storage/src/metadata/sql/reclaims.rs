@@ -8,7 +8,7 @@ use super::{
     SqlMetadata,
     adapter::{Connection, Query, Row},
     batch::WriteTransaction,
-    blobs::{id_from, json_array, rows_from},
+    blobs::{ROWS, id_from, json_array, rows_from},
     to_column, to_generation,
     transactions::Freshness,
 };
@@ -18,17 +18,34 @@ use crate::{
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::DialectSql;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 /// The live blobs of a namespace nothing maps, with their rows. `?3` narrows
 /// them to a JSON array of identities, or is `NULL` for all of them.
-const UNMAPPED: &str = "SELECT b.blob_id, b.incarnation, b.state, b.size FROM blobs b
-     WHERE b.namespace = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
-       AND (?3 IS NULL OR b.blob_id IN (SELECT value FROM json_each(?3)))
-       AND NOT EXISTS (
-           SELECT 1 FROM artifact_blobs a
-           WHERE a.namespace = b.namespace AND a.ecosystem = b.ecosystem
-             AND a.blob_id = b.blob_id)";
+const UNMAPPED: DialectSql = DialectSql {
+    sqlite: "SELECT b.blob_id, b.incarnation, b.state, b.size FROM blobs b
+             WHERE b.namespace = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
+               AND (?3 IS NULL OR b.blob_id IN (SELECT value FROM json_each(?3)))
+               AND NOT EXISTS (
+                   SELECT 1 FROM artifact_blobs a
+                   WHERE a.namespace = b.namespace AND a.ecosystem = b.ecosystem
+                     AND a.blob_id = b.blob_id)",
+    postgres: "SELECT b.blob_id, b.incarnation, b.state, b.size FROM blobs b
+               WHERE b.namespace = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
+                 AND (?3 IS NULL OR b.blob_id IN (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value)))
+                 AND NOT EXISTS (
+                     SELECT 1 FROM artifact_blobs a
+                     WHERE a.namespace = b.namespace AND a.ecosystem = b.ecosystem
+                       AND a.blob_id = b.blob_id)",
+    mysql: "SELECT b.blob_id, b.incarnation, b.state, b.size FROM blobs b
+            WHERE b.namespace = ?1 AND b.ecosystem = ?2 AND b.state = 'live'
+              AND (?3 IS NULL OR b.blob_id IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements))
+              AND NOT EXISTS (
+                  SELECT 1 FROM artifact_blobs a
+                  WHERE a.namespace = b.namespace AND a.ecosystem = b.ecosystem
+                    AND a.blob_id = b.blob_id)",
+};
 
 impl SqlMetadata {
     /// The rows of `ids` in `namespace`'s `ecosystem`, read from the primary.
@@ -45,9 +62,7 @@ impl SqlMetadata {
         self.read(namespace.clone(), Freshness::Current, move |connection, _| {
             let ids: Vec<&str> = ids.iter().map(BlobId::as_str).collect();
             let ids = json_array(&ids);
-            let sql = "SELECT blob_id, incarnation, state, size FROM blobs
-                 WHERE namespace = ?1 AND ecosystem = ?2
-                   AND blob_id IN (SELECT value FROM json_each(?3))";
+            let sql = ROWS.get(connection.dialect());
             rows_from(connection.query(sql, params![namespace, ecosystem.as_str(), ids])?)
         })
         .await
@@ -63,7 +78,10 @@ impl SqlMetadata {
         let namespace = namespace.to_string();
         self.read(namespace.clone(), Freshness::Current, move |connection, _| {
             let all: Option<String> = None;
-            rows_from(connection.query(UNMAPPED, params![namespace, ecosystem.as_str(), all])?)
+            rows_from(connection.query(
+                UNMAPPED.get(connection.dialect()),
+                params![namespace, ecosystem.as_str(), all],
+            )?)
         })
         .await
     }
@@ -174,7 +192,8 @@ fn mark(
     let ids: Vec<&str> = ids.iter().map(BlobId::as_str).collect();
     let ids = Some(json_array(&ids));
     let ecosystem_name = ecosystem.as_str();
-    let read = Query::new(UNMAPPED, params![namespace, ecosystem_name, ids]);
+    let read =
+        Query::new(UNMAPPED.get(connection.dialect()), params![namespace, ecosystem_name, ids]);
     let rows = rows_from(
         transaction
             .query_all(&[read])?
@@ -255,12 +274,7 @@ fn read_rows<'id>(
     let ids: Vec<&str> = ids.map(BlobId::as_str).collect();
     let ids = json_array(&ids);
     let ecosystem = ecosystem.as_str();
-    let read = Query::new(
-        "SELECT blob_id, incarnation, state, size FROM blobs
-         WHERE namespace = ?1 AND ecosystem = ?2
-           AND blob_id IN (SELECT value FROM json_each(?3))",
-        params![namespace, ecosystem, ids],
-    );
+    let read = Query::new(ROWS.get(connection.dialect()), params![namespace, ecosystem, ids]);
     rows_from(
         connection
             .query_all(&[read])?
@@ -270,6 +284,18 @@ fn read_rows<'id>(
     )
 }
 
+const WRITE_GONE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
+     VALUES (?1, ?2, ?3, ?4, 'gone', 0, ?5)
+     ON CONFLICT (namespace, ecosystem, blob_id) DO UPDATE
+     SET incarnation = excluded.incarnation, state = 'gone',
+         changed_at = excluded.changed_at",
+    "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
+     VALUES (?1, ?2, ?3, ?4, 'gone', 0, ?5)
+     AS excluded ON DUPLICATE KEY UPDATE incarnation = excluded.incarnation, state = 'gone',
+         changed_at = excluded.changed_at",
+);
+
 /// Record `blob`'s incarnation as the blob's current one, gone.
 fn write_gone(
     transaction: &dyn Connection,
@@ -277,15 +303,9 @@ fn write_gone(
     blob: &BlobRef,
 ) -> Result<()> {
     let now = crate::publish::now_millis();
-    let sql =
-        "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
-         VALUES (?1, ?2, ?3, ?4, 'gone', 0, ?5)
-         ON CONFLICT (namespace, ecosystem, blob_id) DO UPDATE
-         SET incarnation = excluded.incarnation, state = 'gone',
-             changed_at = excluded.changed_at";
     let incarnation = to_column(blob.incarnation);
     transaction.execute(
-        sql,
+        WRITE_GONE.get(transaction.dialect()),
         params![namespace, ecosystem.as_str(), blob.id.as_str(), incarnation, now],
     )
 }

@@ -770,7 +770,7 @@ async fn measure_outcome_sweep(
     retained: usize,
     expired_per_publish: usize,
 ) {
-    let mut tables = schema::TABLES.to_string();
+    let mut tables = schema::TABLES.sqlite.to_string();
     if matches!(layout, OutcomeIndex::WithoutIndex) {
         tables = tables.replace(
             "CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at\n    ON publication_outcomes (committed_at);\n",
@@ -779,7 +779,7 @@ async fn measure_outcome_sweep(
         assert!(!tables.contains("publication_outcomes_by_committed_at"));
     }
     let mut statements: Vec<_> = schema::statements(&tables).collect();
-    statements.push(schema::MARKER_TABLE.to_string());
+    statements.push(schema::MARKER_TABLE.sqlite.to_string());
     statements.push(format!(
         "INSERT INTO {} (version, applied_at) VALUES ({}, 1)",
         schema::MARKER,

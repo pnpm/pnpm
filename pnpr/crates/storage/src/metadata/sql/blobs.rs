@@ -11,21 +11,44 @@ use crate::{
     metadata::{BlobLookup, BlobRow, BlobState, MappedArtifact},
 };
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::{Dialect, DialectSql};
 use std::collections::BTreeMap;
 
 /// The rows of the blobs a JSON array of identities names, in one namespace.
-pub(super) const ROWS: &str = "SELECT blob_id, incarnation, state, size FROM blobs
-     WHERE namespace = ?1 AND ecosystem = ?2
-       AND blob_id IN (SELECT value FROM json_each(?3))";
+pub(super) const ROWS: DialectSql = DialectSql {
+    sqlite: "SELECT blob_id, incarnation, state, size FROM blobs
+             WHERE namespace = ?1 AND ecosystem = ?2
+               AND blob_id IN (SELECT value FROM json_each(?3))",
+    postgres: "SELECT blob_id, incarnation, state, size FROM blobs
+               WHERE namespace = ?1 AND ecosystem = ?2
+                 AND blob_id IN (SELECT value FROM json_array_elements_text(CAST(?3 AS JSON)) AS elements(value))",
+    mysql: "SELECT blob_id, incarnation, state, size FROM blobs
+            WHERE namespace = ?1 AND ecosystem = ?2
+              AND blob_id IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?3, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
 
 /// The mapped files of one package a JSON array of file names names, with
 /// the rows of their blobs.
-const MAPPED: &str = "SELECT a.artifact, a.version, a.blob_id, b.incarnation, b.state, b.size
-     FROM artifact_blobs a
-     JOIN blobs b
-       ON b.namespace = a.namespace AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
-     WHERE a.namespace = ?1 AND a.ecosystem = ?2 AND a.name = ?3
-       AND a.artifact IN (SELECT value FROM json_each(?4))";
+const MAPPED: DialectSql = DialectSql {
+    sqlite: "SELECT a.artifact, a.version, a.blob_id, b.incarnation, b.state, b.size
+             FROM artifact_blobs a
+             JOIN blobs b
+               ON b.namespace = a.namespace AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
+             WHERE a.namespace = ?1 AND a.ecosystem = ?2 AND a.name = ?3
+               AND a.artifact IN (SELECT value FROM json_each(?4))",
+    postgres: "SELECT a.artifact, a.version, a.blob_id, b.incarnation, b.state, b.size
+               FROM artifact_blobs a
+               JOIN blobs b
+                 ON b.namespace = a.namespace AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
+               WHERE a.namespace = ?1 AND a.ecosystem = ?2 AND a.name = ?3
+                 AND a.artifact IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "SELECT a.artifact, a.version, a.blob_id, b.incarnation, b.state, b.size
+            FROM artifact_blobs a
+            JOIN blobs b
+              ON b.namespace = a.namespace AND b.ecosystem = a.ecosystem AND b.blob_id = a.blob_id
+            WHERE a.namespace = ?1 AND a.ecosystem = ?2 AND a.name = ?3
+              AND a.artifact IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
 
 /// The blob a file of a package is mapped to, while it is live.
 pub(super) const ARTIFACT: &str = "SELECT a.blob_id, b.incarnation
@@ -103,14 +126,16 @@ impl LookupRead {
         }
     }
 
-    pub(super) fn queries(&self) -> Vec<Query<'_>> {
+    pub(super) fn queries(&self, dialect: Dialect) -> Vec<Query<'_>> {
         let (namespace, ecosystem, name) = self.key.params();
         let mut queries = Vec::new();
         if let Some(ids) = &self.ids {
-            queries.push(query!(ROWS, namespace, ecosystem, ids.as_str()));
+            let rows = ROWS.get(dialect);
+            queries.push(query!(rows, namespace, ecosystem, ids.as_str()));
         }
         if let Some(artifacts) = &self.artifacts {
-            queries.push(query!(MAPPED, namespace, ecosystem, name, artifacts.as_str()));
+            let mapped = MAPPED.get(dialect);
+            queries.push(query!(mapped, namespace, ecosystem, name, artifacts.as_str()));
         }
         queries
     }

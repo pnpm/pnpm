@@ -2,7 +2,7 @@
 //! batches.
 
 use super::timed_out;
-use crate::adapter::{Connection, Param, Query, Row, Value};
+use crate::adapter::{Connection, Param, Query, Row, Value, reject_nul};
 use pnpr_error::Result;
 use std::cell::{Cell, RefCell};
 use tokio::runtime::Handle;
@@ -180,6 +180,7 @@ async fn collect_rows(mut rows: libsql::Rows) -> Result<Vec<Row>> {
 
 impl Connection for Statements<'_> {
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
+        reject_nul(params)?;
         if !self.local {
             self.hold(sql, params, classify_sql(sql));
             return Ok(());
@@ -189,6 +190,7 @@ impl Connection for Statements<'_> {
     }
 
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
+        reject_nul(params)?;
         if !self.local {
             let query = Query::new(sql, params);
             return Ok(self
@@ -205,6 +207,9 @@ impl Connection for Statements<'_> {
                 .iter()
                 .map(|query| self.query(query.sql, &query.params))
                 .collect();
+        }
+        for query in queries {
+            reject_nul(&query.params)?;
         }
         for query in queries {
             self.hold(query.sql, &query.params, classify_sql(query.sql));

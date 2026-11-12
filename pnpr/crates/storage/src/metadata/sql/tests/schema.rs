@@ -26,6 +26,7 @@ pub(super) const PAYLOAD_TABLES: [&str; 9] = [
 ];
 
 const V1_TABLES: &str = include_str!("fixtures/v1_tables.sql");
+const V1_POSTGRES_TABLES: &str = include_str!("fixtures/v1_postgres.sql");
 const V1_MYSQL_TABLES: &str = include_str!("fixtures/v1_mysql.sql");
 
 /// Run `statements` on `db` in one transaction, as an operator would.
@@ -194,7 +195,7 @@ async fn an_empty_database_initializes(db: Db) {
     execute(&db, &["CREATE TABLE external_audit (name TEXT NOT NULL)"]).await;
     open(&db).await.unwrap();
     let tables = tables(&db).await;
-    for table in schema::table_names(TABLES) {
+    for table in schema::table_names(TABLES.sqlite) {
         assert!(tables.contains(&table), "{table} is missing from {tables:?}");
     }
     assert!(tables.contains(&MARKER.to_string()));
@@ -219,12 +220,10 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
     tokio::task::spawn_blocking(move || {
         adapter.write(&mut |connection| {
             let transaction = WriteTransaction::begin(connection)?;
-            let ddl = transaction.schema_tables().unwrap_or_else(|| TABLES.to_string());
-            for statement in schema::statements(&ddl) {
+            for statement in schema::statements(TABLES.get(transaction.dialect())) {
                 transaction.execute_ddl(&statement)?;
             }
-            let marker_ddl = transaction.schema_marker().unwrap_or(schema::MARKER_TABLE);
-            transaction.execute(marker_ddl, params![])?;
+            transaction.execute(schema::MARKER_TABLE.get(transaction.dialect()), params![])?;
             for step in &schema::STEPS[1..] {
                 step(&*transaction)?;
             }
@@ -309,12 +308,7 @@ fn insert_v1_fixture_rows(connection: &dyn Connection) -> Result<()> {
 }
 
 async fn seed_v1_fixture(db: &Db) {
-    let pg_ddl = V1_TABLES
-        .replace(" STRICT, WITHOUT ROWID", "")
-        .replace(" STRICT", "")
-        .replace(" BLOB", " BYTEA")
-        .replace(" INTEGER", " BIGINT");
-    let ddl = db.sql(V1_TABLES, &pg_ddl, V1_MYSQL_TABLES).to_string();
+    let ddl = db.sql(V1_TABLES, V1_POSTGRES_TABLES, V1_MYSQL_TABLES).to_string();
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
         adapter.write(&mut |connection| {
@@ -322,8 +316,7 @@ async fn seed_v1_fixture(db: &Db) {
             for statement in schema::statements(&ddl) {
                 transaction.execute_ddl(&statement)?;
             }
-            let marker_ddl = transaction.schema_marker().unwrap_or(schema::MARKER_TABLE);
-            transaction.execute(marker_ddl, params![])?;
+            transaction.execute(schema::MARKER_TABLE.get(transaction.dialect()), params![])?;
             insert_v1_fixture_rows(&*transaction)?;
             transaction.commit()
         })
@@ -692,8 +685,8 @@ conformance! {
 
 #[test]
 fn every_schema_table_is_known() {
-    let tables = schema::table_names(TABLES);
-    assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
+    let tables = schema::table_names(TABLES.sqlite);
+    assert_eq!(tables.len(), TABLES.sqlite.matches("CREATE TABLE").count(), "{tables:?}");
     assert!(tables.contains(&"namespaces".to_string()));
     assert!(tables.contains(&"notes".to_string()));
     assert!(tables.contains(&"removed_oci_manifests".to_string()));
@@ -702,8 +695,8 @@ fn every_schema_table_is_known() {
     assert!(tables.contains(&"tokens".to_string()));
     assert!(tables.contains(&"auth_counters".to_string()));
     assert!(!tables.contains(&MARKER.to_string()));
-    assert_eq!(schema::table_names(schema::MARKER_TABLE), [MARKER]);
-    let upper = TABLES.to_ascii_uppercase();
+    assert_eq!(schema::table_names(schema::MARKER_TABLE.sqlite), [MARKER]);
+    let upper = TABLES.sqlite.to_ascii_uppercase();
     assert!(!upper.contains("FOREIGN KEY"), "schema still declares a foreign key");
     assert!(!upper.contains("REFERENCES "), "schema still declares a foreign key reference");
 }
@@ -736,8 +729,7 @@ mod mysql_recovery {
         tokio::task::spawn_blocking(move || {
             let mut out = Vec::new();
             adapter.read(ReadSource::Primary, &mut |conn| {
-                let ddl = conn.schema_tables().unwrap();
-                out = schema::statements(&ddl).collect();
+                out = schema::statements(schema::TABLES.get(conn.dialect())).collect();
                 Ok(())
             })?;
             Ok::<_, RegistryError>(out)
@@ -789,8 +781,7 @@ mod mysql_recovery {
     fn initialize_prefix(connection: &dyn Connection, partial: &[String]) -> Result<()> {
         connection.lock_schema()?;
         connection.begin_write()?;
-        let marker = connection.schema_marker().unwrap();
-        connection.execute(marker, params![])?;
+        connection.execute(schema::MARKER_TABLE.get(connection.dialect()), params![])?;
         for statement in partial {
             connection.execute_ddl(statement)?;
         }

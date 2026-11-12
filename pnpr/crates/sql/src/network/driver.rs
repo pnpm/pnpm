@@ -2,18 +2,18 @@ macro_rules! driver {
     ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty, $dialect:expr, $timeout_sql:path, $configure:path) => {
         pub(super) mod $module {
             use super::{
-                Adapter, Arc, Cell, Connection, Dialect, Duration, Param, Checkout, StartupConnection, Query,
-                ReadSource, RefCell, RegistryError, Result, Row, SqlBackendSettings, TypeInfo,
-                Value, ValueRef,
+                Adapter, Arc, Cell, Checkout, Connection, Duration, NetworkDialect, Param, Query,
+                ReadSource, RefCell, RegistryError, Result, Row, SqlBackendSettings,
+                StartupConnection, TypeInfo, Value, ValueRef,
             };
-            use tokio::sync::Mutex;
             use sqlx::Row as _;
+            use tokio::sync::Mutex;
 
             #[derive(Debug)]
             pub(in super::super) struct NetworkAdapter {
                 pool: Arc<$pool>,
                 startup: Option<StartupConnection<$database>>,
-                dialect: Dialect,
+                dialect: NetworkDialect,
                 settings: SqlBackendSettings,
                 /// Held by a write of this instance, so one connection at a
                 /// time waits for the database's write lock and the others
@@ -24,12 +24,22 @@ macro_rules! driver {
 
             impl NetworkAdapter {
                 pub(in super::super) fn new(settings: &SqlBackendSettings) -> Result<Self> {
-                    let dialect = Dialect::from_url(&settings.url)?;
+                    let dialect = NetworkDialect::from_url(&settings.url)?;
                     let pool = $pool_fn(settings)?;
-                    Ok(Self { pool, startup: None, dialect, settings: settings.clone(), writer: Mutex::new(()) })
+                    Ok(Self {
+                        pool,
+                        startup: None,
+                        dialect,
+                        settings: settings.clone(),
+                        writer: Mutex::new(()),
+                    })
                 }
 
-                pub(super) fn from_pool(pool: Arc<$pool>, startup: StartupConnection<$database>, timeout: Duration) -> Self {
+                pub(super) fn from_pool(
+                    pool: Arc<$pool>,
+                    startup: StartupConnection<$database>,
+                    timeout: Duration,
+                ) -> Self {
                     Self {
                         pool,
                         startup: Some(startup),
@@ -73,7 +83,11 @@ macro_rules! driver {
                     };
                     if startup {
                         let mut conn = connection.connection.borrow_mut();
-                        connection.runtime.block_on(tokio::time::timeout(timeout, $configure(&mut **conn, timeout)))
+                        connection.runtime
+                            .block_on(tokio::time::timeout(
+                                timeout,
+                                $configure(&mut **conn, timeout),
+                            ))
                             .map_err(|_| sqlx::Error::PoolTimedOut)??;
                     } else if timeout != self.settings.timeout {
                         // A startup deadline must never reach another pool borrower.
@@ -97,13 +111,26 @@ macro_rules! driver {
                         if let Some(startup) = &self.startup {
                             return Checkout::startup(Arc::clone(startup), timeout).await;
                         }
-                        if !self.settings.url.is_empty() && self.pool.size() == 0 && !self.pool.is_closed() {
-                            let connection = crate::connect_startup(&self.pool, &self.settings.url, timeout).await?;
-                            return Checkout::startup(Arc::new(Mutex::new(Some(connection))), timeout).await;
+                        if !self.settings.url.is_empty()
+                            && self.pool.size() == 0
+                            && !self.pool.is_closed()
+                        {
+                            let connection =
+                                crate::connect_startup(&self.pool, &self.settings.url, timeout)
+                                    .await?;
+                            return Checkout::startup(
+                                Arc::new(Mutex::new(Some(connection))),
+                                timeout,
+                            )
+                            .await;
                         }
                         Ok(Checkout::Pooled(crate::acquire(&self.pool, timeout).await?))
                     })?;
-                    self.run_connection(connection, timeout.saturating_sub(started.elapsed()), operation)
+                    self.run_connection(
+                        connection,
+                        timeout.saturating_sub(started.elapsed()),
+                        operation,
+                    )
                 }
 
                 fn write(
@@ -130,19 +157,17 @@ macro_rules! driver {
                     let RegistryError::Sqlx(sqlx::Error::Database(error)) = error else {
                         return false;
                     };
-                    Dialect::retryable(&**error)
+                    NetworkDialect::retryable(&**error)
                 }
-
-
             }
 
             struct NetworkConnection {
                 connection: RefCell<Checkout<$database>>,
-                dialect: Dialect,
+                dialect: NetworkDialect,
                 runtime: tokio::runtime::Handle,
                 timeout: Duration,
                 schema_locked: Cell<bool>,
-                /// Whether the session holds [`Dialect::lock_writes`].
+                /// Whether the session holds [`NetworkDialect::lock_writes`].
                 writes_locked: Cell<bool>,
                 transaction_open: Cell<bool>,
             }
@@ -158,11 +183,8 @@ macro_rules! driver {
             impl NetworkConnection {
                 fn finish(&self, result: Result<()>) -> Result<()> {
                     // A failed commit or rollback must not return an open transaction to the pool.
-                    let rollback = if self.transaction_open.get() {
-                        self.rollback()
-                    } else {
-                        Ok(())
-                    };
+                    let rollback =
+                        if self.transaction_open.get() { self.rollback() } else { Ok(()) };
                     let unlock_writes = if self.writes_locked.get() {
                         self.execute_batch(self.dialect.unlock_writes())
                     } else {
@@ -176,10 +198,14 @@ macro_rules! driver {
                     if rollback.is_err() || unlock_writes.is_err() || unlock.is_err() {
                         self.connection.borrow_mut().close_on_drop();
                     }
-                    result.and(rollback).and(unlock_writes).and(unlock)
+                    result
+                        .and(rollback)
+                        .and(unlock_writes)
+                        .and(unlock)
                 }
 
                 fn rows(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
+                    crate::adapter::reject_nul(params)?;
                     let (sql, params) = self.dialect.statement(sql, params)?;
                     self.fetch(sql, params)?
                         .iter()
@@ -209,10 +235,7 @@ macro_rules! driver {
                     Ok(rows)
                 }
 
-                fn mark_timed_out(
-                    &self,
-                    connection: &mut Checkout<$database>,
-                ) -> RegistryError {
+                fn mark_timed_out(&self, connection: &mut Checkout<$database>) -> RegistryError {
                     // A cancelled future leaves an unread response on the wire.
                     connection.close_on_drop();
                     self.transaction_open.set(false);
@@ -226,10 +249,12 @@ macro_rules! driver {
                 /// Take the session lock `sql` selects `1` for once held.
                 /// `lock` names it in the error when its wait timed out.
                 fn take_session_lock(&self, sql: &str, lock: &str) -> Result<()> {
-                    let mut row = self.query_one(sql, &[]).inspect_err(|_| {
-                        // A lost response may still have acquired the session lock.
-                        self.connection.borrow_mut().close_on_drop();
-                    })?;
+                    let mut row = self
+                        .query_one(sql, &[])
+                        .inspect_err(|_| {
+                            // A lost response may still have acquired the session lock.
+                            self.connection.borrow_mut().close_on_drop();
+                        })?;
                     if row.get::<i64>(0)? != 1 {
                         return Err(RegistryError::Internal {
                             reason: format!("metadata {lock} lock timed out"),
@@ -250,12 +275,16 @@ macro_rules! driver {
             }
 
             impl Connection for NetworkConnection {
+                fn dialect(&self) -> crate::Dialect {
+                    self.dialect.dialect()
+                }
+
                 fn transactional_ddl(&self) -> bool {
-                    !matches!(self.dialect, Dialect::Mysql)
+                    !matches!(self.dialect, NetworkDialect::Mysql)
                 }
 
                 fn is_recoverable_empty_migrations(&self) -> Result<bool> {
-                    if matches!(self.dialect, Dialect::Mysql) {
+                    if matches!(self.dialect, NetworkDialect::Mysql) {
                         return super::mysql_schema::is_recoverable(self);
                     }
                     Ok(false)
@@ -273,7 +302,7 @@ macro_rules! driver {
                 }
 
                 fn execute_ddl(&self, sql: &str) -> Result<()> {
-                    if matches!(self.dialect, Dialect::Mysql) {
+                    if matches!(self.dialect, NetworkDialect::Mysql) {
                         return super::mysql_schema::execute_ddl(self, sql);
                     }
                     self.execute(sql, &[])
@@ -294,6 +323,9 @@ macro_rules! driver {
                             .iter()
                             .map(|query| self.rows(query.sql, &query.params))
                             .collect();
+                    }
+                    for query in queries {
+                        crate::adapter::reject_nul(&query.params)?;
                     }
                     let (sql, params) = self.dialect.batch(queries)?;
                     let mut results = vec![Vec::new(); queries.len()];
@@ -342,32 +374,8 @@ macro_rules! driver {
                     self.end_transaction("ROLLBACK", self.dialect.rollback_write())
                 }
 
-                fn schema_tables(&self) -> Option<String> {
-                    Some(self.dialect.tables())
-                }
-
                 fn schema_table_names(&self) -> Result<Vec<Row>> {
                     self.query(self.dialect.table_names(), &[])
-                }
-
-                fn schema_marker(&self) -> Option<&'static str> {
-                    Some(match self.dialect {
-                        Dialect::Postgres => {
-                            "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL)"
-                        }
-                        Dialect::Mysql => super::mysql_schema::MARKER_TABLE,
-                    })
-                }
-
-                fn hosted_store_table(&self) -> &'static str {
-                    match self.dialect {
-                        Dialect::Postgres => {
-                            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL)"
-                        }
-                        Dialect::Mysql => {
-                            "CREATE TABLE IF NOT EXISTS hosted_store (singleton BIGINT PRIMARY KEY CHECK (singleton = 1), store_id VARBINARY(512) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs"
-                        }
-                    }
                 }
             }
 

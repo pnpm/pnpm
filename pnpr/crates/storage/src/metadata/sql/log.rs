@@ -5,6 +5,7 @@ use super::{PackageKey, adapter::Connection};
 use crate::transparency_log::{ImportedLogEntry, LogId, RawLogState};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::DialectSql;
 use std::ops::Range;
 
 /// The entries of `log` at `indexes`, in order. Every index in the range
@@ -94,6 +95,13 @@ fn parse_head_row(mut row: super::adapter::Row) -> Result<(u64, Vec<u8>)> {
     Ok((u64::try_from(row.get::<i64>(0)?).unwrap_or_default(), row.get(1)?))
 }
 
+const WRITE_HEAD: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO log_heads (namespace, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (namespace, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
+    "INSERT INTO log_heads (namespace, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
+     AS excluded ON DUPLICATE KEY UPDATE size = excluded.size, root = excluded.root",
+);
+
 /// Record that `log` was integrated to the tree of `size` entries with
 /// `root`, unless it already was to a tree at least that large.
 pub(super) fn advance_head(
@@ -107,8 +115,7 @@ pub(super) fn advance_head(
         return transaction.commit();
     }
     transaction.execute(
-        "INSERT INTO log_heads (namespace, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT (namespace, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
+        WRITE_HEAD.get(transaction.dialect()),
         params![log.namespace, log.ecosystem.as_str(), to_column(size), root],
     )?;
     transaction.commit()
@@ -222,6 +229,15 @@ fn insert_imported_entries(
     Ok(())
 }
 
+const RECORD_REMOVED_VERSION: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT DO NOTHING",
+    "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5)
+     ON DUPLICATE KEY UPDATE namespace = removed_versions.namespace",
+);
+
 fn record_reimported_npm_versions(
     transaction: &dyn Connection,
     log: &LogId,
@@ -237,9 +253,7 @@ fn record_reimported_npm_versions(
             continue;
         }
         transaction.execute(
-            "INSERT INTO removed_versions (namespace, ecosystem, name, version, generation)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT DO NOTHING",
+            RECORD_REMOVED_VERSION.get(transaction.dialect()),
             params![log.namespace, Ecosystem::Npm.as_str(), name, version, to_column(generation)],
         )?;
         recorded_any = true;
