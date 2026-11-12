@@ -104,7 +104,7 @@ pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
             .to_string(),
         registries: ColdMockUpstreamTable { npmjs: upstream() },
         default_registry: "npmjs",
-        log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
+        log: ColdMockLog { format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
@@ -167,8 +167,6 @@ pub(super) struct ColdMockUpstreamEntry {
 }
 #[derive(Serialize)]
 pub(super) struct ColdMockLog {
-    #[serde(rename = "type")]
-    kind: &'static str,
     format: &'static str,
     level: &'static str,
 }
@@ -188,7 +186,7 @@ pub(super) fn pnpr_benchmark_config_yaml(
                 .collect(),
             allowed_private_networks: &["127.0.0.0/8", "::1"],
         },
-        log: PnprBenchmarkLog { r#type: "stdout", format: "pretty", level: "error" },
+        log: PnprBenchmarkLog { format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize pnpr benchmark config")
 }
@@ -225,7 +223,6 @@ pub(super) struct PnprBenchmarkPublicRoute {
 }
 #[derive(Serialize)]
 pub(super) struct PnprBenchmarkLog {
-    r#type: &'static str,
     format: &'static str,
     level: &'static str,
 }
