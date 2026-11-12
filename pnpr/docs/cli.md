@@ -159,7 +159,8 @@ A new account never inherits tokens or grants from a reused login name.
 
 The command writes to the configured metadata database and can run next to a
 running server. A password change preserves the account ID and revokes the
-account's tokens at once.
+account's tokens. A server that reads a libSQL embedded replica sees the
+revocation after its next sync.
 
 ```sh
 # Prompts for the password

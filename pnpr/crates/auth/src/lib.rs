@@ -24,7 +24,9 @@ pub use htpasswd::{
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
-pub use sqlite_backend::{ImportedPasswords, PasswordCollisions, PasswordImport, SqliteAuth};
+pub use sqlite_backend::{
+    ImportMode, ImportedPasswords, PasswordCollisions, PasswordImport, SqliteAuth,
+};
 pub use token_store::{
     NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord,
     has_valid_personal_token_checksum, unix_millis,

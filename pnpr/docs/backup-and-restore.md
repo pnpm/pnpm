@@ -12,7 +12,7 @@ A pnpr instance stores two categories of data:
 1. **Authoritative data (required)**:
    - **Hosted storage (`storage`)**: Contains package archives stored by content digest, staged publish bodies (`.staged/`), and transparency log tiles, entry bundles, and checkpoints (`.transparency-log/`). Back this up regularly.
    - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): Holds package metadata, former maintainers, unpublished versions, and transparency log entries. It also stores team rosters, rule overrides, SCIM users, and staged-publish approval records in SQLite, libSQL, PostgreSQL, or MySQL.
-   - **Accounts and tokens** live in the metadata database too, so its backup covers them.
+   - **Accounts and tokens** live in the metadata database too, so its backup covers them. The database holds password and token hashes, so keep its backups readable only by the operator.
 2. **Disposable cache (`cache` / `.pnpr-cache`) (optional)**:
    - Upstream proxy packument and tarball cache.
    - Resolver query cache.

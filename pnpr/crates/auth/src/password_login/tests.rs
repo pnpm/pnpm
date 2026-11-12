@@ -123,7 +123,8 @@ async fn password_login_accepts_a_credential_upgraded_during_verification() {
     let digest = &integrity.hashes.first().unwrap().digest;
     let hashes =
         std::collections::HashMap::from([("example-user".to_string(), format!("{{SHA}}{digest}"))]);
-    let options = PasswordImport { collisions: PasswordCollisions::Keep, dry_run: false };
+    let options =
+        PasswordImport { collisions: PasswordCollisions::Keep, mode: crate::ImportMode::Apply };
     users.import_password_hashes(hashes, options).await.unwrap();
     let auth = AuthState {
         users: Arc::clone(&users) as Arc<dyn crate::UserBackend>,

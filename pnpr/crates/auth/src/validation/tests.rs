@@ -190,9 +190,9 @@ async fn assert_import_rejects_confusable_names(existing_name: &str, imported_na
         .iter()
         .map(|name| ((*name).to_string(), hash.clone()))
         .collect();
-    for dry_run in [true, false] {
+    for mode in [crate::ImportMode::Preview, crate::ImportMode::Apply] {
         for collisions in [crate::PasswordCollisions::Keep, crate::PasswordCollisions::Overwrite] {
-            let options = crate::PasswordImport { collisions, dry_run };
+            let options = crate::PasswordImport { collisions, mode };
             let error = users.import_password_hashes(hashes.clone(), options).await.unwrap_err();
             assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
             assert_eq!(users.list_users().await.unwrap(), [existing_name]);
@@ -242,8 +242,10 @@ async fn sqlite_password_policy_applies_to_registration_and_login() {
         "imported".to_string(),
         bcrypt::hash("short", 4).unwrap(),
     )]);
-    let options =
-        crate::PasswordImport { collisions: crate::PasswordCollisions::Keep, dry_run: false };
+    let options = crate::PasswordImport {
+        collisions: crate::PasswordCollisions::Keep,
+        mode: crate::ImportMode::Apply,
+    };
     users.import_password_hashes(hashes, options).await.unwrap();
     let error = users.add_or_login("imported", "short").await.unwrap_err();
     assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);

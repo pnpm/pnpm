@@ -423,9 +423,6 @@ async fn identify_recognizes_bearer_in_any_case_and_ignores_basic() {
     assert!(identify(Some("Bearer total-nonsense"), &auth).await.unwrap().is_none());
 }
 
-/// Rows another pnpr version wrote: unprefixed tokens still resolve, negative
-/// timestamps clamp to zero, and a damaged `cidr_whitelist` or `kind` fails
-/// the lookup instead of dropping the restriction.
 #[tokio::test]
 async fn stored_token_rows_are_read_strictly() {
     let tmp = tempfile::tempdir().unwrap();
@@ -470,7 +467,8 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
         "verdaccio_user".to_string(),
         "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=".to_string(),
     )]);
-    let options = PasswordImport { collisions: PasswordCollisions::Keep, dry_run: false };
+    let options =
+        PasswordImport { collisions: PasswordCollisions::Keep, mode: crate::ImportMode::Apply };
     auth.import_password_hashes(hashes, options).await.unwrap();
     let id = auth
         .account_id("verdaccio_user")
@@ -508,18 +506,25 @@ async fn password_imports_keep_or_overwrite_collisions_and_dry_runs_write_nothin
     let hashes =
         HashMap::from([("alice".to_string(), alice_hash.clone()), ("bob".to_string(), bob_hash)]);
 
-    let dry_run = PasswordImport { collisions: PasswordCollisions::Overwrite, dry_run: true };
+    let dry_run = PasswordImport {
+        collisions: PasswordCollisions::Overwrite,
+        mode: crate::ImportMode::Preview,
+    };
     let imported = auth.import_password_hashes(hashes.clone(), dry_run).await.unwrap();
     assert_eq!(imported.merged, 2);
     assert_eq!(auth.list_users().await.unwrap(), ["alice"]);
 
-    let keep = PasswordImport { collisions: PasswordCollisions::Keep, dry_run: false };
+    let keep =
+        PasswordImport { collisions: PasswordCollisions::Keep, mode: crate::ImportMode::Apply };
     let imported = auth.import_password_hashes(hashes.clone(), keep).await.unwrap();
     assert_eq!((imported.merged, imported.collisions), (1, vec!["alice".to_string()]));
     assert_eq!(auth.list_users().await.unwrap(), ["alice", "bob"]);
     auth.add_or_login("alice", "secret123").await.unwrap();
 
-    let overwrite = PasswordImport { collisions: PasswordCollisions::Overwrite, dry_run: false };
+    let overwrite = PasswordImport {
+        collisions: PasswordCollisions::Overwrite,
+        mode: crate::ImportMode::Apply,
+    };
     let imported = auth.import_password_hashes(hashes, overwrite).await.unwrap();
     assert_eq!(imported.merged, 1);
     let outcome = auth.add_or_login("alice", "new-password").await.unwrap();
@@ -528,6 +533,43 @@ async fn password_imports_keep_or_overwrite_collisions_and_dry_runs_write_nothin
     let look_alike = HashMap::from([("ALICE".to_string(), alice_hash)]);
     let err = auth.import_password_hashes(look_alike, keep).await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn only_the_owner_can_read_the_database() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let tmp = tempfile::tempdir().unwrap();
+    let created = tmp.path().join("created.sqlite");
+    let existing = tmp.path().join("existing.sqlite");
+    drop(rusqlite::Connection::open(&existing).unwrap());
+    std::fs::set_permissions(&existing, std::fs::Permissions::from_mode(0o644)).unwrap();
+    for path in [&created, &existing] {
+        let auth = open_auth(path);
+        auth.add_or_login("alice", "secret123").await.unwrap();
+        for suffix in ["", "-wal", "-shm"] {
+            let mut file = path.as_os_str().to_os_string();
+            file.push(suffix);
+            let mode = std::fs::metadata(&file)
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600, "{}", file.to_string_lossy());
+        }
+    }
+}
+
+#[tokio::test]
+async fn readiness_fails_without_the_tokens_table() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("metadata.sqlite");
+    let auth = open_auth(&path);
+    TokenBackend::check_readiness(&auth).await.unwrap();
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch("DROP TABLE tokens")
+        .unwrap();
+    TokenBackend::check_readiness(&auth).await.unwrap_err();
 }
 
 #[tokio::test]

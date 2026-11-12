@@ -1,5 +1,9 @@
 use miette::IntoDiagnostic as _;
-use pnpr_auth::{is_bcrypt_hash, is_sha_hash, parse_htpasswd_line};
+use pnpr_auth::{
+    ImportMode::{Apply, Preview},
+    PasswordCollisions::{Keep, Overwrite},
+    is_bcrypt_hash, is_sha_hash, parse_htpasswd_line,
+};
 use pnpr_config::{BackendConfig, Config};
 use std::{collections::HashMap, path::PathBuf};
 
@@ -46,12 +50,8 @@ pub async fn import_htpasswd(
         .import_password_hashes(
             source_users,
             pnpr_auth::PasswordImport {
-                collisions: if options.overwrite {
-                    pnpr_auth::PasswordCollisions::Overwrite
-                } else {
-                    pnpr_auth::PasswordCollisions::Keep
-                },
-                dry_run: options.dry_run,
+                collisions: if options.overwrite { Overwrite } else { Keep },
+                mode: if options.dry_run { Preview } else { Apply },
             },
         )
         .await

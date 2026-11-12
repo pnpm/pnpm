@@ -154,7 +154,7 @@ async fn imported_sha_passwords_support_token_creation_and_profile_changes() {
             hashes,
             pnpr_auth::PasswordImport {
                 collisions: pnpr_auth::PasswordCollisions::Keep,
-                dry_run: false,
+                mode: pnpr_auth::ImportMode::Apply,
             },
         )
         .await

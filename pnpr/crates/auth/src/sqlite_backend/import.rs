@@ -13,11 +13,18 @@ pub enum PasswordCollisions {
     Overwrite,
 }
 
+/// Whether an import writes what it would do.
+#[derive(Debug, Clone, Copy)]
+pub enum ImportMode {
+    Apply,
+    /// Check the import and report what it would do, writing nothing.
+    Preview,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct PasswordImport {
     pub collisions: PasswordCollisions,
-    /// Check the import and report what it would do, writing nothing.
-    pub dry_run: bool,
+    pub mode: ImportMode,
 }
 
 /// What an import did, or would do in a dry run.
@@ -49,8 +56,9 @@ impl SqliteAuth {
                 for (name, hash) in &hashes {
                     merge_hash(&*transaction, name, hash, options.collisions, &mut imported)?;
                 }
-                if !options.dry_run {
-                    transaction.commit()?;
+                match options.mode {
+                    ImportMode::Apply => transaction.commit()?,
+                    ImportMode::Preview => {}
                 }
                 Ok(())
             })?;

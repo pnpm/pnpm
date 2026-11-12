@@ -348,7 +348,7 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
             [("alice".to_string(), "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=".to_string())].into(),
             pnpr_auth::PasswordImport {
                 collisions: pnpr_auth::PasswordCollisions::Keep,
-                dry_run: false,
+                mode: pnpr_auth::ImportMode::Apply,
             },
         )
         .await

@@ -58,18 +58,32 @@ pub(crate) async fn wait_for_last_use_after(
 /// each account's ID is its name.
 pub(crate) fn seeded_auth(config: &pnpr::Config, accounts: &[(&str, &str)]) -> AuthState {
     let path = config.storage.hosted_dir.join("test-accounts.sqlite");
-    let auth = pnpr::SqliteAuth::open(&path, config.identity.auth.users.max_users).unwrap();
+    let max_users = config.identity.auth.users.max_users;
+    let auth = pnpr::SqliteAuth::open(&path, max_users).unwrap().with_bcrypt_cost(4);
+    // Create the accounts the way production does, on a runtime of their own:
+    // the callers are synchronous, inside a test's runtime.
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(create_named_accounts(&auth, accounts));
+        });
+    });
     let connection = rusqlite::Connection::open(&path).unwrap();
-    for (name, password) in accounts {
+    for (name, _) in accounts {
         connection
-            .execute(
-                "INSERT OR IGNORE INTO users (id, username, status, credential_kind, password_hash, created_at)
-                 VALUES (?1, ?1, 'active', 'bcrypt', ?2, 1000)",
-                rusqlite::params![name, bcrypt::hash(password, 4).unwrap()],
-            )
+            .execute("UPDATE users SET id = ?1 WHERE username = ?1", [name])
             .unwrap();
     }
     AuthState::sharing(auth)
+}
+
+async fn create_named_accounts(auth: &pnpr::SqliteAuth, accounts: &[(&str, &str)]) {
+    for (name, password) in accounts {
+        pnpr::UserBackend::create_user(auth, name, password).await.unwrap();
+    }
 }
 
 pub(crate) async fn account_id(

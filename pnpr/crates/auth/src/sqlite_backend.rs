@@ -8,7 +8,7 @@
 //! directly. The `auth_counters` row the shared databases keep is not read
 //! here: a shared backend reconciles it with the `users` rows at startup.
 
-pub use import::{ImportedPasswords, PasswordCollisions, PasswordImport};
+pub use import::{ImportMode, ImportedPasswords, PasswordCollisions, PasswordImport};
 
 mod account_reads;
 mod accounts;
@@ -52,6 +52,7 @@ impl SqliteAuth {
     /// Open the database at `path`, creating it and migrating its schema if
     /// needed.
     pub fn open(path: &Path, max_users: MaxUsers) -> Result<Self> {
+        restrict_to_owner(path)?;
         let auth = Self::with_database(SqliteAdapter::open(path)?, max_users)?;
         Ok(Self { path: Some(path.to_path_buf()), ..auth })
     }
@@ -125,6 +126,41 @@ impl SqliteAuth {
         })
         .await?
     }
+}
+
+/// Give the database file, and the `-wal` and `-shm` files `SQLite` keeps
+/// beside it, owner-only permissions: they hold password and token hashes.
+/// `SQLite` creates its sidecars with the database file's permissions.
+#[cfg(unix)]
+fn restrict_to_owner(path: &Path) -> Result<()> {
+    use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+    {
+        Ok(_) => return Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(err) => return Err(err.into()),
+    }
+    for suffix in ["", "-wal", "-shm"] {
+        let mut file = path.as_os_str().to_os_string();
+        file.push(suffix);
+        match std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)) {
+            Err(err) if err.kind() != std::io::ErrorKind::NotFound => return Err(err.into()),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restrict_to_owner(_path: &Path) -> Result<()> {
+    Ok(())
 }
 
 #[async_trait]
@@ -314,7 +350,11 @@ impl UserBackend for SqliteAuth {
                 path,
                 rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
             )?;
-            connection.query_row("SELECT EXISTS(SELECT 1 FROM users)", [], |_| Ok(()))?;
+            connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM users), EXISTS(SELECT 1 FROM tokens)",
+                [],
+                |_| Ok(()),
+            )?;
             Ok(())
         })
         .await?
