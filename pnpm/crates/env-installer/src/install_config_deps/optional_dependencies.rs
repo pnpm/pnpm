@@ -256,7 +256,7 @@ fn read_optional_subdeps(
             ),
         })?;
         subdeps.push(NormalizedSubdep {
-            name: subdep_name.clone(),
+            name: subdep_name,
             version,
             integrity,
             tarball,

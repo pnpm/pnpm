@@ -64,10 +64,6 @@ use pnpm_package_manager::configure_rayon_pool;
 use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
-// Carrying the command behind the closure below hides its side effects
-// from `clippy::must_use_candidate`, which then wants this attribute.
-// It is correct anyway: dropping the code would always exit 0.
-#[must_use]
 pub fn main() -> ExitCode {
     #[cfg(target_family = "wasm")]
     if let Err(error) = initialize_wasm_paths() {

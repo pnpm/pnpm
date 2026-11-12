@@ -418,11 +418,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             .get("minimumReleaseAgeIgnoreMissingTime")
             .and_then(JsonValue::as_bool)
             .unwrap_or(false);
-        if past_ignore_missing_time && !self.metadata.ignore_missing_time_field {
-            return false;
-        }
-
-        true
+        !past_ignore_missing_time || self.metadata.ignore_missing_time_field
     }
 }
 

@@ -276,7 +276,7 @@ fn resolve_v_tags(tags: &BTreeSet<String>, range: &Range) -> Option<String> {
         if range.satisfies(&parsed) {
             match best {
                 Some((ref best_v, _)) if best_v >= &parsed => {}
-                _ => best = Some((parsed.clone(), tag.clone())),
+                _ => best = Some((parsed, tag.clone())),
             }
         }
     }
