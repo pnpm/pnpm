@@ -409,6 +409,25 @@ async fn npm_success_frames_echo_every_policy() {
 }
 
 #[test]
+fn streaming_errors_share_the_http_error_fields() {
+    for (code, expected) in [
+        (None, "ERR_PNPR_RESOLUTION_FAILED"),
+        (Some("ERR_PNPM_OUTDATED_LOCKFILE"), "ERR_PNPR_OUTDATED_LOCKFILE"),
+    ] {
+        let bytes = super::super::wire::error_frame_with_code("Resolution failed", code);
+        assert_eq!(bytes.last(), Some(&b'\n'));
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "type": "error", "message": "Resolution failed",
+                "error": "Resolution failed", "reason": "Resolution failed", "code": expected,
+            }),
+        );
+    }
+}
+
+#[test]
 fn a_cargo_done_frame_names_its_lockfile_format() {
     use super::super::wire::cargo_done_frame;
 

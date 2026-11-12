@@ -2,7 +2,7 @@ use super::{
     CargoResolveOptions, Deserialize, PnprClient, PnprClientError, PypiResolveOptions,
     RenderedViolation, VerifyError, VerifyLockfileOptions,
     lockfile_format::{CARGO_LOCK, PYLOCK, expect_sole_lockfile_format},
-    read_ndjson_frames, resolver_error_response, response_body_bounded,
+    read_ndjson_frames, response_body_bounded,
 };
 
 fn parse_pypi_frame(line: &[u8]) -> Result<PypiFrame, PnprClientError> {
@@ -212,9 +212,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            return Err(resolver_error_response("/-/pnpr/v0/resolve", response).await);
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
         find_terminal_frame(&body)
     }
@@ -235,9 +233,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            return Err(resolver_error_response("/-/pnpr/v0/verify-lockfile", response).await);
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/verify-lockfile").await?;
 
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
             VerifyFrame::Done { applied_policies } => {

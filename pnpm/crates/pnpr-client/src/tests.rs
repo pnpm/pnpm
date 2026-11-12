@@ -856,6 +856,87 @@ async fn resolve_rejects_mismatched_policies() {
 }
 
 #[tokio::test]
+async fn http_errors_preserve_codes_and_display_the_reason() {
+    let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
+    let response = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_status(403)
+        .with_body(
+            json!({
+                "error": "Resolution denied",
+                "reason": "Resolution denied",
+                "code": "ERR_PNPR_FORBIDDEN"
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+    let error = PnprClient::new(server.url())
+        .resolve_projects(resolve_projects_options())
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("ERR_PNPR_FORBIDDEN"));
+    let PnprClientError::Server { message, code } = error else {
+        panic!("expected a server error");
+    };
+    assert_eq!(code.as_deref(), Some("ERR_PNPR_FORBIDDEN"));
+    assert!(message.ends_with(": Resolution denied"), "{message}");
+    response.assert_async().await;
+}
+
+#[tokio::test]
+async fn handshake_errors_preserve_the_server_code() {
+    let mut server = mockito::Server::new_async().await;
+    let response = server
+        .mock("GET", "/-/pnpr")
+        .with_status(503)
+        .with_body(
+            json!({
+                "error": "Service Unavailable",
+                "reason": "Service Unavailable",
+                "code": "ERR_PNPR_STORAGE_UNAVAILABLE"
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+    let error = PnprClient::new(server.url()).handshake().await.unwrap_err();
+    let PnprClientError::Server { message, code } = error else {
+        panic!("expected a server error");
+    };
+    assert_eq!(code.as_deref(), Some("ERR_PNPR_STORAGE_UNAVAILABLE"));
+    assert!(message.ends_with(": Service Unavailable"), "{message}");
+    response.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_stalled_handshake_error_body_has_a_deadline() {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 1\r\nConnection: close\r\n\r\n")
+            .await.unwrap();
+        pending::<()>().await;
+    });
+    let error = tokio::time::timeout(
+        Duration::from_secs(10),
+        PnprClient::new(format!("http://{address}")).handshake(),
+    )
+    .await
+    .expect("the failed handshake body must time out")
+    .unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("/-/pnpr returned 503 Service Unavailable:"), "{message}");
+    assert!(message.contains("timed out"), "{message}");
+    server.abort();
+}
+
+#[tokio::test]
 async fn resolve_rejects_a_done_frame_in_another_lockfile_format() {
     for lockfile_format in [None, Some("pnpm-lock/13.0"), Some("cargo-lock")] {
         let options = resolve_projects_options();
@@ -907,6 +988,7 @@ async fn a_refused_setting_or_lockfile_format_is_an_unsupported_request() {
         ("ERR_PNPR_UNSUPPORTED_REQUEST_FIELD", true),
         ("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT", true),
         ("ERR_PNPR_FORBIDDEN", false),
+        ("ERR_PNPR_BAD_REQUEST", false),
     ] {
         let mut server = mockito::Server::new_async().await;
         let _handshake = mock_transform_handshake(&mut server, true).await;

@@ -100,7 +100,7 @@ async fn npm_errors_keep_status_safe_messages_and_retry_headers() {
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
-            json!({"error": message, "reason": message}),
+            json!({"error": message, "reason": message, "code": if status == StatusCode::NOT_FOUND { "ERR_PNPR_NOT_FOUND" } else { "ERR_PNPR_INTERNAL" }}),
         );
     }
     let response = app
@@ -135,11 +135,11 @@ async fn npm_errors_keep_status_safe_messages_and_retry_headers() {
 }
 
 #[tokio::test]
-async fn npm_head_errors_have_no_body_and_other_protocols_keep_plain_text() {
+async fn head_errors_have_no_body_and_owned_endpoints_return_json() {
     use axum::{Router, middleware, routing::get};
     let app = Router::new()
         .route("/npm/missing", get(|| async { RegistryError::NotFound }))
-        .route("/cargo/missing", get(|| async { RegistryError::NotFound }))
+        .route("/-/pnpr/v0/missing", get(|| async { RegistryError::NotFound }))
         .layer(middleware::from_fn(super::super::routing::npm_errors::render));
     let response = app
         .clone()
@@ -155,15 +155,19 @@ async fn npm_head_errors_have_no_body_and_other_protocols_keep_plain_text() {
     assert!(to_bytes(response.into_body(), usize::MAX).await.unwrap().is_empty());
     let response = app
         .oneshot(
-            Request::get("/cargo/missing")
+            Request::get("/-/pnpr/v0/missing")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert_eq!(response.headers()[header::CONTENT_TYPE], "text/plain; charset=utf-8");
-    assert_eq!(to_bytes(response.into_body(), usize::MAX).await.unwrap().as_ref(), b"Not Found");
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["code"],
+        "ERR_PNPR_NOT_FOUND",
+    );
 }
 
 #[tokio::test]
@@ -214,4 +218,49 @@ async fn malformed_json_request_bodies_return_bad_request() {
         let message = body["error"].as_str().unwrap();
         assert!(message.starts_with("Bad request: invalid request body:"), "{path}: {message}");
     }
+}
+
+#[tokio::test]
+async fn native_publish_errors_have_the_same_shape_at_root_and_under_npm() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "valid-token", record(false, &[]));
+    for path in ["/-/pnpr/v0/publish", "/npm/-/pnpr/v0/publish"] {
+        let response = app
+            .clone()
+            .oneshot(signed_json(Method::PUT, path, "valid-token", "{not-json"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json", "{path}");
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], "ERR_PNPR_BAD_REQUEST", "{path}");
+        assert_eq!(body["error"], body["reason"]);
+    }
+}
+
+#[tokio::test]
+async fn framework_rejections_on_native_endpoints_return_json() {
+    use axum::{Router, middleware, routing::get};
+    let app = Router::new()
+        .route("/-/pnpr/v0/example", get(|| async { "ok" }))
+        .layer(middleware::from_fn(super::super::routing::npm_errors::render));
+    let response = app
+        .oneshot(
+            Request::post("/-/pnpr/v0/example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        body,
+        serde_json::json!({
+            "error":"Method Not Allowed", "reason":"Method Not Allowed", "code":"ERR_PNPR_METHOD_NOT_ALLOWED",
+        }),
+    );
 }

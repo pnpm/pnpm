@@ -263,6 +263,8 @@ async fn assert_shutting_down_routes(probe_app: &axum::Router) {
             .unwrap();
         let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
         assert_eq!(body["status"], "shutting_down", "{path}");
+        assert_eq!(body["code"], "ERR_PNPR_SERVICE_UNAVAILABLE", "{path}");
+        assert_eq!(body["error"], body["reason"], "{path}");
     }
 
     for path in ["/-/live", "/-/ping"] {

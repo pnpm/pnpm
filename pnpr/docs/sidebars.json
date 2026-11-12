@@ -30,6 +30,7 @@
     "compiler-cache",
     "pipeline-runs",
     "endpoints",
+    { "type": "link", "label": "Error responses", "href": "/pnpr/endpoints#error-responses" },
     "license"
   ]
 }

@@ -500,13 +500,7 @@ impl PnprClient {
             get = get.timeout(timeout);
         }
         let response = get.send().await?;
-        if !response.status().is_success() {
-            return Err(PnprClientError::server(format!(
-                "{} is not a pnpr server (GET /-/pnpr returned {})",
-                self.base_url,
-                response.status(),
-            )));
-        }
+        let response = check_status(response, &format!("GET {}-/pnpr", self.base_url)).await?;
         let body: HandshakeResponse = response.json().await?;
         Ok(body.pnpr)
     }
@@ -551,10 +545,6 @@ async fn response_body_bounded(
     Ok(body)
 }
 
-/// Cap on the body read back from a failed request, which is quoted into
-/// the error message.
-const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
-
 #[cfg(test)]
 mod tests;
 
@@ -566,12 +556,12 @@ mod pipeline_runs;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 
 mod resolve;
-use error::resolver_error_response;
 use resolve::read_ndjson_frames;
 
 mod ecosystem_cache;
 mod ecosystems;
 mod error;
+use error::check_status;
 mod lockfile_format;
 
 use ecosystems::{WireViolation, build_verify_error};

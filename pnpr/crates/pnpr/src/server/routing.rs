@@ -194,16 +194,11 @@ fn apply_request_timeout(
 }
 
 fn request_timeout_response() -> Response {
-    let mut response = (
+    pnpr_error::json_error(
         StatusCode::GATEWAY_TIMEOUT,
-        [(header::CONTENT_TYPE, "application/json")],
-        r#"{"error":"request timed out"}"#,
+        "request timed out",
+        Some("ERR_PNPR_REQUEST_TIMEOUT"),
     )
-        .into_response();
-    response
-        .extensions_mut()
-        .insert(pnpr_error::PublicErrorMessage("request timed out".to_string()));
-    response
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {

@@ -324,8 +324,7 @@ fn proof_pending() -> Response {
 
 /// A `503` the client retries after a second.
 fn retry_later(reason: &'static str) -> Response {
-    let mut response =
-        (StatusCode::SERVICE_UNAVAILABLE, axum::Json(json!({ "error": reason }))).into_response();
+    let mut response = pnpr_error::json_error(StatusCode::SERVICE_UNAVAILABLE, reason, None);
     response
         .headers_mut()
         .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));

@@ -550,8 +550,8 @@ published versions remain.
 
 Unpublishing a version removes every dist-tag pointing at it. If `latest`
 pointed at it and versions remain, `latest` moves to the highest remaining
-version. npm visibility and collaborator endpoints return `404` with an
-`unsupported_route` error.
+version. npm visibility and collaborator endpoints return `404` with the
+`ERR_PNPR_UNSUPPORTED_ROUTE` code.
 
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`, including versions in DELETE requests.
@@ -760,7 +760,7 @@ Changes are accepted only on a registry with
 [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):
 
 - On any other registry a change returns `403` with the error code
-  `teams_config_managed`.
+  `ERR_PNPR_TEAMS_CONFIG_MANAGED`.
 - The caller must be one of the `auth.admins`. Others get `401` when
   anonymous and `403` when signed in.
 - Creating a team that exists, or destroying one a `packages:` rule names,
@@ -795,7 +795,7 @@ the immutable team ID returned by the team endpoints.
   [rules admin API](#admin-endpoints) does.
 - The caller must be one of the `auth.admins`, and the team must exist.
 - On a registry without `rulesManagedBy: api` a change returns `403` with
-  `rules_config_managed`.
+  `ERR_PNPR_RULES_CONFIG_MANAGED`.
 
 ## User and token endpoints
 
@@ -837,7 +837,7 @@ anonymous and `403` when signed in.
 | `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
 | `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `rulesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the stored changes. |
-| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the stored rule changes with the body, and return the rules that result. Only on a registry with [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api); elsewhere `403` with `rules_config_managed`. |
+| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the stored rule changes with the body, and return the rules that result. Only on a registry with [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api); elsewhere `403` with `ERR_PNPR_RULES_CONFIG_MANAGED`. |
 | `DELETE` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Drop the stored rule changes, so the config's rules apply again. Returns `204`. |
 
 To keep two admins from overwriting each other's changes, send the `version`
@@ -868,3 +868,16 @@ A key the registry's `packages:` map does not declare, a malformed token, or a
 With the default account file store, each replica keeps its own accounts, so an
 account change reaches only the replica that served it. Use a
 [shared auth backend](auth-backends.md) to run several replicas.
+
+## Error responses
+
+`HEAD` error responses have no body. Other errors from pnpr-owned and npm
+endpoints return JSON with `error`, `reason`, and `code` fields.
+`error` and `reason` contain the same message.
+`code` identifies the error as `ERR_PNPR_<KIND>`, for example
+`ERR_PNPR_NOT_FOUND` or `ERR_PNPR_TEAMS_CONFIG_MANAGED`.
+HTTP status codes and `Retry-After` headers still describe retry behavior.
+
+Resolution streams report failures in a terminal `type: "error"` frame with
+these fields and a `message` field containing the same message.
+OCI, Cargo, PyPI, and SCIM protocol endpoints retain their protocol-specific responses.

@@ -1,7 +1,8 @@
 use super::{
     Arc, ArtifactBlobRequest, ArtifactCandidate, ArtifactSubject, BASE64, BTreeMap, Barrier,
-    HashSet, OwnerScope, PackageIdentity, PnprClient, RegistryDeclaration, ResolveArtifactsOptions,
-    Sha512, SigningKey, TestRegistry, deps, options, signed_artifact_fixture,
+    HashSet, OwnerScope, PackageIdentity, PnprClient, PnprClientError, RegistryDeclaration,
+    ResolveArtifactsOptions, Sha512, SigningKey, TcpListener, TestRegistry,
+    capture_one_request_with_response, deps, options, signed_artifact_fixture,
     signed_artifact_fixture_for_platform, start_pnpr, start_pnpr_artifacts, start_pnpr_inner,
 };
 use base64::Engine as _;
@@ -47,7 +48,7 @@ async fn handshake_rejects_a_non_pnpr_server() {
 
     let client = PnprClient::new(server.url());
     let err = client.handshake().await.expect_err("a non-pnpr server should be rejected");
-    assert!(err.to_string().contains("not a pnpr server"), "got: {err}");
+    assert!(err.to_string().contains("/-/pnpr returned 404"), "got: {err}");
     mock.assert_async().await;
 }
 
@@ -453,4 +454,37 @@ async fn a_declared_registry_the_resolve_reaches_is_refused() {
     let error = error.to_string();
     assert!(error.contains("is not allowed by this pnpr server"), "{error}");
     assert!(error.contains("169.254.169.254"), "the refused origin is named: {error}");
+}
+
+#[tokio::test]
+async fn unreadable_error_bodies_keep_the_request_and_status() {
+    for (length, body) in [(100, "short"), (65537, "")] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let response = format!(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n{body}",
+        );
+        let server = tokio::spawn(capture_one_request_with_response(listener, response));
+        let error = PnprClient::new(format!("http://{address}"))
+            .resolve(options(
+                "https://registry.example.test/",
+                "token",
+                deps([("example-package", "1.0.0")]),
+            ))
+            .await
+            .unwrap_err();
+        let PnprClientError::Server { message, code } = error else {
+            panic!("expected a server error, got {error}");
+        };
+        assert!(
+            message.starts_with("/-/pnpr/v0/resolve returned 503 Service Unavailable:"),
+            "{message}",
+        );
+        assert!(message.contains("failed to read"), "{message}");
+        assert!(code.is_none());
+        if length > 65536 {
+            assert!(message.contains("65536-byte limit"), "{message}");
+        }
+        assert!(server.await.unwrap().starts_with("POST /-/pnpr/v0/resolve "));
+    }
 }

@@ -235,10 +235,7 @@ pub(super) fn done_frame(
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
-    ndjson_line(&frame)
-        .unwrap_or_else(|_| {
-            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-        })
+    ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
 }
 
 /// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
@@ -250,10 +247,7 @@ pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
         "lockfileFormat": LockfileFormat::CargoLock.wire_name(),
         "lockfile": lockfile,
     });
-    ndjson_line(&frame)
-        .unwrap_or_else(|_| {
-            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-        })
+    ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
 }
 
 /// Terminal `done` frame of a Python resolve: the `pylock.toml` document
@@ -261,17 +255,14 @@ pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
 /// client's own lockfile type reads.
 pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<u8> {
     let Ok(lockfile) = serde_json::to_value(lockfile) else {
-        return br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec();
+        return error_frame("failed to serialize lockfile");
     };
     let frame = serde_json::json!({
         "type": "done",
         "lockfileFormat": LockfileFormat::Pylock.wire_name(),
         "lockfile": lockfile,
     });
-    ndjson_line(&frame)
-        .unwrap_or_else(|_| {
-            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-        })
+    ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
 }
 
 /// Non-terminal `progress` frame. A streamed resolve sends one every
@@ -293,12 +284,15 @@ pub(super) fn error_frame(message: &str) -> Vec<u8> {
 
 /// Terminal `error` frame with a structured error code.
 pub(super) fn error_frame_with_code(message: &str, code: Option<&str>) -> Vec<u8> {
-    let mut frame = serde_json::json!({ "type": "error", "message": message });
-    if let Some(code) = code {
-        frame["code"] = serde_json::Value::String(code.to_string());
-    }
-    ndjson_line(&frame)
-        .unwrap_or_else(|_| br#"{"type":"error","message":"resolution failed"}"#.to_vec())
+    let code = code.unwrap_or("ERR_PNPR_RESOLUTION_FAILED");
+    let code = code
+        .strip_prefix("ERR_PNPM_")
+        .map(|kind| format!("ERR_PNPR_{kind}"))
+        .unwrap_or_else(|| code.to_string());
+    let mut frame = pnpr_error::error_body(message, &code);
+    frame["type"] = serde_json::json!("error");
+    frame["message"] = serde_json::json!(message);
+    ndjson_line(&frame).expect("error frames contain only JSON strings")
 }
 
 /// Terminal `violations` frame: the input lockfile failed the client's
@@ -307,17 +301,16 @@ pub(super) fn error_frame_with_code(message: &str, code: Option<&str>) -> Vec<u8
 /// way the local gate would.
 pub(super) fn violations_frame(violations: &[serde_json::Value]) -> Vec<u8> {
     let frame = serde_json::json!({ "type": "violations", "violations": violations });
-    ndjson_line(&frame)
-        .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
+    ndjson_line(&frame).unwrap_or_else(|_| error_frame("verification failed"))
 }
 
 fn verify_done_frame(request: &super::protocol::ResolveRequest) -> Vec<u8> {
     let applied = super::protocol::AppliedPolicies::from_request(request);
     ndjson_line(&serde_json::json!({ "type": "done", "appliedPolicies": applied }))
-        .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
+        .unwrap_or_else(|_| error_frame("verification failed"))
 }
 
-const OSV_VULNERABILITY_CODE: &str = "ERR_PNPM_OSV_VULNERABILITY";
+const OSV_VULNERABILITY_CODE: &str = "ERR_PNPR_OSV_VULNERABILITY";
 
 pub(super) fn verify_done_or_osv_violations(
     osv_index: Option<&Arc<OsvIndex>>,

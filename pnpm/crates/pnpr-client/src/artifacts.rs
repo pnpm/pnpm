@@ -1,11 +1,11 @@
 use super::{
     ARTIFACTS_PROTOCOL_VERSION, ArtifactBlobRequest, ArtifactBlobSource, ArtifactCandidate,
     ArtifactPayload, ArtifactPublication, ArtifactSubject, ArtifactVariant, BTreeMap, Duration,
-    HashSet, MAX_CANDIDATES, MAX_ERROR_BODY_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PnprClient, PnprClientError, PublishArtifactRequest,
-    ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
+    HashSet, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
+    PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsRequest,
+    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
     blob_transfer::{blob_body, blob_timeout, read_blob, write_blob},
-    compatibility_rank_prevalidated, response_body_bounded, validate_supported_tags,
+    check_status, compatibility_rank_prevalidated, response_body_bounded, validate_supported_tags,
 };
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use reqwest::StatusCode;
@@ -374,14 +374,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response_body_bounded(response, 64 * 1024).await?;
-            return Err(PnprClientError::server(format!(
-                "/-/pnpr/v0/artifacts/resolve returned {status}: {}",
-                String::from_utf8_lossy(&body),
-            )));
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/artifacts/resolve").await?;
         let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE).await?;
         serde_json::from_slice(&body).map_err(|err| PnprClientError::Protocol(err.to_string()))
     }
@@ -426,20 +419,4 @@ impl PnprClient {
         }
         check_status(get.send().await?, "GET /-/pnpr/v0/artifacts/blobs").await
     }
-}
-
-/// `response` when it succeeded, or the server's error quoting its body.
-async fn check_status(
-    response: reqwest::Response,
-    request: &str,
-) -> Result<reqwest::Response, PnprClientError> {
-    if response.status().is_success() {
-        return Ok(response);
-    }
-    let status = response.status();
-    let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
-    Err(PnprClientError::server(format!(
-        "{request} returned {status}: {}",
-        String::from_utf8_lossy(&body),
-    )))
 }

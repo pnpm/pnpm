@@ -7,7 +7,6 @@ use super::{
     ResolveOptions, ResolveOutcome, ResolveProjectsOptions, ResolvedPackage, Stats,
     TarballRevision, WireViolation, build_verify_error, hash_object_nullable_with_prefix,
     lockfile_format::{PNPM_LOCK_V9, expect_lockfile_format},
-    resolver_error_response,
 };
 use applied_policies::assert_applied_policies;
 use futures_util::StreamExt as _;
@@ -348,9 +347,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            return Err(resolver_error_response("/-/pnpr/v0/resolve", response).await);
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
 
         let outcome = read_ndjson_frames(response, |line| {
             handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)

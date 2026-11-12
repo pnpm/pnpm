@@ -153,7 +153,7 @@ async fn parse_request_keeps_malformed_bodies_apart_from_unknown_fields() {
     let response = parse_request::<ResolveRequest>(br#"{ "frozenLockfile": "yes" }"#)
         .expect_err("a mistyped field is refused");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    assert_eq!(error_code(response).await, "");
+    assert_eq!(error_code(response).await, "ERR_PNPR_BAD_REQUEST");
 }
 
 #[test]

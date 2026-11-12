@@ -44,13 +44,9 @@ pub(crate) async fn serve_ping() -> Response {
 }
 
 fn shutting_down_response() -> Response {
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        axum::Json(serde_json::json!({
-            "status": "shutting_down",
-        })),
-    )
-        .into_response()
+    let mut body = pnpr_error::error_body("Service Unavailable", "ERR_PNPR_SERVICE_UNAVAILABLE");
+    body["status"] = serde_json::json!("shutting_down");
+    (StatusCode::SERVICE_UNAVAILABLE, axum::Json(body)).into_response()
 }
 
 pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
@@ -87,15 +83,11 @@ fn readiness_response(
     let storage_msg = probe_log_message(storage_status);
     let auth_msg = probe_log_message(auth_status);
     tracing::warn!(storage = %storage_msg, auth = %auth_msg, "readiness probe failed");
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        axum::Json(serde_json::json!({
-            "status": "unhealthy",
-            "storage": probe_status_label(storage_status),
-            "auth": probe_status_label(auth_status),
-        })),
-    )
-        .into_response()
+    let mut body = pnpr_error::error_body("Service Unavailable", "ERR_PNPR_SERVICE_UNAVAILABLE");
+    body["status"] = serde_json::json!("unhealthy");
+    body["storage"] = serde_json::json!(probe_status_label(storage_status));
+    body["auth"] = serde_json::json!(probe_status_label(auth_status));
+    (StatusCode::SERVICE_UNAVAILABLE, axum::Json(body)).into_response()
 }
 
 fn probe_log_message(status: &Result<(), RegistryError>) -> String {

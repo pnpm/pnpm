@@ -494,6 +494,8 @@ async fn readiness_probe_fails_when_storage_is_inaccessible() {
     assert_eq!(ready.status(), StatusCode::SERVICE_UNAVAILABLE);
     let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
     assert_eq!(ready_body["status"], "unhealthy");
+    assert_eq!(ready_body["code"], "ERR_PNPR_SERVICE_UNAVAILABLE");
+    assert_eq!(ready_body["error"], ready_body["reason"]);
     assert_eq!(ready_body["storage"], "unavailable");
     assert_eq!(ready_body["auth"], "ok");
 
@@ -543,6 +545,8 @@ async fn readiness_probe_fails_when_auth_is_inaccessible() {
     assert_eq!(ready.status(), StatusCode::SERVICE_UNAVAILABLE);
     let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
     assert_eq!(ready_body["status"], "unhealthy");
+    assert_eq!(ready_body["code"], "ERR_PNPR_SERVICE_UNAVAILABLE");
+    assert_eq!(ready_body["error"], ready_body["reason"]);
     assert_eq!(ready_body["storage"], "ok");
     assert_eq!(ready_body["auth"], "unavailable");
 
@@ -594,7 +598,8 @@ async fn unsupported_npm_package_endpoints_explain_the_refusal() {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
             let body = body_json(response.into_body()).await;
-            assert_eq!(body["error"], "unsupported_route");
+            assert_eq!(body["code"], "ERR_PNPR_UNSUPPORTED_ROUTE");
+            assert_eq!(body["error"], body["reason"]);
         }
     }
 }
