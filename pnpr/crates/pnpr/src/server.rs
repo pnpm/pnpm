@@ -9,6 +9,7 @@ pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::{
     keyed_semaphores::{KeyedPermit, KeyedSemaphores},
+    routing::RequestDeadline,
     striped_locks::StripedLocks,
 };
 

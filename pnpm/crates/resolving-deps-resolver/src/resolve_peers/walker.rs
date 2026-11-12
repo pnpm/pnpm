@@ -333,10 +333,11 @@ impl<'tree> Walker<'tree> {
                     parent_pkg_ids: &SharedChain::default(),
                 },
             );
-            if matches!(self.traversal.mode, PeerWalkMode::Discovery)
-                && !self.traversal.snapshot_budget.exceeded
-            {
-                self.record_canonical_budget(&output);
+            match self.traversal.mode {
+                PeerWalkMode::Discovery if !self.traversal.snapshot_budget.exceeded => {
+                    self.record_canonical_budget(&output);
+                }
+                PeerWalkMode::Discovery | PeerWalkMode::Final => {}
             }
         }
         self.traversal.in_canonical_drain = false;

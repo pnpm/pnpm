@@ -14,7 +14,28 @@ use super::{
     wire::AbortOnDrop,
 };
 
-const POST_DEADLINE_SEND_GRACE: Duration = Duration::from_millis(100);
+pub(super) struct TerminalSender {
+    tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    slot: tokio::sync::mpsc::OwnedPermit<Vec<u8>>,
+}
+
+impl TerminalSender {
+    pub(super) fn reserve(tx: tokio::sync::mpsc::Sender<Vec<u8>>) -> Self {
+        let slot = tx
+            .clone()
+            .try_reserve_owned()
+            .expect("stream channel must reserve one slot for the terminal frame");
+        Self { tx, slot }
+    }
+
+    async fn closed(&self) {
+        self.tx.closed().await;
+    }
+
+    fn send_frame(self, frame: Vec<u8>) {
+        let _ = self.slot.send(frame);
+    }
+}
 
 pub(super) struct StreamedResolveInputs {
     pub(super) config: ActiveConfig,
@@ -43,6 +64,7 @@ pub(super) fn stream_resolve_response(
         .as_ref()
         .map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
     let (tx, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(STREAM_CHANNEL_CAPACITY);
+    let terminal = TerminalSender::reserve(tx.clone());
     let max_npm_packages = runtime.limits.max_npm_packages;
     let graph_limit = GraphLimitTracker::new(max_npm_packages);
     let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
@@ -51,7 +73,7 @@ pub(super) fn stream_resolve_response(
         tarball_router: inputs.tarball_router.clone(),
         graph_limit: Arc::clone(&graph_limit),
     });
-    let keepalive = tx.clone();
+    let keepalive = tx;
     let task = StreamedResolve {
         client: Arc::clone(&runtime.client),
         observer,
@@ -62,7 +84,7 @@ pub(super) fn stream_resolve_response(
             ttl: runtime.cache.ttl,
             secret: Arc::clone(&runtime.cache.secret),
         },
-        tx,
+        terminal,
         inputs,
         max_npm_packages,
     };
@@ -101,7 +123,7 @@ pub(super) struct StreamedResolve {
     pub(super) graph_limit: Arc<GraphLimitTracker>,
     pub(super) osv_index: Option<Arc<OsvIndex>>,
     pub(super) cache: StreamCacheTarget,
-    pub(super) tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    pub(super) terminal: TerminalSender,
     pub(super) inputs: StreamedResolveInputs,
     pub(super) max_npm_packages: usize,
 }
@@ -130,7 +152,7 @@ async fn run_bounded_resolve(task: &StreamedResolve) -> BoundedResolveOutcome {
     }
     tokio::select! {
         biased;
-        () = task.tx.closed() => BoundedResolveOutcome::Disconnected,
+        () = task.terminal.closed() => BoundedResolveOutcome::Disconnected,
         () = &mut graph_exceeded => {
             BoundedResolveOutcome::GraphTooLarge(task.graph_limit.error_message())
         }
@@ -145,40 +167,35 @@ async fn run_bounded_resolve(task: &StreamedResolve) -> BoundedResolveOutcome {
     }
 }
 
-async fn send_timeout_frame(tx: &tokio::sync::mpsc::Sender<Vec<u8>>) {
+fn send_timeout_frame(terminal: TerminalSender) {
     let frame = error_frame_with_code("resolution timed out", Some(RESOLVE_TIMEOUT_CODE));
-    let _ = tokio::time::timeout(POST_DEADLINE_SEND_GRACE, tx.send(frame)).await;
+    terminal.send_frame(frame);
 }
 
-pub(super) async fn send_before_deadline(
-    tx: &tokio::sync::mpsc::Sender<Vec<u8>>,
-    deadline: Instant,
-    frame: Vec<u8>,
-) {
-    if Instant::now() < deadline
-        && tokio::time::timeout_at(deadline, tx.send(frame)).await.is_ok()
-    {
-        return;
+pub(super) fn send_before_deadline(terminal: TerminalSender, deadline: Instant, frame: Vec<u8>) {
+    if Instant::now() < deadline {
+        terminal.send_frame(frame);
+    } else {
+        send_timeout_frame(terminal);
     }
-    send_timeout_frame(tx).await;
 }
 
 impl StreamedResolve {
-    fn into_finalizer(self) -> (tokio::sync::mpsc::Sender<Vec<u8>>, Instant, ResolutionFinalizer) {
+    fn into_finalizer(self) -> (TerminalSender, Instant, ResolutionFinalizer) {
         let Self {
             client: _,
             observer,
             graph_limit: _,
             osv_index,
             cache,
-            tx,
+            terminal,
             inputs,
             max_npm_packages,
         } = self;
         drop(observer);
         let deadline = inputs.deadline;
         let finalizer = ResolutionFinalizer { osv_index, cache, inputs, max_npm_packages };
-        (tx, deadline, finalizer)
+        (terminal, deadline, finalizer)
     }
 }
 
@@ -186,24 +203,23 @@ pub(super) async fn finish_before_deadline(
     task: StreamedResolve,
     resolved: Result<Lockfile, super::resolve::ResolveError>,
 ) {
-    let (tx, deadline, finalizer) = task.into_finalizer();
+    let (terminal, deadline, finalizer) = task.into_finalizer();
     let (cancel, _cancel_on_drop) = CancelToken::new(deadline);
     let worker_cancel = cancel.clone();
     let mut finishing =
         tokio::task::spawn_blocking(move || finalizer.finish(resolved, &worker_cancel));
     tokio::select! {
         biased;
-        () = tx.closed() => cancel.cancel(),
+        () = terminal.closed() => cancel.cancel(),
         () = tokio::time::sleep_until(deadline) => {
             cancel.cancel();
-            send_timeout_frame(&tx).await;
+            send_timeout_frame(terminal);
         }
         joined = &mut finishing => match joined {
-            Ok(Some(frame)) => send_before_deadline(&tx, deadline, frame).await,
-            Ok(None) => send_timeout_frame(&tx).await,
+            Ok(Some(frame)) => send_before_deadline(terminal, deadline, frame),
+            Ok(None) => send_timeout_frame(terminal),
             Err(err) => {
-                send_before_deadline(&tx, deadline, error_frame_with_code(&err.to_string(), None))
-                    .await;
+                send_before_deadline(terminal, deadline, error_frame_with_code(&err.to_string(), None));
             }
         },
     }
@@ -214,16 +230,15 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
     let resolved = match run_bounded_resolve(&task).await {
         BoundedResolveOutcome::Disconnected => return,
         BoundedResolveOutcome::TimedOut => {
-            send_timeout_frame(&task.tx).await;
+            send_timeout_frame(task.terminal);
             return;
         }
         BoundedResolveOutcome::GraphTooLarge(message) => {
             send_before_deadline(
-                &task.tx,
+                task.terminal,
                 deadline,
                 error_frame_with_code(&message, Some(GRAPH_TOO_LARGE_CODE)),
-            )
-            .await;
+            );
             return;
         }
         BoundedResolveOutcome::Completed(resolved) => *resolved,

@@ -32,7 +32,8 @@ use super::{
         protocol::{AppliedPolicies, ResolveRequest},
         request_tarball_router, serve_resolve_request,
         streaming::{
-            StreamCacheTarget, StreamedResolve, StreamedResolveInputs, finish_before_deadline,
+            StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
+            finish_before_deadline,
         },
         wire::{StreamObserver, try_done_frame_until},
     },
@@ -309,9 +310,10 @@ async fn finish_before_deadline_drops_sender_for_immediate_eof_and_skips_cache_o
 
     let expired_deadline = Instant::now() - Duration::from_millis(1);
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(STREAM_CHANNEL_CAPACITY);
+    let terminal = TerminalSender::reserve(tx.clone());
     let graph_limit = GraphLimitTracker::new(resolver.limits.max_npm_packages);
     let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
-        tx: tx.clone(),
+        tx,
         package_version_guard: None,
         tarball_router: tarball_router.clone(),
         graph_limit: Arc::clone(&graph_limit),
@@ -326,7 +328,7 @@ async fn finish_before_deadline_drops_sender_for_immediate_eof_and_skips_cache_o
             ttl: resolver.cache.ttl,
             secret: Arc::clone(&resolver.cache.secret),
         },
-        tx,
+        terminal,
         inputs: StreamedResolveInputs {
             config: active,
             request,

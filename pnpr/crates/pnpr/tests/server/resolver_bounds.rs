@@ -83,3 +83,35 @@ async fn request_timeout_continues_to_bound_streaming_resolve_after_headers() {
 
     upstream.abort();
 }
+
+#[tokio::test]
+async fn request_timeout_before_headers_returns_resolve_timeout_code_on_resolver_routes() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "caller").await;
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.http.request_timeout = Some(Duration::from_millis(50));
+    let app = router_with_auth(config, auth);
+
+    for route in ["/-/pnpr/v0/resolve", "/-/pnpr/v0/verify-lockfile"] {
+        let slow_body = Body::from_stream(futures_util::stream::once(async {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            Ok::<axum::body::Bytes, std::convert::Infallible>(axum::body::Bytes::from("{}"))
+        }));
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post(route)
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(slow_body)
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let (status, body) = drain_resolve_response(response).await;
+        assert_eq!(status, StatusCode::GATEWAY_TIMEOUT, "{route}");
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed["code"], "ERR_PNPR_RESOLVE_TIMEOUT", "{route}: {parsed}");
+    }
+}

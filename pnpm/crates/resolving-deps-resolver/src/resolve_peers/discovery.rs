@@ -291,7 +291,7 @@ fn resolve_discovery_dep(
 ) {
     let output = walker.resolve_node(&dep.node_id, &root.context());
     if !walker.traversal.snapshot_budget.exceeded {
-        walker.record_direct_dep_budget(&dep.node_id, &output);
+        walker.record_direct_dep_budget(&dep.node_id, &output, &root.importer_parents);
     }
     result.fold(output);
 }

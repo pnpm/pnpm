@@ -20,7 +20,7 @@ pub(crate) async fn serve_verify_lockfile_request(
     identity: Identity,
     request: axum::extract::Request,
 ) -> Response {
-    let deadline = runtime.limits.start_deadline();
+    let deadline = runtime.limits.deadline_for_request(&request);
     let admitted = match runtime.limits.admit(&identity) {
         Ok(admitted) => admitted,
         Err(response) => return response,
@@ -111,16 +111,23 @@ async fn verify_trusted_lockfile(
     match scan_osv_until_deadline(
         runtime.osv_index.clone(),
         Arc::new(input_lockfile),
-        permit,
+        Arc::clone(&permit),
         deadline,
     )
     .await
     {
         Ok(violations) if violations.is_empty() => {
-            within_verify_deadline(ndjson_single_frame(&done), deadline)
+            let response = within_verify_deadline(ndjson_single_frame(&done), deadline);
+            drop(permit);
+            response
         }
         Ok(violations) => {
-            within_verify_deadline(ndjson_single_frame(&violations_frame(&violations)), deadline)
+            let response = within_verify_deadline(
+                ndjson_single_frame(&violations_frame(&violations)),
+                deadline,
+            );
+            drop(permit);
+            response
         }
         Err(response) => response,
     }

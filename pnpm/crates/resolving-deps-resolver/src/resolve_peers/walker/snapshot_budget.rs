@@ -1,5 +1,6 @@
 use super::{
-    Arc, DepPath, DirectDep, HashMap, HashSet, NodeId, NodeOutput, ParentRefs, RootWalk, Walker,
+    Arc, DepPath, DirectDep, HashMap, HashSet, NodeId, NodeOutput, ParentRef, ParentRefs,
+    PeerWalkMode, RootWalk, Walker,
 };
 use std::path::PathBuf;
 
@@ -12,8 +13,8 @@ pub(in super::super) struct SubtreePaths {
 #[derive(Debug)]
 pub(in super::super) struct DirectDepBudget {
     pub(super) subtree: Arc<SubtreePaths>,
-    pub(super) bound_providers: Vec<(String, NodeId, Option<DepPath>)>,
-    pub(super) missing_peers: HashSet<String>,
+    pub(super) importer_refs: Vec<(String, Option<ParentRef>)>,
+    pub(super) provider_dep_paths: Vec<(NodeId, Option<DepPath>)>,
 }
 
 #[derive(Debug, Default)]
@@ -28,7 +29,7 @@ pub(in super::super) struct SnapshotBudget {
     pub(in super::super) exceeded: bool,
     pub(in super::super) discovery_dep_paths: HashSet<DepPath>,
     pub(super) cached_subtrees: HashMap<DepPath, Arc<SubtreePaths>>,
-    pub(super) visited_subtrees: HashSet<usize>,
+    pub(super) visited_subtrees: HashMap<usize, Arc<SubtreePaths>>,
     pub(super) scope_paths: HashMap<Option<PathBuf>, ScopedDiscoveryPaths>,
 }
 
@@ -68,9 +69,20 @@ impl SnapshotBudget {
             return None;
         }
         let subtree = Arc::new(SubtreePaths { own: dep_path.clone(), children });
-        self.visited_subtrees.insert(Arc::as_ptr(&subtree) as usize);
+        self.visited_subtrees.insert(Arc::as_ptr(&subtree) as usize, Arc::clone(&subtree));
         self.cached_subtrees.insert(dep_path.clone(), Arc::clone(&subtree));
         Some(subtree)
+    }
+
+    pub(in super::super) fn replay_cached_subtree_for_mode(
+        &mut self,
+        mode: PeerWalkMode,
+        dep_path: &DepPath,
+    ) -> Option<Arc<SubtreePaths>> {
+        match mode {
+            PeerWalkMode::Discovery => self.replay_cached_subtree(dep_path),
+            PeerWalkMode::Final => None,
+        }
     }
 
     pub(in super::super) fn replay_cached_subtree(
@@ -92,13 +104,13 @@ impl SnapshotBudget {
         let mut stack = vec![root];
         while let Some(node) = stack.pop() {
             let ptr = Arc::as_ptr(node) as usize;
-            if self.visited_subtrees.contains(&ptr) {
+            if self.visited_subtrees.contains_key(&ptr) {
                 continue;
             }
             if !self.record_discovery_dep_path(&node.own) {
                 return;
             }
-            self.visited_subtrees.insert(ptr);
+            self.visited_subtrees.insert(ptr, Arc::clone(node));
             stack.extend(node.children.iter());
         }
     }
@@ -113,7 +125,10 @@ impl SnapshotBudget {
         }
         while let Some(node) = stack.pop() {
             let ptr = Arc::as_ptr(node) as usize;
-            if !self.visited_subtrees.insert(ptr) {
+            if self.visited_subtrees
+                .insert(ptr, Arc::clone(node))
+                .is_some()
+            {
                 continue;
             }
             self.discovery_dep_paths.insert(node.own.clone());
@@ -197,23 +212,21 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         output: &NodeOutput,
+        importer_parents: &ParentRefs,
     ) {
         let Some(subtree) = output.subtree_dep_paths.as_ref() else {
             return;
         };
-        let bound_providers = output.external_resolved_peers
-            .iter()
-            .map(|(name, peer_node_id)| {
-                (
-                    name.clone(),
-                    peer_node_id.clone(),
-                    self.caches.node_dep_paths.get(peer_node_id).cloned(),
-                )
-            })
-            .collect();
-        let missing_peers = output.missing_peers
+        let importer_refs = output.external_resolved_peers
             .keys()
-            .cloned()
+            .chain(output.missing_peers.keys())
+            .map(|name| (name.clone(), importer_parents.get(name).cloned()))
+            .collect();
+        let provider_dep_paths = output.external_resolved_peers
+            .values()
+            .map(|peer_node_id| {
+                (peer_node_id.clone(), self.caches.node_dep_paths.get(peer_node_id).cloned())
+            })
             .collect();
         let scope = self.opts.project_dir.clone();
         self.traversal.snapshot_budget.scope_paths
@@ -222,7 +235,7 @@ impl Walker<'_> {
             .by_direct_dep
             .insert(
                 node_id.clone(),
-                DirectDepBudget { subtree: Arc::clone(subtree), bound_providers, missing_peers },
+                DirectDepBudget { subtree: Arc::clone(subtree), importer_refs, provider_dep_paths },
             );
     }
 
@@ -251,12 +264,20 @@ impl Walker<'_> {
         {
             return;
         }
+        let mut refresh_counts: HashMap<NodeId, u8> = HashMap::default();
         loop {
-            pending.extend(self.evict_newly_stale_recorded_deps(parents_direct, root));
+            pending.extend(self.evict_newly_stale_recorded_deps(
+                parents_direct,
+                root,
+                &refresh_counts,
+            ));
             if pending.is_empty() || self.traversal.snapshot_budget.exceeded {
                 break;
             }
             let batch = std::mem::take(&mut pending);
+            for dep in &batch {
+                *refresh_counts.entry(dep.node_id.clone()).or_default() += 1;
+            }
             self.walk_budget_only_direct_deps(&batch, root);
         }
     }
@@ -265,6 +286,7 @@ impl Walker<'_> {
         &mut self,
         parents_direct: &[DirectDep],
         root: &RootWalk,
+        refresh_counts: &HashMap<NodeId, u8>,
     ) -> Vec<DirectDep> {
         let scope = self.opts.project_dir.clone();
         let Some(scoped) = self.traversal.snapshot_budget.scope_paths.get(&scope) else {
@@ -272,7 +294,14 @@ impl Walker<'_> {
         };
         let stale_ids: Vec<NodeId> = scoped.by_direct_dep
             .iter()
-            .filter(|(_, entry)| !self.direct_dep_budget_matches(entry, &root.importer_parents))
+            .filter(|(node_id, entry)| {
+                refresh_counts
+                    .get(*node_id)
+                    .copied()
+                    .unwrap_or(0)
+                    < 2
+                    && !self.direct_dep_budget_matches(entry, &root.importer_parents)
+            })
             .map(|(node_id, _)| node_id.clone())
             .collect();
         if stale_ids.is_empty() {
@@ -333,7 +362,7 @@ impl Walker<'_> {
     fn resolve_and_record_direct_budget(&mut self, dep: &DirectDep, root: &RootWalk) {
         let output = self.resolve_node(&dep.node_id, &root.context());
         if !self.traversal.snapshot_budget.exceeded {
-            self.record_direct_dep_budget(&dep.node_id, &output);
+            self.record_direct_dep_budget(&dep.node_id, &output, &root.importer_parents);
         }
     }
 
@@ -342,21 +371,13 @@ impl Walker<'_> {
         entry: &DirectDepBudget,
         importer_parents: &ParentRefs,
     ) -> bool {
-        if entry.missing_peers
+        entry.importer_refs
             .iter()
-            .any(|missing| importer_parents.contains_key(missing))
-        {
-            return false;
-        }
-        entry.bound_providers
-            .iter()
-            .all(|(name, prev_node_id, prev_dep_path)| {
-                importer_parents
-                    .get(name)
-                    .is_some_and(|current_ref| {
-                        self.parent_ref_matches_cached(current_ref, prev_node_id)
-                    })
-                    && self.caches.node_dep_paths.get(prev_node_id) == prev_dep_path.as_ref()
-            })
+            .all(|(name, recorded)| importer_parents.get(name) == recorded.as_ref())
+            && entry.provider_dep_paths
+                .iter()
+                .all(|(node_id, dep_path)| {
+                    self.caches.node_dep_paths.get(node_id) == dep_path.as_ref()
+                })
     }
 }

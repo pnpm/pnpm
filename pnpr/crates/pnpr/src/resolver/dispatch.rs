@@ -42,7 +42,7 @@ pub(crate) async fn serve_resolve_request(
     identity: Identity,
     request: axum::extract::Request,
 ) -> Response {
-    let deadline = runtime.limits.start_deadline();
+    let deadline = runtime.limits.deadline_for_request(&request);
     let admitted = match runtime.limits.admit(&identity) {
         Ok(admitted) => admitted,
         Err(response) => return response,

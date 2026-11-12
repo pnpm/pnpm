@@ -6,7 +6,7 @@ use super::{
     super::{
         limits::{CancelToken, ResolvePermit, request_timeout_response},
         report_message,
-        wire::{cargo_done_frame, error_frame, ndjson_single_frame},
+        wire::{cargo_done_frame_until, error_frame, ndjson_single_frame},
     },
     IndexFetcher,
 };
@@ -97,15 +97,17 @@ pub(in crate::resolver) async fn solve_cargo(
     };
     let solve_permit = Arc::clone(&permit);
     let solve_cancel = cancel.clone();
-    let lockfile = tokio::task::spawn_blocking(move || {
+    let solved = tokio::task::spawn_blocking(move || {
         let _permit = solve_permit;
         pnpm_cargo_resolver::resolve_lockfile_until(&metadata, &index_files, &source, &|| {
             solve_cancel.is_cancelled()
         })
+        .map(|lockfile| cargo_done_frame_until(&lockfile, &|| solve_cancel.is_cancelled()))
     })
     .await;
-    match lockfile {
-        Ok(Ok(lockfile)) => ndjson_single_frame(&cargo_done_frame(&lockfile)),
+    match solved {
+        Ok(Ok(Some(frame))) => ndjson_single_frame(&frame),
+        Ok(Ok(None)) => request_timeout_response(),
         Ok(Err(err))
             if cancel.deadline_expired() || err.is::<pnpm_cargo_resolver::CancelError>() =>
         {

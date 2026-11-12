@@ -231,10 +231,10 @@ impl Walker<'_> {
         );
         self.remember_resolved_node(node_id, &output.dep_path);
         self.remember_cache_hit_node(node_id, owner_node_id, &output, missing_peers_of_children);
-        if matches!(self.traversal.mode, PeerWalkMode::Discovery) {
-            output.subtree_dep_paths =
-                self.traversal.snapshot_budget.replay_cached_subtree(&output.dep_path);
-        }
+        output.subtree_dep_paths = self.traversal.snapshot_budget.replay_cached_subtree_for_mode(
+            self.traversal.mode,
+            &output.dep_path,
+        );
         if let Some(node) = self.output.graph.get_mut(&output.dep_path)
             && node.depth > tree_node_depth
         {

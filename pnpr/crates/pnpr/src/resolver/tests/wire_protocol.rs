@@ -434,7 +434,7 @@ fn streaming_errors_share_the_http_error_fields() {
 
 #[test]
 fn a_cargo_done_frame_names_its_lockfile_format() {
-    use super::super::wire::cargo_done_frame;
+    use super::cargo_done_frame;
 
     let cargo: serde_json::Value =
         serde_json::from_slice(&cargo_done_frame("version = 4\n")).unwrap();

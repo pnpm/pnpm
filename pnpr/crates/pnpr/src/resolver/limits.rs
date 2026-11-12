@@ -7,10 +7,7 @@ use std::{
     time::Duration,
 };
 
-use axum::{
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
-};
+use axum::{http::StatusCode, response::Response};
 use pnpm_lockfile::Lockfile;
 use pnpr_config::Config as RegistryConfig;
 use pnpr_policy::Identity;
@@ -66,6 +63,15 @@ impl ResolverLimits {
 
     pub(super) fn start_deadline(&self) -> Instant {
         Instant::now() + self.deadline
+    }
+
+    pub(super) fn deadline_for_request(&self, request: &axum::extract::Request) -> Instant {
+        let own = self.start_deadline();
+        request
+            .extensions()
+            .get::<crate::server::RequestDeadline>()
+            .map(|entry| entry.0.min(own))
+            .unwrap_or(own)
     }
 
     /// Bound total running + queued work before touching caches or waiting for
@@ -246,17 +252,12 @@ fn too_many_requests_response() -> Response {
     json_error(StatusCode::SERVICE_UNAVAILABLE, "too many active resolver requests")
 }
 
-pub(super) fn request_timeout_response() -> Response {
-    let mut response = (
+pub(crate) fn request_timeout_response() -> Response {
+    json_error_with_code(
         StatusCode::GATEWAY_TIMEOUT,
-        [(header::CONTENT_TYPE, "application/json")],
-        r#"{"error":"request timed out","code":"ERR_PNPR_RESOLVE_TIMEOUT"}"#,
+        "request timed out",
+        Some(RESOLVE_TIMEOUT_CODE),
     )
-        .into_response();
-    response
-        .extensions_mut()
-        .insert(pnpr_error::PublicErrorMessage("request timed out".to_string()));
-    response
 }
 
 pub(super) fn reject_oversized_graph(

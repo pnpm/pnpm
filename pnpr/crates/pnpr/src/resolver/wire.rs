@@ -256,7 +256,10 @@ pub(super) fn try_done_frame_until(
 /// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
 /// the client writes verbatim. Cargo's lockfile is a TOML document rather
 /// than a structure the server rewrites, so it rides the frame as text.
-pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
+pub(super) fn cargo_done_frame_until(
+    lockfile: &str,
+    should_cancel: &dyn Fn() -> bool,
+) -> Option<Vec<u8>> {
     serialize_bounded_frame(
         &CargoDoneFrame {
             kind: "done",
@@ -264,10 +267,9 @@ pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
             lockfile,
         },
         "failed to serialize lockfile",
-        &|| false,
+        should_cancel,
     )
-    .expect("unconditional frame serialization cannot cancel")
-    .unwrap_or_else(|err| err)
+    .map(|result| result.unwrap_or_else(|err| err))
 }
 
 /// Terminal `done` frame of a Python resolve: the `pylock.toml` document

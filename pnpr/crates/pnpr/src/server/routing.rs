@@ -14,6 +14,7 @@ pub(super) use super::{
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
 };
+pub(crate) use request_timeout::RequestDeadline;
 
 mod account_handlers;
 use account_handlers::account_routes;
@@ -39,6 +40,9 @@ use variant_handlers::get_scoped_variant_tarball;
 
 mod observability;
 use observability::with_observability_layers;
+
+mod request_timeout;
+use request_timeout::apply_request_timeout;
 
 use std::sync::Arc;
 
@@ -109,8 +113,9 @@ fn finish_router(
         // Inside the trace layer below, so a rejection is still one record.
         .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
         .merge(main_listener_metrics_routes(&state));
-    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout)
-        .layer(axum::middleware::from_fn(npm_errors::render));
+    let mut router =
+        apply_request_timeout(router, surfaces, state.inner.config.http.request_timeout)
+            .layer(axum::middleware::from_fn(npm_errors::render));
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()
@@ -176,31 +181,6 @@ pub(super) fn metrics_listener_router(state: AppState) -> Router {
     with_observability_layers(router, state.clone()).with_state(state)
 }
 
-fn apply_request_timeout(
-    router: Router<AppState>,
-    timeout_duration: Option<std::time::Duration>,
-) -> Router<AppState> {
-    let Some(timeout_duration) = timeout_duration else {
-        return router;
-    };
-    router.layer(axum::middleware::from_fn(
-        move |request: axum::extract::Request, next: axum::middleware::Next| async move {
-            match tokio::time::timeout(timeout_duration, next.run(request)).await {
-                Ok(response) => response,
-                Err(_) => request_timeout_response(),
-            }
-        },
-    ))
-}
-
-fn request_timeout_response() -> Response {
-    pnpr_error::json_error(
-        StatusCode::GATEWAY_TIMEOUT,
-        "request timed out",
-        Some("ERR_PNPR_REQUEST_TIMEOUT"),
-    )
-}
-
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
     config.http.cors
         .allowed_origins()
@@ -218,7 +198,7 @@ fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
 
 /// Which of the configurable surfaces this server mounts.
 #[derive(Clone, Copy)]
-struct EnabledSurfaces {
+pub(super) struct EnabledSurfaces {
     resolver: bool,
     registry: bool,
     artifacts: bool,

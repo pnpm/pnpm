@@ -76,8 +76,9 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         realize_undo: Option<UndoRealize>,
     ) -> NodeOutput {
-        if matches!(self.traversal.mode, PeerWalkMode::Discovery) {
-            self.undo_realize(node_id, realize_undo, None);
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => self.undo_realize(node_id, realize_undo, None),
+            PeerWalkMode::Final => {}
         }
         self.traversal.in_progress.remove(node_id);
         self.peerless_output(DepPath::from(Arc::clone(pkg_id)))
@@ -92,8 +93,11 @@ impl Walker<'_> {
     ) -> NodeOutput {
         let mut output = settled.node_output(&mut walked);
         output.subtree_dep_paths = subtree_dep_paths;
-        if matches!(self.traversal.mode, PeerWalkMode::Discovery) {
-            self.undo_realize(node_id, walked.realize_undo, Some(&output));
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                self.undo_realize(node_id, walked.realize_undo, Some(&output));
+            }
+            PeerWalkMode::Final => {}
         }
         output
     }
@@ -237,12 +241,13 @@ impl Walker<'_> {
         walked: &mut ChildrenWalk,
         settled: &SettledPeers,
     ) -> Option<Arc<SubtreePaths>> {
-        if matches!(self.traversal.mode, PeerWalkMode::Final)
-            && self.exceeds_final_snapshot_budget(&settled.dep_path)
-        {
-            self.traversal.snapshot_budget.exceeded = true;
-            self.traversal.in_progress.remove(node_id);
-            return None;
+        match self.traversal.mode {
+            PeerWalkMode::Final if self.exceeds_final_snapshot_budget(&settled.dep_path) => {
+                self.traversal.snapshot_budget.exceeded = true;
+                self.traversal.in_progress.remove(node_id);
+                return None;
+            }
+            PeerWalkMode::Discovery | PeerWalkMode::Final => {}
         }
         self.remember_resolved_node(node_id, &settled.dep_path);
         let subtree_dep_paths = self.record_walk_result(
@@ -251,8 +256,8 @@ impl Walker<'_> {
             &settled.as_walk_result(),
             &mut walked.outputs.dep_path_subtrees,
         );
-        if matches!(self.traversal.mode, PeerWalkMode::Final) {
-            self.record_walked_node(WalkedNode {
+        match self.traversal.mode {
+            PeerWalkMode::Final => self.record_walked_node(WalkedNode {
                 node_id,
                 pkg: &entry.pkg,
                 dep_path: &settled.dep_path,
@@ -269,7 +274,8 @@ impl Walker<'_> {
                     own_resolved: &settled.own_resolved,
                     is_pure: settled.is_pure,
                 },
-            });
+            }),
+            PeerWalkMode::Discovery => {}
         }
         self.traversal.in_progress.remove(node_id);
         subtree_dep_paths
@@ -332,12 +338,9 @@ impl Walker<'_> {
             node.depth = tree_node_depth;
         }
         let mut output = self.peerless_output(dep_path);
-        if matches!(self.traversal.mode, PeerWalkMode::Discovery)
-            && !self.traversal.snapshot_budget.exceeded
-            && tree_node_depth != -1
-        {
-            output.subtree_dep_paths =
-                self.traversal.snapshot_budget.replay_cached_subtree(&output.dep_path);
+        if !self.traversal.snapshot_budget.exceeded && tree_node_depth != -1 {
+            output.subtree_dep_paths = self.traversal.snapshot_budget
+                .replay_cached_subtree_for_mode(self.traversal.mode, &output.dep_path);
         }
         Some(output)
     }

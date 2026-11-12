@@ -223,3 +223,8 @@ fn lockfile_with_tarball(tarball: &str) -> Lockfile {
     }))
     .expect("lockfile parses")
 }
+
+fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
+    super::wire::cargo_done_frame_until(lockfile, &|| false)
+        .expect("unconditional frame serialization cannot cancel")
+}

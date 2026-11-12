@@ -113,8 +113,8 @@ pub(super) async fn handle_resolve(
     match tokio::time::timeout_at(deadline, response::resolve_request(runtime, identity, validated))
         .await
     {
-        Ok(response) => response,
-        Err(_) => request_timeout_response(),
+        Ok(response) if tokio::time::Instant::now() < deadline => response,
+        Ok(_) | Err(_) => request_timeout_response(),
     }
 }
 

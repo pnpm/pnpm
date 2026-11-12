@@ -27,10 +27,10 @@ use super::{
         Resolver,
         dispatch::handle_resolve,
         limits::{GRAPH_TOO_LARGE_CODE, RESOLVE_TIMEOUT_CODE, request_timeout_response},
-        streaming::send_before_deadline,
-        wire::{MAX_NDJSON_FRAME_BYTES, cargo_done_frame},
+        streaming::{TerminalSender, send_before_deadline},
+        wire::MAX_NDJSON_FRAME_BYTES,
     },
-    registry_config,
+    cargo_done_frame, registry_config,
 };
 
 fn test_integrity() -> String {
@@ -211,16 +211,20 @@ async fn queued_timeout_response_and_post_deadline_send_emit_timeout_code() {
     assert_eq!(body["code"], RESOLVE_TIMEOUT_CODE);
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(4);
-    let expired = Instant::now() - Duration::from_millis(1);
-    send_before_deadline(&tx, expired, br#"{"type":"done"}"#.to_vec()).await;
+    let terminal = TerminalSender::reserve(tx.clone());
+    while tx.try_send(b"{\"type\":\"progress\"}\n".to_vec()).is_ok() {}
     drop(tx);
+    let expired = Instant::now() - Duration::from_millis(1);
+    send_before_deadline(terminal, expired, br#"{"type":"done"}"#.to_vec());
 
-    let emitted = rx.recv().await.expect("timeout frame");
-    let parsed: Value = serde_json::from_slice(&emitted).unwrap();
+    let mut frames = Vec::new();
+    while let Some(frame) = rx.recv().await {
+        frames.push(serde_json::from_slice::<Value>(&frame).unwrap());
+    }
+    assert_eq!(frames.len(), 4, "3 hints + 1 reserved terminal frame");
+    let parsed = frames.last().unwrap();
     assert_eq!(parsed["type"], "error");
     assert_eq!(parsed["code"], RESOLVE_TIMEOUT_CODE);
-    let next_frame = rx.recv().await;
-    assert!(next_frame.is_none());
 }
 
 #[test]

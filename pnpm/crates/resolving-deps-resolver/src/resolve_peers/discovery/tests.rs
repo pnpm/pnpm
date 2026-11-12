@@ -351,3 +351,49 @@ fn discovery_snapshot_budget_retains_unwalked_live_subtrees_across_incremental_r
         "unexpected error: {err:?}",
     );
 }
+
+#[test]
+fn discovery_snapshot_budget_handles_aliased_child_peer_providers_without_looping() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(4));
+
+    let view = &mut engine.tree;
+    view.all_peer_dep_names.insert("react".to_string());
+    view.packages.insert("mid@1.0.0".into(), package("mid", "1.0.0", &[], false));
+    view.packages.insert(
+        "consumer@1.0.0".into(),
+        package("consumer", "1.0.0", &[("react", "^18.0.0")], true),
+    );
+    view.packages.insert("react@18.0.0".into(), package("react", "18.0.0", &[], true));
+    view.packages.insert("extra@1.0.0".into(), package("extra", "1.0.0", &[], true));
+    view.children_by_id.insert(
+        "mid@1.0.0".into(),
+        Arc::new(vec![
+            child_edge("aliased-react", "react@18.0.0"),
+            child_edge("consumer", "consumer@1.0.0"),
+        ]),
+    );
+
+    let mut direct_round1 = Vec::new();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut direct_round1, "mid", "mid@1.0.0");
+    let mut direct_round2 = direct_round1.clone();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut direct_round2, "extra", "extra@1.0.0");
+
+    // Round 1: `mid` satisfies `consumer`'s `react` peer via `aliased-react` while the
+    // importer itself has no `react` parent ref. `refresh_unwalked_scope_budget` must not
+    // treat `mid`'s bound `react` peer as stale against `importer_parents`.
+    engine.discover(&workspace, &direct_round1, &direct_round1, ResolvePeersOptions::default());
+    engine.check_snapshot_limit().expect("3 live snapshots fit within max_snapshots = 4");
+    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 3);
+
+    // Round 2 incremental walk (`&direct_round2[1..]`) retains `mid`'s 3 snapshots + `extra`.
+    workspace.tree.bump_revision();
+    engine.discover(
+        &workspace,
+        &direct_round2,
+        &direct_round2[1..],
+        ResolvePeersOptions::default(),
+    );
+    engine.check_snapshot_limit().expect("4 live snapshots fit within max_snapshots = 4");
+    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 4);
+}

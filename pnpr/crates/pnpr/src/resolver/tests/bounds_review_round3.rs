@@ -19,12 +19,11 @@ use super::{
         protocol::ResolveRequest,
         verify_lockfile::handle_verify_lockfile,
         wire::{
-            MAX_NDJSON_FRAME_BYTES, cargo_done_frame, frozen_package_frames_until,
-            ndjson_frames_until, osv_violations_for_lockfile_until, verify_done_frame,
-            violations_frame,
+            MAX_NDJSON_FRAME_BYTES, frozen_package_frames_until, ndjson_frames_until,
+            osv_violations_for_lockfile_until, verify_done_frame, violations_frame,
         },
     },
-    registry_config, tarball_router,
+    cargo_done_frame, registry_config, tarball_router,
 };
 
 fn caller(id: &str, name: &str) -> Identity {

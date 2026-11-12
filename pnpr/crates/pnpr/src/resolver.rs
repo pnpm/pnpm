@@ -43,6 +43,7 @@
 //! fail closed.
 
 pub(crate) use dispatch::serve_resolve_request;
+pub(crate) use limits::request_timeout_response as resolve_timeout_response;
 pub(crate) use verify_lockfile::serve_verify_lockfile_request;
 
 mod dispatch;
