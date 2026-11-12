@@ -525,7 +525,9 @@ fn implicit_snapshot_key_over_simple_key_limit_is_read() {
             .len(),
         1,
     );
-    assert_eq!(lockfile, parse(&explicit));
+    let explicit_lockfile = parse(&explicit);
+    dbg!(&lockfile, &explicit_lockfile);
+    assert_eq!(lockfile, explicit_lockfile);
 
     let key: PackageKey = unscoped_key.parse().expect("parse long unscoped snapshot key");
     assert!(

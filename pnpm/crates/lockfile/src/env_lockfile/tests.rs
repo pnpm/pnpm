@@ -654,3 +654,18 @@ fn reads_a_next_format_env_document_written_as_block_yaml() {
     expected.lockfile_version = "13.0".to_string();
     assert_eq!(read, expected);
 }
+
+#[test]
+fn reads_an_implicit_key_longer_than_1024_characters_in_the_next_format() {
+    let dir = TempDir::new().unwrap();
+    let name = format!("@scope/{}", "a".repeat(1100));
+    let yaml = format!(
+        "---\nlockfileVersion: '13.0'\nprojects:\n  .:\n    configDependencies:\n      '{name}': 1.0.0\n---\n",
+    );
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), yaml).unwrap();
+    let env = EnvLockfile::read(dir.path()).unwrap().expect("env document parses");
+    assert_eq!(
+        env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies[&name].version,
+        "1.0.0",
+    );
+}

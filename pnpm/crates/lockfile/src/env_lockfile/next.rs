@@ -13,6 +13,7 @@ use crate::{
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SaveLockfileError,
     implied_version::injected_paths,
     json_document::{from_json_str, is_json_document},
+    load_lockfile::yaml_parse_options,
     next_format::{
         Implied, LinkedImporters, NextImporter, NextImporterDeps, NextPackage, NextPackageOut,
         NextSections, RestoreContext, merge_packages, restore_sections, split_packages,
@@ -91,7 +92,8 @@ pub(super) fn from_text(text: &str, path: &Path) -> Result<EnvLockfile, LoadLock
                 reason: source.to_string(),
             })?
     } else {
-        serde_saphyr::from_str(text).map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+        serde_saphyr::from_str_with_options(text, yaml_parse_options(text.len()))
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
     };
     let next_format = |source| LoadLockfileError::next_format(path, &source);
     let (packages, snapshots) = match document.packages {

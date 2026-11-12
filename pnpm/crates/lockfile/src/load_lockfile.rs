@@ -18,8 +18,10 @@ const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
 const DEFAULT_YAML_MAX_NODES: usize = 250_000;
 const DEFAULT_YAML_MAX_SCALAR_BYTES: usize = 64 * 1024 * 1024;
 const DEFAULT_YAML_MAX_READER_INPUT_BYTES: usize = 256 * 1024 * 1024;
-const DEFAULT_YAML_SIMPLE_KEY_MAX_LOOKAHEAD: usize = 1024;
-const MAX_YAML_SIMPLE_KEY_LOOKAHEAD: usize = 1024 * 1024;
+// Not raised to the document's length: the scanner buffers tokens while a
+// key in a flow collection is pending, so a malformed flow collection would
+// buffer them to the end of the document.
+const YAML_SIMPLE_KEY_MAX_LOOKAHEAD: usize = 1024 * 1024;
 
 /// The parsing budgets for a lockfile document of `document_len` bytes.
 ///
@@ -27,12 +29,9 @@ const MAX_YAML_SIMPLE_KEY_LOOKAHEAD: usize = 1024 * 1024;
 /// none of these dimensions can exceed the size of an input that is already
 /// in memory, so a valid lockfile must never trip them, however large.
 ///
-/// An implicit key may be up to 1,048,576 characters long, past YAML's
-/// 1,024-character limit, since a lockfile that another tool edited can hold
-/// one.
-/// The cap stays below the document's length because the scanner buffers
-/// tokens while a key in a flow collection is pending, and a malformed flow
-/// collection would otherwise buffer them to the end of the document.
+/// An implicit key may be up to [`YAML_SIMPLE_KEY_MAX_LOOKAHEAD`] characters
+/// long, past YAML's 1,024-character limit, since a lockfile that another
+/// tool edited can hold one.
 ///
 /// The remaining defaults (aliases, anchors, depth, documents) bound YAML
 /// shapes the lockfile emitter never produces and stay as security caps.
@@ -44,8 +43,7 @@ pub(crate) fn yaml_parse_options(document_len: usize) -> serde_saphyr::Options {
             max_total_scalar_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
             max_total_comment_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
             max_reader_input_bytes: Some(document_len.max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
-            simple_key_max_lookahead: document_len
-                .clamp(DEFAULT_YAML_SIMPLE_KEY_MAX_LOOKAHEAD, MAX_YAML_SIMPLE_KEY_LOOKAHEAD),
+            simple_key_max_lookahead: YAML_SIMPLE_KEY_MAX_LOOKAHEAD,
         },
     }
 }
