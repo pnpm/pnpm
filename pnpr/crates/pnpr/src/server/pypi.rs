@@ -32,7 +32,9 @@ use super::{
         is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
         serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
-    hosted_gate, not_found, private_no_cache,
+    hosted_gate, not_found,
+    package_owners::owner_routes,
+    private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source,
 };
@@ -83,7 +85,8 @@ pub(super) fn routes() -> Router<AppState> {
                 delete(management::delete_file),
             )
             .route(&format!("{base}/{UPLOAD_PATH}"), post(post_upload))
-            .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload));
+            .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload))
+            .route(&format!("{base}/owners/{{name}}"), owner_routes::<ProjectDocument>());
     }
     router
 }

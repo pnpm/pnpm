@@ -18,7 +18,9 @@
 
 pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
 
+mod owners;
 mod publication;
+use owners::{delete_owners, get_owners, put_owners};
 use publication::{delete_yank, put_publish, put_unyank};
 
 use super::{
@@ -78,7 +80,7 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/owners"),
-                get(unsupported_owners).put(unsupported_owners).delete(unsupported_owners),
+                get(get_owners).put(put_owners).delete(delete_owners),
             )
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),
@@ -88,13 +90,6 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"), put(put_unyank));
     }
     router
-}
-
-async fn unsupported_owners() -> Response {
-    json_response(
-        StatusCode::NOT_IMPLEMENTED,
-        &errors_json("cargo owner is not supported by this registry"),
-    )
 }
 
 /// `cargo search`'s default page size, which is also what crates.io returns

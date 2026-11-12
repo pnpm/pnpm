@@ -29,7 +29,7 @@ skopeo copy docker://pnpr.example.com/acme/app:1.0 oci:./app:1.0
 
 Use a pnpr token as the password. The username is not checked, as on every
 registry that takes a personal access token. The account that first pushes to
-a repository becomes its [owner](configuration.md#the-packages-map).
+a repository becomes its [owner](ecosystems.md#package-owners).
 
 ## Why `/v2/` is at the root
 

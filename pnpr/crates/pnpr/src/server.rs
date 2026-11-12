@@ -128,6 +128,7 @@ mod oidc_groups;
 mod owner_access;
 use owner_access::CallerOwners;
 mod package_mutation;
+mod package_owners;
 mod publications;
 mod publishing;
 mod pypi;
