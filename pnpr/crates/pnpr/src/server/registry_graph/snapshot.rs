@@ -190,15 +190,16 @@ impl AppInner {
 
     /// Serve `snapshot` from now on. Requests that already pinned the previous
     /// snapshot finish on it.
-    pub(crate) fn replace_routing(&self, mut snapshot: RoutingSnapshot) {
+    pub(crate) fn replace_routing(&self, mut snapshot: RoutingSnapshot) -> Arc<RoutingSnapshot> {
         snapshot.epoch = self.routing_epochs.fetch_add(1, Ordering::Relaxed) + 1;
         let snapshot = Arc::new(snapshot);
         *self.upstream_guard_context.write().unwrap_or_else(PoisonError::into_inner) =
             Arc::clone(&snapshot.route_context);
-        *self.routing.write().unwrap_or_else(PoisonError::into_inner) = snapshot;
+        *self.routing.write().unwrap_or_else(PoisonError::into_inner) = Arc::clone(&snapshot);
         if let Some(resolver) = self.resolver_shared.get() {
             resolver.forget_results();
         }
+        snapshot
     }
 }
 

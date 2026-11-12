@@ -433,7 +433,9 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
     let mut missing = table_names(TABLES.sqlite)
         .into_iter()
-        .filter(|table| max_version < 3 || !DROPPED_IN_STEP_3.contains(&table.as_str()))
+        // Step 3 drops these. Its DDL can commit statement by statement
+        // (MySQL), so a database at version 2 may already lack some of them.
+        .filter(|table| max_version < 2 || !DROPPED_IN_STEP_3.contains(&table.as_str()))
         .filter(|table| !has(table))
         .collect::<Vec<_>>();
     if max_version >= 2 && !has("hosted_store") {

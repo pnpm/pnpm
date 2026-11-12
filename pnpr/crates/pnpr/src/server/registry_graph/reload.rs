@@ -5,14 +5,14 @@
 
 use super::{
     super::{AppState, RegistryError, managed_state::read_with_deadline},
-    build_snapshot,
+    RoutingSnapshot, build_snapshot,
     stored::{Credentials, check_file_references, stored_document, stored_routing},
 };
 use pnpr_config::RoutingConfig;
 use pnpr_storage::metadata::StoredRegistryGraph;
 use std::{
     sync::{
-        Mutex, PoisonError,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicU64, Ordering},
     },
     time::Duration,
@@ -82,7 +82,7 @@ pub(crate) async fn reload_graph(state: &AppState, graph: &GraphState) -> bool {
             let generation = stored.as_ref().map(|stored| stored.generation);
             match load_routing(state, stored.as_ref()) {
                 Ok(routing) => {
-                    publish_routing(state, routing, generation);
+                    drop(publish_routing(state, routing, generation));
                     true
                 }
                 Err(err) => {
@@ -104,16 +104,21 @@ pub(crate) async fn reload_graph(state: &AppState, graph: &GraphState) -> bool {
 
 /// Serve `routing`, built from the stored generation `generation`, from now
 /// on.
-pub(crate) fn publish_routing(state: &AppState, routing: RoutingConfig, generation: Option<u64>) {
+pub(crate) fn publish_routing(
+    state: &AppState,
+    routing: RoutingConfig,
+    generation: Option<u64>,
+) -> Arc<RoutingSnapshot> {
     let inner = &state.inner;
     let previous = inner.current_routing();
     let mut snapshot =
         build_snapshot(&inner.config, routing, Some(&previous), &inner.upstream_guard_context);
     snapshot.generation = generation;
-    inner.replace_routing(snapshot);
+    let snapshot = inner.replace_routing(snapshot);
     if let Some(graph) = &inner.identity.managed.graph {
         graph.confirm(generation);
     }
+    snapshot
 }
 
 enum Poll {

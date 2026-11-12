@@ -131,7 +131,13 @@ fn check_upstream_hosts(
         if previous.upstream_url(name) == Some(url) {
             continue;
         }
-        if !upstream_host_allowed(&context, url) {
+        let parsed = Url::parse(url)
+            .ok()
+            .filter(|parsed| matches!(parsed.scheme(), "http" | "https") && parsed.has_host())
+            .ok_or_else(|| RegistryError::BadRequest {
+                reason: format!("upstream registry {name:?} has `url` {url:?}, not an http(s) URL"),
+            })?;
+        if !upstream_host_allowed(&context, &parsed) {
             return Err(RegistryError::BadRequest {
                 reason: format!(
                     "upstream registry {name:?} points at {url:?}, a loopback, private, or \
@@ -143,16 +149,15 @@ fn check_upstream_hosts(
     Ok(())
 }
 
-fn upstream_host_allowed(context: &RouteContext, url: &str) -> bool {
-    let Ok(parsed) = Url::parse(url) else { return true };
-    let address = match parsed.host() {
+fn upstream_host_allowed(context: &RouteContext, url: &Url) -> bool {
+    let address = match url.host() {
         Some(Host::Ipv4(address)) => IpAddr::V4(address),
         Some(Host::Ipv6(address)) => IpAddr::V6(address),
         Some(Host::Domain(domain)) => {
             let domain = domain.trim_end_matches('.').to_ascii_lowercase();
             return domain != "localhost" && !domain.ends_with(".localhost");
         }
-        None => return true,
+        None => return false,
     };
     context.allows_stored_upstream_address(address)
 }

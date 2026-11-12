@@ -503,6 +503,17 @@ async fn an_upstream_url_on_a_private_address_is_refused() {
 }
 
 #[tokio::test]
+async fn an_upstream_url_must_be_an_http_url() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    for url in ["not a url", "ftp://registry.example/", "file:///etc/", "https:"] {
+        let path = format!("{DOCUMENT}/up");
+        let (status, error) = replica.as_root("PUT", &path, Some(upstream(url))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{url}: {error}");
+    }
+}
+
+#[tokio::test]
 async fn a_stored_public_route_must_parse() {
     let dir = TempDir::new().unwrap();
     let replica = Replica::new(load_config(dir.path()).await).await;
@@ -619,6 +630,54 @@ async fn a_private_public_host_is_refused_for_a_stored_upstream() {
 }
 
 #[tokio::test]
+async fn offline_cache_gc_keeps_the_caches_of_stored_upstreams() {
+    let dir = TempDir::new().unwrap();
+    let (address, hits, server) = counting_server().await;
+    let yaml = format!(
+        "storage: {storage}\nsecret: test-secret-key-32-chars-long-12\nauth:\n  registryAdmins: [root]\n  \
+         users:\n    maxUsers: 100\nregistryEnv: [PATH]\nroutes:\n  allowedPrivateNetworks: ['127.0.0.0/8']\n\
+         registries:\n  up:\n    type: upstream\n    url: http://127.0.0.1:{port}/\n    access: $all\n    \
+         headers:\n      x-key: '${{PATH}}'\n",
+        storage = storage_dir(dir.path()).display(),
+        port = address.port(),
+    );
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await;
+    let replica = Replica::new(config.clone()).await;
+    let (status, body, _) = replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(hits.load(Ordering::SeqCst) > 0);
+    let cached = walk(&config.storage.cache_dir);
+    assert!(
+        cached
+            .iter()
+            .any(|path| path.contains("example")),
+        "{cached:?}",
+    );
+
+    let gc = pnpr::Command::CacheGc {
+        dry_run: false,
+        max_size: None,
+        max_age: None,
+        orphans_only: true,
+    };
+    pnpr::run_command(&config, gc).await.unwrap();
+    let kept = walk(&config.storage.cache_dir);
+    for path in cached
+        .iter()
+        .filter(|path| path.contains("example"))
+    {
+        assert!(kept.contains(path), "cache-gc removed {path}");
+    }
+    server.abort();
+}
+
+#[tokio::test]
 async fn a_file_upstream_on_loopback_is_reached() {
     let dir = TempDir::new().unwrap();
     let (address, hits, server) = counting_server().await;
@@ -662,6 +721,59 @@ async fn concurrent_writers_on_two_replicas_both_land() {
     let mut statuses = [three.0, four.0];
     statuses.sort();
     assert_eq!(statuses, [StatusCode::OK, StatusCode::PRECONDITION_FAILED]);
+}
+
+async fn directory_lists(replica: &Replica, name: &str) -> bool {
+    let (_, directory, _) =
+        replica.send("GET", "/-/pnpr/v0/registries", Some(&replica.bob), None).await;
+    directory["registries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| entry["name"] == name)
+}
+
+#[tokio::test]
+async fn a_write_that_changes_nothing_serves_the_version_it_answers() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let auth = crate::tokens::seeded_auth(&config, ACCOUNTS);
+    let writer = Replica::with_auth(config, auth.clone()).await;
+    let behind = Replica::with_auth(reload_config(dir.path()), auth).await;
+    let extra = json!({ "type": "hosted", "namespace": "extra" });
+    assert_eq!(
+        writer.as_root("PUT", &format!("{DOCUMENT}/extra"), Some(extra)).await.0,
+        StatusCode::OK,
+    );
+    assert!(!directory_lists(&behind, "extra").await);
+
+    let (_, document, _) = behind.send("GET", DOCUMENT, Some(&behind.root), None).await;
+    let (status, outcome) = behind.as_root("PUT", DOCUMENT, Some(document)).await;
+    assert_eq!((status, &outcome["version"]), (StatusCode::OK, &json!("2")));
+    assert!(directory_lists(&behind, "extra").await);
+}
+
+#[tokio::test]
+async fn rules_change_on_a_registry_another_replica_just_added() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let auth = crate::tokens::seeded_auth(&config, ACCOUNTS);
+    let writer = Replica::with_auth(config, auth.clone()).await;
+    let behind = Replica::with_auth(reload_config(dir.path()), auth).await;
+    let fresh = json!({ "type": "hosted", "namespace": "fresh", "packages": { "@fresh/*": {} } });
+    assert_eq!(
+        writer.as_root("PUT", &format!("{DOCUMENT}/fresh"), Some(fresh)).await.0,
+        StatusCode::OK,
+    );
+
+    let rules = "/-/pnpr/v0/admin/rules/npm/fresh";
+    let (status, before) = behind.as_root("GET", rules, None).await;
+    assert_eq!(status, StatusCode::OK, "{before}");
+    let change = json!({ "packages": { "@fresh/*": { "access": ["$authenticated"] } } });
+    let (status, after) = behind.as_root("PUT", rules, Some(change)).await;
+    assert_eq!(status, StatusCode::OK, "{after}");
+    assert_eq!(after["packages"]["@fresh/*"]["access"], json!(["$authenticated"]));
+    assert_eq!(after["version"], json!("3"));
 }
 
 /// Keeps the runtime busy so database I/O cannot auto-advance the paused
@@ -914,4 +1026,39 @@ async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
     assert_eq!(restore.status(), StatusCode::OK);
     assert_eq!(get_example().await.unwrap().status(), StatusCode::NOT_FOUND);
     server.abort();
+}
+
+#[tokio::test]
+async fn offline_paths_refuse_a_public_upstream_with_a_credential() {
+    let dir = TempDir::new().unwrap();
+    let mut config = load_config(dir.path()).await;
+    let file = dir.path().join("public-with-auth.yaml");
+    std::fs::write(
+        &file,
+        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n    \
+         auth: { type: bearer, tokenEnv: PATH }\n",
+    )
+    .unwrap();
+    for dry_run in [true, false] {
+        let import = pnpr::RegistriesSubcommand::Import { file: file.clone(), dry_run };
+        let result = pnpr::run_command(&config, pnpr::Command::Registries { action: import }).await;
+        assert!(result.is_err(), "import with dry_run {dry_run} accepted it");
+    }
+
+    let graph = json!({
+        "registries": {
+            "up": {
+                "type": "upstream", "url": "https://registry.npmjs.org/", "public": true,
+                "auth": { "type": "bearer", "tokenEnv": "PATH" },
+            },
+        },
+    });
+    crate::managed_registries::store_graph(&config, &graph).await;
+    let checked = pnpr::config_check::check_config_and_stored_registries(
+        &mut config,
+        &pnpr::ConfigSource::Bundled,
+    )
+    .await;
+    let error = checked.expect_err("config check accepted it").to_string();
+    assert!(error.contains("public"), "{error}");
 }

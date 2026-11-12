@@ -160,7 +160,7 @@ async fn sweep_archive_temp_bases(
 /// Remove release archives staged for a publish that never claimed them
 /// before they expired, now and then every hour while the server runs.
 async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
-    if config.routing.hosted.is_empty() {
+    if !may_stage_archives(config) {
         return Ok(());
     }
     let storage = Storage::from_config(&config.storage)?;
@@ -177,6 +177,13 @@ async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()
         }
     });
     Ok(())
+}
+
+/// Whether this server can receive staged release archives: it hosts a
+/// registry, or its stored graph can gain one at any time. An upstream-only
+/// proxy sharing the store leaves the archives to the replicas that host.
+fn may_stage_archives(config: &Config) -> bool {
+    config.registries_managed_by == Management::Api || !config.routing.hosted.is_empty()
 }
 
 fn report_staged_archive_sweep(swept: usize) {

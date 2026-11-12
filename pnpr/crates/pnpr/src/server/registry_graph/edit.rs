@@ -5,6 +5,7 @@
 
 use super::{
     super::{AppState, RegistryError, managed_state::WRITE_ATTEMPTS},
+    RoutingSnapshot,
     reload::publish_routing,
     stored::{
         Credentials, check_revision, graph_version, occupied_namespace_error, parse_document,
@@ -12,10 +13,11 @@ use super::{
     },
 };
 use crate::audit::Actor;
-use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument};
+use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig};
 use pnpr_storage::metadata::{
     HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite,
 };
+use std::sync::Arc;
 
 /// The version the caller expects the stored graph to have.
 #[derive(Debug, Clone, Copy)]
@@ -77,7 +79,7 @@ impl<'a> GraphEdit<'a> {
 }
 
 /// What an edit did.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct EditOutcome {
     /// The stored version before the edit.
     pub(crate) previous_version: String,
@@ -85,6 +87,9 @@ pub(crate) struct EditOutcome {
     /// and for an edit that changes nothing, which stores no revision.
     pub(crate) version: String,
     pub(crate) changes: RegistryGraphChanges,
+    /// The routing of `version`, which this replica serves once the edit
+    /// returns. For a dry run, the routing it served before.
+    pub(crate) routing: Arc<RoutingSnapshot>,
 }
 
 impl EditOutcome {
@@ -104,7 +109,8 @@ where
 {
     let _reload = state.inner.identity.managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
-        if let Some(outcome) = try_edit(state, request, &edit).await? {
+        let attempt = try_edit(state, request, &edit).await?;
+        if let Some(outcome) = attempt {
             return Ok(outcome);
         }
     }
@@ -143,16 +149,35 @@ where
     let unchanged =
         base.is_stored && serde_json::to_value(&base.document)? == serde_json::to_value(&next)?;
     if request.effect == Effect::DryRun || unchanged {
+        let routing = match request.effect {
+            Effect::DryRun => state.inner.current_routing(),
+            Effect::Write => serve_generation(state, checked.routing, base.generation),
+        };
         let version = base.version.clone();
-        return Ok(Some(EditOutcome { previous_version: base.version, version, changes }));
+        return Ok(Some(EditOutcome { previous_version: base.version, version, changes, routing }));
     }
     let target = Target { current: base.generation, vacated: &checked.vacated };
     let Some(generation) = store_revision(state, request, target, &next).await? else {
         return Ok(None);
     };
-    publish_routing(state, checked.routing, Some(generation));
+    let routing = publish_routing(state, checked.routing, Some(generation));
     let version = graph_version(Some(generation));
-    Ok(Some(EditOutcome { previous_version: base.version, version, changes }))
+    Ok(Some(EditOutcome { previous_version: base.version, version, changes, routing }))
+}
+
+/// The routing of the stored generation `generation`, published from
+/// `routing` when this replica serves an older one, so an edit that stored
+/// nothing still answers with the version this replica serves.
+fn serve_generation(
+    state: &AppState,
+    routing: RoutingConfig,
+    generation: Option<u64>,
+) -> Arc<RoutingSnapshot> {
+    let current = state.inner.current_routing();
+    if current.generation == generation {
+        return current;
+    }
+    publish_routing(state, routing, generation)
 }
 
 async fn read_base(state: &AppState, request: GraphEdit<'_>) -> Result<Base, RegistryError> {

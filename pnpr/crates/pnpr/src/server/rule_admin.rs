@@ -102,10 +102,7 @@ async fn put_rules(
         if state.inner.config.registries_managed_by == Management::Config {
             return Err(RegistryError::RulesConfigManaged);
         }
-        let registry = {
-            let routing = state.routing();
-            hosted_registry(&routing, &path)?.0.to_string()
-        };
+        let registry = stored_registry_key(&state, &path).await?;
         let expected = if_match(&headers)?;
         let changes: RuleChanges = parse_json_body(&body)?;
         let request =
@@ -125,8 +122,7 @@ async fn put_rules(
             version = %outcome.version,
             "package rules replaced",
         );
-        let routing = state.inner.current_routing();
-        let hosted = routing.hosted.get(&registry).ok_or(RegistryError::NotFound)?;
+        let hosted = outcome.routing.hosted.get(&registry).ok_or(RegistryError::NotFound)?;
         let body = rules_body(&state, &hosted.rules.snapshot(), &outcome.version);
         Ok(versioned(json_response(StatusCode::OK, &body), &outcome.version))
     };
@@ -140,18 +136,33 @@ async fn current_rules(
     state: &AppState,
     path: &RegistryPath,
 ) -> Result<(Arc<RuleTable>, String), RegistryError> {
-    let config = &state.inner.config;
-    if config.registries_managed_by == Management::Config {
+    if state.inner.config.registries_managed_by == Management::Config {
         let routing = state.routing();
         let (_, hosted) = hosted_registry(&routing, path)?;
         return Ok((hosted.rules.snapshot(), "config".to_string()));
     }
+    let (routing, version) = stored_rules_routing(state).await?;
+    let (_, hosted) = hosted_registry(&routing, path)?;
+    Ok((hosted.rules.snapshot(), version))
+}
+
+/// The key of the hosted registry `path` names in the stored graph, which a
+/// change applies to even before this replica serves that graph.
+async fn stored_registry_key(
+    state: &AppState,
+    path: &RegistryPath,
+) -> Result<String, RegistryError> {
+    let (routing, _) = stored_rules_routing(state).await?;
+    Ok(hosted_registry(&routing, path)?.0.to_string())
+}
+
+/// The routing of the stored graph, with its version, for the rules it holds.
+async fn stored_rules_routing(state: &AppState) -> Result<(RoutingConfig, String), RegistryError> {
     let stored = state.inner.storage.read_registry_graph().await?;
     let version = graph_version(stored.as_ref().map(|stored| stored.generation));
     let document = stored_document(stored.as_ref())?;
-    let routing = stored_routing(config, &document, Credentials::Skip)?;
-    let (_, hosted) = hosted_registry(&routing, path)?;
-    Ok((hosted.rules.snapshot(), version))
+    let routing = stored_routing(&state.inner.config, &document, Credentials::Skip)?;
+    Ok((routing, version))
 }
 
 fn rules_body(state: &AppState, rules: &RuleTable, version: &str) -> serde_json::Value {

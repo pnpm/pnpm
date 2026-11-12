@@ -692,7 +692,43 @@ async fn auth_tables_without_a_marker_are_refused(db: Db) {
     );
 }
 
+/// MySQL commits each DDL statement, so an interrupted step 3 can leave a
+/// version-2 database without some of the tables it drops.
+async fn an_interrupted_step_3_reruns(db: Db) {
+    let adapter = db.adapter();
+    tokio::task::spawn_blocking(move || {
+        adapter.write(&mut |connection| {
+            let transaction = WriteTransaction::begin(connection)?;
+            for statement in schema::statements(TABLES.get(transaction.dialect())) {
+                transaction.execute_ddl(&statement)?;
+            }
+            transaction.execute(schema::MARKER_TABLE.get(transaction.dialect()), params![])?;
+            schema::STEPS[1](&*transaction)?;
+            for version in 1..=2 {
+                transaction.execute(
+                    &format!("INSERT INTO {MARKER} (version, applied_at) VALUES (?1, 1)"),
+                    params![version],
+                )?;
+            }
+            transaction.execute_ddl(&format!("DROP TABLE {}", schema::DROPPED_IN_STEP_3[0]))?;
+            transaction.commit()
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    open(&db).await.unwrap();
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
+    let tables = tables(&db).await;
+    assert!(tables.contains(&"registry_graph_revisions".to_string()), "{tables:?}");
+    for retired in schema::DROPPED_IN_STEP_3 {
+        assert!(!tables.contains(&(*retired).to_string()), "{retired} in {tables:?}");
+    }
+}
+
 conformance! {
+    an_interrupted_step_3_reruns,
     an_empty_database_initializes,
     unused_metadata_objects_are_absent,
     applying_every_step_matches_the_fresh_schema,

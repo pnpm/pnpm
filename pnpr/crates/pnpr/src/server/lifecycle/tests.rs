@@ -1,5 +1,5 @@
 use super::{
-    Config, StartupGraph, Storage, current_routing_of, load_startup_auth,
+    Config, StartupGraph, Storage, current_routing_of, load_startup_auth, may_stage_archives,
     spawn_periodic_archive_temp_sweep, state_and_router, sweep_abandoned_archive_temps,
     sweep_current_archive_temps,
 };
@@ -886,4 +886,15 @@ async fn a_periodic_sweep_covers_a_hosted_registry_added_while_serving() {
 
     sweep_current_archive_temps(&state.inner).await.unwrap();
     assert!(!stale_path.exists());
+}
+
+#[test]
+fn a_server_whose_stored_graph_has_no_hosted_registry_sweeps_staged_archives() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = s3_config(&tmp);
+    assert!(may_stage_archives(&config));
+    config.routing.hosted.clear();
+    assert!(!may_stage_archives(&config), "an upstream-only proxy leaves them alone");
+    config.registries_managed_by = pnpr_config::Management::Api;
+    assert!(may_stage_archives(&config));
 }
