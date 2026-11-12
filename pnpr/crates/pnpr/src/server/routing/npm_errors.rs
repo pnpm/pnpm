@@ -12,8 +12,10 @@ use super::super::authentication::InvalidToken;
 pub(in crate::server) async fn render(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let is_npm = is_npm_path(path);
-    let is_pnpr = path.contains("/-/pnpr/") || path.ends_with("/-/pnpr");
-    if !is_npm && !is_pnpr {
+    let is_owned = path.contains("/-/pnpr/")
+        || path.ends_with("/-/pnpr")
+        || path.starts_with("/-/publications/");
+    if !is_npm && !is_owned {
         return next.run(request).await;
     }
     let is_head = request.method() == Method::HEAD;
@@ -26,7 +28,7 @@ pub(in crate::server) async fn render(request: Request, next: Next) -> Response 
     let message = if invalid_token {
         Some("Invalid authentication token".to_string())
     } else {
-        error_message(&mut response, is_pnpr).await
+        error_message(&mut response, is_owned).await
     };
     let Some(message) = message else {
         return response;
@@ -47,7 +49,7 @@ pub(in crate::server) async fn render(request: Request, next: Next) -> Response 
     response
 }
 
-async fn error_message(response: &mut Response, is_pnpr: bool) -> Option<String> {
+async fn error_message(response: &mut Response, is_owned: bool) -> Option<String> {
     if let Some(PublicErrorMessage(message)) = response.extensions_mut().remove() {
         return Some(message);
     }
@@ -56,7 +58,7 @@ async fn error_message(response: &mut Response, is_pnpr: bool) -> Option<String>
         .get(header::CONTENT_TYPE)
         .is_none_or(|value| value.as_bytes().starts_with(b"text/plain"));
     let is_error = response.status().is_client_error() || response.status().is_server_error();
-    if is_pnpr && is_error && is_plain_text {
+    if is_owned && is_error && is_plain_text {
         Some(framework_error_message(response).await)
     } else {
         None

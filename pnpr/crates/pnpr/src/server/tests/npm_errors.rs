@@ -264,3 +264,62 @@ async fn framework_rejections_on_native_endpoints_return_json() {
         }),
     );
 }
+
+#[tokio::test]
+async fn publication_method_rejections_return_json_and_preserve_allowed_methods() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "valid-token", record(false, &[]));
+    for (path, allowed) in [
+        ("/-/publications/example", "GET,HEAD"),
+        ("/-/publications/example/missing", "GET,HEAD"),
+        ("/-/publications/example/missing/notes", "GET,HEAD,PUT,DELETE"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(signed(Method::POST, path, "valid-token"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{path}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json", "{path}");
+        assert_eq!(response.headers()[header::ALLOW], allowed, "{path}");
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
+            serde_json::json!({
+                "error": "Method Not Allowed",
+                "reason": "Method Not Allowed",
+                "code": "ERR_PNPR_METHOD_NOT_ALLOWED",
+            }),
+            "{path}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn publication_query_rejections_return_json_with_bodyless_head_errors() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "valid-token", record(false, &[]));
+    for method in [Method::GET, Method::HEAD] {
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), "/-/publications/example", "valid-token"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{method}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json", "{method}");
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        if method == Method::HEAD {
+            assert!(bytes.is_empty());
+        } else {
+            let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(body["code"], "ERR_PNPR_BAD_REQUEST");
+            assert_eq!(body["error"], body["reason"]);
+            assert!(
+                body["reason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("member"),
+            );
+        }
+    }
+}
