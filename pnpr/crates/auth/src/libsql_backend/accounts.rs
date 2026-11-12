@@ -8,7 +8,7 @@ impl LibsqlAuth {
     pub(super) async fn list_accounts_impl(&self) -> Result<Vec<crate::UserAccount>> {
         self.pool.read(|conn| async move {
             let rows = conn.query(
-                "SELECT id, username FROM users WHERE status = 'active' ORDER BY username",
+                "SELECT id, username FROM users WHERE status <> 'deleted' ORDER BY username",
                 (),
             )
             .await?;
@@ -149,7 +149,9 @@ impl LibsqlAuth {
             self.pool.write(|conn| async move {
                 Ok::<_, RegistryError>(
                     conn.execute(
-                        "UPDATE users SET status = ?2 WHERE id = ?1 AND status <> 'deleted'",
+                        "UPDATE users
+                         SET status = ?2, name_revision = name_revision + 1
+                         WHERE id = ?1 AND status <> 'deleted'",
                         params![user_id, status_str],
                     )
                     .await?,
@@ -161,6 +163,50 @@ impl LibsqlAuth {
             self.sync_replica().await?;
         }
         Ok(updated > 0)
+    }
+
+    pub(super) async fn set_account_status_by_id_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        if status.is_deleted() {
+            return Err(RegistryError::BadRequest {
+                reason: "use delete_user to delete an account".to_string(),
+            });
+        }
+        let Some((expected, next, next_revision)) = name_revision_bounds(expected_revision)? else {
+            self.account_name_by_id(user_id).await?.ok_or(RegistryError::NotFound)?;
+            return Ok(crate::AccountStatusUpdate::CurrentChanged);
+        };
+        let status_str = status.as_str();
+        let sql = if matches!(status, AccountStatus::Deactivated) {
+            "UPDATE users
+             SET status = ?2, credential_kind = 'none', password_hash = NULL, name_revision = ?3
+             WHERE id = ?1 AND name_revision = ?4 AND status <> 'deleted'"
+        } else {
+            "UPDATE users
+             SET status = ?2, name_revision = ?3
+             WHERE id = ?1 AND name_revision = ?4 AND status <> 'deleted'"
+        };
+        let updated = retry_database_conflicts(|| {
+            self.pool.write(|conn| async move {
+                Ok::<_, RegistryError>(
+                    conn.execute(sql, params![user_id, status_str, next, expected]).await?,
+                )
+            })
+        })
+        .await?;
+        if updated > 0 {
+            self.sync_replica().await?;
+            return Ok(crate::AccountStatusUpdate::Updated(next_revision));
+        }
+        self.sync_replica().await?;
+        match self.account_name_by_id(user_id).await? {
+            Some(_) => Ok(crate::AccountStatusUpdate::CurrentChanged),
+            None => Err(RegistryError::NotFound),
+        }
     }
 
     pub(super) async fn account_login_by_id(

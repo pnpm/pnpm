@@ -129,6 +129,7 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
     assert!(raw_token.starts_with(pnpr_auth::PERSONAL_TOKEN_PREFIX));
     assert!(pnpr_auth::has_valid_personal_token_checksum(raw_token));
     assert!(body.get("scopes").is_none());
+    assert!(body.get("kind").is_none());
     assert_eq!(
         body["user"].as_str(),
         crate::tokens::account_id(&app, "alice", Some(&login_token)).await.as_deref(),
@@ -159,6 +160,7 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
         .find(|token| token["name"] == "ci-token")
         .expect("found created token");
     assert_eq!(found["readonly"], true);
+    assert!(found.get("kind").is_none());
     assert_eq!(found["token"].as_str().unwrap(), &body["key"].as_str().unwrap()[..6]);
 }
 

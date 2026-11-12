@@ -14,8 +14,8 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use account::{
-    AccountCredential, AccountLogin, AccountStatus, CredentialKind, PasswordChange, UpsertOutcome,
-    UserCreation, UserRemoval, UserRename, verify_returning_user,
+    AccountCredential, AccountLogin, AccountStatus, AccountStatusUpdate, CredentialKind,
+    PasswordChange, UpsertOutcome, UserCreation, UserRemoval, UserRename, verify_returning_user,
 };
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
@@ -138,67 +138,6 @@ impl AuthState {
     /// Revoke every token `user_id` holds. Returns how many were revoked.
     pub async fn revoke_all_tokens(&self, user_id: &str) -> Result<usize> {
         self.tokens.revoke_all_for_user(user_id).await
-    }
-
-    /// Create an account with `username`, or change the existing account
-    /// password. `None` means a concurrent writer removed the account.
-    pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
-        match self.users.create_user(username, password).await? {
-            UserCreation::Created(user_id) => Ok(Some(UserPut::Created { user_id })),
-            UserCreation::NameTaken => {
-                let Some(id) = self.users.account_id(username).await? else {
-                    return Ok(None);
-                };
-                match self.change_password(&id, password).await? {
-                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged { user_id: id })),
-                    // Another caller removed the user between the two calls.
-                    PasswordChange::NoSuchUser => Ok(None),
-                }
-            }
-        }
-    }
-
-    /// Replace a password and revoke every bearer token for the account.
-    pub async fn change_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
-        let outcome = self.users.set_password(user_id, password).await;
-        self.revoke_after_password_change(user_id, outcome, |change| {
-            matches!(change, PasswordChange::Changed)
-        })
-        .await
-    }
-
-    /// Change a verified password without overwriting a concurrent reset.
-    pub async fn change_password_if_current(
-        &self,
-        user_id: &str,
-        password: &str,
-        expected_hash: &str,
-    ) -> Result<bool> {
-        let outcome = self.users.set_password_if_current(user_id, password, expected_hash).await;
-        self.revoke_after_password_change(user_id, outcome, |changed| *changed).await
-    }
-
-    async fn revoke_after_password_change<Outcome: Send>(
-        &self,
-        user_id: &str,
-        outcome: Result<Outcome>,
-        changed: impl FnOnce(&Outcome) -> bool + Send,
-    ) -> Result<Outcome> {
-        let committed = match &outcome {
-            Ok(outcome) => changed(outcome),
-            Err(error) => error.committed_password_user().is_some(),
-        };
-        if committed && let Err(source) = self.revoke_all_tokens(user_id).await {
-            if let Err(original) = &outcome {
-                tracing::error!(error = %source.log_message(), "Revoking tokens after a committed password change failed");
-                tracing::error!(error = %original.log_message(), "The password change also failed to refresh its replica");
-            }
-            return Err(RegistryError::PasswordChangeCommitted {
-                user_id: user_id.to_string(),
-                source: Box::new(source),
-            });
-        }
-        outcome
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
@@ -325,10 +264,10 @@ pub trait UserBackend: Send + Sync {
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
 
-    /// Active account login names, sorted.
+    /// Non-deleted account login names, sorted.
     async fn list_users(&self) -> Result<Vec<String>>;
 
-    /// Active account IDs and login names, sorted by login name.
+    /// Non-deleted account IDs and login names, sorted by login name.
     async fn list_accounts(&self) -> Result<Vec<UserAccount>> {
         let mut accounts = Vec::new();
         for username in self.list_users().await? {
@@ -418,6 +357,23 @@ pub trait UserBackend: Send + Sync {
     async fn set_account_status(&self, _user_id: &str, _status: AccountStatus) -> Result<bool> {
         Err(RegistryError::BadRequest {
             reason: "Account status changes are not supported by this account backend".to_string(),
+        })
+    }
+
+    /// Set `user_id`'s status to [`AccountStatus::Active`] or
+    /// [`AccountStatus::Deactivated`] only while its stored revision equals
+    /// `expected_revision`, advancing the revision on match and clearing any
+    /// stored password when setting [`AccountStatus::Deactivated`]. Returns
+    /// [`RegistryError::NotFound`] if no non-deleted account has `user_id`.
+    async fn set_account_status_if_current(
+        &self,
+        _user_id: &str,
+        _expected_revision: u64,
+        _status: AccountStatus,
+    ) -> Result<AccountStatusUpdate> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account status changes are not supported by this account backend"
+                .to_string(),
         })
     }
 

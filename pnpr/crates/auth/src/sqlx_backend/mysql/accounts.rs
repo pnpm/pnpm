@@ -25,6 +25,42 @@ impl MysqlDatabase {
         Ok(Some(StoredUser { id, username, status, credential }))
     }
 
+    pub(super) async fn account_name_impl(&self, user_id: &str) -> Result<Option<String>> {
+        sqlx::query("SELECT username FROM users WHERE id = ? AND status <> 'deleted'")
+            .bind(user_id)
+            .fetch_optional(&mut *self.pool.acquire().await?)
+            .await?
+            .map(|row| username_from_row(&row, 0))
+            .transpose()
+            .map_err(RegistryError::from)
+    }
+
+    pub(super) async fn active_account_name_impl(&self, user_id: &str) -> Result<Option<String>> {
+        sqlx::query("SELECT username FROM users WHERE id = ? AND status = 'active'")
+            .bind(user_id)
+            .fetch_optional(&mut *self.pool.acquire().await?)
+            .await?
+            .map(|row| username_from_row(&row, 0))
+            .transpose()
+            .map_err(RegistryError::from)
+    }
+
+    pub(super) async fn list_accounts_impl(&self) -> Result<Vec<crate::UserAccount>> {
+        let rows = sqlx::query(
+            "SELECT id, username FROM users WHERE status <> 'deleted' ORDER BY username",
+        )
+        .fetch_all(&mut *self.pool.acquire().await?)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(crate::UserAccount {
+                    id: row.try_get(0)?,
+                    username: username_from_row(&row, 1)?,
+                })
+            })
+            .collect()
+    }
+
     pub(super) async fn account_status_impl(&self, user_id: &str) -> Result<Option<AccountStatus>> {
         let raw: Option<String> = sqlx::query_scalar("SELECT status FROM users WHERE id = ?")
             .bind(user_id)
@@ -45,13 +81,51 @@ impl MysqlDatabase {
         user_id: &str,
         status: AccountStatus,
     ) -> Result<bool> {
-        let updated =
-            sqlx::query("UPDATE users SET status = ? WHERE id = ? AND status <> 'deleted'")
-                .bind(status.as_str())
-                .bind(user_id)
-                .execute(&mut *self.pool.acquire().await?)
-                .await?;
+        let updated = sqlx::query(
+            "UPDATE users
+             SET status = ?, name_revision = name_revision + 1
+             WHERE id = ? AND status <> 'deleted'",
+        )
+        .bind(status.as_str())
+        .bind(user_id)
+        .execute(&mut *self.pool.acquire().await?)
+        .await?;
         Ok(updated.rows_affected() > 0)
+    }
+
+    pub(super) async fn set_account_status_if_current_impl(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        let Some((expected, next, next_revision)) = name_revision_bounds(expected_revision)? else {
+            self.account_name(user_id).await?.ok_or(RegistryError::NotFound)?;
+            return Ok(crate::AccountStatusUpdate::CurrentChanged);
+        };
+        let sql = if matches!(status, AccountStatus::Deactivated) {
+            "UPDATE users
+             SET status = ?, credential_kind = 'none', password_hash = NULL, name_revision = ?
+             WHERE id = ? AND name_revision = ? AND status <> 'deleted'"
+        } else {
+            "UPDATE users
+             SET status = ?, name_revision = ?
+             WHERE id = ? AND name_revision = ? AND status <> 'deleted'"
+        };
+        let updated = sqlx::query(sql)
+            .bind(status.as_str())
+            .bind(next)
+            .bind(user_id)
+            .bind(expected)
+            .execute(&mut *self.pool.acquire().await?)
+            .await?;
+        if updated.rows_affected() > 0 {
+            return Ok(crate::AccountStatusUpdate::Updated(next_revision));
+        }
+        match self.account_name(user_id).await? {
+            Some(_) => Ok(crate::AccountStatusUpdate::CurrentChanged),
+            None => Err(RegistryError::NotFound),
+        }
     }
 
     pub(super) async fn claim_tx_for_insert(

@@ -892,9 +892,45 @@ async fn conditional_renames_track_revisions_and_roll_back_unsynced_primary_writ
         .unwrap()
         .unwrap();
     assert_eq!(current, crate::AccountLogin { username: "admin-named".to_string(), revision: 2 });
+    backend.set_password(&id, "secret123").await.unwrap();
+    assert_eq!(
+        backend
+            .set_account_status_if_current(&id, 0, crate::AccountStatus::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusUpdate::CurrentChanged,
+    );
+    assert_eq!(
+        backend
+            .set_account_status_if_current(
+                &id,
+                current.revision,
+                crate::AccountStatus::Deactivated,
+            )
+            .await
+            .unwrap(),
+        crate::AccountStatusUpdate::Updated(3),
+    );
+    assert_eq!(backend.list_users().await.unwrap(), ["admin-named"]);
+    assert_eq!(
+        backend
+            .list_accounts()
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        backend.set_account_status_if_current(&id, 3, crate::AccountStatus::Active).await.unwrap(),
+        crate::AccountStatusUpdate::Updated(4),
+    );
+    assert_eq!(
+        backend.credential("admin-named").await.unwrap(),
+        Some(crate::AccountCredential::None),
+    );
 
     backend.backend.is_replica = true;
-    assert!(backend.rename_user_if_current(&id, current.revision, "unsynced").await.is_err());
+    assert!(backend.rename_user_if_current(&id, 4, "unsynced").await.is_err());
     assert_eq!(
         backend
             .account_name(&id)

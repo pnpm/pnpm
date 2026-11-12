@@ -28,8 +28,8 @@ use axum::{
     routing::get,
 };
 use directory::{
-    ScimUser, clean_up_before_reactivating, deprovision, insert_user, patch_user as patch_stored,
-    remove_user, replace_user as replace_stored,
+    ScimUser, create_user as create_stored, delete_user as delete_stored,
+    patch_user as patch_stored, replace_user as replace_stored,
 };
 use resources::{list_response, parse_filter, parse_user, user_resource};
 use serde::Deserialize;
@@ -124,18 +124,15 @@ async fn get_user(
 async fn create_user(State(state): State<AppState>, _client: ScimClient, body: Bytes) -> Response {
     let result = async {
         let (username, user) = parse_user(&parse_json(&body)?)?;
-        let id = state.inner.identity.auth.users.provision_user(&username).await?;
-        if let Err(err) = insert_user(&state, &id, &user).await {
-            state.inner.identity.auth.users.delete_user(&id).await?;
-            return Err(err);
-        }
-        let response = finish_write(&state, &id, &user, StatusCode::CREATED).await?;
+        let (id, created) = create_stored(&state, &username, &user).await?;
+        let response =
+            scim_json(StatusCode::CREATED, &user_resource(&id, &created, &location(&state, &id)));
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_create",
             actor = "scim",
-            user = %username,
-            active = user.active,
+            user = %created.username,
+            active = created.active,
             "scim user created",
         );
         Ok(response)
@@ -151,17 +148,19 @@ async fn replace_user(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let (username, user) = parse_user(&parse_json(&body)?)?;
-        clean_up_before_reactivating(&state, &path.id).await?;
-        replace_stored(&state, &path.id, &user).await?;
-        let response = finish_write(&state, &path.id, &user, StatusCode::OK).await?;
+        let (_username, user) = parse_user(&parse_json(&body)?)?;
+        let replaced = replace_stored(&state, &path.id, &user).await?;
+        let response = scim_json(
+            StatusCode::OK,
+            &user_resource(&path.id, &replaced, &location(&state, &path.id)),
+        );
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_replace",
             actor = "scim",
-            user = %username,
+            user = %replaced.username,
             user_id = %path.id,
-            active = user.active,
+            active = replaced.active,
             "scim user replaced",
         );
         Ok(response)
@@ -178,9 +177,11 @@ async fn patch_user(
 ) -> Response {
     let result = async {
         let patch = parse_json(&body)?;
-        clean_up_before_reactivating(&state, &path.id).await?;
         let patched = patch_stored(&state, &path.id, &patch).await?;
-        let response = finish_write(&state, &path.id, &patched, StatusCode::OK).await?;
+        let response = scim_json(
+            StatusCode::OK,
+            &user_resource(&path.id, &patched, &location(&state, &path.id)),
+        );
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_patch",
@@ -202,13 +203,7 @@ async fn delete_user(
     Path(path): Path<UserPath>,
 ) -> Response {
     let result = async {
-        let username = state.inner.identity.auth.users
-            .account_name(&path.id)
-            .await?
-            .ok_or(RegistryError::NotFound)?;
-        remove_user(&state, &path.id).await?;
-        deprovision(&state, &path.id).await?;
-        state.inner.identity.auth.users.delete_user(&path.id).await?;
+        let username = delete_stored(&state, &path.id).await?;
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_delete",
@@ -220,30 +215,6 @@ async fn delete_user(
         Ok(StatusCode::NO_CONTENT.into_response())
     };
     scim_respond(result.await)
-}
-
-/// Deprovision `user` when the write left it inactive, then answer with it.
-async fn finish_write(
-    state: &AppState,
-    user_id: &str,
-    user: &ScimUser,
-    status: StatusCode,
-) -> Result<Response, RegistryError> {
-    let mut user = user.clone();
-    user.username = state.inner.identity.auth.users
-        .account_name(user_id)
-        .await?
-        .ok_or(RegistryError::NotFound)?;
-    if user.active {
-        state.inner.identity.auth.users.set_account_status(
-            user_id,
-            pnpr_auth::AccountStatus::Active,
-        )
-        .await?;
-    } else {
-        deprovision(state, user_id).await?;
-    }
-    Ok(scim_json(status, &user_resource(user_id, &user, &location(state, user_id))))
 }
 
 fn location(state: &AppState, user_id: &str) -> String {

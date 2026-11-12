@@ -78,7 +78,7 @@ where
     }
 
     async fn delete_expired(&self, now: u64) -> Result<usize> {
-        let removed = self.db.delete_expired_tokens(now).await?;
+        let removed = with_auth_timeout(self.timeout, self.db.delete_expired_tokens(now)).await?;
         Ok(usize::try_from(removed).unwrap_or(usize::MAX))
     }
 

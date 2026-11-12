@@ -15,7 +15,7 @@ impl LibsqlAuth {
     pub(super) async fn list_usernames(&self) -> Result<Vec<String>> {
         self.pool.read(|conn| async move {
             let mut rows = conn.query(
-                "SELECT username FROM users WHERE status = 'active' ORDER BY username",
+                "SELECT username FROM users WHERE status <> 'deleted' ORDER BY username",
                 (),
             )
             .await?;

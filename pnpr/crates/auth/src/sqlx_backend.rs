@@ -146,6 +146,17 @@ trait AuthSqlBackend: Send + Sync {
             reason: "Account status changes are not supported by this account backend".to_string(),
         })
     }
+    async fn set_account_status_if_current(
+        &self,
+        _user_id: &str,
+        _expected_revision: u64,
+        _status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        Err(RegistryError::BadRequest {
+            reason: "Conditional account status changes are not supported by this account backend"
+                .to_string(),
+        })
+    }
     async fn account_login(&self, _user_id: &str) -> Result<Option<crate::AccountLogin>> {
         Err(RegistryError::BadRequest {
             reason: "Conditional account renames are not supported by this account backend"
@@ -168,7 +179,7 @@ trait AuthSqlBackend: Send + Sync {
         let mut accounts = Vec::new();
         for username in self.list_usernames().await? {
             if let Some(user) = self.stored_user(&username).await?
-                && user.status.is_active()
+                && !user.status.is_deleted()
             {
                 accounts.push(crate::UserAccount { id: user.id, username: user.username });
             }
@@ -386,6 +397,20 @@ where
             });
         }
         self.db.set_account_status(user_id, status).await
+    }
+
+    async fn set_account_status_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        if status.is_deleted() {
+            return Err(RegistryError::BadRequest {
+                reason: "use delete_user to delete an account".to_string(),
+            });
+        }
+        self.db.set_account_status_if_current(user_id, expected_revision, status).await
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {

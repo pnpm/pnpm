@@ -45,13 +45,51 @@ impl PostgresDatabase {
         user_id: &str,
         status: AccountStatus,
     ) -> Result<bool> {
-        let updated =
-            sqlx::query("UPDATE users SET status = $2 WHERE id = $1 AND status <> 'deleted'")
-                .bind(user_id)
-                .bind(status.as_str())
-                .execute(&mut *self.pool.acquire().await?)
-                .await?;
+        let updated = sqlx::query(
+            "UPDATE users
+             SET status = $2, name_revision = name_revision + 1
+             WHERE id = $1 AND status <> 'deleted'",
+        )
+        .bind(user_id)
+        .bind(status.as_str())
+        .execute(&mut *self.pool.acquire().await?)
+        .await?;
         Ok(updated.rows_affected() > 0)
+    }
+
+    pub(super) async fn set_account_status_if_current_impl(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        let Some((expected, next, next_revision)) = name_revision_bounds(expected_revision)? else {
+            self.account_name(user_id).await?.ok_or(RegistryError::NotFound)?;
+            return Ok(crate::AccountStatusUpdate::CurrentChanged);
+        };
+        let sql = if matches!(status, AccountStatus::Deactivated) {
+            "UPDATE users
+             SET status = $2, credential_kind = 'none', password_hash = NULL, name_revision = $4
+             WHERE id = $1 AND name_revision = $3 AND status <> 'deleted'"
+        } else {
+            "UPDATE users
+             SET status = $2, name_revision = $4
+             WHERE id = $1 AND name_revision = $3 AND status <> 'deleted'"
+        };
+        let updated = sqlx::query(sql)
+            .bind(user_id)
+            .bind(status.as_str())
+            .bind(expected)
+            .bind(next)
+            .execute(&mut *self.pool.acquire().await?)
+            .await?;
+        if updated.rows_affected() > 0 {
+            return Ok(crate::AccountStatusUpdate::Updated(next_revision));
+        }
+        match self.account_name(user_id).await? {
+            Some(_) => Ok(crate::AccountStatusUpdate::CurrentChanged),
+            None => Err(RegistryError::NotFound),
+        }
     }
 
     pub(super) async fn claim_tx_for_insert(

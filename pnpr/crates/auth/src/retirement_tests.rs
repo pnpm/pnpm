@@ -44,12 +44,14 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(users.active_account_id("renamed-member").await.unwrap(), None);
     assert_eq!(users.active_account_name(&original).await.unwrap(), None);
     assert_eq!(users.credential("renamed-member").await.unwrap(), None);
-    assert!(
+    assert_eq!(users.list_users().await.unwrap(), ["renamed-member"]);
+    assert_eq!(
         users
-            .list_users()
+            .list_accounts()
             .await
             .unwrap()
-            .is_empty(),
+            .len(),
+        1,
     );
     assert_eq!(
         users

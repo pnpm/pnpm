@@ -311,6 +311,15 @@ impl UserBackend for LibsqlAuth {
         self.set_account_status_by_id(user_id, status).await
     }
 
+    async fn set_account_status_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        self.set_account_status_by_id_if_current(user_id, expected_revision, status).await
+    }
+
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
         self.account_login_by_id(user_id).await
     }

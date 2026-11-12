@@ -111,3 +111,43 @@ fn validate_stored_account<'a>(
     validate_credential_pair(account.credential_kind, account.password_hash.as_deref())
         .map_err(|reason| format!("{reason} for {name:?}"))
 }
+
+pub(super) fn checked_next_revision(revision: u64) -> crate::Result<u64> {
+    revision
+        .checked_add(1)
+        .ok_or_else(|| pnpr_error::RegistryError::Internal {
+            reason: "account name revision overflowed".to_string(),
+        })
+}
+
+pub(super) fn find_active_login(users: &Users, user_id: &str) -> crate::Result<(String, u64)> {
+    users
+        .iter()
+        .find(|(_, account)| account.id == user_id && !account.status.is_deleted())
+        .map(|(login, account)| (login.clone(), account.name_revision))
+        .ok_or(pnpr_error::RegistryError::NotFound)
+}
+
+pub(super) fn move_account_login(
+    users: &mut Users,
+    user_id: &str,
+    old: &str,
+    name: String,
+    next_revision: u64,
+) -> crate::Result<()> {
+    if old == name {
+        let account = users.get_mut(old).ok_or(pnpr_error::RegistryError::NotFound)?;
+        account.name_revision = next_revision;
+        return Ok(());
+    }
+    if users.contains_key(&name) {
+        return Err(pnpr_error::RegistryError::AdminConflict {
+            reason: format!("username {name:?} is taken"),
+        });
+    }
+    super::check_username_skeleton(users, &name, Some(user_id))?;
+    let mut account = users.remove(old).ok_or(pnpr_error::RegistryError::NotFound)?;
+    account.name_revision = next_revision;
+    users.insert(name, account);
+    Ok(())
+}

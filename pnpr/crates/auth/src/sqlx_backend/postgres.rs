@@ -87,6 +87,15 @@ impl AuthSqlBackend for PostgresDatabase {
         self.set_account_status_impl(user_id, status).await
     }
 
+    async fn set_account_status_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        self.set_account_status_if_current_impl(user_id, expected_revision, status).await
+    }
+
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
         self.account_login_impl(user_id).await
     }
@@ -105,10 +114,11 @@ impl AuthSqlBackend for PostgresDatabase {
     }
 
     async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
-        let rows =
-            sqlx::query("SELECT id, username FROM users WHERE status = 'active' ORDER BY username")
-                .fetch_all(&mut *self.pool.acquire().await?)
-                .await?;
+        let rows = sqlx::query(
+            "SELECT id, username FROM users WHERE status <> 'deleted' ORDER BY username",
+        )
+        .fetch_all(&mut *self.pool.acquire().await?)
+        .await?;
         rows.into_iter()
             .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
             .collect()
@@ -204,7 +214,7 @@ impl AuthSqlBackend for PostgresDatabase {
 
     async fn list_usernames(&self) -> Result<Vec<String>> {
         Ok(sqlx::query_scalar(
-            "SELECT username FROM users WHERE status = 'active' ORDER BY username",
+            "SELECT username FROM users WHERE status <> 'deleted' ORDER BY username",
         )
         .fetch_all(&mut *self.pool.acquire().await?)
         .await?)

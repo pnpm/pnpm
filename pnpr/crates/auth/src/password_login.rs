@@ -2,12 +2,73 @@
 pub(crate) mod tests;
 
 use crate::{
-    AccountCredential, AuthState, DEFAULT_BCRYPT_COST, NewToken, TokenRecord, UpsertOutcome,
-    verify_returning_user,
+    AccountCredential, AuthState, DEFAULT_BCRYPT_COST, NewToken, PasswordChange, TokenRecord,
+    UpsertOutcome, UserCreation, UserPut, verify_returning_user,
 };
 use pnpr_error::{RegistryError, Result};
 
 impl AuthState {
+    /// Create an account with `username`, or change the existing account
+    /// password. `None` means a concurrent writer removed the account.
+    pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
+        match self.users.create_user(username, password).await? {
+            UserCreation::Created(user_id) => Ok(Some(UserPut::Created { user_id })),
+            UserCreation::NameTaken => {
+                let Some(id) = self.users.account_id(username).await? else {
+                    return Ok(None);
+                };
+                match self.change_password(&id, password).await? {
+                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged { user_id: id })),
+                    // Another caller removed the user between the two calls.
+                    PasswordChange::NoSuchUser => Ok(None),
+                }
+            }
+        }
+    }
+
+    /// Replace a password and revoke every bearer token for the account.
+    pub async fn change_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        let outcome = self.users.set_password(user_id, password).await;
+        self.revoke_after_password_change(user_id, outcome, |change| {
+            matches!(change, PasswordChange::Changed)
+        })
+        .await
+    }
+
+    /// Change a verified password without overwriting a concurrent reset.
+    pub async fn change_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        let outcome = self.users.set_password_if_current(user_id, password, expected_hash).await;
+        self.revoke_after_password_change(user_id, outcome, |changed| *changed).await
+    }
+
+    async fn revoke_after_password_change<Outcome: Send>(
+        &self,
+        user_id: &str,
+        outcome: Result<Outcome>,
+        changed: impl FnOnce(&Outcome) -> bool + Send,
+    ) -> Result<Outcome> {
+        let committed = match &outcome {
+            Ok(outcome) => changed(outcome),
+            Err(error) => error.committed_password_user().is_some(),
+        };
+        if committed && let Err(source) = self.revoke_all_tokens(user_id).await {
+            if let Err(original) = &outcome {
+                tracing::error!(error = %source.log_message(), "Revoking tokens after a committed password change failed");
+                tracing::error!(error = %original.log_message(), "The password change also failed to refresh its replica");
+            }
+            return Err(RegistryError::PasswordChangeCommitted {
+                user_id: user_id.to_string(),
+                source: Box::new(source),
+            });
+        }
+        outcome
+    }
+
     /// Verify or register an account and issue a token. A password changed
     /// during token issuance must still match before the token is returned.
     pub async fn password_login(

@@ -151,11 +151,15 @@ const EXPIRED_TOKEN_SWEEP_INTERVAL: std::time::Duration = std::time::Duration::f
 
 /// Delete expired personal tokens at startup and then every hour while the
 /// server runs.
-async fn sweep_expired_tokens(auth: &AuthState) -> pnpr_error::Result<()> {
-    report_expired_token_sweep(auth.tokens.delete_expired(pnpr_auth::unix_millis()).await?);
+async fn sweep_expired_tokens(auth: &AuthState) {
+    match auth.tokens.delete_expired(pnpr_auth::unix_millis()).await {
+        Ok(swept) => report_expired_token_sweep(swept),
+        Err(err) => tracing::warn!(error = %err, "sweeping expired tokens failed"),
+    }
     let tokens = Arc::downgrade(&auth.tokens);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(EXPIRED_TOKEN_SWEEP_INTERVAL);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         interval.tick().await;
         loop {
             interval.tick().await;
@@ -168,7 +172,6 @@ async fn sweep_expired_tokens(auth: &AuthState) -> pnpr_error::Result<()> {
             }
         }
     });
-    Ok(())
 }
 
 fn report_expired_token_sweep(swept: usize) {
@@ -196,7 +199,7 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
         crate::cache_maintenance::sync_cache_secret_on_startup(config).await?;
     }
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await?;
-    sweep_expired_tokens(&auth).await?;
+    sweep_expired_tokens(&auth).await;
     Ok(auth)
 }
 

@@ -174,6 +174,7 @@ impl AuthSqlBackend for SlowLookupBackend {
     }
 
     async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
+        tokio::time::sleep(Duration::from_mins(1)).await;
         Ok(0)
     }
 
@@ -536,8 +537,10 @@ async fn token_lookup_times_out_when_the_backend_stalls() {
     let auth = SqlAuth::new(SlowLookupBackend, MaxUsers::Unlimited, Duration::from_millis(1));
 
     let err = auth.lookup("token").await.unwrap_err();
-
     assert!(matches!(err, RegistryError::AuthDatabaseTimeout));
+
+    let sweep_err = auth.delete_expired(1_000).await.unwrap_err();
+    assert!(matches!(sweep_err, RegistryError::AuthDatabaseTimeout));
 }
 
 #[tokio::test]
@@ -684,12 +687,33 @@ pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + Token
     let token = auth.issue(&id).await.unwrap();
     assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
     assert!(auth.set_account_status(&id, AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(auth.list_users().await.unwrap(), ["renamed"]);
+    assert_eq!(
+        auth.list_accounts().await
+            .unwrap()
+            .len(),
+        1,
+    );
     assert!(
         auth.lookup(&token).await
             .unwrap()
             .is_none(),
     );
-    assert!(auth.set_account_status(&id, AccountStatus::Active).await.unwrap());
+    let deactivated_login = auth
+        .account_login(&id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        auth.set_account_status_if_current(&id, 0, AccountStatus::Active).await.unwrap(),
+        crate::AccountStatusUpdate::CurrentChanged,
+    );
+    assert_eq!(
+        auth.set_account_status_if_current(&id, deactivated_login.revision, AccountStatus::Active,)
+            .await
+            .unwrap(),
+        crate::AccountStatusUpdate::Updated(deactivated_login.revision + 1),
+    );
     assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
     let (_expired, _) = auth
         .issue_token(&id, crate::NewToken::new().with_expires_at(Some(500)))

@@ -63,23 +63,11 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
-        sqlx::query("SELECT username FROM users WHERE id = ? AND status <> 'deleted'")
-            .bind(user_id)
-            .fetch_optional(&mut *self.pool.acquire().await?)
-            .await?
-            .map(|row| username_from_row(&row, 0))
-            .transpose()
-            .map_err(RegistryError::from)
+        self.account_name_impl(user_id).await
     }
 
     async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
-        sqlx::query("SELECT username FROM users WHERE id = ? AND status = 'active'")
-            .bind(user_id)
-            .fetch_optional(&mut *self.pool.acquire().await?)
-            .await?
-            .map(|row| username_from_row(&row, 0))
-            .transpose()
-            .map_err(RegistryError::from)
+        self.active_account_name_impl(user_id).await
     }
 
     async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
@@ -88,6 +76,15 @@ impl AuthSqlBackend for MysqlDatabase {
 
     async fn set_account_status(&self, user_id: &str, status: AccountStatus) -> Result<bool> {
         self.set_account_status_impl(user_id, status).await
+    }
+
+    async fn set_account_status_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        self.set_account_status_if_current_impl(user_id, expected_revision, status).await
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
@@ -108,18 +105,7 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
-        let rows =
-            sqlx::query("SELECT id, username FROM users WHERE status = 'active' ORDER BY username")
-                .fetch_all(&mut *self.pool.acquire().await?)
-                .await?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(crate::UserAccount {
-                    id: row.try_get(0)?,
-                    username: username_from_row(&row, 1)?,
-                })
-            })
-            .collect()
+        self.list_accounts_impl().await
     }
 
     async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
@@ -211,7 +197,7 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn list_usernames(&self) -> Result<Vec<String>> {
-        sqlx::query("SELECT username FROM users WHERE status = 'active' ORDER BY username")
+        sqlx::query("SELECT username FROM users WHERE status <> 'deleted' ORDER BY username")
             .fetch_all(&mut *self.pool.acquire().await?)
             .await?
             .iter()

@@ -249,7 +249,7 @@ pub enum UserRemoval {
     NoSuchUser,
 }
 
-/// An active account's login name and monotonic rename revision.
+/// A non-deleted account's login name and monotonic account revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountLogin {
     pub username: String,
@@ -261,6 +261,16 @@ pub struct AccountLogin {
 pub enum UserRename {
     /// The account's login name is now at the returned revision.
     Renamed(u64),
-    /// Another writer changed the account's login revision first.
+    /// Another writer changed the account's revision first.
+    CurrentChanged,
+}
+
+/// What [`crate::UserBackend::set_account_status_if_current`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountStatusUpdate {
+    /// The account's status is now at the returned revision; deactivating also
+    /// cleared any stored password.
+    Updated(u64),
+    /// Another writer changed the account's revision first.
     CurrentChanged,
 }

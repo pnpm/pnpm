@@ -149,19 +149,22 @@ impl TokenBackend for LibsqlAuth {
     }
 
     async fn delete_expired(&self, now: u64) -> Result<usize> {
-        let sql_now = token_timestamp_to_sql(now);
-        let removed = self.pool.write(|conn| async move {
-            Ok(conn.execute(
-                "DELETE FROM tokens WHERE expires_at IS NOT NULL AND expires_at <= ?1",
-                params![sql_now],
-            )
-            .await?)
+        super::with_auth_timeout(super::DEFAULT_AUTH_TIMEOUT, async {
+            let sql_now = token_timestamp_to_sql(now);
+            let removed = self.pool.write(|conn| async move {
+                Ok(conn.execute(
+                    "DELETE FROM tokens WHERE expires_at IS NOT NULL AND expires_at <= ?1",
+                    params![sql_now],
+                )
+                .await?)
+            })
+            .await?;
+            if removed > 0 || self.replica_holds_expired_tokens(sql_now).await? {
+                self.sync_replica().await?;
+            }
+            Ok::<_, RegistryError>(usize::try_from(removed).unwrap_or(usize::MAX))
         })
-        .await?;
-        if removed > 0 || self.replica_holds_expired_tokens(sql_now).await? {
-            self.sync_replica().await?;
-        }
-        Ok(usize::try_from(removed).unwrap_or(usize::MAX))
+        .await
     }
 
     async fn check_readiness(&self) -> Result<()> {

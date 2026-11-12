@@ -1,6 +1,6 @@
 use super::{
-    Change, Registration, StoredAccount, UserStore, Users, check_username_skeleton,
-    registered_user_count,
+    Change, Registration, StoredAccount, UserStore, check_username_skeleton, registered_user_count,
+    stored::{checked_next_revision, find_active_login, move_account_login},
 };
 use crate::{
     AccountCredential, AccountStatus, PasswordChange, Result, UpsertOutcome, UserBackend,
@@ -75,7 +75,7 @@ impl UserBackend for UserStore {
             .snapshot()
             .users
             .iter()
-            .filter(|(_, account)| account.status.is_active())
+            .filter(|(_, account)| !account.status.is_deleted())
             .map(|(name, _)| name.clone())
             .collect();
         names.sort();
@@ -88,7 +88,7 @@ impl UserBackend for UserStore {
             .snapshot()
             .users
             .iter()
-            .filter(|(_, account)| account.status.is_active())
+            .filter(|(_, account)| !account.status.is_deleted())
             .map(|(username, account)| crate::UserAccount {
                 id: account.id.clone(),
                 username: username.clone(),
@@ -260,11 +260,41 @@ impl UserBackend for UserStore {
             else {
                 return Ok(Change::Keep(false));
             };
-            if account.status == status {
-                return Ok(Change::Keep(true));
+            let next_revision = checked_next_revision(account.name_revision)?;
+            account.status = status;
+            account.name_revision = next_revision;
+            Ok(Change::Write(true))
+        })
+        .await
+    }
+
+    async fn set_account_status_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        status: AccountStatus,
+    ) -> Result<crate::AccountStatusUpdate> {
+        if status.is_deleted() {
+            return Err(RegistryError::BadRequest {
+                reason: "use delete_user to delete an account".to_string(),
+            });
+        }
+        let next_revision = checked_next_revision(expected_revision)?;
+        let id = user_id.to_string();
+        self.update(move |users| {
+            let account = users
+                .values_mut()
+                .find(|account| account.id == id && !account.status.is_deleted())
+                .ok_or(RegistryError::NotFound)?;
+            if account.name_revision != expected_revision {
+                return Ok(Change::Keep(crate::AccountStatusUpdate::CurrentChanged));
             }
             account.status = status;
-            Ok(Change::Write(true))
+            if matches!(status, AccountStatus::Deactivated) {
+                account.clear_hash();
+            }
+            account.name_revision = next_revision;
+            Ok(Change::Write(crate::AccountStatusUpdate::Updated(next_revision)))
         })
         .await
     }
@@ -371,42 +401,4 @@ impl UserStore {
         })
         .await
     }
-}
-
-fn checked_next_revision(revision: u64) -> Result<u64> {
-    revision
-        .checked_add(1)
-        .ok_or_else(|| RegistryError::Internal {
-            reason: "account name revision overflowed".to_string(),
-        })
-}
-
-fn find_active_login(users: &Users, user_id: &str) -> Result<(String, u64)> {
-    users
-        .iter()
-        .find(|(_, account)| account.id == user_id && !account.status.is_deleted())
-        .map(|(login, account)| (login.clone(), account.name_revision))
-        .ok_or(RegistryError::NotFound)
-}
-
-fn move_account_login(
-    users: &mut Users,
-    user_id: &str,
-    old: &str,
-    name: String,
-    next_revision: u64,
-) -> Result<()> {
-    if old == name {
-        let account = users.get_mut(old).ok_or(RegistryError::NotFound)?;
-        account.name_revision = next_revision;
-        return Ok(());
-    }
-    if users.contains_key(&name) {
-        return Err(RegistryError::AdminConflict { reason: format!("username {name:?} is taken") });
-    }
-    check_username_skeleton(users, &name, Some(user_id))?;
-    let mut account = users.remove(old).ok_or(RegistryError::NotFound)?;
-    account.name_revision = next_revision;
-    users.insert(name, account);
-    Ok(())
 }

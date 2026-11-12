@@ -642,3 +642,49 @@ async fn startup_and_periodic_sweeps_delete_expired_tokens() {
             .is_some(),
     );
 }
+
+#[tokio::test]
+async fn failing_expired_token_sweep_does_not_abort_startup() {
+    struct FailingSweepTokens;
+
+    #[async_trait::async_trait]
+    impl pnpr_auth::TokenBackend for FailingSweepTokens {
+        async fn issue_token(
+            &self,
+            _user_id: &str,
+            _new_token: pnpr_auth::NewToken,
+        ) -> pnpr_error::Result<(String, pnpr_auth::TokenRecord)> {
+            unreachable!()
+        }
+        async fn lookup(&self, _raw: &str) -> pnpr_error::Result<Option<String>> {
+            Ok(None)
+        }
+        async fn find_by_key(
+            &self,
+            _key: &str,
+        ) -> pnpr_error::Result<Option<pnpr_auth::TokenRecord>> {
+            Ok(None)
+        }
+        async fn list_for_user(
+            &self,
+            _user_id: &str,
+        ) -> pnpr_error::Result<Vec<(String, pnpr_auth::TokenRecord)>> {
+            Ok(Vec::new())
+        }
+        async fn revoke_by_key(
+            &self,
+            _key: &str,
+        ) -> pnpr_error::Result<Option<pnpr_auth::TokenRecord>> {
+            Ok(None)
+        }
+        async fn delete_expired(&self, _now: u64) -> pnpr_error::Result<usize> {
+            Err(pnpr_error::RegistryError::AuthDatabaseTimeout)
+        }
+    }
+
+    let auth = pnpr_auth::AuthState {
+        users: std::sync::Arc::new(pnpr_auth::UserStore::in_memory()),
+        tokens: std::sync::Arc::new(FailingSweepTokens),
+    };
+    super::sweep_expired_tokens(&auth).await;
+}

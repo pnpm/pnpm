@@ -56,13 +56,24 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
 
         let owner = replica.lookup(&token).await.unwrap();
         assert_eq!(owner.as_deref(), Some(alice_id.as_str()));
-        let stored = replica.stored_account("alice").await.unwrap();
-        assert!(stored.is_some());
+        let stored = replica
+            .stored_account("alice")
+            .await
+            .unwrap()
+            .expect("alice synced to replica");
         assert_eq!(
             primary.round_trips.count(),
             pipelines_after_connect,
             "reads are served from the local replica",
         );
+        crate::verify_returning_user(
+            "alice",
+            "secret123",
+            &stored.credential,
+            crate::DEFAULT_BCRYPT_COST,
+        )
+        .await
+        .unwrap();
 
         let issued = replica.issue(&alice_id).await.unwrap();
         assert!(primary.round_trips.count() > pipelines_after_connect, "writes go to the primary");
