@@ -455,9 +455,9 @@ registries:
 #[test]
 fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
     let upstream = resolve_upstream("npmjs", upstream_config_file(None, IndexMap::new())).unwrap();
-    // An unset `maxage` defers to the global packument TTL (`None` here),
+    // An unset `packument_ttl` defers to the global packument TTL (`None` here),
     // while the rest fall back to verdaccio's documented defaults.
-    assert_eq!(upstream.maxage, None);
+    assert_eq!(upstream.packument_ttl, None);
     assert_eq!(upstream.requests.timeout, UpstreamConfig::DEFAULT_TIMEOUT);
     assert_eq!(upstream.requests.max_packument_size, UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
     assert_eq!(upstream.requests.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
@@ -470,14 +470,14 @@ fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
 fn resolve_upstream_config_parses_explicit_knobs() {
     use std::time::Duration;
     let mut file = upstream_config_file(None, IndexMap::new());
-    file.maxage = Some(Interval("10m".to_string()));
+    file.packument_ttl = Some(Interval("10m".to_string()));
     file.timeout = Some(Interval("45s".to_string()));
     file.max_fails = Some(5);
     file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
     file.search = true;
     let upstream = resolve_upstream("npmjs", file).unwrap();
-    assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(upstream.packument_ttl, Some(Duration::from_mins(10)));
     assert_eq!(upstream.requests.timeout, Duration::from_secs(45));
     assert_eq!(upstream.requests.max_fails, 5);
     assert_eq!(upstream.requests.fail_timeout, Duration::from_mins(1));
@@ -488,10 +488,10 @@ fn resolve_upstream_config_parses_explicit_knobs() {
 #[test]
 fn resolve_upstream_config_rejects_an_unparsable_interval() {
     let mut file = upstream_config_file(None, IndexMap::new());
-    file.maxage = Some(Interval("whenever".to_string()));
+    file.packument_ttl = Some(Interval("whenever".to_string()));
     let err = resolve_upstream("npmjs", file).unwrap_err();
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.to_lowercase().contains("maxage")),
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.to_lowercase().contains("packumentttl")),
         "expected an InvalidConfig naming the offending field, got {err:?}",
     );
 }

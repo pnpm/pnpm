@@ -2,9 +2,10 @@
 //! each artifact owner owns, and how much the artifact store keeps.
 
 use super::{
-    AccessList, AccessSpec, ArtifactQuotaFile, HostedConfig, IndexMap, RegistryError,
+    AccessList, AccessSpec, ArtifactQuotaFile, ByteSize, HostedConfig, IndexMap, RegistryError,
     StorageAccessFile, TeamDirectory, validate_registry_name,
 };
+use crate::byte_size::parse_positive_byte_size;
 
 /// Toggle for the shared-artifact surface. Off by default while the
 /// protocol is a proof of concept.
@@ -30,7 +31,7 @@ pub struct ArtifactQuota {
     pub total: u64,
 }
 
-pub(super) const GIB: u64 = 1024 * 1024 * 1024;
+const GIB: u64 = 1024 * 1024 * 1024;
 
 impl Default for ArtifactQuota {
     fn default() -> Self {
@@ -78,22 +79,16 @@ pub(super) fn parse_artifact_quota(
     file: &ArtifactQuotaFile,
 ) -> Result<ArtifactQuota, RegistryError> {
     let default = ArtifactQuota::default();
-    let bytes = |gib: Option<u64>, default: u64, field: &str| match gib {
-        None => Ok(default),
-        Some(gib) => gib
-            .checked_mul(GIB)
-            .filter(|bytes| *bytes > 0)
-            .ok_or_else(|| RegistryError::InvalidConfig {
-                reason: format!("artifacts.quota.{field} must be a positive number of GiB"),
-            }),
+    let bytes = |raw: Option<&ByteSize>, default: u64, field: &str| {
+        raw.map_or(Ok(default), |raw| parse_positive_byte_size(field, raw))
     };
     let quota = ArtifactQuota {
-        owner: bytes(file.owner_gib, default.owner, "ownerGiB")?,
-        total: bytes(file.total_gib, default.total, "totalGiB")?,
+        owner: bytes(file.per_owner.as_ref(), default.owner, "artifacts.quota.perOwner")?,
+        total: bytes(file.total.as_ref(), default.total, "artifacts.quota.total")?,
     };
     if quota.owner > quota.total {
         return Err(RegistryError::InvalidConfig {
-            reason: "artifacts.quota.ownerGiB exceeds artifacts.quota.totalGiB".to_string(),
+            reason: "artifacts.quota.perOwner exceeds artifacts.quota.total".to_string(),
         });
     }
     Ok(quota)

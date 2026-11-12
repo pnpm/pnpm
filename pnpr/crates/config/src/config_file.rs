@@ -1,6 +1,6 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
+    LogLevel, Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
     ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile, access::TeamFile,
     default_storage_string, null_default::deserialize_null_default, oidc,
 };
@@ -109,8 +109,8 @@ pub(super) struct UpstreamFile {
     pub(super) auth: Option<UpstreamAuthFile>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) headers: IndexMap<String, String>,
-    #[serde(default, rename = "maxAge")]
-    pub(super) maxage: Option<Interval>,
+    #[serde(default)]
+    pub(super) packument_ttl: Option<Interval>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
     #[serde(default)]
@@ -239,7 +239,7 @@ pub(super) struct ConfigFile {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) ui: UiFile,
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) oci: OciConfig,
+    pub(super) oci: OciFile,
     /// Who may scrape Prometheus metrics. Omitted ⇒ pnpr serves none.
     #[serde(default)]
     pub(super) metrics: Option<MetricsConfig>,
@@ -491,10 +491,10 @@ pub(super) struct ArtifactsFeatureFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ArtifactQuotaFile {
-    #[serde(rename = "ownerGiB")]
-    pub(super) owner_gib: Option<u64>,
-    #[serde(rename = "totalGiB")]
-    pub(super) total_gib: Option<u64>,
+    #[serde(default)]
+    pub(super) per_owner: Option<ByteSize>,
+    #[serde(default)]
+    pub(super) total: Option<ByteSize>,
 }
 
 #[derive(Debug, Deserialize)]

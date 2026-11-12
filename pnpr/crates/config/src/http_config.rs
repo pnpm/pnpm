@@ -1,8 +1,9 @@
 use super::{
     ByteSize, Config, ConfigFile, HttpConfig, Interval, MetricsConfig, Path, RegistryError,
-    SocketAddr, TrustedProxyHeader, build_cors_config, build_package_documents_config,
-    build_ui_config, cdn, parse_byte_size, parse_interval, parse_trusted_proxies,
+    SocketAddr, TrustedProxyHeader, build_cors_config, build_oci_config,
+    build_package_documents_config, build_ui_config, cdn, parse_interval, parse_trusted_proxies,
 };
+use crate::byte_size::parse_positive_byte_size;
 
 pub(super) fn build_http_config(
     file: &mut ConfigFile,
@@ -26,7 +27,7 @@ pub(super) fn build_http_config(
         public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
         cors,
         ui,
-        oci: std::mem::take(&mut file.oci),
+        oci: build_oci_config(std::mem::take(&mut file.oci))?,
         packument_ttl,
         max_tarball_bytes,
         trusted_proxies,
@@ -84,22 +85,11 @@ fn build_packument_ttl(raw: Option<Interval>) -> Result<std::time::Duration, Reg
 }
 
 /// The `maxTarballSize:` key as bytes, defaulting to
-/// [`HttpConfig::DEFAULT_MAX_TARBALL_BYTES`]. Zero is refused: it would
-/// turn every upstream tarball away.
+/// [`HttpConfig::DEFAULT_MAX_TARBALL_BYTES`].
 fn build_max_tarball_bytes(raw: Option<ByteSize>) -> Result<u64, RegistryError> {
-    let Some(ByteSize(raw)) = raw else {
-        return Ok(HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
-    };
-    let bytes = parse_byte_size(&raw)
-        .ok_or_else(|| RegistryError::InvalidConfig {
-            reason: format!("maxTarballSize {raw:?} is not a valid byte size"),
-        })?;
-    if bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "maxTarballSize must be greater than zero".to_string(),
-        });
-    }
-    Ok(bytes)
+    raw.map_or(Ok(HttpConfig::DEFAULT_MAX_TARBALL_BYTES), |raw| {
+        parse_positive_byte_size("maxTarballSize", &raw)
+    })
 }
 
 fn build_metrics_config(

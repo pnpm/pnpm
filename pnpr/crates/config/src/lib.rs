@@ -18,6 +18,7 @@ pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
+pub use oci::OciConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_error::redact_connection_url;
 pub use pnpr_policy::{Team, TeamDirectory, Teams};
@@ -71,6 +72,9 @@ use logging::build_log_config;
 
 mod metrics;
 mod null_default;
+
+mod oci;
+use oci::{OciFile, build_oci_config};
 
 mod package_documents;
 use package_documents::{PackageDocumentsFile, build_package_documents_config};
@@ -308,28 +312,6 @@ pub enum TarballFormat {
     Tgz,
     /// The gzip-decoded `.tgz`, encoded per request with HTTP content coding.
     Tar,
-}
-
-/// Authentication and byte limits for the OCI distribution surface.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
-pub struct OciConfig {
-    pub bearer_auth: bool,
-    pub max_blob_bytes: u64,
-    /// Optional upload chunk size hint in bytes; omitted by default.
-    pub chunk_max_bytes: Option<std::num::NonZeroU64>,
-    pub max_manifest_bytes: usize,
-}
-
-impl Default for OciConfig {
-    fn default() -> Self {
-        Self {
-            bearer_auth: false,
-            max_blob_bytes: 10 * 1024 * 1024 * 1024,
-            chunk_max_bytes: None,
-            max_manifest_bytes: 4 * 1024 * 1024,
-        }
-    }
 }
 
 /// Exact browser origins allowed to call pnpr across origins.

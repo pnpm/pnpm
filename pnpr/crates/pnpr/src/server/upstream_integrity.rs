@@ -158,7 +158,7 @@ impl PackumentIntegrityResolver<'_> {
     }
 
     /// Any cached copy, however old, since the downloads may outlast a short
-    /// `maxage`. `None` means there is nothing to pin into: the package was
+    /// `packument_ttl`. `None` means there is nothing to pin into: the package was
     /// purged meanwhile, or its cached body does not parse.
     async fn read_cached_packument(&self) -> Result<Option<Value>, RegistryError> {
         let cached =

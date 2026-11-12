@@ -77,8 +77,8 @@ anything is stored.
 
 ```yaml title="pnpr.yaml"
 oci:
-  maxBlobBytes: 10737418240   # 10 GiB, the default
-  maxManifestBytes: 4194304   # 4 MiB, the default
+  maxBlobSize: 10GiB     # the default
+  maxManifestSize: 4MiB  # the default
 ```
 
 The blob limit applies to a whole resumable upload, mounted layers included, and

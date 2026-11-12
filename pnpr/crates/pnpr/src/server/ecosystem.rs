@@ -209,7 +209,7 @@ pub(super) async fn load_upstream_document(
     encode: impl FnOnce(FetchedDocument) -> Result<Vec<u8>, RegistryError>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let storage = &state.inner.storage;
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
+    let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
     if let Some(bytes) = storage.read_upstream_document(namespace, request.name, ttl).await? {
         return Ok(Some(bytes));
     }

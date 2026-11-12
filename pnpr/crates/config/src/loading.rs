@@ -299,11 +299,6 @@ pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
         None => serde_saphyr::from_str("{}")
             .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?,
     };
-    if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "oci size limits must be greater than zero".to_string(),
-        });
-    }
     Ok(file)
 }
 

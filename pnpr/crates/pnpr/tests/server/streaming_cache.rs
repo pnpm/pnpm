@@ -353,9 +353,9 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
     mock.assert_async().await;
 }
 
-/// A per-upstream `maxage` shorter than the global `packument_ttl` governs
+/// A per-upstream `packument_ttl` shorter than the global `packument_ttl` governs
 /// freshness: with a generous global TTL the second request would be a
-/// cache hit, but `maxage: 0` forces a revalidation, so the upstream is
+/// cache hit, but `packument_ttl: 0` forces a revalidation, so the upstream is
 /// hit twice.
 #[tokio::test]
 async fn per_upstream_maxage_overrides_global_packument_ttl() {
@@ -371,10 +371,10 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    // Global TTL stays generous (a minute); the per-upstream maxage of zero
+    // Global TTL stays generous (a minute); the per-upstream packument_ttl of zero
     // is what must take effect and make every read stale.
     config.http.packument_ttl = Duration::from_mins(1);
-    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").packument_ttl =
         Some(Duration::from_millis(0));
     let app = router(config);
 

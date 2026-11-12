@@ -655,15 +655,15 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
 #[test]
 fn oci_limits_are_positive_and_preserve_defaults() {
     let config = Config::from_yaml_str(
-        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, chunkMaxBytes: 100, bearerAuth: true}",
+        "oci: {maxBlobSize: 123, maxManifestSize: 4KiB, maxChunkSize: 1MiB, bearerAuth: true}",
         Path::new("/config"),
         listen(),
         None,
     )
     .unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 123);
-    assert_eq!(config.http.oci.chunk_max_bytes.unwrap().get(), 100);
-    assert_eq!(config.http.oci.max_manifest_bytes, 456);
+    assert_eq!(config.http.oci.chunk_max_bytes.unwrap().get(), 1024 * 1024);
+    assert_eq!(config.http.oci.max_manifest_bytes, 4096);
     assert!(config.http.oci.bearer_auth);
     let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
@@ -671,12 +671,12 @@ fn oci_limits_are_positive_and_preserve_defaults() {
     assert!(!config.http.oci.bearer_auth);
     assert!(config.http.oci.chunk_max_bytes.is_none());
     for yaml in [
-        "oci: {maxBlobBytes: 0}",
-        "oci: {maxManifestBytes: 0}",
-        "oci: {maxBlobBytes: -1}",
-        "oci: {chunkMaxBytes: 0}",
-        "oci: {chunkMaxBytes: -1}",
-        "oci: {maxManifestByte: 1}",
+        "oci: {maxBlobSize: 0}",
+        "oci: {maxManifestSize: 0}",
+        "oci: {maxBlobSize: -1}",
+        "oci: {maxChunkSize: 0}",
+        "oci: {maxChunkSize: -1}",
+        "oci: {maxManifestBytes: 1}",
     ] {
         assert!(
             Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).is_err(),

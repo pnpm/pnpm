@@ -218,7 +218,7 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
     withdrawn.assert_async().await;
 }
 
-/// The downloads can outlast a short `maxage`. A cached packument that went
+/// The downloads can outlast a short `packument_ttl`. A cached packument that went
 /// stale meanwhile still receives the pins, so they are not lost.
 #[tokio::test]
 async fn pins_land_even_when_the_cached_packument_went_stale_meanwhile() {
@@ -246,7 +246,7 @@ async fn pins_land_even_when_the_cached_packument_went_stale_meanwhile() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").packument_ttl =
         Some(Duration::ZERO);
     let response = router(config)
         .oneshot(
@@ -293,7 +293,7 @@ async fn a_refresh_that_cannot_reconcile_the_cache_fails_closed() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let mut config = config_for(&upstream.url(), storage.clone());
-    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").packument_ttl =
         Some(Duration::ZERO);
     let app = router(config);
     let resolve = || {

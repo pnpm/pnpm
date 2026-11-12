@@ -38,7 +38,7 @@ routes:
 #[test]
 fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     use std::time::Duration;
-    // `maxAge` is a string, `timeout` a bare number; the bare number must
+    // `packumentTtl` is a string, `timeout` a bare number; the bare number must
     // read as seconds rather than failing to deserialize against the
     // `Option<String>`-shaped field.
     let yaml = r"
@@ -47,12 +47,12 @@ registries:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
-    maxAge: 10m
+    packumentTtl: 10m
     timeout: 45
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["npmjs"];
-    assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(upstream.packument_ttl, Some(Duration::from_mins(10)));
     assert_eq!(upstream.requests.timeout, Duration::from_secs(45));
 }
 
@@ -468,7 +468,7 @@ registries:
     access: [$all]
     maxFails: 4
     failTimeout: 25s
-    maxAge: 12m
+    packumentTtl: 12m
     auth:
       type: bearer
       token: secret-token
@@ -493,7 +493,7 @@ registries:
     let upstream = &config.routing.upstreams["remote"];
     assert_eq!(upstream.requests.max_fails, 4);
     assert_eq!(upstream.requests.fail_timeout, std::time::Duration::from_secs(25));
-    assert_eq!(upstream.maxage, Some(std::time::Duration::from_mins(12)));
+    assert_eq!(upstream.packument_ttl, Some(std::time::Duration::from_mins(12)));
 }
 
 #[test]

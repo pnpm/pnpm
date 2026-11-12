@@ -258,7 +258,7 @@ registries:
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
-| `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
+| `packumentTtl` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
 | `maxPackumentSize` | Maximum upstream npm package metadata response size. Defaults to `64 MiB`. Accepts a positive number of bytes or a size such as `64 MiB`. |
@@ -522,16 +522,16 @@ Bearer challenge it offers:
 ```yaml title="pnpr.yaml"
 oci:
   bearerAuth: false
-  maxBlobBytes: 10737418240   # 10 GiB
-  maxManifestBytes: 4194304   # 4 MiB
+  maxBlobSize: 10GiB
+  maxManifestSize: 4MiB
 ```
 
 The values shown are the defaults. Both limits must be greater than zero. See
 [Container images](container-images.md#authentication) for `bearerAuth`.
 
-`chunkMaxBytes` optionally advertises a positive chunk size in bytes through
+`maxChunkSize` optionally advertises a positive chunk size through
 `OCI-Chunk-Max-Length` on upload start and progress responses. It is a hint,
-not an enforced request limit, and does not change `maxBlobBytes`, which caps
+not an enforced request limit, and does not change `maxBlobSize`, which caps
 the whole blob. The header is an [OCI proposal](https://github.com/opencontainers/distribution-spec/issues/485)
 and requires client support. See [Cloudflare](cloudflare.md) for proxy limits.
 
@@ -886,17 +886,17 @@ artifacts:
   `owners` is read even when `enabled` is false, for a server that only stores
   pipeline runs.
 
-  `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
-  owner (an organization, or a cache name), defaulting to 1, and `totalGiB` for
-  all of them together, defaulting to 10. Both must be positive, and `ownerGiB`
-  cannot exceed `totalGiB`. A `pnpm pipeline` task result can hold
+  `quota` bounds what the artifact store keeps: `perOwner` for one
+  owner (an organization, or a cache name), defaulting to `1GiB`, and `total` for
+  all of them together, defaulting to `10GiB`. Both must be positive, and `perOwner`
+  cannot exceed `total`. A `pnpm pipeline` task result can hold
   release binaries, so a server that stores them usually needs more:
 
 ```yaml title="pnpr.yaml"
 artifacts:
   quota:
-    ownerGiB: 50
-    totalGiB: 200
+    perOwner: 50GiB
+    total: 200GiB
 ```
 
 - The **pipeline run surface**: the endpoints that store and serve
