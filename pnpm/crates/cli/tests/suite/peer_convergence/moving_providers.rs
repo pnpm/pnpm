@@ -645,3 +645,98 @@ fn check_changed_consumer_pin(bundle: Option<&OsStr>, format: &str, change: Peer
         .unwrap();
     assert_eq!(provider.without_peer().to_string(), "provider@2.0.0", "{bundle:?}, {format}");
 }
+
+#[test]
+fn optional_provider_outside_a_same_named_cycle_survives_reinstall() {
+    for suffix_length in [20, 1000] {
+        if let Some(bundle) = read_v11_bundle_path() {
+            check_same_named_cycle_provider(Some(&bundle), "v9", suffix_length);
+        }
+        for format in ["v9", "v13"] {
+            check_same_named_cycle_provider(None, format, suffix_length);
+        }
+    }
+}
+
+fn check_same_named_cycle_provider(bundle: Option<&OsStr>, format: &str, suffix_length: usize) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"cycle-source", "version":"1.0.0", "peerDependencies":{"cycle-middle":"^1"}}),
+            json!({"name":"cycle-source", "version":"2.0.0"}),
+            json!({"name":"cycle-middle", "version":"1.0.0", "peerDependencies":{"cycle-bridge":"^1"}}),
+            json!({"name":"cycle-middle", "version":"2.0.0"}),
+            json!({"name":"cycle-bridge", "version":"1.0.0", "peerDependencies":{"cycle-source":"*"}, "peerDependenciesMeta":{"cycle-source":{"optional":true}}}),
+            json!({"name":"cycle-bridge", "version":"2.0.0"}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!(
+        "autoInstallPeers: true\nresolvePeersFromWorkspaceRoot: false\ndedupePeers: false\ndedupeInjectedDeps: false\ndedupePeerDependents: true\npeersSuffixMaxLength: {suffix_length}\nlockfile:\n  format: {format}\n",
+    ));
+    fixture.project("a", "app", ManifestDeps::default());
+    fixture.project("shared", "shared", ManifestDeps::default());
+    let manifest = |name, dependencies| {
+        json!({
+            "name":name, "version":"1.0.0", "dependencies":dependencies,
+            "dependenciesMeta":{"shared":{"injected":true}},
+        })
+    };
+    fs::write(
+        fixture.workspace.join("package.json"),
+        manifest(
+            "root",
+            json!({
+                "cycle-source":"2.0.0", "cycle-bridge":"2.0.0", "shared":"workspace:*",
+            }),
+        )
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        fixture.workspace.join("packages/a/package.json"),
+        manifest(
+            "app",
+            json!({
+                "cycle-source":"1.0.0", "shared":"workspace:*",
+            }),
+        )
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        fixture.workspace.join("packages/shared/package.json"),
+        json!({
+            "name":"shared", "version":"1.0.0", "peerDependencies":{"cycle-middle":"^1"},
+        })
+        .to_string(),
+    )
+    .unwrap();
+    install_lockfile(&fixture, bundle);
+    let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    let middle = "cycle-middle".parse().unwrap();
+    let mut provider = fresh.importers["packages/shared"].dependencies.as_ref().unwrap()[&middle]
+        .version
+        .resolved_key(&middle)
+        .unwrap();
+    for alias in ["cycle-bridge", "cycle-source"] {
+        let alias = alias.parse().unwrap();
+        let snapshot = &fresh.snapshots.as_ref().unwrap()[&provider];
+        provider = snapshot.dependencies
+            .as_ref()
+            .and_then(|deps| deps.get(&alias))
+            .or_else(|| snapshot.optional_dependencies.as_ref()?.get(&alias))
+            .unwrap()
+            .resolve(&alias)
+            .unwrap();
+    }
+    assert_eq!(
+        provider.without_peer().to_string(),
+        "cycle-source@2.0.0",
+        "{bundle:?}, {format}, {suffix_length}",
+    );
+    install_lockfile(&fixture, bundle);
+    let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    assert_eq!(fresh, reused, "{bundle:?}, {format}, {suffix_length}");
+}

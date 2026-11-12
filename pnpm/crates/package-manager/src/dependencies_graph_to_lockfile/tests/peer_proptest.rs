@@ -310,3 +310,87 @@ proptest! {
         prop_assert_eq!(fresh, deduped);
     }
 }
+
+#[test]
+fn optional_provider_outside_a_same_named_cycle_keeps_its_context() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let peer_package = |target, range, optional| PackageVersion {
+        dependencies: vec![],
+        peers: vec![Peer { target, range, optional, also_dependency: false }],
+    };
+    let mut workspace = Workspace {
+        packages: vec![
+            vec![peer_package(2, PeerRange::Major(1), false), leaf()],
+            vec![peer_package(0, PeerRange::Any, true), leaf()],
+            vec![peer_package(1, PeerRange::Major(1), false), leaf()],
+        ],
+        importers: vec![
+            vec![Edge { target: 1, major: 2 }, Edge { target: 0, major: 2 }],
+            vec![Edge { target: 0, major: 1 }],
+        ],
+    };
+    for alternative in [leaf(), peer_package(1, PeerRange::Major(1), false)] {
+        workspace.packages[0][1] = alternative;
+        for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+            for peers_suffix_max_length in [20, 1000] {
+                let settings = Settings {
+                    auto_install_peers: true,
+                    injected: true,
+                    format,
+                    peers_suffix_max_length,
+                    ..Default::default()
+                };
+                let order = in_order(&workspace);
+                let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+                let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+                let reused =
+                    resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+                assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+                assert_eq!(lockfile, lockfile_with_settings(&reused, &workspace, settings));
+            }
+        }
+    }
+}
+
+#[test]
+fn cyclic_transitive_peers_round_trip_with_ordinary_children() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let peer = |target, major| Peer {
+        target,
+        range: PeerRange::Major(major),
+        optional: false,
+        also_dependency: false,
+    };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion { dependencies: vec![Edge { target: 1, major: 1 }], peers: vec![] },
+                leaf(),
+            ],
+            vec![PackageVersion { dependencies: vec![], peers: vec![peer(2, 2)] }, leaf()],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 3, major: 1 }],
+                    peers: vec![peer(1, 2)],
+                },
+            ],
+            vec![PackageVersion { dependencies: vec![], peers: vec![peer(0, 1)] }, leaf()],
+        ],
+        importers: vec![
+            vec![Edge { target: 0, major: 1 }, Edge { target: 1, major: 1 }],
+            vec![Edge { target: 3, major: 1 }],
+        ],
+    };
+    let settings = Settings {
+        peers_suffix_max_length: 20,
+        auto_install_peers: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let fresh = resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    fixture::Fixture::new(&workspace, settings).frozen_check(&lockfile, settings).unwrap();
+}

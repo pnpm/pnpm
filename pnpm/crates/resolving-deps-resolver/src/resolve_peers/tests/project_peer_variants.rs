@@ -328,3 +328,30 @@ fn cyclic_peer_propagation_does_not_mark_unresolved_own_peer_as_resolved() {
     assert!(!first_y.edges.resolved_peer_names.contains("w"));
     assert!(!first_y.edges.children.contains_key("w"));
 }
+
+#[test]
+fn peerless_version_of_cycle_member_keeps_its_external_context() {
+    let result = resolve_projects(
+        &[
+            &[("source", "source@1.0.0"), ("middle", "middle@1.0.0"), ("bridge", "bridge@1.0.0")],
+            &[("source", "source@2.0.0"), ("middle", "middle@1.0.0"), ("bridge", "bridge@1.0.0")],
+        ],
+        &[
+            ("source@1.0.0", &[("middle", "^1", false)], &[]),
+            ("source@2.0.0", &[], &[]),
+            ("middle", &[("bridge", "^1", false)], &[]),
+            ("bridge", &[("source", "*", true)], &[]),
+        ],
+        PeerDependentsDedupe::On,
+    );
+    let first = &result.direct_dependencies_by_importer["0"]["middle"];
+    let second = &result.direct_dependencies_by_importer["1"]["middle"];
+    assert_ne!(first, second);
+    for (importer, middle) in [("0", first), ("1", second)] {
+        let bridge = &result.graph[&result.graph[middle].edges.children["bridge"]];
+        assert_eq!(
+            bridge.edges.children["source"],
+            result.direct_dependencies_by_importer[importer]["source"],
+        );
+    }
+}
