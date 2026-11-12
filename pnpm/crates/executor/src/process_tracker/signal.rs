@@ -1,6 +1,9 @@
 //! Signalling a Unix task, and finding the descendants a signal to its
 //! process group does not reach.
 
+#[cfg(target_os = "linux")]
+pub(super) mod linux;
+
 use super::{RunningExecution, Stop};
 use crate::process::Command;
 use std::{collections::HashMap, io::Read, process::Stdio, time::Duration};
@@ -155,57 +158,6 @@ pub(super) fn descendant_processes(roots: &[u32]) -> Vec<Descendant> {
         }
     }
     descendants
-}
-
-/// Pinning a process and signalling it through a pidfd.
-#[cfg(target_os = "linux")]
-mod linux {
-    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-
-    /// A pidfd for `pid` while it is still the child of `parent`. `Some(None)`
-    /// when the kernel has no pidfds, which leaves the pid to be signalled as
-    /// it is; `None` when `pid` is gone or is another process now.
-    pub(super) fn pin(pid: i32, parent: u32) -> Option<Option<OwnedFd>> {
-        // SAFETY: `pidfd_open` takes a pid and flags and returns a new file
-        // descriptor, which `OwnedFd` then owns alone.
-        let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
-        if fd < 0 {
-            let unsupported = std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOSYS);
-            return unsupported.then_some(None);
-        }
-        // SAFETY: see above; `fd` is a valid descriptor nothing else owns.
-        let pidfd = unsafe { OwnedFd::from_raw_fd(i32::try_from(fd).ok()?) };
-        // With the pidfd open the pid cannot be reused, so the process
-        // `/proc` describes now is the one the pidfd holds.
-        (parent_of(pid)? == parent).then_some(Some(pidfd))
-    }
-
-    /// The parent pid `/proc` gives `pid`.
-    fn parent_of(pid: i32) -> Option<u32> {
-        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-        let (_, fields) = stat.rsplit_once(") ")?;
-        fields
-            .split_whitespace()
-            .nth(1)?
-            .parse()
-            .ok()
-    }
-
-    /// Whether the signal was sent.
-    pub(super) fn signal(pidfd: &OwnedFd, signal: libc::c_int) -> bool {
-        // SAFETY: `pidfd_send_signal` takes the pidfd, the signal, no
-        // `siginfo`, and no flags. It fails harmlessly once the process
-        // exited.
-        unsafe {
-            libc::syscall(
-                libc::SYS_pidfd_send_signal,
-                pidfd.as_raw_fd(),
-                signal,
-                std::ptr::null::<libc::siginfo_t>(),
-                0,
-            ) == 0
-        }
-    }
 }
 
 /// Run `ps` and read its whole listing, giving up on anything that does not
