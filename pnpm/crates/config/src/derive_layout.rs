@@ -22,19 +22,12 @@ impl Config {
         }
         let dir = pnpm_fs::lexical_normalize(dir);
         let default = pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(project_dir));
-        if dir == default {
-            return true;
-        }
-        #[cfg(windows)]
-        {
-            dir.to_string_lossy()
-                .eq_ignore_ascii_case(&default.to_string_lossy())
-                && same_file::is_same_file(dir, default).unwrap_or(false)
-        }
-        #[cfg(not(windows))]
-        {
-            false
-        }
+        dir == default
+            || (cfg!(windows)
+                && dir
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(&default.to_string_lossy())
+                && same_file::is_same_file(&dir, &default).unwrap_or(false))
     }
 
     pub fn refresh_node_path_after_lockfile_dir_change<Sys>(
