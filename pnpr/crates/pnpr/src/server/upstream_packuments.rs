@@ -223,7 +223,6 @@ pub(super) fn invalidate_upstream_package(
     name: &CanonicalPackageName,
 ) {
     state.inner.locks.packages.advance_generation(&upstream_package_key(namespace, name));
-    state.inner.proxy.version_tgzs.invalidate_packument(namespace, name);
 }
 
 fn upstream_package_key(namespace: &str, name: &CanonicalPackageName) -> String {

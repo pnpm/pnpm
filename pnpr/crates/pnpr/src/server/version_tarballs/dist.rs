@@ -12,6 +12,19 @@ use std::{sync::Arc, time::Instant};
 const MAX_VERSION_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
 
 impl VersionRequest<'_> {
+    pub(super) fn cached_tgz_is_current(
+        &self,
+        cached: &CachedPackument,
+        name: &CanonicalPackageName,
+        tgz: &VersionTgz,
+    ) -> bool {
+        tgz.is_current(crate::server::upstream_packuments::upstream_package_generation(
+            self.state,
+            &cached.namespace,
+            name,
+        ))
+    }
+
     /// The requested version's dist in `source`, from the [`VersionTgzCache`](super::VersionTgzCache)
     /// or the upstream.
     pub(super) async fn version_tgz(
@@ -20,6 +33,15 @@ impl VersionRequest<'_> {
         name: &CanonicalPackageName,
     ) -> Result<Option<Arc<VersionTgz>>, RegistryError> {
         let cached = self.cached_packument(source, name)?;
+        let generation = cached
+            .as_ref()
+            .map(|cached| {
+                crate::server::upstream_packuments::upstream_package_generation(
+                    self.state,
+                    &cached.namespace,
+                    name,
+                )
+            });
         let stamp = match &cached {
             Some(cached) => self.fresh_packument_stamp(cached, name).await?,
             None => None,
@@ -27,22 +49,18 @@ impl VersionRequest<'_> {
         let cache = &self.state.inner.proxy.version_tgzs;
         if let Some(cached) = &cached
             && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp, cached.ttl)
-            && tgz.manifest_generation.is_none_or(|generation| {
-                generation
-                    == crate::server::upstream_packuments::upstream_package_generation(
-                        self.state,
-                        &cached.namespace,
-                        name,
-                    )
-            })
+            && generation.is_some_and(|generation| tgz.is_current(generation))
         {
             return Ok(Some(tgz));
         }
-        let Some((tgz, origin)) =
+        let Some((mut tgz, origin)) =
             self.read_version_tgz(source, name, cached.as_ref(), stamp).await?
         else {
             return Ok(None);
         };
+        if matches!(origin, Some(DistOrigin::Packument(_))) {
+            tgz.packument_generation = generation;
+        }
         let tgz = Arc::new(tgz);
         if let (Some(cached), Some(origin)) = (cached, origin) {
             cache.put(cached.namespace, name, self.version, origin, Arc::clone(&tgz));

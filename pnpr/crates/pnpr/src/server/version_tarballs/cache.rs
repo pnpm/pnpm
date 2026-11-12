@@ -15,6 +15,15 @@ pub(super) struct VersionTgz {
     pub(super) dist: DistBlock,
     pub(super) integrity_key: Option<String>,
     pub(super) manifest_generation: Option<u64>,
+    pub(super) packument_generation: Option<u64>,
+}
+
+impl VersionTgz {
+    pub(super) fn is_current(&self, generation: u64) -> bool {
+        self.manifest_generation
+            .or(self.packument_generation)
+            .is_none_or(|bound| bound == generation)
+    }
 }
 
 pub(super) fn version_tgz(
@@ -73,6 +82,7 @@ fn dist_tgz(name: &CanonicalPackageName, dist: DistBlock) -> Option<VersionTgz> 
         integrity_key: tgz_integrity_key(&fields),
         dist,
         manifest_generation: None,
+        packument_generation: None,
     })
 }
 
@@ -104,21 +114,6 @@ struct CachedVersionTgz {
 }
 
 impl VersionTgzCache {
-    pub(in crate::server) fn invalidate_packument(
-        &self,
-        namespace: &str,
-        name: &CanonicalPackageName,
-    ) {
-        self.entries
-            .lock()
-            .expect("version dist cache lock poisoned")
-            .retain(|(cached_namespace, cached_name, _), cached| {
-                cached_namespace != namespace
-                    || cached_name != name.as_str()
-                    || !matches!(cached.origin, DistOrigin::Packument(_))
-            });
-    }
-
     pub(super) fn get(
         &self,
         namespace: &str,

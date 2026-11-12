@@ -201,6 +201,9 @@ impl VersionRequest<'_> {
                     Some(stamp),
                     cached.ttl,
                 )?;
+                if !self.cached_tgz_is_current(&cached, name, &tgz) {
+                    return None;
+                }
                 let (filename, _) = tarball_cache_name(name, &tgz.filename).ok()?;
                 cached_upstream_tarball(self.state, &cached.namespace, name, &filename).await
             }

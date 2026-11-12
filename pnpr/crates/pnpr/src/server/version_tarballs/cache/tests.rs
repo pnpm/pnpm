@@ -14,6 +14,7 @@ fn tgz() -> Arc<VersionTgz> {
         dist: serde_json::from_str("{}").unwrap(),
         integrity_key: None,
         manifest_generation: None,
+        packument_generation: None,
     })
 }
 
@@ -113,38 +114,24 @@ fn a_full_cache_keeps_most_of_its_entries() {
 }
 
 #[test]
-fn invalidation_retires_packument_dists_even_when_the_stamp_matches() {
+fn a_dist_inserted_after_refresh_keeps_its_original_generation() {
     let cache = VersionTgzCache::default();
-    let other = CanonicalPackageName::parse("other", pnpr_package_name::Ecosystem::Npm).unwrap();
-    for (namespace, name) in [("npmjs", foo()), ("private", foo()), ("npmjs", other.clone())] {
-        cache.put(namespace.to_string(), &name, "1.0.0", from_packument(1), tgz());
-    }
-    cache.put(
-        "npmjs".to_string(),
-        &foo(),
-        "2.0.0",
-        DistOrigin::VersionManifest(Instant::now()),
-        tgz(),
-    );
-    cache.invalidate_packument("npmjs", &foo());
-    assert!(
-        cache
-            .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
-            .is_none(),
-    );
-    assert!(
-        cache
-            .get("private", &foo(), "1.0.0", Some(stamp(1)), TTL)
-            .is_some(),
-    );
-    assert!(
-        cache
-            .get("npmjs", &other, "1.0.0", Some(stamp(1)), TTL)
-            .is_some(),
-    );
-    assert!(
-        cache
-            .get("npmjs", &foo(), "2.0.0", None, TTL)
-            .is_some(),
-    );
+    let generations = crate::server::striped_locks::StripedLocks::new();
+    let mut dist = tgz();
+    Arc::get_mut(&mut dist).unwrap().packument_generation =
+        Some(generations.generation("npmjs:foo"));
+    generations.advance_generation("npmjs:foo");
+    cache.put("npmjs".to_string(), &foo(), "1.0.0", from_packument(1), dist);
+    let cached = cache
+        .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
+        .unwrap();
+    assert!(!cached.is_current(generations.generation("npmjs:foo")));
+    let mut current = tgz();
+    Arc::get_mut(&mut current).unwrap().packument_generation =
+        Some(generations.generation("npmjs:foo"));
+    cache.put("npmjs".to_string(), &foo(), "1.0.0", from_packument(1), current);
+    let cached = cache
+        .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
+        .unwrap();
+    assert!(cached.is_current(generations.generation("npmjs:foo")));
 }
