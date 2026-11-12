@@ -266,7 +266,8 @@ async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
     let mut retained = document("core", &core);
     retained.expected = Some(crate::HostedDocumentVersion::Unversioned);
     let mut widgets_doc = document("widgets", &widgets);
-    widgets_doc.expected = Some(crate::HostedDocumentVersion::Tombstone(Vec::new()));
+    widgets_doc.expected =
+        Some(crate::HostedDocumentVersion::Tombstone(vec!["u-someone".to_string()]));
     let err = commit(database, vec![retained, widgets_doc], request("one", None))
         .await
         .unwrap_err();
@@ -593,7 +594,8 @@ async fn a_publication_cannot_bring_back_a_removed_version(db: Db) {
     assert!(removed);
 
     let mut core_doc = document("core", &packument("core", &["1.0.0", "2.0.0"]));
-    core_doc.expected = Some(crate::HostedDocumentVersion::Tombstone(Vec::new()));
+    core_doc.expected =
+        Some(crate::HostedDocumentVersion::Tombstone(vec!["u-someone".to_string()]));
     let batch = vec![core_doc];
     let err = commit(database, batch, request("two", None)).await.unwrap_err();
     assert!(matches!(err, RegistryError::CannotRepublishUnpublishedVersion { .. }), "{err:?}");

@@ -1,14 +1,4 @@
 use super::{
-<<<<<<< HEAD
-    super::{Ownership, authorize_with_ownership, documents::HostedTarget},
-    Action, AppState, AuthedCaller, Bytes, CanonicalPackageName, CrateDocument,
-    DOCUMENT_WRITE_RETRIES, DocumentUpdate, ECOSYSTEM, HashMap, Identity, IndexEntry, Path,
-    PublishMetadata, PublishTarget, RegistryError, RegistrySource, Response, StagedPublish, State,
-    StatusCode, TargetRegistry, authorize_package, bad_request, bounded_description,
-    crate_filename, error_response, json_response, not_found, ok_json, parse_publish_body,
-    publish_ok_json, resolve_publish_target_for, resolve_write_target_for, sha256_hex,
-    stage_hosted_artifact, store_hosted_artifact, validate_crate_archive,
-=======
     super::documents::HostedTarget, Action, AppState, AuthedCaller, Bytes, CanonicalPackageName,
     CrateDocument, DOCUMENT_WRITE_RETRIES, DocumentUpdate, ECOSYSTEM, HashMap, Identity,
     IndexEntry, Ownership, Path, PublishMetadata, PublishTarget, RegistryError, RegistrySource,
@@ -17,7 +7,6 @@ use super::{
     json_response, not_found, ok_json, parse_publish_body, publish_ok_json,
     resolve_publish_target_for, resolve_write_target_for, sha256_hex, stage_hosted_artifact,
     store_hosted_artifact, validate_crate_archive,
->>>>>>> 918dce071c4 (fix(pnpr): bind package mutation and publish authorization to storage transactions)
 };
 
 /// `PUT api/v1/crates/new` — `cargo publish`.
@@ -247,7 +236,10 @@ pub(super) enum YankAction {
 
 impl YankAction {
     const fn is_yanked(self) -> bool {
-        matches!(self, Self::Yank)
+        match self {
+            Self::Yank => true,
+            Self::Unyank => false,
+        }
     }
 }
 
