@@ -238,12 +238,13 @@ impl<'a> OnDiskInputs<'a> {
         &'b self,
         materialized: &'b CreateVirtualStoreOutput,
         linked: &'b pnpm_deps_restorer::linking::LinkPhaseOutput,
+        loaded_snapshots: Option<
+            &'b HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>,
+        >,
     ) -> pnpm_deps_restorer::BuildPhaseGraph<'b> {
         pnpm_deps_restorer::BuildPhaseGraph {
             trusted_importer_ids: self.projects.project_anchor_importer_ids,
-            loaded_snapshots: self.ctx.select_loaded_snapshots(
-                self.projects.materialization_lockfile.snapshots.as_ref(),
-            ),
+            loaded_snapshots,
             snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
             packages: self.projects.materialization_lockfile.packages.as_ref(),
             importers: &self.projects.materialization_lockfile.importers,
@@ -286,6 +287,10 @@ impl<'a> OnDiskInputs<'a> {
             self.deps_requiring_build_sink.as_ref(),
             &materialized.requires_build_by_snapshot,
         );
+        let loaded_snapshots = loaded_snapshots_for_materialization(
+            materialized.snapshot_selection.loaded.as_deref(),
+            self.projects.materialization_lockfile.snapshots.as_ref(),
+        );
         let built = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
             &crate::install_frozen_lockfile::BuildPhaseInputs {
                 cache: materialized.build_cache(
@@ -293,7 +298,7 @@ impl<'a> OnDiskInputs<'a> {
                     &self.store.store_index_writer,
                 ),
                 directories: build_directories(self.ctx, linked, top_level_bin_root),
-                graph: self.build_graph(materialized, linked),
+                graph: self.build_graph(materialized, linked, loaded_snapshots.as_ref()),
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
                     patch_groups: self.patched_dependencies,
@@ -317,6 +322,26 @@ impl<'a> OnDiskInputs<'a> {
         Ok(built)
     }
 }
+
+fn loaded_snapshots_for_materialization(
+    selected: Option<&[pnpm_lockfile::PackageKey]>,
+    snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
+) -> Option<HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>> {
+    let (Some(selected), Some(snapshots)) = (selected, snapshots) else {
+        return None;
+    };
+    Some(
+        selected
+            .iter()
+            .filter_map(|key| {
+                snapshots
+                    .get_key_value(key)
+                    .map(|(key, entry)| (key.clone(), entry.clone()))
+            })
+            .collect(),
+    )
+}
+
 /// Materialize the virtual store, link it into every project, and run the
 /// dependency builds. The lockfile is persisted by the caller, after this
 /// returns, so a partial install cannot leave one behind.
@@ -473,5 +498,42 @@ fn build_directories<'a>(
         publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
         logged_methods: ctx.caches.logged_methods,
         link_options: ctx.linker.bin_options,
+    }
+}
+
+#[cfg(test)]
+mod loaded_snapshot_tests {
+    use super::loaded_snapshots_for_materialization;
+    use pnpm_lockfile::{PackageKey, SnapshotEntry};
+    use std::collections::HashMap;
+
+    #[test]
+    fn uses_the_final_materialized_selection() {
+        let selected: PackageKey = "selected@1.0.0".parse().expect("selected key");
+        let excluded: PackageKey = "excluded@1.0.0".parse().expect("excluded key");
+        let snapshots = HashMap::from([
+            (
+                selected.clone(),
+                serde_json::from_value::<SnapshotEntry>(serde_json::json!({})).expect("snapshot"),
+            ),
+            (
+                excluded,
+                serde_json::from_value::<SnapshotEntry>(serde_json::json!({})).expect("snapshot"),
+            ),
+        ]);
+
+        let result = loaded_snapshots_for_materialization(
+            Some(std::slice::from_ref(&selected)),
+            Some(&snapshots),
+        )
+        .expect("loaded snapshots");
+
+        assert_eq!(
+            result
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![selected]
+        );
     }
 }
