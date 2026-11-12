@@ -144,20 +144,10 @@ database:
 }
 
 #[test]
-fn log_unsupported_sink_type_is_recorded_but_flagged_unsupported() {
-    // `type: file` parses but is not a sink the server implements, so
-    // `sink_is_supported` is false and the binary warns at startup.
-    // Format/level still apply.
-    let yaml = "\
-storage: ./s
-log:
-  type: file
-  format: json
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.logs.sink, "file");
-    assert!(!config.logs.sink_is_supported());
-    assert_eq!(config.logs.format, LogFormat::Json);
+fn log_type_is_rejected() {
+    let yaml = "storage: ./s\nlog:\n  type: stdout\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("unknown field `type`"), "{err}");
 }
 
 #[test]
@@ -165,7 +155,6 @@ fn log_pretty_and_level_picked_from_singular_block() {
     let yaml = "\
 storage: ./s
 log:
-  type: stdout
   format: pretty
   level: warn
 ";
@@ -189,11 +178,10 @@ logs:
 
 #[test]
 fn log_missing_fields_fall_back_to_defaults() {
-    // Only `type:` is given. Format and level default individually.
+    // Format and level default individually.
     let yaml = "\
 storage: ./s
 log:
-  type: stdout
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.logs.format, LogFormat::Pretty);

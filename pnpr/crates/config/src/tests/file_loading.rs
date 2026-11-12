@@ -119,22 +119,16 @@ web:
 }
 
 #[test]
-fn from_yaml_str_rejects_removed_blocks_with_migration_guidance() {
-    let bad_upstreams = "storage: ./s\nupstreams: {}\n";
-    let err = Config::from_yaml_str(bad_upstreams, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(err.to_string().contains("the top-level `upstreams:` block was removed"));
-
-    let bad_uplinks = "storage: ./s\nuplinks: {}\n";
-    let err = Config::from_yaml_str(bad_uplinks, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(err.to_string().contains("the top-level `uplinks:` block is not supported"));
-
-    let bad_packages = "storage: ./s\npackages: {}\n";
-    let err = Config::from_yaml_str(bad_packages, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(err.to_string().contains("the top-level `packages:` block was removed"));
-
-    let bad_groups = "storage: ./s\ngroups: {}\n";
-    let err = Config::from_yaml_str(bad_groups, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(err.to_string().contains("the top-level `groups:` block was removed"));
+fn removed_keys_are_unknown_fields() {
+    for key in ["upstreams", "uplinks", "packages", "groups", "backend", "metadata"] {
+        let yaml = format!("storage: ./s\n{key}: {{}}\n");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains(&format!("unknown field `{key}`")),
+            "{err}"
+        );
+    }
 }
 
 #[test]
@@ -190,8 +184,6 @@ fn logs_default_when_yaml_omits_block() {
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.logs.format, LogFormat::Pretty);
     assert_eq!(config.logs.level, LogLevel::Info);
-    assert_eq!(config.logs.sink, "stdout");
-    assert!(config.logs.sink_is_supported());
 }
 
 #[test]
@@ -199,7 +191,6 @@ fn log_json_format_parses() {
     let yaml = "\
 storage: ./s
 log:
-  type: stdout
   format: json
   level: debug
 ";
@@ -258,7 +249,6 @@ fn config_file_in_resolved_file_round_trips_through_from_yaml() {
         "\
 storage: {storage}
 log:
-  type: stdout
   format: json
   level: info
 ",
@@ -314,9 +304,6 @@ log:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.logs.format, LogFormat::Json);
     assert_eq!(config.logs.level, LogLevel::Warn);
-    // `type:` omitted entirely falls back to the supported stdout sink.
-    assert_eq!(config.logs.sink, "stdout");
-    assert!(config.logs.sink_is_supported());
 }
 
 #[test]
@@ -395,7 +382,6 @@ fn config_rejects_unknown_fields_across_subsystems() {
         ("top-level", "unknownField: value\n", "unknown field `unknownField`"),
         ("auth", "auth:\n  unknownAuth: true\n", "unknown field `unknownAuth`"),
         ("auth.users", "auth:\n  users:\n    unknownHt: true\n", "unknown field `unknownHt`"),
-        ("backend", "backend:\n  unknownBackend: {}\n", "use database.url"),
         (
             "backend.libsql",
             "database:\n  url: libsql://x\n  unknownLibsql: 1\n",

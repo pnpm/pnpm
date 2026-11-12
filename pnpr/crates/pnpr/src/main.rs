@@ -154,12 +154,6 @@ fn init_logging(logs: &LogConfig) {
     // writer is pinned to stdout explicitly so the `is_terminal` probe always
     // inspects the stream the subscriber actually writes to.
     log_subscriber(logs, filter, std::io::stdout, std::io::stdout().is_terminal()).init();
-    if !logs.sink_is_supported() {
-        tracing::warn!(
-            sink = %logs.sink,
-            "unsupported `log.type`; only `stdout` is implemented — logging to stdout",
-        );
-    }
 }
 
 fn log_config_source(source: &ConfigSource) {

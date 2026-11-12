@@ -1,10 +1,9 @@
 use super::{
     Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
-    HostedStoreConfig, Path, PathBuf, RegistryError, RemovedGroupsBlock, RemovedPackagesBlock,
-    RemovedUplinksBlock, RemovedUpstreamsBlock, ResolvedFileRegistries, RoutesFile, SocketAddr,
-    SystemEnv, build_features, build_identity_config, build_log_config, build_osv_config,
-    build_route_policy, config_file_in, http_config::build_http_config, resolve_file_registries,
-    resolve_secrets, resolve_storage_paths,
+    HostedStoreConfig, Path, PathBuf, RegistryError, ResolvedFileRegistries, RoutesFile,
+    SocketAddr, SystemEnv, build_features, build_identity_config, build_log_config,
+    build_osv_config, build_route_policy, config_file_in, http_config::build_http_config,
+    resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
 use crate::config_file::RegistryFile;
 
@@ -212,12 +211,6 @@ impl Config {
         let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = super::backend_config::build_backend_config(&storage.metadata);
-        reject_removed_blocks(RemovedBlocks {
-            packages: file.packages.as_ref(),
-            groups: file.groups.as_ref(),
-            uplinks: file.uplinks.as_ref(),
-            upstreams: file.upstreams.as_ref(),
-        })?;
         let (routing, features) = build_routing_and_features(&mut file, overrides)?;
         let secrets = resolve_secrets(file.secret.as_ref())?;
         Ok(Self {
@@ -263,11 +256,6 @@ fn build_storage_config(
     base_dir: &Path,
     hosts_packages: bool,
 ) -> Result<super::StorageConfig, RegistryError> {
-    if file.backend.is_some() || file.metadata.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "backend and metadata are no longer supported; use database.url for accounts, tokens, and package metadata".to_string(),
-        });
-    }
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
     let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
     let metadata = crate::storage_config::resolve_metadata_backend(
@@ -288,55 +276,6 @@ pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
     raw: &str,
 ) -> Result<ConfigFile, RegistryError> {
     crate::secret::parse_with_env::<Sys, ConfigFile>(raw)
-}
-
-/// The global ACL and group blocks are gone, not ignorable: they used
-/// to *enforce* and *grant* access, so dropping either like an unknown
-/// verdaccio key would silently change who may reach what on upgrade.
-/// Fail loudly instead, naming the replacement.
-/// The top-level blocks a config may still carry from an older release,
-/// each one [`Some`] only while the config declares it.
-#[derive(Clone, Copy)]
-pub(super) struct RemovedBlocks<'a> {
-    pub(super) packages: Option<&'a RemovedPackagesBlock>,
-    pub(super) groups: Option<&'a RemovedGroupsBlock>,
-    pub(super) uplinks: Option<&'a RemovedUplinksBlock>,
-    pub(super) upstreams: Option<&'a RemovedUpstreamsBlock>,
-}
-
-pub(super) fn reject_removed_blocks(blocks: RemovedBlocks<'_>) -> Result<(), RegistryError> {
-    if blocks.packages.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `packages:` block was removed: declare per-package rules \
-                     on the registry that serves them, as `registries.<name>.packages` \
-                     (pattern keys, `access`/`publish`/`unpublish` values)"
-                .to_string(),
-        });
-    }
-    if blocks.groups.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `groups:` block was removed: declare teams on the \
-                     registry that uses them, as `registries.<name>.teams` (team-name keys, \
-                     member-list values), and reference them from that registry's access \
-                     lists as `team:<name>`"
-                .to_string(),
-        });
-    }
-    if blocks.uplinks.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `uplinks:` block is not supported: declare upstream \
-                     registries under `registries:` with `type: upstream`"
-                .to_string(),
-        });
-    }
-    if blocks.upstreams.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `upstreams:` block was removed: declare upstream \
-                     registries under `registries:` with `type: upstream`"
-                .to_string(),
-        });
-    }
-    Ok(())
 }
 
 fn build_routing_and_features(

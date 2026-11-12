@@ -84,6 +84,5 @@ defaultRegistry: npmjs
 
 # Log settings.
 log:
-  type: stdout
   format: pretty
   level: info

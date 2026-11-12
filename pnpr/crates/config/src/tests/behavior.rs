@@ -184,33 +184,6 @@ fn accounts_default_to_the_sqlite_metadata_database() {
 }
 
 #[test]
-fn backend_block_rejects_empty_selection() {
-    let yaml = "storage: /var/lib/pnpr\nbackend: {}\n";
-    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
-        .expect_err("an empty backend block must not fall back to local");
-    assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
-        "expected an InvalidConfig naming the backend selection, got {err:?}",
-    );
-}
-
-#[test]
-fn backend_block_rejects_unknown_only_selection() {
-    let yaml = "\
-storage: /var/lib/pnpr
-backend:
-  sqlite:
-    url: sqlite:///var/lib/pnpr/auth.db
-";
-    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
-        .expect_err("an unknown backend key must not fall back to local");
-    assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
-        "expected an InvalidConfig naming the unknown field, got {err:?}",
-    );
-}
-
-#[test]
 fn postgres_backend_block_selects_postgres_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr
@@ -487,69 +460,6 @@ fn typed_token_grammar_is_validated() {
                 RegistryError::InvalidConfig { reason } if reason.contains(needle),
             ),
             "unexpected error for {token:?}: {err}",
-        );
-    }
-}
-
-#[test]
-fn top_level_groups_block_is_a_startup_error() {
-    // The removed global block must not be silently dropped: its group
-    // names used to grant access, so a stale config must be migrated to
-    // per-registry `teams:`, not booted with silently changed grants.
-    for stub in ["groups:\n  platform: [alice]\n", "groups:\n", "groups: {}\n"] {
-        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a present top-level groups: key must be rejected");
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason }
-                    if reason.contains("top-level `groups:`")
-                        && reason.contains("registries.<name>.teams"),
-            ),
-            "unexpected error for {stub:?}: {err}",
-        );
-    }
-}
-
-#[test]
-fn top_level_packages_block_is_a_startup_error() {
-    // The removed global ACL must not be silently dropped like an unknown
-    // verdaccio key: it used to *enforce* access, so ignoring it would
-    // quietly open previously-gated packages on upgrade.
-    let yaml = "\
-storage: ./s
-registries:
-  local:
-    type: hosted
-packages:
-  '@secret/*':
-    access: $authenticated
-";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains("top-level `packages:`")
-                    && reason.contains("registries.<name>.packages"),
-        ),
-        "unexpected error: {err}",
-    );
-
-    // A *bare* `packages:` (YAML null) and an empty block are the same
-    // removed key and must be rejected identically — a plain `Option`
-    // would map null to "absent" and let it slip through.
-    for stub in ["packages:\n", "packages: {}\n", "packages: ~\n"] {
-        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a present top-level packages: key must be rejected");
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason } if reason.contains("top-level `packages:`"),
-            ),
-            "unexpected error for {stub:?}: {err}",
         );
     }
 }

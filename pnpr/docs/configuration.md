@@ -91,7 +91,7 @@ each of these.
 
 ## `registries` and `defaultRegistry`
 
-The `registries:` map is pnpr's **only routing surface**. Every addressable
+The `registries:` map declares every registry pnpr serves. Every addressable
 registry origin is a named registry, exposed at `https://<pnpr>/~<name>/`. There
 are three kinds:
 
@@ -927,9 +927,11 @@ routes:
       package: '@oss/*'
 ```
 
-Each rule may name a `registry` origin, a `package` glob, or both. Rules fail
-closed on a typo: a present-but-unparsable `registry` URL or `package` glob
-drops the whole rule (with a warning) rather than widening it.
+Each rule may name a `registry` origin, a `package` glob, or both. An
+unparsable `registry` URL or `package` glob is a startup error.
+
+The same public routes are the download allowlist of the Cargo and Python
+proxies (see [Ecosystems](ecosystems.md)).
 
 The resolver refuses to connect to loopback, private, and link-local
 addresses, other than the `--public-url` host. To resolve through an upstream
@@ -961,13 +963,11 @@ enabled from the CLI with `--osv` and `--osv-db`.
 
 ```yaml title="pnpr.yaml"
 log:
-  type: stdout
   format: pretty   # or `json`
   level: error     # trace, debug, http, info, warn, or error
 ```
 
-`format` defaults to `pretty` and `level` to `info`. Only `type: stdout` is
-implemented. Any other value logs a warning, and pnpr still writes to stdout.
+pnpr logs to stdout. `format` defaults to `pretty` and `level` to `info`.
 `RUST_LOG` always overrides the configured level. See the
 [CLI reference](cli.md#logging).
 

@@ -1,6 +1,6 @@
 use super::{
-    AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
+    AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
+    Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
     ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, TrustedProxyHeader,
     UpstreamAuthFile, access::TeamFile, default_storage_string,
     null_default::deserialize_null_default, oidc,
@@ -248,10 +248,6 @@ pub(super) struct ConfigFile {
     /// The database for accounts, tokens, and package metadata.
     #[serde(default)]
     pub(super) database: Option<crate::storage_config::DatabaseFile>,
-    #[serde(default)]
-    pub(super) backend: Option<serde::de::IgnoredAny>,
-    #[serde(default)]
-    pub(super) metadata: Option<serde::de::IgnoredAny>,
     /// pnpr-only local OSV database settings.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) osv: OsvFile,
@@ -277,21 +273,6 @@ pub(super) struct ConfigFile {
     /// registry and clients must address a `/~<name>/`.
     #[serde(default)]
     pub(super) default_registry: Option<DefaultRegistryFile>,
-    /// The removed top-level ACL block, kept only to *reject* it loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) packages: Option<RemovedPackagesBlock>,
-    /// The removed top-level `groups:` block, kept only to *reject* it
-    /// loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) groups: Option<RemovedGroupsBlock>,
-    /// The unsupported top-level `uplinks:` block, kept only to *reject* it
-    /// loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) uplinks: Option<RemovedUplinksBlock>,
-    /// The removed top-level `upstreams:` block, kept only to *reject* it
-    /// loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) upstreams: Option<RemovedUpstreamsBlock>,
     /// pnpr-only: which fetch routes the resolution cache treats as
     /// public.
     #[serde(default)]
@@ -338,51 +319,14 @@ impl Default for UiFile {
     }
 }
 
-/// Marker for a present top-level `packages:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedPackagesBlock;
-
-/// Marker for a present top-level `groups:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedGroupsBlock;
-
-/// Marker for a present top-level `uplinks:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedUplinksBlock;
-
-/// Marker for a present top-level `upstreams:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedUpstreamsBlock;
-
-/// `Some` whenever the key is present — including a key with no value
-/// (YAML null), which `Option<IgnoredAny>` would map to `None` and let
-/// slip past the loud rejection. The value itself is consumed and
-/// discarded; only presence matters.
-pub(super) fn detect_removed_block<'de, De, Marker>(
-    deserializer: De,
-) -> Result<Option<Marker>, De::Error>
-where
-    De: serde::Deserializer<'de>,
-    Marker: Default,
-{
-    serde::de::IgnoredAny::deserialize(deserializer)?;
-    Ok(Some(Marker::default()))
-}
-
 /// The YAML `log:` object.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct LogEntryFile {
-    #[serde(default = "default_log_type")]
-    pub(super) r#type: String,
     #[serde(default)]
     pub(super) format: Option<LogFormat>,
     #[serde(default)]
     pub(super) level: Option<LogLevel>,
-}
-
-pub(super) fn default_log_type() -> String {
-    LogConfig::STDOUT_SINK.to_string()
 }
 
 #[derive(Debug, Default, Deserialize)]

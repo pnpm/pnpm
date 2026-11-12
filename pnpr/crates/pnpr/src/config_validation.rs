@@ -57,6 +57,8 @@ fn validate_startup_config_inner(
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     config.http.ensure_valid_metrics()?;
+    pnpr_route::validate_public_routes(&config.routing.route_policy)
+        .map_err(|reason| RegistryError::InvalidConfig { reason })?;
     if config.http.shutdown_timeout.is_zero() {
         return Err(invalid("shutdownTimeout must be greater than zero"));
     }
