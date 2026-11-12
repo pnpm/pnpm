@@ -13,7 +13,7 @@ pub(super) fn prepare_source_lockfile<'a>(
     lockfile: &'a Lockfile,
     ctx: &mut ConvertCtx<'_>,
 ) -> miette::Result<Cow<'a, Lockfile>> {
-    if !lockfile.is_next_format() {
+    if !lockfile.is_next_format() || !has_peer_contexts(lockfile) {
         return Ok(Cow::Borrowed(lockfile));
     }
     let mut sections = lockfile.to_next_sections()?;
@@ -45,6 +45,13 @@ pub(super) fn prepare_source_lockfile<'a>(
     relocated.snapshots = restored.snapshots;
     ctx.references = ReferenceLocation::Deploy;
     Ok(Cow::Owned(relocated))
+}
+
+fn has_peer_contexts(lockfile: &Lockfile) -> bool {
+    lockfile.snapshots
+        .iter()
+        .flatten()
+        .any(|(key, _)| !key.suffix.peer().is_empty())
 }
 
 fn relocate_snapshots(
