@@ -17,9 +17,9 @@ use slot_to_build::slot_to_build;
 use super::{
     AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
     PathBuf, PkgRoots, RebuildOptions, Reporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
-    apply_patch_to_dir, discard_skipped_optional_dependency, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, slot_carries_overlay,
+    SkippedOptionalPackage, SkippedOptionalReason, apply_patch_to_dir,
+    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -183,7 +183,7 @@ impl<'c> BuildCandidate<'c> {
         }
         let dep_path = metadata_key.to_string();
         let (name, version) = parse_name_version_from_key(&dep_path);
-        let force_rebuild = rebuild_forces_build(context.rebuild, &name, &dep_path);
+        let force_rebuild = rebuild_forces_build(context.rebuild, snapshot_key);
         let should_run_scripts = snapshot_runs_scripts(
             context,
             snapshot_key,
@@ -367,11 +367,8 @@ fn is_build_candidate(requires_build: bool, has_patch: bool) -> bool {
 /// selection holds allow-build keys (the package name for registry deps, the
 /// full pkgId for git/tarball artifacts), so either form matches — a selected
 /// non-registry artifact is forced past the `is_built` gate too.
-fn rebuild_forces_build(rebuild: Option<&RebuildOptions>, name: &str, dep_path: &str) -> bool {
-    rebuild.is_some_and(|rebuild| {
-        rebuild.is_selected(name)
-            || rebuild.is_selected(&allow_build_key_from_ignored_build(dep_path))
-    })
+fn rebuild_forces_build(rebuild: Option<&RebuildOptions>, snapshot_key: &PackageKey) -> bool {
+    rebuild.is_some_and(|rebuild| rebuild.selects_snapshot(snapshot_key))
 }
 
 /// Whether this snapshot's lifecycle scripts run at all.

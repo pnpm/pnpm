@@ -4,6 +4,14 @@ title: "Other Settings"
 sidebar_label: "Other"
 ---
 
+### editor
+
+* Default: **undefined**
+* Type: **String**
+
+The editor command used by [`pnpm edit`](../cli/edit.md) when `--editor` is not
+specified. The command can include arguments, such as `code --wait`.
+
 ### savePrefix
 
 * Default: **'^'**

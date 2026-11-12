@@ -25,23 +25,7 @@ pub struct EditArgs {
 impl EditArgs {
     pub async fn run<ReporterType: Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let parts = parse_package_path(&self.package_path)?;
-        let modules_dir = dunce::canonicalize(&state.config.modules_dir)
-            .into_diagnostic()
-            .wrap_err("Failed to canonicalize modules directory")?;
-        let real_pkg_path =
-            resolve_package_dir(&modules_dir, &parts, state.config.virtual_store_dir())?;
-        if state.config.enable_global_virtual_store {
-            let global_virtual_store_dir = dunce::canonicalize(state.config.virtual_store_dir())
-                .into_diagnostic()
-                .wrap_err("Failed to canonicalize the global virtual store directory")?;
-            if real_pkg_path.starts_with(&global_virtual_store_dir) {
-                return Err(miette!(
-                    "Cannot edit '{}' because it is shared by projects using the global virtual store",
-                    real_pkg_path.display(),
-                ));
-            }
-        }
-        let rebuild_selection = package_rebuild_selection(&real_pkg_path)?;
+        let (real_pkg_path, rebuild_selection) = resolve_edit_target(&state, &parts)?;
 
         de_hardlink_dir(&real_pkg_path)
             .into_diagnostic()
@@ -80,6 +64,29 @@ impl EditArgs {
     }
 }
 
+fn resolve_edit_target(state: &State, parts: &[String]) -> miette::Result<(PathBuf, Vec<String>)> {
+    let modules_dir = dunce::canonicalize(&state.config.modules_dir)
+        .into_diagnostic()
+        .wrap_err("Failed to canonicalize modules directory")?;
+    let package_dir = resolve_package_dir(&modules_dir, parts, state.config.virtual_store_dir())?;
+    if state.config.enable_global_virtual_store {
+        let global_virtual_store_dir = dunce::canonicalize(state.config.virtual_store_dir())
+            .into_diagnostic()
+            .wrap_err("Failed to canonicalize the global virtual store directory")?;
+        if package_dir.starts_with(&global_virtual_store_dir) {
+            let path = package_dir.display();
+            return Err(miette!(
+                "Cannot edit '{path}' because it is shared by projects using the global virtual store"
+            ));
+        }
+    }
+    let rebuild_selection = package_rebuild_selection(
+        &package_dir,
+        state.config.virtual_store_dir_max_length as usize,
+    )?;
+    Ok((package_dir, rebuild_selection))
+}
+
 async fn rebuild_package<ReporterType: Reporter + 'static>(
     state: &State,
     package_names: &[String],
@@ -98,19 +105,8 @@ fn resolve_package_dir(
 ) -> miette::Result<PathBuf> {
     let mut current_dir = modules_dir.to_path_buf();
     for (i, part) in parts.iter().enumerate() {
-        let candidate = if i == 0 {
-            current_dir.join(part)
-        } else {
-            current_dir
-                .parent()
-                .filter(|parent| {
-                    parent
-                        .file_name()
-                        .is_some_and(|name| name == "node_modules")
-                })
-                .unwrap_or(&current_dir)
-                .join(part)
-        };
+        let candidate =
+            if i == 0 { current_dir.join(part) } else { nested_package_dir(&current_dir, part) };
         if !candidate.exists() {
             let dir = current_dir.display();
             return Err(miette!("Could not find package '{part}' under '{dir}'"));
@@ -123,15 +119,29 @@ fn resolve_package_dir(
     Ok(current_dir)
 }
 
+fn nested_package_dir(current_dir: &Path, name: &str) -> PathBuf {
+    let package_dependency = current_dir.join("node_modules").join(name);
+    if package_dependency.exists() {
+        return package_dependency;
+    }
+    current_dir
+        .ancestors()
+        .find(|ancestor| {
+            ancestor
+                .file_name()
+                .is_some_and(|name| name == "node_modules")
+        })
+        .map_or_else(|| current_dir.join(name), |node_modules| node_modules.join(name))
+}
+
 fn verify_package_path_within_tree(
     path: &Path,
     modules_dir: &Path,
     virtual_store_dir: &Path,
 ) -> miette::Result<()> {
     let inside_modules = path.starts_with(modules_dir);
-    let inside_virtual_store = dunce::canonicalize(virtual_store_dir)
-        .ok()
-        .is_some_and(|vs| path.starts_with(&vs));
+    let inside_virtual_store =
+        dunce::canonicalize(virtual_store_dir).is_ok_and(|vs| path.starts_with(&vs));
     if !inside_modules && !inside_virtual_store {
         let dir = path.display();
         return Err(miette!(
@@ -302,7 +312,10 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
     fs::set_permissions(path, permissions)
 }
 
-fn package_rebuild_selection(package_dir: &Path) -> miette::Result<Vec<String>> {
+fn package_rebuild_selection(
+    package_dir: &Path,
+    virtual_store_dir_max_length: usize,
+) -> miette::Result<Vec<String>> {
     let manifest_path = package_dir.join("package.json");
     let manifest = fs::read(&manifest_path)
         .into_diagnostic()
@@ -314,9 +327,25 @@ fn package_rebuild_selection(package_dir: &Path) -> miette::Result<Vec<String>> 
         .get("name")
         .and_then(serde_json::Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| miette!("Package manifest at '{}' has no name", manifest_path.display()))?;
+        .ok_or_else(|| {
+            let path = manifest_path.display();
+            miette!("Package manifest at '{path}' has no name")
+        })?;
     if let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) {
-        return Ok(vec![format!("{name}@{version}")]);
+        let registry_key = format!("{name}@{version}");
+        let registry_slot = registry_key
+            .parse::<pnpm_lockfile::PkgNameVerPeer>()
+            .ok()
+            .map(|key| key.to_virtual_store_name(virtual_store_dir_max_length));
+        if package_dir
+            .ancestors()
+            .nth(2)
+            .and_then(Path::file_name)
+            .zip(registry_slot.as_deref())
+            .is_some_and(|(slot, registry_slot)| slot == registry_slot)
+        {
+            return Ok(vec![registry_key]);
+        }
     }
     Ok(vec![name])
 }

@@ -90,8 +90,16 @@ fn edit_nested_dependency_successfully() {
         .assert()
         .success();
 
-    pacquet(&workspace)
-        .with_args(["edit", "express/safe-buffer", "--editor", "node -e \"process.exit(0)\""])
+    let cargo_project = workspace.join("nested/src");
+    fs::create_dir_all(&cargo_project).expect("create nested Cargo project");
+    fs::write(
+        cargo_project.join("Cargo.toml"),
+        "[package]\nname = \"nested\"\nversion = \"0.1.0\"\n",
+    )
+    .expect("write nested Cargo manifest");
+
+    pacquet(&cargo_project)
+        .with_args(["edit", "express/safe-buffer", "--editor", r#"node -e "process.exit(0)""#])
         .assert()
         .success();
 
@@ -127,7 +135,7 @@ fn edit_rejects_packages_in_the_global_virtual_store() {
     );
 
     let output = pacquet(&workspace)
-        .with_args(["edit", "is-positive", "--editor", "node -e \"process.exit(0)\""])
+        .with_args(["edit", "is-positive", "--editor", r#"node -e "process.exit(0)""#])
         .output()
         .expect("run pacquet edit");
 

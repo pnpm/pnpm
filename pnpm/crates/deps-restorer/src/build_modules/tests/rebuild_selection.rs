@@ -1,5 +1,4 @@
-use super::super::RebuildOptions;
-use super::key;
+use super::{super::RebuildOptions, key};
 use std::collections::HashSet;
 
 #[test]
