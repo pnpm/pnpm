@@ -495,8 +495,7 @@ fn node_locator(node: &HoisterResult) -> String {
 /// peer-resolution suffix — upstream's `ident` equality (its
 /// `makeIdent` strips the virtual segment the way this drops the
 /// `(...)` suffix). Peer-suffix variants of one version compare
-/// equal: they merge in a hoisted layout, so they never shadow each
-/// other.
+/// equal.
 fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
     fn ident_of(node: &HoisterResult) -> String {
         let references = node.references.borrow();
@@ -513,7 +512,7 @@ fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
 }
 
 /// Whether an ancestor strictly below the root carries a different
-/// package version under `candidate`'s name (see
+/// package under `candidate`'s name, a peer variant included (see
 /// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root —
 /// its slot is judged by the root-index decision, not here.
 fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool {
@@ -523,7 +522,7 @@ fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool 
             ancestor.dependencies
                 .borrow()
                 .iter()
-                .any(|dep| dep.0.name == candidate.name && !same_ident(&dep.0, candidate))
+                .any(|dep| dep.0.name == candidate.name && !same_locator(&dep.0, candidate))
         })
 }
 

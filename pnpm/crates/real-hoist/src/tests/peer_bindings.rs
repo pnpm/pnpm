@@ -147,3 +147,34 @@ fn a_peer_provider_hoisted_above_a_nested_root_lets_copies_share_its_slot() {
     }
     assert!(child_of(&host, "client").references.borrow().contains("client@2.0.0(schema@2.0.0)"));
 }
+
+#[test]
+fn a_nearer_peer_variant_keeps_a_matching_copy_from_deduping_against_the_root() {
+    let schema = |version: &str| tree_node("schema", &format!("schema@{version}"), &[], vec![]);
+    let client = |peer: &str, deps| {
+        tree_node("client", &format!("client@1.0.0(schema@{peer})"), &["schema"], deps)
+    };
+    let wrapper2 =
+        tree_node("wrapper", "wrapper@2.0.0", &[], vec![client("2.0.0", vec![schema("2.0.0")])]);
+    let host = tree_node(
+        "host",
+        "host@1.0.0",
+        &[],
+        vec![client("1.0.0", vec![schema("1.0.0"), wrapper2])],
+    );
+    let root = tree_root(vec![
+        client("2.0.0", vec![schema("2.0.0")]),
+        tree_node("wrapper", "wrapper@1.0.0", &[], vec![]),
+        host,
+    ]);
+
+    let result = nm_hoist(&root, &HoistOpts::default());
+    dbg!(&result);
+    let host = child_of(&result, "host");
+    assert!(child_of(&host, "client").references.borrow().contains("client@1.0.0(schema@1.0.0)"));
+    let wrapper = child_of(&host, "wrapper");
+    assert!(
+        child_of(&wrapper, "client").references.borrow().contains("client@1.0.0(schema@2.0.0)"),
+        "the host's client@1.0.0(schema@1.0.0) would shadow a deduped copy",
+    );
+}

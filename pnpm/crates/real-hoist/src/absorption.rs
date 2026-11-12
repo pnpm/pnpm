@@ -45,8 +45,8 @@ pub(super) enum AbsorbDecision {
     /// [peer-shadow-root]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L414
     /// [peer-path]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L454-L479
     PeerShadow,
-    /// An ancestor strictly below the root holds a *different*
-    /// package version under the candidate's name. Hoisting (or
+    /// An ancestor strictly below the root holds a different locator,
+    /// a peer variant included, under the candidate's name. Hoisting (or
     /// dedup-removing) the candidate would make this subtree resolve
     /// the name to that nearer, conflicting copy instead, so the
     /// candidate stays nested. Ports the "filled by parent" scan in
