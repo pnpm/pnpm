@@ -20,6 +20,7 @@ pub(crate) struct WorkspaceLifecycleHooks {
     pub pnpmfile: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub read_package_log: Option<pnpm_hooks::LogFn>,
     pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
+    pub max_snapshots: Option<usize>,
 }
 
 /// Each importer's root preference layer of the specifiers its manifest

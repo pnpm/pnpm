@@ -585,7 +585,7 @@ The maximum duration that pnpr allows for handling an incoming HTTP request and 
 
 Defaults to `60s`. Set to `0` to disable timeouts.
 
-This timeout bounds request processing, authentication, and response generation. Once response headers are sent and streaming of the response body begins (such as for package tarballs or artifact blobs), active body transfers proceed without being interrupted by the timeout.
+This timeout bounds request processing, authentication, and response generation. Once response headers are sent, artifact transfers such as package tarballs and shared-artifact blobs proceed without being interrupted by the timeout. Streaming resolver responses (`POST /-/pnpr/v0/resolve`) remain bounded by `requestTimeout` (or a `10m` ceiling when `requestTimeout` is `0`) until resolution finishes, emitting a terminal `error` frame with code `ERR_PNPR_RESOLVE_TIMEOUT` if the deadline elapses.
 
 Can be specified as an integer number of seconds (e.g. `30`) or with a duration suffix (e.g. `30s`, `1m`).
 

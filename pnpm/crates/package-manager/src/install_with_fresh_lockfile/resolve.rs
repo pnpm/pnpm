@@ -269,6 +269,7 @@ impl WorkspaceWalk {
                     overrides_hook: shared.hooks.overrides_hook.clone(),
                     pnpmfile_hook: self.hooks.pnpmfile,
                 },
+                max_snapshots: self.hooks.max_snapshots,
             },
             reuse: self.reuse,
             version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution {

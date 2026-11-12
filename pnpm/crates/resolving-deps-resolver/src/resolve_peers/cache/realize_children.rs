@@ -1,7 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildEdge, DeferredChildContext, DeferredChildResolution, DependenciesTreeNode,
-    EdgeRealization, HashSet, LazyProviders, NodeId, NodeOutput, ParentRefs, PeersCacheItem,
-    SharedChain, TreeChildren, UndoRealize, Walker, should_retain_materialized_node,
+    EdgeRealization, HashSet, LazyProviders, NodeId, NodeOutput, ParentRefs, PeerWalkMode,
+    PeersCacheItem, SharedChain, TreeChildren, UndoRealize, Walker,
+    should_retain_materialized_node,
 };
 
 impl Walker<'_> {
@@ -33,8 +34,22 @@ impl Walker<'_> {
         context: &DeferredChildContext<'_>,
     ) -> NodeOutput {
         match self.deferred_child_resolution(context.walk.parent_refs, &context.edge.pkg_id) {
-            DeferredChildResolution::Pure(dep_path) => self.peerless_output(dep_path),
-            DeferredChildResolution::Cached(cached) => cached.output,
+            DeferredChildResolution::Pure(dep_path) => {
+                let mut output = self.peerless_output(dep_path);
+                if matches!(self.traversal.mode, PeerWalkMode::Discovery) {
+                    output.subtree_dep_paths =
+                        self.traversal.snapshot_budget.replay_cached_subtree(&output.dep_path);
+                }
+                output
+            }
+            DeferredChildResolution::Cached(mut cached) => {
+                if matches!(self.traversal.mode, PeerWalkMode::Discovery) {
+                    cached.output.subtree_dep_paths = self.traversal
+                        .snapshot_budget
+                        .replay_cached_subtree(&cached.output.dep_path);
+                }
+                cached.output
+            }
             DeferredChildResolution::Materialize(pkg_id) => {
                 self.tree.dependencies_tree.insert(
                     context.node_id.clone(),

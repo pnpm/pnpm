@@ -8,6 +8,14 @@ mod authorization;
 
 mod behavior;
 
+mod bounds;
+
+mod bounds_review;
+
+mod bounds_review_round2;
+
+mod bounds_review_round3;
+
 mod configuration_cache;
 
 use axum::http::StatusCode;
@@ -27,11 +35,12 @@ use std::{
 use pnpr_fixtures::MockConfigPresets;
 
 use super::{
-    cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution},
+    cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution, store_resolution},
+    dispatch::reject_unusable_resolve,
     protocol::{ResolveRequest, ResolveRequestProject},
-    reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
-    reject_unsafe_publish_directories, reject_unusable_resolve, resolution_cache_key,
-    store_resolution,
+    reject_inline_url_auth, reject_off_allowlist_fetches,
+    request_validation::{reject_invalid_patch_hashes, reject_unsafe_publish_directories},
+    resolution_cache_key,
 };
 use pnpr_config::{Config as RegistryConfig, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};

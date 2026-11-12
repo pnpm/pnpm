@@ -7,7 +7,10 @@ pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id}
 pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
-pub(crate) use self::striped_locks::StripedLocks;
+pub(crate) use self::{
+    keyed_semaphores::{KeyedPermit, KeyedSemaphores},
+    striped_locks::StripedLocks,
+};
 
 mod lifecycle;
 mod log_routes;
@@ -118,6 +121,7 @@ mod documents;
 mod ecosystem;
 mod health;
 use health::shutdown_signal;
+mod keyed_semaphores;
 mod local_registry;
 mod managed_state;
 mod metrics;
@@ -252,6 +256,7 @@ const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
 const MAX_ARTIFACT_RESOLVE_BODY_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RESOLVE_BODY_BYTES: usize = 32 * 1024 * 1024;
 /// A pipeline run record is a summary plus a bounded event stream; well
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.

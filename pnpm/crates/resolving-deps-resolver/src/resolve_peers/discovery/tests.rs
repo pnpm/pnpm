@@ -1,7 +1,8 @@
 //! Unit tests for the peer-hoist discovery engine.
 
 use super::{
-    CanonicalCycleGate, PeerDiscoveryCaches, PeerHoistDiscovery, ViewGeneration, discover_peers,
+    CanonicalCycleGate, PeerDiscoveryCaches, PeerDiscoveryResult, PeerHoistDiscovery,
+    ViewGeneration, discovery_provider_sources, walk_discovery_direct,
 };
 use crate::{
     node_id::NodeId,
@@ -9,13 +10,34 @@ use crate::{
     resolve_peers::{
         ResolvePeersOptions,
         test_support::{add_lazy_direct_dep, child_edge, package, tree_node},
-        walker::Walker,
+        walker::{PeerWalkMode, RootWalk, Walker},
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
+
+fn discover_peers(
+    tree: &mut ResolvedTree,
+    parents_direct: &[DirectDep],
+    walk_direct: &[DirectDep],
+    caches: PeerDiscoveryCaches,
+    opts: ResolvePeersOptions,
+) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
+    let current_provider_sources = discovery_provider_sources(parents_direct, &opts);
+    let mut walker = Walker::new(
+        tree,
+        opts,
+        HashMap::default(),
+        current_provider_sources,
+        caches,
+        PeerWalkMode::Discovery,
+    );
+    let root = RootWalk::of(&walker, parents_direct);
+    let result = walk_discovery_direct(&mut walker, walk_direct, &root);
+    (result, walker.into_discovery_state().0)
+}
 
 /// The children graph `c -> a <-> b`: a mutual dependency entered from a
 /// package outside the cycle.
@@ -207,5 +229,125 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
     assert!(
         engine.caches.pure_pkgs.contains_key("marker@1.0.0"),
         "a rewrite-free revision bump merges instead of rebuilding",
+    );
+}
+
+#[test]
+fn discovery_snapshot_budget_evicts_stale_paths_and_isolates_view_rebuild_reset() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(2));
+
+    let view = &mut engine.tree;
+    view.all_peer_dep_names.insert("peerpkg".to_string());
+    view.packages.insert(
+        "consumer@1.0.0".into(),
+        package("consumer", "1.0.0", &[("peerpkg", "^1.0.0")], true),
+    );
+    view.packages.insert("peerpkg@1.0.0".into(), package("peerpkg", "1.0.0", &[], true));
+    let mut direct_before = Vec::new();
+    add_lazy_direct_dep(
+        &mut view.dependencies_tree,
+        &mut direct_before,
+        "consumer",
+        "consumer@1.0.0",
+    );
+    let mut direct_after = direct_before.clone();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut direct_after, "peerpkg", "peerpkg@1.0.0");
+
+    // Round 1 (before `peerpkg` is hoisted): records bare `consumer@1.0.0`.
+    engine.discover(&workspace, &direct_before, &direct_before, ResolvePeersOptions::default());
+    engine.check_snapshot_limit().expect("1 snapshot <= 2");
+
+    // Round 2 incremental hoist (`walk_direct = &direct_after[1..]`): stale bare
+    // `consumer@1.0.0` is evicted and refreshed to `consumer@1.0.0(peerpkg@1.0.0)`
+    // alongside `peerpkg@1.0.0` (2 live snapshots <= 2).
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &direct_after, &direct_after[1..], ResolvePeersOptions::default());
+    engine
+        .check_snapshot_limit()
+        .expect("peer-context change must not retain stale pre-hoist discovery paths");
+    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 2);
+
+    // A rewrite-free revision bump with unchanged `parents_direct` and empty `walk_direct`
+    // preserves the live snapshot budget.
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &direct_after, &[], ResolvePeersOptions::default());
+    assert_eq!(engine.snapshot_budget.discovery_dep_paths.len(), 2);
+
+    // A children-ownership rewrite with the same `parents_direct` and empty `walk_direct`
+    // triggers `reset_for_view()` before refreshing against the rebuilt (empty) workspace view.
+    workspace.tree.record_children_rewrite();
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &direct_after, &[], ResolvePeersOptions::default());
+    assert!(engine.snapshot_budget.discovery_dep_paths.is_empty());
+}
+
+#[test]
+fn discovery_snapshot_budget_retains_unwalked_live_subtrees_across_incremental_rounds() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(3));
+
+    let view = &mut engine.tree;
+    view.all_peer_dep_names.insert("peerpkg".to_string());
+    view.packages.insert("settled@1.0.0".into(), package("settled", "1.0.0", &[], false));
+    view.packages.insert("leaf@1.0.0".into(), package("leaf", "1.0.0", &[], true));
+    view.children_by_id.insert(
+        "settled@1.0.0".into(),
+        Arc::new(vec![child_edge("leaf", "leaf@1.0.0")]),
+    );
+    view.packages.insert(
+        "consumer@1.0.0".into(),
+        package("consumer", "1.0.0", &[("peerpkg", "^1.0.0")], true),
+    );
+    view.packages.insert("peerpkg@1.0.0".into(), package("peerpkg", "1.0.0", &[], true));
+
+    let mut direct_round1 = Vec::new();
+    add_lazy_direct_dep(
+        &mut view.dependencies_tree,
+        &mut direct_round1,
+        "settled",
+        "settled@1.0.0",
+    );
+    add_lazy_direct_dep(
+        &mut view.dependencies_tree,
+        &mut direct_round1,
+        "consumer",
+        "consumer@1.0.0",
+    );
+    let mut direct_round2 = direct_round1.clone();
+    add_lazy_direct_dep(
+        &mut view.dependencies_tree,
+        &mut direct_round2,
+        "peerpkg",
+        "peerpkg@1.0.0",
+    );
+
+    // Round 1 walks `settled -> leaf` (2 snapshots) and `consumer` (1 snapshot) = 3 <= 3.
+    engine.discover(&workspace, &direct_round1, &direct_round1, ResolvePeersOptions::default());
+    engine.check_snapshot_limit().expect("3 live snapshots fit within max_snapshots = 3");
+
+    // Round 2 bumps workspace revision and walks ONLY the newly hoisted `peerpkg`
+    // (`&direct_round2[2..]`). `settled -> leaf` (2) + `consumer(peerpkg)` (1) + `peerpkg` (1)
+    // = 4 live snapshots > 3, so `check_snapshot_limit` must fail immediately.
+    workspace.tree.bump_revision();
+    engine.discover(
+        &workspace,
+        &direct_round2,
+        &direct_round2[2..],
+        ResolvePeersOptions::default(),
+    );
+    let err = engine
+        .check_snapshot_limit()
+        .expect_err("incremental hoist round must retain unwalked live snapshots in budget");
+    assert!(
+        matches!(
+            err,
+            crate::ResolveImporterError::Resolve(
+                crate::resolve_dependency_tree::ResolveDependencyTreeError::SnapshotLimitExceeded {
+                    max_snapshots: 3,
+                },
+            ),
+        ),
+        "unexpected error: {err:?}",
     );
 }

@@ -68,6 +68,10 @@ pub struct ResolvedPackageIdentity<'a> {
 pub trait ResolutionObserver: Send + Sync {
     fn on_resolved(&self, hint: ResolvedPackageHint<'_>);
 
+    /// Notified once per distinct [`pnpm_resolving_resolver_base::PkgResolutionId`]
+    /// resolved during this tree walk, regardless of artifact shape.
+    fn on_resolution_id(&self, _id: &str) {}
+
     fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
         None
     }
@@ -91,6 +95,11 @@ pub trait ResolutionObserver: Send + Sync {
     /// settle, before `ImportingDone` and `Summary`. Called once on a
     /// successful fresh-resolution install.
     fn flush_progress(&self) {}
+
+    /// Maximum peer-resolved package snapshots allowed in a workspace graph.
+    fn max_snapshots(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to
@@ -111,11 +120,14 @@ pub struct ObservingResolver {
     /// apart, so the identity is what dedups here too. Mirrors
     /// `PrefetchingResolver::spawned_downloads`.
     seen: DashSet<String>,
+    /// Distinct [`pnpm_resolving_resolver_base::PkgResolutionId`]s claimed
+    /// during this walk, including non-tarball resolutions.
+    seen_ids: DashSet<String>,
 }
 
 impl ObservingResolver {
     pub fn new(inner: Box<dyn Resolver>, observer: Arc<dyn ResolutionObserver>) -> Self {
-        ObservingResolver { inner, observer, seen: DashSet::new() }
+        ObservingResolver { inner, observer, seen: DashSet::new(), seen_ids: DashSet::new() }
     }
 
     fn maybe_report(&self, result: &ResolveResult) {
@@ -172,6 +184,9 @@ impl Resolver for ObservingResolver {
         Box::pin(async move {
             let result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_ref) = result.as_ref() {
+                if self.seen_ids.insert(result_ref.id.as_str().to_string()) {
+                    self.observer.on_resolution_id(result_ref.id.as_str());
+                }
                 self.maybe_report(result_ref);
             }
             Ok(result)
@@ -184,5 +199,12 @@ impl Resolver for ObservingResolver {
         opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
         self.inner.resolve_latest(query, opts)
+    }
+
+    fn on_reused(&self, result: &ResolveResult) {
+        if self.seen_ids.insert(result.id.as_str().to_string()) {
+            self.observer.on_resolution_id(result.id.as_str());
+        }
+        self.inner.on_reused(result);
     }
 }

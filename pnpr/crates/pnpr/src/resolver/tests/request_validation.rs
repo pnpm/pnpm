@@ -73,7 +73,7 @@ fn reject_unusable_resolve_refuses_an_escaping_publish_directory() {
     // `resolve_npm_request` runs this chain before every resolve path, including
     // the frozen fast path that returns the caller's input lockfile without
     // walking the tree, so an escaping value cannot skip the check.
-    let response = reject_unusable_resolve(&request, &context)
+    let response = reject_unusable_resolve(&request, &context, 100)
         .expect("the request chain refuses an escaping publish directory");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -112,7 +112,7 @@ async fn reject_incompatible_lockfile_format_refuses_unsupported_versions() {
         "acceptedLockfileFormats": ["9.0", "pnpm-lock/13.0"]
     }))
     .expect("request parses");
-    let response = reject_unusable_resolve(&incompatible, &context)
+    let response = reject_unusable_resolve(&incompatible, &context, 100)
         .expect("incompatible lockfile format is rejected");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(error_code(response).await, "ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT");
@@ -121,7 +121,7 @@ async fn reject_incompatible_lockfile_format_refuses_unsupported_versions() {
         "acceptedLockfileFormats": ["pnpm-lock/13.0", "pnpm-lock/9.0"]
     }))
     .expect("request parses");
-    assert!(reject_unusable_resolve(&compatible, &context).is_none());
+    assert!(reject_unusable_resolve(&compatible, &context, 100).is_none());
 }
 
 #[tokio::test]

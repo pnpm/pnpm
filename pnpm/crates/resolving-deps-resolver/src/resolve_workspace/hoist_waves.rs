@@ -19,11 +19,12 @@ pub(super) async fn run_hoist_rounds<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
+    max_snapshots: Option<usize>,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
-    let mut peer_discovery = PeerHoistDiscovery::new();
+    let mut peer_discovery = PeerHoistDiscovery::with_max_snapshots(max_snapshots);
     run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery).await?;
     run_hoist_barrier(resolver, states, workspace, &mut peer_discovery).await
 }
@@ -41,10 +42,11 @@ async fn run_initial_required_rounds<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let mut rounds: Vec<_> = states
-        .iter_mut()
-        .map(|state| state.prepare_initial_required_round(peer_discovery))
-        .collect();
+    let mut rounds = Vec::with_capacity(states.len());
+    for state in states.iter_mut() {
+        rounds.push(state.prepare_initial_required_round(peer_discovery));
+        peer_discovery.check_snapshot_limit()?;
+    }
     let first_importer_by_pkg = workspace.first_importer_by_pkg();
     let first_walk_missing_by_pkg = workspace.children.first_walk_missing_by_pkg();
     for (state, round) in states
@@ -102,6 +104,7 @@ where
         let rewrites_before = workspace.tree.children_rewrites();
         for state in &mut *states {
             state.run_required_round(resolver, peer_discovery).await?;
+            peer_discovery.check_snapshot_limit()?;
         }
         if workspace.tree.children_rewrites() == rewrites_before {
             return Ok(());

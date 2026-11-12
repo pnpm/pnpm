@@ -52,6 +52,7 @@ where
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
     {
+        resolver.on_reused(&reused.result);
         return seed_reused_node(ctx, wanted, &edge, current_is_optional, reused).await;
     }
 

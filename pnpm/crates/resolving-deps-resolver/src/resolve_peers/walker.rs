@@ -5,6 +5,7 @@
 
 pub(crate) use walk_context::MissingSummary;
 
+pub(super) use snapshot_budget::{SnapshotBudget, SubtreePaths};
 pub(super) use walk_context::{
     MissingPeerInfo, NodeOutput, NodeWalkContext, RootWalk, SubtreeMissingByPkg,
     index_peer_provider_children,
@@ -12,6 +13,7 @@ pub(super) use walk_context::{
 
 pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_names};
 
+mod snapshot_budget;
 mod walk_context;
 use walk_context::{
     ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren, NodeEntry,
@@ -132,6 +134,7 @@ pub(super) struct PeerWalkTraversal {
     /// and an importer-context miss there would demand an auto-install
     /// the positions do not need.
     in_canonical_drain: bool,
+    pub(super) snapshot_budget: SnapshotBudget,
 }
 
 /// Which peer walk a [`Walker`] runs. The modes decide the same resolved
@@ -219,6 +222,7 @@ impl<'tree> Walker<'tree> {
                 visited_this_call: HashSet::default(),
                 pending_canonical_nodes: Vec::new(),
                 in_canonical_drain: false,
+                snapshot_budget: SnapshotBudget::default(),
             },
             providers: PeerWalkProviders {
                 resolved_peer_providers_by_alias: BTreeMap::new(),
@@ -241,8 +245,8 @@ impl<'tree> Walker<'tree> {
         range
     }
 
-    pub(super) fn into_caches(self) -> PeerDiscoveryCaches {
-        self.caches
+    pub(super) fn into_discovery_state(self) -> (PeerDiscoveryCaches, SnapshotBudget) {
+        (self.caches, self.traversal.snapshot_budget)
     }
 
     /// The children-graph SCC table behind the canonical cycle gate; see
@@ -313,10 +317,13 @@ impl<'tree> Walker<'tree> {
     ) {
         self.traversal.in_canonical_drain = true;
         while let Some(node_id) = self.traversal.pending_canonical_nodes.pop() {
+            if self.traversal.snapshot_budget.exceeded {
+                break;
+            }
             if self.traversal.visited_this_call.contains(&node_id) {
                 continue;
             }
-            self.resolve_node(
+            let output = self.resolve_node(
                 &node_id,
                 &NodeWalkContext {
                     parent_refs: importer_parents,
@@ -326,6 +333,11 @@ impl<'tree> Walker<'tree> {
                     parent_pkg_ids: &SharedChain::default(),
                 },
             );
+            if matches!(self.traversal.mode, PeerWalkMode::Discovery)
+                && !self.traversal.snapshot_budget.exceeded
+            {
+                self.record_canonical_budget(&output);
+            }
         }
         self.traversal.in_canonical_drain = false;
     }
@@ -376,6 +388,9 @@ impl Walker<'_> {
             );
         }
         for dep in &own_direct {
+            if self.traversal.snapshot_budget.exceeded {
+                return;
+            }
             self.resolve_importer_dep(dep, &root.context());
         }
         self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
@@ -426,6 +441,9 @@ impl Walker<'_> {
         walk: &NodeWalkContext<'_>,
     ) {
         for dep in provider_direct {
+            if self.traversal.snapshot_budget.exceeded {
+                break;
+            }
             if self.traversal.visited_this_call.contains(&dep.node_id) {
                 continue;
             }
@@ -523,6 +541,7 @@ impl SettledPeers {
             ),
             missing_peers: self.all_missing,
             subtree_missing_by_pkg: self.subtree_missing_by_pkg,
+            subtree_dep_paths: None,
         }
     }
 }

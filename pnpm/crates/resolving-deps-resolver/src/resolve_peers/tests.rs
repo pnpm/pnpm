@@ -13,6 +13,8 @@ mod behavior;
 
 mod tarball_peers;
 
+mod snapshot_budget;
+
 use super::{
     ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspacePeerSettings,
     context::peer_id_pair,

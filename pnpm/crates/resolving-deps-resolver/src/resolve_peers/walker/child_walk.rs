@@ -1,11 +1,9 @@
 use super::{
     Arc, BTreeMap, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
-    DeferredChildren, DepPathRecording, NodeId, NodeOutput, NodeWalkContext, ParentRefs,
-    PeerWalkMode, PeersCacheItem, ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker,
-    insert_parent_ref,
+    DeferredChildren, DepPathRecording, HashMap, NodeId, NodeOutput, NodeWalkContext, ParentRefs,
+    PeerWalkMode, PeersCacheItem, ResolvedPackage, SharedChain, SubtreePaths, TreeChildren,
+    WalkResult, Walker, insert_parent_ref,
 };
-
-impl Walker<'_> {}
 
 impl Walker<'_> {
     /// The still-lazy children a discovery walk descends into directly.
@@ -46,6 +44,9 @@ impl Walker<'_> {
         let mut child_outputs = ChildOutputs::default();
         for repeated in [true, false] {
             for edge in children {
+                if self.traversal.snapshot_budget.exceeded {
+                    return child_outputs;
+                }
                 if walk.parent_refs.contains_key(&edge.alias) != repeated
                     || Self::cuts_cycle_edge(&canonical_scc, pkg_id, &edge.pkg_id)
                 {
@@ -91,36 +92,46 @@ impl Walker<'_> {
     ) -> ChildOutputs {
         let canonical_scc = self.canonical_scc();
         let mut child_outputs = ChildOutputs::default();
-        for repeated in [true, false] {
-            for (alias, child_node_id) in children_map {
-                if walk.parent_refs.contains_key(alias) != repeated {
-                    continue;
-                }
-                // A canonical back-edge child is record-only: it is in the
-                // realized map for the snapshot edge, but the position walk
-                // contributes nothing through it, and the record pass remaps
-                // it to the target's shared canonical occurrence. The drain
-                // still walks it once at importer context — eagerly realized
-                // trees reach their back-edge subtrees only through that
-                // queue.
-                if self.tree.dependencies_tree
-                    .get(child_node_id)
-                    .is_some_and(|child| {
-                        Self::cuts_cycle_edge(&canonical_scc, pkg_id, &child.resolved_package_id)
-                    })
-                {
-                    continue;
-                }
-                let child_output = self.resolve_node(child_node_id, walk);
-                child_outputs.push(
-                    alias,
-                    child_output,
-                    provider_children,
-                    self.traversal.mode.dep_path_recording(),
-                );
+        let ordered = children_map
+            .iter()
+            .filter(|(alias, _)| walk.parent_refs.contains_key(*alias))
+            .chain(
+                children_map
+                    .iter()
+                    .filter(|(alias, _)| !walk.parent_refs.contains_key(*alias)),
+            );
+        for (alias, child_node_id) in ordered {
+            if self.traversal.snapshot_budget.exceeded {
+                break;
             }
+            if self.is_realized_backedge(&canonical_scc, pkg_id, child_node_id) {
+                continue;
+            }
+            let child_output = self.resolve_node(child_node_id, walk);
+            child_outputs.push(
+                alias,
+                child_output,
+                provider_children,
+                self.traversal.mode.dep_path_recording(),
+            );
         }
         child_outputs
+    }
+
+    /// A canonical back-edge child is record-only: it stays in the realized
+    /// map for the snapshot edge, while the position walk skips it and the
+    /// importer-context drain walks its target once.
+    fn is_realized_backedge(
+        &self,
+        canonical_scc: &HashMap<Arc<str>, usize>,
+        pkg_id: &Arc<str>,
+        child_node_id: &NodeId,
+    ) -> bool {
+        self.tree.dependencies_tree
+            .get(child_node_id)
+            .is_some_and(|child| {
+                Self::cuts_cycle_edge(canonical_scc, pkg_id, &child.resolved_package_id)
+            })
     }
 
     /// Record this walk's outcome in the per-`pkgIdWithPatchHash` caches.
@@ -135,24 +146,16 @@ impl Walker<'_> {
         node_id: &NodeId,
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
-    ) {
+        dep_path_subtrees: &mut Vec<Arc<SubtreePaths>>,
+    ) -> Option<Arc<SubtreePaths>> {
         self.remember_provider_bindings(node_id, result.all_resolved_peers);
-        match self.traversal.mode {
-            PeerWalkMode::Final => {
-                self.nodes.missing_peers.insert(
-                    node_id.clone(),
-                    Arc::clone(result.all_missing_peers),
-                );
-                self.nodes.children_missing_peers.insert(
-                    node_id.clone(),
-                    Arc::clone(result.missing_peers_of_children),
-                );
-            }
-            PeerWalkMode::Discovery => {}
+        let subtree_dep_paths = self.record_mode_subtree(node_id, result, dep_path_subtrees);
+        if self.traversal.snapshot_budget.exceeded {
+            return None;
         }
         if result.is_pure {
             self.caches.pure_pkgs.insert(Arc::clone(pkg_id), result.dep_path.clone());
-            return;
+            return subtree_dep_paths;
         }
         self.caches.retained_peer_node_ids.extend(result.all_resolved_peers.values().cloned());
         self.caches.peers_cache
@@ -166,6 +169,32 @@ impl Walker<'_> {
                 missing_peers_of_children: Arc::clone(result.missing_peers_of_children),
                 subtree_missing_by_pkg: result.subtree_missing_by_pkg.clone(),
             });
+        subtree_dep_paths
+    }
+
+    fn record_mode_subtree(
+        &mut self,
+        node_id: &NodeId,
+        result: &WalkResult<'_>,
+        dep_path_subtrees: &mut Vec<Arc<SubtreePaths>>,
+    ) -> Option<Arc<SubtreePaths>> {
+        match self.traversal.mode {
+            PeerWalkMode::Final => {
+                self.nodes.missing_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.all_missing_peers),
+                );
+                self.nodes.children_missing_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.missing_peers_of_children),
+                );
+                None
+            }
+            PeerWalkMode::Discovery => {
+                let children = std::mem::take(dep_path_subtrees);
+                self.traversal.snapshot_budget.settle_discovery_subtree(result.dep_path, children)
+            }
+        }
     }
 
     /// Build the [`ParentRefs`] map that descendants of this node see:

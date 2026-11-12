@@ -59,6 +59,9 @@ mod packument_caching;
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
 
+#[path = "server/resolver_bounds.rs"]
+mod resolver_bounds;
+
 #[path = "server/web_ui.rs"]
 mod web_ui;
 

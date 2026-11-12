@@ -1,3 +1,5 @@
+mod line_limits;
+
 use super::{
     PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
     ResolvedPackage, VerifyError, build_verify_error,

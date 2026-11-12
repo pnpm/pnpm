@@ -125,7 +125,7 @@ impl ReuseSource {
 /// `ResolveResult` synthesized from the lockfile metadata.
 pub(super) struct ReusedNode {
     key: PkgNameVerPeer,
-    result: pnpm_resolving_resolver_base::ResolveResult,
+    pub(super) result: pnpm_resolving_resolver_base::ResolveResult,
 }
 
 /// Decide whether the current edge can reuse the prior lockfile's

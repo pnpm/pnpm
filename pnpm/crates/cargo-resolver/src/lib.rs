@@ -3,15 +3,18 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
+pub use discovery::{IndexDiscovery, missing_index_names};
 pub use freshness::verify_lockfile;
 pub use metadata::{git_dependency_sources, resolve_inputs};
+pub use model::CancelError;
 pub use registry::{
     CRATES_IO_SOURCE, CRATES_IO_SPARSE_INDEX, download_url, index_prefix, is_crates_io,
     latest_matching_version, latest_version, missing_features, patches_crates_io, registry_source,
     sparse_source,
 };
-pub use resolution::{IndexDiscovery, missing_index_names, resolve_lockfile};
+pub use resolution::{resolve_lockfile, resolve_lockfile_until};
 
+mod discovery;
 mod features;
 mod freshness;
 mod lockfile;

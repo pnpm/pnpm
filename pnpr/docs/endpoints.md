@@ -139,8 +139,8 @@ Resolve responses no longer carry a separate capability header.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/-/pnpr` | Capability handshake returning `pnpr.protocols`. A 404 means every surface is off. |
-| `POST` | `/-/pnpr/v0/resolve` | Resolves one project or workspace against the registries and policy sent by the client. Returns `application/x-ndjson` frames. |
-| `POST` | `/-/pnpr/v0/verify-lockfile` | Verifies an existing lockfile under the client's registry and policy settings without resolving again. Returns `application/x-ndjson` frames. |
+| `POST` | `/-/pnpr/v0/resolve` | Resolves one project or workspace against the registries and policy sent by the client. Accepts bodies up to 32 MiB and returns `application/x-ndjson` frames. |
+| `POST` | `/-/pnpr/v0/verify-lockfile` | Verifies an existing lockfile under the client's registry and policy settings without resolving again. Accepts bodies up to 32 MiB and returns `application/x-ndjson` frames. |
 
 `POST /-/pnpr/v0/resolve` accepts fields such as `projects`, `dependencies`,
 `devDependencies`, `optionalDependencies`, `registry`, `registries`,
@@ -193,13 +193,15 @@ fields they do not know.
 | `progress` | No | None. Sent every 15 seconds while a streamed resolve runs, so a proxy with an idle timeout keeps the connection open. |
 | `done` | Yes | `resolve`: `lockfileFormat`, `lockfile`, and for npm, `stats.totalPackages` and `appliedPolicies`. `verify-lockfile`: `appliedPolicies`. |
 | `violations` | Yes | `violations`: a list of `name`, `version`, `code`, `reason`. The lockfile or an OSV advisory failed the client's policy. |
-| `error` | Yes | `message`. Optional: `code`. |
+| `error` | Yes | `message`. Optional: `code` (including `ERR_PNPR_RESOLVE_TIMEOUT` when the request deadline elapses after headers are sent and `ERR_PNPR_GRAPH_TOO_LARGE` when an npm dependency graph exceeds the package limit). |
 
 A stream ends with exactly one terminal frame. Clients reject a `resolve`
 `done` frame whose `lockfileFormat` is not one they accepted. For npm `resolve`
 and for `verify-lockfile`, clients also reject a `done` frame whose
 `appliedPolicies` echo is missing, incomplete, or differs from the requested
 policies.
+
+pnpr caps active resolver work at 16 concurrent operations per server instance and 4 per caller identity, queueing additional requests from the same caller behind that caller's own slots. Disconnecting from a streaming `resolve` response aborts the server-side resolution task and releases its slots.
 
 For npm requests, `appliedPolicies` includes `autoInstallPeers`, `dedupePeers`,
 `excludeLinksFromLockfile`, `addMissingPeerTypes`, `projectScopedOptionalPeers`,

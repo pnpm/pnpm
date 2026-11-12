@@ -11,14 +11,35 @@ use super::{
 use applied_policies::assert_applied_policies;
 use futures_util::StreamExt as _;
 
+/// Cap on one NDJSON line in a streaming resolve response. Matches the
+/// terminal lockfile frame limit (`32 MiB`) while preventing a server from
+/// growing the line buffer without bound by withholding `\n`.
+pub(super) const MAX_NDJSON_LINE_BYTES: usize = 32 * 1024 * 1024;
+
+/// Cap on NDJSON lines read from `/-/pnpr/v0/resolve` before a terminal frame
+/// settles the stream.
+const MAX_RESOLVE_LINES: usize = 100_000;
+
+#[derive(Clone, Copy)]
+pub(super) struct NdjsonLimits {
+    pub(super) max_line_bytes: usize,
+    pub(super) max_lines: usize,
+}
+
+const RESOLVE_NDJSON_LIMITS: NdjsonLimits =
+    NdjsonLimits { max_line_bytes: MAX_NDJSON_LINE_BYTES, max_lines: MAX_RESOLVE_LINES };
+
 /// Read the response body as NDJSON, handing each non-empty line to
 /// `on_line` until one of them settles the stream. `None` when the stream
 /// ended without a terminal frame.
 ///
 /// reqwest's `gzip` feature transparently inflates the byte stream if a
-/// proxy compressed it, so the frames arrive as plain JSON lines.
+/// proxy compressed it, so the frames arrive as plain JSON lines. Every
+/// line is bounded to `limits.max_line_bytes` before buffering, and the
+/// stream is bounded to `limits.max_lines` newline-delimited lines.
 pub(super) async fn read_ndjson_frames<Outcome, OnLine>(
     response: reqwest::Response,
+    limits: NdjsonLimits,
     mut on_line: OnLine,
 ) -> Result<Option<Outcome>, PnprClientError>
 where
@@ -26,23 +47,94 @@ where
 {
     let mut stream = response.bytes_stream();
     let mut buf: Vec<u8> = Vec::new();
+    let mut lines_seen: usize = 0;
     while let Some(chunk) = stream.next().await {
-        buf.extend_from_slice(&chunk?);
-        while let Some(newline) = buf
+        let chunk = chunk?;
+        let mut rest = chunk.as_ref();
+        while let Some(newline) = rest
             .iter()
             .position(|&byte| byte == b'\n')
         {
-            let line: Vec<u8> = buf.drain(..=newline).collect();
-            let line = &line[..line.len() - 1];
-            if line.is_empty() {
-                continue;
-            }
-            if let Some(outcome) = on_line(line)? {
+            ensure_ndjson_line_count(&mut lines_seen, limits.max_lines)?;
+            let segment = &rest[..newline];
+            rest = &rest[newline + 1..];
+            if let Some(outcome) =
+                consume_ndjson_line(&mut buf, segment, limits.max_line_bytes, &mut on_line)?
+            {
                 return Ok(Some(outcome));
             }
         }
+        append_ndjson_segment(&mut buf, rest, limits.max_line_bytes)?;
     }
     Ok(None)
+}
+
+fn ensure_ndjson_line_count(
+    lines_seen: &mut usize,
+    max_lines: usize,
+) -> Result<(), PnprClientError> {
+    *lines_seen = lines_seen.saturating_add(1);
+    if *lines_seen > max_lines {
+        return Err(PnprClientError::Protocol(format!(
+            "NDJSON stream exceeds the {max_lines}-line limit",
+        )));
+    }
+    Ok(())
+}
+
+fn consume_ndjson_line<Outcome, OnLine>(
+    buf: &mut Vec<u8>,
+    segment: &[u8],
+    max_line_bytes: usize,
+    on_line: &mut OnLine,
+) -> Result<Option<Outcome>, PnprClientError>
+where
+    OnLine: FnMut(&[u8]) -> Result<Option<Outcome>, PnprClientError>,
+{
+    if buf.is_empty() {
+        ensure_ndjson_line_fits(segment.len(), max_line_bytes)?;
+        deliver_ndjson_line(segment, on_line)
+    } else {
+        append_ndjson_segment(buf, segment, max_line_bytes)?;
+        let outcome = deliver_ndjson_line(buf, on_line);
+        buf.clear();
+        outcome
+    }
+}
+
+fn ensure_ndjson_line_fits(len: usize, max_line_bytes: usize) -> Result<(), PnprClientError> {
+    if len > max_line_bytes {
+        return Err(PnprClientError::Protocol(format!(
+            "NDJSON frame exceeds the {max_line_bytes}-byte limit",
+        )));
+    }
+    Ok(())
+}
+
+fn append_ndjson_segment(
+    buf: &mut Vec<u8>,
+    segment: &[u8],
+    max_line_bytes: usize,
+) -> Result<(), PnprClientError> {
+    if segment.is_empty() {
+        return Ok(());
+    }
+    ensure_ndjson_line_fits(buf.len().saturating_add(segment.len()), max_line_bytes)?;
+    buf.extend_from_slice(segment);
+    Ok(())
+}
+
+fn deliver_ndjson_line<Outcome, OnLine>(
+    line: &[u8],
+    on_line: &mut OnLine,
+) -> Result<Option<Outcome>, PnprClientError>
+where
+    OnLine: FnMut(&[u8]) -> Result<Option<Outcome>, PnprClientError>,
+{
+    if line.is_empty() {
+        return Ok(None);
+    }
+    on_line(line)
 }
 
 /// The request's own projects plus the importers its input lockfile already
@@ -349,7 +441,7 @@ impl PnprClient {
         let response = post.send().await?;
         let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
 
-        let outcome = read_ndjson_frames(response, |line| {
+        let outcome = read_ndjson_frames(response, RESOLVE_NDJSON_LIMITS, |line| {
             handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)
         })
         .await?;

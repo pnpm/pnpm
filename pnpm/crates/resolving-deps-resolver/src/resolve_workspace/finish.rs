@@ -6,7 +6,7 @@ use super::{
     ResolveWorkspaceResult, broken_optional, importers::InitializedImporters, options::PassSettings,
 };
 use crate::{
-    resolve_dependency_tree::WorkspaceTreeCtx,
+    resolve_dependency_tree::{ResolveDependencyTreeError, WorkspaceTreeCtx},
     resolve_importer::ResolveImporterError,
     resolve_peers::{
         ImporterPeerInput, ResolvePeersOptions, WorkspacePeerSettings, WorkspaceResolvePeersResult,
@@ -49,6 +49,13 @@ pub(super) fn finish(
     )?;
     let time = broken_optional::forget_left_out(&mut merged_tree, &left_out, time);
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
+    if let Some(max_snapshots) = settings.max_snapshots
+        && (peers.snapshots_exceeded || peers.graph.len() > max_snapshots)
+    {
+        return Err(ResolveImporterError::Resolve(
+            ResolveDependencyTreeError::SnapshotLimitExceeded { max_snapshots },
+        ));
+    }
     Ok(ResolveWorkspaceResult { merged_tree, peers, time })
 }
 
@@ -91,6 +98,7 @@ fn resolve_workspace_peers(
             dedupe_injected_deps: settings.peers.dedupe_injected_deps,
             dedupe_peer_dependents: settings.peers.dedupe_peer_dependents,
             resolve_peers_from_workspace_root: settings.peers.resolve_peers_from_workspace_root,
+            max_snapshots: settings.max_snapshots,
         },
         ResolvePeersOptions {
             #[cfg(test)]

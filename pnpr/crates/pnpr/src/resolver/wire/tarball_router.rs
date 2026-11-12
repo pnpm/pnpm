@@ -1,9 +1,9 @@
 use super::{
-    Arc, CanonicalPackageName, HashMap, Identity, Lockfile, LockfileResolution, PacquetConfig,
-    RouteClass, RouteContext, TarballResolution, is_git_hosted_tarball_url, is_http_tarball_url,
-    pick_registry_for_package, sanitize_registry_tarball_url, strip_url_credentials,
-    tarball_basename, tarball_basename_for_package, tarball_url_and_integrity,
-    version_route_tarball_version,
+    Arc, CanonicalPackageName, HashMap, Identity, Lockfile, LockfileResolution, PackageKey,
+    PackageMetadata, PacquetConfig, RouteClass, RouteContext, TarballResolution,
+    is_git_hosted_tarball_url, is_http_tarball_url, pick_registry_for_package,
+    sanitize_registry_tarball_url, strip_url_credentials, tarball_basename,
+    tarball_basename_for_package, tarball_url_and_integrity, version_route_tarball_version,
 };
 
 #[derive(Clone)]
@@ -61,48 +61,77 @@ impl TarballRouter {
         }
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "unconditional wrapper retained for unit tests")
+    )]
     pub(in super::super) fn route_lockfile(
         &self,
         config: &PacquetConfig,
         lockfile: &Lockfile,
     ) -> Lockfile {
+        self.route_lockfile_until(config, lockfile, &|| false)
+            .expect("unconditional tarball routing cannot cancel")
+    }
+
+    pub(in super::super) fn route_lockfile_until(
+        &self,
+        config: &PacquetConfig,
+        lockfile: &Lockfile,
+        should_cancel: &dyn Fn() -> bool,
+    ) -> Option<Lockfile> {
+        if should_cancel() {
+            return None;
+        }
         let mut routed = lockfile.clone();
         let Some(packages) = routed.packages.as_mut() else {
-            return routed;
+            return Some(routed);
         };
         for (package_key, metadata) in packages {
-            if !matches!(
-                metadata.resolution,
-                LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-            ) {
-                continue;
+            if should_cancel() {
+                return None;
             }
-            // A resolution that pins no integrity keeps its original URL:
-            // routing it through the endpoint would hand the client a
-            // mirrored tarball it has no hash to check.
-            let Ok((tarball_url, Some(integrity))) =
-                tarball_url_and_integrity(&metadata.resolution, package_key, config)
-            else {
-                continue;
-            };
-            if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
-                continue;
-            }
-            let name = package_key.name.to_string();
-            let version = package_key.suffix.version().to_string();
-            let routed_url = self.route_url(&name, &version, &tarball_url);
-            if routed_url == tarball_url.as_ref() {
-                continue;
-            }
-            metadata.resolution = LockfileResolution::Tarball(TarballResolution {
-                tarball: routed_url,
-                integrity: Some(integrity.clone()),
-                revision: None,
-                git_hosted: None,
-                path: None,
-            });
+            self.route_package_metadata(config, package_key, metadata);
         }
-        routed
+        Some(routed)
+    }
+
+    fn route_package_metadata(
+        &self,
+        config: &PacquetConfig,
+        package_key: &PackageKey,
+        metadata: &mut PackageMetadata,
+    ) {
+        if !matches!(
+            metadata.resolution,
+            LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+        ) {
+            return;
+        }
+        // A resolution that pins no integrity keeps its original URL:
+        // routing it through the endpoint would hand the client a
+        // mirrored tarball it has no hash to check.
+        let Ok((tarball_url, Some(integrity))) =
+            tarball_url_and_integrity(&metadata.resolution, package_key, config)
+        else {
+            return;
+        };
+        if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
+            return;
+        }
+        let name = package_key.name.to_string();
+        let version = package_key.suffix.version().to_string();
+        let routed_url = self.route_url(&name, &version, &tarball_url);
+        if routed_url == tarball_url.as_ref() {
+            return;
+        }
+        metadata.resolution = LockfileResolution::Tarball(TarballResolution {
+            tarball: routed_url,
+            integrity: Some(integrity.clone()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        });
     }
 
     pub(in super::super) fn verification_lockfile(&self, lockfile: &Lockfile) -> Lockfile {

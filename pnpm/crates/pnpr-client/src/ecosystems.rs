@@ -1,6 +1,6 @@
 use super::{
-    CargoResolveOptions, Deserialize, PnprClient, PnprClientError, PypiResolveOptions,
-    RenderedViolation, VerifyError, VerifyLockfileOptions,
+    CargoResolveOptions, Deserialize, NdjsonLimits, PnprClient, PnprClientError,
+    PypiResolveOptions, RenderedViolation, VerifyError, VerifyLockfileOptions,
     lockfile_format::{CARGO_LOCK, PYLOCK, expect_sole_lockfile_format},
     read_ndjson_frames, response_body_bounded,
 };
@@ -28,6 +28,18 @@ pub const PYPI_ECOSYSTEM: &str = "pypi";
 /// Cap on a resolve response that is one terminal frame: a `Cargo.lock`
 /// or a `pylock.toml`, each a few megabytes for the largest projects.
 const MAX_TERMINAL_RESPONSE_SIZE: usize = 32 * 1024 * 1024;
+
+/// Cap on one NDJSON frame from `/-/pnpr/v0/verify-lockfile`, matching the
+/// server's terminal NDJSON frame ceiling so large `violations` payloads
+/// surface as [`PnprClientError::Verification`] rather than framing errors.
+const MAX_VERIFY_FRAME_BYTES: usize = MAX_TERMINAL_RESPONSE_SIZE;
+
+/// Cap on NDJSON lines read from `/-/pnpr/v0/verify-lockfile`, which settles
+/// with a single terminal frame.
+const MAX_VERIFY_LINES: usize = 64;
+
+const VERIFY_NDJSON_LIMITS: NdjsonLimits =
+    NdjsonLimits { max_line_bytes: MAX_VERIFY_FRAME_BYTES, max_lines: MAX_VERIFY_LINES };
 
 /// One NDJSON frame from a Cargo `/-/pnpr/v0/resolve`. Cargo resolution
 /// yields nothing before it yields everything, so the response is a
@@ -224,31 +236,9 @@ impl PnprClient {
         &self,
         opts: VerifyLockfileOptions,
     ) -> Result<(), PnprClientError> {
-        let request = serde_json::to_value(&opts).expect("verification request serializes to JSON");
-
-        let mut post = self.http
-            .post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url))
-            .json(&request);
-        if let Some(authorization) = opts.routing.authorization.as_deref() {
-            post = post.header("authorization", authorization);
-        }
-        let response = post.send().await?;
-        let response = super::check_status(response, "/-/pnpr/v0/verify-lockfile").await?;
-
-        let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
-            VerifyFrame::Done { applied_policies } => {
-                super::resolve::applied_policies::assert_verification_policies(
-                    &applied_policies,
-                    &opts.verification,
-                    opts.trust_lockfile,
-                )?;
-                Ok(Some(()))
-            }
-            VerifyFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
-            VerifyFrame::Violations { violations } => {
-                Err(PnprClientError::Verification(build_verify_error(violations)))
-            }
-            VerifyFrame::Ignored => Ok(None),
+        let response = self.send_verify_request(&opts).await?;
+        let done = read_ndjson_frames(response, VERIFY_NDJSON_LIMITS, |line| {
+            handle_verify_frame(line, &opts)
         })
         .await?;
         done.ok_or_else(|| {
@@ -256,6 +246,42 @@ impl PnprClient {
                 "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
             )
         })
+    }
+
+    async fn send_verify_request(
+        &self,
+        opts: &VerifyLockfileOptions,
+    ) -> Result<reqwest::Response, PnprClientError> {
+        let request = serde_json::to_value(opts).expect("verification request serializes to JSON");
+        let mut post = self.http
+            .post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url))
+            .json(&request);
+        if let Some(authorization) = opts.routing.authorization.as_deref() {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        super::check_status(response, "/-/pnpr/v0/verify-lockfile").await
+    }
+}
+
+fn handle_verify_frame(
+    line: &[u8],
+    opts: &VerifyLockfileOptions,
+) -> Result<Option<()>, PnprClientError> {
+    match parse_verify_frame(line)? {
+        VerifyFrame::Done { applied_policies } => {
+            super::resolve::applied_policies::assert_verification_policies(
+                &applied_policies,
+                &opts.verification,
+                opts.trust_lockfile,
+            )?;
+            Ok(Some(()))
+        }
+        VerifyFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
+        VerifyFrame::Violations { violations } => {
+            Err(PnprClientError::Verification(build_verify_error(violations)))
+        }
+        VerifyFrame::Ignored => Ok(None),
     }
 }
 

@@ -3,7 +3,7 @@ use pnpm_deps_path::index_of_dep_path_suffix;
 use std::collections::VecDeque;
 
 impl Walker<'_> {
-    pub(super) fn parent_ref_matches_cached(
+    pub(in super::super) fn parent_ref_matches_cached(
         &self,
         current_ref: &ParentRef,
         cached_node_id: &NodeId,

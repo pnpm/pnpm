@@ -735,7 +735,7 @@ async fn active_config_admission_follows_detached_work_and_recovers() {
     let config =
         pnpr_config::Config::proxy("127.0.0.1:7677".parse().unwrap(), temp.path().to_owned());
     let mut runtime = super::super::Resolver::build(&config, None);
-    runtime.configs.admission = Arc::new(tokio::sync::Semaphore::new(1));
+    runtime.cache.configs.admission = Arc::new(tokio::sync::Semaphore::new(1));
     let admit = |request: &ResolveRequest| {
         runtime
             .config_for(request)
@@ -756,7 +756,7 @@ async fn active_config_admission_follows_detached_work_and_recovers() {
         .unwrap();
     assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(
-        runtime.configs.entries
+        runtime.cache.configs.entries
             .lock()
             .unwrap()
             .len(),

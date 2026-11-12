@@ -142,6 +142,7 @@ impl ImporterHoistState {
                 Some(round) => round,
                 None => self.next_required_round(peer_discovery),
             };
+            peer_discovery.check_snapshot_limit()?;
             self.merge_missing_issues(&round.discovery, round.walk_was_full);
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &self.progress.merged_missing,

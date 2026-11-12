@@ -27,6 +27,7 @@ fn materialized_nodes_referenced_by_peer_outputs_are_retained() {
         auto_install_resolved_peers: HashMap::default(),
         missing_peers: Arc::new(HashMap::default()),
         subtree_missing_by_pkg: None,
+        subtree_dep_paths: None,
     };
 
     assert!(should_retain_materialized_node(&HashSet::default(), Some(&output), &referenced));

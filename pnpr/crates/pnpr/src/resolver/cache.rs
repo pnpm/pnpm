@@ -97,6 +97,42 @@ pub(super) fn store_resolution(
     true
 }
 
+/// What a finished resolution offers the resolution cache.
+pub(super) struct StoreCandidate<'a> {
+    pub(super) cache: &'a Mutex<HashMap<String, Vec<CachedResolution>>>,
+    pub(super) cache_ttl: Duration,
+    pub(super) key: String,
+    pub(super) footprint: &'a Mutex<Footprint>,
+    pub(super) cache_secret: &'a [u8],
+    pub(super) lockfile: &'a Lockfile,
+}
+
+/// Offer a finished resolution to the cache, logging what a private one was
+/// judged on.
+pub(super) fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
+    let footprint = candidate.footprint
+        .lock()
+        .expect("footprint poisoned")
+        .clone();
+    let descriptor = footprint.digest(candidate.cache_secret);
+    let cached = store_resolution(
+        candidate.cache,
+        candidate.cache_ttl,
+        candidate.key,
+        footprint.clone(),
+        candidate.cache_secret,
+        candidate.lockfile,
+    );
+    if footprint.is_public() {
+        return;
+    }
+    tracing::debug!(
+        cached,
+        descriptor = descriptor.as_deref().unwrap_or("none"),
+        "private resolution cache candidate evaluated",
+    );
+}
+
 fn prune_expired_resolution_cache(
     cache: &mut HashMap<String, Vec<CachedResolution>>,
     ttl: Duration,
