@@ -295,6 +295,24 @@ fn persist_users_to_disk(
     Ok(Some((sync, sha256_hex(&bytes))))
 }
 
+fn persist_and_publish(
+    path: Option<&std::path::Path>,
+    state: &Arc<Mutex<UserStoreState>>,
+    users: Users,
+) -> Result<()> {
+    let persisted = persist_users_to_disk(path, &users)?;
+    let mut guard = state.lock().unwrap_or_else(PoisonError::into_inner);
+    guard.replace_users(users);
+    if let Some((new_sync, digest)) = persisted {
+        guard.last_digest = Some(digest);
+        if new_sync.is_some() {
+            guard.last_synced = new_sync;
+            guard.synced_at = Some(std::time::SystemTime::now());
+        }
+    }
+    Ok(())
+}
+
 impl UserStore {
     /// the copy to the file, then make it the current users.
     ///
@@ -310,7 +328,7 @@ impl UserStore {
     where
         Out: Send + 'static,
         Edit: FnOnce(&mut Users) -> Result<Change<Out>> + Send + 'static,
-        Post: FnOnce(&Out) -> Result<()> + Send + 'static,
+        Post: FnOnce(&Out, &mut Users) -> Result<bool> + Send + 'static,
     {
         let state = Arc::clone(&self.state);
         let edit_lock = Arc::clone(&self.edit_lock);
@@ -324,23 +342,17 @@ impl UserStore {
             let mut next = Self::load_users_for_update(path.as_deref(), &state)?;
             let out = match edit(&mut next)? {
                 Change::Keep(out) => {
-                    post_commit(&out)?;
+                    if post_commit(&out, &mut next)? {
+                        persist_and_publish(path.as_deref(), &state, next)?;
+                    }
                     return Ok(out);
                 }
                 Change::Write(out) => out,
             };
-            let persisted = persist_users_to_disk(path.as_deref(), &next)?;
-            let mut guard = state.lock().unwrap_or_else(PoisonError::into_inner);
-            guard.replace_users(next);
-            if let Some((new_sync, digest)) = persisted {
-                guard.last_digest = Some(digest);
-                if new_sync.is_some() {
-                    guard.last_synced = new_sync;
-                    guard.synced_at = Some(std::time::SystemTime::now());
-                }
+            persist_and_publish(path.as_deref(), &state, next.clone())?;
+            if post_commit(&out, &mut next)? {
+                persist_and_publish(path.as_deref(), &state, next)?;
             }
-            drop(guard);
-            post_commit(&out)?;
             Ok(out)
         })
         .await?
@@ -351,7 +363,7 @@ impl UserStore {
         Out: Send + 'static,
         Edit: FnOnce(&mut Users) -> Result<Change<Out>> + Send + 'static,
     {
-        self.update_with_post_commit(edit, |_| Ok(())).await
+        self.update_with_post_commit(edit, |_, _| Ok(false)).await
     }
 
     async fn login_existing(

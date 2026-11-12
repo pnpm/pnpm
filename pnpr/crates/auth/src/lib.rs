@@ -385,7 +385,7 @@ pub trait UserBackend: Send + Sync {
         let mut revisions = HashMap::new();
         for id in user_ids {
             if let Some(status) = self.account_status(id).await? {
-                revisions.insert(id.clone(), AccountStatusRevision { status, revision: 0 });
+                revisions.insert(id.clone(), AccountStatusRevision::reconciled(status, 0));
             }
         }
         Ok(revisions)

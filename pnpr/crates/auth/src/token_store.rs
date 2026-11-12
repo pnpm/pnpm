@@ -322,6 +322,11 @@ impl TokenStore {
     pub(crate) fn revoke_all_for_user_blocking(&self, user_id: &str) -> Result<usize> {
         revoke_user_sync(self.persist.as_deref(), &self.persist_lock, &self.inner, user_id)
     }
+
+    #[cfg(test)]
+    pub(crate) fn lock_persist_for_test(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.persist_lock.lock().expect("TokenStore persist mutex poisoned")
+    }
 }
 
 fn touch_persisted(
@@ -332,12 +337,13 @@ fn touch_persisted(
     now: u64,
 ) -> Result<()> {
     let _guard = persist_lock.lock().expect("TokenStore persist mutex poisoned");
-    if !inner
+    let should_update = inner
         .lock()
         .expect("TokenStore mutex poisoned")
         .tokens
-        .contains_key(key)
-    {
+        .get(key)
+        .is_some_and(|record| record.last_used_at != now);
+    if !should_update {
         return Ok(());
     }
     let sql_now = token_timestamp_to_sql(now);

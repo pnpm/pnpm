@@ -149,7 +149,7 @@ trait AuthSqlBackend: Send + Sync {
         let mut revisions = std::collections::HashMap::new();
         for id in user_ids {
             if let Some(status) = self.account_status(id).await? {
-                revisions.insert(id.clone(), crate::AccountStatusRevision { status, revision: 0 });
+                revisions.insert(id.clone(), crate::AccountStatusRevision::reconciled(status, 0));
             }
         }
         Ok(revisions)

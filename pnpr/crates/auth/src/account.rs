@@ -270,6 +270,14 @@ pub enum UserRename {
 pub struct AccountStatusRevision {
     pub status: AccountStatus,
     pub revision: u64,
+    pub pending_token_revocation: bool,
+}
+
+impl AccountStatusRevision {
+    #[must_use]
+    pub const fn reconciled(status: AccountStatus, revision: u64) -> Self {
+        Self { status, revision, pending_token_revocation: false }
+    }
 }
 
 /// Target status of a generation-ordered account lifecycle transition.

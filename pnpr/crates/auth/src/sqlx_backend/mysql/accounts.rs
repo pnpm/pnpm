@@ -106,7 +106,7 @@ impl MysqlDatabase {
                         reason: format!("user {id} has an unrecognized status {raw_status:?}"),
                     })?;
                 let revision = u64::try_from(row.try_get::<i64, _>(2)?).unwrap_or(0);
-                revisions.insert(id, crate::AccountStatusRevision { status, revision });
+                revisions.insert(id, crate::AccountStatusRevision::reconciled(status, revision));
             }
         }
         Ok(revisions)

@@ -267,6 +267,7 @@ impl UserBackend for UserStore {
                     crate::AccountStatusRevision {
                         status: account.status,
                         revision: account.status_revision,
+                        pending_token_revocation: account.pending_token_revocation,
                     },
                 );
             }
@@ -284,10 +285,17 @@ impl UserBackend for UserStore {
         let id = user_id.to_string();
         let revoke_id = id.clone();
         let stores = self.bound_tokens();
+        let post_stores = stores.clone();
         self.update_with_post_commit(
-            move |users| Ok(apply_stored_lifecycle(users, &id, revision, lifecycle)),
-            move |outcome| {
-                super::stored::revoke_deactivated_tokens(&stores, &revoke_id, *outcome, lifecycle)
+            move |users| apply_stored_lifecycle(users, &id, revision, lifecycle, &stores),
+            move |outcome, users| {
+                super::stored::complete_lifecycle_revocation(
+                    users,
+                    &revoke_id,
+                    *outcome,
+                    lifecycle,
+                    &post_stores,
+                )
             },
         )
         .await
@@ -355,6 +363,7 @@ impl UserBackend for UserStore {
             let mut account = users.remove(&name).ok_or(RegistryError::NotFound)?;
             account.status = AccountStatus::Deleted;
             account.clear_hash();
+            account.pending_token_revocation = false;
             users.insert(format!("deleted:{}", account.id), account);
             Ok(Change::Write(UserRemoval::Removed))
         })

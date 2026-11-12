@@ -67,7 +67,7 @@ async fn collect_status_revisions(
                 reason: format!("user {id} has an unrecognized status {raw_status:?}"),
             })?;
         let revision = u64::try_from(row.get::<i64>(2)?).unwrap_or(0);
-        revisions.insert(id, AccountStatusRevision { status, revision });
+        revisions.insert(id, AccountStatusRevision::reconciled(status, revision));
     }
     Ok(revisions)
 }

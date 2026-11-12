@@ -150,6 +150,11 @@ async fn token_creation_rejects_a_credential_reset_during_issuance() {
         resume: Notify::new(),
     });
     let auth = Arc::new(AuthState { users, tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend> });
+    let expected_revision = auth
+        .active_account_revision(&id)
+        .await
+        .unwrap()
+        .unwrap();
     let issuance = {
         let auth = Arc::clone(&auth);
         let id = id.clone();
@@ -158,6 +163,7 @@ async fn token_creation_rejects_a_credential_reset_during_issuance() {
                 "example-user",
                 &id,
                 &verified_credential,
+                expected_revision,
                 NewToken::default(),
             )
             .await
@@ -168,6 +174,78 @@ async fn token_creation_rejects_a_credential_reset_during_issuance() {
     tokens.resume.notify_one();
     let error = issuance.await.unwrap().unwrap_err();
     assert_eq!(error.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+    assert!(
+        tokens
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[tokio::test]
+async fn deactivation_during_login_or_token_creation_revokes_issued_token() {
+    let users = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let (_, id) = users.add_or_login("example-user", "old-password").await.unwrap();
+    let tokens = Arc::new(DelayedTokens {
+        tokens: TokenStore::in_memory(),
+        started: Notify::new(),
+        resume: Notify::new(),
+    });
+    let auth = Arc::new(AuthState {
+        users: Arc::clone(&users) as Arc<dyn UserBackend>,
+        tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend>,
+    });
+
+    let login = {
+        let auth = Arc::clone(&auth);
+        tokio::spawn(async move { auth.password_login("example-user", "old-password").await })
+    };
+    tokens.started.notified().await;
+    auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
+        .await
+        .unwrap();
+    auth.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap();
+    users.set_password(&id, "old-password").await.unwrap();
+    tokens.resume.notify_one();
+    let login_err = login.await.unwrap().unwrap_err();
+    assert_eq!(login_err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+    assert!(
+        tokens
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+
+    users.clear_password(&id).await.unwrap();
+    let expected_revision = auth
+        .active_account_revision(&id)
+        .await
+        .unwrap()
+        .unwrap();
+    let issuance = {
+        let auth = Arc::clone(&auth);
+        let id = id.clone();
+        tokio::spawn(async move {
+            auth.issue_token_if_credential_current(
+                "example-user",
+                &id,
+                &crate::AccountCredential::None,
+                expected_revision,
+                NewToken::default(),
+            )
+            .await
+        })
+    };
+    tokens.started.notified().await;
+    auth.apply_account_status(&id, 3, crate::AccountLifecycle::Deactivated)
+        .await
+        .unwrap();
+    auth.apply_account_status(&id, 4, crate::AccountLifecycle::Active).await.unwrap();
+    tokens.resume.notify_one();
+    let issue_err = issuance.await.unwrap().unwrap_err();
+    assert_eq!(issue_err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
     assert!(
         tokens
             .list_for_user(&id)

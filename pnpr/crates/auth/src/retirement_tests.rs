@@ -42,7 +42,7 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
             .unwrap(),
         std::collections::HashMap::from([(
             original.clone(),
-            crate::AccountStatusRevision { status: crate::AccountStatus::Active, revision: 0 },
+            crate::AccountStatusRevision::reconciled(crate::AccountStatus::Active, 0),
         )]),
     );
     assert!(
@@ -70,10 +70,7 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
             .unwrap()
             .get(&original)
             .copied(),
-        Some(crate::AccountStatusRevision {
-            status: crate::AccountStatus::Deactivated,
-            revision: 1,
-        }),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Deactivated, 1)),
     );
     assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(users.active_account_id("renamed-member").await.unwrap(), None);
@@ -107,7 +104,7 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
             .unwrap()
             .get(&original)
             .copied(),
-        Some(crate::AccountStatusRevision { status: crate::AccountStatus::Active, revision: 2 }),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Active, 2)),
     );
     assert_eq!(users.active_account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(
@@ -128,7 +125,7 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
             .unwrap()
             .get(&original)
             .copied(),
-        Some(crate::AccountStatusRevision { status: crate::AccountStatus::Deleted, revision: 2 }),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Deleted, 2)),
     );
     assert_eq!(
         users.apply_account_status(&original, 3, crate::AccountLifecycle::Active).await.unwrap(),
@@ -273,8 +270,42 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
     use crate::TokenBackend as _;
     let dir = tempfile::tempdir().unwrap();
     let tokens_path = dir.path().join("tokens.db");
+    let raw_store = std::sync::Arc::new(crate::TokenStore::open(tokens_path.clone()).unwrap());
     let users = std::sync::Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
     let (_, id) = users.add_or_login("member", "password").await.unwrap();
+    let initial = raw_store.issue(&id).await.unwrap();
+    assert_eq!(raw_store.lookup(&initial).await.unwrap(), Some(id.clone()));
+    {
+        let persist_guard = raw_store.lock_persist_for_test();
+        let mut revoke_fut = raw_store.revoke_all_for_user(&id);
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        let first_poll = revoke_fut.as_mut().poll(&mut cx);
+        assert!(first_poll.is_pending(), "revoke_all_for_user must enter blocking worker");
+        drop(revoke_fut);
+        drop(persist_guard);
+    }
+    let finish_path = tokens_path.clone();
+    let finish_store = std::sync::Arc::clone(&raw_store);
+    tokio::task::spawn_blocking(move || drop(finish_store.lock_persist_for_test()))
+        .await
+        .unwrap();
+    assert!(
+        raw_store
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(
+        crate::TokenStore::open(finish_path)
+            .unwrap()
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+
+    drop(raw_store);
     let tokens = std::sync::Arc::new(crate::OwnedTokens::new(
         crate::TokenStore::open(tokens_path.clone()).unwrap(),
         std::sync::Arc::clone(&users),
@@ -284,12 +315,6 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
         let issue_tokens = std::sync::Arc::clone(&tokens);
         let issue_id = id.clone();
         let issue_task = tokio::spawn(async move { issue_tokens.issue(&issue_id).await.unwrap() });
-        let abort_tokens = std::sync::Arc::clone(&tokens);
-        let abort_id = id.clone();
-        let abort_task =
-            tokio::spawn(async move { abort_tokens.revoke_all_for_user(&abort_id).await });
-        abort_task.abort();
-        let _ = abort_task.await;
         users
             .apply_account_status(&id, round * 2 + 1, crate::AccountLifecycle::Deactivated)
             .await
@@ -314,6 +339,103 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
         disk.sort();
         assert_eq!(live, disk);
     }
+}
+
+#[tokio::test]
+async fn failed_token_revocation_keeps_deactivation_pending_and_blocks_activation() {
+    use crate::TokenBackend as _;
+    let dir = tempfile::tempdir().unwrap();
+    let users_path = dir.path().join("users.json");
+    let tokens_path = dir.path().join("tokens.db");
+    let backup_path = dir.path().join("tokens.db.bak");
+    let users = std::sync::Arc::new(
+        UserStore::open_with_cost(users_path.clone(), MaxUsers::Unlimited, 4).unwrap(),
+    );
+    let tokens = crate::OwnedTokens::new(
+        crate::TokenStore::open(tokens_path.clone()).unwrap(),
+        std::sync::Arc::clone(&users),
+    );
+    let auth = crate::AuthState {
+        users: std::sync::Arc::clone(&users) as std::sync::Arc<dyn UserBackend>,
+        tokens: std::sync::Arc::new(tokens),
+    };
+    let (_, id) = auth.users.add_or_login("member", "password").await.unwrap();
+    let token = auth.tokens.issue(&id).await.unwrap();
+
+    std::fs::rename(&tokens_path, &backup_path).unwrap();
+    std::fs::create_dir(&tokens_path).unwrap();
+
+    assert!(auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated).await.is_err());
+    assert_eq!(
+        auth.users
+            .status_revisions(std::slice::from_ref(&id))
+            .await
+            .unwrap()
+            .get(&id)
+            .copied(),
+        Some(crate::AccountStatusRevision {
+            status: crate::AccountStatus::Deactivated,
+            revision: 1,
+            pending_token_revocation: true,
+        }),
+    );
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert!(auth.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.is_err());
+    assert_eq!(
+        auth.users.account_status(&id).await.unwrap(),
+        Some(crate::AccountStatus::Deactivated),
+    );
+
+    let reopened_users =
+        UserStore::open_with_cost(users_path.clone(), MaxUsers::Unlimited, 4).unwrap();
+    assert_eq!(
+        reopened_users
+            .status_revisions(std::slice::from_ref(&id))
+            .await
+            .unwrap()
+            .get(&id)
+            .copied(),
+        Some(crate::AccountStatusRevision {
+            status: crate::AccountStatus::Deactivated,
+            revision: 1,
+            pending_token_revocation: true,
+        }),
+    );
+    assert!(
+        reopened_users.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.is_err(),
+    );
+
+    std::fs::remove_dir(&tokens_path).unwrap();
+    std::fs::rename(&backup_path, &tokens_path).unwrap();
+
+    assert_eq!(
+        auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(
+        auth.users
+            .status_revisions(std::slice::from_ref(&id))
+            .await
+            .unwrap()
+            .get(&id)
+            .copied(),
+        Some(crate::AccountStatusRevision::reconciled(crate::AccountStatus::Deactivated, 1)),
+    );
+    assert_eq!(
+        auth.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert!(
+        crate::TokenStore::open(tokens_path)
+            .unwrap()
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 #[tokio::test]

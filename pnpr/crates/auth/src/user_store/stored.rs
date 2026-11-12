@@ -30,6 +30,8 @@ pub(super) struct StoredAccount {
     pub(super) name_revision: u64,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub(super) status_revision: u64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(super) pending_token_revocation: bool,
 }
 
 impl StoredAccount {
@@ -44,6 +46,7 @@ impl StoredAccount {
             created_at: unix_millis(),
             name_revision: 0,
             status_revision: 0,
+            pending_token_revocation: false,
         }
     }
 
@@ -56,6 +59,7 @@ impl StoredAccount {
             created_at: unix_millis(),
             name_revision: 0,
             status_revision: 0,
+            pending_token_revocation: false,
         }
     }
 
@@ -117,6 +121,9 @@ fn validate_stored_account<'a>(
             existing.min(name),
         ));
     }
+    if account.status.is_active() && account.pending_token_revocation {
+        return Err(format!("active account {name:?} must not have pending_token_revocation"));
+    }
     validate_credential_pair(account.credential_kind, account.password_hash.as_deref())
         .map_err(|reason| format!("{reason} for {name:?}"))
 }
@@ -166,54 +173,134 @@ pub(super) fn apply_stored_lifecycle(
     user_id: &str,
     revision: u64,
     lifecycle: AccountLifecycle,
-) -> Change<AccountStatusOutcome> {
+    stores: &[std::sync::Arc<crate::TokenStore>],
+) -> super::Result<Change<AccountStatusOutcome>> {
     let Some(account) = users
         .values_mut()
         .find(|account| account.id == user_id && !account.status.is_deleted())
     else {
-        return Change::Keep(AccountStatusOutcome::Missing);
+        return Ok(Change::Keep(AccountStatusOutcome::Missing));
     };
-    if !should_apply_lifecycle(account.status, account.status_revision, revision, lifecycle) {
-        return Change::Keep(AccountStatusOutcome::Superseded);
+    let cleared_pending = clear_pending_before_activation(account, user_id, lifecycle, stores)?;
+    let (outcome, staged) =
+        if should_apply_lifecycle(account.status, account.status_revision, revision, lifecycle) {
+            let changed = account.stage_lifecycle(revision, lifecycle, !stores.is_empty());
+            (AccountStatusOutcome::Applied, changed)
+        } else {
+            (AccountStatusOutcome::Superseded, false)
+        };
+    Ok(if cleared_pending || staged { Change::Write(outcome) } else { Change::Keep(outcome) })
+}
+
+impl StoredAccount {
+    fn stage_lifecycle(
+        &mut self,
+        revision: u64,
+        lifecycle: AccountLifecycle,
+        has_bound_stores: bool,
+    ) -> bool {
+        let target_pending = match lifecycle {
+            AccountLifecycle::Active => false,
+            AccountLifecycle::Deactivated => self.pending_token_revocation || has_bound_stores,
+        };
+        if is_lifecycle_already_staged(self, revision, lifecycle, target_pending) {
+            return false;
+        }
+        self.status = lifecycle.as_status();
+        match lifecycle {
+            AccountLifecycle::Active => {}
+            AccountLifecycle::Deactivated => self.clear_hash(),
+        }
+        self.status_revision = revision;
+        self.pending_token_revocation = target_pending;
+        true
     }
-    let is_already_applied = account.status == lifecycle.as_status()
+}
+
+fn clear_pending_before_activation(
+    account: &mut StoredAccount,
+    user_id: &str,
+    lifecycle: AccountLifecycle,
+    stores: &[std::sync::Arc<crate::TokenStore>],
+) -> super::Result<bool> {
+    match lifecycle {
+        AccountLifecycle::Active if account.pending_token_revocation => {
+            revoke_all_bound_tokens(stores, user_id)?;
+            account.pending_token_revocation = false;
+            Ok(true)
+        }
+        AccountLifecycle::Active | AccountLifecycle::Deactivated => Ok(false),
+    }
+}
+
+fn is_lifecycle_already_staged(
+    account: &StoredAccount,
+    revision: u64,
+    lifecycle: AccountLifecycle,
+    target_pending: bool,
+) -> bool {
+    account.status == lifecycle.as_status()
         && account.status_revision == revision
+        && account.pending_token_revocation == target_pending
         && match lifecycle {
             AccountLifecycle::Active => true,
             AccountLifecycle::Deactivated => {
                 account.credential_kind == CredentialKind::None
                     && account.password_hash.is_none()
             }
-        };
-    if is_already_applied {
-        return Change::Keep(AccountStatusOutcome::Applied);
-    }
-    account.status = lifecycle.as_status();
-    match lifecycle {
-        AccountLifecycle::Active => {}
-        AccountLifecycle::Deactivated => account.clear_hash(),
-    }
-    account.status_revision = revision;
-    Change::Write(AccountStatusOutcome::Applied)
+        }
 }
 
-pub(super) fn revoke_deactivated_tokens(
-    stores: &[std::sync::Arc<crate::TokenStore>],
+pub(super) fn complete_lifecycle_revocation(
+    users: &mut Users,
     user_id: &str,
     outcome: AccountStatusOutcome,
     lifecycle: AccountLifecycle,
-) -> super::Result<()> {
-    match (outcome, lifecycle) {
+    stores: &[std::sync::Arc<crate::TokenStore>],
+) -> super::Result<bool> {
+    let has_pending = users
+        .values()
+        .any(|account| account.id == user_id && account.pending_token_revocation);
+    let should_revoke = match (outcome, lifecycle) {
         (AccountStatusOutcome::Applied, AccountLifecycle::Deactivated) => {
-            for tokens in stores {
-                tokens.revoke_all_for_user_blocking(user_id)?;
-            }
+            has_pending || !stores.is_empty()
         }
-        (AccountStatusOutcome::Applied, AccountLifecycle::Active)
+        (AccountStatusOutcome::Superseded, AccountLifecycle::Deactivated) => has_pending,
+        (
+            AccountStatusOutcome::Applied | AccountStatusOutcome::Superseded,
+            AccountLifecycle::Active,
+        )
         | (
-            AccountStatusOutcome::Superseded | AccountStatusOutcome::Missing,
+            AccountStatusOutcome::Missing,
             AccountLifecycle::Active | AccountLifecycle::Deactivated,
-        ) => {}
+        ) => false,
+    };
+    if !should_revoke {
+        return Ok(false);
+    }
+    revoke_all_bound_tokens(stores, user_id)?;
+    let Some(account) = users
+        .values_mut()
+        .find(|account| account.id == user_id && account.pending_token_revocation)
+    else {
+        return Ok(false);
+    };
+    account.pending_token_revocation = false;
+    Ok(true)
+}
+
+fn revoke_all_bound_tokens(
+    stores: &[std::sync::Arc<crate::TokenStore>],
+    user_id: &str,
+) -> super::Result<()> {
+    if stores.is_empty() {
+        return Err(pnpr_error::RegistryError::StorageUnavailable {
+            reason: "cannot complete pending token revocation without a bound token store"
+                .to_string(),
+        });
+    }
+    for tokens in stores {
+        tokens.revoke_all_for_user_blocking(user_id)?;
     }
     Ok(())
 }

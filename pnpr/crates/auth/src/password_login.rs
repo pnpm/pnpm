@@ -7,6 +7,12 @@ use crate::{
 };
 use pnpr_error::{RegistryError, Result};
 
+struct LoginSnapshot {
+    credential: Option<AccountCredential>,
+    account_id: Option<String>,
+    revision: Option<u64>,
+}
+
 impl AuthState {
     /// Create an account with `username`, or change the existing account
     /// password. `None` means a concurrent writer removed the account.
@@ -69,54 +75,113 @@ impl AuthState {
         outcome
     }
 
-    /// Verify or register an account and issue a token. A password changed
-    /// during token issuance must still match before the token is returned.
+    /// Verify or register an account and issue a token. A password changed or
+    /// account deactivated during token issuance invalidates the new token.
     pub async fn password_login(
         &self,
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String, String)> {
-        let before = self.users.credential(username).await?;
+        let mut snapshot = self.capture_login_snapshot(username).await?;
         let (outcome, id) = self.users.add_or_login(username, password).await?;
+        if snapshot.revision.is_none() {
+            snapshot.revision = match outcome {
+                UpsertOutcome::Created => Some(0),
+                UpsertOutcome::LoggedIn => self.active_account_revision(&id).await?,
+            };
+        }
         let token = self.tokens.issue(&id).await?;
-        if let Err(error) = self.check_login_password(username, password, before).await {
+        if let Err(error) = self.check_login_after_issue(&id, username, password, snapshot).await {
             self.tokens.revoke_by_raw(&token).await?;
             return Err(error);
         }
         Ok((outcome, id, token))
     }
 
-    /// Issue a token only while the credential verified by the caller remains current.
+    async fn capture_login_snapshot(&self, username: &str) -> Result<LoginSnapshot> {
+        let credential = self.users.credential(username).await?;
+        let account_id = self.users.active_account_id(username).await?;
+        let revision = match &account_id {
+            Some(existing_id) => self.active_account_revision(existing_id).await?,
+            None => None,
+        };
+        Ok(LoginSnapshot { credential, account_id, revision })
+    }
+
+    /// Issue a token only while the account stays active at `expected_revision`
+    /// and the verified credential remains current.
     pub async fn issue_token_if_credential_current(
         &self,
         username: &str,
         user_id: &str,
         expected: &AccountCredential,
+        expected_revision: u64,
         token: NewToken,
     ) -> Result<(String, TokenRecord)> {
         let issued = self.tokens.issue_token(user_id, token).await?;
-        let current = self.users.credential(username).await;
-        if matches!(&current, Ok(Some(cred)) if cred == expected) {
+        let valid =
+            self.is_issued_token_valid(username, user_id, expected, expected_revision).await;
+        if matches!(valid, Ok(true)) {
             return Ok(issued);
         }
         self.tokens.revoke_by_raw(&issued.0).await?;
-        let _ = current?;
+        let _ = valid?;
         Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
     }
 
-    async fn check_login_password(
+    /// Status revision of `user_id` when active with no pending token revocation.
+    pub async fn active_account_revision(&self, user_id: &str) -> Result<Option<u64>> {
+        let id = user_id.to_string();
+        let revisions = self.users.status_revisions(std::slice::from_ref(&id)).await?;
+        Ok(revisions
+            .get(&id)
+            .filter(|rev| rev.status.is_active() && !rev.pending_token_revocation)
+            .map(|rev| rev.revision))
+    }
+
+    async fn check_login_after_issue(
         &self,
+        user_id: &str,
         username: &str,
         password: &str,
-        before: Option<AccountCredential>,
+        snapshot: LoginSnapshot,
     ) -> Result<()> {
-        let current = self.users.credential(username).await?;
-        let Some(current) = current else {
+        if snapshot.account_id
+            .as_deref()
+            .is_some_and(|existing_id| existing_id != user_id)
+        {
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        }
+        let Some(expected_rev) = snapshot.revision else {
             return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         };
-        if before.as_ref() != Some(&current) {
+        if self.active_account_revision(user_id).await? != Some(expected_rev)
+            || self.users.active_account_id(username).await?.as_deref() != Some(user_id)
+        {
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        }
+        let Some(current) = self.users.credential(username).await? else {
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        };
+        if snapshot.credential.as_ref() != Some(&current) {
             verify_returning_user(username, password, &current, DEFAULT_BCRYPT_COST).await?;
         }
         Ok(())
+    }
+
+    async fn is_issued_token_valid(
+        &self,
+        username: &str,
+        user_id: &str,
+        expected: &AccountCredential,
+        expected_rev: u64,
+    ) -> Result<bool> {
+        if self.active_account_revision(user_id).await? != Some(expected_rev)
+            || self.users.active_account_id(username).await?.as_deref() != Some(user_id)
+        {
+            return Ok(false);
+        }
+        let current = self.users.credential(username).await?;
+        Ok(current.as_ref() == Some(expected))
     }
 }

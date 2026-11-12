@@ -154,21 +154,19 @@ async fn reconcile_auth_statuses(
         .iter()
         .map(|status| status.user_id.clone())
         .collect();
-    let known = state.inner.identity.auth.users.status_revisions(&ids).await?;
+    let auth = &state.inner.identity.auth;
+    let known = auth.users.status_revisions(&ids).await?;
     for status in statuses {
         let lifecycle = lifecycle_for_active(status.active);
-        if known
-            .get(&status.user_id)
-            .is_some_and(|current| is_status_reconciled(*current, status.generation, lifecycle))
+        if !needs_external_token_revocation(auth, &status.user_id, lifecycle).await?
+            && known
+                .get(&status.user_id)
+                .is_some_and(|current| is_status_reconciled(*current, status.generation, lifecycle))
         {
             continue;
         }
-        let outcome = state.inner.identity.auth.apply_account_status(
-            &status.user_id,
-            status.generation,
-            lifecycle,
-        )
-        .await?;
+        let outcome =
+            auth.apply_account_status(&status.user_id, status.generation, lifecycle).await?;
         match (outcome, lifecycle) {
             (
                 pnpr_auth::AccountStatusOutcome::Applied,
@@ -187,11 +185,30 @@ async fn reconcile_auth_statuses(
     Ok(())
 }
 
+async fn needs_external_token_revocation(
+    auth: &pnpr_auth::AuthState,
+    user_id: &str,
+    lifecycle: pnpr_auth::AccountLifecycle,
+) -> Result<bool, RegistryError> {
+    match lifecycle {
+        pnpr_auth::AccountLifecycle::Active => Ok(false),
+        pnpr_auth::AccountLifecycle::Deactivated => {
+            if auth.users.revokes_tokens_in_status_transition() {
+                return Ok(false);
+            }
+            Ok(!auth.tokens.list_for_user(user_id).await?.is_empty())
+        }
+    }
+}
+
 fn is_status_reconciled(
     current: pnpr_auth::AccountStatusRevision,
     generation: u64,
     lifecycle: pnpr_auth::AccountLifecycle,
 ) -> bool {
+    if current.pending_token_revocation {
+        return false;
+    }
     match current.status {
         pnpr_auth::AccountStatus::Deleted => true,
         pnpr_auth::AccountStatus::Active | pnpr_auth::AccountStatus::Deactivated => {

@@ -107,18 +107,23 @@ async fn create_verified_token(
     body: &[u8],
 ) -> Result<Response, RegistryError> {
     let username = caller.identity.username().expect("authenticated caller");
+    let user_id = caller.identity.user_id().expect("authenticated caller");
     let mut request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
+    let expected_revision = state.inner.identity.auth
+        .active_account_revision(user_id)
+        .await?
+        .ok_or_else(|| RegistryError::Unauthenticated { resource: format!("user {username:?}") })?;
     let verified_credential =
         verify_caller_password(state, client_ip, username, request.password()).await?;
     if matches!(verified_credential, pnpr_auth::AccountCredential::None) {
         request = request.within(credential_limits(state, caller.credential).await?)?;
     }
     let new_token = request.into_new_token(pnpr_auth::unix_millis())?;
-    let user_id = caller.identity.user_id().expect("authenticated caller");
     let (raw, record) = state.inner.identity.auth.issue_token_if_credential_current(
         username,
         user_id,
         &verified_credential,
+        expected_revision,
         new_token,
     )
     .await?;
