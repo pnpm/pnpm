@@ -3,7 +3,7 @@ use super::{
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
     ResolveRequest, Resolver, Response, StatusCode, TarballRouter, build_resolution_verifiers,
     collect_resolution_policy_violations, hash_lockfile, json_error, ndjson_single_frame,
-    observed_dist_stats_sink, osv_violations_for_lockfile, reject_inline_url_auth,
+    observed_dist_stats_sink, osv_violations_for_lockfile, parse_request, reject_inline_url_auth,
     reject_invalid_registries, reject_off_allowlist_fetches, verify_done_or_osv_violations,
     violations_frame,
 };
@@ -18,9 +18,9 @@ pub(crate) async fn handle_verify_lockfile(
     identity: Identity,
     body: Bytes,
 ) -> Response {
-    let request: ResolveRequest = match serde_json::from_slice(&body) {
+    let request: ResolveRequest = match parse_request(&body) {
         Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+        Err(response) => return response,
     };
 
     if let Some(response) = reject_invalid_registries(&request)

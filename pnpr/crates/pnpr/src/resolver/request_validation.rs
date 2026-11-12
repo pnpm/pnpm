@@ -5,7 +5,10 @@ use pnpr_route::RouteContext;
 
 use super::{
     json_error, json_error_with_code,
-    protocol::{ProjectDeps, ResolveRequest},
+    protocol::{
+        INCOMPATIBLE_LOCKFILE_FORMAT_CODE, LockfileFormat, ProjectDeps, ResolveRequest,
+        UNSUPPORTED_REQUEST_FIELD_CODE,
+    },
 };
 
 /// Reject a request that would have pnpr fetch from an origin that is not on
@@ -285,15 +288,43 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
 
 pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {
     let formats = request.accepted_lockfile_formats.as_ref()?;
-    if !formats
+    let rendered = LockfileFormat::PnpmLockV9.wire_name();
+    if formats
         .iter()
-        .any(|format| format == "9.0" || format == "9")
+        .any(|format| format == rendered)
     {
-        return Some(json_error_with_code(
-            StatusCode::BAD_REQUEST,
-            "incompatible lockfile format: server supports format 9.0",
-            Some("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT"),
-        ));
+        return None;
     }
-    None
+    Some(json_error_with_code(
+        StatusCode::BAD_REQUEST,
+        &format!("incompatible lockfile format: pnpr renders {rendered}"),
+        Some(INCOMPATIBLE_LOCKFILE_FORMAT_CODE),
+    ))
+}
+
+/// Read a resolver request body. A field the request type does not declare is
+/// refused with [`UNSUPPORTED_REQUEST_FIELD_CODE`], so the client can
+/// tell a setting this server cannot honor from a malformed body.
+pub(super) fn parse_request<Request: serde::de::DeserializeOwned>(
+    body: &[u8],
+) -> Result<Request, Response> {
+    serde_json::from_slice(body)
+        .map_err(|err| {
+            let message = err.to_string();
+            match unknown_field_name(&message) {
+                Some(field) => json_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    &format!("pnpr does not support the request field `{field}`"),
+                    Some(UNSUPPORTED_REQUEST_FIELD_CODE),
+                ),
+                None => json_error(StatusCode::BAD_REQUEST, &message),
+            }
+        })
+}
+
+/// The field named by serde's `deny_unknown_fields` error, which reads
+/// ``unknown field `name`, expected …``.
+fn unknown_field_name(message: &str) -> Option<&str> {
+    let rest = message.strip_prefix("unknown field `")?;
+    rest.split_once('`').map(|(field, _)| field)
 }

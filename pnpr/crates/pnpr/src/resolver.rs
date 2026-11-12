@@ -101,14 +101,16 @@ use self::{
     cache::{CachedResolution, cached_resolution, resolution_cache_key, store_resolution},
     protocol::{EcosystemProbe, ResolveRequest},
     request_validation::{
-        reject_incompatible_lockfile_format, reject_inline_url_auth, reject_invalid_patch_hashes,
-        reject_invalid_registries, reject_off_allowlist_fetches, reject_unsafe_publish_directories,
+        parse_request, reject_incompatible_lockfile_format, reject_inline_url_auth,
+        reject_invalid_patch_hashes, reject_invalid_registries, reject_off_allowlist_fetches,
+        reject_unsafe_publish_directories,
     },
     verdict_cache::VerdictCache,
     wire::{
-        StreamObserver, TarballRouter, done_frame, error_frame_with_code, frozen_package_frames,
-        ndjson_frames, ndjson_single_frame, ndjson_stream_response, osv_violations_for_lockfile,
-        verify_done_or_osv_violations, violations_frame,
+        KEEPALIVE_INTERVAL, StreamObserver, TarballRouter, done_frame, error_frame_with_code,
+        frozen_package_frames, ndjson_frames, ndjson_single_frame, ndjson_stream_response,
+        osv_violations_for_lockfile, progress_frame, verify_done_or_osv_violations,
+        violations_frame,
     },
 };
 
@@ -330,9 +332,9 @@ pub(crate) async fn handle_resolve(
 }
 
 async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8]) -> Response {
-    let request: ResolveRequest = match serde_json::from_slice(body) {
+    let request: ResolveRequest = match parse_request(body) {
         Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+        Err(response) => return response,
     };
 
     resolve_npm_request(runtime, identity, request).await
@@ -381,7 +383,7 @@ async fn resolve_npm_request(
     // The base key is auth-excluded and shared by every candidate for the
     // same resolution inputs. Candidate footprints decide which callers
     // may reuse a stored lockfile.
-    let resolution_cache_key = resolution_cache_key(&config, &request);
+    let resolution_cache_key = resolution_cache_key(&request);
     if let Some(response) =
         cached_resolution_response(runtime, &identity, resolution_cache_key.as_ref(), &request)
     {

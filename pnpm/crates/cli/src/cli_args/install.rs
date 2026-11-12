@@ -3,7 +3,9 @@ pub use arguments::{
 };
 
 pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target};
-pub(crate) use pnpr_resolution::{install_selected_via_pnpr, install_via_pnpr};
+pub(crate) use pnpr_resolution::{
+    install_selected_via_pnpr, install_via_pnpr, resolves_locally_after,
+};
 
 mod arguments;
 
@@ -242,8 +244,22 @@ impl InstallArgs {
             return Err(DryRunIncompatibleWithPnpr.into());
         }
         if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
-            Box::pin(install_via_pnpr_inner::<Reporter>(&state, target, selection.as_ref(), link))
-                .await?;
+            let server = target.server;
+            let installed = Box::pin(install_via_pnpr_inner::<Reporter>(
+                &state,
+                target,
+                selection.as_ref(),
+                link,
+            ))
+            .await;
+            match installed {
+                Err(error) if resolves_locally_after::<Reporter>(&error, server) => {
+                    let link =
+                        self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
+                    self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+                }
+                installed => installed?,
+            }
         } else {
             self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
         }

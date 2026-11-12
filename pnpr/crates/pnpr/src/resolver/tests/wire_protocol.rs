@@ -392,6 +392,7 @@ async fn npm_success_frames_echo_every_policy() {
     let lockfile = lockfile("1.0.0");
     let resolve: Value = serde_json::from_slice(&done_frame(&lockfile, &applied)).unwrap();
     assert_eq!(resolve["appliedPolicies"], expected);
+    assert_eq!(resolve["lockfileFormat"], "pnpm-lock/9.0");
     let verify = verify_done_or_osv_violations(None, &lockfile, &request);
     let body = axum::body::to_bytes(verify.into_body(), usize::MAX).await.unwrap();
     let verify: Value = serde_json::from_slice(&body).unwrap();
@@ -405,4 +406,14 @@ async fn npm_success_frames_echo_every_policy() {
     assert_eq!(defaults["trustPolicy"], Value::Null);
     assert_eq!(defaults["trustPolicyExclude"], json!([]));
     assert_eq!(defaults["trustPolicyIgnoreAfter"], Value::Null);
+}
+
+#[test]
+fn a_cargo_done_frame_names_its_lockfile_format() {
+    use super::super::wire::cargo_done_frame;
+
+    let cargo: serde_json::Value =
+        serde_json::from_slice(&cargo_done_frame("version = 4\n")).unwrap();
+    assert_eq!(cargo["lockfileFormat"], "cargo-lock");
+    assert_eq!(cargo["lockfile"], "version = 4\n");
 }

@@ -245,7 +245,36 @@ impl miette::Diagnostic for ServerErrorWithCode {
     }
 }
 
+/// The pnpr server refused to resolve because it cannot honor a setting or
+/// the lockfile format this client sent. See
+/// [`PnprClientError::is_unsupported_request`].
+#[derive(Debug, Display, Error)]
+pub(crate) struct PnprUnsupportedRequest {
+    message: String,
+}
+
+impl miette::Diagnostic for PnprUnsupportedRequest {}
+
+/// Whether `error` is a [`PnprUnsupportedRequest`], after warning that the
+/// install resolves locally instead.
+pub(crate) fn resolves_locally_after<Reporter: self::Reporter>(
+    error: &miette::Report,
+    server: &str,
+) -> bool {
+    let Some(refusal) = error.downcast_ref::<PnprUnsupportedRequest>() else {
+        return false;
+    };
+    let server = pnpm_network::redact_url_for_display(server);
+    pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+        "Resolving dependencies locally because the pnpr server at {server} cannot handle this request: {refusal}",
+    ));
+    true
+}
+
 fn map_pnpr_client_error(err: PnprClientError) -> miette::Report {
+    if err.is_unsupported_request() {
+        return miette::Report::new(PnprUnsupportedRequest { message: err.to_string() });
+    }
     match err {
         PnprClientError::Verification(verify_err) => miette::Report::new(verify_err),
         PnprClientError::Server { message, code: Some(code) } => {

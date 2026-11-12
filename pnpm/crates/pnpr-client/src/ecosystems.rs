@@ -1,7 +1,8 @@
 use super::{
-    CargoResolveOptions, Deserialize, MAX_ERROR_BODY_SIZE, PnprClient, PnprClientError,
-    PypiResolveOptions, RenderedViolation, VerifyError, VerifyLockfileOptions, read_ndjson_frames,
-    response_body_bounded,
+    CargoResolveOptions, Deserialize, PnprClient, PnprClientError, PypiResolveOptions,
+    RenderedViolation, VerifyError, VerifyLockfileOptions,
+    lockfile_format::{CARGO_LOCK, PYLOCK, expect_lockfile_format},
+    read_ndjson_frames, resolver_error_response, response_body_bounded,
 };
 
 fn parse_pypi_frame(line: &[u8]) -> Result<PypiFrame, PnprClientError> {
@@ -36,6 +37,8 @@ const MAX_TERMINAL_RESPONSE_SIZE: usize = 32 * 1024 * 1024;
 enum CargoFrame {
     Done {
         lockfile: String,
+        #[serde(rename = "lockfileFormat", default)]
+        lockfile_format: Option<String>,
     },
     Error {
         message: String,
@@ -52,7 +55,11 @@ enum CargoFrame {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum PypiFrame {
     /// Boxed: the lockfile dwarfs the other variant.
-    Done { lockfile: Box<pnpm_python_resolver::Lockfile> },
+    Done {
+        lockfile: Box<pnpm_python_resolver::Lockfile>,
+        #[serde(rename = "lockfileFormat", default)]
+        lockfile_format: Option<String>,
+    },
     Error {
         message: String,
         #[serde(default)]
@@ -147,7 +154,10 @@ impl PnprClient {
         });
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_pypi_frame(&frame)? {
-            PypiFrame::Done { lockfile } => Ok(*lockfile),
+            PypiFrame::Done { lockfile, lockfile_format } => {
+                expect_lockfile_format(lockfile_format.as_deref(), PYLOCK)?;
+                Ok(*lockfile)
+            }
             PypiFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
             PypiFrame::Ignored => Err(PnprClientError::Protocol(
                 "unexpected non-terminal frame in pypi resolve response".to_string(),
@@ -170,7 +180,10 @@ impl PnprClient {
         });
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_cargo_frame(&frame)? {
-            CargoFrame::Done { lockfile } => Ok(lockfile),
+            CargoFrame::Done { lockfile, lockfile_format } => {
+                expect_lockfile_format(lockfile_format.as_deref(), CARGO_LOCK)?;
+                Ok(lockfile)
+            }
             CargoFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
             CargoFrame::Ignored => Err(PnprClientError::Protocol(
                 "unexpected non-terminal frame in cargo resolve response".to_string(),
@@ -200,16 +213,7 @@ impl PnprClient {
         }
         let response = post.send().await?;
         if !response.status().is_success() {
-            let status = response.status();
-            let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
-            let code = extract_error_code(&body);
-            return Err(PnprClientError::Server {
-                message: format!(
-                    "/-/pnpr/v0/resolve returned {status}: {}",
-                    String::from_utf8_lossy(&body),
-                ),
-                code,
-            });
+            return Err(resolver_error_response("/-/pnpr/v0/resolve", response).await);
         }
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
         find_terminal_frame(&body)
@@ -232,11 +236,7 @@ impl PnprClient {
         }
         let response = post.send().await?;
         if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::server(format!(
-                "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
-            )));
+            return Err(resolver_error_response("/-/pnpr/v0/verify-lockfile", response).await);
         }
 
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
@@ -261,12 +261,6 @@ impl PnprClient {
             )
         })
     }
-}
-
-fn extract_error_code(body: &[u8]) -> Option<String> {
-    let payload = serde_json::from_slice::<serde_json::Value>(body).ok()?;
-    let code_val = payload.get("code")?.as_str()?;
-    Some(code_val.to_string())
 }
 
 fn is_terminal_frame(line: &[u8]) -> bool {

@@ -200,6 +200,7 @@ pub(super) async fn resolve_via_pnpr(
         {
             Ok(None)
         }
+        Err(error) if error.is_unsupported_request() => Ok(None),
         result => result
             .into_diagnostic()
             .wrap_err("resolve Python dependencies through the pnpr server")

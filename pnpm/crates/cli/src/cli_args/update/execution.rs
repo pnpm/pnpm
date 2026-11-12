@@ -5,7 +5,10 @@ use super::{
 use crate::{
     cli_args::{
         ecosystem_deps::excludes_only,
-        install::{PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target},
+        install::{
+            PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target,
+            resolves_locally_after,
+        },
     },
     state::command_lockfile,
 };
@@ -80,9 +83,10 @@ impl UpdateArgs {
         let lockfile_path = state.lockfile_path();
         if self.can_delegate_patch_refresh(update_actions, &include_direct) {
             let link = self.pnpr_patch_link(&state, &lockfile_path);
-            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
-                return run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link)
-                    .await;
+            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await?
+                && run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link).await?
+            {
+                return Ok(());
             }
         }
         let workspace_packages = match &selection {
@@ -369,16 +373,23 @@ impl UpdateArgs {
     }
 }
 
+/// Refresh patches through the pnpr server. `false` when the server refused
+/// the request and the update resolves locally instead.
 async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
     state: &State,
     selection: Option<&InstallFamilySelection>,
     target: PnprTarget<'_>,
     link: PnprLink<'_>,
-) -> miette::Result<()> {
-    match selection {
+) -> miette::Result<bool> {
+    let server = target.server;
+    let refreshed = match selection {
         Some(selection) => {
             install_selected_via_pnpr::<Reporter>(state, target, selection, link).await
         }
         None => install_via_pnpr::<Reporter>(state, target, link).await,
+    };
+    match refreshed {
+        Err(error) if resolves_locally_after::<Reporter>(&error, server) => Ok(false),
+        refreshed => refreshed.map(|()| true),
     }
 }
