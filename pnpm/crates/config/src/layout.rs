@@ -136,11 +136,34 @@ impl Config {
             let had_pin = self.lockfile_dir.is_some();
             self.lockfile_dir = None;
             if had_pin {
+                let configured_virtual_store_dir = self
+                    .configured_virtual_store_dir
+                    .clone();
+                let raw_virtual_store_dir = self.explicit_settings
+                    .get("virtualStoreDir")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned);
                 let paths_dir = self.workspace_dir
                     .as_deref()
                     .unwrap_or(project_dir)
                     .to_path_buf();
                 self.anchor_lockfile_paths(&paths_dir);
+                if let (Some(configured), Some(raw)) =
+                    (configured_virtual_store_dir, raw_virtual_store_dir)
+                {
+                    let raw_path = Path::new(&raw);
+                    let dir = if raw_path.is_absolute() {
+                        raw_path.to_path_buf()
+                    } else if let Some(workspace_dir) = self.workspace_dir.as_deref()
+                        && pnpm_fs::lexical_normalize(&configured)
+                            == pnpm_fs::lexical_normalize(&workspace_dir.join(raw_path))
+                    {
+                        workspace_dir.join(raw_path)
+                    } else {
+                        project_dir.join(raw_path)
+                    };
+                    self.set_virtual_store_dir(dir);
+                }
             }
             return;
         }

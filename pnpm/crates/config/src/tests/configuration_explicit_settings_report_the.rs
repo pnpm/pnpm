@@ -497,6 +497,47 @@ pub fn clearing_a_lockfile_pin_restores_dedicated_project_paths() {
 }
 
 #[test]
+pub fn clearing_a_lockfile_pin_preserves_env_virtual_store_anchor() {
+    struct HostWithVirtualStoreEnv;
+    impl EnvVar for HostWithVirtualStoreEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_DIR" => Some("cache".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithVirtualStoreEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithVirtualStoreEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithVirtualStoreEnv);
+    host_current_dir!(HostWithVirtualStoreEnv);
+
+    let tmp = tempdir().unwrap();
+    let project = tmp.path().join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: custom\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let mut config = Config::new().current::<HostWithVirtualStoreEnv>(&project).expect("loads");
+    config.pin_lockfile_dir(&project, &project);
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, Some(project.join("cache")));
+    assert_eq!(config.install_state_dir, project.join("cache"));
+}
+
+#[test]
 pub fn lockfile_dir_equal_to_workspace_root_does_not_reanchor_env_paths() {
     static WORKSPACE_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     struct HostWithDefaultLockfileDirEnv;
