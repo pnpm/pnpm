@@ -58,7 +58,9 @@ use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize, authorize_package,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
-    hosted_read_namespace, private_no_cache, resolve_ecosystem_source,
+    hosted_read_namespace,
+    package_owners::owner_routes,
+    private_no_cache, resolve_ecosystem_source,
 };
 use axum::{
     Router,
@@ -120,7 +122,13 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/{API_SEGMENT}/{{*path}}"), any(dispatch));
     }
     // Streaming handlers enforce the configured cumulative upload limit.
-    router.route_layer(DefaultBodyLimit::disable())
+    router = router.route_layer(DefaultBodyLimit::disable());
+    // Owner requests are a pnpr extension, so they stay off the root the
+    // OCI API needs.
+    for base in mount_bases(ECOSYSTEM) {
+        router = router.route(&format!("{base}/owners/{{*name}}"), owner_routes::<ImageDocument>());
+    }
+    router
 }
 
 /// `GET /v2/` — the version check every client makes first, and what
