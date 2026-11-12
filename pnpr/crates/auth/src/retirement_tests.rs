@@ -37,6 +37,23 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Active));
     assert_eq!(
         users
+            .status_revisions(&[original.clone(), "missing".to_string()])
+            .await
+            .unwrap(),
+        std::collections::HashMap::from([(
+            original.clone(),
+            crate::AccountStatusRevision { status: crate::AccountStatus::Active, revision: 0 },
+        )]),
+    );
+    assert!(
+        users
+            .status_revisions(&[])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(
+        users
             .apply_account_status(&original, 1, crate::AccountLifecycle::Deactivated)
             .await
             .unwrap(),
@@ -45,6 +62,18 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(
         users.account_status(&original).await.unwrap(),
         Some(crate::AccountStatus::Deactivated),
+    );
+    assert_eq!(
+        users
+            .status_revisions(std::slice::from_ref(&original))
+            .await
+            .unwrap()
+            .get(&original)
+            .copied(),
+        Some(crate::AccountStatusRevision {
+            status: crate::AccountStatus::Deactivated,
+            revision: 1,
+        }),
     );
     assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(users.active_account_id("renamed-member").await.unwrap(), None);
@@ -71,6 +100,15 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
         users.apply_account_status(&original, 2, crate::AccountLifecycle::Active).await.unwrap(),
         crate::AccountStatusOutcome::Applied,
     );
+    assert_eq!(
+        users
+            .status_revisions(std::slice::from_ref(&original))
+            .await
+            .unwrap()
+            .get(&original)
+            .copied(),
+        Some(crate::AccountStatusRevision { status: crate::AccountStatus::Active, revision: 2 }),
+    );
     assert_eq!(users.active_account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(
         users
@@ -83,6 +121,15 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::Removed);
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::NoSuchUser);
     assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Deleted));
+    assert_eq!(
+        users
+            .status_revisions(std::slice::from_ref(&original))
+            .await
+            .unwrap()
+            .get(&original)
+            .copied(),
+        Some(crate::AccountStatusRevision { status: crate::AccountStatus::Deleted, revision: 2 }),
+    );
     assert_eq!(
         users.apply_account_status(&original, 3, crate::AccountLifecycle::Active).await.unwrap(),
         crate::AccountStatusOutcome::Missing,
@@ -219,4 +266,69 @@ async fn passwordless_accounts_have_ids_and_cannot_be_self_registered() {
     assert_eq!(users.account_id("member").await.unwrap(), Some(id));
     assert!(users.add_or_login("member", "*").await.is_err());
     assert!(users.provision_user("member").await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_aligned() {
+    use crate::TokenBackend as _;
+    let dir = tempfile::tempdir().unwrap();
+    let tokens_path = dir.path().join("tokens.db");
+    let users = std::sync::Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let (_, id) = users.add_or_login("member", "password").await.unwrap();
+    let tokens = std::sync::Arc::new(crate::OwnedTokens::new(
+        crate::TokenStore::open(tokens_path.clone()).unwrap(),
+        std::sync::Arc::clone(&users),
+    ));
+    for round in 1..=20_u64 {
+        let _ = users.apply_account_status(&id, round * 2, crate::AccountLifecycle::Active).await;
+        let issue_tokens = std::sync::Arc::clone(&tokens);
+        let issue_id = id.clone();
+        let issue_task = tokio::spawn(async move { issue_tokens.issue(&issue_id).await.unwrap() });
+        let abort_tokens = std::sync::Arc::clone(&tokens);
+        let abort_id = id.clone();
+        let abort_task =
+            tokio::spawn(async move { abort_tokens.revoke_all_for_user(&abort_id).await });
+        abort_task.abort();
+        let _ = abort_task.await;
+        users
+            .apply_account_status(&id, round * 2 + 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap();
+        let _ = issue_task.await.unwrap();
+        let mut live: Vec<String> = tokens
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(k, _)| k)
+            .collect();
+        let reopened = crate::TokenStore::open(tokens_path.clone()).unwrap();
+        let mut disk: Vec<String> = reopened
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(k, _)| k)
+            .collect();
+        live.sort();
+        disk.sort();
+        assert_eq!(live, disk);
+    }
+}
+
+#[tokio::test]
+async fn deactivation_revokes_tokens_across_all_bound_owned_token_stores() {
+    use crate::TokenBackend as _;
+    let users = std::sync::Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4));
+    let (_, id) = users.add_or_login("member", "password").await.unwrap();
+    let first =
+        crate::OwnedTokens::new(crate::TokenStore::in_memory(), std::sync::Arc::clone(&users));
+    let second =
+        crate::OwnedTokens::new(crate::TokenStore::in_memory(), std::sync::Arc::clone(&users));
+    let first_token = first.issue(&id).await.unwrap();
+    let second_token = second.issue(&id).await.unwrap();
+    users.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated).await.unwrap();
+    users.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap();
+    assert_eq!(first.lookup(&first_token).await.unwrap(), None);
+    assert_eq!(second.lookup(&second_token).await.unwrap(), None);
 }

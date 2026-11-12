@@ -147,21 +147,58 @@ async fn reconcile_auth_statuses(
     state: &AppState,
     statuses: &[ScimStatus],
 ) -> Result<(), RegistryError> {
+    if statuses.is_empty() {
+        return Ok(());
+    }
+    let ids: Vec<String> = statuses
+        .iter()
+        .map(|status| status.user_id.clone())
+        .collect();
+    let known = state.inner.identity.auth.users.status_revisions(&ids).await?;
     for status in statuses {
         let lifecycle = lifecycle_for_active(status.active);
+        if known
+            .get(&status.user_id)
+            .is_some_and(|current| is_status_reconciled(*current, status.generation, lifecycle))
+        {
+            continue;
+        }
         let outcome = state.inner.identity.auth.apply_account_status(
             &status.user_id,
             status.generation,
             lifecycle,
         )
         .await?;
-        if outcome == pnpr_auth::AccountStatusOutcome::Applied
-            && matches!(lifecycle, pnpr_auth::AccountLifecycle::Deactivated)
-        {
-            state.inner.identity.oidc.revoke_user_sessions(&status.user_id);
+        match (outcome, lifecycle) {
+            (
+                pnpr_auth::AccountStatusOutcome::Applied,
+                pnpr_auth::AccountLifecycle::Deactivated,
+            ) => {
+                state.inner.identity.oidc.revoke_user_sessions(&status.user_id);
+            }
+            (pnpr_auth::AccountStatusOutcome::Applied, pnpr_auth::AccountLifecycle::Active)
+            | (
+                pnpr_auth::AccountStatusOutcome::Superseded
+                | pnpr_auth::AccountStatusOutcome::Missing,
+                pnpr_auth::AccountLifecycle::Active | pnpr_auth::AccountLifecycle::Deactivated,
+            ) => {}
         }
     }
     Ok(())
+}
+
+fn is_status_reconciled(
+    current: pnpr_auth::AccountStatusRevision,
+    generation: u64,
+    lifecycle: pnpr_auth::AccountLifecycle,
+) -> bool {
+    match current.status {
+        pnpr_auth::AccountStatus::Deleted => true,
+        pnpr_auth::AccountStatus::Active | pnpr_auth::AccountStatus::Deactivated => {
+            current.revision > generation
+                || (current.revision == generation && current.status == lifecycle.as_status())
+        }
+    }
 }
 
 pub(super) const fn lifecycle_for_active(active: bool) -> pnpr_auth::AccountLifecycle {
@@ -197,14 +234,20 @@ async fn sync_scim_state(
     };
     if let Some(lifecycle) = applied {
         if scim.since_generation() < generation {
-            let active = matches!(lifecycle, pnpr_auth::AccountLifecycle::Active);
+            let is_active = match lifecycle {
+                pnpr_auth::AccountLifecycle::Active => true,
+                pnpr_auth::AccountLifecycle::Deactivated => false,
+            };
             scim.active_by_id
                 .write()
                 .unwrap_or_else(PoisonError::into_inner)
-                .insert(user_id.to_string(), active);
+                .insert(user_id.to_string(), is_active);
         }
-        if matches!(lifecycle, pnpr_auth::AccountLifecycle::Deactivated) {
-            state.inner.identity.oidc.revoke_user_sessions(user_id);
+        match lifecycle {
+            pnpr_auth::AccountLifecycle::Active => {}
+            pnpr_auth::AccountLifecycle::Deactivated => {
+                state.inner.identity.oidc.revoke_user_sessions(user_id);
+            }
         }
     }
     if !reload_directory(state, scim).await {

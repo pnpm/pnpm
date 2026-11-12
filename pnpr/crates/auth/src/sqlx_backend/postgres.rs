@@ -83,6 +83,13 @@ impl AuthSqlBackend for PostgresDatabase {
         self.account_status_impl(user_id).await
     }
 
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.status_revisions_impl(user_ids).await
+    }
+
     async fn apply_account_status(
         &self,
         user_id: &str,

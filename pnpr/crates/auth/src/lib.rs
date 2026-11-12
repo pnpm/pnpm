@@ -15,8 +15,8 @@ pub(crate) mod validation;
 
 pub use account::{
     AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
-    CredentialKind, PasswordChange, UpsertOutcome, UserCreation, UserRemoval, UserRename,
-    verify_returning_user,
+    AccountStatusRevision, CredentialKind, PasswordChange, UpsertOutcome, UserCreation,
+    UserRemoval, UserRename, verify_returning_user,
 };
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
@@ -150,11 +150,18 @@ impl AuthState {
         lifecycle: AccountLifecycle,
     ) -> Result<AccountStatusOutcome> {
         let outcome = self.users.apply_account_status(user_id, revision, lifecycle).await?;
-        if outcome == AccountStatusOutcome::Applied
-            && lifecycle == AccountLifecycle::Deactivated
-            && !self.users.revokes_tokens_in_status_transition()
-        {
-            self.tokens.revoke_all_for_user(user_id).await?;
+        match (outcome, lifecycle) {
+            (AccountStatusOutcome::Applied, AccountLifecycle::Deactivated)
+                if !self.users.revokes_tokens_in_status_transition() =>
+            {
+                self.tokens.revoke_all_for_user(user_id).await?;
+            }
+            (
+                AccountStatusOutcome::Applied
+                | AccountStatusOutcome::Superseded
+                | AccountStatusOutcome::Missing,
+                AccountLifecycle::Active | AccountLifecycle::Deactivated,
+            ) => {}
         }
         Ok(outcome)
     }
@@ -368,6 +375,20 @@ pub trait UserBackend: Send + Sync {
     /// Lifecycle status of the account identified by `user_id`, or `None` if unknown.
     async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
         Ok(self.account_name(user_id).await?.map(|_| AccountStatus::Active))
+    }
+
+    /// Lifecycle status and status revision for each known account in `user_ids`.
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<HashMap<String, AccountStatusRevision>> {
+        let mut revisions = HashMap::new();
+        for id in user_ids {
+            if let Some(status) = self.account_status(id).await? {
+                revisions.insert(id.clone(), AccountStatusRevision { status, revision: 0 });
+            }
+        }
+        Ok(revisions)
     }
 
     /// Apply a generation-ordered lifecycle transition to `user_id` when its

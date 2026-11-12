@@ -80,6 +80,38 @@ impl MysqlDatabase {
         }
     }
 
+    pub(super) async fn status_revisions_impl(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        let mut revisions = std::collections::HashMap::with_capacity(user_ids.len());
+        for ids in user_ids.chunks(512) {
+            let mut query = sqlx::QueryBuilder::<sqlx::MySql>::new(
+                "SELECT id, status, status_revision FROM users WHERE id IN (",
+            );
+            let mut binds = query.separated(", ");
+            for id in ids {
+                binds.push_bind(id);
+            }
+            binds.push_unseparated(")");
+            for row in query
+                .build()
+                .fetch_all(&mut *self.pool.acquire().await?)
+                .await?
+            {
+                let id: String = row.try_get(0)?;
+                let raw_status: String = row.try_get(1)?;
+                let status = AccountStatus::parse(&raw_status)
+                    .ok_or_else(|| RegistryError::Internal {
+                        reason: format!("user {id} has an unrecognized status {raw_status:?}"),
+                    })?;
+                let revision = u64::try_from(row.try_get::<i64, _>(2)?).unwrap_or(0);
+                revisions.insert(id, crate::AccountStatusRevision { status, revision });
+            }
+        }
+        Ok(revisions)
+    }
+
     pub(super) async fn apply_account_status_impl(
         &self,
         user_id: &str,

@@ -176,10 +176,44 @@ pub(super) fn apply_stored_lifecycle(
     if !should_apply_lifecycle(account.status, account.status_revision, revision, lifecycle) {
         return Change::Keep(AccountStatusOutcome::Superseded);
     }
+    let is_already_applied = account.status == lifecycle.as_status()
+        && account.status_revision == revision
+        && match lifecycle {
+            AccountLifecycle::Active => true,
+            AccountLifecycle::Deactivated => {
+                account.credential_kind == CredentialKind::None
+                    && account.password_hash.is_none()
+            }
+        };
+    if is_already_applied {
+        return Change::Keep(AccountStatusOutcome::Applied);
+    }
     account.status = lifecycle.as_status();
-    if matches!(lifecycle, AccountLifecycle::Deactivated) {
-        account.clear_hash();
+    match lifecycle {
+        AccountLifecycle::Active => {}
+        AccountLifecycle::Deactivated => account.clear_hash(),
     }
     account.status_revision = revision;
     Change::Write(AccountStatusOutcome::Applied)
+}
+
+pub(super) fn revoke_deactivated_tokens(
+    stores: &[std::sync::Arc<crate::TokenStore>],
+    user_id: &str,
+    outcome: AccountStatusOutcome,
+    lifecycle: AccountLifecycle,
+) -> super::Result<()> {
+    match (outcome, lifecycle) {
+        (AccountStatusOutcome::Applied, AccountLifecycle::Deactivated) => {
+            for tokens in stores {
+                tokens.revoke_all_for_user_blocking(user_id)?;
+            }
+        }
+        (AccountStatusOutcome::Applied, AccountLifecycle::Active)
+        | (
+            AccountStatusOutcome::Superseded | AccountStatusOutcome::Missing,
+            AccountLifecycle::Active | AccountLifecycle::Deactivated,
+        ) => {}
+    }
+    Ok(())
 }

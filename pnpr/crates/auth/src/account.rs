@@ -265,6 +265,13 @@ pub enum UserRename {
     CurrentChanged,
 }
 
+/// Stored lifecycle status and monotonic status revision for an account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountStatusRevision {
+    pub status: AccountStatus,
+    pub revision: u64,
+}
+
 /// Target status of a generation-ordered account lifecycle transition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccountLifecycle {
@@ -307,7 +314,10 @@ pub(crate) const fn should_apply_lifecycle(
         AccountLifecycle::Deactivated => {
             actual_revision < revision
                 || (actual_revision == revision
-                    && matches!(actual_status, AccountStatus::Deactivated))
+                    && match actual_status {
+                        AccountStatus::Deactivated => true,
+                        AccountStatus::Active | AccountStatus::Deleted => false,
+                    })
         }
     }
 }

@@ -51,7 +51,7 @@ pub struct UserStore {
     /// Held for the whole of an edit: copying the users, writing the copy,
     /// and making it current. See [`UserStore::update`].
     edit_lock: Arc<Mutex<()>>,
-    tokens: std::sync::OnceLock<std::sync::Weak<crate::TokenStore>>,
+    tokens: Mutex<Vec<std::sync::Weak<crate::TokenStore>>>,
 }
 
 /// What an edit passed to [`UserStore::update`] did to its copy of the
@@ -123,7 +123,7 @@ impl UserStore {
             max_users,
             bcrypt_cost,
             edit_lock: Arc::default(),
-            tokens: std::sync::OnceLock::new(),
+            tokens: Mutex::new(Vec::new()),
         })
     }
 
@@ -147,16 +147,27 @@ impl UserStore {
             max_users,
             bcrypt_cost,
             edit_lock: Arc::default(),
-            tokens: std::sync::OnceLock::new(),
+            tokens: Mutex::new(Vec::new()),
         }
     }
 
     pub(crate) fn bind_tokens(&self, tokens: &Arc<crate::TokenStore>) {
-        let _ = self.tokens.set(Arc::downgrade(tokens));
+        let mut bound = self.tokens.lock().unwrap_or_else(PoisonError::into_inner);
+        bound.retain(|existing| existing.strong_count() > 0);
+        bound.push(Arc::downgrade(tokens));
     }
 
-    pub(super) fn bound_tokens(&self) -> Option<Arc<crate::TokenStore>> {
-        self.tokens.get().and_then(std::sync::Weak::upgrade)
+    pub(super) fn bound_tokens(&self) -> Vec<Arc<crate::TokenStore>> {
+        let mut bound = self.tokens.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut active = Vec::with_capacity(bound.len());
+        bound.retain(|weak| match weak.upgrade() {
+            Some(store) => {
+                active.push(store);
+                true
+            }
+            None => false,
+        });
+        active
     }
 
     #[cfg(test)]
@@ -312,7 +323,10 @@ impl UserStore {
                 .transpose()?;
             let mut next = Self::load_users_for_update(path.as_deref(), &state)?;
             let out = match edit(&mut next)? {
-                Change::Keep(out) => return Ok(out),
+                Change::Keep(out) => {
+                    post_commit(&out)?;
+                    return Ok(out);
+                }
                 Change::Write(out) => out,
             };
             let persisted = persist_users_to_disk(path.as_deref(), &next)?;

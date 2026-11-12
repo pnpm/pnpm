@@ -249,6 +249,31 @@ impl UserBackend for UserStore {
             .map(|account| account.status))
     }
 
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.sync_from_disk_if_path()?;
+        let state = self.snapshot();
+        let mut revisions = std::collections::HashMap::with_capacity(user_ids.len());
+        for id in user_ids {
+            let account = state.names_by_id
+                .get(id)
+                .and_then(|username| state.users.get(username))
+                .or_else(|| state.users.get(&format!("deleted:{id}")));
+            if let Some(account) = account {
+                revisions.insert(
+                    id.clone(),
+                    crate::AccountStatusRevision {
+                        status: account.status,
+                        revision: account.status_revision,
+                    },
+                );
+            }
+        }
+        Ok(revisions)
+    }
+
     async fn apply_account_status(
         &self,
         user_id: &str,
@@ -258,24 +283,18 @@ impl UserBackend for UserStore {
         let _ = status_revision_to_sql(revision)?;
         let id = user_id.to_string();
         let revoke_id = id.clone();
-        let tokens = self.bound_tokens();
+        let stores = self.bound_tokens();
         self.update_with_post_commit(
             move |users| Ok(apply_stored_lifecycle(users, &id, revision, lifecycle)),
             move |outcome| {
-                if *outcome == AccountStatusOutcome::Applied
-                    && matches!(lifecycle, AccountLifecycle::Deactivated)
-                    && let Some(tokens) = tokens
-                {
-                    tokens.revoke_all_for_user_blocking(&revoke_id)?;
-                }
-                Ok(())
+                super::stored::revoke_deactivated_tokens(&stores, &revoke_id, *outcome, lifecycle)
             },
         )
         .await
     }
 
     fn revokes_tokens_in_status_transition(&self) -> bool {
-        self.bound_tokens().is_some()
+        !self.bound_tokens().is_empty()
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {

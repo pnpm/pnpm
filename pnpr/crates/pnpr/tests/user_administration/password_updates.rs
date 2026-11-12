@@ -85,6 +85,12 @@ impl UserBackend for PausedPasswordUpdate {
     async fn account_status(&self, id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         self.users.account_status(id).await
     }
+    async fn status_revisions(
+        &self,
+        ids: &[String],
+    ) -> pnpr::Result<std::collections::HashMap<String, pnpr_auth::AccountStatusRevision>> {
+        self.users.status_revisions(ids).await
+    }
     async fn apply_account_status(
         &self,
         id: &str,
@@ -273,6 +279,12 @@ impl UserBackend for FailedPostUpdateLookup {
     }
     async fn account_status(&self, id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         self.users.account_status(id).await
+    }
+    async fn status_revisions(
+        &self,
+        ids: &[String],
+    ) -> pnpr::Result<std::collections::HashMap<String, pnpr_auth::AccountStatusRevision>> {
+        self.users.status_revisions(ids).await
     }
     async fn apply_account_status(
         &self,

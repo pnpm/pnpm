@@ -19,6 +19,7 @@
 //! file, live in the `users` table here.
 
 mod accounts;
+mod lifecycle;
 mod registration;
 mod schema;
 mod tokens;
@@ -305,6 +306,13 @@ impl UserBackend for LibsqlAuth {
 
     async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
         self.account_status_by_id(user_id).await
+    }
+
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.status_revisions_by_id(user_ids).await
     }
 
     async fn apply_account_status(

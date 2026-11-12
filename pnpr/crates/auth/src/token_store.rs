@@ -9,8 +9,8 @@ pub use record::{NewToken, TokenKind, TokenRecord};
 mod record;
 
 use super::{
-    Connection, HashMap, HashSet, Mutex, PathBuf, RegistryError, Result, SystemTime, TokenBackend,
-    UNIX_EPOCH, async_trait, validation::token_timestamp_to_sql,
+    Arc, Connection, HashMap, HashSet, Mutex, Path, PathBuf, RegistryError, Result, SystemTime,
+    TokenBackend, UNIX_EPOCH, async_trait, validation::token_timestamp_to_sql,
 };
 use sqlite::{
     delete_expired_tokens, delete_token, delete_user_tokens, init_tokens_schema, insert_token,
@@ -25,8 +25,9 @@ use sqlite::{
 /// `/-/npm/v1/tokens` endpoints without a schema migration.
 #[derive(Debug)]
 pub struct TokenStore {
-    pub(super) inner: Mutex<TokenInner>,
+    pub(super) inner: Arc<Mutex<TokenInner>>,
     pub(super) persist: Option<PathBuf>,
+    persist_lock: Arc<Mutex<()>>,
 }
 
 #[derive(Debug, Default)]
@@ -55,16 +56,15 @@ impl TokenInner {
         self.tokens.insert(key, record);
     }
 
-    fn remove(&mut self, key: &str) {
-        let Some(record) = self.tokens.remove(key) else {
-            return;
-        };
+    fn remove(&mut self, key: &str) -> Option<TokenRecord> {
+        let record = self.tokens.remove(key)?;
         if let Some(keys) = self.by_owner.get_mut(&record.user_id) {
             keys.remove(key);
             if keys.is_empty() {
                 self.by_owner.remove(&record.user_id);
             }
         }
+        Some(record)
     }
 
     #[cfg(test)]
@@ -112,7 +112,11 @@ impl TokenStore {
     /// Pure in-memory store. Tokens vanish on restart.
     #[must_use]
     pub fn in_memory() -> Self {
-        Self { inner: Mutex::new(TokenInner::default()), persist: None }
+        Self {
+            inner: Arc::new(Mutex::new(TokenInner::default())),
+            persist: None,
+            persist_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     /// SQLite-backed store. Creates the file (and the `tokens`
@@ -139,34 +143,35 @@ impl TokenStore {
         init_tokens_schema(&conn)?;
         let tokens = load_all_tokens(&conn)?;
         drop(conn);
-        Ok(Self { inner: Mutex::new(TokenInner::from_tokens(tokens)), persist: Some(path) })
+        Ok(Self {
+            inner: Arc::new(Mutex::new(TokenInner::from_tokens(tokens))),
+            persist: Some(path),
+            persist_lock: Arc::new(Mutex::new(())),
+        })
     }
 
-    async fn persist_issued(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
+    async fn store_issued(&self, token_hash: String, record: TokenRecord) -> Result<()> {
         let Some(path) = self.persist.clone() else {
+            let _guard = self.persist_lock.lock().expect("TokenStore persist mutex poisoned");
+            self.inner
+                .lock()
+                .expect("TokenStore mutex poisoned")
+                .insert(token_hash, record);
             return Ok(());
         };
-        let hash_for_db = token_hash.to_string();
-        let record_for_db = record.clone();
-        let result = tokio::task::spawn_blocking(move || -> Result<()> {
+        let inner = Arc::clone(&self.inner);
+        let persist_lock = Arc::clone(&self.persist_lock);
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let _guard = persist_lock.lock().expect("TokenStore persist mutex poisoned");
             let conn = Connection::open(&path)?;
-            insert_token(&conn, &hash_for_db, &record_for_db)?;
+            insert_token(&conn, &token_hash, &record)?;
+            inner
+                .lock()
+                .expect("TokenStore mutex poisoned")
+                .insert(token_hash, record);
             Ok(())
         })
-        .await;
-        match result {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err(err)) => {
-                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                inner.remove(token_hash);
-                Err(err)
-            }
-            Err(err) => {
-                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                inner.remove(token_hash);
-                Err(err.into())
-            }
-        }
+        .await?
     }
 }
 
@@ -191,11 +196,7 @@ impl TokenBackend for TokenStore {
             expires_at: new_token.expires_at,
             kind: new_token.kind,
         };
-        {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.insert(token_hash.clone(), record.clone());
-        }
-        self.persist_issued(&token_hash, &record).await?;
+        self.store_issued(token_hash, record.clone()).await?;
         Ok((raw, record))
     }
 
@@ -220,30 +221,34 @@ impl TokenBackend for TokenStore {
     }
 
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
-        let should_persist = {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            if let Some(record) = inner.tokens.get_mut(key) {
-                let old = record.last_used_at;
-                record.last_used_at = now;
-                self.persist.is_some() && now != old
-            } else {
-                false
-            }
-        };
-        if should_persist && let Some(path) = self.persist.clone() {
-            let key = key.to_string();
-            let sql_now = token_timestamp_to_sql(now);
-            tokio::task::spawn_blocking(move || -> Result<()> {
-                let conn = Connection::open(&path)?;
-                conn.execute(
-                    "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
-                    rusqlite::params![sql_now, key],
-                )?;
-                Ok(())
-            })
-            .await??;
+        let needs_touch = self.inner
+            .lock()
+            .expect("TokenStore mutex poisoned")
+            .tokens
+            .get(key)
+            .is_some_and(|record| record.last_used_at != now);
+        if !needs_touch {
+            return Ok(());
         }
-        Ok(())
+        let Some(path) = self.persist.clone() else {
+            let _guard = self.persist_lock.lock().expect("TokenStore persist mutex poisoned");
+            if let Some(record) = self.inner
+                .lock()
+                .expect("TokenStore mutex poisoned")
+                .tokens
+                .get_mut(key)
+            {
+                record.last_used_at = now;
+            }
+            return Ok(());
+        };
+        let key = key.to_string();
+        let inner = Arc::clone(&self.inner);
+        let persist_lock = Arc::clone(&self.persist_lock);
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            touch_persisted(&path, &persist_lock, &inner, &key, now)
+        })
+        .await?
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
@@ -261,63 +266,41 @@ impl TokenBackend for TokenStore {
     /// the caller sees a 5xx — the opposite ordering would leave a
     /// "revoked in memory but resurrected on restart" hole.
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let snapshot = {
-            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.get(key).cloned()
+        let Some(path) = self.persist.clone() else {
+            return revoke_key_sync(None, &self.persist_lock, &self.inner, key);
         };
-        let Some(record) = snapshot else {
-            return Ok(None);
-        };
-        if let Some(path) = self.persist.clone() {
-            let key = key.to_string();
-            tokio::task::spawn_blocking(move || -> Result<()> {
-                let conn = Connection::open(&path)?;
-                delete_token(&conn, &key)?;
-                Ok(())
-            })
-            .await??;
-        }
-        {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.remove(key);
-        }
-        Ok(Some(record))
+        let key = key.to_string();
+        let inner = Arc::clone(&self.inner);
+        let persist_lock = Arc::clone(&self.persist_lock);
+        tokio::task::spawn_blocking(move || {
+            revoke_key_sync(Some(&path), &persist_lock, &inner, &key)
+        })
+        .await?
     }
 
     async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
-        let user_id = user_id.to_string();
-        let db_removed = if let Some(path) = self.persist.clone() {
-            let owner = user_id.clone();
-            tokio::task::spawn_blocking(move || -> Result<usize> {
-                let conn = Connection::open(&path)?;
-                delete_user_tokens(&conn, &owner)
-            })
-            .await??
-        } else {
-            0
+        let Some(path) = self.persist.clone() else {
+            return revoke_user_sync(None, &self.persist_lock, &self.inner, user_id);
         };
-        let mem_removed = {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.remove_for_user(&user_id)
-        };
-        Ok(mem_removed.max(db_removed))
+        let owner = user_id.to_string();
+        let inner = Arc::clone(&self.inner);
+        let persist_lock = Arc::clone(&self.persist_lock);
+        tokio::task::spawn_blocking(move || {
+            revoke_user_sync(Some(&path), &persist_lock, &inner, &owner)
+        })
+        .await?
     }
 
     async fn delete_expired(&self, now: u64) -> Result<usize> {
-        let db_removed = if let Some(path) = self.persist.clone() {
-            tokio::task::spawn_blocking(move || -> Result<usize> {
-                let conn = Connection::open(&path)?;
-                delete_expired_tokens(&conn, now)
-            })
-            .await??
-        } else {
-            0
+        let Some(path) = self.persist.clone() else {
+            return delete_expired_sync(None, &self.persist_lock, &self.inner, now);
         };
-        let mem_removed = {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.remove_expired(now)
-        };
-        Ok(mem_removed.max(db_removed))
+        let inner = Arc::clone(&self.inner);
+        let persist_lock = Arc::clone(&self.persist_lock);
+        tokio::task::spawn_blocking(move || {
+            delete_expired_sync(Some(&path), &persist_lock, &inner, now)
+        })
+        .await?
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -337,18 +320,107 @@ impl TokenBackend for TokenStore {
 
 impl TokenStore {
     pub(crate) fn revoke_all_for_user_blocking(&self, user_id: &str) -> Result<usize> {
-        let db_removed = if let Some(path) = &self.persist {
-            let conn = Connection::open(path)?;
-            delete_user_tokens(&conn, user_id)?
-        } else {
-            0
-        };
-        let mem_removed = {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.remove_for_user(user_id)
-        };
-        Ok(mem_removed.max(db_removed))
+        revoke_user_sync(self.persist.as_deref(), &self.persist_lock, &self.inner, user_id)
     }
+}
+
+fn touch_persisted(
+    path: &Path,
+    persist_lock: &Mutex<()>,
+    inner: &Mutex<TokenInner>,
+    key: &str,
+    now: u64,
+) -> Result<()> {
+    let _guard = persist_lock.lock().expect("TokenStore persist mutex poisoned");
+    if !inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .tokens
+        .contains_key(key)
+    {
+        return Ok(());
+    }
+    let sql_now = token_timestamp_to_sql(now);
+    let conn = Connection::open(path)?;
+    conn.execute(
+        "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
+        rusqlite::params![sql_now, key],
+    )?;
+    if let Some(record) = inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .tokens
+        .get_mut(key)
+    {
+        record.last_used_at = now;
+    }
+    Ok(())
+}
+
+fn revoke_key_sync(
+    persist: Option<&Path>,
+    persist_lock: &Mutex<()>,
+    inner: &Mutex<TokenInner>,
+    key: &str,
+) -> Result<Option<TokenRecord>> {
+    let _guard = persist_lock.lock().expect("TokenStore persist mutex poisoned");
+    let snapshot = inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .tokens
+        .get(key)
+        .cloned();
+    if snapshot.is_none() {
+        return Ok(None);
+    }
+    if let Some(path) = persist {
+        let conn = Connection::open(path)?;
+        delete_token(&conn, key)?;
+    }
+    Ok(inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .remove(key))
+}
+
+fn revoke_user_sync(
+    persist: Option<&Path>,
+    persist_lock: &Mutex<()>,
+    inner: &Mutex<TokenInner>,
+    user_id: &str,
+) -> Result<usize> {
+    let _guard = persist_lock.lock().expect("TokenStore persist mutex poisoned");
+    let db_removed = if let Some(path) = persist {
+        let conn = Connection::open(path)?;
+        delete_user_tokens(&conn, user_id)?
+    } else {
+        0
+    };
+    let mem_removed = inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .remove_for_user(user_id);
+    Ok(mem_removed.max(db_removed))
+}
+
+fn delete_expired_sync(
+    persist: Option<&Path>,
+    persist_lock: &Mutex<()>,
+    inner: &Mutex<TokenInner>,
+    now: u64,
+) -> Result<usize> {
+    let _guard = persist_lock.lock().expect("TokenStore persist mutex poisoned");
+    let db_removed = if let Some(path) = persist {
+        let conn = Connection::open(path)?;
+        delete_expired_tokens(&conn, now)?
+    } else {
+        0
+    };
+    let mem_removed = inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .remove_expired(now);
+    Ok(mem_removed.max(db_removed))
 }
 
 impl Default for TokenStore {

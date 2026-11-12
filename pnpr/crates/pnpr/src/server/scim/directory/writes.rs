@@ -132,8 +132,11 @@ impl Drop for PendingReconcile<'_> {
         if self.disarmed {
             return;
         }
-        if matches!(self.lifecycle, AccountLifecycle::Deactivated) {
-            fail_closed_on_unsynced_deactivation(self.state, self.user_id, self.generation);
+        match self.lifecycle {
+            AccountLifecycle::Active => {}
+            AccountLifecycle::Deactivated => {
+                fail_closed_on_unsynced_deactivation(self.state, self.user_id, self.generation);
+            }
         }
         self.state.inner.identity.managed.schedule_retry();
     }
@@ -319,10 +322,10 @@ pub(super) async fn finish_scim_write(
             return Err(RegistryError::NotFound);
         }
     }
+    pending.disarm();
     let username = state.inner.identity.auth.users
         .account_name(&saved.user_id)
         .await?
         .ok_or(RegistryError::NotFound)?;
-    pending.disarm();
     Ok(ScimUser { username, active: saved.active, attributes: saved.attributes })
 }
