@@ -116,9 +116,6 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         .clone()
         .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
     let modules_dir = config.modules_dir.clone();
-    let configured_virtual_store_dir = paths_before_hook
-        .configured_virtual_store_dir
-        .clone();
     let install_state_dir = config.install_state_dir.clone();
     if paths_before_hook.lockfile_dir.is_none() {
         config.lockfile_dir = None;
@@ -128,7 +125,7 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         config,
         &paths_before_hook,
         modules_dir,
-        configured_virtual_store_dir,
+        paths_before_hook.configured_virtual_store_dir.as_ref(),
         install_state_dir,
     );
     config.refresh_node_path_after_lockfile_dir_change::<Host>(
@@ -142,7 +139,7 @@ fn restore_default_lockfile_dir_paths(
     config: &mut Config,
     paths_before_hook: &LockfileDirPathsBeforeHook,
     modules_dir: PathBuf,
-    configured_virtual_store_dir: Option<PathBuf>,
+    configured_virtual_store_dir: Option<&PathBuf>,
     install_state_dir: PathBuf,
 ) {
     if config.lockfile_dir.is_some() {
@@ -152,7 +149,11 @@ fn restore_default_lockfile_dir_paths(
     if let Some(hook_modules_dir) = paths_before_hook.hook_modules_dir.as_ref() {
         config.modules_dir.clone_from(hook_modules_dir);
     }
-    config.configured_virtual_store_dir = configured_virtual_store_dir.clone();
+    if let Some(dir) = configured_virtual_store_dir {
+        config.configured_virtual_store_dir.clone_from(&Some(dir.clone()));
+    } else {
+        config.configured_virtual_store_dir = None;
+    }
     config.install_state_dir = install_state_dir;
     if paths_before_hook.modules_dir_changed {
         if !config.explicit_settings.contains_key("virtualStoreDir")
@@ -167,7 +168,7 @@ fn restore_default_lockfile_dir_paths(
             .get("virtualStoreDir")
             .and_then(Value::as_str)
             .and_then(|raw| {
-                let dir = configured_virtual_store_dir.as_ref()?;
+                let dir = configured_virtual_store_dir?;
                 (!Path::new(raw).is_absolute()
                     && pnpm_fs::lexical_normalize(dir)
                         == pnpm_fs::lexical_normalize(&project_dir.join(raw)))

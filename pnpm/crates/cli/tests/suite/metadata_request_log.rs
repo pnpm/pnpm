@@ -57,6 +57,7 @@ fn explicit_default_lockfile_dir_does_not_add_frozen_metadata_requests() {
     assert_eq!(explicit, unset, "explicit lockfileDir added frozen-install metadata requests");
 }
 
+#[derive(Clone, Copy)]
 enum LockfileDirCase {
     Unset,
     ExplicitDefault,
@@ -84,7 +85,7 @@ fn frozen_install_metadata_requests(
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove installed modules");
     fs::remove_dir_all(cache_dir.join("v12/metadata")).expect("clear registry metadata cache");
 
-    if let LockfileDirCase::ExplicitDefault = lockfile_dir_case {
+    if matches!(lockfile_dir_case, LockfileDirCase::ExplicitDefault) {
         let workspace_yaml = workspace.join("pnpm-workspace.yaml");
         let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
         fs::write(&workspace_yaml, format!("{yaml}lockfileDir: .\n"))
