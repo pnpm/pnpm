@@ -284,7 +284,19 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
         drop(revoke_fut);
         drop(persist_guard);
     }
-    let finish_path = tokens_path.clone();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !raw_store
+        .list_for_user(&id)
+        .await
+        .unwrap()
+        .is_empty()
+    {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "detached revoke_all_for_user worker did not complete before deadline",
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    }
     let finish_store = std::sync::Arc::clone(&raw_store);
     tokio::task::spawn_blocking(move || drop(finish_store.lock_persist_for_test()))
         .await
@@ -297,7 +309,7 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
             .is_empty(),
     );
     assert!(
-        crate::TokenStore::open(finish_path)
+        crate::TokenStore::open(tokens_path.clone())
             .unwrap()
             .list_for_user(&id)
             .await
