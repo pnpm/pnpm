@@ -1,5 +1,5 @@
 use super::{
-    _utils::{assert_success, ndjson_records, pacquet_in},
+    _utils::{assert_success, enable_gvs_in_workspace_yaml, ndjson_records, pacquet_in},
     workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
 };
 use assert_cmd::prelude::*;
@@ -281,7 +281,7 @@ fn global_virtual_store_build_shims_do_not_capture_the_project_path() {
         .to_string(),
     )
     .expect("write package.json");
-    append_workspace_yaml_key(&workspace, "enableGlobalVirtualStore", true);
+    enable_gvs_in_workspace_yaml(&workspace, "");
     allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", true)]);
 
     pacquet
