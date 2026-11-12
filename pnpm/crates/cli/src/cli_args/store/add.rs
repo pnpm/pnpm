@@ -18,8 +18,10 @@ use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
+use tokio::sync::OnceCell;
 
 mod downloaded_tarball;
+mod lockfile_entries;
 
 /// At least one specifier could not be added.
 ///
@@ -141,6 +143,7 @@ async fn add_packages<Reporter: self::Reporter>(
         resolver: &resolver,
         resolve_options: &resolve_options,
         requester: &requester,
+        lockfile_entries: OnceCell::new(),
         store: StoreAddIndex {
             index: StoreIndex::open_shared(&config.store_dir, false).await,
             index_writer: &store_index_writer,
@@ -200,6 +203,9 @@ struct AddOne<'a> {
     resolver: &'a pnpm_resolving_default_resolver::DefaultResolver,
     resolve_options: &'a ResolveOptions,
     requester: &'a str,
+    /// Read when the first tarball on disk is added, so adding packages by
+    /// name does not depend on the project's lockfile.
+    lockfile_entries: OnceCell<lockfile_entries::LockfileEntries>,
     store: StoreAddIndex<'a>,
 }
 

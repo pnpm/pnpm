@@ -713,6 +713,80 @@ fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
     assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
 }
 
+/// A lockfile entry whose id is the tarball's URL, which the tarball itself
+/// does not reveal, so only the lockfile can tell `store add` to key it so.
+fn assert_downloaded_tarball_serves_a_tarball_url_lockfile_entry(url: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    // Spelled with a host other than the configured registry's, the URL
+    // resolves to a tarball entry rather than a registry one.
+    let registry = npmrc_info.mock_instance.url();
+    let served =
+        format!("{registry}@pnpm.e2e/foo/-/foo-100.0.0.tgz").replace("127.0.0.1", "localhost");
+    assert!(!served.starts_with(registry), "{served}");
+    let manifest = workspace.join("package.json");
+    fs::write(
+        &manifest,
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": served } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    for path in [&manifest, &lockfile_path] {
+        let text = fs::read_to_string(path).expect("read the project file");
+        assert!(text.contains(&served), "{text}");
+        fs::write(path, text.replace(&served, url)).expect("point the project at the URL");
+    }
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let downloaded = root.path().join("foo.tgz");
+    fs::copy(
+        pnpr_fixtures::tarball_path(
+            &root.path().join("registry-storage"),
+            "@pnpm.e2e/foo",
+            "100.0.0",
+        ),
+        &downloaded,
+    )
+    .expect("copy the tarball");
+    pacquet_at(&workspace)
+        .with_args(["store", "add"])
+        .with_arg(&downloaded)
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+    assert!(workspace.join("node_modules/@pnpm.e2e/foo/package.json").exists());
+}
+
+#[test]
+fn store_add_of_a_downloaded_tarball_serves_a_tarball_url_lockfile_entry() {
+    assert_downloaded_tarball_serves_a_tarball_url_lockfile_entry(
+        "https://tarballs.example.invalid/foo-100.0.0.tgz",
+    );
+}
+
+#[test]
+fn store_add_of_a_downloaded_tarball_serves_a_git_hosted_lockfile_entry() {
+    assert_downloaded_tarball_serves_a_tarball_url_lockfile_entry(
+        "https://codeload.github.com/pnpm-e2e/foo/tar.gz/98e8ff1da1a89f93d1397a24d7413ed15421c139",
+    );
+}
+
 /// <https://github.com/pnpm/pnpm/issues/17875>
 #[test]
 fn store_add_of_a_tarball_directory_warms_the_store_recursively() {
