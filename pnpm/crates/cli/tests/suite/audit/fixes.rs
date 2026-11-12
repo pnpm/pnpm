@@ -38,6 +38,44 @@ fn audit_fix_override_writes_overrides_to_workspace_manifest() {
 }
 
 #[test]
+fn audit_fix_override_respects_ignore_ghsas() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let body = format!(
+        "{{\n{},\n{}\n}}",
+        advisory_entry("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+        advisory_entry("moderate-pkg", 124, "moderate", "<3.0.0", "test", "GHSA-test-3333-4444"),
+    );
+    let mock = audit_mock(&mut registry, &body).create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n",
+    );
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--fix")
+        .output()
+        .expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        !manifest.contains("vulnerable@<2.0.0"),
+        "manifest should not hold override for ignored GHSA:\n{manifest}",
+    );
+    assert!(
+        manifest.contains("moderate-pkg@<3.0.0: ^3.0.0"),
+        "manifest should hold override for unignored GHSA:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_override_writes_overrides_in_the_configured_save_style() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
