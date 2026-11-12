@@ -638,6 +638,8 @@ This can also be configured via the `--config.pnprServer=<url>` command-line opt
 
 When `pnprServer` is set, authentication headers configured for the pnpr server URL in `.npmrc` (for example, `//pnpr.example.com/:_authToken=...`) are automatically sent to authenticate requests to the server.
 
+When remote resolution fails, pnpm reports the server's `ERR_PNPR_` error code and reason.
+
 ### autoDedupe
 
 Added in: v12.6.0

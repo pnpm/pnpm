@@ -6,7 +6,7 @@ pub enum PnprClientError {
     #[display("pnpr request failed: {_0}")]
     Http(reqwest::Error),
 
-    #[display("pnpr server error: {message}")]
+    #[display("pnpr server error: {}{message}", code.as_ref().map(|code| format!("{code}: ")).unwrap_or_default())]
     #[from(ignore)]
     Server {
         message: String,
@@ -40,3 +40,35 @@ impl PnprClientError {
         Self::Server { message: message.into(), code }
     }
 }
+
+pub(super) async fn check_status(
+    response: reqwest::Response,
+    request: &str,
+) -> Result<reqwest::Response, PnprClientError> {
+    if response.status().is_success() {
+        return Ok(response);
+    }
+    let status = response.status();
+    let body = super::response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
+    let payload = serde_json::from_slice::<serde_json::Value>(&body).ok();
+    let code = payload
+        .as_ref()
+        .and_then(|value| value.get("code"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let reason = payload
+        .as_ref()
+        .and_then(|value| value.get("reason"))
+        .and_then(serde_json::Value::as_str);
+    let message = format!(
+        "{request} returned {status}: {}",
+        reason
+            .map(str::to_owned)
+            .unwrap_or_else(|| String::from_utf8_lossy(&body).into_owned()),
+    );
+    Err(PnprClientError::server_with_code(message, code))
+}
+
+/// Cap on the body read back from a failed request, which is quoted into
+/// the error message.
+const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;

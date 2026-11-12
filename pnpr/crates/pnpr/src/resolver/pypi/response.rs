@@ -32,7 +32,7 @@ pub(super) async fn resolve_request(
         Err(err) => {
             let code = err
                 .contains("must be resolved by the client")
-                .then_some("ERR_PNPM_PYPI_CLIENT_RESOLVE_REQUIRED");
+                .then_some("ERR_PNPR_PYPI_CLIENT_RESOLVE_REQUIRED");
             ndjson_single_frame(&error_frame_with_code(&err, code))
         }
     }

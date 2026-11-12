@@ -80,11 +80,7 @@ use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
 use pnpr_route::{Footprint, RouteContext};
 
-use axum::{
-    body::{Body, Bytes},
-    http::{StatusCode, header},
-    response::Response,
-};
+use axum::{body::Bytes, http::StatusCode, response::Response};
 use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
@@ -547,15 +543,7 @@ fn json_error(status: StatusCode, message: &str) -> Response {
 }
 
 fn json_error_with_code(status: StatusCode, message: &str, code: Option<&str>) -> Response {
-    let mut val = serde_json::json!({ "error": message });
-    if let Some(code) = code {
-        val["code"] = serde_json::Value::String(code.to_string());
-    }
-    Response::builder()
-        .status(status)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(val.to_string()))
-        .expect("static json error response is always valid")
+    pnpr_error::json_error(status, message, code)
 }
 
 #[cfg(test)]

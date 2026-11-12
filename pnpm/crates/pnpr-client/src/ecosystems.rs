@@ -1,6 +1,6 @@
 use super::{
-    CargoResolveOptions, Deserialize, MAX_ERROR_BODY_SIZE, PnprClient, PnprClientError,
-    PypiResolveOptions, RenderedViolation, VerifyError, VerifyLockfileOptions, read_ndjson_frames,
+    CargoResolveOptions, Deserialize, PnprClient, PnprClientError, PypiResolveOptions,
+    RenderedViolation, VerifyError, VerifyLockfileOptions, read_ndjson_frames,
     response_body_bounded,
 };
 
@@ -199,18 +199,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
-            let code = extract_error_code(&body);
-            return Err(PnprClientError::Server {
-                message: format!(
-                    "/-/pnpr/v0/resolve returned {status}: {}",
-                    String::from_utf8_lossy(&body),
-                ),
-                code,
-            });
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
         find_terminal_frame(&body)
     }
@@ -231,13 +220,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::server(format!(
-                "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
-            )));
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/verify-lockfile").await?;
 
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
             VerifyFrame::Done { applied_policies } => {
@@ -261,12 +244,6 @@ impl PnprClient {
             )
         })
     }
-}
-
-fn extract_error_code(body: &[u8]) -> Option<String> {
-    let payload = serde_json::from_slice::<serde_json::Value>(body).ok()?;
-    let code_val = payload.get("code")?.as_str()?;
-    Some(code_val.to_string())
 }
 
 fn is_terminal_frame(line: &[u8]) -> bool {

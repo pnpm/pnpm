@@ -125,7 +125,7 @@ pub(super) async fn handle_resolve(
         return json_error_with_code(
             StatusCode::BAD_REQUEST,
             "Python direct URL requirements must be resolved by the client",
-            Some("ERR_PNPM_PYPI_CLIENT_RESOLVE_REQUIRED"),
+            Some("ERR_PNPR_PYPI_CLIENT_RESOLVE_REQUIRED"),
         );
     }
     response::resolve_request(runtime, identity, index, request, requirements).await

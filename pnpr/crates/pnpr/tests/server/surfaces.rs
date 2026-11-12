@@ -590,7 +590,8 @@ async fn unsupported_npm_package_endpoints_explain_the_refusal() {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
             let body = body_json(response.into_body()).await;
-            assert_eq!(body["error"], "unsupported_route");
+            assert_eq!(body["code"], "ERR_PNPR_UNSUPPORTED_ROUTE");
+            assert_eq!(body["error"], body["reason"]);
         }
     }
 }

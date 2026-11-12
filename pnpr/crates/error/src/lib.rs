@@ -4,7 +4,7 @@ mod redact_url;
 #[cfg(feature = "server")]
 mod response;
 #[cfg(feature = "server")]
-pub use response::PublicErrorMessage;
+pub use response::{PublicErrorCode, PublicErrorMessage, error_body, json_error};
 
 use derive_more::{Display, Error, From};
 

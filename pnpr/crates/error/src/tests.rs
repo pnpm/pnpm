@@ -295,14 +295,16 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     assert!(!config_error.is_transient_upstream_error());
 }
 
-/// Every masked-existence path answers through this variant, so its rendering
-/// is a wire contract: a bare `404 Not Found` that leaks nothing about why.
+/// Masked-existence responses disclose no detail about the hidden resource.
 #[tokio::test]
-async fn not_found_renders_as_a_bare_404() {
+async fn not_found_renders_as_a_json_404() {
     let response = RegistryError::NotFound.into_response();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body.as_ref(), b"Not Found");
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+        serde_json::json!({"error":"Not Found","reason":"Not Found","code":"ERR_PNPR_NOT_FOUND"}),
+    );
 }
 
 #[tokio::test]
@@ -323,7 +325,10 @@ async fn configuration_failures_hide_operator_details_from_clients() {
         "Internal Server Error",
     );
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body.as_ref(), b"Internal Server Error");
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+        serde_json::json!({"error":"Internal Server Error","reason":"Internal Server Error","code":"ERR_PNPR_INVALID_CONFIG"}),
+    );
 }
 
 #[test]
@@ -424,4 +429,23 @@ fn committed_password_errors_redact_the_original_server_failure() {
     assert_eq!(error.public_message(), "Internal Server Error");
     assert!(!error.log_message().contains("private-secret"));
     assert!(error.log_message().contains("Password change committed"));
+}
+
+#[tokio::test]
+async fn config_managed_errors_expose_stable_codes() {
+    for (error, code) in [
+        (RegistryError::TeamsConfigManaged { action: "update" }, "ERR_PNPR_TEAMS_CONFIG_MANAGED"),
+        (RegistryError::RulesConfigManaged, "ERR_PNPR_RULES_CONFIG_MANAGED"),
+        (
+            RegistryError::Shared(std::sync::Arc::new(RegistryError::RulesConfigManaged)),
+            "ERR_PNPR_RULES_CONFIG_MANAGED",
+        ),
+    ] {
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], code);
+        assert_eq!(body["error"], body["reason"]);
+    }
 }

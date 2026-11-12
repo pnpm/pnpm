@@ -551,10 +551,6 @@ async fn response_body_bounded(
     Ok(body)
 }
 
-/// Cap on the body read back from a failed request, which is quoted into
-/// the error message.
-const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
-
 #[cfg(test)]
 mod tests;
 
@@ -571,5 +567,6 @@ use resolve::read_ndjson_frames;
 mod ecosystem_cache;
 mod ecosystems;
 mod error;
+use error::check_status;
 
 use ecosystems::{WireViolation, build_verify_error};

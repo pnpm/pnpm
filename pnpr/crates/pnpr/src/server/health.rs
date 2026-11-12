@@ -50,7 +50,11 @@ pub(crate) async fn serve_ping(State(state): State<AppState>) -> Response {
         Ok(()) => (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response(),
         Err(err) => {
             tracing::warn!(error = %err.log_message(), "ping readiness check failed");
-            (StatusCode::SERVICE_UNAVAILABLE, err.public_message()).into_response()
+            pnpr_error::json_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                &err.public_message(),
+                Some(&err.code()),
+            )
         }
     }
 }
@@ -83,15 +87,12 @@ pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
         tracing::warn!(storage = %storage_msg, auth = %auth_msg, "readiness probe failed");
         let storage_status_val = if storage_status.is_ok() { "ok" } else { "unavailable" };
         let auth_status_val = if auth_status.is_ok() { "ok" } else { "unavailable" };
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            axum::Json(serde_json::json!({
-                "status": "unhealthy",
-                "storage": storage_status_val,
-                "auth": auth_status_val,
-            })),
-        )
-            .into_response()
+        let mut body =
+            pnpr_error::error_body("Service Unavailable", "ERR_PNPR_SERVICE_UNAVAILABLE");
+        body["status"] = serde_json::json!("unhealthy");
+        body["storage"] = serde_json::json!(storage_status_val);
+        body["auth"] = serde_json::json!(auth_status_val);
+        (StatusCode::SERVICE_UNAVAILABLE, axum::Json(body)).into_response()
     }
 }
 

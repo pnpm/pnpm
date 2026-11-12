@@ -8,6 +8,30 @@ use axum::{
 #[derive(Clone)]
 pub struct PublicErrorMessage(pub String);
 
+/// Stable code attached to a registry error response.
+#[derive(Clone)]
+pub struct PublicErrorCode(pub String);
+
+/// JSON body shared by registry-owned HTTP endpoints and streaming errors.
+#[must_use]
+pub fn error_body(message: &str, code: &str) -> serde_json::Value {
+    serde_json::json!({ "error": message, "reason": message, "code": code })
+}
+
+/// Render an error that has no registry error variant.
+#[must_use]
+pub fn json_error(status: StatusCode, message: &str, code: Option<&str>) -> Response {
+    let fallback = format!(
+        "ERR_PNPR_{}",
+        status
+            .canonical_reason()
+            .unwrap_or("unknown")
+            .replace(' ', "_")
+            .to_ascii_uppercase(),
+    );
+    (status, axum::Json(error_body(message, code.unwrap_or(&fallback)))).into_response()
+}
+
 impl RegistryError {
     /// Whether a failed upstream fetch is a transient *availability* failure —
     /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
@@ -33,6 +57,11 @@ impl RegistryError {
             }
             _ => false,
         }
+    }
+
+    #[must_use]
+    pub fn code(&self) -> String {
+        format!("ERR_PNPR_{}", self.log_kind().to_ascii_uppercase())
     }
 
     fn retry_after(&self) -> Option<std::time::Duration> {
@@ -275,7 +304,11 @@ impl IntoResponse for RegistryError {
             tracing::warn!(err = %self, %error_kind, %status, "request failed");
         }
         let message = self.public_message();
-        let mut response = (status, message.clone()).into_response();
+        let code = self.code();
+        let mut response = json_error(status, &message, Some(&code));
+        response
+            .extensions_mut()
+            .insert(PublicErrorCode(code));
         response
             .extensions_mut()
             .insert(PublicErrorMessage(message));

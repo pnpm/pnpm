@@ -336,13 +336,7 @@ impl PnprClient {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::server(format!(
-                "/-/pnpr/v0/resolve returned {status}: {body}",
-            )));
-        }
+        let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
 
         let outcome = read_ndjson_frames(response, |line| {
             handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)

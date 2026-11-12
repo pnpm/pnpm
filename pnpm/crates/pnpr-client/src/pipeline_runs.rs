@@ -1,6 +1,6 @@
 //! Recording `pnpm pipeline` runs on a pnpr server.
 
-use super::{Client, PnprClient, PnprClientError, Serialize, response_body_bounded};
+use super::{Client, PnprClient, PnprClientError, Serialize};
 
 /// One `pnpm pipeline` run as `PUT /-/pnpr/v0/pipeline/runs` carries it:
 /// the workspace and run identifiers plus the run's summary document and
@@ -40,14 +40,7 @@ impl PnprClient {
             put = put.header("authorization", authorization);
         }
         let response = put.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response_body_bounded(response, 64 * 1024).await?;
-            return Err(PnprClientError::server(format!(
-                "/-/pnpr/v0/pipeline/runs returned {status}: {}",
-                String::from_utf8_lossy(&body),
-            )));
-        }
+        super::check_status(response, "/-/pnpr/v0/pipeline/runs").await?;
         Ok(())
     }
 }
