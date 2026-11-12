@@ -120,7 +120,7 @@ impl<'de> serde::de::Visitor<'de> for SecretFileVisitor {
 /// boolean, which loses its exact text, such as leading zeros.
 fn not_a_string<DeError: serde::de::Error>() -> DeError {
     DeError::custom(refuse(
-        "`secret` reads as a number or a boolean; quote it, as in `secret: \"${PNPR_SECRET}\"`"
+        r#"`secret` reads as a number or a boolean; quote it, as in `secret: "${PNPR_SECRET}"`"#
             .to_string(),
     ))
 }

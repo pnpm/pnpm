@@ -144,26 +144,34 @@ where
 /// Empty the token that starts where `reason` locates its error. Returns
 /// whether one did.
 fn blank_token_at(marked: &mut String, reason: &str) -> bool {
-    let Some((line, column)) = error_location(reason) else { return false };
-    let preceding = line.saturating_sub(1);
-    let Some(text) = marked.split('\n').nth(preceding) else { return false };
+    let Some(range) = error_location(reason).and_then(|location| token_range_at(marked, location))
+    else {
+        return false;
+    };
+    marked.replace_range(range, "");
+    true
+}
+
+/// The byte range of the token that starts at the 1-based `(line, column)`.
+fn token_range_at(marked: &str, (line, column): (usize, usize)) -> Option<std::ops::Range<usize>> {
+    let preceding = line.checked_sub(1)?;
+    let text = marked.split('\n').nth(preceding)?;
     let line_start: usize = marked
         .split('\n')
         .take(preceding)
         .map(|earlier| earlier.len() + 1)
         .sum();
-    let token = UNSET_PLACEHOLDERS.with_borrow(|unset| {
+    UNSET_PLACEHOLDERS.with_borrow(|unset| {
         unset
             .iter()
             .find_map(|entry| {
                 let offset = text.find(&entry.token)?;
-                let token_column = text[..offset].chars().count() + 1;
-                (token_column == column).then(|| (line_start + offset, entry.token.len()))
+                let starts_at_column = text[..offset].chars().count() + 1 == column;
+                starts_at_column.then(|| {
+                    line_start + offset..line_start + offset + entry.token.len()
+                })
             })
-    });
-    let Some((start, len)) = token else { return false };
-    marked.replace_range(start..start + len, "");
-    true
+    })
 }
 
 /// The 1-based line and column of a `line <L> column <C>` error.
