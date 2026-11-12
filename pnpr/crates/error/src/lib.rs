@@ -410,18 +410,6 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// The account file on disk could not be parsed at startup.
-    /// Surfaced as a startup-time error rather than a silent empty
-    /// store so a corrupted file can't quietly lock every existing
-    /// user out.
-    #[display("Invalid account file {path}: {reason}")]
-    #[from(skip)]
-    InvalidUsersFile {
-        #[error(not(source))]
-        path: String,
-        reason: String,
-    },
-
     /// Bcrypt hash/verify failure. Operational error, not user-facing.
     #[display("Bcrypt failure: {_0}")]
     #[cfg(feature = "server")]

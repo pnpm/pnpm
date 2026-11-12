@@ -4,7 +4,8 @@
 //! commits are serialized. Reads use connections of their own, so a read
 //! never waits for a commit or for another read: in WAL mode each read
 //! transaction sees one committed snapshot while a write is in progress. The
-//! database has no replica, so every read source is the database itself.
+//! database has no replica, so every read source is the database itself. An
+//! in-memory database has only the write connection, so its reads share it.
 
 use crate::{
     adapter::{Adapter, Connection, Param, ReadSource, Row, Value, reject_nul},
@@ -39,7 +40,8 @@ pub fn ensure_schema(connection: &rusqlite::Connection, name: &str) -> Result<()
 /// A metadata database in one `SQLite` file.
 #[derive(Debug)]
 pub struct SqliteAdapter {
-    path: PathBuf,
+    /// The database file, or `None` for an in-memory database.
+    path: Option<PathBuf>,
     /// The connection every write commits through.
     writer: Mutex<rusqlite::Connection>,
     /// Read connections not in use.
@@ -57,8 +59,18 @@ impl SqliteAdapter {
         connection.pragma_update(None, "synchronous", "FULL")?;
         connection.busy_timeout(BUSY_TIMEOUT)?;
         Ok(Self {
-            path: path.to_path_buf(),
+            path: Some(path.to_path_buf()),
             writer: Mutex::new(connection),
+            readers: Mutex::new(Vec::new()),
+        })
+    }
+
+    /// Open a private database that lives in memory and is gone when the
+    /// adapter is dropped.
+    pub fn in_memory() -> Result<Self> {
+        Ok(Self {
+            path: None,
+            writer: Mutex::new(rusqlite::Connection::open_in_memory()?),
             readers: Mutex::new(Vec::new()),
         })
     }
@@ -66,8 +78,8 @@ impl SqliteAdapter {
     /// Open a connection that only reads. The database is in WAL mode
     /// already, so its reads see committed snapshots and never wait for a
     /// writer.
-    fn open_reader(&self) -> rusqlite::Result<rusqlite::Connection> {
-        let connection = rusqlite::Connection::open(&self.path)?;
+    fn open_reader(path: &Path) -> rusqlite::Result<rusqlite::Connection> {
+        let connection = rusqlite::Connection::open(path)?;
         connection.pragma_update(None, "query_only", "ON")?;
         connection.busy_timeout(BUSY_TIMEOUT)?;
         Ok(connection)
@@ -90,10 +102,14 @@ impl Adapter for SqliteAdapter {
         _source: ReadSource,
         operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
     ) -> Result<crate::adapter::Snapshot> {
+        let Some(path) = &self.path else {
+            operation(&*lock(&self.writer))?;
+            return Ok(crate::adapter::Snapshot::Current);
+        };
         let idle = lock(&self.readers).pop();
         let connection = match idle {
             Some(connection) => connection,
-            None => self.open_reader()?,
+            None => Self::open_reader(path)?,
         };
         let output = operation(&connection);
         // A read whose `COMMIT` or `ROLLBACK` failed may still be in its

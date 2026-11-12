@@ -110,7 +110,7 @@ fn from_yaml_str_rejects_unknown_sections() {
 storage: ./s
 auth:
   users:
-    file: ./htpasswd
+    maxUsers: 1
 web:
   enable: false
 ";
@@ -392,7 +392,6 @@ fn config_rejects_unknown_fields_across_subsystems() {
         ("top-level", "unknownField: value\n", "unknown field `unknownField`"),
         ("auth", "auth:\n  unknownAuth: true\n", "unknown field `unknownAuth`"),
         ("auth.users", "auth:\n  users:\n    unknownHt: true\n", "unknown field `unknownHt`"),
-        ("auth.tokens", "auth:\n  tokens:\n    unknownTok: true\n", "unknown field `unknownTok`"),
         ("backend", "backend:\n  unknownBackend: {}\n", "use database.url"),
         (
             "backend.libsql",

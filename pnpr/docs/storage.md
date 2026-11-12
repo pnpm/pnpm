@@ -357,10 +357,6 @@ database:
   url: libsql://my-pnpr.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
 
-auth:
-  users:
-    file: ./users.json
-
 registries:
   local:
     type: hosted

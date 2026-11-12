@@ -512,19 +512,17 @@ async fn readiness_probe_fails_when_storage_is_inaccessible() {
 #[tokio::test]
 async fn readiness_probe_fails_when_auth_is_inaccessible() {
     let tmp = tempfile::tempdir().unwrap();
-    let tokens_path = tmp.path().join("tokens.db");
+    let auth_path = tmp.path().join("auth.sqlite");
 
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
-    config.identity.auth.tokens.file = Some(tokens_path.clone());
+    config.identity.backend = pnpr::BackendConfig::Sqlite(auth_path.clone());
     let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .unwrap();
     let app = pnpr::router_with_auth(config, auth);
 
-    rusqlite::Connection::open(&tokens_path)
-        .unwrap()
-        .execute_batch("DROP TABLE tokens;")
-        .unwrap();
+    // Remove the auth database file so auth readiness fails
+    std::fs::remove_file(&auth_path).unwrap();
 
     // /-/ready returns 503 Service Unavailable when auth check fails
     let ready = app

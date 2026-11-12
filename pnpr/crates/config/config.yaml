@@ -61,7 +61,6 @@ storage: ./storage
 
 auth:
   users:
-    file: ./users.json
     # Maximum amount of users allowed to register. The safe default is -1
     # (registration disabled); set a non-negative cap to allow registration.
     maxUsers: -1

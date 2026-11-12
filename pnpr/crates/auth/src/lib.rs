@@ -4,9 +4,9 @@
 //! Account identity, password credentials, and bearer tokens for the registry.
 //!
 //! Accounts have immutable IDs and mutable login names. Tokens reference IDs.
-//! [`UserStore`] persists native JSON account records; [`TokenStore`] persists
-//! token hashes in `SQLite`. Shared SQL backends store both tables together and
-//! join accounts on token lookups. [`AuthState::load`] selects the backend.
+//! Every backend keeps both in the `users` and `tokens` tables of the
+//! metadata database and joins accounts on token lookups. [`AuthState::load`]
+//! selects the backend.
 //!
 //! Raw tokens are returned once; only their SHA-256 hashes are stored.
 
@@ -19,18 +19,16 @@ pub use account::{
     UserRemoval, UserRename, verify_returning_user,
 };
 pub use htpasswd::{
-    dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
-    verify_bcrypt, write_atomic, write_private_atomic,
+    dummy_verify, is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
-pub use owned_tokens::OwnedTokens;
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
+pub use sqlite_backend::{ImportedPasswords, PasswordCollisions, PasswordImport, SqliteAuth};
 pub use token_store::{
-    NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord, TokenStore,
-    export_token_database, has_valid_personal_token_checksum, unix_millis,
+    NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord,
+    has_valid_personal_token_checksum, unix_millis,
 };
-pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
 mod account;
@@ -43,26 +41,20 @@ use token_store::{fresh_secret, sha256_hex};
 
 mod identify;
 mod last_used;
-mod owned_tokens;
-mod user_store;
+mod sqlite_backend;
 
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
 use pnpr_config::{AuthConfig, BackendConfig, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use rusqlite::Connection;
 #[cfg(feature = "backend-mysql")]
 use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
 use sqlx_backend::postgres::PostgresAuth;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
+    collections::HashMap,
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -91,9 +83,8 @@ where
 }
 
 /// Bundle of the user store and the token store, each a trait object
-/// so the rest of the server doesn't have to know whether auth is
-/// file-backed, in-memory, or networked. Built once at startup by
-/// [`Self::load`].
+/// so the rest of the server doesn't have to know which database backs
+/// auth. Built once at startup by [`Self::load`].
 #[derive(Clone)]
 pub struct AuthState {
     pub users: Arc<dyn UserBackend>,
@@ -121,19 +112,27 @@ impl std::fmt::Debug for AuthState {
 }
 
 impl AuthState {
-    /// All-in-memory auth state with open registration. Used by tests
-    /// and registry-mock-compatible programmatic routers.
+    /// Auth state in a private in-memory database with open registration.
+    /// Used by tests and registry-mock-compatible programmatic routers.
     #[must_use]
     pub fn in_memory() -> Self {
         Self::in_memory_with_max_users(MaxUsers::Unlimited)
     }
 
-    /// All-in-memory auth state that enforces the resolved registration cap.
+    /// Auth state in a private in-memory database that enforces the
+    /// registration cap.
     #[must_use]
     pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
-        let users = Arc::new(UserStore::in_memory_with_max_users(max_users));
-        let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
-        Self { users, tokens: Arc::new(tokens) }
+        let auth = SqliteAuth::in_memory(max_users)
+            .expect("an in-memory SQLite database opens and migrates");
+        Self::sharing(auth)
+    }
+
+    /// Auth state whose users and tokens are both `backend`.
+    pub fn sharing<Backend: UserBackend + TokenBackend + 'static>(backend: Backend) -> Self {
+        let shared = Arc::new(backend);
+        let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+        Self { users, tokens: shared }
     }
 
     /// Revoke every token `user_id` holds. Returns how many were revoked.
@@ -173,27 +172,21 @@ impl AuthState {
         Ok(())
     }
 
-    /// Build the auth state from the resolved config. A configured SQL
-    /// backend backs both stores with one shared database; otherwise
-    /// each local store is in-memory when its file path is unset and
-    /// file-backed otherwise. The fallible step (open the account /
-    /// `SQLite` file, or connect to the configured DB and ensure its
-    /// schema) runs here so a malformed file or an unreachable database
-    /// surfaces as a startup error before the socket is bound.
+    /// Build the auth state from the resolved config. Opening the database
+    /// and ensuring its schema run here, so an unreadable or unreachable
+    /// database surfaces as a startup error before the socket is bound.
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
         match backend {
-            BackendConfig::Local => {}
-            BackendConfig::Libsql(settings) => {
-                return Self::load_libsql(auth, settings).await;
+            BackendConfig::Sqlite(path) => {
+                let (path, max_users) = (path.clone(), auth.users.max_users);
+                let auth =
+                    tokio::task::spawn_blocking(move || SqliteAuth::open(&path, max_users)).await??;
+                Ok(Self::sharing(auth))
             }
-            BackendConfig::Postgres(settings) => {
-                return Self::load_postgres(auth, settings).await;
-            }
-            BackendConfig::Mysql(settings) => {
-                return Self::load_mysql(auth, settings).await;
-            }
+            BackendConfig::Libsql(settings) => Self::load_libsql(auth, settings).await,
+            BackendConfig::Postgres(settings) => Self::load_postgres(auth, settings).await,
+            BackendConfig::Mysql(settings) => Self::load_mysql(auth, settings).await,
         }
-        Self::load_local(auth)
     }
 
     async fn load_libsql(
@@ -202,10 +195,7 @@ impl AuthState {
     ) -> Result<Self> {
         #[cfg(feature = "backend-libsql")]
         {
-            let shared = Arc::new(LibsqlAuth::connect(settings, auth.users.max_users).await?);
-            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-            let tokens: Arc<dyn TokenBackend> = shared;
-            Ok(Self { users, tokens })
+            Ok(Self::sharing(LibsqlAuth::connect(settings, auth.users.max_users).await?))
         }
         #[cfg(not(feature = "backend-libsql"))]
         {
@@ -220,10 +210,7 @@ impl AuthState {
     ) -> Result<Self> {
         #[cfg(feature = "backend-postgres")]
         {
-            let shared = Arc::new(PostgresAuth::connect(settings, auth.users.max_users).await?);
-            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-            let tokens: Arc<dyn TokenBackend> = shared;
-            Ok(Self { users, tokens })
+            Ok(Self::sharing(PostgresAuth::connect(settings, auth.users.max_users).await?))
         }
         #[cfg(not(feature = "backend-postgres"))]
         {
@@ -238,29 +225,13 @@ impl AuthState {
     ) -> Result<Self> {
         #[cfg(feature = "backend-mysql")]
         {
-            let shared = Arc::new(MysqlAuth::connect(settings, auth.users.max_users).await?);
-            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-            let tokens: Arc<dyn TokenBackend> = shared;
-            Ok(Self { users, tokens })
+            Ok(Self::sharing(MysqlAuth::connect(settings, auth.users.max_users).await?))
         }
         #[cfg(not(feature = "backend-mysql"))]
         {
             let _ = (auth, settings);
             Err(backend_not_enabled())
         }
-    }
-
-    fn load_local(auth: &AuthConfig) -> Result<Self> {
-        let users = Arc::new(match auth.users.file.clone() {
-            Some(path) => UserStore::open(path, auth.users.max_users)?,
-            None => UserStore::in_memory_with_max_users(auth.users.max_users),
-        });
-        let tokens = match auth.tokens.file.clone() {
-            Some(path) => TokenStore::open(path)?,
-            None => TokenStore::in_memory(),
-        };
-        let tokens = Arc::new(OwnedTokens::new(tokens, Arc::clone(&users)));
-        Ok(Self { users, tokens })
     }
 }
 

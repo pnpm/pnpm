@@ -1,11 +1,11 @@
 use miette::IntoDiagnostic as _;
 use pnpr_auth::{is_bcrypt_hash, is_sha_hash, parse_htpasswd_line};
+use pnpr_config::{BackendConfig, Config};
 use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HtpasswdImportOptions {
     pub source: PathBuf,
-    pub target: Option<PathBuf>,
     pub dry_run: bool,
     pub overwrite: bool,
 }
@@ -21,48 +21,54 @@ pub struct HtpasswdImportReport {
     pub collisions: Vec<String>,
 }
 
-pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<HtpasswdImportReport> {
-    if !options.source.exists() {
-        let display_source = options.source.display();
-        return Err(miette::miette!("source htpasswd file '{display_source}' does not exist"));
-    }
-
-    let Some(target_path) = options.target.clone() else {
-        return Err(miette::miette!("no target htpasswd file specified"));
+/// Import the accounts of an htpasswd file into the `SQLite` metadata
+/// database.
+pub async fn import_htpasswd(
+    config: &Config,
+    options: &HtpasswdImportOptions,
+) -> miette::Result<HtpasswdImportReport> {
+    let BackendConfig::Sqlite(target_path) = &config.identity.backend else {
+        return Err(miette::miette!(
+            "htpasswd import writes to the SQLite metadata database; this config keeps accounts in a shared database"
+        ));
     };
-
     let source_content = std::fs::read_to_string(&options.source)
         .into_diagnostic()
-        .map_err(|err| miette::miette!("failed to read source file: {err}"))?;
+        .map_err(|err| {
+            miette::miette!("failed to read htpasswd file '{}': {err}", options.source.display())
+        })?;
 
     let (source_users, total_read, bcrypt_count, sha_count) =
         parse_source_entries(&source_content)?;
-    let (merged, collisions) = pnpr_auth::UserStore::import_password_hashes(
-        &target_path,
-        source_users,
-        pnpr_auth::PasswordImport {
-            collisions: if options.overwrite {
-                pnpr_auth::PasswordCollisions::Overwrite
-            } else {
-                pnpr_auth::PasswordCollisions::Keep
+    let path = target_path.clone();
+    let max_users = config.identity.auth.users.max_users;
+    let auth = tokio::task::spawn_blocking(move || pnpr_auth::SqliteAuth::open(&path, max_users))
+        .await
+        .into_diagnostic()?
+        .into_diagnostic()?;
+    let imported = auth
+        .import_password_hashes(
+            source_users,
+            pnpr_auth::PasswordImport {
+                collisions: if options.overwrite {
+                    pnpr_auth::PasswordCollisions::Overwrite
+                } else {
+                    pnpr_auth::PasswordCollisions::Keep
+                },
+                dry_run: options.dry_run,
             },
-            mode: if options.dry_run {
-                pnpr_auth::ImportMode::DryRun
-            } else {
-                pnpr_auth::ImportMode::Persist
-            },
-        },
-    )
-    .into_diagnostic()?;
+        )
+        .await
+        .into_diagnostic()?;
 
     Ok(HtpasswdImportReport {
         total_read,
         bcrypt_count,
         sha_count,
-        merged,
-        target_path,
+        merged: imported.merged,
+        target_path: target_path.clone(),
         dry_run: options.dry_run,
-        collisions,
+        collisions: imported.collisions,
     })
 }
 

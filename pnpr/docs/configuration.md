@@ -15,10 +15,6 @@ to the public npm registry:
 storage: ./storage
 secret: ${PNPR_SECRET}
 
-auth:
-  users:
-    file: ./users.json
-
 registries:
   local:
     type: hosted
@@ -49,11 +45,9 @@ pnpr -c ./pnpr.yaml add-user alice
 pnpr -c ./pnpr.yaml
 ```
 
-Relative paths in the config, such as `storage`, `cache`,
-`auth.users.file`, `auth.tokens.file`, `osv.path`, and `ui.dir`, resolve
-against the config file's directory. For the bundled config, they resolve
-against the working directory. With `--storage`, the bundled config keeps
-`users.json` and `tokens.db` in the storage directory.
+Relative paths in the config, such as `storage`, `cache`, `osv.path`, and
+`ui.dir`, resolve against the config file's directory. For the bundled config,
+they resolve against the working directory.
 
 ## `storage` and `cache`
 
@@ -717,22 +711,21 @@ ui:
 
 ## `auth`
 
-Without `auth.users.file` and without a [shared database](auth-backends.md),
-accounts live in memory and are lost on restart, and `pnpr add-user` refuses
-to run. Tokens live in memory too unless `auth.tokens.file` is set. The bundled config stores users in a JSON account
-file and tokens in a local SQLite database:
+Accounts and tokens live in the [metadata database](storage.md#sqlite-metadata),
+next to package metadata: `<storage>/.metadata/metadata.sqlite` unless
+`database.url` names another one. Back up that database to keep them.
 
 ```yaml title="pnpr.yaml"
 auth:
   users:
-    file: ./users.json
     # Self-registration is disabled when omitted or set to -1.
     # Set a non-negative cap to allow new users.
     maxUsers: -1
-  tokens:
-    # Optional. Defaults to a tokens.db sibling of the account file.
-    file: ./tokens.db
 ```
+
+Omitted `maxUsers` means registration disabled, not unlimited registration.
+Existing users can still log in. To bring accounts over from Verdaccio or
+Apache, use [`pnpr import-htpasswd`](cli.md#import-htpasswd).
 
 Two settings limit how long a token from a password login or
 `npm token create` stays valid:
@@ -754,11 +747,6 @@ auth:
     defaultLifetime: 30d
     maxLifetime: 52w
 ```
-
-Omitted `maxUsers` means registration disabled, not unlimited registration.
-Existing users can still log in. When `auth.tokens.file` is omitted and
-`auth.users.file` is set, the token database defaults to `tokens.db` next to
-the account file.
 
 To share auth state across several stateless pnpr replicas, move users and
 tokens into a shared SQL database. See [Shared database](auth-backends.md).

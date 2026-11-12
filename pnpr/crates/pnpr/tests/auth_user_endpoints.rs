@@ -9,8 +9,8 @@ use axum::{
     http::{HeaderValue, Request, StatusCode, header},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, MaxUsers, PasswordChange, TokenStore, TokensConfig,
-    UpsertOutcome, UserBackend, UserCreation, UserRemoval, UsersConfig, router, router_with_auth,
+    AuthState, Config, MaxUsers, PasswordChange, UpsertOutcome, UserBackend, UserCreation,
+    UserRemoval, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
@@ -31,17 +31,6 @@ fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
-    config
-}
-
-fn persistent_config(storage: PathBuf, users: PathBuf, tokens_db: PathBuf) -> Config {
-    let mut config = static_config(storage);
-    config.identity.auth = AuthConfig {
-        oidc: Vec::new(),
-        users: UsersConfig { file: Some(users), max_users: MaxUsers::Unlimited },
-        tokens: TokensConfig { file: Some(tokens_db), ..TokensConfig::default() },
-        scim: None,
-    };
     config
 }
 
@@ -193,11 +182,10 @@ async fn whoami_returns_username_for_authenticated_caller() {
 #[tokio::test]
 async fn adduser_issues_token_for_canonical_username() {
     let tmp = TempDir::new().unwrap();
-    let auth = AuthState {
-        users: Arc::new(CanonicalUserBackend),
-        tokens: Arc::new(TokenStore::in_memory()),
-    };
-    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+    let config = static_config(tmp.path().to_path_buf());
+    let accounts = crate::tokens::seeded_auth(&config, &[("Alice", "secret123")]);
+    let auth = AuthState { users: Arc::new(CanonicalUserBackend), tokens: accounts.tokens };
+    let app = router_with_auth(config, auth);
 
     let response = app
         .clone()
@@ -696,13 +684,8 @@ async fn auth_endpoints_set_private_no_cache_headers() {
 /// revoked, reopening the `SQLite` store must not reload it.
 #[tokio::test]
 async fn revocation_survives_restart() {
-    let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
-    let tokens_db = auth_dir.path().join("tokens.db");
-
-    let config =
-        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
+    let config = static_config(storage.path().to_path_buf());
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .expect("first boot");

@@ -219,6 +219,7 @@ fn with_routing(
 ) -> Config {
     let cache_secret: Arc<[u8]> = Arc::from(MOCK_SECRET);
     let oci_secret = pnpr_config::derive_subkey(&cache_secret, b"pnpr OCI token signing v1");
+    let metadata = default_metadata_path(&storage);
     Config {
         logs: LogConfig::default(),
         osv: OsvConfig::default(),
@@ -230,7 +231,7 @@ fn with_routing(
         storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {
             auth: AuthConfig::default(),
-            backend: BackendConfig::Local,
+            backend: BackendConfig::Sqlite(metadata),
             admins: std::collections::BTreeSet::new(),
         },
         features: pnpr_config::Features {

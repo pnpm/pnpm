@@ -19,25 +19,20 @@ fn from_yaml_str_rejects_hosted_namespace_path_traversal() {
 }
 
 #[test]
-fn auth_block_resolves_htpasswd_relative_to_config_dir() {
-    let yaml = "\
-storage: ./s
-auth:
-  users:
-    file: ./htpasswd
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.users.file.as_deref(), Some(Path::new("/etc/pnpr/./htpasswd")));
-    // Tokens default to the htpasswd sibling.
-    assert_eq!(config.identity.auth.tokens.file.as_deref(), Some(Path::new("/etc/pnpr/tokens.db")));
+fn auth_account_and_token_files_are_not_config_keys() {
+    for yaml in
+        ["auth:\n  users:\n    file: ./users.json\n", "auth:\n  tokens:\n    file: ./tokens.db\n"]
+    {
+        let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .expect_err("accounts and tokens live in the metadata database");
+        assert!(matches!(error, RegistryError::InvalidConfig { .. }), "{error:?}");
+    }
 }
 
 #[test]
 fn auth_block_absent_disables_registration_by_default() {
     let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(config.identity.auth.users.file.is_none());
-    assert!(config.identity.auth.tokens.file.is_none());
     // Registration is opt-in: an omitted cap denies new sign-ups.
     assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
 }
@@ -48,27 +43,9 @@ fn auth_max_users_absent_disables_registration() {
 storage: ./s
 auth:
   users:
-    file: ./htpasswd
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
-}
-
-#[test]
-fn auth_tokens_file_explicit_override_wins_over_sibling_default() {
-    let yaml = "\
-storage: ./s
-auth:
-  users:
-    file: ./htpasswd
-  tokens:
-    file: /var/lib/pnpr/tokens.sqlite
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(
-        config.identity.auth.tokens.file.as_deref(),
-        Some(Path::new("/var/lib/pnpr/tokens.sqlite")),
-    );
 }
 
 #[test]
@@ -77,7 +54,6 @@ fn auth_max_users_negative_one_means_disabled() {
 storage: ./s
 auth:
   users:
-    file: ./htpasswd
     maxUsers: -1
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
@@ -90,7 +66,6 @@ fn auth_max_users_positive_is_a_hard_cap() {
 storage: ./s
 auth:
   users:
-    file: ./htpasswd
     maxUsers: 5
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();

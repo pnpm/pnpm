@@ -54,33 +54,22 @@ pub(crate) async fn wait_for_last_use_after(
     .expect("the last-used write lands");
 }
 
-/// Explicit account records let policy fixtures refer to known immutable IDs.
+/// Explicit account records let policy fixtures refer to known immutable IDs:
+/// each account's ID is its name.
 pub(crate) fn seeded_auth(config: &pnpr::Config, accounts: &[(&str, &str)]) -> AuthState {
-    let path = config.storage.hosted_dir.join("test-accounts.json");
-    std::fs::create_dir_all(&config.storage.hosted_dir).unwrap();
-    let mut records: serde_json::Map<String, serde_json::Value> = match std::fs::read(&path) {
-        Ok(bytes) => serde_json::from_slice(&bytes).unwrap(),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => serde_json::Map::default(),
-        Err(err) => panic!("read fixture accounts: {err}"),
-    };
+    let path = config.storage.hosted_dir.join("test-accounts.sqlite");
+    let auth = pnpr::SqliteAuth::open(&path, config.identity.auth.users.max_users).unwrap();
+    let connection = rusqlite::Connection::open(&path).unwrap();
     for (name, password) in accounts {
-        records
-            .entry((*name).to_string())
-            .or_insert_with(|| {
-                serde_json::json!({
-                    "id": name,
-                    "status": "active",
-                    "credential_kind": "bcrypt",
-                    "password_hash": bcrypt::hash(password, 4).unwrap(),
-                    "created_at": 1000,
-                })
-            });
+        connection
+            .execute(
+                "INSERT OR IGNORE INTO users (id, username, status, credential_kind, password_hash, created_at)
+                 VALUES (?1, ?1, 'active', 'bcrypt', ?2, 1000)",
+                rusqlite::params![name, bcrypt::hash(password, 4).unwrap()],
+            )
+            .unwrap();
     }
-    std::fs::write(&path, serde_json::to_vec(&records).unwrap()).unwrap();
-    let users =
-        Arc::new(pnpr::UserStore::open(path, config.identity.auth.users.max_users).unwrap());
-    let tokens = pnpr::OwnedTokens::new(pnpr::TokenStore::in_memory(), Arc::clone(&users));
-    AuthState { users, tokens: Arc::new(tokens) }
+    AuthState::sharing(auth)
 }
 
 pub(crate) async fn account_id(

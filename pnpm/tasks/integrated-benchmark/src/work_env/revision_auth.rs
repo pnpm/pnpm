@@ -34,31 +34,33 @@ pub(super) fn seed_auth(source: &str, home: &Path) -> Value {
         Err(err) => panic!("remove stale revision auth state: {err}"),
     }
     fs::create_dir_all(&home).expect("create revision auth directory");
-    if config["auth"].get("users").is_some() {
-        let path = home.join("users.json");
-        let (_, hash) = PNPR_BENCHMARK_HTPASSWD
-            .trim()
-            .split_once(':')
-            .expect("benchmark credential");
-        let account = if config["auth"].get("tokens").is_some() {
-            json!({
-                "id": "benchmark-account",
-                "status": "active",
-                "credential_kind": "bcrypt",
-                "password_hash": hash,
-                "created_at": 0,
-            })
-        } else {
-            json!({"id": "benchmark-account", "password_hash": hash})
-        };
-        let accounts = json!({PNPR_BENCHMARK_USERNAME: account});
-        fs::write(&path, accounts.to_string()).expect("seed revision JSON account");
-        json!({"users": {"file": path, "maxUsers": -1}})
-    } else {
+    let Some(users) = config["auth"].get("users") else {
         let path = home.join("htpasswd");
         fs::write(&path, PNPR_BENCHMARK_HTPASSWD).expect("seed revision htpasswd account");
-        json!({"htpasswd": {"file": path, "maxUsers": -1}})
+        return json!({"htpasswd": {"file": path, "maxUsers": -1}});
+    };
+    if config["auth"].get("tokens").is_none() {
+        // Accounts live in the metadata database, so the benchmark login
+        // registers the account the first time it runs.
+        let mut users = users.clone();
+        users["maxUsers"] = json!(1);
+        return json!({"users": users});
     }
+    let path = home.join("users.json");
+    let (_, hash) = PNPR_BENCHMARK_HTPASSWD
+        .trim()
+        .split_once(':')
+        .expect("benchmark credential");
+    let account = json!({
+        "id": "benchmark-account",
+        "status": "active",
+        "credential_kind": "bcrypt",
+        "password_hash": hash,
+        "created_at": 0,
+    });
+    let accounts = json!({PNPR_BENCHMARK_USERNAME: account});
+    fs::write(&path, accounts.to_string()).expect("seed revision JSON account");
+    json!({"users": {"file": path, "maxUsers": -1}})
 }
 
 pub(super) fn mock_command(

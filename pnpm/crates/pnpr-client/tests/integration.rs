@@ -87,8 +87,8 @@ async fn start_pnpr_inner(
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
     config.features.artifacts.enabled = artifacts_enabled;
-    let accounts_path = storage.path().join("users.json");
-    let accounts = pnpr::UserStore::open(accounts_path.clone(), pnpr::MaxUsers::Unlimited).unwrap();
+    let accounts_path = storage.path().join("auth.sqlite");
+    let accounts = pnpr::SqliteAuth::open(&accounts_path, pnpr::MaxUsers::Unlimited).unwrap();
     pnpr::UserBackend::create_user(&accounts, "pnpr-client", "password123")
         .await
         .unwrap();
@@ -98,7 +98,7 @@ async fn start_pnpr_inner(
         .unwrap()
         .unwrap();
     let reader_id = pnpr::UserBackend::account_id(&accounts, "reader").await.unwrap().unwrap();
-    config.identity.auth.users.file = Some(accounts_path);
+    config.identity.backend = pnpr::BackendConfig::Sqlite(accounts_path);
 
     config.features.artifacts.owners.insert(
         "pnpr-client".to_string(),

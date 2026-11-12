@@ -430,8 +430,6 @@ pub(super) struct SqlBackendFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct UsersFile {
-    #[serde(default)]
-    pub(super) file: Option<String>,
     /// `i64` so the sentinel `-1` (registration disabled)
     /// parses; anything `≥ 0` becomes a hard cap.
     #[serde(default)]
@@ -441,8 +439,6 @@ pub(super) struct UsersFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct TokensFile {
-    #[serde(default)]
-    pub(super) file: Option<String>,
     #[serde(default)]
     pub(super) default_lifetime: Option<Interval>,
     #[serde(default)]

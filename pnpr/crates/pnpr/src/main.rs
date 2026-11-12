@@ -5,11 +5,7 @@ use pnpr::{
     default_cache_dir, logging::log_subscriber, run_command, serve,
 };
 use pnpr_config::{BackendConfig, MetadataBackend, default_metadata_path};
-use std::{
-    io::IsTerminal,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-};
+use std::{io::IsTerminal, net::SocketAddr, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
 #[derive(Debug, Parser)]
@@ -69,7 +65,7 @@ async fn main() -> miette::Result<()> {
         overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
-    apply_storage_overrides(&mut config, &mut args.paths, &source);
+    apply_storage_overrides(&mut config, &mut args.paths);
     apply_server_overrides(&mut config, &server_args);
 
     init_logging(&config.logs);
@@ -92,7 +88,7 @@ async fn run_maintenance(
         args.server.features.feature_overrides(),
     )
     .map_err(|err| miette::miette!("{err}"))?;
-    apply_storage_overrides(&mut config, &mut args.paths, &source);
+    apply_storage_overrides(&mut config, &mut args.paths);
 
     if matches!(cmd, Command::Config { action: ConfigSubcommand::Check }) {
         let report = pnpr::config_check::check_resolved_config(&mut config, &source)
@@ -107,9 +103,8 @@ async fn run_maintenance(
     run_command(&config, cmd).await
 }
 
-fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs, source: &ConfigSource) {
+fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs) {
     if let Some(storage) = paths.storage.take() {
-        relocate_bundled_auth_state(config, &storage, source);
         config.storage.cache_dir = default_cache_dir(&storage);
         // A database at the default path lives in the storage directory, so
         // it moves with it, whether or not the config spells the path out.
@@ -117,7 +112,9 @@ fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs, source:
         let default_metadata =
             MetadataBackend::Sqlite(default_metadata_path(&config.storage.hosted_dir));
         if config.storage.metadata == default_metadata {
-            config.storage.metadata = MetadataBackend::Sqlite(default_metadata_path(&storage));
+            let moved = default_metadata_path(&storage);
+            config.identity.backend = BackendConfig::Sqlite(moved.clone());
+            config.storage.metadata = MetadataBackend::Sqlite(moved);
         }
         config.storage.hosted_dir = storage;
     }
@@ -135,22 +132,6 @@ fn apply_server_overrides(config: &mut Config, server: &ServerArgs) {
     }
     if let Some(osv_db) = server.osv_options.osv_db.clone() {
         config.osv.path = Some(osv_db);
-    }
-}
-
-/// The bundled config anchors auth state (users.json, tokens.db) next to the
-/// config, which for the bundled default is the current directory. When a
-/// caller serves from an explicit `--storage` dir (tests, benchmarks), keep
-/// that state inside it so runs never write auth files into the working tree.
-fn relocate_bundled_auth_state(config: &mut Config, storage: &Path, source: &ConfigSource) {
-    if !matches!(source, ConfigSource::Bundled) {
-        return;
-    }
-    if config.identity.auth.users.file.is_some() {
-        config.identity.auth.users.file = Some(storage.join("users.json"));
-    }
-    if config.identity.auth.tokens.file.is_some() {
-        config.identity.auth.tokens.file = Some(storage.join("tokens.db"));
     }
 }
 

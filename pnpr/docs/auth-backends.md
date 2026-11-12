@@ -121,14 +121,11 @@ with InnoDB and its default 16 KiB page size.
 | `timeout` | no | Database operation deadline. Defaults to `30s`. |
 | `startupTimeout` | no | Initial connection and schema operation deadline. Defaults to `5m`. |
 
-When `database.url` is absent or uses `sqlite:`, the `auth.users` / `auth.tokens`
-settings apply. Without `auth.users.file`, accounts
-[live in memory](configuration.md#auth), and so do tokens unless
-`auth.tokens.file` is set. With a libSQL, PostgreSQL, or MySQL URL,
-`auth.users.file` and `auth.tokens.file` are ignored, and only the
-`auth.users.maxUsers` registration cap is read. Omitted
-`maxUsers` and `maxUsers: -1` both disable self-registration; set a
-non-negative cap to let new users register.
+Accounts and tokens live in the same database as package metadata. When
+`database.url` is absent or uses `sqlite:`, that is the SQLite metadata
+database. The `auth.users.maxUsers` registration cap applies to every
+database. Omitted `maxUsers` and `maxUsers: -1` both disable
+self-registration; set a non-negative cap to let new users register.
 
 Passwords must contain at least 8 characters and at most 71 bytes.
 This applies to registration, login, administrator-created accounts, and password changes.

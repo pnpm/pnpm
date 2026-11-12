@@ -38,9 +38,9 @@ The `teams:` keys are IDs. Keep them stable when editing names. API-created
 teams receive server-generated IDs. OIDC group grants use these IDs too;
 deleting and recreating a team name does not restore an old grant.
 
-The native file backend uses `auth.users.file`, a JSON account file containing
-account IDs, status, credential kind, password hashes, and creation timestamps.
-Protect it like any other credentials file. Apache
+Accounts live in the `users` table of the metadata database: account IDs,
+status, credential kind, password hashes, and creation timestamps. Protect the
+database like any other credentials file. Apache
 and Verdaccio htpasswd files are import sources for `pnpr import-htpasswd`.
 An overwrite changes credentials on the existing account without changing its ID.
 

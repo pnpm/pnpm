@@ -6,17 +6,15 @@
 //! prerequisite for running the registry as more than a single
 //! instance.
 //!
-//! Unlike the local [`super::TokenStore`], there is no in-memory
-//! mirror: a token issued on one replica must be resolvable on another,
-//! so every [`TokenBackend::lookup`] hits the database. Reads are
+//! A token issued on one replica must be resolvable on another, so every
+//! [`TokenBackend::lookup`] hits the database. Reads are
 //! therefore on the network hot path; an embedded-replica read cache is
 //! the natural next optimization (see
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
-//! The SQL is identical to the local backend — the `tokens` and `users` tables
-//! come from [`pnpr_sql::schema::TABLES`] — so a database can be migrated
-//! between the two. Users, which the local backend keeps in a JSON account
-//! file, live in the `users` table here.
+//! The `tokens` and `users` tables come from [`pnpr_sql::schema::TABLES`], as
+//! they do for the local [`super::SqliteAuth`], so a database can be migrated
+//! between the two.
 
 mod accounts;
 mod lifecycle;
