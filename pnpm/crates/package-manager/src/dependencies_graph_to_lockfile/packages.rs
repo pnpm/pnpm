@@ -359,7 +359,7 @@ pub(super) fn build_snapshot_entry(
         .unwrap_or(node.optional);
 
     SnapshotEntry {
-        recorded_peer_bindings: None,
+        recorded_peer_bindings: node.recorded_peer_bindings.clone(),
         id: None,
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),

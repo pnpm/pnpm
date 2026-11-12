@@ -164,6 +164,7 @@ impl Walker<'_> {
                 }
             })
             .or_insert(DependenciesGraphNode {
+                recorded_peer_bindings: None,
                 dep_path: node.dep_path.clone(),
                 resolved_package_id: node.pkg.id.to_string(),
                 resolve_result: Arc::clone(node.pkg.result()),
@@ -394,6 +395,7 @@ impl Walker<'_> {
             .map(|peers| peers.keys().cloned().collect())
             .unwrap_or_default();
         DependenciesGraphNode {
+            recorded_peer_bindings: None,
             dep_path,
             resolved_package_id: pkg_id.to_string(),
             resolve_result: Arc::clone(pkg.result()),

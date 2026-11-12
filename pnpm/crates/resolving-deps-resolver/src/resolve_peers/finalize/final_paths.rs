@@ -3,6 +3,9 @@ use super::{
     peer_id_pair,
 };
 
+use pnpm_lockfile::RecordedPeerBindings;
+use std::sync::Arc;
+
 /// The depPaths [`Walker::build_final_dep_paths`] settled on.
 pub(crate) struct FinalDepPaths {
     pub(crate) by_node_id: HashMap<NodeId, DepPath>,
@@ -10,6 +13,7 @@ pub(crate) struct FinalDepPaths {
     /// pass that later retargets those peers can build the suffix again.
     /// Empty unless [`Walker::build_final_dep_paths`] was asked for them.
     pub(crate) peer_ids: HashMap<DepPath, Vec<PeerId>>,
+    bindings: HashMap<DepPath, Arc<RecordedPeerBindings>>,
     recording: PeerIdRecording,
     visiting: HashSet<NodeId>,
 }
@@ -42,6 +46,7 @@ impl Walker<'_> {
             recording,
             by_node_id: HashMap::default(),
             peer_ids: HashMap::default(),
+            bindings: HashMap::default(),
             visiting: HashSet::default(),
         };
         let mut node_ids: Vec<NodeId> = self.nodes.external_peers
@@ -84,6 +89,9 @@ impl Walker<'_> {
             pnpm_lockfile::PeerBindings::suffix_of(&peer_ids, self.opts.peers_suffix_max_length);
         let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
         let dep_path = DepPath::from(format!("{}{}", self.tree.packages[pkg_id].id, suffix));
+        if let Some(bindings) = RecordedPeerBindings::for_dep_path(&dep_path, &peer_ids) {
+            final_dep_paths.bindings.insert(dep_path.clone(), bindings);
+        }
         match final_dep_paths.recording {
             PeerIdRecording::Record => {
                 final_dep_paths.peer_ids.insert(dep_path.clone(), peer_ids);
@@ -162,5 +170,15 @@ impl Walker<'_> {
             .keys()
             .map(|node_id| (node_id.clone(), self.final_dep_path_of(node_id, final_dep_paths)))
             .collect()
+    }
+}
+
+impl FinalDepPaths {
+    pub(in super::super) fn record_bindings(&self, graph: &mut crate::DependenciesGraph) {
+        for (dep_path, bindings) in &self.bindings {
+            if let Some(node) = graph.get_mut(dep_path) {
+                node.recorded_peer_bindings = Some(Arc::clone(bindings));
+            }
+        }
     }
 }

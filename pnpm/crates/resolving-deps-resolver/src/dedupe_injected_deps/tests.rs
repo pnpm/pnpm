@@ -11,6 +11,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraphNode {
     DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: DepPath::from(id.to_string()),
         resolved_package_id: id.to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {

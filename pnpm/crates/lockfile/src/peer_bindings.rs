@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::PkgNameVerPeer;
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
+use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
 
 /// Providers recorded before a snapshot's peer suffix was hashed.
 #[derive(Debug, Clone)]
@@ -14,6 +14,18 @@ pub struct RecordedPeerBindings {
 }
 
 impl RecordedPeerBindings {
+    /// `peers` must be the values used to construct `dep_path`.
+    #[must_use]
+    pub fn for_dep_path(dep_path: &DepPath, peers: &[PeerId]) -> Option<Arc<Self>> {
+        let text = dep_path.as_str();
+        let start = index_of_dep_path_suffix(text).peers_index?;
+        let hash = text[start..].strip_prefix('(')?.strip_suffix(')')?;
+        if !is_peer_suffix_hash(hash) {
+            return None;
+        }
+        Self::for_key(&text.parse().ok()?, peers)
+    }
+
     /// `peers` must be the values used to construct `key`.
     pub(crate) fn for_key(key: &PkgNameVerPeer, peers: &[PeerId]) -> Option<Arc<Self>> {
         let hash = key.suffix

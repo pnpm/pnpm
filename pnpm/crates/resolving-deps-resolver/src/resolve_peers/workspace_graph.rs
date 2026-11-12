@@ -86,11 +86,14 @@ pub(super) fn finish_workspace_graph(
     dedupe: PeerDependentsDedupe,
 ) -> FinishedWorkspaceGraph {
     let recording = if dedupe.dedupes() { PeerIdRecording::Record } else { PeerIdRecording::Skip };
+    let paths = walker.build_final_dep_paths(recording);
+    let mut graph = walker.build_final_graph(&paths.by_node_id);
+    paths.record_bindings(&mut graph);
     let FinalDepPaths {
         by_node_id: final_dep_paths,
         peer_ids,
         ..
-    } = walker.build_final_dep_paths(recording);
+    } = paths;
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {
@@ -111,7 +114,7 @@ pub(super) fn finish_workspace_graph(
         })
         .collect();
     FinishedWorkspaceGraph {
-        graph: walker.build_final_graph(&final_dep_paths),
+        graph,
         direct_dependencies_by_importer,
         paths_by_node_id: walker.final_paths_by_node_id(&final_dep_paths),
         peer_ids,

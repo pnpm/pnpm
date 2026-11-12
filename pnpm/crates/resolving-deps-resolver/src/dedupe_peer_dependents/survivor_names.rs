@@ -1,6 +1,7 @@
 use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
+use pnpm_lockfile::RecordedPeerBindings;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{borrow::Cow, collections::hash_map::Entry};
+use std::{borrow::Cow, collections::hash_map::Entry, sync::Arc};
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
@@ -29,7 +30,7 @@ pub(super) fn rename_survivors(
     collapsed: &HashMap<DepPath, DepPath>,
     peer_suffixes: &PeerSuffixes<'_>,
 ) {
-    let renames = survivor_renames(graph, collapsed, peer_suffixes);
+    let RenamedSurvivors { renames, bindings } = survivor_renames(graph, collapsed, peer_suffixes);
     if renames.is_empty() {
         return;
     }
@@ -49,6 +50,16 @@ pub(super) fn rename_survivors(
     if rekey(graph, &renames) {
         prune_unreachable(graph, direct_by_importer);
     }
+    for (dep_path, bindings) in bindings {
+        if let Some(node) = graph.get_mut(&dep_path) {
+            node.recorded_peer_bindings = Some(bindings);
+        }
+    }
+}
+
+struct RenamedSurvivors {
+    renames: Vec<(DepPath, DepPath)>,
+    bindings: HashMap<DepPath, Arc<RecordedPeerBindings>>,
 }
 
 /// `old → new` for every graph key whose name changes, sorted by old key.
@@ -56,13 +67,14 @@ fn survivor_renames(
     graph: &DependenciesGraph,
     collapsed: &HashMap<DepPath, DepPath>,
     peer_suffixes: &PeerSuffixes<'_>,
-) -> Vec<(DepPath, DepPath)> {
+) -> RenamedSurvivors {
     let mut namer = SurvivorNamer {
         graph,
         collapsed,
         peer_suffixes,
         names: HashMap::default(),
         naming: HashSet::default(),
+        bindings: HashMap::default(),
     };
     let mut renames: Vec<(DepPath, DepPath)> = graph
         .keys()
@@ -72,7 +84,7 @@ fn survivor_renames(
         })
         .collect();
     renames.sort();
-    renames
+    RenamedSurvivors { renames, bindings: namer.bindings }
 }
 
 /// Move each renamed node to its new key, once every edge already names
@@ -122,6 +134,7 @@ struct SurvivorNamer<'a> {
     peer_suffixes: &'a PeerSuffixes<'a>,
     names: HashMap<DepPath, DepPath>,
     naming: HashSet<DepPath>,
+    bindings: HashMap<DepPath, Arc<RecordedPeerBindings>>,
 }
 
 impl<'a> SurvivorNamer<'a> {
@@ -172,7 +185,11 @@ impl<'a> SurvivorNamer<'a> {
         renamed.then(|| {
             let suffix =
                 pnpm_lockfile::PeerBindings::suffix_of(&peer_ids, self.peer_suffixes.max_length);
-            DepPath::from(format!("{pkg_id}{suffix}"))
+            let renamed = DepPath::from(format!("{pkg_id}{suffix}"));
+            if let Some(bindings) = RecordedPeerBindings::for_dep_path(&renamed, &peer_ids) {
+                self.bindings.insert(renamed.clone(), bindings);
+            }
+            renamed
         })
     }
 }

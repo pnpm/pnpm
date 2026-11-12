@@ -345,10 +345,12 @@ impl Walker<'_> {
         // suffix (the cycle fallback during the walk collapses peers
         // that are walk-ancestors), then rebuild the graph from the
         // per-node records keyed by the corrected depPaths.
-        let final_dep_paths = self.build_final_dep_paths(PeerIdRecording::Skip).by_node_id;
-        let direct_by_alias = self.importer_direct_dep_paths(&direct, &final_dep_paths);
-        let graph = self.build_final_graph(&final_dep_paths);
-        let paths_by_node_id = self.final_paths_by_node_id(&final_dep_paths);
+        let paths = self.build_final_dep_paths(PeerIdRecording::Skip);
+        let final_dep_paths = &paths.by_node_id;
+        let direct_by_alias = self.importer_direct_dep_paths(&direct, final_dep_paths);
+        let mut graph = self.build_final_graph(final_dep_paths);
+        paths.record_bindings(&mut graph);
+        let paths_by_node_id = self.final_paths_by_node_id(final_dep_paths);
         ResolvePeersResult {
             graph,
             direct_dependencies_by_alias: direct_by_alias,
