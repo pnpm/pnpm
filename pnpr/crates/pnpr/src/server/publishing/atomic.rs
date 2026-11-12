@@ -219,7 +219,7 @@ impl PublishAudit {
 
     fn record(&self, namespace: &str) {
         let actor = crate::audit::Actor::of(&self.publisher);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "package.publish",
             package = %self.name,

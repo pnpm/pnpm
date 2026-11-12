@@ -133,7 +133,7 @@ async fn create_verified_token(
     .await?;
     let key = super::ecosystem::sha256_hex(raw.as_bytes());
     let actor = crate::audit::Actor::of(caller.identity);
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "token.create",
         token_key = %key,
@@ -367,7 +367,7 @@ async fn logout_bearer_token(state: &AppState, identity: &Identity, raw_token: &
 
 fn audit_token_revoke(identity: &Identity, key: &str) {
     let actor = crate::audit::Actor::of(identity);
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "token.revoke",
         token_key = %key,

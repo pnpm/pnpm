@@ -127,7 +127,7 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
         let (id, created) = create_stored(&state, &username, &user).await?;
         let response =
             scim_json(StatusCode::CREATED, &user_resource(&id, &created, &location(&state, &id)));
-        crate::audit::audit!(
+        crate::audit!(
             crate::audit::Actor::SCIM,
             "scim.user_create",
             user = %created.username,
@@ -154,7 +154,7 @@ async fn replace_user(
             StatusCode::OK,
             &user_resource(&path.id, &replaced, &location(&state, &path.id)),
         );
-        crate::audit::audit!(
+        crate::audit!(
             crate::audit::Actor::SCIM,
             "scim.user_replace",
             user = %replaced.username,
@@ -181,7 +181,7 @@ async fn patch_user(
             StatusCode::OK,
             &user_resource(&path.id, &patched, &location(&state, &path.id)),
         );
-        crate::audit::audit!(
+        crate::audit!(
             crate::audit::Actor::SCIM,
             "scim.user_patch",
             user = %patched.username,
@@ -202,7 +202,7 @@ async fn delete_user(
 ) -> Response {
     let result = async {
         let username = delete_stored(&state, &path.id).await?;
-        crate::audit::audit!(
+        crate::audit!(
             crate::audit::Actor::SCIM,
             "scim.user_delete",
             user = %username,

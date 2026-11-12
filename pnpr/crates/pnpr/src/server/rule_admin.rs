@@ -85,7 +85,7 @@ async fn put_rules(
         }
         let (rules, version) = replace_rules(&state, registry, changes, expected.as_deref()).await?;
         let actor = crate::audit::Actor::of(&identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "rules.replace",
             ecosystem = %path.ecosystem,
@@ -116,7 +116,7 @@ async fn delete_rules(
         let (_, version) =
             replace_rules(&state, registry, RuleChanges::default(), expected.as_deref()).await?;
         let actor = crate::audit::Actor::of(&identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "rules.delete",
             ecosystem = %path.ecosystem,

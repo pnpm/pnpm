@@ -343,7 +343,7 @@ async fn resolve_caller(
             let scope = WorkloadScope::new(&state.inner.config, &workload);
             let identity = account_identity(state, &workload.identity.user_id).await?;
             let actor = crate::audit::Actor::of(&identity);
-            crate::audit::audit!(
+            crate::audit!(
                 actor,
                 "auth.workload_use",
                 subject = %workload.identity.subject,

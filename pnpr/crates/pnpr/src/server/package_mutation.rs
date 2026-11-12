@@ -255,7 +255,7 @@ async fn reclaim_unpublished_blobs(
 
 fn log_packument_update(identity: &Identity, name: &CanonicalPackageName, source: &str) {
     let actor = crate::audit::Actor::of(identity);
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "package.update_packument",
         package = %name.as_str(),

@@ -314,7 +314,7 @@ async fn change_publication_note(
         return Err(RegistryError::NotFound);
     }
     let actor = crate::audit::Actor::of(identity);
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "publication.note_change",
         namespace = %publication.namespace,

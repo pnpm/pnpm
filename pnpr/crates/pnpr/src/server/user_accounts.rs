@@ -174,7 +174,7 @@ pub(super) async fn add_user(
     };
     let actor = crate::audit::Actor { id: &id, name: &username };
     if matches!(outcome, UpsertOutcome::Created) {
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "user.register",
             user = %username,
@@ -182,7 +182,7 @@ pub(super) async fn add_user(
             "user account registered",
         );
     }
-    crate::audit::audit!(actor, "auth.sign_in", method = "password", "signed in");
+    crate::audit!(actor, "auth.sign_in", method = "password", "signed in");
     user_upsert_response(outcome, &username, &id, &token)
 }
 
@@ -195,7 +195,7 @@ pub(super) fn record_login_failure(
     user: &str,
 ) {
     state.inner.identity.login_rate_limiter.record_failure(client_ip, user);
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "auth.login_failed",
         user = %user,

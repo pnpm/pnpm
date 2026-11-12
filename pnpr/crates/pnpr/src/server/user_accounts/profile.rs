@@ -71,7 +71,7 @@ async fn update_password(
     }
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     let actor = crate::audit::Actor::of(identity);
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "user.password_update",
         user = %username,

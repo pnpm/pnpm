@@ -165,7 +165,7 @@ async fn write_version_note(
     }
     let actor = crate::audit::Actor::of(identity);
     let action = if deleted { "package.note_delete" } else { "package.note_set" };
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         action,
         package = %name.as_str(),

@@ -198,7 +198,7 @@ fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOu
     let actor = crate::audit::Actor::of(identity);
     let source = &outcome.source;
     if let Some(version) = &outcome.version {
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "package.dist_tag_set",
             package = %request.raw_name,
@@ -208,7 +208,7 @@ fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOu
             "package dist-tag set",
         );
     } else {
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "package.dist_tag_remove",
             package = %request.raw_name,

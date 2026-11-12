@@ -54,7 +54,7 @@ pub(super) async fn create_team(
         let id = pnpr_auth::new_principal_id();
         create_team_in_roster(state, registry, &id, &team).await?;
         let actor = crate::audit::Actor::of(identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "team.create",
             registry = %registry,
@@ -79,7 +79,7 @@ pub(super) async fn destroy_team(
         let registry = admin_roster(state, identity, &target, "destroy a team")?;
         destroy_team_in_roster(state, registry, team).await?;
         let actor = crate::audit::Actor::of(identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "team.destroy",
             registry = %registry,
@@ -110,7 +110,7 @@ pub(super) async fn add_team_member(
             .ok_or(RegistryError::NotFound)?;
         add_member_to_team(state, registry, team, &user_id).await?;
         let actor = crate::audit::Actor::of(identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "team.member_add",
             registry = %registry,
@@ -139,7 +139,7 @@ pub(super) async fn remove_team_member(
         let (user_id, user) = member_removal(state, body).await?;
         remove_member_from_team(state, registry, team, &user_id).await?;
         let actor = crate::audit::Actor::of(identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "team.member_remove",
             registry = %registry,

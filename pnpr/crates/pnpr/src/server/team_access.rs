@@ -65,7 +65,7 @@ pub(super) async fn grant_team_access(
             Permissions::ReadWrite => "read-write",
         };
         let actor = crate::audit::Actor::of(identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "team.access_grant",
             registry = %registry,
@@ -102,7 +102,7 @@ pub(super) async fn revoke_team_access(
         })
         .await?;
         let actor = crate::audit::Actor::of(identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "team.access_revoke",
             registry = %registry,

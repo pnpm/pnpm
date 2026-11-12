@@ -89,7 +89,7 @@ async fn create_user(
             });
         };
         let actor = crate::audit::Actor::of(&identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "user.create",
             user = %name,
@@ -126,7 +126,7 @@ async fn set_user_password(
         }
         state.inner.identity.oidc.revoke_user_sessions(&path.id);
         let actor = crate::audit::Actor::of(&identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "user.password_update",
             user = %name,
@@ -157,7 +157,7 @@ async fn delete_user(
             return Err(RegistryError::NotFound);
         }
         let actor = crate::audit::Actor::of(&identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "user.delete",
             user = %name,
@@ -207,7 +207,7 @@ async fn revoke_user_token(
                     .await?
                     .unwrap_or_else(|| format!("deleted:{}", path.id));
                 let actor = crate::audit::Actor::of(&identity);
-                crate::audit::audit!(
+                crate::audit!(
                     actor,
                     "user.token_revoke",
                     user = %name,
@@ -252,7 +252,7 @@ async fn rename_user(
         let RenameUser { name } = parse_json_body(&body)?;
         state.inner.identity.auth.users.rename_user(&path.id, &name).await?;
         let actor = crate::audit::Actor::of(&identity);
-        crate::audit::audit!(
+        crate::audit!(
             actor,
             "user.rename",
             user = %name,

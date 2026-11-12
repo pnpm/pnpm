@@ -451,7 +451,7 @@ async fn finish_sign_in(
         }
     };
     let actor = crate::audit::Actor { id: &id, name: &name };
-    crate::audit::audit!(
+    crate::audit!(
         actor,
         "auth.sign_in",
         method = "oidc",
