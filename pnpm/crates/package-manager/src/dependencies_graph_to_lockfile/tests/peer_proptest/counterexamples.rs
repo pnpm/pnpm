@@ -743,3 +743,96 @@ fn frozen_check_rejects_stale_recorded_catalog_children() {
         assert!(fixture.frozen_check(&stale, settings).is_err(), "stale child: {version:?}");
     }
 }
+
+#[test]
+fn optional_peer_dependency_cycle_is_stable_on_reinstall() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![leaf(), depending_on(2, 1)],
+            vec![depending_on(2, 1), depending_on(3, 1)],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(2),
+                        optional: true,
+                        also_dependency: true,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![direct(1, 1), direct(0, 2), direct(3, 1)],
+    };
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        for peers_suffix_max_length in [20, 1000] {
+            let settings = super::model::Settings {
+                peers_suffix_max_length,
+                auto_install_peers: false,
+                format,
+                ..Default::default()
+            };
+            let order = in_order(&workspace);
+            let fresh = super::resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+            let lockfile = super::lockfile_with_settings(&fresh, &workspace, settings);
+            let reused =
+                super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
+                    .unwrap();
+            let expected = outcome_of(&fresh, &workspace);
+            let actual = outcome_of(&reused, &workspace);
+            dbg!(&expected, &actual);
+            assert_eq!(expected, actual, "{settings:?}");
+        }
+    }
+}
+
+#[test]
+fn required_peer_fallback_cycle_is_stable_without_auto_install() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![depending_on(3, 2), depending_on(3, 1)],
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(3, 1, false, true)] },
+                peer_of(3, 1),
+            ],
+            vec![depending_on(1, 1), leaf()],
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(1, 2, false, true)] },
+                depending_on(0, 2),
+            ],
+            vec![
+                PackageVersion { dependencies: direct(1, 1), peers: vec![peer(3, 2, true, false)] },
+                leaf(),
+            ],
+        ],
+        importers: vec![vec![Edge { target: 4, major: 1 }, Edge { target: 0, major: 1 }]],
+    };
+    let settings = super::model::Settings {
+        auto_install_peers: false,
+        catalogs: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let order = in_order(&workspace);
+    let fresh = super::resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = super::lockfile_with_settings(&fresh, &workspace, settings);
+    let reused =
+        super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let expected = outcome_of(&fresh, &workspace);
+    let actual = outcome_of(&reused, &workspace);
+    dbg!(&expected, &actual);
+    assert_eq!(expected, actual);
+}

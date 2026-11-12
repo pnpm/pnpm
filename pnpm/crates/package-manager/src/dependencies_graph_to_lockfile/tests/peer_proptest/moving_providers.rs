@@ -683,3 +683,115 @@ fn added_provider_updates_optional_candidates_child_owner() {
     )
     .unwrap();
 }
+
+#[test]
+fn adding_a_provider_with_a_required_peer_cycle_is_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 1, major: 1 }],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Major(1),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![
+                leaf(),
+                PackageVersion { dependencies: vec![Edge { target: 0, major: 1 }], peers: vec![] },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 1 }]; 3],
+    };
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        for peers_suffix_max_length in [20, 1000] {
+            check_changes(
+                workspace.clone(),
+                Settings { peers_suffix_max_length, format, ..Default::default() },
+                vec![DependencyChange { importer: 1, target: 1, major: Some(2) }],
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn removing_a_direct_provider_preserves_nested_injected_peer_pins() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 1, major: 2 }],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Major(1),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![vec![Edge { target: 1, major: 1 }]],
+    };
+    check_changes(
+        workspace,
+        Settings {
+            injected: true,
+            format: pnpm_lockfile::LockfileFormat::V13,
+            ..Default::default()
+        },
+        vec![
+            DependencyChange { importer: 0, target: 1, major: None },
+            DependencyChange { importer: 0, target: 0, major: Some(1) },
+            DependencyChange { importer: 0, target: 1, major: None },
+            DependencyChange { importer: 0, target: 1, major: None },
+        ],
+    )
+    .unwrap();
+}

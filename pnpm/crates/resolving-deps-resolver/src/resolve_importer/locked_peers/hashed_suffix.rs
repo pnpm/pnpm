@@ -6,8 +6,8 @@ use pnpm_lockfile::PkgName;
 pub(super) type BoundCache =
     super::HashMap<pnpm_lockfile::PkgNameVerPeer, pnpm_lockfile::BoundProviders>;
 
-/// The peers a hashed suffix stands for, each with the snapshot key of
-/// its provider: the package's declared peers, read from its own edges,
+/// The peers a hashed suffix stands for, preserving recovered provider keys.
+/// Includes the package's declared peers, read from its own edges,
 /// and the peers its subtree resolved, listed as its
 /// `transitivePeerDependencies` and read from the descendants that
 /// declare them.
@@ -41,7 +41,27 @@ pub(super) fn hashed_peer_keys(
                 .map(|key| (name.clone(), key)),
         );
     }
-    keys
+    restore_bound_provider_keys(keys, &bound)
+}
+
+fn restore_bound_provider_keys(
+    keys: Vec<(String, pnpm_lockfile::PkgNameVerPeer)>,
+    bound: &pnpm_lockfile::BoundProviders,
+) -> Vec<(String, pnpm_lockfile::PkgNameVerPeer)> {
+    if bound.is_hashed() {
+        return keys;
+    }
+    let mut restored = Vec::new();
+    for (name, provider) in keys {
+        for key in bound
+            .provider_keys(&provider)
+            .into_iter()
+            .flatten()
+        {
+            restored.push((name.clone(), key.clone()));
+        }
+    }
+    restored
 }
 
 /// The providers the subtree under `snapshot` resolved `peer_name` to.

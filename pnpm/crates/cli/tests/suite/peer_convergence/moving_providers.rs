@@ -367,3 +367,127 @@ fn assert_optional_candidate_child(lockfile: &Lockfile) {
         .unwrap();
     assert_eq!(provider.without_peer().to_string(), "added-provider@2.0.0");
 }
+
+#[test]
+fn optional_peer_dependency_cycle_is_stable_on_reinstall() {
+    if let Some(bundle) = read_v11_bundle_path() {
+        check_optional_dependency_cycle(Some(&bundle), "v9");
+    }
+    for format in ["v9", "v13"] {
+        check_optional_dependency_cycle(None, format);
+    }
+}
+
+fn check_optional_dependency_cycle(bundle: Option<&OsStr>, format: &str) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"p0","version":"2.0.0","dependencies":{"p2":"^1.0.0"}}),
+            json!({"name":"p1","version":"1.0.0","dependencies":{"p2":"^1.0.0"}}),
+            json!({"name":"p1","version":"2.0.0","dependencies":{"p3":"^1.0.0"}}),
+            json!({"name":"p2","version":"1.0.0","dependencies":{"p1":"^2.0.0"},"peerDependencies":{"p1":"^2.0.0"},"peerDependenciesMeta":{"p1":{"optional":true}}}),
+            json!({"name":"p3","version":"1.0.0","peerDependencies":{"p2":"^1.0.0"},"peerDependenciesMeta":{"p2":{"optional":true}}}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\nlockfile:\n  format: {format}\n"));
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[("p1", "^1.0.0")], ..Default::default() },
+    );
+    fixture.project("a", "app", ManifestDeps { prod: &[("p0", "^2.0.0")], ..Default::default() });
+    fixture.project("b", "other", ManifestDeps { prod: &[("p3", "^1.0.0")], ..Default::default() });
+    install_lockfile(&fixture, bundle);
+    let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    install_lockfile(&fixture, bundle);
+    let repeated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&fresh, &repeated);
+    assert_eq!(fresh, repeated, "{bundle:?}, {format}");
+}
+
+#[test]
+fn adding_a_provider_with_a_required_peer_cycle_is_stable() {
+    if let Some(bundle) = read_v11_bundle_path() {
+        check_required_peer_cycle(Some(&bundle), "v9");
+    }
+    for format in ["v9", "v13"] {
+        check_required_peer_cycle(None, format);
+    }
+}
+
+fn check_required_peer_cycle(bundle: Option<&OsStr>, format: &str) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"p0","version":"1.0.0","dependencies":{"p1":"^1.0.0"},"peerDependencies":{"p2":"^1.0.0"}}),
+            json!({"name":"p1","version":"1.0.0"}),
+            json!({"name":"p1","version":"2.0.0","dependencies":{"p0":"^1.0.0"}}),
+            json!({"name":"p2","version":"1.0.0","peerDependencies":{"p1":"*"},"peerDependenciesMeta":{"p1":{"optional":true}}}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: true\nresolvePeersFromWorkspaceRoot: false\nlockfile:\n  format: {format}\n"));
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[("p0", "^1.0.0")], ..Default::default() },
+    );
+    for (directory, name) in [("a", "app"), ("b", "other")] {
+        fixture.project(
+            directory,
+            name,
+            ManifestDeps { prod: &[("p0", "^1.0.0")], ..Default::default() },
+        );
+    }
+    install_lockfile(&fixture, bundle);
+    fixture.project(
+        "a",
+        "app",
+        ManifestDeps { prod: &[("p0", "^1.0.0"), ("p1", "^2.0.0")], ..Default::default() },
+    );
+    install_lockfile(&fixture, bundle);
+    let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    install_lockfile(&fixture, bundle);
+    let repeated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&changed, &repeated);
+    assert_eq!(changed, repeated, "{bundle:?}, {format}");
+}
+
+#[test]
+fn required_peer_fallback_cycle_is_stable_without_auto_install() {
+    if let Some(bundle) = read_v11_bundle_path() {
+        check_required_fallback_cycle(Some(&bundle), "v9");
+    }
+    for format in ["v9", "v13"] {
+        check_required_fallback_cycle(None, format);
+    }
+}
+
+fn check_required_fallback_cycle(bundle: Option<&OsStr>, format: &str) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"p0","version":"1.0.0","dependencies":{"p3":"^2.0.0"}}),
+            json!({"name":"p0","version":"2.0.0","dependencies":{"p3":"^1.0.0"}}),
+            json!({"name":"p1","version":"1.0.0","dependencies":{"p3":"^1.0.0"},"peerDependencies":{"p3":"^1.0.0"}}),
+            json!({"name":"p1","version":"2.0.0","peerDependencies":{"p3":"^1.0.0"}}),
+            json!({"name":"p3","version":"1.0.0","dependencies":{"p1":"^2.0.0"},"peerDependencies":{"p1":"^2.0.0"}}),
+            json!({"name":"p3","version":"2.0.0","dependencies":{"p0":"^2.0.0"}}),
+            json!({"name":"p4","version":"1.0.0","dependencies":{"p1":"^1.0.0"},"peerDependencies":{"p3":"^2.0.0"},"peerDependenciesMeta":{"p3":{"optional":true}}}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\nlockfile:\n  format: {format}\ncatalog:\n  p0: ^1.0.0\n  p4: ^1.0.0\n"));
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[("p0", "catalog:"), ("p4", "catalog:")], ..Default::default() },
+    );
+    install_lockfile(&fixture, bundle);
+    let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    install_lockfile(&fixture, bundle);
+    let repeated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&fresh, &repeated);
+    assert_eq!(fresh, repeated, "{bundle:?}, {format}");
+}

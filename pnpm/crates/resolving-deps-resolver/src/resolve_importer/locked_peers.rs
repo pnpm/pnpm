@@ -104,36 +104,69 @@ pub(super) fn all_locked_peer_versions(
     versions
 }
 
-/// The peer name/version pairs the wanted lockfile pinned for `key`,
-/// including the peers of every peer provider the suffix names.
-///
-/// An explicit suffix already spells them out, save for the names an
-/// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
-/// spells out nothing, so the pairs are recovered from the snapshots
-/// ([`hashed_peer_keys`]). Both spellings of one key must yield the same
-/// pairs: `dedupe` rewrites a long suffix between them, and pins that
-/// depend on the spelling make it flip between two lockfiles.
-/// Nested suffixes need their own provider's snapshot: the outer
-/// snapshot does not name that provider's aliased peers.
-fn locked_peer_versions_for_key_cached(
-    lockfile: &pnpm_lockfile::Lockfile,
+/// Read the suffixes first, then recover missing peer names from snapshot edges.
+/// Recovery cannot replace a pin already encoded by an independent provider path.
+fn locked_peer_versions_for_key_cached<'lockfile>(
+    lockfile: &'lockfile pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
-    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
+    snapshot: Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
     bound_cache: &mut hashed_suffix::BoundCache,
 ) -> Vec<(String, String)> {
-    let mut versions = Vec::new();
-    let mut visited = HashSet::default();
-    let mut pending = vec![(key.clone(), snapshot)];
-    while let Some((key, snapshot)) = pending.pop() {
-        if !visited.insert(key.clone()) {
-            continue;
-        }
-        for (name, peer) in locked_peer_keys(lockfile, &key, snapshot, bound_cache) {
-            versions.push((name, peer.suffix.without_peer().to_string()));
-            pending.extend(provider_with_peers(lockfile, peer));
+    let mut traversal = LockedPeerTraversal {
+        lockfile,
+        bound_cache,
+        visited: HashSet::default(),
+        versions: Vec::new(),
+        recovered: Vec::new(),
+    };
+    traversal.collect_pins(vec![(key.clone(), snapshot)], &HashSet::default());
+    let encoded_names = traversal.versions
+        .iter()
+        .map(|(name, _)| name.clone())
+        .collect();
+    while !traversal.recovered.is_empty() {
+        let pending = std::mem::take(&mut traversal.recovered);
+        traversal.collect_pins(pending, &encoded_names);
+    }
+    traversal.versions
+}
+
+struct LockedPeerTraversal<'lockfile, 'cache> {
+    lockfile: &'lockfile pnpm_lockfile::Lockfile,
+    bound_cache: &'cache mut hashed_suffix::BoundCache,
+    visited: HashSet<pnpm_lockfile::PkgNameVerPeer>,
+    versions: Vec<(String, String)>,
+    recovered:
+        Vec<(pnpm_lockfile::PkgNameVerPeer, Option<&'lockfile pnpm_lockfile::SnapshotEntry>)>,
+}
+
+impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
+    fn collect_pins(
+        &mut self,
+        mut pending: Vec<(
+            pnpm_lockfile::PkgNameVerPeer,
+            Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
+        )>,
+        encoded_names: &HashSet<String>,
+    ) {
+        while let Some((key, snapshot)) = pending.pop() {
+            if !self.visited.insert(key.clone()) {
+                continue;
+            }
+            for (name, peer) in locked_peer_keys(self.lockfile, &key, snapshot, self.bound_cache) {
+                let version = peer.suffix.without_peer().to_string();
+                let recovered = snapshot
+                    .filter(|_| !encoded_names.contains(&name))
+                    .and_then(|snapshot| snapshot_peer_provider(snapshot, &name, &peer))
+                    .and_then(|provider| provider_with_peers(self.lockfile, provider));
+                self.recovered.extend(recovered);
+                pending.extend(provider_with_peers(self.lockfile, peer));
+                if !encoded_names.contains(&name) {
+                    self.versions.push((name, version));
+                }
+            }
         }
     }
-    versions
 }
 
 /// A provider whose own key carries peers, with its snapshot, so its peers
@@ -184,6 +217,25 @@ fn locked_peer_keys(
         .map(|(name, _)| name)
         .zip(peers)
         .collect()
+}
+
+/// A cycle can truncate a suffix provider to its name and version. Its
+/// dependency edge still names the snapshot carrying its own peer bindings.
+fn snapshot_peer_provider(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    name: &str,
+    peer: &pnpm_lockfile::PkgNameVerPeer,
+) -> Option<pnpm_lockfile::PkgNameVerPeer> {
+    if !peer.suffix.peer().is_empty() {
+        return None;
+    }
+    let alias: PkgName = name.parse().ok()?;
+    let reference = snapshot.dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&alias))
+        .or_else(|| snapshot.optional_dependencies.as_ref()?.get(&alias))?;
+    let provider = reference.resolve(&alias)?;
+    (provider.without_peer() == peer.without_peer()).then_some(provider)
 }
 
 /// Rename the suffix segments an npm alias provides back to the name

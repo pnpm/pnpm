@@ -1,9 +1,9 @@
 use super::{
     Arc, BTreeMap, DependencySpec, DirectDep, HashMap, HashSet, HoistMissingScope,
-    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
-    PeerHoistDiscovery, PreferredVersions, RequiredRound, ResolveImporterError, Resolver,
-    WorkspaceRootDep, apply_hoist_missing_scope, extend_tree, hoist_peers, index_missing_names,
-    partition_missing_peers,
+    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, OptionalPeerCandidates,
+    ParentPkgAliases, PeerDiscoveryResult, PeerHoistDiscovery, PreferredVersions, RequiredRound,
+    ResolveImporterError, Resolver, WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
+    hoist_peers, index_missing_names, partition_missing_peers,
 };
 use crate::peer_provider::optional_peer_specifier;
 
@@ -187,9 +187,8 @@ impl ImporterHoistState {
             .map(|(n, info)| (n.clone(), info.clone()))
             .collect();
         let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
-        let hoist_preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
         let resolved_versions = self.ctx.run_resolved_versions(names());
+        let hoist_preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
         let hoisted = hoist_peers(
             &self.hoist_peers_options(&hoist_preferred, &resolved_versions),
             &missing_as_pairs,
@@ -333,6 +332,7 @@ impl ImporterHoistState {
     pub(crate) async fn hoist_optional_round<Chain>(
         &mut self,
         resolver: &Chain,
+        candidates: OptionalPeerCandidates,
     ) -> Result<bool, ResolveImporterError>
     where
         Chain: Resolver + ?Sized,
@@ -342,7 +342,7 @@ impl ImporterHoistState {
         {
             return Ok(false);
         }
-        let hoistable = self.hoistable_optional_peers(resolver).await?;
+        let hoistable = self.hoistable_optional_peers(resolver, candidates).await?;
         let hoisted_optional = hoistable.versions;
         let rejected = &mut self.dependencies.rejected_optional_peers;
         rejected.retain(|name| !hoisted_optional.contains_key(name));
