@@ -62,7 +62,7 @@ pub(in crate::cli_args) fn apply_cli_layers(
     if !invocation.global
         && let Some(lockfile_dir) = invocation.lockfile_dir.as_deref()
     {
-        config.pin_lockfile_dir(&dir.join(lockfile_dir));
+        config.pin_lockfile_dir(&dir.join(lockfile_dir), dir);
         if let Some(raw) = lockfile_dir.to_str() {
             push_cli_token(config, "lockfile-dir", raw);
         }

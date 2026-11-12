@@ -42,6 +42,7 @@ pipe-trait = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
+same-file = { workspace = true }
 smart-default = { workspace = true }
 tracing = { workspace = true }
 url = { workspace = true }

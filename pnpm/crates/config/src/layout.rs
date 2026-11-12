@@ -5,6 +5,8 @@ use super::{
     get_branches_containing_head, get_current_branch, store_path,
 };
 
+mod pin_lockfile;
+
 impl Config {
     /// Settle the two directories a global virtual store separates:
     ///
@@ -72,13 +74,7 @@ impl Config {
     pub fn lockfile_dir_for<'a>(&'a self, project_dir: &'a Path) -> &'a Path {
         self.lockfile_dir
             .as_deref()
-            .unwrap_or_else(|| {
-                if self.shared_workspace_lockfile {
-                    self.workspace_dir.as_deref().unwrap_or(project_dir)
-                } else {
-                    project_dir
-                }
-            })
+            .unwrap_or_else(|| self.default_lockfile_dir_for(project_dir))
     }
 
     /// Whether one `pnpm-lock.yaml` covers every project the command
@@ -128,18 +124,8 @@ impl Config {
             .unwrap_or(dir)
     }
 
-    /// Pin [`lockfile_dir`] to `dir` and re-anchor the paths that follow
-    /// the lockfile with it.
-    ///
-    /// `dir` is normalized first: importer ids are a lexical path diff
-    /// against it, so an unnormalized `<workspace>/..` would not name the
-    /// project it points at.
-    ///
-    /// [`lockfile_dir`]: Self::lockfile_dir
-    pub fn pin_lockfile_dir(&mut self, dir: &Path) {
-        let dir = pnpm_fs::lexical_normalize(dir);
-        self.anchor_lockfile_paths(&dir);
-        self.lockfile_dir = Some(dir);
+    pub(crate) fn set_lockfile_dir(&mut self, dir: &Path) {
+        self.lockfile_dir = Some(pnpm_fs::lexical_normalize(dir));
     }
 
     /// Re-anchor the paths pnpm resolves against `lockfileDir` — the root
