@@ -16,7 +16,7 @@ Renamed and regrouped pnpr configuration keys:
 
 pnpr now derives the private cache key from `secret`. Private cache entries written by an earlier version are no longer used, and `pnpr cache gc` removes them.
 
-An unset environment variable in `database.url` now fails startup, as it already did in the other credential fields. A `secret` that YAML reads as a number must be quoted. Config errors give the line and column but no longer quote the surrounding lines, which could hold a credential.
+An unset environment variable in `database.url` now fails startup, as it already did in the other credential fields. A `secret` that YAML reads as a number must be quoted. Config errors now give the line and column without quoting the surrounding lines of the file.
 
 An unparsable `routes.public` registry URL or package glob now fails startup. Before, pnpr logged a warning and ignored the rule.
 
