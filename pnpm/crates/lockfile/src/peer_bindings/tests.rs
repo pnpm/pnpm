@@ -391,7 +391,10 @@ fn recorded_bindings_only_describe_the_key_that_created_them() {
         let renamed: crate::PkgNameVerPeer =
             format!("consumer@2.0.0{patch}{suffix}").parse().unwrap();
         let entry = crate::SnapshotEntry {
-            recorded_peer_bindings: super::RecordedPeerBindings::for_key(&original, &peers),
+            recorded_peer_bindings: super::RecordedPeerBindings::for_dep_path(
+                &original.to_string().into(),
+                &peers,
+            ),
             ..Default::default()
         };
         let snapshots = [(original.clone(), entry.clone()), (renamed.clone(), entry)].into();

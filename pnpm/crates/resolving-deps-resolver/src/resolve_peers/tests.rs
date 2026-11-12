@@ -341,6 +341,7 @@ mod locked_peer_provider_preferences {
 /// pending-edge tests, which only read and write `children`.
 fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGraphNode {
     crate::dependencies_graph::DependenciesGraphNode {
+        recorded_peer_bindings: None,
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: std::sync::Arc::new(resolve_result("parent", "1.0.0")),
