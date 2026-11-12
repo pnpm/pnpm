@@ -544,11 +544,11 @@ async fn password_imports_keep_or_overwrite_collisions_and_dry_runs_write_nothin
 
 #[tokio::test]
 async fn a_preview_copies_the_accounts_without_touching_the_database() {
-    let tmp = tempfile::tempdir().unwrap();
-    let missing = tmp
-        .path()
-        .join("missing")
-        .join("metadata.sqlite");
+    let root = tempfile::tempdir().unwrap();
+    // URI metacharacters in the directory name.
+    let dir = root.path().join("a#b%c");
+    std::fs::create_dir(&dir).unwrap();
+    let missing = dir.join("missing").join("metadata.sqlite");
     let preview = SqliteAuth::preview_of(&missing, MaxUsers::Unlimited).unwrap();
     assert!(
         preview
@@ -559,7 +559,7 @@ async fn a_preview_copies_the_accounts_without_touching_the_database() {
     );
     assert!(!missing.parent().unwrap().exists());
 
-    let path = tmp.path().join("metadata.sqlite");
+    let path = dir.join("metadata.sqlite");
     let auth = open_auth(&path);
     let (_, alice) = auth.add_or_login("alice", "secret123").await.unwrap();
     drop(auth);
@@ -573,6 +573,17 @@ async fn a_preview_copies_the_accounts_without_touching_the_database() {
     assert_eq!(imported.collisions, ["alice"]);
     assert_eq!(preview.account_id("alice").await.unwrap(), Some(alice));
     assert_eq!(std::fs::read(&path).unwrap(), before);
+    let files: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(files, ["metadata.sqlite"], "a preview creates no files beside the database");
+
+    // A running server keeps commits in its `-wal` file. The preview reads them.
+    let server = open_auth(&path);
+    server.add_or_login("bob", "secret123").await.unwrap();
+    let preview = SqliteAuth::preview_of(&path, MaxUsers::Unlimited).unwrap();
+    assert_eq!(preview.list_users().await.unwrap(), ["alice", "bob"]);
 }
 
 #[cfg(unix)]
