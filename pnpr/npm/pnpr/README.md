@@ -32,7 +32,9 @@ pnpm add -g @pnpm/pnpr@next,@pnpm/pnpr-ui@next
 
 ## Usage
 
-Start the server with the bundled default config:
+Start the server for a single ephemeral run with the bundled default config
+(configure `secret` in a `pnpr.yaml` file to reuse `.pnpr-cache` across
+restarts):
 
 ```sh
 pnpr
@@ -81,7 +83,7 @@ Everything pnpr reads is cached for every client that follows.
 | `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). |
-| `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
+| `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<storage>/.osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
 | `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve` for npm, Cargo and Python, `/-/pnpr/v0/verify-lockfile`). |
@@ -104,6 +106,7 @@ variable (e.g. `RUST_LOG=debug pnpr`).
 
 ```yaml
 storage: ./storage
+secret: ${PNPR_SECRET}
 
 registries:
   local:
@@ -153,6 +156,7 @@ at the right host.
 
 ```yaml
 storage: ./storage   # still backs the local cache + upload staging
+secret: ${PNPR_SECRET}
 
 s3:
   bucket: my-pnpr-packages
@@ -202,6 +206,7 @@ A complete R2 example, end to end:
 ```yaml
 # pnpr.yaml
 storage: ./storage
+secret: ${PNPR_SECRET}
 
 s3:
   bucket: my-pnpr-packages

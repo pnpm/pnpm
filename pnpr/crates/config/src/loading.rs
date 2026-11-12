@@ -218,19 +218,7 @@ impl Config {
             uplinks: file.uplinks.as_ref(),
             upstreams: file.upstreams.as_ref(),
         })?;
-        let features = build_features(
-            !file.registries.is_empty(),
-            file.resolver,
-            file.artifacts,
-            file.pipeline,
-            overrides,
-        )?;
-        let resolved = resolve_file_registries(
-            file.registries,
-            file.default_registry,
-            features.registry.enabled,
-        )?;
-        let routing = build_routing_config(resolved, file.routes)?;
+        let (routing, features) = build_routing_and_features(&mut file, overrides)?;
         let secrets = resolve_secrets(file.secret.as_deref(), file.secrets.as_ref())?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),
@@ -454,4 +442,26 @@ pub(super) fn reject_removed_blocks(blocks: RemovedBlocks<'_>) -> Result<(), Reg
         });
     }
     Ok(())
+}
+
+fn build_routing_and_features(
+    file: &mut ConfigFile,
+    overrides: FeatureOverrides,
+) -> Result<(super::RoutingConfig, super::Features), RegistryError> {
+    let registry_declared = !file.registries.is_empty();
+    let resolved = resolve_file_registries(
+        std::mem::take(&mut file.registries),
+        file.default_registry.take(),
+        registry_declared && !overrides.disable_registry,
+    )?;
+    let routing = build_routing_config(resolved, file.routes.take())?;
+    let features = build_features(
+        registry_declared,
+        file.resolver.take(),
+        file.artifacts.take(),
+        file.pipeline.take(),
+        overrides,
+        &routing.hosted,
+    )?;
+    Ok((routing, features))
 }

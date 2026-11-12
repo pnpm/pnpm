@@ -81,6 +81,6 @@ fn hashed_and_explicit_suffixes_pin_the_same_peers() {
             |(name, version)| (name.to_string(), HashSet::from_iter([version.to_string()])),
         ),
     );
-    assert_eq!(importer_locked_peer_versions(Some(&explicit), "app"), expected);
-    assert_eq!(importer_locked_peer_versions(Some(&hashed), "app"), expected);
+    assert_eq!(importer_locked_peer_versions(Some(&explicit), "app", |_| true), expected);
+    assert_eq!(importer_locked_peer_versions(Some(&hashed), "app", |_| true), expected);
 }

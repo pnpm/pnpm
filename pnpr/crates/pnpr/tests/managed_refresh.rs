@@ -64,6 +64,7 @@ impl Replica {
             format!(
                 r"
 storage: '{storage}'
+secret: 'test-secret-key-32-chars-long-12'
 {scim}
 registries:
   local:

@@ -57,6 +57,7 @@ pub(super) struct ProxyState {
     /// [`super::MAX_CONCURRENT_TAR_DECODES`].
     pub(super) tar_decodes: Arc<tokio::sync::Semaphore>,
     pub(super) background_tar_scans: Arc<super::BackgroundTarScans>,
+    pub(super) integrity_backfill: super::upstream_integrity::BackgroundIntegrity,
     pub(super) version_tgzs: super::VersionTgzCache,
 }
 
@@ -149,6 +150,7 @@ impl ProxyState {
             tar_variants: super::TarVariantQueue::new(),
             tar_decodes: Arc::new(tokio::sync::Semaphore::new(super::MAX_CONCURRENT_TAR_DECODES)),
             background_tar_scans: super::BackgroundTarScans::new(),
+            integrity_backfill: super::upstream_integrity::BackgroundIntegrity::default(),
             version_tgzs: super::VersionTgzCache::default(),
         }
     }
@@ -156,6 +158,7 @@ impl ProxyState {
 
 impl IdentityServices {
     fn new(config: &Config, auth: AuthState) -> pnpr_error::Result<Self> {
+        super::scim::validate_oidc(config)?;
         super::oidc::validate_workloads(config)?;
         super::oidc_groups::validate_group_grants(config)?;
         let oidc =

@@ -13,6 +13,8 @@ fn tgz() -> Arc<VersionTgz> {
         version_route: None,
         dist: serde_json::from_str("{}").unwrap(),
         integrity_key: None,
+        manifest_generation: None,
+        packument_generation: None,
     })
 }
 
@@ -109,4 +111,27 @@ fn a_full_cache_keeps_most_of_its_entries() {
     }
     let kept = cache.entries.lock().unwrap().len();
     assert_eq!(kept, CAPACITY - CAPACITY / 4 + 1);
+}
+
+#[test]
+fn a_dist_inserted_after_refresh_keeps_its_original_generation() {
+    let cache = VersionTgzCache::default();
+    let generations = crate::server::striped_locks::StripedLocks::new();
+    let mut dist = tgz();
+    Arc::get_mut(&mut dist).unwrap().packument_generation =
+        Some(generations.generation("npmjs:foo"));
+    generations.advance_generation("npmjs:foo");
+    cache.put("npmjs".to_string(), &foo(), "1.0.0", from_packument(1), dist);
+    let cached = cache
+        .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
+        .unwrap();
+    assert!(!cached.is_current(generations.generation("npmjs:foo")));
+    let mut current = tgz();
+    Arc::get_mut(&mut current).unwrap().packument_generation =
+        Some(generations.generation("npmjs:foo"));
+    cache.put("npmjs".to_string(), &foo(), "1.0.0", from_packument(1), current);
+    let cached = cache
+        .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
+        .unwrap();
+    assert!(cached.is_current(generations.generation("npmjs:foo")));
 }

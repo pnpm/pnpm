@@ -6,14 +6,24 @@ use std::fs;
 fn revision_accounts_use_the_revisions_format_and_separate_files() {
     let directory = tempfile::tempdir().unwrap();
     let old_home = directory.path().join("old");
+    let legacy_home = directory.path().join("legacy");
     let new_home = directory.path().join("new");
     let old = seed_auth("auth:\n  htpasswd:\n    maxUsers: -1\n", &old_home);
-    let new = seed_auth("auth:\n  users:\n    maxUsers: -1\n", &new_home);
+    let legacy = seed_auth("auth:\n  users:\n    maxUsers: -1\n", &legacy_home);
+    let new = seed_auth(pnpr_fixtures::MOCK_CONFIG_YAML, &new_home);
     assert_eq!(
         old["htpasswd"]["file"],
         old_home
             .join("auth")
             .join("htpasswd")
+            .to_str()
+            .unwrap(),
+    );
+    assert_eq!(
+        legacy["users"]["file"],
+        legacy_home
+            .join("auth")
+            .join("users.json")
             .to_str()
             .unwrap(),
     );
@@ -29,10 +39,19 @@ fn revision_accounts_use_the_revisions_format_and_separate_files() {
         fs::read_to_string(old_home.join("auth").join("htpasswd")).unwrap(),
         PNPR_BENCHMARK_HTPASSWD,
     );
+    let legacy_accounts: Value =
+        serde_json::from_slice(&fs::read(legacy_home.join("auth").join("users.json")).unwrap())
+            .unwrap();
+    assert_eq!(legacy_accounts[PNPR_BENCHMARK_USERNAME]["id"], "benchmark-account");
+    assert!(legacy_accounts[PNPR_BENCHMARK_USERNAME].get("status").is_none());
+
     let accounts: Value =
         serde_json::from_slice(&fs::read(new_home.join("auth").join("users.json")).unwrap())
             .unwrap();
     assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["id"], "benchmark-account");
+    assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["status"], "active");
+    assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["credential_kind"], "bcrypt");
+    assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["created_at"], 0);
     let hash = accounts[PNPR_BENCHMARK_USERNAME]["password_hash"].as_str().unwrap();
     assert_eq!(format!("{PNPR_BENCHMARK_USERNAME}:{hash}\n"), PNPR_BENCHMARK_HTPASSWD);
     assert!(
@@ -76,7 +95,7 @@ fn mock_config_comes_from_the_binarys_checkout() {
 #[test]
 fn seeding_a_moving_revision_discards_old_auth_state() {
     let directory = tempfile::tempdir().unwrap();
-    let source = "auth:\n  users: {}\n";
+    let source = "auth:\n  users: {}\n  tokens: {}\n";
     seed_auth(source, directory.path());
     let tokens = directory
         .path()

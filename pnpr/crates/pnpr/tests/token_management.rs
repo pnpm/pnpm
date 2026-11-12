@@ -8,7 +8,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
+use pnpr::{AuthState, Config, MaxUsers, TokensConfig, router, router_with_auth};
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -124,7 +124,12 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_json(res.into_body()).await;
-    assert_eq!(body["token"].as_str().unwrap().len(), 32);
+    let raw_token = body["token"].as_str().unwrap();
+    assert_eq!(raw_token.len(), pnpr_auth::PERSONAL_TOKEN_LEN);
+    assert!(raw_token.starts_with(pnpr_auth::PERSONAL_TOKEN_PREFIX));
+    assert!(pnpr_auth::has_valid_personal_token_checksum(raw_token));
+    assert!(body.get("scopes").is_none());
+    assert!(body.get("kind").is_none());
     assert_eq!(
         body["user"].as_str(),
         crate::tokens::account_id(&app, "alice", Some(&login_token)).await.as_deref(),
@@ -155,6 +160,7 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
         .find(|token| token["name"] == "ci-token")
         .expect("found created token");
     assert_eq!(found["readonly"], true);
+    assert!(found.get("kind").is_none());
     assert_eq!(found["token"].as_str().unwrap(), &body["key"].as_str().unwrap()[..6]);
 }
 
@@ -164,19 +170,22 @@ async fn create_token_with_kind() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
 
-    let payload = json!({
-        "password": "secret123",
-        "kind": "granular"
-    });
+    for kind in ["classic", "granular"] {
+        let payload = json!({
+            "password": "secret123",
+            "kind": kind,
+        });
 
-    let res = app
-        .clone()
-        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let body = body_json(res.into_body()).await;
-    assert_eq!(body["kind"], "granular");
+        let res = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = body_json(res.into_body()).await;
+        assert_eq!(body["kind"], kind);
+        assert!(body.get("scopes").is_none());
+    }
 
     let list_res = app
         .clone()
@@ -186,6 +195,17 @@ async fn create_token_with_kind() {
     assert_eq!(list_res.status(), StatusCode::OK);
     let list_body = body_json(list_res.into_body()).await;
     let tokens = list_body["objects"].as_array().expect("array of tokens");
+    assert!(
+        tokens
+            .iter()
+            .all(|token| token.get("scopes").is_none()),
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|token| token["kind"] == "classic"),
+        "expected classic token in listing",
+    );
     assert!(
         tokens
             .iter()
@@ -351,22 +371,24 @@ async fn create_token_rejects_unsupported_granular_restrictions_without_minting(
 }
 
 #[tokio::test]
-async fn create_token_rejects_overlong_kind() {
+async fn create_token_rejects_unknown_kind() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
 
-    let payload = json!({
-        "password": "secret123",
-        "kind": "a".repeat(65),
-    });
+    for invalid in ["custom".to_string(), String::new(), "CLASSIC".to_string(), "a".repeat(65)] {
+        let payload = json!({
+            "password": "secret123",
+            "kind": invalid,
+        });
 
-    let res = app
-        .clone()
-        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let res = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "kind {invalid:?}");
+    }
 }
 
 #[tokio::test]
@@ -631,4 +653,84 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     let (status, body) = create(json!({ "expires_in": 60 })).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()) < caller_expires);
+}
+
+const DAY_SECS: i64 = 86_400;
+
+async fn assert_token_lifetimes(
+    tokens: TokensConfig,
+    login_lifetime: i64,
+    created: &[(Value, i64)],
+) {
+    let tmp = TempDir::new().unwrap();
+    let mut config = static_config(tmp.path().to_path_buf());
+    config.identity.auth.tokens = tokens;
+    let app = router(config);
+    let assert_expires_after = |body: &Value, issued: (i64, i64), lifetime: i64| {
+        let expires = rfc3339_unix_seconds(body["expires"].as_str().unwrap());
+        assert!(
+            (issued.0 + lifetime..=issued.1 + lifetime).contains(&expires),
+            "expected {lifetime}s after {issued:?}, got {expires}",
+        );
+    };
+
+    let before = chrono::Utc::now().timestamp();
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+    let login_issued = (before, chrono::Utc::now().timestamp());
+    let listed = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &login_token))
+        .await
+        .unwrap();
+    assert_expires_after(
+        &body_json(listed.into_body()).await["objects"][0],
+        login_issued,
+        login_lifetime,
+    );
+
+    for (requested, lifetime) in created {
+        let mut payload = requested.clone();
+        payload["password"] = json!("secret123");
+        let before = chrono::Utc::now().timestamp();
+        let response = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        let issued = (before, chrono::Utc::now().timestamp());
+        assert_eq!(response.status(), StatusCode::OK, "{requested}");
+        assert_expires_after(&body_json(response.into_body()).await, issued, *lifetime);
+    }
+}
+
+#[tokio::test]
+async fn tokens_without_a_requested_expiry_take_the_default_lifetime() {
+    assert_token_lifetimes(
+        TokensConfig::default(),
+        90 * DAY_SECS,
+        &[
+            (json!({}), 90 * DAY_SECS),
+            (json!({ "expires": null }), 90 * DAY_SECS),
+            (json!({ "expires": 365 }), 365 * DAY_SECS),
+            (json!({ "expires": 1 }), DAY_SECS),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn max_lifetime_caps_login_and_created_tokens() {
+    assert_token_lifetimes(
+        TokensConfig {
+            max_lifetime: Some(std::time::Duration::from_hours(7 * 24)),
+            ..TokensConfig::default()
+        },
+        7 * DAY_SECS,
+        &[
+            (json!({}), 7 * DAY_SECS),
+            (json!({ "expires": 30 }), 7 * DAY_SECS),
+            (json!({ "expires": 1 }), DAY_SECS),
+        ],
+    )
+    .await;
 }

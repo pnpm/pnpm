@@ -1,0 +1,58 @@
+name: Peer Resolution Oracles
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  peer-resolution:
+    if: github.repository == 'pnpm/pnpm'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      PROPTEST_CASES: '1024'
+      PROPTEST_MAX_SHRINK_ITERS: '256'
+      PROPTEST_RNG_SEED: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install dependencies
+        uses: $/.github/actions/install-crates
+
+      - name: Install Node.js
+        run: pnpm runtime set node 22 --global
+
+      - name: Install test tools
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: just,cargo-nextest
+
+      - name: Test generated peer workspaces
+        shell: bash
+        run: |
+          echo "PROPTEST_CASES=$PROPTEST_CASES PROPTEST_RNG_SEED=$PROPTEST_RNG_SEED PROPTEST_MAX_SHRINK_ITERS=$PROPTEST_MAX_SHRINK_ITERS" | tee peer-oracles.log
+          pnpm test:rust -p pnpm-package-manager -E 'test(peer_proptest::)' 2>&1 | tee -a peer-oracles.log
+
+      - name: Save seed and counterexamples
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: peer-resolution-oracles
+          path: peer-oracles.log
+          if-no-files-found: ignore
+          retention-days: 14

@@ -19,6 +19,7 @@ use crate::{
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
+use pnpr_sql::DialectSql;
 
 mod publish_time;
 
@@ -164,6 +165,20 @@ fn subject_query<'query>(
     }
 }
 
+const WRITE_NOTE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO notes (namespace, kind, ecosystem, name, subject, text, modified_at, principal,
+                        initial_digest)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+     ON CONFLICT (namespace, kind, ecosystem, name, subject) DO UPDATE SET
+       text = excluded.text, modified_at = excluded.modified_at,
+       principal = excluded.principal, initial_digest = excluded.initial_digest",
+    "INSERT INTO notes (namespace, kind, ecosystem, name, subject, text, modified_at, principal,
+                        initial_digest)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+     AS excluded ON DUPLICATE KEY UPDATE text = excluded.text, modified_at = excluded.modified_at,
+       principal = excluded.principal, initial_digest = excluded.initial_digest",
+);
+
 /// Store a note's text, `None` for a deletion.
 fn write_note(
     transaction: &dyn Connection,
@@ -174,12 +189,7 @@ fn write_note(
 ) -> Result<()> {
     let now = now_millis();
     transaction.execute(
-        "INSERT INTO notes (namespace, kind, ecosystem, name, subject, text, modified_at, principal,
-                            initial_digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-         ON CONFLICT (namespace, kind, ecosystem, name, subject) DO UPDATE SET
-           text = excluded.text, modified_at = excluded.modified_at,
-           principal = excluded.principal, initial_digest = excluded.initial_digest",
+        WRITE_NOTE.get(transaction.dialect()),
         params![
             subject.namespace,
             subject.kind,

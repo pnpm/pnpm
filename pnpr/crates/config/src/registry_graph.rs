@@ -285,6 +285,7 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
         headers: file.headers,
         maxage: file.maxage,
         timeout: file.timeout,
+        max_packument_size: file.max_packument_size,
         max_fails: file.max_fails,
         fail_timeout: file.fail_timeout,
         cache: file.cache,

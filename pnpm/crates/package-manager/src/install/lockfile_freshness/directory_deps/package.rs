@@ -78,7 +78,7 @@ pub(super) fn check_single_directory_dep_freshness(
         return super::recorded::check_recorded_directory(
             check,
             (dep, scope),
-            (&local_manifest, snapshot, pkg_meta),
+            (pkg_key, &local_manifest, snapshot, pkg_meta),
             visited,
         );
     }

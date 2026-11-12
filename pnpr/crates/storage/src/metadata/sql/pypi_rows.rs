@@ -133,10 +133,7 @@ fn clear_project(
     removed::record_package(commit.transaction, commit.key, &current.state, principal)?;
     let (namespace, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-         SELECT namespace, ecosystem, name, filename, ?4 FROM pypi_files
-         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-         ON CONFLICT DO NOTHING",
+        removed::RECORD_REMOVED_PYPI_FILES.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, to_column(commit.generation)],
     )?;
     commit.transaction.execute(
@@ -225,9 +222,7 @@ fn retire_deleted_files(
             .collect();
         let filenames = super::blobs::json_array(&keys);
         commit.transaction.execute(
-            "DELETE FROM pypi_files
-             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-               AND filename IN (SELECT value FROM json_each(?4))",
+            removed::DELETE_PYPI_FILE_LIST.get(commit.transaction.dialect()),
             params![namespace, ecosystem, name, &filenames],
         )?;
     }
@@ -245,11 +240,7 @@ fn retire_deleted_files(
     }
     let filenames = super::blobs::json_array(&to_record);
     commit.transaction.execute(
-        "INSERT INTO removed_pypi_files (namespace, ecosystem, name, filename, generation)
-         SELECT ?1, ?2, ?3, value, ?5
-         FROM (SELECT value FROM json_each(?4)) AS removed
-         WHERE value != ''
-         ON CONFLICT DO NOTHING",
+        removed::RECORD_REMOVED_PYPI_FILE_LIST.get(commit.transaction.dialect()),
         params![namespace, ecosystem, name, &filenames, to_column(commit.generation)],
     )?;
     Ok(true)

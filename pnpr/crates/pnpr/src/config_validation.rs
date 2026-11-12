@@ -1,6 +1,43 @@
-use pnpr_config::{BackendConfig, Config, LibsqlSettings, MetadataBackend, SqlBackendSettings};
+use pnpr_config::{
+    BackendConfig, CACHE_SECRET_MARKER, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend,
+    SqlBackendSettings, cache_secret_fingerprint, default_osv_path,
+};
 use pnpr_error::{RegistryError, Result};
+use std::{
+    ffi::OsStr,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 use url::Url;
+
+const SHARED_BACKEND_SECRET_REQUIRED: &str =
+    "`secret` or `secrets.cache` must be configured when using shared storage or database backends";
+pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secrets.cache` must be \
+     configured when the cache directory persists across restarts or is shared";
+pub(crate) const MAX_CACHE_SECRET_MARKER_BYTES: usize = 256;
+pub(crate) const PENDING_CACHE_CLAIM: &str = "pending";
+const CACHE_OVERLAPS_HOSTED_STORAGE: &str =
+    "cache path must not equal or contain the storage directory";
+const CACHE_CONTAINS_METADATA_DB: &str =
+    "database.url SQLite path must not live inside the disposable cache directory";
+const CACHE_CONTAINS_REPLICA_DB: &str =
+    "libSQL replicaPath must not live inside the disposable cache directory";
+const CACHE_CONTAINS_AUTH_FILE: &str =
+    "auth file path must not live inside the disposable cache directory";
+const CACHE_CONTAINS_OSV_DB: &str =
+    "osv.path must not live inside or contain the disposable cache directory";
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CacheDirCheck {
+    Unmarked,
+    ClaimedWithMarker,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PendingClaimPolicy {
+    Reject,
+    DeferToClaim,
+}
 
 /// Validate startup settings without opening databases or creating files.
 ///
@@ -8,11 +45,216 @@ use url::Url;
 ///
 /// A server setting is invalid or its database driver is unavailable.
 pub(crate) fn validate_startup_config(config: &mut Config) -> Result<()> {
+    validate_startup_config_inner(config, PendingClaimPolicy::Reject)
+}
+
+pub(crate) fn validate_serving_startup_config(config: &mut Config) -> Result<()> {
+    validate_startup_config_inner(config, PendingClaimPolicy::DeferToClaim)
+}
+
+fn validate_startup_config_inner(
+    config: &mut Config,
+    pending_policy: PendingClaimPolicy,
+) -> Result<()> {
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     config.http.ensure_valid_metrics()?;
     validate_metadata_backend(&config.storage.metadata)?;
     validate_identity_backend(&config.identity.backend)?;
+    validate_cache_paths(config)?;
+    validate_cache_secret_inner(config, pending_policy)?;
+    Ok(())
+}
+
+pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
+    let norm_cache = normalize_config_path(&config.storage.cache_dir)?;
+    let norm_hosted = normalize_config_path(&config.storage.hosted_dir)?;
+    if norm_hosted.starts_with(&norm_cache) {
+        return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
+    }
+    validate_metadata_cache_overlap(&config.storage.metadata, &norm_cache)?;
+    if let BackendConfig::Libsql(settings) = &config.identity.backend {
+        reject_path_inside_cache(
+            settings.replica_path.as_deref(),
+            &norm_cache,
+            CACHE_CONTAINS_REPLICA_DB,
+        )?;
+    }
+    for auth_file in [&config.identity.auth.users.file, &config.identity.auth.tokens.file] {
+        reject_path_inside_cache(auth_file.as_deref(), &norm_cache, CACHE_CONTAINS_AUTH_FILE)?;
+    }
+    let default_osv;
+    let effective_osv = match config.osv.path.as_deref() {
+        Some(path) if !path.as_os_str().is_empty() => path,
+        _ => {
+            default_osv = default_osv_path(&config.storage.hosted_dir);
+            &default_osv
+        }
+    };
+    validate_osv_cache_overlap(effective_osv, &norm_cache)?;
+    Ok(())
+}
+
+fn validate_metadata_cache_overlap(metadata: &MetadataBackend, norm_cache: &Path) -> Result<()> {
+    match metadata {
+        MetadataBackend::Sqlite(db_path) => reject_path_inside_cache(
+            Some(db_path.as_path()),
+            norm_cache,
+            CACHE_CONTAINS_METADATA_DB,
+        ),
+        MetadataBackend::Libsql(settings) => reject_path_inside_cache(
+            settings.replica_path.as_deref(),
+            norm_cache,
+            CACHE_CONTAINS_REPLICA_DB,
+        ),
+        MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => Ok(()),
+    }
+}
+
+fn reject_path_inside_cache(
+    candidate: Option<&Path>,
+    norm_cache: &Path,
+    reason: &str,
+) -> Result<()> {
+    if let Some(path) = candidate
+        && !path.as_os_str().is_empty()
+        && normalize_config_path(path)?.starts_with(norm_cache)
+    {
+        return Err(invalid(reason));
+    }
+    Ok(())
+}
+
+fn validate_osv_cache_overlap(osv_path: &Path, norm_cache: &Path) -> Result<()> {
+    let norm_osv = normalize_config_path(osv_path)?;
+    if norm_osv.starts_with(norm_cache) || norm_cache.starts_with(&norm_osv) {
+        return Err(invalid(CACHE_CONTAINS_OSV_DB));
+    }
+    Ok(())
+}
+
+fn normalize_config_path(path: &Path) -> Result<PathBuf> {
+    Ok(pnpm_fs::resolve_path_with_symlinks(path)?)
+}
+
+pub(crate) fn is_ignorable_cache_entry(name: &OsStr, check: CacheDirCheck) -> bool {
+    if name == "lost+found" || is_cache_secret_temp(name) {
+        return true;
+    }
+    match check {
+        CacheDirCheck::Unmarked => false,
+        CacheDirCheck::ClaimedWithMarker => name == CACHE_SECRET_MARKER,
+    }
+}
+
+fn is_cache_secret_temp(name: &OsStr) -> bool {
+    name.as_encoded_bytes().starts_with(b".cache-secret.tmp.")
+        && pnpr_storage::is_atomic_write_temp_path(Path::new(name))
+}
+
+pub(crate) fn validate_cache_paths_and_backend(config: &Config) -> Result<()> {
+    validate_cache_paths(config)?;
+    if !config.has_configured_secret && uses_shared_backend(config) {
+        return Err(invalid(SHARED_BACKEND_SECRET_REQUIRED));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_cache_secret(config: &Config) -> Result<()> {
+    validate_cache_secret_inner(config, PendingClaimPolicy::Reject)
+}
+
+pub(crate) fn validate_cache_secret_for_claim(config: &Config) -> Result<()> {
+    validate_cache_secret_inner(config, PendingClaimPolicy::DeferToClaim)
+}
+
+fn validate_cache_secret_inner(config: &Config, pending_policy: PendingClaimPolicy) -> Result<()> {
+    validate_cache_paths_and_backend(config)?;
+    if config.has_configured_secret {
+        return Ok(());
+    }
+    validate_ephemeral_cache_dir(&config.storage.cache_dir, &config.cache_secret, pending_policy)
+}
+
+fn uses_shared_backend(config: &Config) -> bool {
+    let shared_hosted = match &config.storage.hosted_backend {
+        HostedStoreConfig::Fs => false,
+        HostedStoreConfig::S3(_) | HostedStoreConfig::ObjectStore { .. } => true,
+    };
+    let shared_metadata = match &config.storage.metadata {
+        MetadataBackend::Sqlite(_) => false,
+        MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => {
+            true
+        }
+    };
+    let shared_identity = match &config.identity.backend {
+        BackendConfig::Local => false,
+        BackendConfig::Libsql(_) | BackendConfig::Postgres(_) | BackendConfig::Mysql(_) => true,
+    };
+    shared_hosted || shared_metadata || shared_identity
+}
+
+fn validate_ephemeral_cache_dir(
+    cache_dir: &Path,
+    cache_secret: &[u8],
+    pending_policy: PendingClaimPolicy,
+) -> Result<()> {
+    let dir = match pnpm_fs::OpenDir::open(cache_dir) {
+        Ok(dir) => dir,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    let marker = OsStr::new(CACHE_SECRET_MARKER);
+    if dir.has_symlink_child(marker)? {
+        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+    }
+    match read_ephemeral_marker(&dir, marker)? {
+        Some(bytes) => validate_ephemeral_marker(&dir, &bytes, cache_secret, pending_policy),
+        None => ensure_only_ignorable_entries(&dir, CacheDirCheck::Unmarked),
+    }
+}
+
+fn read_ephemeral_marker(dir: &pnpm_fs::OpenDir, marker: &OsStr) -> Result<Option<Vec<u8>>> {
+    match dir.read_child_file_bounded(marker, MAX_CACHE_SECRET_MARKER_BYTES) {
+        Ok(bytes) => Ok(bytes),
+        Err(err) if err.kind() == ErrorKind::InvalidData => {
+            Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED))
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn validate_ephemeral_marker(
+    dir: &pnpm_fs::OpenDir,
+    bytes: &[u8],
+    cache_secret: &[u8],
+    pending_policy: PendingClaimPolicy,
+) -> Result<()> {
+    let Ok(raw) = std::str::from_utf8(bytes) else {
+        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+    };
+    let trimmed = raw.trim();
+    if trimmed == cache_secret_fingerprint(cache_secret) {
+        return Ok(());
+    }
+    match pending_policy {
+        PendingClaimPolicy::Reject => Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+        PendingClaimPolicy::DeferToClaim if trimmed == PENDING_CACHE_CLAIM => {
+            ensure_only_ignorable_entries(dir, CacheDirCheck::ClaimedWithMarker)
+        }
+        PendingClaimPolicy::DeferToClaim => Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+    }
+}
+
+pub(crate) fn ensure_only_ignorable_entries(
+    dir: &pnpm_fs::OpenDir,
+    check: CacheDirCheck,
+) -> Result<()> {
+    for name in dir.entry_names()? {
+        if !is_ignorable_cache_entry(&name, check) {
+            return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+        }
+    }
     Ok(())
 }
 

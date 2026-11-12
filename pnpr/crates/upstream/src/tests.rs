@@ -60,6 +60,7 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
             maxage: None,
             requests: pnpr_config::UpstreamRequestPolicy {
                 timeout: UpstreamConfig::DEFAULT_TIMEOUT,
+                max_packument_size: UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE,
                 max_fails,
                 fail_timeout: Duration::from_mins(5),
             },

@@ -24,9 +24,13 @@ pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
-pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
+pub use secrets::{
+    CACHE_SECRET_MARKER, MIN_RESOLUTION_SECRET_LEN, cache_secret_fingerprint, derive_subkey,
+    random_secret, resolution_secret,
+};
 pub use storage_config::{
     CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
+    default_osv_path,
 };
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
@@ -463,6 +467,7 @@ fn build_features(
     artifacts: Option<ArtifactsFeatureFile>,
     pipeline: Option<PipelineFeatureFile>,
     overrides: FeatureOverrides,
+    hosted: &IndexMap<String, HostedConfig>,
 ) -> Result<Features, RegistryError> {
     let resolver_file = resolver.unwrap_or_default();
     let artifacts_file = artifacts.unwrap_or_default();
@@ -472,7 +477,7 @@ fn build_features(
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            owners: parse_storage_access(artifacts_file.owners)?,
+            owners: parse_storage_access(artifacts_file.owners, hosted)?,
             quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
         pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },

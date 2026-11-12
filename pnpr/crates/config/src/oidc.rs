@@ -18,7 +18,11 @@ pub struct OidcProvider {
 pub struct OidcLogin {
     #[serde(default)]
     pub client_secret: Option<String>,
+    #[serde(default)]
     pub users: Vec<OidcBinding>,
+    /// Bind verified subjects through SCIM externalId.
+    #[serde(default)]
+    pub scim: bool,
     /// Team memberships a signed-in session gets from the groups its ID token
     /// lists.
     #[serde(default)]
@@ -55,6 +59,7 @@ impl std::fmt::Debug for OidcLogin {
         formatter
             .debug_struct("OidcLogin")
             .field("users", &self.users)
+            .field("scim", &self.scim)
             .field("groups", &self.groups)
             .finish_non_exhaustive()
     }

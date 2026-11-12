@@ -14,6 +14,7 @@ use crate::metadata::{
     PublishNotes, RecordedOutcome,
 };
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::Dialect;
 
 /// What a publication request commits.
 pub(super) struct Submission<'input> {
@@ -42,7 +43,7 @@ pub(super) fn commit_publication(
 ) -> Result<PublicationCommit> {
     let reads = Reads::new(submission)?;
     let (mut batch, results) =
-        Batch::begin_with(connection, submission.namespace, &reads.queries())?;
+        Batch::begin_with(connection, submission.namespace, &reads.queries(connection.dialect()))?;
     let read = match reads.answer(&batch, results)? {
         Answer::Replayed(outcome) => return Ok(replayed(submission.namespace, &outcome)),
         Answer::Read(read) => read,
@@ -170,7 +171,7 @@ impl<'request> Reads<'request> {
         self.request.and_then(|request| request.name.as_deref())
     }
 
-    fn queries(&self) -> Vec<Query<'_>> {
+    fn queries(&self, dialect: Dialect) -> Vec<Query<'_>> {
         let mut queries = Vec::new();
         if let Some(request) = self.request {
             queries.push(publications::claim_query(self.namespace, request));
@@ -185,7 +186,7 @@ impl<'request> Reads<'request> {
             queries.push(notes::version_note_query(self.namespace, note));
         }
         if let Some(fence) = &self.fence {
-            queries.extend(fence.queries(self.namespace));
+            queries.extend(fence.queries(dialect, self.namespace));
         }
         queries
     }

@@ -15,11 +15,11 @@ and metadata, limited by `database.maxConnections`.
 
 pnpr supports these databases:
 
-| Backend | Config key |
-| --- | --- |
-| libsql / Turso | `database.url: libsql://…` |
-| PostgreSQL | `database.url: postgres://…` |
-| MySQL 8.0.19 or later | `database.url: mysql://…` |
+| Backend | Config key | Status |
+| --- | --- | --- |
+| libsql / Turso | `database.url: libsql://…` | Stable |
+| PostgreSQL | `database.url: postgres://…` | Stable |
+| MySQL 8.0.19 or later | `database.url: mysql://…` | Experimental |
 
 :::tip
 
@@ -81,7 +81,23 @@ database:
   startupTimeout: 5m
 ```
 
+pnpr uses the connection's current schema. Instances on different schemas of
+one database keep separate data and do not wait on each other's locks. Set the
+schema with the `options` URL parameter, for example
+`postgres://user:pass@host/db?options=-c%20search_path%3Dpnpr`. The schema
+must exist before pnpr starts, and the database user needs permission to create
+tables in it.
+
 ## MySQL
+
+:::warning
+
+MySQL support is experimental, and pnpr logs a warning at startup when it is
+configured. MySQL commits each schema change on its own, so a migration step
+that fails partway stays half applied until pnpr starts again and reruns it.
+Use SQLite, libSQL, or PostgreSQL for production data.
+
+:::
 
 ```yaml title="pnpr.yaml"
 database:

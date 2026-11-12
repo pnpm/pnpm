@@ -96,7 +96,7 @@ pub(crate) async fn get_user(
 }
 
 async fn active_account_id(state: &AppState, name: &str) -> Result<Option<String>, RegistryError> {
-    let Some(id) = state.inner.identity.auth.users.account_id(name).await? else {
+    let Some(id) = state.inner.identity.auth.users.active_account_id(name).await? else {
         return Ok(None);
     };
     Ok((!super::scim::is_deprovisioned(state, &id)?).then_some(id))
@@ -212,19 +212,21 @@ async fn log_in(
     {
         return Err(deprovisioned(name));
     }
-    let (outcome, id, token) = match state.inner.identity.auth.password_login(name, password).await
-    {
-        Err(RegistryError::TooManyUsers { .. }) => {
-            pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
-            return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
-        }
-        result => result?,
-    };
+    let expires_at = super::tokens::unrequested_token_expiry(state, pnpr_auth::unix_millis());
+    let new_token = pnpr_auth::NewToken::new().with_expires_at(Some(expires_at));
+    let (outcome, id, token) =
+        match state.inner.identity.auth.password_login(name, password, new_token).await {
+            Err(RegistryError::TooManyUsers { .. }) => {
+                pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
+                return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
+            }
+            result => result?,
+        };
     if super::scim::is_deprovisioned(state, &id)? {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(deprovisioned(name));
     }
-    let Some(current_name) = users.account_name(&id).await? else {
+    let Some(current_name) = users.active_account_name(&id).await? else {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(RegistryError::Unauthenticated { resource: format!("account {id:?}") });
     };

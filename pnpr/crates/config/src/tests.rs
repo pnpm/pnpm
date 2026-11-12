@@ -59,6 +59,7 @@ fn upstream_config_file(
         headers,
         maxage: None,
         timeout: None,
+        max_packument_size: None,
         max_fails: None,
         fail_timeout: None,
         cache: None,

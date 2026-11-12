@@ -62,9 +62,7 @@ async fn a_warm_version_request_reads_no_packument() {
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.http.packument_ttl = Duration::ZERO;
-    let app = router(config);
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     for _ in 0..2 {
         let response = get(&app, "/npm/foo@1.0.0").await;
@@ -258,14 +256,20 @@ async fn a_cold_version_request_reads_only_its_version_manifest() {
         .expect(0)
         .create_async()
         .await;
-    upstream
+    let archive = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_body(&tgz)
+        .expect(1)
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
     let app = tar_registry_app(&url, tmp.path());
 
+    for _ in 0..2 {
+        let response = get(&app, "/npm/~npmjs/foo@1.0.0").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, tgz);
+    }
     for _ in 0..2 {
         let response = get(&app, "/npm/~zstd/foo@1.0.0").await;
         assert_eq!(response.status(), StatusCode::OK);
@@ -273,6 +277,7 @@ async fn a_cold_version_request_reads_only_its_version_manifest() {
     }
     manifest_mock.assert_async().await;
     packument_mock.assert_async().await;
+    archive.assert_async().await;
 }
 
 /// An upstream answers a dist-tag at the version manifest URL. The route
@@ -363,9 +368,9 @@ async fn a_version_manifest_with_a_malformed_integrity_is_not_served() {
 /// An upstream that drops the manifest's connection would drop the
 /// packument's too, so the stale cached packument answers at once.
 #[tokio::test]
-async fn an_unreachable_manifest_serves_the_stale_packument() {
+async fn an_unreachable_upstream_serves_the_stale_packument() {
     let tgz = gzip(b"foo");
-    let (url, packument_fetches) = spawn_upstream_without_manifests(tgz.clone()).await;
+    let (url, packument_fetches) = spawn_upstream_that_becomes_unavailable(tgz.clone()).await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&url, tmp.path().to_path_buf());
     config.http.packument_ttl = Duration::ZERO;
@@ -382,12 +387,11 @@ async fn an_unreachable_manifest_serves_the_stale_packument() {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, b"foo");
     }
-    assert_eq!(packument_fetches.load(Ordering::SeqCst), 1);
+    assert_eq!(packument_fetches.load(Ordering::SeqCst), 2);
 }
 
-/// An upstream serving `foo`'s packument and tarball. It counts packument
-/// requests and closes every other connection unanswered.
-async fn spawn_upstream_without_manifests(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>) {
+/// Serve one packument fetch and all tarballs. Close later metadata requests.
+async fn spawn_upstream_that_becomes_unavailable(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let packument = packument(&url, "foo-1.0.0.tgz", &tgz).into_bytes();
@@ -401,7 +405,9 @@ async fn spawn_upstream_without_manifests(tgz: Vec<u8>) -> (String, Arc<AtomicUs
                 let read = socket.read(&mut buf).await.unwrap_or(0);
                 let request = String::from_utf8_lossy(&buf[..read]).into_owned();
                 let body = if request.starts_with("GET /foo HTTP/") {
-                    counter.fetch_add(1, Ordering::SeqCst);
+                    if counter.fetch_add(1, Ordering::SeqCst) > 0 {
+                        return;
+                    }
                     packument
                 } else if request.starts_with("GET /foo/-/foo-1.0.0.tgz HTTP/") {
                     tgz
@@ -431,4 +437,47 @@ fn cached_files_containing(dir: &std::path::Path, needle: &[u8]) -> Vec<std::pat
         }
     }
     found
+}
+
+#[tokio::test]
+async fn a_refreshed_version_manifest_replaces_a_tarball_with_a_different_integrity() {
+    let mut upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    let app = router(config);
+    let packument = upstream
+        .mock("GET", "/foo")
+        .expect(0)
+        .create_async()
+        .await;
+    for bytes in [b"first".as_slice(), b"replacement".as_slice()] {
+        let tgz = gzip(bytes);
+        let manifest = upstream
+            .mock("GET", "/foo/1.0.0")
+            .with_body(
+                json!({"name": "foo", "version": "1.0.0", "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(&tgz)
+                }})
+                .to_string(),
+            )
+            .expect(1)
+            .create_async()
+            .await;
+        let archive = upstream
+            .mock("GET", "/foo/-/foo-1.0.0.tgz")
+            .with_body(&tgz)
+            .expect(1)
+            .create_async()
+            .await;
+        let response = get(&app, "/npm/~npmjs/foo@1.0.0").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, tgz);
+        manifest.assert_async().await;
+        archive.assert_async().await;
+        manifest.remove_async().await;
+        archive.remove_async().await;
+    }
+    packument.assert_async().await;
 }

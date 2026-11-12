@@ -13,13 +13,22 @@ use crate::{
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::{Dialect, DialectSql};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The files of one package a JSON array names that are mapped, with the
 /// blobs they are mapped to.
-const MAPPED: &str = "SELECT artifact, blob_id FROM artifact_blobs
-     WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-       AND artifact IN (SELECT value FROM json_each(?4))";
+const MAPPED: DialectSql = DialectSql {
+    sqlite: "SELECT artifact, blob_id FROM artifact_blobs
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND artifact IN (SELECT value FROM json_each(?4))",
+    postgres: "SELECT artifact, blob_id FROM artifact_blobs
+               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND artifact IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "SELECT artifact, blob_id FROM artifact_blobs
+            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+              AND artifact IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
 
 /// How a commit depends on an incarnation of a blob.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,14 +92,19 @@ impl FenceRead {
         })
     }
 
-    pub(super) fn queries<'read>(&'read self, namespace: &'read str) -> Vec<Query<'read>> {
+    pub(super) fn queries<'read>(
+        &'read self,
+        dialect: Dialect,
+        namespace: &'read str,
+    ) -> Vec<Query<'read>> {
+        let (rows_sql, mapped_sql) = (ROWS.get(dialect), MAPPED.get(dialect));
         let rows = self.ids
             .iter()
-            .map(|(ecosystem, ids)| query!(ROWS, namespace, ecosystem.as_str(), ids.as_str()));
+            .map(|(ecosystem, ids)| query!(rows_sql, namespace, ecosystem.as_str(), ids.as_str()));
         let mapped = self.referenced
             .iter()
             .map(|((ecosystem, name), files)| {
-                query!(MAPPED, namespace, ecosystem.as_str(), name.as_str(), files.as_str())
+                query!(mapped_sql, namespace, ecosystem.as_str(), name.as_str(), files.as_str())
             });
         rows.chain(mapped).collect()
     }
@@ -190,20 +204,26 @@ fn depends(row: Option<&BlobRow>, incarnation: u64) -> Option<Dependency> {
     }
 }
 
+const WRITE_LIVE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
+     VALUES (?1, ?2, ?3, ?4, 'live', ?5, ?6)
+     ON CONFLICT (namespace, ecosystem, blob_id) DO UPDATE
+     SET incarnation = excluded.incarnation, state = 'live', size = excluded.size,
+         changed_at = excluded.changed_at",
+    "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
+     VALUES (?1, ?2, ?3, ?4, 'live', ?5, ?6)
+     AS excluded ON DUPLICATE KEY UPDATE incarnation = excluded.incarnation, state = 'live', size = excluded.size,
+         changed_at = excluded.changed_at",
+);
+
 /// Make `artifact`'s incarnation the live one of its blob.
 fn write_live(
     transaction: &dyn Connection,
     (namespace, ecosystem): (&str, Ecosystem),
     artifact: &ArtifactBlob,
 ) -> Result<()> {
-    let sql =
-        "INSERT INTO blobs (namespace, ecosystem, blob_id, incarnation, state, size, changed_at)
-         VALUES (?1, ?2, ?3, ?4, 'live', ?5, ?6)
-         ON CONFLICT (namespace, ecosystem, blob_id) DO UPDATE
-         SET incarnation = excluded.incarnation, state = 'live', size = excluded.size,
-             changed_at = excluded.changed_at";
     transaction.execute(
-        sql,
+        WRITE_LIVE.get(transaction.dialect()),
         params![
             namespace,
             ecosystem.as_str(),
@@ -215,6 +235,21 @@ fn write_live(
     )
 }
 
+const WRITE_MAPPING: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO artifact_blobs
+         (namespace, ecosystem, name, artifact, version, blob_id, mapped_at, mapping)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?8, ?7)
+     ON CONFLICT (namespace, ecosystem, name, artifact) DO UPDATE
+     SET mapped_at = excluded.mapped_at, mapping = excluded.mapping
+     WHERE artifact_blobs.blob_id = excluded.blob_id",
+    "INSERT INTO artifact_blobs
+         (namespace, ecosystem, name, artifact, version, blob_id, mapped_at, mapping)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?8, ?7)
+     AS excluded ON DUPLICATE KEY UPDATE
+     mapped_at = IF(artifact_blobs.blob_id = excluded.blob_id, excluded.mapped_at, artifact_blobs.mapped_at),
+     mapping = IF(artifact_blobs.blob_id = excluded.blob_id, excluded.mapping, artifact_blobs.mapping)",
+);
+
 /// Map `artifact`'s file to its blob, unless the file is mapped to other
 /// bytes already. A file mapped to these bytes again gets a fresh mapping,
 /// so a collection that scanned the earlier one leaves it.
@@ -223,14 +258,8 @@ fn write_mapping(
     namespace: &str,
     artifact: &ArtifactBlob,
 ) -> Result<()> {
-    let sql = "INSERT INTO artifact_blobs
-             (namespace, ecosystem, name, artifact, version, blob_id, mapped_at, mapping)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?8, ?7)
-         ON CONFLICT (namespace, ecosystem, name, artifact) DO UPDATE
-         SET mapped_at = excluded.mapped_at, mapping = excluded.mapping
-         WHERE artifact_blobs.blob_id = excluded.blob_id";
     transaction.execute(
-        sql,
+        WRITE_MAPPING.get(transaction.dialect()),
         params![
             namespace,
             artifact.ecosystem.as_str(),

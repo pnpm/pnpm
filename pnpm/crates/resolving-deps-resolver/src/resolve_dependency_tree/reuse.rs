@@ -7,7 +7,8 @@
 //! [`super::update_scope`].
 
 pub(crate) use direct_versions::{
-    preseed_changed_direct_versions, record_changed_direct_deps, resolve_direct_dependency_detached,
+    direct_dep_specifier_unchanged, preseed_changed_direct_versions, record_changed_direct_deps,
+    resolve_direct_dependency_detached,
 };
 
 pub(super) use direct_versions::{

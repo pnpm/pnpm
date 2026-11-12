@@ -13,9 +13,11 @@ async fn importing_a_reused_name_creates_a_fresh_identity() {
         let users = UserStore::open_with_cost(target.clone(), MaxUsers::Unlimited, 4).unwrap();
         let (_, original_id) = users.add_or_login("member", "password").await.unwrap();
         let hash = users
-            .password_hash("member")
+            .credential("member")
             .await
             .unwrap()
+            .unwrap()
+            .into_password_hash()
             .unwrap();
         std::fs::write(&source, format!("member:{hash}\n")).unwrap();
         users.delete_user(&original_id).await.unwrap();

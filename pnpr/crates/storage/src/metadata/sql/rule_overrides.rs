@@ -12,6 +12,7 @@ use super::{
 };
 use crate::Storage;
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use std::collections::BTreeMap;
 
 const REGISTRY_PATTERN: &str = "";
@@ -217,6 +218,13 @@ fn build_stored_overrides(
     (stored, unknown)
 }
 
+const WRITE_OVERRIDE_SET: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO rule_override_sets (registry, generation) VALUES (?1, ?2)
+     ON CONFLICT (registry) DO UPDATE SET generation = excluded.generation",
+    "INSERT INTO rule_override_sets (registry, generation) VALUES (?1, ?2)
+     AS excluded ON DUPLICATE KEY UPDATE generation = excluded.generation",
+);
+
 fn write_override_set(
     connection: &dyn Connection,
     registry: &str,
@@ -247,8 +255,7 @@ fn write_override_set(
     transaction.execute("DELETE FROM rule_overrides WHERE registry = ?1", params![registry])?;
     let generation = advance_record_generation(&*transaction)?;
     transaction.execute(
-        "INSERT INTO rule_override_sets (registry, generation) VALUES (?1, ?2)
-         ON CONFLICT (registry) DO UPDATE SET generation = excluded.generation",
+        WRITE_OVERRIDE_SET.get(transaction.dialect()),
         params![registry, generation],
     )?;
     insert_override_lists(&*transaction, registry, overrides)?;

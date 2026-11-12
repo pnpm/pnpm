@@ -4,8 +4,9 @@ pub(super) mod manifest;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) use directory_deps::{
-    NestedDirectoryPackage, ProjectManifestsByDir, dependency_manifests_by_dir,
-    is_declared_local_directory, project_manifests_by_dir, spec_target_and_range,
+    NestedDirectoryPackage, ProjectManifestsByDir, RecordedPeerChildren,
+    dependency_manifests_by_dir, is_declared_local_directory, project_manifests_by_dir,
+    spec_target_and_range,
 };
 pub(crate) use directory_manifests::{DirectoryManifests, hooked_importer_directory_manifests};
 pub(crate) use error::FreshnessCheckError;
@@ -440,6 +441,7 @@ fn check_importer_freshness(
     ));
     let registries = inputs.registry_context();
     let workspace = WorkspaceProjects {
+        peer_children: &RecordedPeerChildren::default(),
         packages: inputs.workspace_packages,
         manifests_by_dir: &project_manifests,
         directory_manifests,

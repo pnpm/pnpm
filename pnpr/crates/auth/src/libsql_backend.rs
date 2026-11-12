@@ -19,6 +19,8 @@
 //! file, live in the `users` table here.
 
 mod accounts;
+mod lifecycle;
+mod registration;
 mod schema;
 mod tokens;
 mod user_admin;
@@ -29,16 +31,18 @@ use schema::{
 };
 
 use super::{
-    DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash,
+    AccountCredential, AccountStatus, CredentialKind, DEFAULT_BCRYPT_COST, PasswordChange,
+    TokenBackend, TokenRecord, UpsertOutcome, UserBackend, UserCreation, UserRemoval,
+    account::{decode_sql_account_state, deprovisioned_login_error},
+    dummy_verify, hash_bcrypt, is_sha_hash, unix_millis,
+    validation::{token_timestamp_to_sql, validate_username},
     verify_returning_user, with_auth_timeout,
 };
-use crate::validation::validate_username;
 use async_trait::async_trait;
 use libsql::{Connection, Database, Row, TransactionBehavior, params};
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use std::{sync::atomic::AtomicU64, time::Duration};
+use std::time::Duration;
 
 /// Deadline for each auth database operation, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -52,16 +56,17 @@ const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 /// on one [`ConnectionPool`].
 pub struct LibsqlAuth {
     pool: ConnectionPool,
-    /// Per-process secret seeding [`crate::token_store::mint_token`]. Need not match other
-    /// replicas: tokens are looked up by their stored hash, never
-    /// re-derived, so each replica minting with its own secret is safe.
-    secret: [u8; 32],
-    counter: AtomicU64,
     max_users: MaxUsers,
     registration_lock: tokio::sync::Mutex<()>,
     /// Whether the pool's database is an embedded replica, which
     /// [`Self::sync_replica`] then brings up to date after a write.
     is_replica: bool,
+}
+
+pub(super) struct StoredLibsqlUser {
+    pub(super) id: String,
+    pub(super) status: AccountStatus,
+    pub(super) credential: AccountCredential,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -131,8 +136,6 @@ impl LibsqlAuth {
         });
         let auth = Self {
             pool: if is_replica { pool.replica() } else { pool },
-            secret: fresh_secret(),
-            counter: AtomicU64::new(0),
             max_users,
             registration_lock: tokio::sync::Mutex::new(()),
             is_replica,
@@ -145,16 +148,29 @@ impl LibsqlAuth {
         Ok(auth)
     }
 
-    /// The bcrypt hash stored for `username`, or `None` when no such
-    /// user exists.
-    async fn stored_hash(&self, username: &str) -> Result<Option<(String, String)>> {
+    /// The account row stored for `username`, or `None` when no such user exists.
+    pub(super) async fn stored_account(&self, username: &str) -> Result<Option<StoredLibsqlUser>> {
         self.pool.read(|conn| async move {
             let rows = conn.query(
-                "SELECT bcrypt_hash, id FROM users WHERE username = ?1",
+                "SELECT id, status, credential_kind, password_hash FROM users WHERE username = ?1",
                 params![username],
             )
             .await?;
-            first_row(rows, |row| Ok((row.get::<String>(0)?, row.get::<String>(1)?))).await
+            let Some((id, raw_status, raw_kind, password_hash)) = first_row(rows, |row| {
+                Ok((
+                    row.get::<String>(0)?,
+                    row.get::<String>(1)?,
+                    row.get::<String>(2)?,
+                    row.get::<Option<String>>(3)?,
+                ))
+            })
+            .await?
+            else {
+                return Ok(None);
+            };
+            let (status, credential) =
+                decode_sql_account_state(&id, &raw_status, &raw_kind, password_hash)?;
+            Ok(Some(StoredLibsqlUser { id, status, credential }))
         })
         .await
     }
@@ -163,7 +179,8 @@ impl LibsqlAuth {
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {
-            let rows = conn.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
+            let rows =
+                conn.query("SELECT COUNT(*) FROM users WHERE status <> 'deleted'", ()).await?;
             let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
                 return Err(missing_count_row());
             };
@@ -222,12 +239,12 @@ impl UserBackend for LibsqlAuth {
         self.accounts_by_id_impl(user_ids).await
     }
 
-    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+    async fn credential(&self, username: &str) -> Result<Option<AccountCredential>> {
         Ok(self
-            .stored_hash(username)
+            .stored_account(username)
             .await?
-            .filter(|(hash, _)| hash != super::DELETED_USER_HASH)
-            .map(|(hash, _)| hash))
+            .filter(|account| account.status.is_active())
+            .map(|account| account.credential))
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
@@ -256,7 +273,7 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
-        self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH).await
+        self.replace_password_hash(user_id, None).await
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
@@ -275,8 +292,40 @@ impl UserBackend for LibsqlAuth {
         self.account_id_by_name(username).await
     }
 
+    async fn active_account_id(&self, username: &str) -> Result<Option<String>> {
+        self.active_account_id_by_name(username).await
+    }
+
     async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
         self.account_name_by_id(user_id).await
+    }
+
+    async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.active_account_name_by_id(user_id).await
+    }
+
+    async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
+        self.account_status_by_id(user_id).await
+    }
+
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.status_revisions_by_id(user_ids).await
+    }
+
+    async fn apply_account_status(
+        &self,
+        user_id: &str,
+        revision: u64,
+        lifecycle: crate::AccountLifecycle,
+    ) -> Result<crate::AccountStatusOutcome> {
+        self.apply_account_status_by_id(user_id, revision, lifecycle).await
+    }
+
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        true
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
@@ -299,213 +348,6 @@ impl UserBackend for LibsqlAuth {
     async fn check_readiness(&self) -> Result<()> {
         self.check_db_readiness().await
     }
-}
-
-impl LibsqlAuth {
-    async fn add_or_login_attempt(
-        &self,
-        username: &str,
-        password: &str,
-        hash: &tokio::sync::OnceCell<String>,
-    ) -> Result<(UpsertOutcome, String)> {
-        validate_username(username)?;
-        crate::validation::validate_password(password)?;
-
-        if let Some(stored) = self.stored_hash(username).await? {
-            return self.verify_and_maybe_upgrade(username, password, stored).await;
-        }
-
-        if matches!(self.max_users, MaxUsers::Disabled) {
-            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
-            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
-        }
-
-        // Brand-new user. The cheap pre-check avoids the (expensive) hash
-        // when the cap is already full; the insert below re-checks the
-        // cap atomically so it holds even under a concurrent burst.
-        self.check_registration_allowed().await?;
-
-        let hash =
-            hash.get_or_try_init(|| hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST)).await?;
-        if matches!(self.max_users, MaxUsers::Unlimited) {
-            return self.insert_uncapped_user(username, password, hash).await;
-        }
-
-        let _registration_guard = self.registration_lock.lock().await;
-        self.insert_capped_user(username, password, hash).await
-    }
-
-    /// Whether a new user may register at all, judged before the bcrypt cost
-    /// is paid. The insert re-checks the cap atomically.
-    async fn check_registration_allowed(&self) -> Result<()> {
-        match self.max_users {
-            MaxUsers::Disabled => Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) if self.user_count().await? >= max => {
-                Err(RegistryError::TooManyUsers { max })
-            }
-            _ => Ok(()),
-        }
-    }
-
-    /// Insert a user into an uncapped store. A concurrent insert of the same
-    /// name turns the registration into a login.
-    async fn insert_uncapped_user(
-        &self,
-        username: &str,
-        password: &str,
-        hash: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        let id = crate::new_principal_id();
-        let id_ref = id.as_str();
-        let inserted = self.pool.write(|conn| async move {
-            let inserted = conn.execute(
-                "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
-                params![username, hash, id_ref, crate::validation::username_skeleton_hash(username)],
-            )
-            .await;
-            match inserted {
-                Ok(_) => Ok(Insert::Created(id_ref.to_string())),
-                Err(err) if is_unique_violation(&err) => Ok(Insert::NameTaken),
-                Err(err) => Err(RegistryError::from(err)),
-            }
-        })
-        .await?;
-        match inserted {
-            Insert::Created(id) => Ok((UpsertOutcome::Created, id)),
-            Insert::NameTaken => self.login_after_lost_insert(username, password).await,
-            Insert::CapFull => unreachable!("an uncapped insert has no cap"),
-        }
-    }
-
-    /// Insert a user under a cap, claiming a counter slot in the same
-    /// transaction so the cap holds under a concurrent burst.
-    async fn insert_capped_user(
-        &self,
-        username: &str,
-        password: &str,
-        hash: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        let mut can_retry_after_reconcile = true;
-        loop {
-            match self.try_capped_insert(username, hash).await? {
-                Insert::Created(id) => return Ok((UpsertOutcome::Created, id)),
-                Insert::NameTaken => return self.login_after_lost_insert(username, password).await,
-                // The counter can overcount after an interrupted write; reconcile it
-                // once before believing the cap is full.
-                Insert::CapFull => {
-                    if !std::mem::take(&mut can_retry_after_reconcile)
-                        || !self.reconcile_user_counter().await?
-                    {
-                        return self.reject_over_cap(username, password).await;
-                    }
-                }
-            }
-        }
-    }
-
-    /// One transaction that claims a counter slot and inserts the user.
-    async fn try_capped_insert(&self, username: &str, hash: &str) -> Result<Insert> {
-        let id = crate::new_principal_id();
-        let id_ref = id.as_str();
-        self.pool.write(|conn| async move {
-            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-            let Some(tx) = self.claim_cap_slot(tx).await? else {
-                return Ok(Insert::CapFull);
-            };
-            let inserted = tx.execute(
-                "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
-                params![username, hash, id_ref, crate::validation::username_skeleton_hash(username)],
-            )
-            .await;
-            match inserted {
-                Ok(_) => {
-                    tx.commit().await?;
-                    Ok(Insert::Created(id_ref.to_string()))
-                }
-                Err(err) if is_unique_violation(&err) => {
-                    tx.rollback().await?;
-                    Ok(Insert::NameTaken)
-                }
-                Err(err) => Err(RegistryError::from(err)),
-            }
-        })
-        .await
-    }
-
-    /// Correct a counter that overcounts, reporting whether it did.
-    async fn reconcile_user_counter(&self) -> Result<bool> {
-        self.pool.write(|conn| async move { reconcile_user_counter_overcount(&conn).await }).await
-    }
-
-    /// Claim a counter slot in `tx`. The transaction comes back when a slot
-    /// was taken; a full cap rolls it back and returns `None`. An uncapped
-    /// store always has a slot.
-    async fn claim_cap_slot(&self, tx: libsql::Transaction) -> Result<Option<libsql::Transaction>> {
-        let MaxUsers::Limited(max) = self.max_users else {
-            return Ok(Some(tx));
-        };
-        if claim_user_counter_slot(&tx, max).await? {
-            return Ok(Some(tx));
-        }
-        tx.rollback().await?;
-        Ok(None)
-    }
-
-    /// The cap really is full: a caller who already has an account still logs
-    /// in, anyone else is refused.
-    async fn reject_over_cap(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        if let Some(stored) = self.stored_hash(username).await? {
-            return self.verify_and_maybe_upgrade(username, password, stored).await;
-        }
-        let MaxUsers::Limited(max) = self.max_users else {
-            return Err(RegistryError::RegistrationDisabled);
-        };
-        Err(RegistryError::TooManyUsers { max })
-    }
-
-    /// Resolve a registration that lost a uniqueness race. Exact names log in;
-    /// confusable names are rejected.
-    async fn login_after_lost_insert(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        self.sync_replica().await?;
-        let Some(stored) = self.stored_hash(username).await? else {
-            return Err(crate::validation::confusable_username());
-        };
-        self.verify_and_maybe_upgrade(username, password, stored).await
-    }
-
-    async fn verify_and_maybe_upgrade(
-        &self,
-        username: &str,
-        password: &str,
-        stored: (String, String),
-    ) -> Result<(UpsertOutcome, String)> {
-        let (stored, id) = stored;
-        let id_ref = id.as_str();
-        let (outcome, _) =
-            verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
-        if is_sha_hash(&stored) {
-            let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-            let (new_hash, stored) = (new_hash.as_str(), stored.as_str());
-            self.replace_password_hash_if_current(id_ref, stored, new_hash).await?;
-        }
-        Ok((outcome, id))
-    }
-}
-
-/// How a registration's insert ended, decided on its connection and acted on
-/// after the connection is returned.
-enum Insert {
-    Created(String),
-    NameTaken,
-    CapFull,
 }
 
 #[cfg(test)]

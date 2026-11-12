@@ -49,8 +49,10 @@ storage: ./storage
 #  syncInterval: 60s
 #  maxConnections: 16
 
-# Secret key for resolution cache HMAC and OCI token signing.
-# If omitted or commented out, a secure 32-byte CSPRNG random secret is generated on startup.
+# Secret key for private cache HMACs and OCI token signing.
+# Required when the cache persists across restarts, is shared, or there are
+# several replicas. When omitted on a single-instance server with an empty
+# ephemeral cache, a random 32-byte CSPRNG secret is generated on startup.
 #secret: ${PNPR_SECRET}
 
 # Archive garbage collection (`pnpr gc`).

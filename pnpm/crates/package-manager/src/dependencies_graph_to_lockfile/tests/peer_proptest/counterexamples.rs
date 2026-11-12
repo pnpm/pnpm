@@ -320,6 +320,14 @@ fn incremental_install_preserves_a_valid_optional_peer_pin() {
         fresh.peers.direct_dependencies_by_importer["packages/a"]["p0"].as_str(),
         "p0@2.0.0(p1@2.0.0)",
     );
+    let installed_lockfile = super::lockfile_with_settings(&installed, &workspace, settings);
+    let reinstalled =
+        super::resolve_with(&workspace, &order, settings, Reuse::Install(&installed_lockfile))
+            .unwrap();
+    assert_eq!(
+        installed_lockfile,
+        super::lockfile_with_settings(&reinstalled, &workspace, settings),
+    );
 }
 
 #[test]

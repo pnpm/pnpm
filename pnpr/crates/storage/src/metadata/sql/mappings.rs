@@ -18,6 +18,7 @@ use crate::{
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::DialectSql;
 use std::{sync::Arc, time::SystemTime};
 
 /// A file of a package mapped to a blob.
@@ -80,7 +81,7 @@ impl SqlMetadata {
         self.write(move |connection| {
             let read = FenceRead::new(&fence).expect("a fence of one file");
             let transaction = WriteTransaction::begin(connection)?;
-            let results = transaction.query_all(&read.queries(&namespace))?;
+            let results = transaction.query_all(&read.queries(transaction.dialect(), &namespace))?;
             let check = read.check(&mut results.into_iter())?;
             read.write(&*transaction, &namespace, &check)?;
             for artifact in &fence.artifacts {
@@ -191,11 +192,23 @@ impl SqlMetadata {
 /// mapping goes, or `?5`, a JSON array of `[file, mapping]` that goes only
 /// while the file still has that mapping, names. Each list is read once
 /// into a lookup the package's rows are checked against.
-const SCANNED_MAPPINGS: &str = "namespace = ?1 AND ecosystem = ?2 AND name = ?3
-     AND (artifact IN (SELECT value FROM json_each(?4))
-          OR (artifact, mapping) IN (
-              SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
-              FROM json_each(?5)))";
+const SCANNED_MAPPINGS: DialectSql = DialectSql {
+    sqlite: "namespace = ?1 AND ecosystem = ?2 AND name = ?3
+             AND (artifact IN (SELECT value FROM json_each(?4))
+                  OR (artifact, mapping) IN (
+                      SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
+                      FROM json_each(?5)))",
+    postgres: "namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND (artifact IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))
+                    OR (artifact, mapping) IN (
+                        SELECT CAST(value AS JSON)->>0, CAST(value AS JSON)->>1
+                        FROM json_array_elements_text(CAST(?5 AS JSON)) AS elements(value)))",
+    mysql: "namespace = ?1 AND ecosystem = ?2 AND name = ?3
+            AND (artifact IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)
+                 OR (artifact, mapping) IN (
+                     SELECT JSON_UNQUOTE(JSON_EXTRACT(value, '$[0]')), JSON_UNQUOTE(JSON_EXTRACT(value, '$[1]'))
+                     FROM JSON_TABLE(?5, '$[*]' COLUMNS (value JSON PATH '$')) AS elements))",
+};
 
 /// Drop the mappings `scanned` names while `key` is still at `expected`.
 fn unmap(
@@ -206,7 +219,8 @@ fn unmap(
 ) -> Result<Option<Vec<BlobId>>> {
     let (namespace, ecosystem, name) = key.params();
     let transaction = WriteTransaction::begin(connection)?;
-    let select = format!("SELECT DISTINCT blob_id FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
+    let scanned = SCANNED_MAPPINGS.get(transaction.dialect());
+    let select = format!("SELECT DISTINCT blob_id FROM artifact_blobs WHERE {scanned}");
     let mapped = Query::new(&select, params![namespace, ecosystem, name, any, exact]);
     let mut results = transaction
         .query_all(&[package_row_query(key), mapped])?
@@ -217,7 +231,7 @@ fn unmap(
         return Ok(None);
     }
     let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
-    let delete = format!("DELETE FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
+    let delete = format!("DELETE FROM artifact_blobs WHERE {scanned}");
     transaction.execute(&delete, params![namespace, ecosystem, name, any, exact])?;
     if key.ecosystem == Ecosystem::Npm && !ids.is_empty() {
         super::cdn::enqueue(&*transaction, &key.name)?;
@@ -225,6 +239,18 @@ fn unmap(
     transaction.commit()?;
     Ok(Some(ids))
 }
+
+const VERSION_BLOBS: DialectSql = DialectSql {
+    sqlite: "SELECT DISTINCT blob_id FROM artifact_blobs
+             WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+               AND version IN (SELECT value FROM json_each(?4))",
+    postgres: "SELECT DISTINCT blob_id FROM artifact_blobs
+               WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+                 AND version IN (SELECT value FROM json_array_elements_text(CAST(?4 AS JSON)) AS elements(value))",
+    mysql: "SELECT DISTINCT blob_id FROM artifact_blobs
+            WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
+              AND version IN (SELECT JSON_UNQUOTE(value) AS value FROM JSON_TABLE(?4, '$[*]' COLUMNS (value JSON PATH '$')) AS elements)",
+};
 
 impl super::PackageMetadata {
     /// The live incarnation of the blob `artifact` of `name` is mapped to,
@@ -265,9 +291,7 @@ impl super::PackageMetadata {
         self.database.read(self.namespace.clone(), Freshness::Current, move |connection, _| {
             let (namespace, ecosystem, name) = key.params();
             let rows = connection.query(
-                "SELECT DISTINCT blob_id FROM artifact_blobs
-                 WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3
-                   AND version IN (SELECT value FROM json_each(?4))",
+                VERSION_BLOBS.get(connection.dialect()),
                 params![namespace, ecosystem, name, versions],
             )?;
             super::blobs::ids_from_rows(rows)

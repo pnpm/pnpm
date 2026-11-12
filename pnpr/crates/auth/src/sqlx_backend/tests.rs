@@ -1,5 +1,8 @@
 use super::{
-    super::{PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, UserRemoval},
+    super::{
+        AccountCredential, AccountStatus, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome,
+        UserBackend, UserRemoval,
+    },
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
 };
 use crate::validation::MAX_USERNAME_CHARS;
@@ -36,6 +39,16 @@ impl AuthSqlBackend for CanonicalBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
     }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self
+            .stored_user(id)
+            .await?
+            .filter(|account| account.status.is_active())
+            .map(|account| account.username))
+    }
+    async fn account_status(&self, id: &str) -> Result<Option<AccountStatus>> {
+        Ok(self.stored_user(id).await?.map(|account| account.status))
+    }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
     }
@@ -55,7 +68,7 @@ impl AuthSqlBackend for CanonicalBackend {
     async fn insert_user(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
         if self.confusable_insert {
@@ -80,6 +93,10 @@ impl AuthSqlBackend for CanonicalBackend {
         Ok(())
     }
 
+    async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
+        Ok(0)
+    }
+
     async fn list_usernames(&self) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
@@ -87,7 +104,7 @@ impl AuthSqlBackend for CanonicalBackend {
     async fn update_password_hash(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
     ) -> Result<PasswordChange> {
         Ok(PasswordChange::NoSuchUser)
     }
@@ -101,6 +118,12 @@ impl AuthSqlBackend for CanonicalBackend {
 impl AuthSqlBackend for SlowLookupBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
+        Ok(None)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
@@ -121,7 +144,7 @@ impl AuthSqlBackend for SlowLookupBackend {
     async fn insert_user(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
         Ok(InsertUser::CapReached)
@@ -144,6 +167,11 @@ impl AuthSqlBackend for SlowLookupBackend {
         Ok(())
     }
 
+    async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
+        tokio::time::sleep(Duration::from_mins(1)).await;
+        Ok(0)
+    }
+
     async fn list_usernames(&self) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
@@ -151,7 +179,7 @@ impl AuthSqlBackend for SlowLookupBackend {
     async fn update_password_hash(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
     ) -> Result<PasswordChange> {
         Ok(PasswordChange::NoSuchUser)
     }
@@ -165,6 +193,12 @@ impl AuthSqlBackend for SlowLookupBackend {
 impl AuthSqlBackend for SlowWriteBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
+        Ok(None)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
@@ -185,7 +219,7 @@ impl AuthSqlBackend for SlowWriteBackend {
     async fn insert_user(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
         Ok(InsertUser::Created("account-id".to_string()))
@@ -209,6 +243,11 @@ impl AuthSqlBackend for SlowWriteBackend {
         Ok(())
     }
 
+    async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        Ok(0)
+    }
+
     async fn list_usernames(&self) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
@@ -216,7 +255,7 @@ impl AuthSqlBackend for SlowWriteBackend {
     async fn update_password_hash(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
     ) -> Result<PasswordChange> {
         Ok(PasswordChange::NoSuchUser)
     }
@@ -230,6 +269,12 @@ impl AuthSqlBackend for SlowWriteBackend {
 impl AuthSqlBackend for CountingLookupBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
+        Ok(None)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
@@ -251,7 +296,7 @@ impl AuthSqlBackend for CountingLookupBackend {
     async fn insert_user(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
         Ok(InsertUser::Created("account-id".to_string()))
@@ -273,6 +318,10 @@ impl AuthSqlBackend for CountingLookupBackend {
         Ok(())
     }
 
+    async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
+        Ok(0)
+    }
+
     async fn list_usernames(&self) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
@@ -280,7 +329,7 @@ impl AuthSqlBackend for CountingLookupBackend {
     async fn update_password_hash(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
     ) -> Result<PasswordChange> {
         Ok(PasswordChange::NoSuchUser)
     }
@@ -294,6 +343,12 @@ impl AuthSqlBackend for CountingLookupBackend {
 impl AuthSqlBackend for CappedBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
+        Ok(None)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
@@ -315,7 +370,7 @@ impl AuthSqlBackend for CappedBackend {
     async fn insert_user(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
         panic!("capped precheck should reject before insert_user")
@@ -337,6 +392,10 @@ impl AuthSqlBackend for CappedBackend {
         Ok(())
     }
 
+    async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
+        Ok(0)
+    }
+
     async fn list_usernames(&self) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
@@ -344,7 +403,7 @@ impl AuthSqlBackend for CappedBackend {
     async fn update_password_hash(
         &self,
         _username: &str,
-        _bcrypt_hash: &str,
+        _password_hash: Option<&str>,
     ) -> Result<PasswordChange> {
         Ok(PasswordChange::NoSuchUser)
     }
@@ -362,7 +421,8 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "Alice".to_string(),
-                bcrypt_hash: "not-a-bcrypt-hash".to_string(),
+                status: AccountStatus::Active,
+                credential: AccountCredential::PasswordHash("not-a-bcrypt-hash".to_string()),
             },
         },
         MaxUsers::Unlimited,
@@ -376,14 +436,15 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
 
 #[tokio::test]
 async fn add_or_login_returns_the_immutable_id_for_existing_users() {
-    let bcrypt_hash = bcrypt::hash("secret123", 4).unwrap();
+    let password_hash = bcrypt::hash("secret123", 4).unwrap();
     let auth = SqlAuth::new(
         CanonicalBackend {
             confusable_insert: false,
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "Alice".to_string(),
-                bcrypt_hash,
+                status: AccountStatus::Active,
+                credential: AccountCredential::PasswordHash(password_hash),
             },
         },
         MaxUsers::Unlimited,
@@ -394,6 +455,26 @@ async fn add_or_login_returns_the_immutable_id_for_existing_users() {
 
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
     assert_eq!(outcome.1, "account-id");
+}
+
+#[tokio::test]
+async fn add_or_login_refuses_deactivated_accounts_with_forbidden() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: false,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "Alice".to_string(),
+                status: AccountStatus::Deactivated,
+                credential: AccountCredential::None,
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+
+    let err = auth.add_or_login("alice", "secret123").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -441,8 +522,10 @@ async fn token_lookup_times_out_when_the_backend_stalls() {
     let auth = SqlAuth::new(SlowLookupBackend, MaxUsers::Unlimited, Duration::from_millis(1));
 
     let err = auth.lookup("token").await.unwrap_err();
-
     assert!(matches!(err, RegistryError::AuthDatabaseTimeout));
+
+    let sweep_err = auth.delete_expired(1_000).await.unwrap_err();
+    assert!(matches!(sweep_err, RegistryError::AuthDatabaseTimeout));
 }
 
 #[tokio::test]
@@ -462,7 +545,8 @@ async fn provisioning_confusable_names_returns_the_validation_error() {
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "modern".to_string(),
-                bcrypt_hash: crate::NO_PASSWORD_HASH.to_string(),
+                status: AccountStatus::Active,
+                credential: AccountCredential::None,
             },
         },
         MaxUsers::Unlimited,
@@ -481,7 +565,8 @@ async fn password_policy_rejects_existing_short_credentials() {
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "member".to_string(),
-                bcrypt_hash: bcrypt::hash("short", 4).unwrap(),
+                status: AccountStatus::Active,
+                credential: AccountCredential::PasswordHash(bcrypt::hash("short", 4).unwrap()),
             },
         },
         MaxUsers::Unlimited,
@@ -503,7 +588,7 @@ pub(super) fn saturated_pool_settings(variable: &str) -> pnpr_config::SqlBackend
 pub(super) async fn assert_saturated_auth_writes_timeout(database: impl AuthSqlBackend) {
     let insert = tokio::time::timeout(
         Duration::from_secs(2),
-        database.insert_user("example", "unused", MaxUsers::Unlimited),
+        database.insert_user("example", None, MaxUsers::Unlimited),
     )
     .await
     .expect("user write waited for the startup deadline")
@@ -523,7 +608,8 @@ async fn backends_without_atomic_conditional_rename_reject_it() {
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "member".to_string(),
-                bcrypt_hash: crate::NO_PASSWORD_HASH.to_string(),
+                status: AccountStatus::Active,
+                credential: AccountCredential::None,
             },
         },
         MaxUsers::Unlimited,
@@ -583,14 +669,74 @@ pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + Token
         1,
     );
     assert_eq!(auth.account_id("renamed").await.unwrap(), Some(id.clone()));
+    auth.set_password(&id, "stored-secret").await.unwrap();
     let token = auth.issue(&id).await.unwrap();
     assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
-    auth.delete_user(&id).await.unwrap();
+    assert_eq!(
+        auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(auth.list_users().await.unwrap(), ["renamed"]);
+    assert_eq!(
+        auth.list_accounts().await
+            .unwrap()
+            .len(),
+        1,
+    );
     assert!(
         auth.lookup(&token).await
             .unwrap()
             .is_none(),
     );
+    assert!(
+        auth.list_for_user(&id).await
+            .unwrap()
+            .is_empty(),
+    );
+    let dormant = auth.issue(&id).await.unwrap();
+    assert!(
+        auth.lookup(&dormant).await
+            .unwrap()
+            .is_none(),
+    );
+    let deactivated_login = auth
+        .account_login(&id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(deactivated_login, after_admin_renamed_at_two());
+    assert_eq!(
+        auth.apply_account_status(&id, 1, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Superseded,
+    );
+    assert_eq!(
+        auth.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert!(auth.add_or_login("renamed", "stored-secret").await.is_err());
+    assert!(
+        auth.lookup(&token).await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(auth.lookup(&dormant).await.unwrap(), Some(id.clone()));
+    let (_expired, _) = auth
+        .issue_token(&id, crate::NewToken::new().with_expires_at(Some(500)))
+        .await
+        .unwrap();
+    assert_eq!(auth.delete_expired(500).await.unwrap(), 1);
+    auth.delete_user(&id).await.unwrap();
+    assert!(
+        auth.lookup(&dormant).await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+fn after_admin_renamed_at_two() -> crate::AccountLogin {
+    crate::AccountLogin { username: "renamed".to_string(), revision: 2 }
 }
 
 pub(super) fn test_database_name(directory: &tempfile::TempDir) -> String {

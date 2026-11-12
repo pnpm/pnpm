@@ -1,6 +1,6 @@
 ---
 id: scim
-title: SCIM deprovisioning
+title: SCIM provisioning
 ---
 
 pnpr serves the SCIM 2.0 `Users` endpoints, so an identity provider such as
@@ -25,7 +25,36 @@ auth:
 In the identity provider, set the tenant URL to
 `https://registry.example/-/pnpr/v0/scim/v2`. `userName` is the account's
 login name. The server assigns the immutable account `id`; use it as the
-`userId` in an [OIDC binding](oidc.md#browser-sign-in).
+`userId` in an [OIDC binding](oidc.md#browser-sign-in), or enable subject binding below.
+
+## Sign in through OIDC
+
+Set `login.scim: true` on the OIDC provider that owns this SCIM directory:
+
+```yaml title="pnpr.yaml"
+auth:
+  scim:
+    token: ${PNPR_SCIM_TOKEN}
+  oidc:
+    - name: company
+      issuer: https://identity.example
+      audience: pnpr
+      login:
+        scim: true
+        clientSecret: ${PNPR_OIDC_SECRET}
+```
+
+Have the identity provider send each user's OIDC `sub` as the SCIM
+`externalId`. pnpr matches that verified subject to the provisioned account's
+immutable ID. No per-user `login.users` entries are needed. Login names and
+email addresses are not used for matching.
+
+Only one provider may enable `login.scim`, and it cannot also declare
+`login.users`. The subject must match exactly one provisioned user, counting inactive users
+too. That user must be active to sign in. Missing subjects, duplicate matches, and deactivated or deleted
+users cannot sign in. Subjects are case-sensitive and are not trimmed.
+`externalId` must be a nonempty string when supplied; `PUT` or `PATCH` can
+change or remove it. Other replicas see changes on their next directory reload.
 
 ## What deprovisioning does
 
@@ -34,10 +63,10 @@ Provisioning creates a passwordless account. An existing login name returns
 cannot establish a password for a provisioned account. Use OIDC to sign in,
 or have an administrator set its password.
 
-Setting `active` to `false` revokes tokens, clears password credentials, and
-ends browser sessions. The account retains its ID and login name. Setting
-`active` to `true` restores that identity after credential cleanup. Credentials
-issued before deactivation remain revoked.
+Setting `active` to `false` marks the account `deactivated`, revokes tokens,
+clears password credentials, and ends browser sessions. The account retains its
+ID and login name. Setting `active` to `true` marks the account `active` again
+after credential cleanup. Credentials issued before deactivation remain revoked.
 
 Deleting a SCIM resource also deletes the account and frees its login name.
 A later `POST` using that name creates a different account ID with no inherited
@@ -62,7 +91,7 @@ All paths are under `/-/pnpr/v0/scim/v2`.
 | `PATCH` | `/Users/{id}` | A `PatchOp` with `add`, `replace`, or `remove` operations. Operations on a filtered path such as `emails[type eq "work"].value` are accepted and ignored. |
 | `DELETE` | `/Users/{id}` | Deprovision the user and stop listing it. Returns `204`. |
 
-pnpr reads only `userName` and `active`. It stores the other attributes it
+pnpr reads `userName`, `active`, and `externalId`. It stores the other attributes it
 receives, extension attributes under their schema URN, and returns them
 unchanged. Groups, bulk operations, sorting, and
 ETags are not supported. Assign teams with OIDC

@@ -98,6 +98,37 @@ auth:
 }
 
 #[test]
+fn auth_token_lifetimes_are_intervals() {
+    use std::time::Duration;
+    let config_with = |key: &str, lifetime: &str| {
+        let yaml = format!("storage: ./s\nauth:\n  tokens:\n    {key}: {lifetime}\n");
+        Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+    };
+    let tokens = config_with("maxLifetime", "90d").unwrap().identity.auth.tokens;
+    assert_eq!(tokens.max_lifetime, Some(Duration::from_hours(90 * 24)));
+    let tokens = config_with("maxLifetime", "1m").unwrap().identity.auth.tokens;
+    assert_eq!(tokens.max_lifetime, Some(Duration::from_mins(1)));
+    let tokens = config_with("defaultLifetime", "1w").unwrap().identity.auth.tokens;
+    assert_eq!(tokens.default_lifetime, Duration::from_hours(7 * 24));
+    for key in ["defaultLifetime", "maxLifetime"] {
+        for invalid in ["0", "0d", "0.0004s", "59s", "soon"] {
+            let error = config_with(key, invalid)
+                .map(|_| ())
+                .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("auth.tokens.{key}")),
+                "{invalid}: {error}",
+            );
+        }
+    }
+    let config = Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.identity.auth.tokens.default_lifetime, Duration::from_hours(90 * 24));
+    assert_eq!(config.identity.auth.tokens.max_lifetime, None);
+}
+
+#[test]
 fn registry_level_access_is_the_default_for_omitted_fields() {
     let yaml = "\
 storage: ./s
@@ -490,4 +521,49 @@ registries:
             .unwrap()
             .references_owners(),
     );
+}
+
+#[test]
+fn artifact_teams_use_the_selected_registry_directory() {
+    let yaml = "storage: ./s
+registries:
+  local:
+    type: hosted
+    teams:
+      builders: {name: builders, members: [account-one]}
+  other:
+    type: hosted
+    namespace: other
+    teams:
+      builders: {name: builders, members: [account-two]}
+artifacts:
+  enabled: true
+  owners:
+    example:
+      access: team:local:builders
+      publish: team:local:builders
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let policy = &config.features.artifacts.owners["example"];
+    assert!(policy.access.allows(&Identity::user("account-one")));
+    assert!(!policy.access.allows(&Identity::user("account-two")));
+    let directory = &config.routing.hosted["local"].teams;
+    let mut teams = (*directory.snapshot()).clone();
+    teams.get_mut("builders").unwrap().members = ["account-two".to_string()].into();
+    directory.replace(teams);
+    assert!(!policy.publish.allows(&Identity::user("account-one")));
+    assert!(policy.publish.allows(&Identity::user("account-two")));
+    let session = Identity::account_member(
+        "account-three",
+        "example",
+        vec![pnpr_policy::Membership {
+            directory: directory.clone(),
+            team_id: "builders".to_string(),
+        }],
+    );
+    assert!(policy.access.allows(&session));
+    for reference in ["team:builders", "team:missing:builders", "team:local:missing", "$owners"] {
+        let invalid = yaml.replace("team:local:builders", reference);
+        assert!(Config::from_yaml_str(&invalid, Path::new("/x"), listen(), None).is_err());
+    }
 }

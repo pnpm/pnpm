@@ -1,20 +1,22 @@
 //! What the shared SQL layer needs from a database.
 //!
 //! The shared layer runs every statement through [`Connection`], with `?N`
-//! placeholders and the [`Param`] and [`Value`] types, in the subset of SQL
-//! that `SQLite`, libSQL, and `PostgreSQL` share. An [`Adapter`] supplies what
-//! differs between the databases:
+//! placeholders and the [`Param`] and [`Value`] types. A statement is either
+//! in the SQL every [`Dialect`] shares or a [`DialectSql`](crate::dialect::DialectSql)
+//! picked by [`Connection::dialect`]. An [`Adapter`] supplies what differs
+//! between the databases:
 //!
 //! - the connections, opened from its configuration;
 //! - the statements that begin a write or a read transaction;
 //! - which errors are conflicts that a retry of the whole transaction clears;
-//! - placeholders and column types, translated by its [`Connection`];
+//! - placeholders, translated by its [`Connection`];
 //! - where a read runs, the primary or a replica ([`ReadSource`]);
 //! - how statements reach the database: one at a time, or a remote
 //!   database's in batches of one round trip each.
 //!
 //! Every method blocks. The shared layer calls them on the blocking pool.
 
+use crate::dialect::Dialect;
 use pnpr_error::{RegistryError, Result};
 use std::{fmt, ops::Deref, time::Instant};
 
@@ -45,6 +47,10 @@ pub enum Snapshot {
 /// The error of a held statement then surfaces from that later call, which
 /// fails the transaction just the same.
 pub trait Connection {
+    fn dialect(&self) -> Dialect {
+        Dialect::Sqlite
+    }
+
     fn lock_schema(&self) -> Result<()> {
         Ok(())
     }
@@ -61,25 +67,8 @@ pub trait Connection {
         Ok(false)
     }
 
-    /// Dialect-specific step-1 schema DDL script, when it differs from
-    /// [`crate::schema::TABLES`].
-    fn schema_tables(&self) -> Option<String> {
-        None
-    }
-
     fn schema_table_names(&self) -> Result<Vec<Row>> {
         self.query("SELECT name FROM sqlite_master WHERE type = 'table'", &[])
-    }
-
-    /// Dialect-specific `CREATE TABLE` statement for `schema_migrations`, when
-    /// it differs from [`crate::schema::MARKER_TABLE`].
-    fn schema_marker(&self) -> Option<&'static str> {
-        None
-    }
-
-    /// Dialect-specific `CREATE TABLE` statement for `hosted_store`.
-    fn hosted_store_table(&self) -> &'static str {
-        "CREATE TABLE IF NOT EXISTS hosted_store (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), store_id TEXT NOT NULL) STRICT"
     }
 
     /// Run one DDL statement in a migration step. On backends where DDL
@@ -251,6 +240,24 @@ pub enum Param<'value> {
     Integer(i64),
     Text(&'value str),
     Blob(&'value [u8]),
+}
+
+/// Refuse a text parameter holding a NUL character, which `PostgreSQL`
+/// cannot store, so every database accepts the same text.
+///
+/// # Errors
+///
+/// [`RegistryError::BadRequest`] when a [`Param::Text`] holds a NUL.
+pub fn reject_nul(params: &[Param<'_>]) -> Result<()> {
+    let has_nul = params
+        .iter()
+        .any(|param| matches!(param, Param::Text(text) if text.contains('\0')));
+    if has_nul {
+        return Err(RegistryError::BadRequest {
+            reason: "text must not contain a NUL character".to_string(),
+        });
+    }
+    Ok(())
 }
 
 /// A type that binds to a statement's parameter.

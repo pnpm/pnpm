@@ -19,7 +19,7 @@ enum Layout {
 }
 
 async fn measure(db: Db, layout: Layout) {
-    let mut tables = schema::TABLES.to_string();
+    let mut tables = schema::TABLES.sqlite.to_string();
     match layout {
         Layout::WithoutRowid => {
             for table in PAYLOAD_TABLES {
@@ -33,7 +33,7 @@ async fn measure(db: Db, layout: Layout) {
         Layout::Rowid => {}
     }
     let mut statements: Vec<_> = schema::statements(&tables).collect();
-    statements.push(schema::MARKER_TABLE.to_string());
+    statements.push(schema::MARKER_TABLE.sqlite.to_string());
     statements.push(format!(
         "INSERT INTO {} (version, applied_at) VALUES ({}, 1)",
         schema::MARKER,

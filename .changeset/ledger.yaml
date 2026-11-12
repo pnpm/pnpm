@@ -7467,6 +7467,33 @@ pacquet@12.2.1:
   dir: pnpm/npm/pnpm
   intents:
     - restore-extensionless-pnpm-bin
+pacquet@12.20.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - 17941-bundled-node-gyp-undici-7
+    - aws-lc-no-jitter-entropy
+    - bright-crabs-try
+    - ci-detection-capawesome-rwx
+    - fair-sbom-manifests
+    - fresh-registry-mutations
+    - frozen-pnpr-capabilities
+    - giant-snails-lie
+    - git-subdir-npm-separator
+    - good-beans-drive
+    - hoisted-peer-dedupe-shadow
+    - hoisted-peer-variant-nested-deps
+    - keep-locked-runtime-on-dedupe
+    - mandatory-policy-echo
+    - next-format-peer-cycles
+    - preserve-injected-deploy-snapshots
+    - refresh-peer-contexts-after-dependency-changes
+    - release-notes-publication-namespace
+    - run-fallback-verify-once
+    - runtime-shim-download-diagnostics
+    - stable-peer-cycle-edges
+    - v13-directory-inputs
+    - version-selector-overrides-catalog
+    - watchdog-starts-before-scripts
 pacquet@12.3.0:
   dir: pnpm/npm/pnpm
   intents:

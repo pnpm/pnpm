@@ -13,6 +13,7 @@ to the public npm registry:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+secret: ${PNPR_SECRET}
 
 auth:
   users:
@@ -39,9 +40,11 @@ defaultRegistry: main
 ```
 
 Pass it with `-c`, and create the first account with
-[`pnpr add-user`](cli.md#add-user):
+[`pnpr add-user`](cli.md#add-user). Generate `PNPR_SECRET` once, store it
+securely, and supply the same value on every restart:
 
 ```sh
+export PNPR_SECRET="$(openssl rand -hex 32)"
 pnpr -c ./pnpr.yaml add-user alice
 pnpr -c ./pnpr.yaml
 ```
@@ -78,11 +81,12 @@ storage: ./storage
 #  maxAge: 30d       # TTL deletion of cached entries older than this
 ```
 
-When `maxSize` or `maxAge` is configured, pnpr evicts stale entries on startup
-and runs periodic eviction in the background. On startup, pnpr also prunes
-orphaned private upstream namespaces left behind by previous process runs using
-ephemeral per-process secrets. Use [`pnpr cache-gc`](cli.md#cache-gc) for
-on-demand or offline reclamation.
+`maxSize` and `maxAge` cover the whole cache directory, including upstream
+mirrors, tar variants, the resolver store, the resolver cache, and the
+lockfile-verdict database. When either is configured, pnpr evicts stale entries
+on startup and runs periodic eviction in the background. On startup, pnpr also
+prunes orphaned upstream namespaces from removed registries or rotated secrets.
+Use [`pnpr cache-gc`](cli.md#cache-gc) for on-demand or offline reclamation.
 
 The hosted store can instead live in an S3-compatible object store. See
 [Storage backends](storage.md). With the filesystem hosted store, package
@@ -263,10 +267,14 @@ registries:
 | `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
+| `maxPackumentSize` | Maximum upstream npm package metadata response size. Defaults to `64 MiB`. Accepts a positive number of bytes or a size such as `64 MiB`. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 | `search` | Opts this upstream into browser-facing search and organization discovery. Defaults to `false`. See [Browsing and discovery](discovery.md). |
-| `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes a SHA-512 `dist.integrity` for up to 64 versions per fetched packument that omit one, caching each tarball it hashes. |
+| `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes missing SHA-512 `dist.integrity` values in the background for up to 64 versions per fetched packument. It reuses cached tarballs and retains matching integrities across refreshes. Initial metadata responses may omit these integrities until the work completes. Downloads that need a computed integrity wait for scheduled backfill, up to the upstream `timeout`. Failed pins are retried on the next metadata refresh. Backfill work waits for capacity and retries when metadata changes during a download. At most 256 package jobs can be queued or active. When that limit is reached, metadata still responds, but downloads that need a computed integrity return HTTP 429 until capacity is available. Computing integrities does not extend metadata freshness. |
+
+Tarball requests refresh stale package metadata before serving cached bytes.
+A refresh deletes cached tarballs for versions the upstream removed.
 
 Timeouts while reading a response body do not count toward `maxFails`.
 An open circuit returns HTTP 503 with the configured upstream name and a
@@ -726,6 +734,27 @@ auth:
     file: ./tokens.db
 ```
 
+Two settings limit how long a token from a password login or
+`npm token create` stays valid:
+
+- `auth.tokens.defaultLifetime`: the lifetime of a login token, and of a
+  created token that sets no expiry. Defaults to `90d`.
+- `auth.tokens.maxLifetime`: the longest a token stays valid. A token with a
+  later expiry expires after the maximum instead. Without the setting, a
+  created token can set any expiry.
+
+Both apply when pnpr issues a token. A token keeps the expiry it was issued
+with, so changing either setting does not affect existing tokens. Each must be
+at least `1m`. Units are `s`, `m`, `h`, `d`, and `w`. A
+[browser sign-in](oidc.md) keeps its session's expiry of at most an hour.
+
+```yaml title="pnpr.yaml"
+auth:
+  tokens:
+    defaultLifetime: 30d
+    maxLifetime: 52w
+```
+
 Omitted `maxUsers` means registration disabled, not unlimited registration.
 Existing users can still log in. When `auth.tokens.file` is omitted and
 `auth.users.file` is set, the token database defaults to `tokens.db` next to
@@ -791,10 +820,11 @@ and upstream caches (or vice versa), configure independent secrets via
 `secrets.cache` and `secrets.oci`. Each explicit secret must be at least 16
 bytes.
 
-When neither `secret` nor `secrets` is configured, a random 32-byte secret is
-generated per process. Private cache entries and issued OCI bearer tokens only
-survive for that process's lifetime. Set an explicit secret in multi-replica
-or production deployments.
+When neither `secret` nor `secrets.cache` is configured, pnpr generates a
+random 32-byte secret for a single run on an empty local cache directory. pnpr
+refuses to start without `secret` (or `secrets.cache`) when the cache directory
+already contains data from a previous run, is shared with another process, or
+uses S3, libSQL, PostgreSQL, or MySQL backends.
 
 ## Registry, resolver, artifact, and pipeline surfaces {#registry-resolver-and-artifact-surfaces}
 
@@ -845,10 +875,14 @@ artifacts:
   - its [pipeline run records](pipeline-runs.md).
 
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
-  signed-in account. Teams are declared per registry, so `team:` entries are
-  refused here. Publishing also requires `access`. An empty list denies
+  signed-in account. Use `team:<registry>:<teamId>` for a hosted registry's team,
+  for example `team:local:builders`. The registry key and team ID must exist
+  in the config. These rules follow live team roster updates and OIDC session
+  grants for that registry. The team API refuses to delete a team while an
+  artifact owner rule references it. Publishing also requires `access`. An empty list denies
   everyone. An owner nobody may read is invisible: requests for it answer
   as if it did not exist. An undeclared owner is unavailable.
+  See [Access evaluation](access.md) for how these rules combine with authentication.
   `owners` is read even when `enabled` is false, for a server that only stores
   pipeline runs.
 
@@ -928,7 +962,7 @@ osv:
 ```
 
 `path` may point to an OSV npm database zip or an extracted JSON directory. When
-omitted, pnpr looks for `<cache>/osv/npm/all.zip`. The same feature can be
+omitted, pnpr looks for `<storage>/.osv/npm/all.zip`. The same feature can be
 enabled from the CLI with `--osv` and `--osv-db`.
 
 ## `log`
@@ -966,11 +1000,11 @@ Administrative and destructive operations emit structured audit records under th
 Audit events record the `action`, the `actor` (the authenticated username, `"scim"` for SCIM actions, or `"-"` when unauthenticated), and operation-specific attributes:
 
 - **User management**:
-  - `user.create`: creating an account (`actor`, `user`).
-  - `user.password_update`: changing an account password (`actor`, `user`).
+  - `user.create`: creating an account (`actor`, `user`, `user_id`).
+  - `user.password_update`: changing an account password (`actor`, `user`, `user_id`).
   - `user.rename`: renaming an account (`actor`, `user`, `user_id`).
-  - `user.token_revoke`: revoking user tokens (`actor`, `user`, `token_key`).
-  - `user.delete`: deleting an account (`actor`, `user`, `tokens_revoked`).
+  - `user.token_revoke`: revoking user tokens (`actor`, `user`, `user_id`, `token_key`).
+  - `user.delete`: deleting an account (`actor`, `user`, `user_id`, `tokens_revoked`).
   - `user.register`: self-registering a new account (`actor`, `user`).
 - **Rule overrides**:
   - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`, `ecosystem`, `version`).

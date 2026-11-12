@@ -9,6 +9,8 @@ auth:
     # Maximum amount of users allowed to register. Set to -1 by default;
     # test harnesses patch this to allow test user registration.
     maxUsers: -1
+  # The benchmark uses this key to select the revision's account file format.
+  tokens: {}
 
 registries:
   # The locally-hosted fixtures (and anything published during tests).

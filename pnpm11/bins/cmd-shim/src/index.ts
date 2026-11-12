@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 import { isError } from '@pnpm/error'
 import gfsPromises from '@pnpm/fs.graceful-fs'
@@ -15,6 +16,7 @@ import {
   TARGET_MISSING_MARKER,
 } from './generateShShim.js'
 import type {
+  FdFs,
   FsPromises,
   GetShShimDirOptions,
   InternalOptions,
@@ -39,6 +41,8 @@ export type { GetShShimDirOptions, Options, ShimDirFs }
 // eslint-disable-next-line regexp/no-super-linear-backtracking -- only matched against the first line of a script, after the `#!` anchor
 const shebangExpr = /^#!\s*(?:\/usr\/bin\/env(?:\s+-S)?\s*)?([^ \t]+)(.*)$/
 
+const SHEBANG_READ_LIMIT_BYTES = 512
+
 const extensionToProgramMap = new Map([
   ['.js', 'node'],
   ['.cjs', 'node'],
@@ -52,7 +56,38 @@ const extensionToProgramMap = new Map([
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = { ...DEFAULT_OPTIONS, ...opts } as InternalOptions
   opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, realpath: fs.promises.realpath } as unknown as FsPromises)
+  opts_.fd_ = opts_.fs ? promisifyFdFs(opts_.fs) : gracefulFdFs
   return opts_
+}
+
+const gracefulFdFs: FdFs = {
+  open: gfsPromises.open,
+  read: async (fd, target, position) => gfsPromises.read(fd, target, 0, target.length, position),
+  close: gfsPromises.close,
+}
+
+function promisifyFdFs (fs_: typeof fs): FdFs {
+  return {
+    open: promisify(fs_.open),
+    read: async (fd, target, position) => readBytes(fs_, { fd, target, position }),
+    close: promisify(fs_.close),
+  }
+}
+
+/**
+ * `fs.read` without `promisify`: a replacement `fs` such as memfs has no
+ * `promisify.custom` on `read`, so `promisify` would resolve to the byte count alone.
+ */
+async function readBytes (
+  fs_: typeof fs,
+  { fd, target, position }: { fd: number, target: Buffer, position: number }
+): Promise<{ bytesRead: number }> {
+  return new Promise((resolve, reject) => {
+    fs_.read(fd, target, 0, target.length, position, (err, bytesRead) => {
+      if (err) reject(err)
+      else resolve({ bytesRead })
+    })
+  })
 }
 
 /**
@@ -282,7 +317,7 @@ function writeShimPost (target: string, opts: InternalOptions) {
 async function searchScriptRuntime (target: string, opts: InternalOptions): Promise<RuntimeInfo> {
   let data: string
   try {
-    data = await opts.fs_.readFile(target, 'utf8') as string
+    data = await readFileHead(target, opts)
   } catch (err) {
     if (!isMissingPathError(err)) throw err
     if (isWindows && path.extname(target) === '' && await exists(`${target}${getExeExtension()}`, opts)) {
@@ -303,6 +338,29 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
   return {
     program: shebang[1],
     additionalArgs: shebang[2],
+  }
+}
+
+/**
+ * Returns the first `SHEBANG_READ_LIMIT_BYTES` bytes of `file` decoded as UTF-8,
+ * or the whole file if it is shorter. Bin targets can be native executables of
+ * hundreds of megabytes, so the rest is never read.
+ * Rejects with the `open` error when `file` does not exist.
+ */
+async function readFileHead (file: string, opts: InternalOptions): Promise<string> {
+  const fd = await opts.fd_.open(file, 'r')
+  try {
+    const buffer = Buffer.alloc(SHEBANG_READ_LIMIT_BYTES)
+    let filled = 0
+    while (filled < buffer.length) {
+      // eslint-disable-next-line no-await-in-loop -- each read continues at the offset the previous one reached
+      const { bytesRead } = await opts.fd_.read(fd, buffer.subarray(filled), filled)
+      if (bytesRead === 0) break
+      filled += bytesRead
+    }
+    return buffer.toString('utf8', 0, filled)
+  } finally {
+    await opts.fd_.close(fd)
   }
 }
 

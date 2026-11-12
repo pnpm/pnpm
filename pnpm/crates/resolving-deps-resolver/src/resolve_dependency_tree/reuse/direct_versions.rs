@@ -35,7 +35,7 @@ pub(crate) fn record_changed_direct_deps(
     }
 }
 
-fn direct_dep_specifier_unchanged(
+pub(crate) fn direct_dep_specifier_unchanged(
     lockfile: &pnpm_lockfile::Lockfile,
     prior: Option<&ProjectSnapshot>,
     alias: &str,

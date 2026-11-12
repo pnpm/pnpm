@@ -1,5 +1,5 @@
 pub(super) use accounts::require_active_account;
-pub(super) use credentials::{bearer_credentials, token_credentials};
+pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
     Ownership, authorize, authorize_against_packument, authorize_continuation, authorize_package,
     authorize_with_ownership,
@@ -300,7 +300,7 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
     if record.expires_at.is_some_and(|exp| exp <= now) {
         return Ok(None);
     }
-    let owned = auth.users.account_name(&record.user_id).await?.is_some();
+    let owned = auth.users.active_account_name(&record.user_id).await?.is_some();
     Ok(owned.then_some(record))
 }
 

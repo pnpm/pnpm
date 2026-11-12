@@ -9,6 +9,10 @@ use crate::config_file::SecretsFile;
 /// Minimum length of an explicit `secret:` in bytes.
 pub const MIN_RESOLUTION_SECRET_LEN: usize = 16;
 
+/// Marker file in `cache_dir` recording the one-way fingerprint of the cache
+/// secret that initialized the directory.
+pub const CACHE_SECRET_MARKER: &str = ".cache-secret";
+
 /// Derive a domain-separated subkey from a master secret using SHA-256 (`purpose \0 root_secret`).
 #[must_use]
 pub fn derive_subkey(root_secret: &[u8], purpose: &[u8]) -> Arc<[u8]> {
@@ -17,6 +21,19 @@ pub fn derive_subkey(root_secret: &[u8], purpose: &[u8]) -> Arc<[u8]> {
     hasher.update(b"\0");
     hasher.update(root_secret);
     Arc::from(hasher.finalize().to_vec())
+}
+
+/// One-way hex fingerprint of `cache_secret`, safe to store in
+/// [`CACHE_SECRET_MARKER`] without exposing secret material.
+#[must_use]
+pub fn cache_secret_fingerprint(cache_secret: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let digest = derive_subkey(cache_secret, b"pnpr cache secret fingerprint v1");
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest.iter() {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
 }
 
 /// The HMAC secret keying private resolution-cache entries: the YAML

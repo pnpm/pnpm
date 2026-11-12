@@ -2,9 +2,18 @@
 
 use super::{Connection, Freshness, SqlMetadata};
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use std::sync::Arc;
 
 const PENDING_PREFIX: &str = "pending:";
+
+/// Write `?1` as the `store_id`, unless `hosted_store` holds one already.
+const CLAIM: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
+     ON CONFLICT DO NOTHING",
+    "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
+     ON DUPLICATE KEY UPDATE singleton = hosted_store.singleton",
+);
 
 /// How a metadata database is bound to a hosted store.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,11 +123,7 @@ fn begin_store_claim(connection: &dyn Connection, candidate_nonce: &str) -> Resu
         StoreBinding::Unmarked { has_data: false } => {}
     }
     let pending = format!("{PENDING_PREFIX}{candidate_nonce}");
-    connection.execute(
-        "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
-         ON CONFLICT DO NOTHING",
-        params![pending.as_str()],
-    )?;
+    connection.execute(CLAIM.get(connection.dialect()), params![pending.as_str()])?;
     match read_store_binding(connection)? {
         StoreBinding::Bound(id) => Ok(StoreClaim::Bound(id)),
         StoreBinding::Pending(nonce) => Ok(StoreClaim::Pending(nonce)),
@@ -153,11 +158,7 @@ fn claim_store_id(connection: &dyn Connection, candidate: &str) -> Result<String
         }
         StoreBinding::Unmarked { .. } => {}
     }
-    connection.execute(
-        "INSERT INTO hosted_store (singleton, store_id) VALUES (1, ?1)
-         ON CONFLICT DO NOTHING",
-        params![candidate],
-    )?;
+    connection.execute(CLAIM.get(connection.dialect()), params![candidate])?;
     match read_store_binding(connection)? {
         StoreBinding::Bound(id) | StoreBinding::Pending(id) => Ok(id),
         StoreBinding::Unmarked { .. } => Err(RegistryError::Internal {

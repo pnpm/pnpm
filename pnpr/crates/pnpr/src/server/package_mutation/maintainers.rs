@@ -192,7 +192,7 @@ async fn maintainer_id(
     match requested {
         Some(Value::String(id)) if Some(id.as_str()) == previous => Ok(id.clone()),
         Some(Value::String(id)) => {
-            if users.account_name(id).await?.as_deref() != Some(name) {
+            if users.active_account_name(id).await?.as_deref() != Some(name) {
                 return Err(RegistryError::BadRequest {
                     reason: format!("maintainer account ID does not match {name:?}"),
                 });
@@ -205,7 +205,7 @@ async fn maintainer_id(
         None => match previous {
             Some(id) => Ok(id.to_string()),
             None => users
-                .account_id(name)
+                .active_account_id(name)
                 .await?
                 .ok_or_else(|| RegistryError::BadRequest {
                     reason: format!("unknown maintainer {name:?}"),

@@ -114,6 +114,8 @@ pub(super) struct UpstreamFile {
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
     #[serde(default)]
+    pub(super) max_packument_size: Option<ByteSize>,
+    #[serde(default)]
     pub(super) max_fails: Option<u32>,
     #[serde(default)]
     pub(super) fail_timeout: Option<Interval>,
@@ -441,6 +443,10 @@ pub(super) struct UsersFile {
 pub(super) struct TokensFile {
     #[serde(default)]
     pub(super) file: Option<String>,
+    #[serde(default)]
+    pub(super) default_lifetime: Option<Interval>,
+    #[serde(default)]
+    pub(super) max_lifetime: Option<Interval>,
 }
 
 #[derive(Debug, Default, Deserialize)]

@@ -3,7 +3,7 @@ use pnpr_config::{
     ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HostedConfig,
     HostedStoreConfig, LogConfig, OciConfig, OsvConfig, PipelineFeature, RegistryFeature,
     ResolverFeature, RoutePolicy, TrustedProxyHeader, UiConfig, UpstreamConfig, default_cache_dir,
-    default_metadata_path, random_secret,
+    default_metadata_path,
 };
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
@@ -210,12 +210,14 @@ fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
     }
 }
 
+const MOCK_SECRET: &[u8] = b"pnpm-registry-mock-secret-key-32";
+
 fn with_routing(
     listen: SocketAddr,
     storage: PathBuf,
     routing: pnpr_config::RoutingConfig,
 ) -> Config {
-    let cache_secret = random_secret();
+    let cache_secret: Arc<[u8]> = Arc::from(MOCK_SECRET);
     let oci_secret = pnpr_config::derive_subkey(&cache_secret, b"pnpr OCI token signing v1");
     Config {
         logs: LogConfig::default(),
@@ -223,7 +225,7 @@ fn with_routing(
         resolution_cache_secret: Arc::clone(&cache_secret),
         cache_secret,
         oci_secret,
-        has_configured_secret: false,
+        has_configured_secret: true,
         http: http_config(listen),
         storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {

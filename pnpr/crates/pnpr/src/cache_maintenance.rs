@@ -1,13 +1,20 @@
-//! Upstream proxy cache reclamation, orphan pruning, and LRU eviction.
+//! Disposable cache reclamation, orphan pruning, and LRU eviction.
 //!
-//! Reclaims orphaned upstream cache namespaces left behind by per-process
-//! secrets or removed/reconfigured upstreams, evicts stale cached entries
-//! exceeding TTL, and enforces cache size caps via LRU eviction.
+//! Reclaims orphaned upstream cache namespaces, sweeps abandoned publish
+//! staging files, evicts stale cached entries exceeding TTL, and enforces
+//! whole-cache size caps across upstream mirrors, tar variants, and the
+//! resolver's store and caches.
 
+mod eviction;
+mod inventory;
 mod orphans;
+mod sqlite;
+mod store_index;
 
 use crate::{Config, Result};
-use orphans::prune_orphaned_namespaces;
+use eviction::{DryRunAdjustments, evict_and_prune_cache};
+use orphans::{PrivateScopePolicy, prune_orphaned_namespaces, prune_private_resolver_scopes_only};
+use pnpm_fs::ChildFileStat;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -40,10 +47,11 @@ pub enum CacheGcEffect {
 /// How much of the cache a collection pass covers.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum CacheGcScope {
-    /// Prune orphaned namespaces, then evict within the active ones.
+    /// Prune orphaned namespaces, sweep staging files, and evict across the
+    /// whole cache directory.
     #[default]
     Full,
-    /// Prune orphaned namespaces only, leaving active entries in place.
+    /// Prune orphaned upstream and resolver namespaces only, leaving active entries in place.
     OrphansOnly,
 }
 
@@ -60,6 +68,17 @@ pub struct CacheGcOptions {
     pub scope: CacheGcScope,
 }
 
+/// Guard that aborts the periodic cache-eviction task when dropped.
+pub struct PeriodicCacheEviction(Option<tokio::task::JoinHandle<()>>);
+
+impl Drop for PeriodicCacheEviction {
+    fn drop(&mut self) {
+        if let Some(handle) = self.0.take() {
+            handle.abort();
+        }
+    }
+}
+
 struct CachedFile {
     path: PathBuf,
     size: u64,
@@ -67,8 +86,7 @@ struct CachedFile {
     age: Duration,
 }
 
-/// The set of active cache namespaces: one per configured upstream, plus the
-/// level-19 tar variants, which are evicted under the same limits.
+/// The set of active upstream and tar-variant cache namespaces.
 #[must_use]
 pub fn active_cache_namespaces(config: &Config) -> HashSet<String> {
     config.routing.upstreams
@@ -105,61 +123,203 @@ async fn sweep_staging_cache(
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MarkerDirPolicy {
+    CreateIfMissing,
+    ExistingOnly,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CacheMarkerStatus {
+    Matches,
+    MismatchOrMissing,
+    CacheDirMissing,
+    ReadFailed,
+}
+
+async fn inspect_cache_secret_marker(cache_dir: &Path, config: &Config) -> CacheMarkerStatus {
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    let root = cache_dir.to_path_buf();
+    let warn_root = cache_dir.to_path_buf();
+    match tokio::task::spawn_blocking(move || inspect_cache_secret_marker_sync(&root, &fingerprint))
+        .await
+    {
+        Ok(status) => status,
+        Err(err) => {
+            tracing::warn!(
+                path = %warn_root.display(),
+                error = %err,
+                "cache secret marker check panicked; keeping private scopes",
+            );
+            CacheMarkerStatus::ReadFailed
+        }
+    }
+}
+
+fn inspect_cache_secret_marker_sync(cache_dir: &Path, fingerprint: &str) -> CacheMarkerStatus {
+    let dir = match pnpm_fs::OpenDir::open(cache_dir) {
+        Ok(dir) => dir,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return CacheMarkerStatus::CacheDirMissing;
+        }
+        Err(err) => {
+            log_marker_read_failure(cache_dir, &err);
+            return CacheMarkerStatus::ReadFailed;
+        }
+    };
+    let marker = std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER);
+    match dir.has_symlink_child(marker) {
+        Ok(true) => return CacheMarkerStatus::MismatchOrMissing,
+        Ok(false) => {}
+        Err(err) => {
+            log_marker_read_failure(cache_dir, &err);
+            return CacheMarkerStatus::ReadFailed;
+        }
+    }
+    let max_bytes = crate::config_validation::MAX_CACHE_SECRET_MARKER_BYTES;
+    match dir.read_child_file_bounded(marker, max_bytes) {
+        Ok(Some(bytes)) => {
+            if std::str::from_utf8(&bytes).is_ok_and(|raw| raw.trim() == fingerprint) {
+                CacheMarkerStatus::Matches
+            } else {
+                CacheMarkerStatus::MismatchOrMissing
+            }
+        }
+        Ok(None) => CacheMarkerStatus::MismatchOrMissing,
+        Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+            CacheMarkerStatus::MismatchOrMissing
+        }
+        Err(err) => {
+            log_marker_read_failure(cache_dir, &err);
+            CacheMarkerStatus::ReadFailed
+        }
+    }
+}
+
+fn log_marker_read_failure(cache_dir: &Path, err: &std::io::Error) {
+    tracing::warn!(
+        path = %cache_dir.display(),
+        error = %err,
+        "failed to read cache secret marker; keeping private scopes",
+    );
+}
+
+fn private_scope_policy_for_marker(status: CacheMarkerStatus) -> PrivateScopePolicy {
+    match status {
+        CacheMarkerStatus::MismatchOrMissing => PrivateScopePolicy::Prune,
+        CacheMarkerStatus::Matches
+        | CacheMarkerStatus::CacheDirMissing
+        | CacheMarkerStatus::ReadFailed => PrivateScopePolicy::Keep,
+    }
+}
+
+fn should_write_configured_marker(status: CacheMarkerStatus, clean: bool) -> bool {
+    clean
+        && match status {
+            CacheMarkerStatus::MismatchOrMissing | CacheMarkerStatus::CacheDirMissing => true,
+            CacheMarkerStatus::Matches | CacheMarkerStatus::ReadFailed => false,
+        }
+}
+
+async fn sync_configured_cache_marker(
+    config: &Config,
+    effect: CacheGcEffect,
+    dir_policy: MarkerDirPolicy,
+) -> Result<()> {
+    if !config.has_configured_secret {
+        return Ok(());
+    }
+    match effect {
+        CacheGcEffect::DryRun => return Ok(()),
+        CacheGcEffect::Apply => {}
+    }
+    let cache_dir = &config.storage.cache_dir;
+    match dir_policy {
+        MarkerDirPolicy::CreateIfMissing => fs::create_dir_all(cache_dir).await?,
+        MarkerDirPolicy::ExistingOnly => {
+            if !fs::try_exists(cache_dir).await.unwrap_or(false) {
+                return Ok(());
+            }
+        }
+    }
+    let root = cache_dir.clone();
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+        let dir = pnpm_fs::OpenDir::open(&root)?;
+        dir.write_child_file(
+            std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER),
+            fingerprint.as_bytes(),
+        )
+    })
+    .await
+    .map_err(|err| std::io::Error::other(err.to_string()))??;
+    Ok(())
+}
+
+pub(crate) async fn sync_cache_secret_on_startup(config: &Config) -> Result<()> {
+    crate::config_validation::validate_cache_paths(config)?;
+    let cache_dir = &config.storage.cache_dir;
+    let marker_status = inspect_cache_secret_marker(cache_dir, config).await;
+    let clean = match private_scope_policy_for_marker(marker_status) {
+        PrivateScopePolicy::Prune => {
+            let active = active_cache_namespaces(config);
+            prune_private_resolver_scopes_only(cache_dir, &active, CacheGcEffect::Apply).await?
+        }
+        PrivateScopePolicy::Keep => true,
+    };
+    if should_write_configured_marker(marker_status, clean) {
+        sync_configured_cache_marker(
+            config,
+            CacheGcEffect::Apply,
+            MarkerDirPolicy::CreateIfMissing,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 /// Run a complete cache collection pass according to the given options.
 pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<CacheReport> {
+    collect_cache_inner(config, options, MarkerDirPolicy::ExistingOnly).await
+}
+
+async fn collect_cache_inner(
+    config: &Config,
+    options: &CacheGcOptions,
+    marker_dir_policy: MarkerDirPolicy,
+) -> Result<CacheReport> {
+    crate::config_validation::validate_cache_paths(config)?;
+    let cache_dir = &config.storage.cache_dir;
     let active = active_cache_namespaces(config);
-    let mut report = prune_orphaned_namespaces(
-        &config.storage.cache_dir,
-        &active,
-        options.effect,
-        config.has_configured_secret,
-    )
-    .await?;
+    let marker_status = inspect_cache_secret_marker(cache_dir, config).await;
+    let private_scopes = private_scope_policy_for_marker(marker_status);
+    let outcome =
+        prune_orphaned_namespaces(cache_dir, &active, private_scopes, options.effect).await?;
+    if should_write_configured_marker(marker_status, outcome.private_scopes_clean) {
+        sync_configured_cache_marker(config, options.effect, marker_dir_policy).await?;
+    }
+    let mut report = outcome.report;
     match options.scope {
         CacheGcScope::OrphansOnly => return Ok(report),
         CacheGcScope::Full => {}
     }
-    let staging = sweep_staging_cache(
-        &config.storage.cache_dir,
-        archive_staging_max_age(config),
-        options.effect,
-    )
-    .await;
+    let staging =
+        sweep_staging_cache(cache_dir, archive_staging_max_age(config), options.effect).await;
     report.files_evicted += staging.files;
     report.bytes_reclaimed += staging.bytes;
     let max_age = options.max_age.or(config.storage.cache.max_age);
     let max_size = options.max_size.or(config.storage.cache.max_size);
     if max_age.is_some() || max_size.is_some() {
-        evict_and_prune_active(
-            &config.storage.cache_dir,
-            &active,
-            (max_age, max_size),
-            options.effect,
-            &mut report,
-        )
-        .await?;
+        let adjustments = DryRunAdjustments {
+            pruned_dirs: outcome.pruned_dirs,
+            swept_staging_bytes: staging.bytes,
+        };
+        let ev = evict_and_prune_cache(cache_dir, max_age, max_size, options.effect, &adjustments)
+            .await?;
+        report.files_evicted += ev.files_evicted;
+        report.bytes_reclaimed += ev.bytes_reclaimed;
     }
     Ok(report)
-}
-
-async fn evict_and_prune_active(
-    cache_dir: &Path,
-    active: &HashSet<String>,
-    (max_age, max_size): (Option<Duration>, Option<u64>),
-    effect: CacheGcEffect,
-    report: &mut CacheReport,
-) -> Result<()> {
-    let ev = evict_active_cache(cache_dir, active, max_age, max_size, effect).await?;
-    report.files_evicted += ev.files_evicted;
-    report.bytes_reclaimed += ev.bytes_reclaimed;
-    let should_prune_empty_dirs = match effect {
-        CacheGcEffect::Apply => ev.files_evicted > 0,
-        CacheGcEffect::DryRun => false,
-    };
-    if should_prune_empty_dirs {
-        prune_empty_dirs(cache_dir, active).await?;
-    }
-    Ok(())
 }
 
 /// Evict cache entries on startup: cleans orphaned namespaces and enforces configured caps.
@@ -170,21 +330,34 @@ pub async fn prune_orphaned_namespaces_startup(config: &Config) -> Result<CacheR
         max_age: config.storage.cache.max_age,
         scope: CacheGcScope::Full,
     };
-    collect_cache(config, &opts).await
+    collect_cache_inner(config, &opts, MarkerDirPolicy::CreateIfMissing).await
 }
 
 /// Run a periodic eviction pass using configured size and age limits.
 pub async fn evict_configured_cache(config: &Config) -> Result<CacheReport> {
-    prune_orphaned_namespaces_startup(config).await
+    collect_cache(
+        config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: config.storage.cache.max_size,
+            max_age: config.storage.cache.max_age,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
 }
 
 /// Spawns a background task running cache eviction periodically if configured.
-pub fn spawn_periodic_cache_eviction(config: &Config) {
-    if config.storage.cache.max_size.is_none() && config.storage.cache.max_age.is_none() {
-        return;
+#[must_use]
+pub fn spawn_periodic_cache_eviction(config: &Config) -> PeriodicCacheEviction {
+    if (!config.features.registry.enabled && !config.features.resolver.enabled)
+        || (config.storage.cache.max_size.is_none()
+            && config.storage.cache.max_age.is_none())
+    {
+        return PeriodicCacheEviction(None);
     }
     let background_config = config.clone();
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_mins(10));
         interval.tick().await;
         loop {
@@ -194,203 +367,17 @@ pub fn spawn_periodic_cache_eviction(config: &Config) {
             }
         }
     });
+    PeriodicCacheEviction(Some(handle))
 }
 
-/// Whether `path` may be counted as reclaimed: [`CacheGcEffect::Apply`]
-/// counts it once the file is gone, a dry run counts it without touching
-/// the file.
-async fn counts_as_removed(effect: CacheGcEffect, path: &Path) -> bool {
-    match effect {
-        CacheGcEffect::Apply => fs::remove_file(path).await.is_ok(),
-        CacheGcEffect::DryRun => true,
-    }
-}
-
-async fn evict_file_if_expired(
-    file: CachedFile,
-    max_age: Option<Duration>,
-    effect: CacheGcEffect,
-    report: &mut CacheReport,
-    total_size: &mut u64,
-    retained: &mut Vec<CachedFile>,
-) {
-    if is_tmp_file(&file.path) {
-        if is_abandoned_tmp(&file.path, file.age) && counts_as_removed(effect, &file.path).await {
-            report.files_evicted += 1;
-            report.bytes_reclaimed += file.size;
-        }
-        return;
-    }
-    let is_expired = max_age.is_some_and(|ttl| file.age >= ttl);
-    if is_expired && counts_as_removed(effect, &file.path).await {
-        report.files_evicted += 1;
-        report.bytes_reclaimed += file.size;
-        return;
-    }
-    *total_size += file.size;
-    retained.push(file);
-}
-
-/// Evict expired files and enforce LRU size caps within active namespaces.
-async fn evict_active_cache(
-    cache_dir: &Path,
-    active: &HashSet<String>,
-    max_age: Option<Duration>,
-    max_size: Option<u64>,
-    effect: CacheGcEffect,
-) -> Result<CacheReport> {
-    let mut report = CacheReport::default();
-    let mut retained = Vec::new();
-    let mut total_size = 0u64;
-    for ns in active {
-        let ns_root = cache_dir.join(ns);
-        let files = inventory_active_namespace(&ns_root).await?;
-        for file in files {
-            evict_file_if_expired(
-                file,
-                max_age,
-                effect,
-                &mut report,
-                &mut total_size,
-                &mut retained,
-            )
-            .await;
-        }
-    }
-    if let Some(limit) = max_size {
-        evict_lru(&mut retained, total_size, limit, effect, &mut report).await;
-    }
-    Ok(report)
-}
-
-async fn evict_lru_entry(
-    entry: &CachedFile,
-    effect: CacheGcEffect,
-    report: &mut CacheReport,
-) -> bool {
-    match effect {
-        CacheGcEffect::Apply => {
-            if let Ok(meta) = fs::metadata(&entry.path).await {
-                let (current_time, _) = file_effective_time(&meta);
-                if current_time > entry.effective_time {
-                    return false;
-                }
-            }
-            if fs::remove_file(&entry.path).await.is_err() {
-                return false;
-            }
-        }
-        CacheGcEffect::DryRun => {}
-    }
-    report.files_evicted += 1;
-    report.bytes_reclaimed += entry.size;
-    true
-}
-
-/// Enforce LRU eviction down to `limit` bytes.
-async fn evict_lru(
-    retained: &mut [CachedFile],
-    mut total_size: u64,
-    limit: u64,
-    effect: CacheGcEffect,
-    report: &mut CacheReport,
-) {
-    if total_size <= limit {
-        return;
-    }
-    retained.sort_by_key(|entry| entry.effective_time);
-    for entry in retained {
-        if total_size <= limit {
-            break;
-        }
-        if evict_lru_entry(entry, effect, report).await {
-            total_size = total_size.saturating_sub(entry.size);
-        }
-    }
-}
-
-async fn inspect_inventory_entry(
-    entry: &tokio::fs::DirEntry,
-    stack: &mut Vec<PathBuf>,
-    files: &mut Vec<CachedFile>,
-) {
-    let Ok(ft) = entry.file_type().await else {
-        return;
-    };
-    if ft.is_dir() {
-        stack.push(entry.path());
-    } else if ft.is_file()
-        && let Ok(metadata) = entry.metadata().await
-    {
-        let (effective_time, age) = file_effective_time(&metadata);
-        files.push(CachedFile { path: entry.path(), size: metadata.len(), effective_time, age });
-    }
-}
-
-/// Recursively collect all regular files in an active namespace directory.
-async fn inventory_active_namespace(ns_root: &Path) -> Result<Vec<CachedFile>> {
-    let mut files = Vec::new();
-    let mut stack = vec![ns_root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(mut entries) = fs::read_dir(&dir).await else {
-            continue;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            inspect_inventory_entry(&entry, &mut stack, &mut files).await;
-        }
-    }
-    Ok(files)
-}
-
-async fn collect_subdirs(root: PathBuf) -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    let mut stack = vec![root];
-    while let Some(dir) = stack.pop() {
-        let Ok(mut entries) = fs::read_dir(&dir).await else {
-            continue;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let Ok(ft) = entry.file_type().await else {
-                continue;
-            };
-            if ft.is_dir() {
-                dirs.push(entry.path());
-                stack.push(entry.path());
-            }
-        }
-    }
-    dirs
-}
-
-/// Prune empty subdirectories within active namespaces bottom-up.
-async fn prune_empty_dirs(cache_dir: &Path, active: &HashSet<String>) -> Result<()> {
-    for ns in active {
-        let ns_root = cache_dir.join(ns);
-        let mut dirs = collect_subdirs(ns_root).await;
-        dirs.sort_by_key(|d| std::cmp::Reverse(d.as_os_str().len()));
-        for dir in dirs {
-            let _ = fs::remove_dir(dir).await;
-        }
-    }
-    Ok(())
-}
-
-fn file_effective_time(metadata: &std::fs::Metadata) -> (SystemTime, Duration) {
-    let mtime = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-    let atime = metadata.accessed().unwrap_or(mtime);
-    let effective = mtime.max(atime);
-    let age = SystemTime::now().duration_since(mtime).unwrap_or(Duration::ZERO);
+fn stat_effective_time(stat: ChildFileStat) -> (SystemTime, Duration) {
+    let effective = stat.modified.max(stat.accessed);
+    let age = SystemTime::now().duration_since(stat.modified).unwrap_or(Duration::ZERO);
     (effective, age)
 }
 
-fn is_tmp_file(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n.starts_with(".tmp"))
-}
-
-fn is_abandoned_tmp(path: &Path, age: Duration) -> bool {
-    is_tmp_file(path) && age > Duration::from_hours(1)
+fn is_abandoned_tmp_age(age: Duration) -> bool {
+    age > Duration::from_hours(1)
 }
 
 #[cfg(test)]

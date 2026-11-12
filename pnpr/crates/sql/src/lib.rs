@@ -7,6 +7,7 @@ extern crate pnpr_error;
 #[macro_use]
 pub mod params;
 pub mod adapter;
+pub mod dialect;
 #[cfg(feature = "backend-libsql")]
 pub mod libsql;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
@@ -14,6 +15,7 @@ pub mod network;
 pub mod schema;
 pub mod sqlite;
 
+pub use dialect::{Dialect, DialectSql};
 pub use pnpr_config::{LibsqlSettings, SqlBackendSettings};
 pub use pnpr_error::{RegistryError, Result};
 

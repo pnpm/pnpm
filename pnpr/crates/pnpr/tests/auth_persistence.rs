@@ -32,7 +32,7 @@ fn persistent_config(storage: PathBuf, users: PathBuf, tokens_db: PathBuf) -> Co
     config.identity.auth = AuthConfig {
         oidc: Vec::new(),
         users: UsersConfig { file: Some(users), max_users: MaxUsers::Unlimited },
-        tokens: TokensConfig { file: Some(tokens_db) },
+        tokens: TokensConfig { file: Some(tokens_db), ..TokensConfig::default() },
         scim: None,
     };
     config
@@ -305,7 +305,10 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
             file: Some(auth_dir.path().join("htpasswd")),
             max_users: MaxUsers::Disabled,
         },
-        tokens: TokensConfig { file: Some(auth_dir.path().join("tokens.db")) },
+        tokens: TokensConfig {
+            file: Some(auth_dir.path().join("tokens.db")),
+            ..TokensConfig::default()
+        },
         scim: None,
     };
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend)

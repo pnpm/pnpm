@@ -371,7 +371,7 @@ async fn an_uncached_upstream_gets_no_tar_variants() {
 /// complete with the stale ones, or a client with no tar hash to check would
 /// install them.
 #[tokio::test]
-async fn a_stale_cached_tgz_fails_the_tar_response_and_is_refetched() {
+async fn a_changed_upstream_integrity_evicts_the_cached_tgz_before_serving() {
     for accept in [None, Some("gzip"), Some("zstd")] {
         stale_cached_tgz_scenario(accept).await;
     }
@@ -433,8 +433,8 @@ async fn stale_cached_tgz_scenario(accept: Option<&str>) {
         .await;
 
     assert!(
-        !completes_over_http(&app, "/npm/~zstd/left-pad@1.0.0", accept).await,
-        "stale bytes must not complete a tar response ({accept:?})",
+        completes_over_http(&app, "/npm/~zstd/left-pad@1.0.0", accept).await,
+        "refresh must evict stale bytes before serving the tar ({accept:?})",
     );
 
     let mut refetched = Vec::new();

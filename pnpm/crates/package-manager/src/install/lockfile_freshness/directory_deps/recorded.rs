@@ -13,7 +13,12 @@ use pnpm_resolving_deps_resolver::{
 pub(super) fn check_recorded_directory(
     check: &ImporterSatisfactionCheck<'_>,
     (dep, scope): (&LocalDepContext<'_>, &AliasScope),
-    (manifest, snapshot, metadata): (&PackageManifest, &SnapshotEntry, &PackageMetadata),
+    (key, manifest, snapshot, metadata): (
+        &pnpm_lockfile::PackageKey,
+        &PackageManifest,
+        &SnapshotEntry,
+        &PackageMetadata,
+    ),
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     check_inputs(dep, manifest, metadata)?;
@@ -28,7 +33,7 @@ pub(super) fn check_recorded_directory(
         check,
         (dep, &children_scope),
         manifest,
-        snapshot,
+        (snapshot, key),
         &peers.shadowed,
         visited,
     )?;

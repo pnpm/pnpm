@@ -188,6 +188,7 @@ pub(super) fn check_projects_content(
         wanted,
         linked_ctx: &linked_ctx,
         workspace: crate::install::WorkspaceProjects {
+            peer_children: &crate::install::RecordedPeerChildren::default(),
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
             directory_manifests: &directory_manifests,

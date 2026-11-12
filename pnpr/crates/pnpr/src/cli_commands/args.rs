@@ -80,7 +80,7 @@ impl ServerArgs {
 #[derive(Debug, Default, Clone, Args)]
 pub struct OsvArgs {
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
-    /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
+    /// npm database zip at `--osv-db` or `<storage>/.osv/npm/all.zip`.
     #[arg(long, env = "PNPR_OSV", num_args = 0..=1, default_missing_value = "true", value_parser = BoolishValueParser::new())]
     pub osv: Option<bool>,
 

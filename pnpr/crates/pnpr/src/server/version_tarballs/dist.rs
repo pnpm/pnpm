@@ -6,15 +6,25 @@ use super::{
 };
 use crate::server::{authorize, read_source_packument, recover_stale_upstream_packument};
 use pnpr_storage::DocumentStamp;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant, SystemTime},
-};
+use std::{sync::Arc, time::Instant};
 
 /// The largest upstream version manifest the route reads.
 const MAX_VERSION_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
 
 impl VersionRequest<'_> {
+    pub(super) fn cached_tgz_is_current(
+        &self,
+        cached: &CachedPackument,
+        name: &CanonicalPackageName,
+        tgz: &VersionTgz,
+    ) -> bool {
+        tgz.is_current(crate::server::upstream_packuments::upstream_package_generation(
+            self.state,
+            &cached.namespace,
+            name,
+        ))
+    }
+
     /// The requested version's dist in `source`, from the [`VersionTgzCache`](super::VersionTgzCache)
     /// or the upstream.
     pub(super) async fn version_tgz(
@@ -23,6 +33,15 @@ impl VersionRequest<'_> {
         name: &CanonicalPackageName,
     ) -> Result<Option<Arc<VersionTgz>>, RegistryError> {
         let cached = self.cached_packument(source, name)?;
+        let generation = cached
+            .as_ref()
+            .map(|cached| {
+                crate::server::upstream_packuments::upstream_package_generation(
+                    self.state,
+                    &cached.namespace,
+                    name,
+                )
+            });
         let stamp = match &cached {
             Some(cached) => self.fresh_packument_stamp(cached, name).await?,
             None => None,
@@ -30,14 +49,18 @@ impl VersionRequest<'_> {
         let cache = &self.state.inner.proxy.version_tgzs;
         if let Some(cached) = &cached
             && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp, cached.ttl)
+            && generation.is_some_and(|generation| tgz.is_current(generation))
         {
             return Ok(Some(tgz));
         }
-        let Some((tgz, origin)) =
+        let Some((mut tgz, origin)) =
             self.read_version_tgz(source, name, cached.as_ref(), stamp).await?
         else {
             return Ok(None);
         };
+        if matches!(origin, Some(DistOrigin::Packument(_))) {
+            tgz.packument_generation = generation;
+        }
         let tgz = Arc::new(tgz);
         if let (Some(cached), Some(origin)) = (cached, origin) {
             cache.put(cached.namespace, name, self.version, origin, Arc::clone(&tgz));
@@ -46,7 +69,7 @@ impl VersionRequest<'_> {
     }
 
     /// Read the version's dist and say where it came from, when it may be
-    /// cached. Without a fresh cached packument, an upstream's version
+    /// cached. Without a cached packument, an upstream's version
     /// manifest is fetched rather than its whole packument. The packument
     /// answers when the manifest does not, as for an upstream that serves
     /// none.
@@ -72,6 +95,7 @@ impl VersionRequest<'_> {
             return Ok(tgz.map(|tgz| (tgz, None)));
         }
         if stamp.is_none()
+            && self.has_no_cached_packument(cached, name).await?
             && let RegistrySource::Upstream(id) = source
             && let Some(read) = self.read_version_manifest(id, name, cached).await
         {
@@ -81,6 +105,7 @@ impl VersionRequest<'_> {
         else {
             return Ok(None);
         };
+        let packument = self.wait_for_packument_pin(source, name, cached, packument).await?;
         let stamp = match (stamp, cached) {
             (Some(stamp), _) => Some(stamp),
             (None, Some(cached)) => {
@@ -90,6 +115,49 @@ impl VersionRequest<'_> {
         };
         Ok(version_tgz(&packument, name, self.version)
             .map(|tgz| (tgz, stamp.map(DistOrigin::Packument))))
+    }
+
+    async fn has_no_cached_packument(
+        &self,
+        cached: Option<&CachedPackument>,
+        name: &CanonicalPackageName,
+    ) -> Result<bool, RegistryError> {
+        let Some(cached) = cached else { return Ok(true) };
+        Ok(self.state.inner.storage
+            .upstream_document_stamp(&cached.namespace, name)
+            .await?
+            .is_none())
+    }
+
+    async fn wait_for_packument_pin(
+        &self,
+        source: &RegistrySource,
+        name: &CanonicalPackageName,
+        cached: Option<&CachedPackument>,
+        mut packument: Vec<u8>,
+    ) -> Result<Vec<u8>, RegistryError> {
+        if let Some(tgz) = version_tgz(&packument, name, self.version)
+            && tgz.integrity_key.is_none()
+            && let Some(cached) = cached
+        {
+            if let RegistrySource::Upstream(id) = source {
+                let upstream = authorized_upstream(self.state, self.identity, id)?;
+                crate::server::upstream_integrity::wait_for_pin(
+                    self.state,
+                    &cached.namespace,
+                    upstream,
+                    name,
+                    &tgz.filename,
+                )
+                .await?;
+            }
+            if let Some(pinned) =
+                self.state.inner.storage.read_upstream_document_any(&cached.namespace, name).await?
+            {
+                packument = pinned;
+            }
+        }
+        Ok(packument)
     }
 
     /// The version's dist from its manifest, or from the stale cached
@@ -102,9 +170,17 @@ impl VersionRequest<'_> {
         cached: Option<&CachedPackument>,
     ) -> Option<(VersionTgz, Option<DistOrigin>)> {
         let upstream = authorized_upstream(self.state, self.identity, id).ok()?;
+        let generation = cached.map(|cached| {
+            crate::server::upstream_packuments::upstream_package_generation(
+                self.state,
+                &cached.namespace,
+                name,
+            )
+        });
         let fetched = Instant::now();
         let err = match self.fetch_version_manifest(upstream, name).await {
-            ManifestRead::Dist(tgz) => {
+            ManifestRead::Dist(mut tgz) => {
+                tgz.manifest_generation = generation;
                 return Some((tgz, Some(DistOrigin::VersionManifest(fetched))));
             }
             ManifestRead::Unreachable(err) => err,
@@ -174,16 +250,13 @@ impl VersionRequest<'_> {
     }
 
     /// The stamp of the cached packument, while it is fresh enough to serve.
-    async fn fresh_packument_stamp(
+    pub(super) async fn fresh_packument_stamp(
         &self,
         cached: &CachedPackument,
         name: &CanonicalPackageName,
     ) -> Result<Option<DocumentStamp>, RegistryError> {
-        let stamp =
-            self.state.inner.storage.upstream_document_stamp(&cached.namespace, name).await?;
-        Ok(stamp.filter(|stamp| {
-            SystemTime::now().duration_since(stamp.modified).unwrap_or(Duration::ZERO) <= cached.ttl
-        }))
+        self.state.inner.storage.fresh_upstream_document_stamp(&cached.namespace, name, cached.ttl)
+            .await
     }
 }
 

@@ -17,12 +17,8 @@ async fn a_passwordless_account_cannot_enroll_a_password_with_its_token() {
     let (status, _) = send(&app, "POST", "/-/npm/v1/user", Some(&token), Some(update)).await;
     assert_eq!(status, axum::http::StatusCode::UNAUTHORIZED);
     assert_eq!(
-        users
-            .password_hash("example-user")
-            .await
-            .unwrap()
-            .as_deref(),
-        Some(pnpr_auth::NO_PASSWORD_HASH),
+        users.credential("example-user").await.unwrap(),
+        Some(pnpr_auth::AccountCredential::None),
     );
     let (status, _) = send(&app, "POST", "/-/npm/v1/tokens", Some(&token), Some(json!({}))).await;
     assert_eq!(status, axum::http::StatusCode::OK);
@@ -46,8 +42,8 @@ impl UserBackend for PausedPasswordUpdate {
     async fn list_users(&self) -> pnpr::Result<Vec<String>> {
         self.users.list_users().await
     }
-    async fn password_hash(&self, name: &str) -> pnpr::Result<Option<String>> {
-        self.users.password_hash(name).await
+    async fn credential(&self, name: &str) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
+        self.users.credential(name).await
     }
     async fn create_user(&self, name: &str, password: &str) -> pnpr::Result<pnpr::UserCreation> {
         self.users.create_user(name, password).await
@@ -77,8 +73,34 @@ impl UserBackend for PausedPasswordUpdate {
     async fn account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
         self.users.account_id(name).await
     }
+    async fn active_account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
+        self.users.active_account_id(name).await
+    }
     async fn account_name(&self, id: &str) -> pnpr::Result<Option<String>> {
         self.users.account_name(id).await
+    }
+    async fn active_account_name(&self, id: &str) -> pnpr::Result<Option<String>> {
+        self.users.active_account_name(id).await
+    }
+    async fn account_status(&self, id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
+        self.users.account_status(id).await
+    }
+    async fn status_revisions(
+        &self,
+        ids: &[String],
+    ) -> pnpr::Result<std::collections::HashMap<String, pnpr_auth::AccountStatusRevision>> {
+        self.users.status_revisions(ids).await
+    }
+    async fn apply_account_status(
+        &self,
+        id: &str,
+        revision: u64,
+        lifecycle: pnpr_auth::AccountLifecycle,
+    ) -> pnpr::Result<pnpr_auth::AccountStatusOutcome> {
+        self.users.apply_account_status(id, revision, lifecycle).await
+    }
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        self.users.revokes_tokens_in_status_transition()
     }
     async fn rename_user(&self, id: &str, name: &str) -> pnpr::Result<()> {
         self.users.rename_user(id, name).await
@@ -168,10 +190,11 @@ async fn imported_sha_passwords_support_token_creation_and_profile_changes() {
     assert_eq!(status, axum::http::StatusCode::OK);
     assert_eq!(
         users
-            .password_hash("example-user")
+            .credential("example-user")
             .await
             .unwrap()
-            .as_deref(),
+            .as_ref()
+            .and_then(pnpr_auth::AccountCredential::password_hash),
         Some(hash.as_str()),
     );
     let update = json!({ "password": { "old": "imported-password", "new": "changed-password" } });
@@ -205,11 +228,13 @@ impl UserBackend for FailedPostUpdateLookup {
     async fn list_users(&self) -> pnpr::Result<Vec<String>> {
         self.users.list_users().await
     }
-    async fn password_hash(&self, name: &str) -> pnpr::Result<Option<String>> {
-        self.users.password_hash(name).await
+    async fn credential(&self, name: &str) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
+        self.users.credential(name).await
     }
     async fn create_user(&self, name: &str, password: &str) -> pnpr::Result<pnpr::UserCreation> {
-        self.users.create_user(name, password).await
+        let creation = self.users.create_user(name, password).await?;
+        self.has_updated.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(creation)
     }
     async fn set_password(&self, id: &str, password: &str) -> pnpr::Result<pnpr::PasswordChange> {
         let changed = self.users.set_password(id, password).await?;
@@ -226,15 +251,51 @@ impl UserBackend for FailedPostUpdateLookup {
         self.users.provision_user(name).await
     }
     async fn account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
+        if self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(pnpr::RegistryError::StorageUnavailable {
+                reason: "account id lookup failed".to_string(),
+            });
+        }
+        self.users.account_id(name).await
+    }
+    async fn active_account_id(&self, name: &str) -> pnpr::Result<Option<String>> {
         if name == "example-user" && self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(pnpr::RegistryError::StorageUnavailable {
                 reason: "account lookup failed".to_string(),
             });
         }
-        self.users.account_id(name).await
+        self.users.active_account_id(name).await
     }
     async fn account_name(&self, id: &str) -> pnpr::Result<Option<String>> {
+        if self.has_updated.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(pnpr::RegistryError::StorageUnavailable {
+                reason: "account name lookup failed".to_string(),
+            });
+        }
         self.users.account_name(id).await
+    }
+    async fn active_account_name(&self, id: &str) -> pnpr::Result<Option<String>> {
+        self.users.active_account_name(id).await
+    }
+    async fn account_status(&self, id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
+        self.users.account_status(id).await
+    }
+    async fn status_revisions(
+        &self,
+        ids: &[String],
+    ) -> pnpr::Result<std::collections::HashMap<String, pnpr_auth::AccountStatusRevision>> {
+        self.users.status_revisions(ids).await
+    }
+    async fn apply_account_status(
+        &self,
+        id: &str,
+        revision: u64,
+        lifecycle: pnpr_auth::AccountLifecycle,
+    ) -> pnpr::Result<pnpr_auth::AccountStatusOutcome> {
+        self.users.apply_account_status(id, revision, lifecycle).await
+    }
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        self.users.revokes_tokens_in_status_transition()
     }
     async fn rename_user(&self, id: &str, name: &str) -> pnpr::Result<()> {
         self.users.rename_user(id, name).await
@@ -242,21 +303,14 @@ impl UserBackend for FailedPostUpdateLookup {
 }
 
 #[tokio::test]
-async fn an_admin_password_change_keeps_the_id_without_a_second_account_lookup() {
+async fn admin_create_and_password_change_do_not_query_account_after_commit() {
     let dir = TempDir::new().unwrap();
     let users = Arc::new(UserStore::in_memory());
-    users.create_user("root", "secret123").await.unwrap();
-    users.create_user("example-user", "old-password").await.unwrap();
-    let id = users
-        .account_id("example-user")
-        .await
-        .unwrap()
-        .unwrap();
-    let root_id = users
-        .account_id("root")
-        .await
-        .unwrap()
-        .unwrap();
+    let pnpr::UserCreation::Created(root_id) =
+        users.create_user("root", "secret123").await.unwrap()
+    else {
+        panic!("expected root to be created");
+    };
     let backend = Arc::new(FailedPostUpdateLookup {
         users: Arc::clone(&users),
         has_updated: std::sync::atomic::AtomicBool::new(false),
@@ -265,17 +319,31 @@ async fn an_admin_password_change_keeps_the_id_without_a_second_account_lookup()
     let token = tokens.issue(&root_id).await.unwrap();
     let auth = AuthState { users: Arc::clone(&backend) as Arc<dyn UserBackend>, tokens };
     let app = account_router(load_config(&dir), auth).await;
+    let (status, created) = send(
+        &app,
+        "POST",
+        "/-/pnpr/v0/admin/users",
+        Some(&token),
+        Some(json!({ "name": "example-user", "password": "old-password" })),
+    )
+    .await;
+    assert_eq!(status, axum::http::StatusCode::CREATED);
+    let id = created["id"].as_str().unwrap();
+    assert!(backend.account_id("example-user").await.is_err());
+    assert!(backend.account_name(id).await.is_err());
+
+    backend.has_updated.store(false, std::sync::atomic::Ordering::SeqCst);
     let (status, result) = send(
         &app,
         "PUT",
-        "/-/pnpr/v0/admin/users/example-user",
+        &format!("/-/pnpr/v0/admin/users/{id}"),
         Some(&token),
         Some(json!({ "password": "new-password" })),
     )
     .await;
     assert_eq!(status, axum::http::StatusCode::OK);
-    assert_eq!(result["id"], id);
-    assert!(backend.account_id("example-user").await.is_err());
+    assert_eq!(result, json!({ "id": id, "name": "example-user" }));
+    assert!(backend.account_name(id).await.is_err());
     assert!(users.add_or_login("example-user", "new-password").await.is_ok());
 }
 

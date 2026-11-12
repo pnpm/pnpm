@@ -16,6 +16,7 @@ use crate::{
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::DialectSql;
 use std::time::Duration;
 
 /// How long a recorded outcome answers a retry of its request.
@@ -146,6 +147,20 @@ pub(super) fn members_of(batch: &Batch<'_>, artifacts: &[ArtifactMember]) -> Vec
     members
 }
 
+const RECORD_OUTCOME: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO publication_outcomes (namespace, principal, idempotency_key, request_digest,
+                                       generation, publication, committed_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+     ON CONFLICT (namespace, principal, idempotency_key) DO UPDATE SET
+       request_digest = excluded.request_digest, generation = excluded.generation,
+       publication = excluded.publication, committed_at = excluded.committed_at",
+    "INSERT INTO publication_outcomes (namespace, principal, idempotency_key, request_digest,
+                                       generation, publication, committed_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+     AS excluded ON DUPLICATE KEY UPDATE request_digest = excluded.request_digest, generation = excluded.generation,
+       publication = excluded.publication, committed_at = excluded.committed_at",
+);
+
 fn record_outcome(
     batch: &Batch<'_>,
     request: &PublicationRequest,
@@ -160,12 +175,7 @@ fn record_outcome(
     batch
         .transaction()
         .execute(
-            "INSERT INTO publication_outcomes (namespace, principal, idempotency_key, request_digest,
-                                           generation, publication, committed_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-         ON CONFLICT (namespace, principal, idempotency_key) DO UPDATE SET
-           request_digest = excluded.request_digest, generation = excluded.generation,
-           publication = excluded.publication, committed_at = excluded.committed_at",
+            RECORD_OUTCOME.get(batch.transaction().dialect()),
             params![
                 batch.namespace(),
                 request.principal,
@@ -202,6 +212,17 @@ fn member_row(mut row: Row) -> Result<Option<ArtifactMember>> {
     }))
 }
 
+const ADD_MEMBER: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO publication_members
+       (namespace, publication, ecosystem, name, version, artifact)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT DO NOTHING",
+    "INSERT INTO publication_members
+       (namespace, publication, ecosystem, name, version, artifact)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON DUPLICATE KEY UPDATE namespace = publication_members.namespace",
+);
+
 fn insert_publication(
     batch: &Batch<'_>,
     request: Option<&PublicationRequest>,
@@ -231,10 +252,7 @@ fn insert_publication(
         batch
             .transaction()
             .execute(
-                "INSERT INTO publication_members
-               (namespace, publication, ecosystem, name, version, artifact)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT DO NOTHING",
+                ADD_MEMBER.get(batch.transaction().dialect()),
                 params![
                     batch.namespace(),
                     id,

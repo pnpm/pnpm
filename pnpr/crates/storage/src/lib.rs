@@ -17,13 +17,15 @@ pub mod upload;
 pub use bounded_cache::BoundedCache;
 
 pub use atomic_write::{
-    TempSweep, count_stale_temps, remove_atomic_write_temps, sweep_stale_temps, unique_tmp_path,
-    write_atomic, write_atomic_new,
+    TempSweep, count_stale_temps, is_atomic_write_temp_path, remove_atomic_write_temps,
+    sweep_stale_temps, unique_tmp_path, write_atomic, write_atomic_new,
 };
 
 pub use s3::cache_staging_tmp_base;
 
-pub use blob_write::{BlobSlot, BlobWrite, SealedBlob, TempFileGuard};
+pub use blob_write::{
+    BlobSlot, BlobWrite, SealedBlob, TempFileGuard, is_active_temp as is_active_blob_temp,
+};
 
 pub(crate) use local_store::read_dir_if_present;
 

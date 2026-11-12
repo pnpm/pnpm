@@ -10,6 +10,7 @@ use super::{
 };
 use crate::{Storage, validated_record_name};
 use pnpr_error::{RegistryError, Result};
+use pnpr_sql::DialectSql;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -236,6 +237,13 @@ fn ensure_seeded(connection: &dyn Connection, registry: &str, seed: &[StoredTeam
     Ok(())
 }
 
+const WRITE_ROSTER: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO team_rosters (registry, generation) VALUES (?1, ?2)
+     ON CONFLICT (registry) DO UPDATE SET generation = excluded.generation",
+    "INSERT INTO team_rosters (registry, generation) VALUES (?1, ?2)
+     AS excluded ON DUPLICATE KEY UPDATE generation = excluded.generation",
+);
+
 fn write_all_teams(
     connection: &dyn Connection,
     registry: &str,
@@ -244,11 +252,7 @@ fn write_all_teams(
     connection.execute("DELETE FROM team_members WHERE registry = ?1", params![registry])?;
     connection.execute("DELETE FROM teams WHERE registry = ?1", params![registry])?;
     let generation = advance_record_generation(connection)?;
-    connection.execute(
-        "INSERT INTO team_rosters (registry, generation) VALUES (?1, ?2)
-         ON CONFLICT (registry) DO UPDATE SET generation = excluded.generation",
-        params![registry, generation],
-    )?;
+    connection.execute(WRITE_ROSTER.get(connection.dialect()), params![registry, generation])?;
     for (position, team) in teams.iter().enumerate() {
         connection.execute(
             "INSERT INTO teams (registry, team_id, name, position) VALUES (?1, ?2, ?3, ?4)",

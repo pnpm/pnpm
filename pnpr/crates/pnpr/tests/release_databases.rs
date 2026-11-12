@@ -225,6 +225,7 @@ fn write_config(dir: &Path, database_url: &str, auth_token: Option<&str>) -> Pat
     };
     let yaml = format!(
         "storage: ./storage\n\
+         secret: release-database-test-key-32byte\n\
          database:\n\
          \x20 url: {database_url}\n\
          {token_line}\

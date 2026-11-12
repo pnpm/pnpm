@@ -14,6 +14,7 @@ use crate::{
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
+use pnpr_sql::DialectSql;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -60,16 +61,23 @@ pub(super) fn tags_from_rows(rows: Vec<Row>) -> Result<BTreeMap<String, String>>
         .collect()
 }
 
+const WRITE_TAG: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO tags (namespace, ecosystem, name, tag, version, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (namespace, ecosystem, name, tag)
+     DO UPDATE SET version = excluded.version, generation = excluded.generation",
+    "INSERT INTO tags (namespace, ecosystem, name, tag, version, generation)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     AS excluded ON DUPLICATE KEY UPDATE version = excluded.version, generation = excluded.generation",
+);
+
 /// Point the tag where `change` says and append the move to its history.
 pub(super) fn record_tag_move(commit: &Commit<'_>, change: &TagMove<'_>) -> Result<()> {
     let (namespace, ecosystem, name) = commit.key.params();
     let generation = to_column(commit.generation);
     match change.target {
         Some(target) => commit.transaction.execute(
-            "INSERT INTO tags (namespace, ecosystem, name, tag, version, generation)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT (namespace, ecosystem, name, tag)
-             DO UPDATE SET version = excluded.version, generation = excluded.generation",
+            WRITE_TAG.get(commit.transaction.dialect()),
             params![namespace, ecosystem, name, change.tag, target, generation],
         )?,
         None => commit.transaction.execute(

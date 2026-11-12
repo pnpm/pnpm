@@ -1,3 +1,6 @@
+mod cache_claim;
+
+use self::cache_claim::claim_ephemeral_cache_dir;
 use std::future::IntoFuture;
 
 use axum::Router;
@@ -26,12 +29,15 @@ pub(super) fn load_active_osv_index(
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
+    crate::config_validation::validate_cache_secret_for_claim(config)?;
     let storage = Storage::from_config(&config.storage)?;
     if !config.routing.hosted.is_empty() {
         storage.ensure_hosted_layout().await?;
         super::release_record_logs::reconcile_configured_logs(&storage, config).await?;
     }
-    storage.reset_cache_from_other_layout().await
+    claim_ephemeral_cache_dir(config).await?;
+    storage.reset_cache_from_other_layout().await?;
+    crate::cache_maintenance::sync_cache_secret_on_startup(config).await
 }
 
 /// Reclaim blob uploads abandoned before an unclean shutdown, and any left
@@ -141,6 +147,39 @@ fn report_staged_archive_sweep(swept: usize) {
     }
 }
 
+const EXPIRED_TOKEN_SWEEP_INTERVAL: std::time::Duration = std::time::Duration::from_hours(1);
+
+/// Delete expired personal tokens at startup and then every hour while the
+/// server runs.
+async fn sweep_expired_tokens(auth: &AuthState) {
+    match auth.tokens.delete_expired(pnpr_auth::unix_millis()).await {
+        Ok(swept) => report_expired_token_sweep(swept),
+        Err(err) => tracing::warn!(error = %err, "sweeping expired tokens failed"),
+    }
+    let tokens = Arc::downgrade(&auth.tokens);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(EXPIRED_TOKEN_SWEEP_INTERVAL);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            let Some(tokens) = tokens.upgrade() else {
+                break;
+            };
+            match tokens.delete_expired(pnpr_auth::unix_millis()).await {
+                Ok(swept) => report_expired_token_sweep(swept),
+                Err(err) => tracing::warn!(error = %err, "sweeping expired tokens failed"),
+            }
+        }
+    });
+}
+
+fn report_expired_token_sweep(swept: usize) {
+    if swept > 0 {
+        tracing::info!(swept, "removed expired tokens");
+    }
+}
+
 /// Run startup side effects and load the auth backends. The registry
 /// prepares its storage; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
@@ -151,9 +190,17 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
         sweep_abandoned_uploads(config).await?;
         sweep_abandoned_archive_temps(config).await?;
         sweep_expired_staged_archives(config).await?;
-        crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
+    } else {
+        claim_ephemeral_cache_dir(config).await?;
     }
-    AuthState::load(&config.identity.auth, &config.identity.backend).await
+    if config.features.registry.enabled || config.features.resolver.enabled {
+        crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
+    } else {
+        crate::cache_maintenance::sync_cache_secret_on_startup(config).await?;
+    }
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await?;
+    sweep_expired_tokens(&auth).await;
+    Ok(auth)
 }
 
 /// Bind to `config.http.listen` and serve forever. Loads auth state before
@@ -164,7 +211,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
-    crate::config_validation::validate_startup_config(&mut config)?;
+    crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -172,10 +219,11 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
-    crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
+    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
     tracing::info!(listen = %listener.local_addr()?, "pnpr listening");
     serve_until_shutdown(listener, app, metrics).await
 }
@@ -282,7 +330,7 @@ pub async fn serve_listener_with(
     wrap: impl FnOnce(Router) -> Router,
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
-    crate::config_validation::validate_startup_config(&mut config)?;
+    crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
@@ -290,7 +338,9 @@ pub async fn serve_listener_with(
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state).await?;
+    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
     tracing::info!(%listen, "pnpr listening");
     serve_until_shutdown(listener, wrap(app), metrics).await
 }
