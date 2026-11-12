@@ -111,3 +111,40 @@ fn a_full_cache_keeps_most_of_its_entries() {
     let kept = cache.entries.lock().unwrap().len();
     assert_eq!(kept, CAPACITY - CAPACITY / 4 + 1);
 }
+
+#[test]
+fn invalidation_retires_packument_dists_even_when_the_stamp_matches() {
+    let cache = VersionTgzCache::default();
+    let other = CanonicalPackageName::parse("other", pnpr_package_name::Ecosystem::Npm).unwrap();
+    for (namespace, name) in [("npmjs", foo()), ("private", foo()), ("npmjs", other.clone())] {
+        cache.put(namespace.to_string(), &name, "1.0.0", from_packument(1), tgz());
+    }
+    cache.put(
+        "npmjs".to_string(),
+        &foo(),
+        "2.0.0",
+        DistOrigin::VersionManifest(Instant::now()),
+        tgz(),
+    );
+    cache.invalidate_packument("npmjs", &foo());
+    assert!(
+        cache
+            .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
+            .is_none(),
+    );
+    assert!(
+        cache
+            .get("private", &foo(), "1.0.0", Some(stamp(1)), TTL)
+            .is_some(),
+    );
+    assert!(
+        cache
+            .get("npmjs", &other, "1.0.0", Some(stamp(1)), TTL)
+            .is_some(),
+    );
+    assert!(
+        cache
+            .get("npmjs", &foo(), "2.0.0", None, TTL)
+            .is_some(),
+    );
+}

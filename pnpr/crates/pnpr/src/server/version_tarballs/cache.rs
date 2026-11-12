@@ -104,6 +104,21 @@ struct CachedVersionTgz {
 }
 
 impl VersionTgzCache {
+    pub(in crate::server) fn invalidate_packument(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) {
+        self.entries
+            .lock()
+            .expect("version dist cache lock poisoned")
+            .retain(|(cached_namespace, cached_name, _), cached| {
+                cached_namespace != namespace
+                    || cached_name != name.as_str()
+                    || !matches!(cached.origin, DistOrigin::Packument(_))
+            });
+    }
+
     pub(super) fn get(
         &self,
         namespace: &str,
