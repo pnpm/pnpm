@@ -1,7 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildEdge, DeferredChildContext, DeferredChildResolution, DependenciesTreeNode,
-    EdgeRealization, HashSet, LazyProviders, NodeId, NodeOutput, ParentRefs, PeersCacheItem,
-    SharedChain, TreeChildren, UndoRealize, Walker, should_retain_materialized_node,
+    EdgeRealization, HashSet, LazyProviders, NodeId, NodeOutput, ParentRefs, PeerWalkMode,
+    PeersCacheItem, SharedChain, TreeChildren, UndoRealize, Walker,
+    should_retain_materialized_node,
 };
 
 impl Walker<'_> {
@@ -86,7 +87,12 @@ impl Walker<'_> {
         self.caches.parent_pkgs_of_node.remove(node_id);
         self.nodes.external_peers.remove(node_id);
         if self.caches.node_dep_paths.remove(node_id).is_some() {
-            self.traversal.snapshot_budget.mark_dirty_provider(node_id);
+            match self.traversal.mode {
+                PeerWalkMode::Discovery => {
+                    self.traversal.snapshot_budget.mark_dirty_provider(node_id);
+                }
+                PeerWalkMode::Final => {}
+            }
         }
         self.traversal.visited_this_call.remove(node_id);
     }

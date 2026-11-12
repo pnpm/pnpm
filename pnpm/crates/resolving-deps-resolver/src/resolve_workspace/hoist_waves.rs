@@ -48,7 +48,7 @@ where
     Chain: Resolver + ?Sized,
 {
     let mut peer_discovery = PeerHoistDiscovery::with_limits(max_snapshots, cancel.clone());
-    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery).await?;
+    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery, cancel).await?;
     run_hoist_barrier(resolver, states, workspace, &mut peer_discovery, cancel).await
 }
 
@@ -61,6 +61,7 @@ async fn run_initial_required_rounds<Chain>(
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
     peer_discovery: &mut PeerHoistDiscovery,
+    cancel: &ResolutionCancel,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
@@ -70,6 +71,7 @@ where
         if idx > 0 && idx % 32 == 0 {
             yield_once().await;
         }
+        check_cancelled(cancel)?;
         rounds.push(state.prepare_initial_required_round(peer_discovery));
         peer_discovery.check_snapshot_limit()?;
     }
@@ -91,11 +93,12 @@ where
         if idx > 0 && idx % 32 == 0 {
             yield_once().await;
         }
+        check_cancelled(cancel)?;
         state.complete_initial_required_round(resolver, round, peer_discovery).await?;
         peer_discovery.check_snapshot_limit()?;
     }
     if workspace.tree.children_rewrites() != rewrites_before {
-        settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
+        settle_required_rounds(resolver, states, workspace, peer_discovery, cancel).await?;
     }
     Ok(())
 }
@@ -121,7 +124,7 @@ where
         {
             return Ok(());
         }
-        settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
+        settle_required_rounds(resolver, states, workspace, peer_discovery, cancel).await?;
     }
 }
 
@@ -130,6 +133,7 @@ async fn settle_required_rounds<Chain>(
     states: &mut [ImporterHoistState],
     workspace: &WorkspaceTreeCtx,
     peer_discovery: &mut PeerHoistDiscovery,
+    cancel: &ResolutionCancel,
 ) -> Result<(), ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
@@ -140,6 +144,7 @@ where
             if idx > 0 && idx % 32 == 0 {
                 yield_once().await;
             }
+            check_cancelled(cancel)?;
             state.run_required_round(resolver, peer_discovery).await?;
             peer_discovery.check_snapshot_limit()?;
         }

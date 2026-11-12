@@ -1,7 +1,7 @@
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -39,6 +39,7 @@ struct PostFetchCancelObserver {
     cancel: CancelToken,
     cancel_after_packages: usize,
     resolved_packages: AtomicUsize,
+    observed_cancel: Arc<AtomicBool>,
 }
 
 impl ResolutionObserver for PostFetchCancelObserver {
@@ -63,7 +64,15 @@ impl ResolutionObserver for PostFetchCancelObserver {
     }
 
     fn cancellation_check(&self) -> Option<Arc<dyn Fn() -> bool + Send + Sync>> {
-        self.inner.cancellation_check()
+        let inner_check = self.inner.cancellation_check()?;
+        let observed_cancel = Arc::clone(&self.observed_cancel);
+        Some(Arc::new(move || {
+            let cancelled = inner_check();
+            if cancelled {
+                observed_cancel.store(true, Ordering::Relaxed);
+            }
+            cancelled
+        }))
     }
 }
 
@@ -157,6 +166,7 @@ fn build_post_fetch_cancel_task(
     resolver: &Resolver,
     origin: &str,
     permit: super::super::limits::ResolvePermit,
+    observed_cancel: Arc<AtomicBool>,
 ) -> (StreamedResolve, tokio::sync::mpsc::Receiver<Vec<u8>>) {
     let request = ResolveRequest {
         dependencies: Some(deps(&[("pkg-a", "1.0.0"), ("pkg-b", "1.0.0")])),
@@ -188,6 +198,7 @@ fn build_post_fetch_cancel_task(
         cancel,
         cancel_after_packages: 2,
         resolved_packages: AtomicUsize::new(0),
+        observed_cancel,
     });
     let task = StreamedResolve {
         client: Arc::clone(&resolver.client),
@@ -233,11 +244,17 @@ async fn npm_stream_emits_timeout_error_frame_when_deadline_expires_during_peer_
         .await
         .ok()
         .unwrap();
-    let (task, mut rx) = build_post_fetch_cancel_task(&resolver, &origin, permit);
+    let observed_cancel = Arc::new(AtomicBool::new(false));
+    let (task, mut rx) =
+        build_post_fetch_cancel_task(&resolver, &origin, permit, Arc::clone(&observed_cancel));
 
     // Outer deadline is 30s in the future so `tokio::select!` cannot fire; only
     // synchronous `cancellation_check` polling inside peer resolution can abort.
     stream_resolution(task).await;
+    assert!(
+        observed_cancel.load(Ordering::Relaxed),
+        "peer resolution must poll cancellation_check and observe the cancelled token",
+    );
 
     let mut frames = Vec::new();
     while let Some(raw) = rx.recv().await {

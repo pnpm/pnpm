@@ -284,7 +284,7 @@ impl PeerHoistDiscovery {
         let evicted =
             walker.evict_stale_scope_budget(parents_direct, walk_direct, &root.importer_parents);
         let result = walk_discovery_direct(&mut walker, walk_direct, &root);
-        walker.refresh_unwalked_scope_budget(&evicted, &root);
+        walker.refresh_unwalked_scope_budget(evicted, &root);
         self.external_peers = std::mem::take(&mut walker.nodes.external_peers);
         (self.caches, self.snapshot_budget) = walker.into_discovery_state();
         result

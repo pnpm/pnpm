@@ -260,8 +260,17 @@ impl Walker<'_> {
         node_id: &NodeId,
         peers: &Arc<HashMap<String, NodeId>>,
     ) {
-        if self.caches.node_dep_paths.contains_key(node_id) {
-            self.nodes.external_peers.insert(node_id.clone(), Arc::clone(peers));
+        if !self.caches.node_dep_paths.contains_key(node_id) {
+            return;
+        }
+        let changed = self.nodes.external_peers
+            .insert(node_id.clone(), Arc::clone(peers))
+            .is_none_or(|prev| prev.as_ref() != peers.as_ref());
+        match self.traversal.mode {
+            PeerWalkMode::Discovery if changed => {
+                self.traversal.snapshot_budget.mark_dirty_provider(node_id);
+            }
+            PeerWalkMode::Discovery | PeerWalkMode::Final => {}
         }
     }
 

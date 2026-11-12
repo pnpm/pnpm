@@ -1,28 +1,49 @@
-use super::{Arc, HashSet, NodeId, Walker};
+use super::{Arc, HashMap, HashSet, NodeId, PeerWalkAbort, Walker};
 use crate::strongly_connected_components::SccPass;
-use std::collections::VecDeque;
+use std::{cell::Cell, collections::VecDeque};
 
 impl Walker<'_> {
-    pub(super) fn update_cyclic_peer_sccs(&mut self, dirty: &HashSet<NodeId>) -> HashSet<NodeId> {
+    pub(super) fn update_cyclic_peer_sccs(
+        &mut self,
+        dirty: &HashSet<NodeId>,
+    ) -> Option<HashSet<NodeId>> {
         let mut changed = HashSet::default();
-        let cleared_group_members = self.prune_peerless_cyclic_members(dirty, &mut changed);
-        let participants = self.collect_peer_scc_participants(dirty, &cleared_group_members);
+        let Some(cleared_group_members) = self.prune_peerless_cyclic_members(dirty, &mut changed)
+        else {
+            self.traversal.snapshot_budget.abort = Some(PeerWalkAbort::Cancelled);
+            return None;
+        };
+        let Some(participants) = self.collect_peer_scc_participants(dirty, &cleared_group_members)
+        else {
+            self.traversal.snapshot_budget.abort = Some(PeerWalkAbort::Cancelled);
+            return None;
+        };
         if participants.is_empty() {
-            return changed;
+            return Some(changed);
         }
-        for scc in self.compute_participant_sccs(&participants) {
+        let Some(sccs) = self.compute_participant_sccs(&participants) else {
+            self.traversal.snapshot_budget.abort = Some(PeerWalkAbort::Cancelled);
+            return None;
+        };
+        for scc in sccs {
+            if self.traversal.snapshot_budget.poll_cancelled_amortized() {
+                return None;
+            }
             self.apply_peer_scc(scc, &mut changed);
         }
-        changed
+        Some(changed)
     }
 
     fn prune_peerless_cyclic_members(
         &mut self,
         dirty: &HashSet<NodeId>,
         changed: &mut HashSet<NodeId>,
-    ) -> Vec<NodeId> {
+    ) -> Option<Vec<NodeId>> {
         let mut group_members = Vec::new();
         for id in dirty {
+            if self.traversal.snapshot_budget.cancel.poll_probe_amortized() {
+                return None;
+            }
             if self.has_external_peers(id) {
                 continue;
             }
@@ -35,31 +56,38 @@ impl Walker<'_> {
                 group_members.extend(previous_group.iter().cloned());
             }
         }
-        group_members
+        Some(group_members)
     }
 
     fn collect_peer_scc_participants(
         &self,
         dirty: &HashSet<NodeId>,
         extra_roots: &[NodeId],
-    ) -> Vec<NodeId> {
+    ) -> Option<Vec<NodeId>> {
         let mut visited: HashSet<NodeId> = HashSet::default();
         let mut queue: VecDeque<NodeId> = VecDeque::new();
-        for seed in self.seed_peer_scc_roots(dirty, extra_roots) {
+        for seed in self.seed_peer_scc_roots(dirty, extra_roots)? {
             if visited.insert(seed.clone()) {
                 queue.push_back(seed);
             }
         }
         while let Some(node_id) = queue.pop_front() {
+            if self.traversal.snapshot_budget.cancel.poll_probe_amortized() {
+                return None;
+            }
             self.enqueue_non_empty_peer_targets(&node_id, &mut visited, &mut queue);
             self.enqueue_existing_cyclic_group(&node_id, &mut visited, &mut queue);
         }
         let mut participants: Vec<NodeId> = visited.into_iter().collect();
         participants.sort();
-        participants
+        Some(participants)
     }
 
-    fn seed_peer_scc_roots(&self, dirty: &HashSet<NodeId>, extra_roots: &[NodeId]) -> Vec<NodeId> {
+    fn seed_peer_scc_roots(
+        &self,
+        dirty: &HashSet<NodeId>,
+        extra_roots: &[NodeId],
+    ) -> Option<Vec<NodeId>> {
         let mut seeds: Vec<NodeId> = dirty
             .iter()
             .chain(extra_roots.iter())
@@ -68,13 +96,18 @@ impl Walker<'_> {
             .collect();
         if let Some(scoped) = self.traversal.snapshot_budget.scope_paths.get(&self.opts.project_dir)
         {
+            let reachable = super::refresh::collect_reachable_dependents(
+                scoped,
+                dirty,
+                &self.traversal.snapshot_budget.cancel,
+            )?;
             seeds.extend(
-                super::refresh::collect_reachable_dependents(scoped, dirty)
+                reachable
                     .into_iter()
                     .filter(|id| self.has_external_peers(id)),
             );
         }
-        seeds
+        Some(seeds)
     }
 
     fn enqueue_non_empty_peer_targets(
@@ -115,9 +148,14 @@ impl Walker<'_> {
             .is_some_and(|peers| !peers.is_empty())
     }
 
-    fn compute_participant_sccs(&self, participants: &[NodeId]) -> Vec<Vec<NodeId>> {
+    fn compute_participant_sccs(&self, participants: &[NodeId]) -> Option<Vec<Vec<NodeId>>> {
         let participant_set: HashSet<NodeId> = participants.iter().cloned().collect();
+        let cancelled = Cell::new(false);
         let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
+            if cancelled.get() || self.traversal.snapshot_budget.cancel.poll_probe_amortized() {
+                cancelled.set(true);
+                return Vec::new();
+            }
             let mut out: Vec<NodeId> = self.nodes.external_peers
                 .get(node_id)
                 .into_iter()
@@ -131,11 +169,14 @@ impl Walker<'_> {
         };
         let mut pass = SccPass::default();
         for root in participants {
+            if cancelled.get() || self.traversal.snapshot_budget.cancel.poll_probe_amortized() {
+                return None;
+            }
             if !pass.index_of.contains_key(root) {
                 pass.visit_root(root, &neighbors);
             }
         }
-        pass.sccs
+        (!cancelled.get()).then_some(pass.sccs)
     }
 
     fn apply_peer_scc(&mut self, scc: Vec<NodeId>, changed: &mut HashSet<NodeId>) {
@@ -149,18 +190,28 @@ impl Walker<'_> {
             return;
         }
         let group: Arc<HashSet<NodeId>> = Arc::new(scc.into_iter().collect());
-        for member in group.iter() {
-            let updated = self.traversal.snapshot_budget.cyclic_peers_of
-                .get(member)
-                .is_none_or(|prev| prev.as_ref() != group.as_ref());
-            if updated {
-                self.traversal.snapshot_budget.cyclic_peers_of.insert(
-                    member.clone(),
-                    Arc::clone(&group),
-                );
-                changed.insert(member.clone());
-                self.caches.peers_cache.evict_referencing(member);
-            }
+        let mut same_as_group: HashMap<usize, bool> = HashMap::default();
+        let updated_members: Vec<NodeId> = group
+            .iter()
+            .filter(|member| {
+                self.traversal.snapshot_budget.cyclic_peers_of
+                    .get(*member)
+                    .is_none_or(|prev| {
+                        let ptr = Arc::as_ptr(prev) as usize;
+                        !*same_as_group
+                            .entry(ptr)
+                            .or_insert_with(|| prev.as_ref() == group.as_ref())
+                    })
+            })
+            .cloned()
+            .collect();
+        for member in updated_members {
+            self.traversal.snapshot_budget.cyclic_peers_of.insert(
+                member.clone(),
+                Arc::clone(&group),
+            );
+            changed.insert(member.clone());
+            self.caches.peers_cache.evict_referencing(&member);
         }
     }
 

@@ -1,6 +1,6 @@
 use super::{
-    DirectDep, DirectDepBudget, HashMap, HashSet, NodeId, ParentRefs, RootWalk,
-    ScopedDiscoveryPaths, Walker,
+    CancelState, DirectDep, DirectDepBudget, HashMap, HashSet, NodeId, PeerWalkAbort,
+    PendingBudgetDep, RootWalk, ScopedDiscoveryPaths, Walker,
 };
 use std::collections::VecDeque;
 
@@ -15,7 +15,7 @@ struct SubgraphTopology {
 impl Walker<'_> {
     pub(in super::super::super) fn refresh_unwalked_scope_budget(
         &mut self,
-        initial_pending: &[DirectDep],
+        initial_pending: Vec<PendingBudgetDep>,
         root: &RootWalk,
     ) {
         if self.traversal.snapshot_budget.max_snapshots.is_none()
@@ -48,15 +48,18 @@ impl Walker<'_> {
         root: &RootWalk,
         refresh_counts: &mut HashMap<NodeId, u8>,
     ) {
-        let changed_cyclic = self.update_cyclic_peer_sccs(dirty);
+        let Some(changed_cyclic) = self.update_cyclic_peer_sccs(dirty) else {
+            return;
+        };
         let Some(mut topology) = self.build_dirty_subgraph(dirty, &changed_cyclic) else {
             return;
         };
+        let mut evicted = self.evict_subgraph_entries(&topology.nodes);
         let mut ready = initial_ready_nodes(&topology);
         let mut visited: HashSet<NodeId> = HashSet::default();
         let mut cursor = 0usize;
         while visited.len() < topology.nodes.len() {
-            if self.traversal.snapshot_budget.poll_cancelled()
+            if self.traversal.snapshot_budget.poll_cancelled_amortized()
                 || self.traversal.snapshot_budget.is_stopped()
             {
                 return;
@@ -65,7 +68,9 @@ impl Walker<'_> {
             if !visited.insert(next_id.clone()) {
                 continue;
             }
-            self.refresh_single_if_stale(&next_id, &changed_cyclic, root, refresh_counts);
+            if let Some(entry) = evicted.remove(&next_id) {
+                self.refresh_or_restore_entry(entry, &changed_cyclic, root, refresh_counts);
+            }
             release_subgraph_successors(
                 &next_id,
                 &topology.edges,
@@ -76,13 +81,27 @@ impl Walker<'_> {
         }
     }
 
+    fn evict_subgraph_entries(&mut self, nodes: &[NodeId]) -> HashMap<NodeId, DirectDepBudget> {
+        let mut evicted = HashMap::default();
+        for node_id in nodes {
+            if let Some(removed) = self.evict_direct_dep(node_id) {
+                evicted.insert(node_id.clone(), removed);
+            }
+        }
+        evicted
+    }
+
     fn build_dirty_subgraph(
-        &self,
+        &mut self,
         dirty: &HashSet<NodeId>,
         changed_cyclic: &HashSet<NodeId>,
     ) -> Option<SubgraphTopology> {
         let scoped = self.traversal.snapshot_budget.scope_paths.get(&self.opts.project_dir)?;
-        let mut nodes = collect_reachable_dependents(scoped, dirty);
+        let cancel = &self.traversal.snapshot_budget.cancel;
+        let Some(mut nodes) = collect_reachable_dependents(scoped, dirty, cancel) else {
+            self.traversal.snapshot_budget.abort = Some(PeerWalkAbort::Cancelled);
+            return None;
+        };
         for id in changed_cyclic {
             if scoped.by_direct_dep.contains_key(id) {
                 nodes.push(id.clone());
@@ -93,25 +112,25 @@ impl Walker<'_> {
         if nodes.is_empty() {
             return None;
         }
-        let (indegrees, edges) = build_subgraph_edges(scoped, &nodes);
-        Some(SubgraphTopology { nodes, indegrees, edges })
+        let Some(topology) = build_subgraph_topology(scoped, nodes, cancel) else {
+            self.traversal.snapshot_budget.abort = Some(PeerWalkAbort::Cancelled);
+            return None;
+        };
+        Some(topology)
     }
 
-    fn refresh_single_if_stale(
+    fn refresh_or_restore_entry(
         &mut self,
-        node_id: &NodeId,
+        entry: DirectDepBudget,
         changed_cyclic: &HashSet<NodeId>,
         root: &RootWalk,
         refresh_counts: &mut HashMap<NodeId, u8>,
     ) {
+        let node_id = &entry.direct_dep.node_id;
         let is_stale = changed_cyclic.contains(node_id)
-            || self.traversal.snapshot_budget.scope_paths
-                .get(&self.opts.project_dir)
-                .and_then(|scoped| scoped.by_direct_dep.get(node_id))
-                .is_some_and(|entry| {
-                    !self.direct_dep_budget_matches(entry, &root.importer_parents)
-                });
+            || !self.direct_dep_budget_matches(&entry, &root.importer_parents);
         if !is_stale {
+            self.restore_direct_dep_budget(entry);
             return;
         }
         let count = refresh_counts.entry(node_id.clone()).or_default();
@@ -120,13 +139,10 @@ impl Walker<'_> {
             return;
         }
         *count += 1;
-        let Some(removed) = self.evict_direct_dep(node_id) else {
-            return;
-        };
-        if !self.tree.dependencies_tree.contains_key(&removed.direct_dep.node_id) {
+        if !self.tree.dependencies_tree.contains_key(node_id) {
             return;
         }
-        self.walk_single_budget_direct_dep(&removed.direct_dep, root);
+        self.walk_single_budget_direct_dep(&entry.direct_dep, root);
     }
 
     fn walk_single_budget_direct_dep(&mut self, dep: &DirectDep, root: &RootWalk) {
@@ -139,48 +155,58 @@ impl Walker<'_> {
         self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
     }
 
-    fn walk_budget_only_direct_deps(&mut self, pending: &[DirectDep], root: &RootWalk) {
-        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = pending
-            .iter()
-            .partition(|dep| {
-                !self.opts.scope.hoisted_peer_provider_node_ids.contains(&dep.node_id)
-            });
-        for dep in &own_direct {
-            self.remember_parent_context_if_peer_provider(
-                &dep.alias,
-                &dep.node_id,
-                &root.parent_dep_paths,
-            );
-        }
-        for dep in &own_direct {
-            if self.traversal.snapshot_budget.poll_cancelled()
+    fn walk_budget_only_direct_deps(&mut self, pending: Vec<PendingBudgetDep>, root: &RootWalk) {
+        self.prime_pending_budget_contexts(&pending, root);
+        for item in pending {
+            if self.traversal.snapshot_budget.poll_cancelled_amortized()
                 || self.traversal.snapshot_budget.is_stopped()
             {
                 return;
             }
-            self.resolve_and_record_direct_budget(dep, root);
+            if self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id)
+                && self.has_recorded_direct_budget(&item.dep.node_id)
+            {
+                continue;
+            }
+            self.resolve_or_restore_pending_dep(item, root);
         }
-        self.walk_provider_budget_deps(&provider_direct, root);
         self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
     }
 
-    fn walk_provider_budget_deps(&mut self, provider_direct: &[&DirectDep], root: &RootWalk) {
-        for dep in provider_direct {
-            if self.traversal.snapshot_budget.poll_cancelled()
-                || self.traversal.snapshot_budget.is_stopped()
+    fn prime_pending_budget_contexts(&mut self, pending: &[PendingBudgetDep], root: &RootWalk) {
+        for item in pending {
+            if !self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id) {
+                self.remember_parent_context_if_peer_provider(
+                    &item.dep.alias,
+                    &item.dep.node_id,
+                    &root.parent_dep_paths,
+                );
+            }
+        }
+        for item in pending {
+            if self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id)
+                && !self.has_recorded_direct_budget(&item.dep.node_id)
             {
+                self.remember_parent_context_if_peer_provider(
+                    &item.dep.alias,
+                    &item.dep.node_id,
+                    &root.parent_dep_paths,
+                );
+            }
+        }
+    }
+
+    fn resolve_or_restore_pending_dep(&mut self, item: PendingBudgetDep, root: &RootWalk) {
+        if let Some(entry) = item.saved {
+            let can_restore =
+                !self.traversal.snapshot_budget.dirty_providers.contains(&item.dep.node_id)
+                    && self.direct_dep_budget_matches(&entry, &root.importer_parents);
+            if can_restore {
+                self.restore_direct_dep_budget(entry);
                 return;
             }
-            if self.has_recorded_direct_budget(&dep.node_id) {
-                continue;
-            }
-            self.remember_parent_context_if_peer_provider(
-                &dep.alias,
-                &dep.node_id,
-                &root.parent_dep_paths,
-            );
-            self.resolve_and_record_direct_budget(dep, root);
         }
+        self.resolve_and_record_direct_budget(&item.dep, root);
     }
 
     fn has_recorded_direct_budget(&self, node_id: &NodeId) -> bool {
@@ -199,80 +225,17 @@ impl Walker<'_> {
     }
 }
 
-pub(super) fn order_evicted_provider_first(
-    candidates: Vec<(DirectDep, Vec<NodeId>)>,
-) -> Vec<DirectDep> {
-    if candidates.len() <= 1 {
-        return candidates
-            .into_iter()
-            .map(|(dep, _)| dep)
-            .collect();
-    }
-    let mut deps_by_id: HashMap<NodeId, DirectDep> = HashMap::default();
-    let mut providers_by_id: HashMap<NodeId, Vec<NodeId>> = HashMap::default();
-    let mut order_ids = Vec::with_capacity(candidates.len());
-    for (dep, providers) in candidates {
-        order_ids.push(dep.node_id.clone());
-        providers_by_id.insert(dep.node_id.clone(), providers);
-        deps_by_id.insert(dep.node_id.clone(), dep);
-    }
-    let mut state: HashMap<NodeId, u8> = HashMap::default();
-    let mut sorted = Vec::with_capacity(order_ids.len());
-    for id in &order_ids {
-        visit_provider_first(id, &providers_by_id, &mut deps_by_id, &mut state, &mut sorted);
-    }
-    sorted
-}
-
-fn visit_provider_first(
-    node_id: &NodeId,
-    providers_by_id: &HashMap<NodeId, Vec<NodeId>>,
-    deps_by_id: &mut HashMap<NodeId, DirectDep>,
-    state: &mut HashMap<NodeId, u8>,
-    sorted: &mut Vec<DirectDep>,
-) {
-    if state.contains_key(node_id) || !deps_by_id.contains_key(node_id) {
-        return;
-    }
-    state.insert(node_id.clone(), 1);
-    if let Some(providers) = providers_by_id.get(node_id) {
-        for provider_id in providers {
-            if provider_id != node_id {
-                visit_provider_first(provider_id, providers_by_id, deps_by_id, state, sorted);
-            }
-        }
-    }
-    state.insert(node_id.clone(), 2);
-    if let Some(dep) = deps_by_id.remove(node_id) {
-        sorted.push(dep);
-    }
-}
-
-pub(super) fn candidate_provider_ids(
-    entry: &DirectDepBudget,
-    importer_parents: &ParentRefs,
-) -> Vec<NodeId> {
-    let mut providers: Vec<NodeId> = entry.provider_dep_paths
-        .iter()
-        .map(|(id, _)| id.clone())
-        .chain(
-            entry.importer_refs
-                .iter()
-                .filter_map(|(name, _)| importer_parents.get(name)?.node_id.clone()),
-        )
-        .collect();
-    providers.sort();
-    providers.dedup();
-    providers
-}
-
 pub(super) fn collect_reachable_dependents(
     scoped: &ScopedDiscoveryPaths,
     dirty: &HashSet<NodeId>,
-) -> Vec<NodeId> {
+    cancel: &CancelState,
+) -> Option<Vec<NodeId>> {
     let mut reachable: HashSet<NodeId> = HashSet::default();
     let mut stack: Vec<NodeId> = dirty.iter().cloned().collect();
     while let Some(provider_id) = stack.pop() {
+        if cancel.poll_probe_amortized() {
+            return None;
+        }
         let Some(dependents) = scoped.dependents_by_provider.get(&provider_id) else {
             continue;
         };
@@ -284,17 +247,21 @@ pub(super) fn collect_reachable_dependents(
     }
     let mut nodes: Vec<NodeId> = reachable.into_iter().collect();
     nodes.sort();
-    nodes
+    Some(nodes)
 }
 
-fn build_subgraph_edges(
+fn build_subgraph_topology(
     scoped: &ScopedDiscoveryPaths,
-    nodes: &[NodeId],
-) -> (HashMap<NodeId, usize>, HashMap<NodeId, Vec<NodeId>>) {
+    nodes: Vec<NodeId>,
+    cancel: &CancelState,
+) -> Option<SubgraphTopology> {
     let in_subgraph: HashSet<&NodeId> = nodes.iter().collect();
     let mut indegrees: HashMap<NodeId, usize> = HashMap::default();
     let mut edges: HashMap<NodeId, Vec<NodeId>> = HashMap::default();
-    for node_id in nodes {
+    for node_id in &nodes {
+        if cancel.poll_probe_amortized() {
+            return None;
+        }
         let preds = scoped.by_direct_dep
             .get(node_id)
             .map(|entry| collect_node_predecessors(entry, node_id, &in_subgraph))
@@ -307,7 +274,7 @@ fn build_subgraph_edges(
                 .push(node_id.clone());
         }
     }
-    (indegrees, edges)
+    Some(SubgraphTopology { nodes, indegrees, edges })
 }
 
 fn collect_node_predecessors<'entry>(

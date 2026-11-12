@@ -582,3 +582,162 @@ fn discovery_cache_hit_after_preview_undo_retains_own_child_pure_provider() {
         engine.snapshot_budget.live_paths,
     );
 }
+
+#[test]
+fn discovery_refresh_releases_stale_ancestors_before_rebuilding_tight_budget() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(4));
+
+    let view = &mut engine.tree;
+    for peer in ["pkg-p", "pkg-e"] {
+        view.all_peer_dep_names.insert(peer.to_string());
+    }
+    view.packages.insert("pkg-a@1.0.0".into(), package("pkg-a", "1.0.0", &[], false));
+    view.children_by_id.insert(
+        "pkg-a@1.0.0".into(),
+        Arc::new(vec![child_edge("pkg-b", "pkg-b@1.0.0")]),
+    );
+    view.packages.insert(
+        "pkg-b@1.0.0".into(),
+        package("pkg-b", "1.0.0", &[("pkg-p", "^1.0.0")], true),
+    );
+    view.packages.insert(
+        "pkg-p@1.0.0".into(),
+        package("pkg-p", "1.0.0", &[("pkg-e", "^1.0.0")], true),
+    );
+    view.packages.insert("pkg-e@1.0.0".into(), package("pkg-e", "1.0.0", &[], true));
+
+    let mut round1 = Vec::new();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, "pkg-a", "pkg-a@1.0.0");
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, "pkg-b", "pkg-b@1.0.0");
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, "pkg-p", "pkg-p@1.0.0");
+    let mut round2 = round1.clone();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round2, "pkg-e", "pkg-e@1.0.0");
+
+    engine.discover(&workspace, &round1, &round1, ResolvePeersOptions::default());
+    engine.check_snapshot_limit().expect("round 1 has 3 snapshots <= 4");
+
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &round2, &round2[3..], ResolvePeersOptions::default());
+    engine
+        .check_snapshot_limit()
+        .expect("releasing stale A and B before rebuilding keeps peak snapshots <= 4");
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 4);
+    assert!(engine.snapshot_budget.live_paths.contains(&DepPath::from(
+        "pkg-a@1.0.0(pkg-p@1.0.0(pkg-e@1.0.0))",
+    )),);
+
+    // Also verify single-round consumer-before-provider refresh under the exact 4-snapshot cap.
+    let mut single_round_engine = PeerHoistDiscovery::with_max_snapshots(Some(4));
+    single_round_engine.tree = engine.tree.clone();
+    single_round_engine.discover(&workspace, &round2, &round2, ResolvePeersOptions::default());
+    single_round_engine
+        .check_snapshot_limit()
+        .expect("dirty-subgraph refresh releases stale roots together within budget of 4");
+    assert_eq!(single_round_engine.snapshot_budget.live_paths.len(), 4);
+}
+
+#[test]
+fn discovery_evicts_deep_provider_chain_iteratively_without_stack_overflow() {
+    let handle = std::thread::Builder::new()
+        .stack_size(512 * 1024)
+        .spawn(|| {
+            let chain_len = 2_500usize;
+            let workspace = WorkspaceTreeCtx::default();
+            let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(chain_len + 10));
+            let view = &mut engine.tree;
+            for idx in 0..chain_len {
+                view.all_peer_dep_names.insert(format!("d{idx}"));
+            }
+            view.all_peer_dep_names.insert("pkg-e".to_string());
+            for idx in 0..(chain_len - 1) {
+                let name = format!("d{idx}");
+                let next = format!("d{}", idx + 1);
+                view.packages.insert(
+                    format!("{name}@1.0.0").into(),
+                    package(&name, "1.0.0", &[(&next, "^1.0.0"), ("pkg-e", "^1.0.0")], true),
+                );
+            }
+            let tail = format!("d{}", chain_len - 1);
+            view.packages.insert(
+                format!("{tail}@1.0.0").into(),
+                package(&tail, "1.0.0", &[("pkg-e", "^1.0.0")], true),
+            );
+            view.packages.insert("pkg-e@1.0.0".into(), package("pkg-e", "1.0.0", &[], true));
+
+            let mut round1 = Vec::with_capacity(chain_len);
+            for idx in 0..chain_len {
+                let name = format!("d{idx}");
+                let id = format!("{name}@1.0.0");
+                add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, &name, &id);
+            }
+            let mut round2 = round1.clone();
+            add_lazy_direct_dep(&mut view.dependencies_tree, &mut round2, "pkg-e", "pkg-e@1.0.0");
+
+            engine.discover(&workspace, &round1, &round1, ResolvePeersOptions::default());
+            engine.check_snapshot_limit().expect("round 1 fits budget");
+
+            workspace.tree.bump_revision();
+            engine.discover(
+                &workspace,
+                &round2,
+                &round2[chain_len..],
+                ResolvePeersOptions::default(),
+            );
+            engine
+                .check_snapshot_limit()
+                .expect("iterative provider-first ordering fits 512 KiB stack");
+            assert_eq!(engine.snapshot_budget.live_paths.len(), chain_len + 1);
+        })
+        .expect("spawn small-stack thread");
+    handle.join().expect("deep provider chain must not overflow thread stack");
+}
+
+#[test]
+fn discovery_recomputes_peer_cycle_when_provider_rebinds_with_unchanged_dep_path() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(10));
+
+    let view = &mut engine.tree;
+    for peer in ["pkg-a", "pkg-b", "pkg-c"] {
+        view.all_peer_dep_names.insert(peer.to_string());
+    }
+    view.packages.insert(
+        "pkg-a@1.0.0".into(),
+        package("pkg-a", "1.0.0", &[("pkg-b", "^1.0.0")], true),
+    );
+    view.packages.insert(
+        "pkg-b@1.0.0".into(),
+        package("pkg-b", "1.0.0", &[("pkg-c", "^1.0.0")], true),
+    );
+    view.packages.insert(
+        "pkg-c@1.0.0".into(),
+        package("pkg-c", "1.0.0", &[("pkg-a", "^1.0.0")], true),
+    );
+
+    let mut round1 = Vec::new();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, "pkg-a", "pkg-a@1.0.0");
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, "pkg-b", "pkg-b@1.0.0");
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round1, "pkg-c", "pkg-c@1.0.0");
+    let node_a = round1[0].node_id.clone();
+
+    let mut round2 = vec![round1[0].clone()];
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut round2, "pkg-b", "pkg-b@1.0.0");
+
+    engine.discover(&workspace, &round1, &round1, ResolvePeersOptions::default());
+    assert!(
+        engine.snapshot_budget.cyclic_peers_of.contains_key(&node_a),
+        "round 1 3-cycle must record node_a in cyclic_peers_of",
+    );
+
+    // Round 2 drops `pkg-c` and replaces `pkg-b` with a fresh `NodeId` whose `DepPath` is
+    // bare `pkg-b@1.0.0`, keeping `node_a`'s `DepPath` (`pkg-a@1.0.0(pkg-b@1.0.0)`)
+    // identical while breaking the cycle.
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &round2, &round2[1..], ResolvePeersOptions::default());
+    engine.check_snapshot_limit().expect("broken cycle fits budget");
+    assert!(
+        !engine.snapshot_budget.cyclic_peers_of.contains_key(&node_a),
+        "rebind to non-cyclic provider must clear stale cyclic_peers_of entry even when DepPath is unchanged",
+    );
+}
