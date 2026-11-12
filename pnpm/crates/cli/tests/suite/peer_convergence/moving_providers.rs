@@ -491,3 +491,68 @@ fn check_required_fallback_cycle(bundle: Option<&OsStr>, format: &str) {
     dbg!(&fresh, &repeated);
     assert_eq!(fresh, repeated, "{bundle:?}, {format}");
 }
+
+#[test]
+fn adding_a_consumer_to_a_peer_cycle_preserves_required_pins() {
+    if let Some(bundle) = read_v11_bundle_path() {
+        check_required_peer_pins(Some(&bundle), "v9");
+    }
+    for format in ["v9", "v13"] {
+        check_required_peer_pins(None, format);
+    }
+}
+
+fn check_required_peer_pins(bundle: Option<&OsStr>, format: &str) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"p0","version":"1.0.0","peerDependencies":{"p2":"^1.0.0"}}),
+            json!({"name":"p0","version":"2.0.0"}),
+            json!({"name":"p1","version":"1.0.0","dependencies":{"p0":"^2.0.0"}}),
+            json!({"name":"p2","version":"1.0.0","peerDependencies":{"p0":"^1.0.0"}}),
+            json!({"name":"p3","version":"1.0.0"}),
+            json!({"name":"p4","version":"2.0.0","peerDependencies":{"p0":"*","p1":"^1.0.0"}}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: true\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: false\ninjectWorkspacePackages: true\nlockfile:\n  format: {format}\ncatalog:\n  p2: ^1.0.0\n  p3: ^1.0.0\n  p4: ^2.0.0\n"));
+    let shared = fixture.project("shared", "shared", ManifestDeps::default());
+    fs::write(
+        shared.join("package.json"),
+        json!({"name":"shared","version":"1.0.0","peerDependencies":{"p2":"catalog:"}}).to_string(),
+    )
+    .unwrap();
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps {
+            prod: &[("p3", "catalog:"), ("shared", "workspace:*")],
+            ..Default::default()
+        },
+    );
+    install_lockfile(&fixture, bundle);
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps {
+            prod: &[("p3", "catalog:"), ("p4", "catalog:"), ("shared", "workspace:*")],
+            ..Default::default()
+        },
+    );
+    install_lockfile(&fixture, bundle);
+    let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    let consumer_name = "p4".parse().unwrap();
+    let consumer = changed.importers["."].dependencies.as_ref().unwrap()[&consumer_name]
+        .version
+        .resolved_key(&consumer_name)
+        .unwrap();
+    let provider_name = "p0".parse().unwrap();
+    let provider = changed.snapshots.as_ref().unwrap()[&consumer].dependencies.as_ref().unwrap()
+        [&provider_name]
+        .resolve(&provider_name)
+        .unwrap();
+    assert_eq!(provider.without_peer().to_string(), "p0@1.0.0", "{bundle:?}, {format}");
+
+    install_lockfile(&fixture, bundle);
+    let repeated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    assert_eq!(changed, repeated, "{bundle:?}, {format}");
+}

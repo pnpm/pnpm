@@ -7,7 +7,7 @@ type LockedPeer = [peerName: string, provider: DepPath]
 /**
  * The peer versions the wanted lockfile pinned, by peer name: those on the
  * importer's direct dependencies, or on every snapshot for an importer the
- * lockfile does not list. The optional-peer hoist prefers these versions.
+ * lockfile does not list.
  */
 export function getImporterLockedPeerVersions (lockfile: LockfileObject, importerId: ProjectId): Map<string, Set<string>> {
   const versions = new Map<string, Set<string>>()
