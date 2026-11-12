@@ -191,11 +191,11 @@ async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
 
 fn refuse_live_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
     let auth = &config.identity.auth;
-    let live =
-        [(auth.users.file.as_deref(), "users.json"), (auth.tokens.file.as_deref(), "tokens.db")];
-    for (file, name) in live {
-        if let Some(file) = file
-            && is_same_file(file, &out.join(name))
+    let live = [auth.users.file.as_deref(), auth.tokens.file.as_deref()];
+    for file in live.into_iter().flatten() {
+        if ["users.json", "tokens.db"]
+            .iter()
+            .any(|name| is_same_file(file, &out.join(name)))
         {
             let file = file.display();
             return Err(miette::miette!(
