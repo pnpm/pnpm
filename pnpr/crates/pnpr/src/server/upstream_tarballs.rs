@@ -11,6 +11,7 @@ use super::{
 use axum::response::IntoResponse;
 
 mod background_scan;
+mod cached;
 
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the
@@ -140,12 +141,15 @@ pub(super) async fn serve_bound_upstream_tarball(
     if let Err(err) = ensure_osv_allowed(state, tarball.name, version) {
         return (err.into_response(), TarballOrigin::Upstream);
     }
-    if upstream.caches()
-        && let Some(response) =
-            cached_upstream_tarball(state, tarball.namespace, tarball.name, tarball.filename).await
-    {
-        schedule_cached_tarball_scan(state, tarball);
-        return (response, TarballOrigin::Cache);
+    if upstream.caches() {
+        match cached::bound_cached_tarball(state, &tarball).await {
+            Ok(Some(response)) => {
+                schedule_cached_tarball_scan(state, tarball);
+                return (response, TarballOrigin::Cache);
+            }
+            Ok(None) => {}
+            Err(err) => return (err.into_response(), TarballOrigin::Cache),
+        }
     }
     (fetch_upstream_tarball(state, upstream, tarball).await, TarballOrigin::Upstream)
 }

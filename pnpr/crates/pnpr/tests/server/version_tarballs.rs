@@ -438,3 +438,46 @@ fn cached_files_containing(dir: &std::path::Path, needle: &[u8]) -> Vec<std::pat
     }
     found
 }
+
+#[tokio::test]
+async fn a_refreshed_version_manifest_replaces_a_tarball_with_a_different_integrity() {
+    let mut upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    let app = router(config);
+    let packument = upstream
+        .mock("GET", "/foo")
+        .expect(0)
+        .create_async()
+        .await;
+    for bytes in [b"first".as_slice(), b"replacement".as_slice()] {
+        let tgz = gzip(bytes);
+        let manifest = upstream
+            .mock("GET", "/foo/1.0.0")
+            .with_body(
+                json!({"name": "foo", "version": "1.0.0", "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(&tgz)
+                }})
+                .to_string(),
+            )
+            .expect(1)
+            .create_async()
+            .await;
+        let archive = upstream
+            .mock("GET", "/foo/-/foo-1.0.0.tgz")
+            .with_body(&tgz)
+            .expect(1)
+            .create_async()
+            .await;
+        let response = get(&app, "/npm/~npmjs/foo@1.0.0").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, tgz);
+        manifest.assert_async().await;
+        archive.assert_async().await;
+        manifest.remove_async().await;
+        archive.remove_async().await;
+    }
+    packument.assert_async().await;
+}

@@ -43,7 +43,9 @@ fn refresh_preserves_matching_pins_and_evicts_removed_or_changed_tarballs() {
 fn malformed_cached_metadata_is_replaced_after_purging_its_blobs() {
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let fresh = br#"{"versions":{}}"#.to_vec();
-    let result = reconcile(Some(b"malformed"), fresh.clone(), &name).unwrap();
-    assert_eq!(result.packument.bytes, fresh);
-    assert!(matches!(result.eviction, BlobEviction::Package));
+    for previous in [b"malformed".as_slice(), b"{}", br#"{"versions":[]}"#] {
+        let result = reconcile(Some(previous), fresh.clone(), &name).unwrap();
+        assert_eq!(result.packument.bytes, fresh);
+        assert!(matches!(result.eviction, BlobEviction::Package));
+    }
 }

@@ -35,7 +35,7 @@ impl PackumentIntegrityResolver<'_> {
     }
 }
 
-async fn hash_cached_file(
+pub(in crate::server) async fn hash_cached_file(
     file: &mut tokio::fs::File,
     expected: Option<&Integrity>,
 ) -> std::io::Result<(Integrity, Option<ssri::IntegrityChecker>)> {

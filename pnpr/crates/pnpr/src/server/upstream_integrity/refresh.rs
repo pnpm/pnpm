@@ -63,7 +63,10 @@ fn reconcile(
             eviction: BlobEviction::Package,
         });
     };
-    let Ok(previous) = serde_json::from_slice::<Value>(previous) else {
+    let Some(previous) = serde_json::from_slice::<Value>(previous)
+        .ok()
+        .filter(|doc| doc.get("versions").is_some_and(Value::is_object))
+    else {
         return Ok(Reconciliation {
             packument: RefreshedPackument { bytes, needs_backfill },
             eviction: BlobEviction::Package,

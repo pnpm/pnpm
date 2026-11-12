@@ -1,8 +1,9 @@
+pub(super) mod cached;
+
 pub(super) use background::{BackgroundIntegrity, schedule, wait_for_pin};
 pub(super) use refresh::refresh_cached_packument;
 
 mod background;
-mod cached;
 mod refresh;
 
 use super::{
