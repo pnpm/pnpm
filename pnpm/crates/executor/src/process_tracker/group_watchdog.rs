@@ -24,9 +24,9 @@ use std::{
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
-use crate::process::Command;
 #[cfg(target_os = "linux")]
-use {super::signal::linux, std::os::fd::OwnedFd};
+use super::signal::linux;
+use crate::process::Command;
 
 /// What the watchdog runs. A line `+<pgid>` on standard input starts a
 /// watch over a group and `-<pgid>` ends one; end of input kills every
@@ -265,7 +265,7 @@ impl GroupWatchdog {
 struct WatchdogProcess {
     child: Child,
     #[cfg(target_os = "linux")]
-    pidfd: Option<OwnedFd>,
+    pidfd: Option<std::os::fd::OwnedFd>,
 }
 
 impl WatchdogProcess {
@@ -279,7 +279,7 @@ impl WatchdogProcess {
 
     /// A pidfd the kernel can both signal and wait on, or `None`.
     #[cfg(target_os = "linux")]
-    fn open_pidfd(child: &Child) -> Option<OwnedFd> {
+    fn open_pidfd(child: &Child) -> Option<std::os::fd::OwnedFd> {
         let pidfd = linux::open(i32::try_from(child.id()).ok()?).ok()?;
         linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT)?;
         Some(pidfd)
