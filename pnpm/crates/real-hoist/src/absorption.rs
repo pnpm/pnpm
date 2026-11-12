@@ -1,6 +1,6 @@
 use super::{
     HashMap, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident, path_shadowed,
-    same_ident, same_locator,
+    same_locator,
 };
 
 /// Outcome of the per-child hoist decision at the root.
@@ -33,11 +33,8 @@ pub(super) enum AbsorbDecision {
     /// Root's name slot is taken by a different locator — a version
     /// conflict. The child stays under its current parent.
     Conflict,
-    /// Hoisting, or dedup-removing in favour of the root's copy,
-    /// would shadow a peer dependency one of the candidate's
-    /// ancestors satisfies with a different ident than what the root
-    /// provides. The child stays under its parent so the ancestor's
-    /// peer resolution still finds the intended version. Mirrors
+    /// Hoisting or dedup-removing would change a resolved peer provider.
+    /// The child stays under its parent to preserve the binding. Mirrors
     /// upstream's `getNodeHoistInfo` peer checks at
     /// [hoist.ts:414][peer-shadow-root] and
     /// [hoist.ts:454-479][peer-path], which upstream runs before its
@@ -48,8 +45,8 @@ pub(super) enum AbsorbDecision {
     /// [peer-shadow-root]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L414
     /// [peer-path]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L454-L479
     PeerShadow,
-    /// An ancestor strictly below the root holds a *different*
-    /// package version under the candidate's name. Hoisting (or
+    /// An ancestor strictly below the root holds a different locator,
+    /// a peer variant included, under the candidate's name. Hoisting (or
     /// dedup-removing) the candidate would make this subtree resolve
     /// the name to that nearer, conflicting copy instead, so the
     /// candidate stays nested. Ports the "filled by parent" scan in
@@ -61,7 +58,8 @@ pub(super) enum AbsorbDecision {
     /// The subtree of the current hoist root resolves this name
     /// through an ancestor directory (a provider hoisted above the
     /// root earlier — see [`get_used_dependencies`](crate::get_used_dependencies)), and the
-    /// candidate is a different version. Taking the root's name slot
+    /// candidate is a different locator, a peer variant included.
+    /// Taking the root's name slot
     /// would shadow those resolutions, so the candidate stays
     /// nested. Ports the `usedDependencies` gate in upstream's
     /// [`getNodeHoistInfo`][used-gate].
@@ -123,17 +121,16 @@ fn refuse_shadowed(
     ctx: &HoistCtx<'_>,
     root_index: &HashMap<String, RcByPtr<HoisterResult>>,
 ) -> AbsorbDecision {
-    let &HoistCtx { root, used, .. } = ctx;
+    let &HoistCtx { used, .. } = ctx;
     let mut decision = decision;
 
     // Used-dependency refusal: the root's subtree already
     // resolves this name from an ancestor directory; a different
-    // version must not take the root's slot (and a same-version
-    // dedup stays allowed — it resolves identically).
+    // locator, a peer variant included, must not take the root's slot.
     if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
         && used
             .get(&child.name)
-            .is_some_and(|provider| !same_ident(provider, child))
+            .is_some_and(|provider| !same_locator(provider, child))
     {
         decision = AbsorbDecision::UsedShadow;
     }
@@ -159,7 +156,7 @@ fn refuse_shadowed(
     // the same grounds: the root copy may share the locator
     // and still resolve its peer from a different provider.
     if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
-        && would_shadow_peer(child, path, root, root_index)
+        && would_shadow_peer(child, path, ctx, root_index)
     {
         decision = AbsorbDecision::PeerShadow;
     }
@@ -224,33 +221,17 @@ pub(super) fn apply_decision(
     }
 }
 
-/// Return `true` when hoisting `candidate` onto the root would
-/// shadow a peer dependency one of its ancestors already
-/// satisfies with a different ident.
-///
-/// Implements two of the three peer guards upstream's
-/// `getNodeHoistInfo` runs:
-///
-/// * **Root-shadow** — the candidate's own name appears in
-///   `root.peer_names`. The root expects to *receive* this name as
-///   a peer from its own parent, so promoting the candidate into
-///   the root's name slot would change peer resolution for
-///   anything that sees the root.
-/// * **Ancestor-path mismatch** — for each peer name `P` in
-///   `candidate.peer_names`, walk the candidate's ancestors from
-///   deepest (immediate parent) toward the root. The first
-///   ancestor that has a direct dep named `P` (and doesn't itself
-///   peer-pass `P` through) is the one whose ident the candidate
-///   resolves at runtime. If the root provides a *different*
-///   ident for `P` (or none at all), promoting the candidate
-///   would silently re-resolve its peer to the wrong package, so
-///   we leave it nested.
+/// Refuse a hoist or dedup that changes a resolved peer provider, or fills
+/// a name the root receives as a peer. Snapshot edges take precedence
+/// over ancestor lookup, including edges already hoisted out of a node.
+/// A name the root lacks resolves through `ctx.used`, above the root.
 fn would_shadow_peer(
     candidate: &HoisterResult,
     ancestor_path: &[Rc<HoisterResult>],
-    root: &Rc<HoisterResult>,
+    ctx: &HoistCtx<'_>,
     root_index: &HashMap<String, RcByPtr<HoisterResult>>,
 ) -> bool {
+    let &HoistCtx { root, used, .. } = ctx;
     // Root-shadow guard. Pacquet's wrapper builds the `.` root with
     // empty `peer_names` (it's a `Workspace`-kind node), so in
     // practice this check never fires today — kept for parity with
@@ -260,22 +241,52 @@ fn would_shadow_peer(
         return true;
     }
 
+    let root_candidate = root_index.get(&candidate.name);
     candidate.peer_names
         .iter()
         .any(|peer_name| {
-            // No ancestor (excluding root) providing the peer means the candidate
-            // either resolves it at root or leaves it unsatisfied. Either case is
-            // "no shadow".
-            let Some(provider) = nearest_peer_provider(peer_name, ancestor_path) else {
+            let parent_provider = nearest_peer_provider(peer_name, path_below_root(ancestor_path));
+            let Some(provider) = resolved_peer_provider(candidate, peer_name)
+                .or_else(|| nearest_peer_provider(peer_name, ancestor_path))
+            else {
                 return false;
             };
-            // Compare the provider's locator (identity is too strict — decoupled
-            // copies of one package are distinct allocations) against root's
-            // current slot for the same name. Root carrying this exact provider
-            // means promoting the candidate doesn't change resolution; a
-            // different ident, or no entry at all, means hoisting would shadow.
-            !root_index.get(peer_name).is_some_and(|at_root| same_locator(&at_root.0, &provider))
+            let target_provider = match root_candidate {
+                Some(target) => resolved_peer_provider(&target.0, peer_name),
+                // A hoist carries the nested provider along. With an ancestor
+                // supplying the peer, the candidate stays near it, as upstream does.
+                None if parent_provider.is_none() => nested_peer_provider(candidate, peer_name),
+                None => None,
+            }
+            .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)))
+            .or_else(|| used.get(peer_name).map(Rc::clone));
+            !target_provider.is_some_and(|target| same_locator(&target, &provider))
         })
+}
+
+/// `ancestor_path` without its first entry, the hoisting root.
+fn path_below_root(ancestor_path: &[Rc<HoisterResult>]) -> &[Rc<HoisterResult>] {
+    ancestor_path
+        .get(1..)
+        .unwrap_or_default()
+}
+
+fn resolved_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
+    nested_peer_provider(node, peer_name)
+        .or_else(|| {
+            node.hoisted_dependencies
+                .borrow()
+                .get(peer_name)
+                .map(Rc::clone)
+        })
+}
+
+fn nested_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
+    node.dependencies
+        .borrow()
+        .iter()
+        .find(|dependency| dependency.0.name == peer_name)
+        .map(|dependency| Rc::clone(&dependency.0))
 }
 
 /// The deepest ancestor in `ancestor_path` that carries `peer_name` as a

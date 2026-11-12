@@ -1201,6 +1201,74 @@ fn peer_variants_with_distinct_peers_are_nested_for_node_resolution() {
     );
 }
 
+/// The host and the root share one snapshot of `has-y-peer`, whose
+/// `@pnpm/y` peer resolves to the root's 2.0.0. The host depends on
+/// `@pnpm/y@1.0.0` itself, which must not give it a second copy of
+/// `has-y-peer` (pnpm/pnpm#18003).
+#[test]
+fn identical_peer_bindings_share_one_copy_under_a_conflicting_host() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/has-y-peer": "1.0.0",
+            "@pnpm.e2e/has-has-y-peer-only-as-peer-and-y": "1.0.0",
+            "@pnpm/y": "2.0.0",
+        }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nautoInstallPeers: false\n");
+
+    let assert_layout = |install: &str| {
+        let host = "node_modules/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y";
+        assert!(
+            !workspace
+                .join(host)
+                .join("node_modules/@pnpm.e2e/has-y-peer")
+                .exists(),
+            "{install}: the host reuses the root copy of has-y-peer",
+        );
+        assert_eq!(read_pkg_version(&workspace, &format!("{host}/node_modules/@pnpm/y")), "1.0.0");
+
+        let output = Command::new("node")
+            .arg("-e")
+            .arg(
+                r"const fs = require('node:fs'); const path = require('node:path'); const version = (request, from) => JSON.parse(fs.readFileSync(require.resolve(`${request}/package.json`, { paths: [from] }), 'utf8')).version; const host = path.dirname(require.resolve('@pnpm.e2e/has-has-y-peer-only-as-peer-and-y/package.json')); const client = path.dirname(require.resolve('@pnpm.e2e/has-y-peer/package.json', { paths: [host] })); process.stdout.write(`host:${version('@pnpm/y', host)} client:${version('@pnpm/y', client)} shared:${client === path.dirname(require.resolve('@pnpm.e2e/has-y-peer/package.json'))}\n`);",
+            )
+            .current_dir(&workspace)
+            .output()
+            .expect("run Node.js module resolution");
+        assert!(output.status.success(), "{install}: Node.js resolution failed: {output:?}");
+        assert_eq!(
+            String::from_utf8(output.stdout).expect("Node.js output is UTF-8"),
+            "host:1.0.0 client:2.0.0 shared:true\n",
+            "{install}",
+        );
+    };
+
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+    assert_layout("fresh install");
+
+    fs_remove_dir_all(&workspace.join("node_modules"));
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_layout("frozen install");
+
+    drop((root, mock_instance));
+}
+
 #[cfg(unix)]
 mod local_symlinks;
 
