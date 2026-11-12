@@ -309,12 +309,6 @@ async fn verdict_expiry_below_vacuum_threshold_matches_dry_run_and_apply_near_ma
 #[cfg(unix)]
 #[tokio::test]
 async fn symlinked_files_index_shard_is_rejected_and_lru_continues_past_skipped_cas() {
-    use std::os::unix::fs::PermissionsExt as _;
-
-    // SAFETY: `geteuid` takes no arguments and is always safe to call.
-    let euid = unsafe { libc::geteuid() };
-    assert_ne!(euid, 0, "run this test as an unprivileged user");
-
     let tmp = TempDir::new().unwrap();
     let config = test_config(&tmp);
     let cache_dir = &config.storage.cache_dir;
@@ -356,7 +350,8 @@ async fn symlinked_files_index_shard_is_rejected_and_lru_continues_past_skipped_
         .unwrap();
     drop(ext_index);
 
-    let local_store = StoreDir::new(cache_dir.join("resolver-store"));
+    let local_store = StoreDir::new(cache_dir.join("resolver-store").join("v11"));
+    assert!(local_store.root().ends_with("resolver-store/v11"));
     std::fs::create_dir_all(local_store.root().join("index")).unwrap();
     let cas_file = local_store.root().join("files/ef/0123456789");
     create_file_with_age(&cas_file, &[0x41; 4000], Duration::from_hours(48));
@@ -404,9 +399,6 @@ async fn symlinked_files_index_shard_is_rejected_and_lru_continues_past_skipped_
             .is_some(),
         "external files-format StoreIndex entry must remain untouched",
     );
-
-    // Ensure permissions remain writable for TempDir cleanup.
-    let _ = std::fs::Permissions::from_mode(0o755);
 }
 
 #[tokio::test]
@@ -504,4 +496,117 @@ async fn uncheckpointed_live_wal_pages_still_trim_verdict_rows_to_max_size() {
             .unwrap_or(0);
     assert!(live_total <= limit, "live_total ({live_total}) must be <= limit ({limit})");
     drop(holder);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn symlinked_verdict_sidecar_still_counts_db_bytes_and_retries_deferred_vacuum() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    std::fs::write(&marker, pnpr_config::cache_secret_fingerprint(&config.cache_secret)).unwrap();
+
+    let verdict_db = cache_dir.join("resolver-cache/lockfile-verdicts.sqlite");
+    std::fs::create_dir_all(verdict_db.parent().unwrap()).unwrap();
+    let mut conn = Connection::open(&verdict_db).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE lockfile_verdicts (
+             hash TEXT PRIMARY KEY,
+             policy TEXT NOT NULL,
+             verified_at_ms INTEGER NOT NULL
+         );",
+    )
+    .unwrap();
+    let payload = format!(r#"{{"p":"{}"}}"#, "v".repeat(900));
+    let tx = conn.transaction().unwrap();
+    for idx in 0..80_i64 {
+        tx.execute(
+            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+            rusqlite::params![format!("sidecar-{idx:02}"), &payload, 1000 + idx],
+        )
+        .unwrap();
+    }
+    tx.commit().unwrap();
+    // Leave >= 16 pages on the freelist without running VACUUM yet.
+    conn.execute("DELETE FROM lockfile_verdicts WHERE verified_at_ms < 1075", [])
+        .unwrap();
+    drop(conn);
+    let bloated_db_len = std::fs::metadata(&verdict_db).unwrap().len();
+    assert!(bloated_db_len > 64 * 1024);
+
+    // 1. A symlinked `-journal` sidecar blocks SQLite open, yet `verdict_db` bytes still count
+    //    toward `max_size`, forcing `candidate` out!
+    let outside = TempDir::new().unwrap();
+    let outside_journal = outside.path().join("outside-journal");
+    std::fs::write(&outside_journal, b"keep").unwrap();
+    let journal_link = cache_dir.join("resolver-cache/lockfile-verdicts.sqlite-journal");
+    std::os::unix::fs::symlink(&outside_journal, &journal_link).unwrap();
+
+    let candidate = cache_dir.join("resolver-cache/v11/metadata-full/lru.json");
+    create_file_with_age(&candidate, &[0x33; 4096], Duration::from_mins(5));
+    let marker_len = std::fs::metadata(&marker).unwrap().len();
+    let report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: Some(marker_len + bloated_db_len),
+            max_age: None,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(report.files_evicted, 1, "verdict_db bytes must not be counted as zero");
+    assert!(!candidate.exists());
+
+    // 2. Remove the symlinked sidecar and run an expiry pass that deletes 0 rows (`max_age` cutoff
+    //    predates remaining rows): it must still retry VACUUM on the >=16 freelist pages!
+    std::fs::remove_file(&journal_link).unwrap();
+    let vacuum_report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: None,
+            max_age: Some(Duration::from_hours(24 * 365 * 80)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(vacuum_report.bytes_reclaimed > 0, "expiry pass with 0 deleted rows must retry VACUUM");
+    assert!(std::fs::metadata(&verdict_db).unwrap().len() < bloated_db_len);
+}
+
+#[tokio::test]
+async fn batch_eviction_across_hundreds_of_parent_dirs_removes_every_expired_entry() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    std::fs::write(
+        cache_dir.join(pnpr_config::CACHE_SECRET_MARKER),
+        pnpr_config::cache_secret_fingerprint(&config.cache_secret),
+    )
+    .unwrap();
+
+    for idx in 0..300_u32 {
+        let path = cache_dir.join(format!("~public/npm/packages/pkg-{idx:04}/document.json"));
+        create_file_with_age(&path, b"{}", Duration::from_hours(48));
+    }
+
+    let report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: None,
+            max_age: Some(Duration::from_hours(1)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(report.files_evicted, 300);
+    assert!(!cache_dir.join("~public/npm/packages").exists());
 }

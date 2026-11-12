@@ -1,11 +1,10 @@
 use pnpr_config::{
     BackendConfig, CACHE_SECRET_MARKER, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend,
-    SqlBackendSettings, cache_secret_fingerprint,
+    SqlBackendSettings, cache_secret_fingerprint, default_osv_path,
 };
 use pnpr_error::{RegistryError, Result};
 use std::{
     ffi::OsStr,
-    fs,
     io::ErrorKind,
     path::{Path, PathBuf},
 };
@@ -65,7 +64,15 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     for auth_file in [&config.identity.auth.users.file, &config.identity.auth.tokens.file] {
         reject_path_inside_cache(auth_file.as_deref(), &norm_cache, CACHE_CONTAINS_AUTH_FILE)?;
     }
-    validate_osv_cache_overlap(config.osv.path.as_deref(), &norm_cache)?;
+    let default_osv;
+    let effective_osv = match config.osv.path.as_deref() {
+        Some(path) if !path.as_os_str().is_empty() => path,
+        _ => {
+            default_osv = default_osv_path(&config.storage.hosted_dir);
+            &default_osv
+        }
+    };
+    validate_osv_cache_overlap(effective_osv, &norm_cache)?;
     Ok(())
 }
 
@@ -99,14 +106,10 @@ fn reject_path_inside_cache(
     Ok(())
 }
 
-fn validate_osv_cache_overlap(osv_path: Option<&Path>, norm_cache: &Path) -> Result<()> {
-    if let Some(path) = osv_path
-        && !path.as_os_str().is_empty()
-    {
-        let norm_osv = normalize_config_path(path)?;
-        if norm_osv.starts_with(norm_cache) || norm_cache.starts_with(&norm_osv) {
-            return Err(invalid(CACHE_CONTAINS_OSV_DB));
-        }
+fn validate_osv_cache_overlap(osv_path: &Path, norm_cache: &Path) -> Result<()> {
+    let norm_osv = normalize_config_path(osv_path)?;
+    if norm_osv.starts_with(norm_cache) || norm_cache.starts_with(&norm_osv) {
+        return Err(invalid(CACHE_CONTAINS_OSV_DB));
     }
     Ok(())
 }
@@ -132,13 +135,18 @@ fn is_cache_secret_temp(name: &OsStr) -> bool {
         && pnpr_storage::is_atomic_write_temp_path(Path::new(name))
 }
 
-pub(crate) fn validate_cache_secret(config: &Config) -> Result<()> {
+pub(crate) fn validate_cache_paths_and_backend(config: &Config) -> Result<()> {
     validate_cache_paths(config)?;
+    if !config.has_configured_secret && uses_shared_backend(config) {
+        return Err(invalid(SHARED_BACKEND_SECRET_REQUIRED));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_cache_secret(config: &Config) -> Result<()> {
+    validate_cache_paths_and_backend(config)?;
     if config.has_configured_secret {
         return Ok(());
-    }
-    if uses_shared_backend(config) {
-        return Err(invalid(SHARED_BACKEND_SECRET_REQUIRED));
     }
     validate_ephemeral_cache_dir(&config.storage.cache_dir, &config.cache_secret)
 }
@@ -150,21 +158,22 @@ fn uses_shared_backend(config: &Config) -> bool {
 }
 
 fn validate_ephemeral_cache_dir(cache_dir: &Path, cache_secret: &[u8]) -> Result<()> {
-    let marker = cache_dir.join(CACHE_SECRET_MARKER);
-    match fs::read_to_string(&marker) {
-        Ok(stored) if stored.trim() == cache_secret_fingerprint(cache_secret) => return Ok(()),
-        Ok(_) => return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
-        Err(err) if err.kind() == ErrorKind::NotFound => {}
-        Err(err) => return Err(err.into()),
-    }
-    let entries = match fs::read_dir(cache_dir) {
-        Ok(entries) => entries,
+    let dir = match pnpm_fs::OpenDir::open(cache_dir) {
+        Ok(dir) => dir,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
         Err(err) => return Err(err.into()),
     };
-    for entry in entries {
-        let entry = entry?;
-        if !is_ignorable_cache_entry(&entry.file_name(), CacheDirCheck::Unmarked) {
+    let marker = OsStr::new(CACHE_SECRET_MARKER);
+    if dir.has_symlink_child(marker)? {
+        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+    }
+    if let Some(bytes) = dir.read_child_file(marker)? {
+        let matches = std::str::from_utf8(&bytes)
+            .is_ok_and(|raw| raw.trim() == cache_secret_fingerprint(cache_secret));
+        return if matches { Ok(()) } else { Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)) };
+    }
+    for name in dir.entry_names()? {
+        if !is_ignorable_cache_entry(&name, CacheDirCheck::Unmarked) {
             return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
         }
     }

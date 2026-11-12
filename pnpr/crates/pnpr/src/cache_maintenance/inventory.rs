@@ -1,17 +1,14 @@
+pub(super) use self::cleanup::{CachedFileRemoval, prune_empty_cache_dirs, remove_cached_files};
+
+mod cleanup;
 use super::{CachedFile, HashSet, Path, PathBuf, Result, SystemTime, stat_effective_time};
 use pnpm_fs::{ChildFileStat, OpenDir};
 use pnpm_store_dir::STORE_VERSION;
 use std::{
-    cmp::Reverse,
-    collections::HashMap,
     ffi::{OsStr, OsString},
     io::{self, ErrorKind},
+    vec::IntoIter,
 };
-
-pub(super) struct CachedFileRemoval {
-    pub(super) path: PathBuf,
-    pub(super) max_effective_time: Option<SystemTime>,
-}
 
 pub(super) struct CacheInventory {
     pub(super) files: Vec<CachedFile>,
@@ -70,7 +67,8 @@ fn inspect_root_entry(
         return match root_dir_policy(name) {
             DirPolicy::Skip => Ok(()),
             DirPolicy::CountOnly => {
-                inventory.non_evictable_bytes += sum_dir_bytes(child_dir)?;
+                let (_, bytes) = super::orphans::count_dir_contents(child_dir)?;
+                inventory.non_evictable_bytes += bytes;
                 Ok(())
             }
             DirPolicy::Evictable => {
@@ -118,31 +116,22 @@ fn is_root_marker(name: &OsStr) -> bool {
     name == pnpr_storage::layout::LAYOUT_FILE || name == pnpr_config::CACHE_SECRET_MARKER
 }
 
-fn sum_dir_bytes(root: OpenDir) -> io::Result<u64> {
-    let mut total = 0u64;
-    let mut stack = vec![root];
-    while let Some(dir) = stack.pop() {
-        for name in dir.entry_names()? {
-            if let Some(subdir) = dir.open_child_dir(&name)? {
-                stack.push(subdir);
-            } else if let Some(stat) = dir.child_file_stat(&name)? {
-                total += stat.len;
-            }
-        }
-    }
-    Ok(total)
-}
-
 fn collect_evictable_tree(
     cache_dir: &Path,
     root: OpenDir,
     excluded_dirs: &HashSet<PathBuf>,
     files: &mut Vec<CachedFile>,
 ) -> io::Result<()> {
-    let mut stack = vec![root];
-    while let Some(dir) = stack.pop() {
-        for name in dir.entry_names()? {
-            inspect_tree_entry(cache_dir, &dir, &name, excluded_dirs, &mut stack, files)?;
+    let entries = root.entry_names()?.into_iter();
+    let mut stack = vec![(root, entries)];
+    while let Some((dir, iter)) = stack.last_mut() {
+        let Some(name) = iter.next() else {
+            stack.pop();
+            continue;
+        };
+        if let Some(child_frame) = inspect_tree_entry(cache_dir, dir, &name, excluded_dirs, files)?
+        {
+            stack.push(child_frame);
         }
     }
     Ok(())
@@ -153,16 +142,15 @@ fn inspect_tree_entry(
     dir: &OpenDir,
     name: &OsStr,
     excluded_dirs: &HashSet<PathBuf>,
-    stack: &mut Vec<OpenDir>,
     files: &mut Vec<CachedFile>,
-) -> io::Result<()> {
+) -> io::Result<Option<(OpenDir, IntoIter<OsString>)>> {
     let path = dir.path().join(name);
     if excluded_dirs.contains(&path) {
-        return Ok(());
+        return Ok(None);
     }
     if let Some(subdir) = dir.open_child_dir(name)? {
-        stack.push(subdir);
-        return Ok(());
+        let entries = subdir.entry_names()?.into_iter();
+        return Ok(Some((subdir, entries)));
     }
     if !is_managed_sqlite_file(cache_dir, &path)
         && let Some(stat) = dir.child_file_stat(name)?
@@ -170,64 +158,7 @@ fn inspect_tree_entry(
         let (effective_time, age) = stat_effective_time(stat);
         files.push(CachedFile { path, size: stat.len, effective_time, age });
     }
-    Ok(())
-}
-
-pub(super) async fn remove_cached_files(
-    cache_dir: &Path,
-    targets: Vec<CachedFileRemoval>,
-) -> Vec<bool> {
-    if targets.is_empty() {
-        return Vec::new();
-    }
-    let count = targets.len();
-    let root = cache_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || remove_cached_files_sync(&root, &targets))
-        .await
-        .unwrap_or_else(|_| vec![false; count])
-}
-
-fn remove_cached_files_sync(cache_dir: &Path, targets: &[CachedFileRemoval]) -> Vec<bool> {
-    let Ok(root) = OpenDir::open(cache_dir) else {
-        return vec![false; targets.len()];
-    };
-    let mut parent_cache: HashMap<PathBuf, Option<OpenDir>> = HashMap::new();
-    targets
-        .iter()
-        .map(|item| {
-            remove_single_cached_file(cache_dir, &root, &mut parent_cache, item).unwrap_or(false)
-        })
-        .collect()
-}
-
-fn remove_single_cached_file(
-    cache_dir: &Path,
-    root: &OpenDir,
-    parent_cache: &mut HashMap<PathBuf, Option<OpenDir>>,
-    item: &CachedFileRemoval,
-) -> io::Result<bool> {
-    let Ok(rel) = item.path.strip_prefix(cache_dir) else {
-        return Ok(false);
-    };
-    let (Some(parent_rel), Some(leaf)) = (rel.parent(), rel.file_name()) else {
-        return Ok(false);
-    };
-    if !parent_cache.contains_key(parent_rel) {
-        let opened = root.open_descendant_dir(parent_rel)?;
-        parent_cache.insert(parent_rel.to_path_buf(), opened);
-    }
-    let Some(parent) = parent_cache.get(parent_rel).and_then(Option::as_ref) else {
-        return Ok(false);
-    };
-    if let Some(limit_time) = item.max_effective_time {
-        let Some(stat) = parent.child_file_stat(leaf)? else {
-            return Ok(false);
-        };
-        if stat.modified.max(stat.accessed) > limit_time {
-            return Ok(false);
-        }
-    }
-    parent.remove_child_file(leaf)
+    Ok(None)
 }
 
 pub(super) fn is_managed_sqlite_file(cache_dir: &Path, path: &Path) -> bool {
@@ -308,73 +239,4 @@ pub(super) fn cas_digest_of_store_file(cache_dir: &Path, path: &Path) -> Option<
         return None;
     }
     Some(format!("{shard}{}", file.strip_suffix("-exec").unwrap_or(file)))
-}
-
-pub(super) async fn prune_empty_cache_dirs(cache_dir: &Path) -> Result<()> {
-    let root = cache_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || prune_empty_cache_dirs_sync(&root))
-        .await
-        .map_err(|err| io::Error::other(err.to_string()))?
-}
-
-fn prune_empty_cache_dirs_sync(cache_dir: &Path) -> Result<()> {
-    let root = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(err.into()),
-    };
-    let mut dirs: Vec<(PathBuf, OsString)> = Vec::new();
-    for name in root.entry_names()? {
-        if matches!(root_dir_policy(&name), DirPolicy::Evictable)
-            && let Some(child) = root.open_child_dir(&name)?
-        {
-            collect_prunable_subdirs(cache_dir, child, Path::new(""), name, &mut dirs)?;
-        }
-    }
-    dirs.sort_by_key(|(parent_rel, leaf)| Reverse((parent_rel.as_os_str().len(), leaf.len())));
-    for (parent_rel, leaf) in dirs {
-        if let Ok(Some(parent)) = root.open_descendant_dir(&parent_rel) {
-            let _ = parent.remove_empty_child_dir(&leaf);
-        }
-    }
-    Ok(())
-}
-
-fn collect_prunable_subdirs(
-    cache_dir: &Path,
-    root: OpenDir,
-    root_parent_rel: &Path,
-    root_leaf: OsString,
-    out: &mut Vec<(PathBuf, OsString)>,
-) -> io::Result<()> {
-    let mut stack = vec![(root, root_parent_rel.to_path_buf(), root_leaf)];
-    while let Some((dir, parent_rel, leaf)) = stack.pop() {
-        let rel = parent_rel.join(&leaf);
-        if !is_protected_cache_dir(cache_dir, &cache_dir.join(&rel)) {
-            out.push((parent_rel, leaf));
-        }
-        for child_name in dir.entry_names()? {
-            if let Some(subdir) = dir.open_child_dir(&child_name)? {
-                stack.push((subdir, rel.clone(), child_name));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn is_protected_cache_dir(cache_dir: &Path, dir: &Path) -> bool {
-    let Ok(rel) = dir.strip_prefix(cache_dir) else {
-        return true;
-    };
-    let parts: Vec<&str> = rel
-        .iter()
-        .filter_map(OsStr::to_str)
-        .collect();
-    matches!(
-        parts.as_slice(),
-        ["resolver-cache" | "resolver-store"]
-            | ["resolver-store", STORE_VERSION]
-            | ["resolver-store", STORE_VERSION, "files"]
-            | ["resolver-store", STORE_VERSION, "files", _],
-    )
 }

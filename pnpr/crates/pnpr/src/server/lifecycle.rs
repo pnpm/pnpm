@@ -1,6 +1,6 @@
 mod cache_claim;
 
-use self::cache_claim::claim_ephemeral_cache_dir;
+use self::cache_claim::{claim_ephemeral_cache_dir, preflight_ephemeral_cache_dir};
 use std::future::IntoFuture;
 
 use axum::Router;
@@ -29,7 +29,8 @@ pub(super) fn load_active_osv_index(
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
-    crate::config_validation::validate_cache_paths(config)?;
+    crate::config_validation::validate_cache_paths_and_backend(config)?;
+    preflight_ephemeral_cache_dir(config)?;
     let storage = Storage::from_config(&config.storage)?;
     if !config.routing.hosted.is_empty() {
         storage.ensure_hosted_layout().await?;

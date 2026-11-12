@@ -10,21 +10,19 @@ const STORE_V11_COMPONENTS: [&str; 2] = ["resolver-store", "v11"];
 const STORE_INDEX_FAMILY: [&str; 4] =
     ["index.db", "index.db-wal", "index.db-shm", "index.db-journal"];
 
-pub(super) fn store_index_family_bytes(cache_dir: &Path) -> u64 {
-    let Ok(Some(store_root)) = open_store_v11_dir(cache_dir) else {
-        return 0;
+pub(super) fn store_index_family_bytes(cache_dir: &Path) -> io::Result<u64> {
+    let mut dir = match OpenDir::open(cache_dir) {
+        Ok(dir) => dir,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(err),
     };
-    if STORE_INDEX_FAMILY
-        .iter()
-        .any(|name| {
-            store_root
-                .has_symlink_child(OsStr::new(name))
-                .unwrap_or(true)
-        })
-    {
-        return 0;
+    for part in STORE_V11_COMPONENTS {
+        let Some(next) = dir.open_child_dir(OsStr::new(part))? else {
+            return Ok(0);
+        };
+        dir = next;
     }
-    sqlite_bytes_in(&store_root)
+    sqlite_bytes_in(&dir)
 }
 
 pub(super) async fn prune_store_index_digests(
@@ -44,7 +42,7 @@ fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -
     let Some(store_root) = open_store_v11_dir(cache_dir)? else {
         return Ok(0);
     };
-    let before = sqlite_bytes_in(&store_root);
+    let before = sqlite_bytes_in(&store_root)?;
     let Some(mut index) = StoreIndex::open_existing_at(&store_root).map_err(io::Error::other)?
     else {
         return Ok(0);
@@ -62,7 +60,7 @@ fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -
         .map_err(io::Error::other)?;
     index.delete_many(&keys).map_err(io::Error::other)?;
     drop(index);
-    Ok(before.saturating_sub(sqlite_bytes_in(&store_root)))
+    Ok(before.saturating_sub(sqlite_bytes_in(&store_root)?))
 }
 
 fn open_store_v11_dir(cache_dir: &Path) -> io::Result<Option<OpenDir>> {
@@ -86,16 +84,14 @@ fn open_store_v11_dir(cache_dir: &Path) -> io::Result<Option<OpenDir>> {
     Ok(Some(dir))
 }
 
-fn sqlite_bytes_in(dir: &OpenDir) -> u64 {
-    STORE_INDEX_FAMILY
-        .iter()
-        .filter_map(|name| {
-            dir.child_file_stat(OsStr::new(name))
-                .ok()
-                .flatten()
-        })
-        .map(|stat| stat.len)
-        .sum()
+fn sqlite_bytes_in(dir: &OpenDir) -> io::Result<u64> {
+    let mut total = 0u64;
+    for name in STORE_INDEX_FAMILY {
+        if let Some(stat) = dir.child_file_stat(OsStr::new(name))? {
+            total = total.saturating_add(stat.len);
+        }
+    }
+    Ok(total)
 }
 
 fn package_references_removed_digest(

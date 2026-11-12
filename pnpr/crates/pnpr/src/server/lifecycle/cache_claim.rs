@@ -1,5 +1,16 @@
-use crate::Config;
-use std::{path::Path, time::Duration};
+use crate::{
+    Config,
+    config_validation::{CacheDirCheck, is_ignorable_cache_entry},
+};
+use pnpm_fs::OpenDir;
+use pnpr_config::{CACHE_SECRET_MARKER, cache_secret_fingerprint};
+use std::{
+    ffi::OsStr,
+    io::{self, ErrorKind},
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 
 const PENDING_CACHE_CLAIM: &str = "pending";
 
@@ -8,17 +19,49 @@ enum ClaimAttempt {
     RetryAfterRollback,
 }
 
+enum MarkerRead {
+    Missing,
+    Symlink,
+    Contents(String),
+}
+
+pub(super) fn preflight_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
+    if config.has_configured_secret {
+        return Ok(());
+    }
+    let dir = match OpenDir::open(&config.storage.cache_dir) {
+        Ok(dir) => dir,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    let marker = OsStr::new(CACHE_SECRET_MARKER);
+    if dir.has_symlink_child(marker)? {
+        return Err(persistent_cache_secret_error());
+    }
+    if let Some(bytes) = dir.read_child_file(marker)? {
+        let fingerprint = cache_secret_fingerprint(&config.cache_secret);
+        let allowed = std::str::from_utf8(&bytes)
+            .is_ok_and(|raw| {
+                let trimmed = raw.trim();
+                trimmed == fingerprint || trimmed == PENDING_CACHE_CLAIM
+            });
+        return if allowed { Ok(()) } else { Err(persistent_cache_secret_error()) };
+    }
+    ensure_only_ephemeral_entries(&dir)
+}
+
 pub(super) async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
-    crate::config_validation::validate_cache_paths(config)?;
+    crate::config_validation::validate_cache_paths_and_backend(config)?;
     if config.has_configured_secret {
         return Ok(());
     }
     let cache_dir = &config.storage.cache_dir;
     tokio::fs::create_dir_all(cache_dir).await?;
-    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
-    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    let dir = open_anchored_cache_dir(cache_dir).await?;
+    crate::config_validation::validate_cache_paths_and_backend(config)?;
+    let fingerprint = cache_secret_fingerprint(&config.cache_secret);
     for _ in 0..2 {
-        match try_claim_ephemeral_marker(cache_dir, &marker, &fingerprint).await? {
+        match try_claim_ephemeral_marker(&dir, cache_dir, &fingerprint).await? {
             ClaimAttempt::Claimed => return Ok(()),
             ClaimAttempt::RetryAfterRollback => {}
         }
@@ -26,66 +69,140 @@ pub(super) async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Re
     Err(persistent_cache_secret_error())
 }
 
+async fn open_anchored_cache_dir(cache_dir: &Path) -> pnpr_error::Result<Arc<OpenDir>> {
+    let target = cache_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        let dir = OpenDir::open(&target)?;
+        ensure_anchored_identity(&dir, &target)?;
+        Ok(Arc::new(dir))
+    })
+    .await
+    .map_err(|err| join_error(&err))?
+}
+
 async fn try_claim_ephemeral_marker(
+    dir: &Arc<OpenDir>,
     cache_dir: &Path,
-    marker: &Path,
     fingerprint: &str,
 ) -> pnpr_error::Result<ClaimAttempt> {
-    match pnpr_storage::write_atomic_new(marker, PENDING_CACHE_CLAIM.as_bytes()).await {
-        Ok(()) => finalize_pending_claim(cache_dir, marker, fingerprint).await,
-        Err(pnpr_error::RegistryError::Io(err))
-            if err.kind() == std::io::ErrorKind::AlreadyExists =>
-        {
-            match await_completed_marker(marker).await? {
-                Some(stored) if stored == fingerprint => Ok(ClaimAttempt::Claimed),
-                Some(_) => Err(persistent_cache_secret_error()),
-                None => Ok(ClaimAttempt::RetryAfterRollback),
-            }
+    let handle = Arc::clone(dir);
+    let target = cache_dir.to_path_buf();
+    let expected = fingerprint.to_string();
+    let created = tokio::task::spawn_blocking(move || {
+        match handle.create_child_file_new(
+            OsStr::new(CACHE_SECRET_MARKER),
+            PENDING_CACHE_CLAIM.as_bytes(),
+        ) {
+            Ok(()) => finalize_pending_claim_sync(&handle, &target, &expected).map(|()| true),
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => Ok(false),
+            Err(err) => Err(err.into()),
         }
-        Err(err) => Err(err),
+    })
+    .await
+    .map_err(|err| join_error(&err))??;
+    if created {
+        return Ok(ClaimAttempt::Claimed);
+    }
+    match await_completed_marker(dir).await? {
+        Some(stored) if stored == fingerprint => {
+            verify_anchored_identity(dir, cache_dir).await?;
+            Ok(ClaimAttempt::Claimed)
+        }
+        Some(_) => Err(persistent_cache_secret_error()),
+        None => Ok(ClaimAttempt::RetryAfterRollback),
     }
 }
 
-async fn finalize_pending_claim(
+fn finalize_pending_claim_sync(
+    dir: &OpenDir,
     cache_dir: &Path,
-    marker: &Path,
     fingerprint: &str,
-) -> pnpr_error::Result<ClaimAttempt> {
-    if let Err(err) = ensure_only_ephemeral_entries(cache_dir).await {
-        let _ = tokio::fs::remove_file(marker).await;
-        return Err(err);
+) -> pnpr_error::Result<()> {
+    let marker = OsStr::new(CACHE_SECRET_MARKER);
+    let outcome = ensure_only_ephemeral_entries(dir)
+        .and_then(|()| ensure_anchored_identity(dir, cache_dir))
+        .and_then(|()| {
+            dir.write_child_file(marker, fingerprint.as_bytes())
+                .map_err(pnpr_error::RegistryError::from)
+        })
+        .and_then(|()| ensure_anchored_identity(dir, cache_dir));
+    if outcome.is_err() {
+        let _ = dir.remove_child_file(marker);
     }
-    if let Err(err) = pnpr_storage::write_atomic(marker, fingerprint.as_bytes()).await {
-        let _ = tokio::fs::remove_file(marker).await;
-        return Err(err);
-    }
-    Ok(ClaimAttempt::Claimed)
+    outcome
 }
 
-async fn await_completed_marker(marker: &Path) -> pnpr_error::Result<Option<String>> {
+async fn verify_anchored_identity(dir: &Arc<OpenDir>, cache_dir: &Path) -> pnpr_error::Result<()> {
+    let handle = Arc::clone(dir);
+    let target = cache_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || ensure_anchored_identity(&handle, &target))
+        .await
+        .map_err(|err| join_error(&err))?
+}
+
+async fn await_completed_marker(dir: &Arc<OpenDir>) -> pnpr_error::Result<Option<String>> {
     for _ in 0..50 {
-        match tokio::fs::read_to_string(marker).await {
-            Ok(raw) if raw.trim() == PENDING_CACHE_CLAIM => {
+        match read_marker_state(dir).await? {
+            MarkerRead::Missing => return Ok(None),
+            MarkerRead::Symlink => return Err(persistent_cache_secret_error()),
+            MarkerRead::Contents(raw) if raw == PENDING_CACHE_CLAIM => {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
-            Ok(raw) => return Ok(Some(raw.trim().to_string())),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(err) => return Err(err.into()),
+            MarkerRead::Contents(raw) => return Ok(Some(raw)),
         }
     }
     Ok(Some(PENDING_CACHE_CLAIM.to_string()))
 }
 
-async fn ensure_only_ephemeral_entries(cache_dir: &Path) -> pnpr_error::Result<()> {
-    use crate::config_validation::{CacheDirCheck, is_ignorable_cache_entry};
+async fn read_marker_state(dir: &Arc<OpenDir>) -> pnpr_error::Result<MarkerRead> {
+    let handle = Arc::clone(dir);
+    tokio::task::spawn_blocking(move || {
+        let marker = OsStr::new(CACHE_SECRET_MARKER);
+        if handle.has_symlink_child(marker)? {
+            return Ok(MarkerRead::Symlink);
+        }
+        let Some(bytes) = handle.read_child_file(marker)? else {
+            return Ok(MarkerRead::Missing);
+        };
+        let parsed = std::str::from_utf8(&bytes)
+            .map(|raw| raw.trim().to_string())
+            .unwrap_or_else(|_| "<invalid>".to_string());
+        Ok(MarkerRead::Contents(parsed))
+    })
+    .await
+    .map_err(|err| join_error(&err))?
+}
 
-    let mut entries = tokio::fs::read_dir(cache_dir).await?;
-    while let Some(entry) = entries.next_entry().await? {
-        if !is_ignorable_cache_entry(&entry.file_name(), CacheDirCheck::ClaimedWithMarker) {
+fn ensure_only_ephemeral_entries(dir: &OpenDir) -> pnpr_error::Result<()> {
+    for name in dir.entry_names()? {
+        if !is_ignorable_cache_entry(&name, CacheDirCheck::ClaimedWithMarker) {
             return Err(persistent_cache_secret_error());
         }
     }
     Ok(())
+}
+
+fn ensure_anchored_identity(dir: &OpenDir, configured_cache: &Path) -> pnpr_error::Result<()> {
+    let Some(anchored) = dir.canonical_path()? else {
+        return Err(retargeted_cache_error());
+    };
+    let current = pnpm_fs::resolve_path_with_symlinks(configured_cache)
+        .map_err(|_| retargeted_cache_error())?;
+    if anchored != current {
+        return Err(retargeted_cache_error());
+    }
+    Ok(())
+}
+
+fn retargeted_cache_error() -> pnpr_error::RegistryError {
+    pnpr_error::RegistryError::Io(io::Error::new(
+        ErrorKind::InvalidInput,
+        "cache directory path changed while claiming ephemeral cache",
+    ))
+}
+
+fn join_error(err: &tokio::task::JoinError) -> pnpr_error::RegistryError {
+    pnpr_error::RegistryError::Io(io::Error::other(err.to_string()))
 }
 
 fn persistent_cache_secret_error() -> pnpr_error::RegistryError {

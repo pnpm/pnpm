@@ -275,15 +275,19 @@ fn remove_orphan_child(
 pub(super) fn count_dir_contents(root: OpenDir) -> io::Result<(usize, u64)> {
     let mut count = 0usize;
     let mut bytes = 0u64;
-    let mut stack = vec![root];
-    while let Some(dir) = stack.pop() {
-        for name in dir.entry_names()? {
-            if let Some(subdir) = dir.open_child_dir(&name)? {
-                stack.push(subdir);
-            } else if let Some(stat) = dir.child_file_stat(&name)? {
-                count += 1;
-                bytes += stat.len;
-            }
+    let entries = root.entry_names()?.into_iter();
+    let mut stack = vec![(root, entries)];
+    while let Some((dir, iter)) = stack.last_mut() {
+        let Some(name) = iter.next() else {
+            stack.pop();
+            continue;
+        };
+        if let Some(subdir) = dir.open_child_dir(&name)? {
+            let child_entries = subdir.entry_names()?.into_iter();
+            stack.push((subdir, child_entries));
+        } else if let Some(stat) = dir.child_file_stat(&name)? {
+            count += 1;
+            bytes += stat.len;
         }
     }
     Ok((count, bytes))

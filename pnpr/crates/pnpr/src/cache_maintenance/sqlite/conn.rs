@@ -42,6 +42,24 @@ pub(super) fn open_verdict_dir(cache_dir: &Path) -> Option<AnchoredVerdictDb> {
     Some(AnchoredVerdictDb { dir, db_path: anchored_dir.join(VERDICT_DB) })
 }
 
+pub(super) fn verdict_family_bytes_in_cache(cache_dir: &Path) -> std::io::Result<u64> {
+    let root = match OpenDir::open(cache_dir) {
+        Ok(dir) => dir,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(err),
+    };
+    let Some(dir) = root.open_child_dir(OsStr::new(VERDICT_DIR))? else {
+        return Ok(0);
+    };
+    let mut total = 0u64;
+    for name in VERDICT_FAMILY {
+        if let Some(stat) = dir.child_file_stat(OsStr::new(name))? {
+            total = total.saturating_add(stat.len);
+        }
+    }
+    Ok(total)
+}
+
 pub(super) fn verdict_family_bytes(dir: &OpenDir) -> u64 {
     VERDICT_FAMILY
         .iter()
@@ -106,10 +124,16 @@ pub(super) fn should_vacuum_counts(freelist: u64, pages: u64) -> bool {
     freelist >= 16 && freelist.saturating_mul(4) >= pages
 }
 
+pub(super) fn page_size_bytes(conn: &Connection) -> u64 {
+    match pragma_u64(conn, "page_size") {
+        0 => SQLITE_PAGE_BYTES,
+        size => size,
+    }
+}
+
 pub(super) fn freelist_bytes(conn: &Connection) -> u64 {
     let freelist = pragma_u64(conn, "freelist_count");
-    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
-    freelist.saturating_mul(page_size)
+    freelist.saturating_mul(page_size_bytes(conn))
 }
 
 pub(super) fn pragma_u64(conn: &Connection, name: &str) -> u64 {

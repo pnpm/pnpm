@@ -134,11 +134,21 @@ async fn should_prune_private_resolver_scopes(
     config: &Config,
 ) -> PrivateScopePolicy {
     let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
-    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
-    match fs::read_to_string(&marker).await {
-        Ok(stored) if stored.trim() == fingerprint => PrivateScopePolicy::Keep,
-        _ => PrivateScopePolicy::Prune,
-    }
+    let root = cache_dir.to_path_buf();
+    let matches = tokio::task::spawn_blocking(move || {
+        let dir = pnpm_fs::OpenDir::open(&root).ok()?;
+        let marker = std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER);
+        if dir.has_symlink_child(marker).ok()? {
+            return None;
+        }
+        let bytes = dir.read_child_file(marker).ok()??;
+        Some(std::str::from_utf8(&bytes).ok()?.trim() == fingerprint)
+    })
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(false);
+    if matches { PrivateScopePolicy::Keep } else { PrivateScopePolicy::Prune }
 }
 
 async fn sync_configured_cache_marker(
@@ -162,9 +172,18 @@ async fn sync_configured_cache_marker(
             }
         }
     }
-    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    let root = cache_dir.clone();
     let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
-    pnpr_storage::write_atomic(&marker, fingerprint.as_bytes()).await
+    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+        let dir = pnpm_fs::OpenDir::open(&root)?;
+        dir.write_child_file(
+            std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER),
+            fingerprint.as_bytes(),
+        )
+    })
+    .await
+    .map_err(|err| std::io::Error::other(err.to_string()))??;
+    Ok(())
 }
 
 pub(crate) async fn sync_cache_secret_on_startup(config: &Config) -> Result<()> {

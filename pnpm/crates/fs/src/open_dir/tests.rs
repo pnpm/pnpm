@@ -347,6 +347,7 @@ fn read_child_file_reads_regular_files_and_ignores_links_and_dirs() {
         fs::write(root.path().join("outside"), b"secret").unwrap();
         std::os::unix::fs::symlink(root.path().join("outside"), root.path().join("real/file-link"))
             .unwrap();
+        let _sock = std::os::unix::net::UnixListener::bind(root.path().join("real/sock")).unwrap();
     }
     let dir = OpenDir::open(&root.path().join("real")).unwrap();
 
@@ -362,11 +363,18 @@ fn read_child_file_reads_regular_files_and_ignores_links_and_dirs() {
             .is_none(),
     );
     #[cfg(unix)]
-    assert!(
-        dir.read_child_file("file-link".as_ref())
-            .unwrap()
-            .is_none(),
-    );
+    {
+        assert!(
+            dir.read_child_file("file-link".as_ref())
+                .unwrap()
+                .is_none(),
+        );
+        assert!(
+            dir.read_child_file("sock".as_ref())
+                .unwrap()
+                .is_none(),
+        );
+    }
     assert!(
         dir.read_child_file("metadata".as_ref())
             .unwrap()
@@ -377,6 +385,128 @@ fn read_child_file_reads_regular_files_and_ignores_links_and_dirs() {
             .unwrap()
             .is_none(),
     );
+}
+
+#[test]
+fn child_methods_reject_non_single_component_names() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::write(root.path().join("outside.txt"), b"keep").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    for bad in ["", ".", "..", "../outside.txt", "metadata/registry", "metadata/", "/outside.txt"] {
+        assert_eq!(
+            dir.open_child_dir(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.remove_child_dir(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.child_file_stat(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.read_child_file(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.has_symlink_child(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.remove_child_file(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.remove_empty_child_dir(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.create_child_file_new(bad.as_ref(), b"x")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.write_child_file(bad.as_ref(), b"x")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+    }
+    assert_eq!(fs::read(root.path().join("outside.txt")).unwrap(), b"keep");
+}
+
+#[test]
+fn create_and_write_child_file_stay_anchored_and_refuse_symlinks() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    dir.create_child_file_new(".marker".as_ref(), b"v1").unwrap();
+    assert_eq!(
+        dir.create_child_file_new(".marker".as_ref(), b"v2")
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::AlreadyExists,
+    );
+    assert_eq!(
+        dir.read_child_file(".marker".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"v1"[..]),
+    );
+
+    dir.write_child_file(".marker".as_ref(), b"v2").unwrap();
+    assert_eq!(
+        dir.read_child_file(".marker".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"v2"[..]),
+    );
+
+    #[cfg(unix)]
+    {
+        fs::write(root.path().join("victim"), b"untouched").unwrap();
+        std::os::unix::fs::symlink(root.path().join("victim"), root.path().join("real/sym"))
+            .unwrap();
+        assert_eq!(
+            dir.create_child_file_new("sym".as_ref(), b"bad")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::AlreadyExists,
+        );
+        assert_eq!(
+            dir.write_child_file("sym".as_ref(), b"bad")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(fs::read(root.path().join("victim")).unwrap(), b"untouched");
+
+        fs::create_dir_all(root.path().join("elsewhere")).unwrap();
+        fs::write(root.path().join("elsewhere/.marker"), b"other").unwrap();
+        substitute_real(root.path());
+        dir.write_child_file(".marker".as_ref(), b"anchored").unwrap();
+        assert_eq!(fs::read(root.path().join("moved/.marker")).unwrap(), b"anchored");
+        assert_eq!(fs::read(root.path().join("elsewhere/.marker")).unwrap(), b"other");
+    }
 }
 
 #[cfg(windows)]

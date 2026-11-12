@@ -18,7 +18,7 @@ pub fn resolve_path_with_symlinks(path: &Path) -> io::Result<PathBuf> {
     for component in components {
         apply_path_component(component, &mut acc, &mut in_missing_tail, &mut hops)?;
     }
-    Ok(acc)
+    Ok(dunce::simplified(&acc).to_path_buf())
 }
 
 fn seed_absolute_anchor(path: &Path) -> io::Result<(PathBuf, std::path::Components<'_>)> {
@@ -110,7 +110,7 @@ fn handle_missing_or_dangling(
         ));
     }
     let target = fs::read_link(&*acc)?;
-    expand_symlink_target(&target, acc, in_missing_tail, hops)
+    expand_symlink_target(dunce::simplified(&target), acc, in_missing_tail, hops)
 }
 
 fn expand_symlink_target(

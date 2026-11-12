@@ -7,7 +7,7 @@
 //! the pinned path.
 
 use crate::{
-    open_dir::{ChildFileStat, OpenDir},
+    open_dir::{ChildFileStat, ChildWrite, OpenDir, write_child_file_in_pinned_dir},
     remove_dirent,
     retry::retry_transient_removal_locks,
 };
@@ -140,7 +140,6 @@ pub(super) fn read_child_file(
     }
     let mut file = match fs::OpenOptions::new()
         .read(true)
-        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
         .open(parent_pinned.path().join(name))
     {
@@ -184,6 +183,20 @@ pub(super) fn remove_empty_child_dir(
         }
         Err(error) => Err(error),
     }
+}
+
+pub(super) fn write_child_file(
+    parent_pinned: &PinnedChain,
+    name: &OsStr,
+    bytes: &[u8],
+    mode: ChildWrite,
+) -> io::Result<()> {
+    if matches!(mode, ChildWrite::Replace) && is_reparse_child(parent_pinned.path(), name)? {
+        return Err(io::Error::new(ErrorKind::InvalidInput, "refusing to replace reparse child"));
+    }
+    write_child_file_in_pinned_dir(parent_pinned.path(), name, bytes, mode, || {
+        is_reparse_child(parent_pinned.path(), name)
+    })
 }
 
 pub(super) fn is_reparse_child(parent_path: &Path, name: &OsStr) -> io::Result<bool> {

@@ -322,8 +322,14 @@ fn rejects_libsql_replica_and_osv_paths_inside_cache() {
     let err = super::validate_cache_paths(&auth_replica).unwrap_err().to_string();
     assert!(err.contains("libSQL replicaPath must not live inside"), "{err}");
 
-    let mut osv_in_cache = base;
+    let mut osv_in_cache = base.clone();
     osv_in_cache.osv.path = Some(cache.join("osv/all.zip"));
     let err = validate_startup_config(&mut osv_in_cache).unwrap_err().to_string();
+    assert!(err.contains("osv.path must not live inside or contain"), "{err}");
+
+    let mut default_osv_overlap = base;
+    default_osv_overlap.osv.path = None;
+    default_osv_overlap.storage.cache_dir = storage.join(".osv");
+    let err = validate_startup_config(&mut default_osv_overlap).unwrap_err().to_string();
     assert!(err.contains("osv.path must not live inside or contain"), "{err}");
 }

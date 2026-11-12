@@ -2,14 +2,15 @@ mod conn;
 
 use self::conn::{
     AnchoredVerdictDb, SQLITE_PAGE_BYTES, compact_sqlite, freelist_bytes, open_sqlite,
-    open_sqlite_readonly, open_verdict_dir, pragma_u64, should_vacuum, should_vacuum_counts,
-    verdict_db_and_wal_bytes, verdict_family_bytes, verdict_wal_bytes,
+    open_sqlite_readonly, open_verdict_dir, page_size_bytes, pragma_u64, should_vacuum,
+    should_vacuum_counts, verdict_db_and_wal_bytes, verdict_family_bytes,
+    verdict_family_bytes_in_cache, verdict_wal_bytes,
 };
 use super::{
     CacheGcEffect, Duration, Path, PathBuf, SystemTime, store_index::store_index_family_bytes,
 };
 use rusqlite::{Connection, OpenFlags};
-use std::time::UNIX_EPOCH;
+use std::{io, time::UNIX_EPOCH};
 
 const EMPTY_VERDICT_DB_BYTES: u64 = 12 * 1024;
 
@@ -19,15 +20,15 @@ pub(super) struct VerdictExpiry {
     pub(super) cutoff_ms: i64,
 }
 
-pub(super) async fn resolver_sqlite_bytes(cache_dir: &Path) -> u64 {
+pub(super) async fn resolver_sqlite_bytes(cache_dir: &Path) -> io::Result<u64> {
     let root = cache_dir.to_path_buf();
     tokio::task::spawn_blocking(move || {
-        let verdict =
-            open_verdict_dir(&root).map(|verdict| verdict_family_bytes(&verdict.dir)).unwrap_or(0);
-        verdict + store_index_family_bytes(&root)
+        let verdict = verdict_family_bytes_in_cache(&root)?;
+        let store_index = store_index_family_bytes(&root)?;
+        Ok(verdict.saturating_add(store_index))
     })
     .await
-    .unwrap_or(0)
+    .map_err(|err| io::Error::other(err.to_string()))?
 }
 
 pub(super) async fn expire_verdict_rows(
@@ -72,7 +73,7 @@ fn read_page_metrics(
     db_and_wal: u64,
     extra_free_bytes: u64,
 ) -> VerdictPageMetrics {
-    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
+    let page_size = page_size_bytes(conn);
     let page_count = pragma_u64(conn, "page_count");
     let freelist = pragma_u64(conn, "freelist_count");
     let post_ckpt_db_bytes = page_count.saturating_mul(page_size);
@@ -95,11 +96,12 @@ fn estimate_expired_verdict_bytes(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -
     let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
         return (0, 0);
     };
+    let metrics = read_page_metrics(&conn, db_and_wal, 0);
     let (expired_weight, total_weight) = query_verdict_weights(&conn, cutoff_ms);
-    if expired_weight == 0 || total_weight == 0 {
+    let vacuum_due = should_vacuum_counts(metrics.freelist, metrics.page_count);
+    if (expired_weight == 0 || total_weight == 0) && !vacuum_due {
         return (0, 0);
     }
-    let metrics = read_page_metrics(&conn, db_and_wal, 0);
     let est_new_pages = proportional_bytes(metrics.live_reclaimable, expired_weight, total_weight)
         / metrics.page_size;
     let post_freelist = metrics.freelist.saturating_add(est_new_pages);
@@ -135,7 +137,7 @@ fn delete_expired_verdict_rows(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -> u
     let deleted = conn
         .execute("DELETE FROM lockfile_verdicts WHERE verified_at_ms <= ?1", [cutoff_ms])
         .unwrap_or(0);
-    if deleted == 0 {
+    if deleted == 0 && !should_vacuum(&conn) {
         return 0;
     }
     if should_vacuum(&conn) {
@@ -240,7 +242,7 @@ fn delete_oldest_verdict_rows(verdict: &AnchoredVerdictDb, excess_bytes: u64) ->
 
 fn trim_and_compact_verdict_rows(conn: &Connection, remaining_excess: u64) {
     let free_bytes = freelist_bytes(conn);
-    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
+    let page_size = page_size_bytes(conn);
     let db_bytes = pragma_u64(conn, "page_count").saturating_mul(page_size);
     let needed_from_rows = remaining_excess.saturating_sub(free_bytes);
     let live_reclaimable =

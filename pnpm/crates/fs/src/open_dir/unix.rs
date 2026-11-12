@@ -1,6 +1,8 @@
 //! Opening and removing entries relative to an open directory descriptor,
 //! which a link put in the directory's path cannot redirect.
 
+pub(super) use self::write::write_file_at;
+mod write;
 use std::{
     ffi::{CStr, OsStr, OsString},
     io::{self, ErrorKind},
@@ -88,6 +90,9 @@ pub(super) fn is_symlink_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<b
 }
 
 pub(super) fn read_file_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<Vec<u8>>> {
+    if stat_file_at(parent, name)?.is_none() {
+        return Ok(None);
+    }
     // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
     let descriptor = unsafe {
         libc::openat(
@@ -105,16 +110,27 @@ pub(super) fn read_file_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Op
     if !file.metadata()?.file_type().is_file() {
         return Ok(None);
     }
-    // SAFETY: `file` is a valid open descriptor; clearing `O_NONBLOCK` restores normal file reads.
-    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFL, 0) };
+    clear_nonblock(file.as_raw_fd());
     let mut bytes = Vec::new();
     io::Read::read_to_end(&mut file, &mut bytes)?;
     Ok(Some(bytes))
 }
 
+fn clear_nonblock(fd: libc::c_int) {
+    // SAFETY: `fd` is a valid open file descriptor owned by the caller.
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags >= 0 {
+        // SAFETY: `fd` is valid and clearing `O_NONBLOCK` restores blocking file reads.
+        unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK) };
+    }
+}
+
 fn is_non_regular_open_error(error: &io::Error) -> bool {
     matches!(error.kind(), ErrorKind::NotFound | ErrorKind::IsADirectory)
-        || matches!(error.raw_os_error(), Some(libc::ELOOP | libc::EMLINK | libc::EISDIR))
+        || matches!(
+            error.raw_os_error(),
+            Some(libc::ELOOP | libc::EMLINK | libc::EISDIR | libc::ENXIO | libc::EOPNOTSUPP),
+        )
 }
 
 fn lstat_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<libc::stat>> {

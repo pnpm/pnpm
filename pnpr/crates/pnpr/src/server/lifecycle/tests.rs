@@ -473,4 +473,21 @@ async fn concurrent_same_config_claims_reject_dirty_cache_and_prepare_validates_
         hosted_entry.exists(),
         "prepare_storage must validate cache paths before resetting cache layout",
     );
+
+    let mut shared_no_secret = Config::from_default_yaml(tmp.path(), listen, None);
+    shared_no_secret.storage.cache_dir = tmp.path().join("unclaimed-shared-cache");
+    shared_no_secret.storage.hosted_backend =
+        pnpr_config::HostedStoreConfig::S3(pnpr_config::S3Settings {
+            bucket: "test-bucket".to_string(),
+            region: Some("us-east-1".to_string()),
+            prefix: None,
+            endpoint: Some("http://127.0.0.1:9000".to_string()),
+            access_key_id: Some("key".to_string()),
+            secret_access_key: Some("secret".to_string()),
+            allow_http: Some(true),
+            force_path_style: Some(true),
+        });
+    let err = super::prepare_storage(&shared_no_secret).await.unwrap_err().to_string();
+    assert!(err.contains("when using shared storage or database backends"), "{err}");
+    assert!(!shared_no_secret.storage.cache_dir.exists());
 }

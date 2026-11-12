@@ -134,7 +134,7 @@ async fn evict_cache(
     flush_pending_files(cache_dir, &mut state).await;
     flush_pending_cas(cache_dir, &mut state, SkippedCasPolicy::RetainForSizeCheck).await;
     if let Some(limit) = max_size {
-        enforce_max_size(cache_dir, limit, &mut state).await;
+        enforce_max_size(cache_dir, limit, &mut state).await?;
     }
     Ok(state.report)
 }
@@ -290,15 +290,15 @@ async fn flush_size_removals(cache_dir: &Path, state: &mut EvictionState) -> u64
     skipped_files.saturating_add(skipped_cas)
 }
 
-async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionState) {
+async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionState) -> Result<()> {
     let dry_expired = match (state.effect, &state.verdict_expiry) {
         (CacheGcEffect::DryRun, Some(exp)) => exp.reclaimed_bytes,
         _ => 0,
     };
-    let sqlite_bytes = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
+    let sqlite_bytes = resolver_sqlite_bytes(cache_dir).await?.saturating_sub(dry_expired);
     let mut total_size = state.non_evictable_bytes + sqlite_bytes + state.retained_bytes;
     if total_size <= limit {
-        return;
+        return Ok(());
     }
     state.retained.sort_by_key(|entry| entry.effective_time);
     let candidates = std::mem::take(&mut state.retained);
@@ -312,7 +312,7 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
         total_size = queue_lru_entry(cache_dir, entry, total_size, state);
     }
     total_size = total_size.saturating_add(flush_size_removals(cache_dir, state).await);
-    let updated_sqlite = resolver_sqlite_bytes(cache_dir).await.saturating_sub(dry_expired);
+    let updated_sqlite = resolver_sqlite_bytes(cache_dir).await?.saturating_sub(dry_expired);
     let remaining_total = total_size.saturating_sub(sqlite_bytes).saturating_add(updated_sqlite);
     if remaining_total > limit {
         let params = VerdictTrimParams {
@@ -326,6 +326,7 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
         };
         state.report.bytes_reclaimed += trim_verdict_db_to_fit(cache_dir, params).await;
     }
+    Ok(())
 }
 
 fn queue_lru_entry(
