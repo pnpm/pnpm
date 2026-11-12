@@ -276,13 +276,13 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
     let initial = raw_store.issue(&id).await.unwrap();
     assert_eq!(raw_store.lookup(&initial).await.unwrap(), Some(id.clone()));
     {
-        let persist_guard = raw_store.lock_persist_for_test();
+        let database_guard = raw_store.lock_database_for_test();
         let mut revoke_fut = raw_store.revoke_all_for_user(&id);
         let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
         let first_poll = revoke_fut.as_mut().poll(&mut cx);
         assert!(first_poll.is_pending(), "revoke_all_for_user must enter blocking worker");
         drop(revoke_fut);
-        drop(persist_guard);
+        drop(database_guard);
     }
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while !raw_store
@@ -298,7 +298,7 @@ async fn concurrent_sqlite_token_issuance_and_revocation_keep_memory_and_sqlite_
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }
     let finish_store = std::sync::Arc::clone(&raw_store);
-    tokio::task::spawn_blocking(move || drop(finish_store.lock_persist_for_test()))
+    tokio::task::spawn_blocking(move || drop(finish_store.lock_database_for_test()))
         .await
         .unwrap();
     assert!(
@@ -359,7 +359,6 @@ async fn failed_token_revocation_keeps_deactivation_pending_and_blocks_activatio
     let dir = tempfile::tempdir().unwrap();
     let users_path = dir.path().join("users.json");
     let tokens_path = dir.path().join("tokens.db");
-    let backup_path = dir.path().join("tokens.db.bak");
     let users = std::sync::Arc::new(
         UserStore::open_with_cost(users_path.clone(), MaxUsers::Unlimited, 4).unwrap(),
     );
@@ -374,8 +373,13 @@ async fn failed_token_revocation_keeps_deactivation_pending_and_blocks_activatio
     let (_, id) = auth.users.add_or_login("member", "password").await.unwrap();
     let token = auth.tokens.issue(&id).await.unwrap();
 
-    std::fs::rename(&tokens_path, &backup_path).unwrap();
-    std::fs::create_dir(&tokens_path).unwrap();
+    let fault = rusqlite::Connection::open(&tokens_path).unwrap();
+    fault
+        .execute_batch(
+            "CREATE TRIGGER fail_revocation BEFORE DELETE ON tokens
+             BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
+        )
+        .unwrap();
 
     assert!(auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated).await.is_err());
     assert_eq!(
@@ -417,8 +421,7 @@ async fn failed_token_revocation_keeps_deactivation_pending_and_blocks_activatio
         reopened_users.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.is_err(),
     );
 
-    std::fs::remove_dir(&tokens_path).unwrap();
-    std::fs::rename(&backup_path, &tokens_path).unwrap();
+    fault.execute_batch("DROP TRIGGER fail_revocation;").unwrap();
 
     assert_eq!(
         auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)

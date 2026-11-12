@@ -372,9 +372,124 @@ async fn tokens_persist_across_reopen() {
         "token issued before restart must still resolve after reload",
     );
 
-    std::fs::remove_file(&path).unwrap();
-    assert!(reopened.check_readiness().await.is_err());
-    assert!(!path.exists(), "check_readiness must not recreate missing database");
+    // Windows refuses to delete a database the store holds open.
+    #[cfg(unix)]
+    {
+        std::fs::remove_file(&path).unwrap();
+        assert!(reopened.check_readiness().await.is_err());
+        assert!(!path.exists(), "check_readiness must not recreate missing database");
+    }
+}
+
+#[tokio::test]
+async fn tokens_revoked_by_another_process_stop_resolving() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let server = TokenStore::open(path.clone()).unwrap();
+    let revoked = server.issue("alice").await.unwrap();
+    let kept = server.issue("bob").await.unwrap();
+    assert_eq!(
+        server
+            .lookup(&revoked)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+
+    let cli = TokenStore::open(path).unwrap();
+    assert_eq!(cli.revoke_all_for_user("alice").await.unwrap(), 1);
+
+    assert_eq!(server.lookup(&revoked).await.unwrap(), None);
+    assert_eq!(server.lookup_record(&revoked).await.unwrap(), None);
+    assert!(
+        server
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(
+        server
+            .lookup(&kept)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("bob"),
+    );
+}
+
+#[tokio::test]
+async fn token_database_export_includes_commits_in_the_write_ahead_log() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let dest = tmp.path().join("export/tokens.db");
+    std::fs::create_dir(dest.parent().unwrap()).unwrap();
+    std::fs::write(&dest, b"an earlier export").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o644)).unwrap();
+    }
+    let store = TokenStore::open(path.clone()).unwrap();
+    let raw = store.issue("alice").await.unwrap();
+
+    crate::export_token_database(&path, &dest).unwrap();
+
+    let exported = TokenStore::open(dest.clone()).unwrap();
+    assert_eq!(
+        exported
+            .lookup(&raw)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = std::fs::metadata(&dest)
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+}
+
+#[tokio::test]
+async fn tokens_store_own_writes_do_not_reload_from_disk() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let store = TokenStore::open(path).unwrap();
+    let raw = store.issue("alice").await.unwrap();
+    let marker = TokenRecord {
+        owner_name: None,
+        user_id: "memory-only".to_string(),
+        created_at: 1,
+        last_used_at: 1,
+        readonly: false,
+        cidr_whitelist: Vec::new(),
+        name: None,
+        expires_at: None,
+        kind: None,
+    };
+    store.inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .insert("memory-only-key".to_string(), marker);
+
+    store.issue("bob").await.unwrap();
+    store.touch(&raw, 2).await.unwrap();
+    store.revoke_all_for_user("bob").await.unwrap();
+
+    assert!(
+        store
+            .find_by_key("memory-only-key")
+            .await
+            .unwrap()
+            .is_some(),
+        "the store's own commits must not trigger a reload",
+    );
 }
 
 #[tokio::test]

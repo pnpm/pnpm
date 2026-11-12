@@ -20,7 +20,7 @@ pub use account::{
 };
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
-    verify_bcrypt, write_atomic,
+    verify_bcrypt, write_atomic, write_private_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
@@ -28,7 +28,7 @@ pub use owned_tokens::OwnedTokens;
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
 pub use token_store::{
     NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord, TokenStore,
-    has_valid_personal_token_checksum, unix_millis,
+    export_token_database, has_valid_personal_token_checksum, unix_millis,
 };
 pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;

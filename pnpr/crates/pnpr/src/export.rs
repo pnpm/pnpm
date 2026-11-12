@@ -22,6 +22,9 @@ pub async fn export_storage(
     include_auth: bool,
 ) -> miette::Result<ExportReport> {
     fs::create_dir_all(out).await.into_diagnostic()?;
+    if include_auth {
+        refuse_live_auth_files(config, out)?;
+    }
 
     let storage = open_hosted_storage(config).await?;
 
@@ -173,13 +176,45 @@ async fn export_single_blob(
 async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
     if let Some(users_path) = config.identity.auth.users.file.as_deref().filter(|p| p.exists()) {
         let bytes = fs::read(users_path).await.into_diagnostic()?;
-        pnpr_auth::write_atomic(&out.join("users.json"), &bytes).into_diagnostic()?;
+        pnpr_auth::write_private_atomic(&out.join("users.json"), &bytes).into_diagnostic()?;
     }
     if let Some(tok_path) = config.identity.auth.tokens.file.as_deref().filter(|p| p.exists()) {
-        let bytes = fs::read(tok_path).await.into_diagnostic()?;
-        pnpr_auth::write_atomic(&out.join("tokens.db"), &bytes).into_diagnostic()?;
+        let source = tok_path.to_path_buf();
+        let dest = out.join("tokens.db");
+        tokio::task::spawn_blocking(move || pnpr_auth::export_token_database(&source, &dest))
+            .await
+            .into_diagnostic()?
+            .into_diagnostic()?;
     }
     Ok(())
+}
+
+fn refuse_live_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
+    let auth = &config.identity.auth;
+    let live = [auth.users.file.as_deref(), auth.tokens.file.as_deref()];
+    for file in live.into_iter().flatten() {
+        if ["users.json", "tokens.db"]
+            .iter()
+            .any(|name| is_same_file(file, &out.join(name)))
+        {
+            let file = file.display();
+            return Err(miette::miette!(
+                "the export would replace {file}; choose another output directory",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn is_same_file(existing: &Path, candidate: &Path) -> bool {
+    let (Ok(existing), Some(name), Some(Ok(parent))) = (
+        std::fs::canonicalize(existing),
+        candidate.file_name(),
+        candidate.parent().map(std::fs::canonicalize),
+    ) else {
+        return false;
+    };
+    existing == parent.join(name)
 }
 
 fn safe_filename(name: &str) -> Option<&str> {

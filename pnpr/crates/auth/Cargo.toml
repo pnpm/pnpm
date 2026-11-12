@@ -33,7 +33,7 @@ icu_normalizer = { workspace = true }
 libsql = { workspace = true, optional = true }
 openidconnect = { workspace = true }
 reqwest = { workspace = true }
-rusqlite = { workspace = true }
+rusqlite = { workspace = true, features = ["serialize"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 sqlx = { workspace = true, optional = true }
