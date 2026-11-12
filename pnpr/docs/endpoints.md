@@ -524,8 +524,8 @@ published versions remain.
 
 Unpublishing a version removes every dist-tag pointing at it. If `latest`
 pointed at it and versions remain, `latest` moves to the highest remaining
-version. npm visibility and collaborator endpoints return `404` with an
-`unsupported_route` error.
+version. npm visibility and collaborator endpoints return `404` with the
+`ERR_PNPR_UNSUPPORTED_ROUTE` code.
 
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`, including versions in DELETE requests.
@@ -846,7 +846,7 @@ account change reaches only the replica that served it. Use a
 ## Error responses
 
 Errors from pnpr-owned endpoints and npm endpoints return JSON with `error`,
-`reason`, and `code` fields. `error` and `reason` contain the same safe message.
+`reason`, and `code` fields. `error` and `reason` contain the same message.
 `code` identifies the error as `ERR_PNPR_<KIND>`, for example
 `ERR_PNPR_NOT_FOUND` or `ERR_PNPR_TEAMS_CONFIG_MANAGED`.
 HTTP status codes and `Retry-After` headers still describe retry behavior.

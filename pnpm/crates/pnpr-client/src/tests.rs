@@ -905,3 +905,29 @@ async fn handshake_errors_preserve_the_server_code() {
     assert!(message.ends_with(": Service Unavailable"), "{message}");
     response.assert_async().await;
 }
+
+#[tokio::test]
+async fn a_stalled_handshake_error_body_has_a_deadline() {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 1\r\nConnection: close\r\n\r\n")
+            .await.unwrap();
+        pending::<()>().await;
+    });
+    let error = tokio::time::timeout(
+        Duration::from_secs(10),
+        PnprClient::new(format!("http://{address}")).handshake(),
+    )
+    .await
+    .expect("the failed handshake body must time out")
+    .unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("/-/pnpr returned 503 Service Unavailable:"), "{message}");
+    assert!(message.contains("timed out"), "{message}");
+    server.abort();
+}

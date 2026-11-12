@@ -49,7 +49,12 @@ pub(super) async fn check_status(
         return Ok(response);
     }
     let status = response.status();
-    let body = super::response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
+    let body = read_error_body(response).await
+        .map_err(|error| {
+            PnprClientError::server(format!(
+                "{request} returned {status}: failed to read the error response: {error}",
+            ))
+        })?;
     let payload = serde_json::from_slice::<serde_json::Value>(&body).ok();
     let code = payload
         .as_ref()
@@ -68,6 +73,17 @@ pub(super) async fn check_status(
     );
     Err(PnprClientError::server_with_code(message, code))
 }
+
+async fn read_error_body(response: reqwest::Response) -> Result<Vec<u8>, PnprClientError> {
+    tokio::time::timeout(
+        ERROR_BODY_READ_TIMEOUT,
+        super::response_body_bounded(response, MAX_ERROR_BODY_SIZE),
+    )
+    .await
+    .map_err(|error| PnprClientError::Protocol(format!("error response body timed out: {error}")))?
+}
+
+const ERROR_BODY_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Cap on the body read back from a failed request, which is quoted into
 /// the error message.
