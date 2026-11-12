@@ -308,16 +308,14 @@ async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path()
         .expect("run updateConfig hook");
 
     let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is configured");
-    assert!(node_path.contains("/custom"));
-    assert!(!node_path.contains(&lockfile_dir.display().to_string()));
-    assert!(
-        node_path.contains(
-            &workspace
-                .join("node_modules/.pnpm/node_modules")
-                .display()
-                .to_string()
-        ),
-    );
+    assert!(node_path.contains("/custom"), "NODE_PATH was {node_path}");
+    let old_lockfile_dir = lockfile_dir.display().to_string();
+    assert!(!node_path.contains(&old_lockfile_dir), "NODE_PATH was {node_path}");
+    let workspace_node_path = workspace
+        .join("node_modules/.pnpm/node_modules")
+        .display()
+        .to_string();
+    assert!(node_path.contains(&workspace_node_path), "NODE_PATH was {node_path}");
 }
 
 #[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
@@ -371,10 +369,10 @@ async fn update_config_lockfile_dir_preserves_hook_node_options() {
         .expect("run updateConfig hook");
 
     let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is configured");
-    assert!(node_options.contains("--require /custom"));
-    assert!(node_options.contains(
-        pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag()
-    ));
+    assert!(node_options.contains("--require /custom"), "NODE_OPTIONS was {node_options}");
+    let esm_node_path_loader =
+        pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag();
+    assert!(node_options.contains(esm_node_path_loader), "NODE_OPTIONS was {node_options}");
 }
 
 /// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
