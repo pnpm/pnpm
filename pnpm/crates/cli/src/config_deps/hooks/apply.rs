@@ -162,24 +162,31 @@ fn restore_default_lockfile_dir_paths(
             config.install_state_dir = config.modules_dir.join(".pnpm");
         }
     } else if paths_before_hook.lockfile_dir.is_some() {
-        let project_dir = config.dir.clone();
-        let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
-        let project_relative_virtual_store_dir = config.explicit_settings
-            .get("virtualStoreDir")
-            .and_then(Value::as_str)
-            .and_then(|raw| {
-                let dir = configured_virtual_store_dir?;
-                (!Path::new(raw).is_absolute()
+        restore_default_lockfile_dir(config, configured_virtual_store_dir);
+    }
+}
+
+fn restore_default_lockfile_dir(
+    config: &mut Config,
+    configured_virtual_store_dir: Option<&PathBuf>,
+) {
+    let project_dir = config.dir.clone();
+    let lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
+    let project_relative_virtual_store_dir = config.explicit_settings
+        .get("virtualStoreDir")
+        .and_then(Value::as_str)
+        .and_then(|raw| {
+            configured_virtual_store_dir.filter(|dir| {
+                !Path::new(raw).is_absolute()
                     && pnpm_fs::lexical_normalize(dir)
-                        == pnpm_fs::lexical_normalize(&project_dir.join(raw)))
-                .then(|| dir.clone())
-            });
-        config.anchor_lockfile_paths(&default_lockfile_dir);
-        if !config.enable_global_virtual_store
-            && let Some(dir) = project_relative_virtual_store_dir
-        {
-            config.set_virtual_store_dir(dir);
-        }
+                        == pnpm_fs::lexical_normalize(&project_dir.join(raw))
+            })
+        });
+    config.anchor_lockfile_paths(&lockfile_dir);
+    if !config.enable_global_virtual_store
+        && let Some(dir) = project_relative_virtual_store_dir
+    {
+        config.set_virtual_store_dir(dir.clone());
     }
 }
 
