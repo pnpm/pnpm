@@ -31,6 +31,32 @@ test('using a global virtual store', async () => {
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('shared global virtual store bin shims do not capture the installing project', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin-parent': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+  })
+  await execPnpm(['install'])
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/hello-world-js-bin-parent/1.0.0')
+  const [hash] = fs.readdirSync(versionDir)
+  const binDir = path.join(
+    versionDir,
+    hash!,
+    'node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin'
+  )
+  const shim = fs.readdirSync(binDir).find((name) => name.startsWith('hello-world-js-bin'))
+  expect(shim).toBeDefined()
+  expect(fs.readFileSync(path.join(binDir, shim!), 'utf8')).not.toContain(process.cwd())
+})
+
 test('scripts resolve phantom ESM imports through the private hoist', async () => {
   prepare({
     dependencies: {

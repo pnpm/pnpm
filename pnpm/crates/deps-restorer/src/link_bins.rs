@@ -23,6 +23,7 @@ use pnpm_cmd_shim::{
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     io,
     path::{Path, PathBuf},
@@ -107,9 +108,7 @@ pub struct LinkVirtualStoreBins<'a> {
     /// `<slot>/node_modules/<alias>` would fail. Excluding them up
     /// front matches the rest of the install pipeline's filtering.
     pub skipped: &'a SkippedSnapshots,
-    /// [`shim_link_options`] output — pnpm threads the same
-    /// `extraNodePaths` into slot-internal bin shims as into importer
-    /// bins.
+    /// [`shim_link_options`] output used for importer bins.
     pub link_options: &'a LinkBinsOptions,
 }
 
@@ -135,12 +134,20 @@ impl LinkVirtualStoreBins<'_> {
             + FsSetExecutable
             + FsEnsureExecutableBits,
     {
+        let link_options = if self.layout.uses_global_virtual_store() {
+            let mut options = self.link_options.clone();
+            options.extra_node_paths.clear();
+            Cow::Owned(options)
+        } else {
+            Cow::Borrowed(self.link_options)
+        };
         if let Some(snapshots) = self.snapshots {
             let has_bin_set = build_has_bin_set(self.packages);
             let bundling_set = build_bundling_set(self.packages);
             self.run_lockfile_driven::<Sys>(
                 snapshots,
                 BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
+                &link_options,
             )
         } else {
             // No snapshots (lockfile absent or empty): fall back to a
@@ -148,7 +155,7 @@ impl LinkVirtualStoreBins<'_> {
             // frozen installs, which <https://github.com/pnpm/pacquet/issues/432> doesn't activate GVS for, so
             // reading from `layout.package_store_dir()` reproduces
             // today's behaviour exactly when GVS is off.
-            run_with_readdir::<Sys>(self.layout.package_store_dir(), self.link_options)
+            run_with_readdir::<Sys>(self.layout.package_store_dir(), &link_options)
         }
     }
 
@@ -166,6 +173,7 @@ impl LinkVirtualStoreBins<'_> {
         &self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
         sets: BinSlotSets<'_>,
+        link_options: &LinkBinsOptions,
     ) -> Result<(), LinkVirtualStoreBinsError>
     where
         Sys: FsReadDir
@@ -197,7 +205,7 @@ impl LinkVirtualStoreBins<'_> {
             sets,
             package_manifests: self.package_manifests,
             package_bins: self.package_bins,
-            link_options: self.link_options,
+            link_options,
             shim_cache,
         };
         slot_entries

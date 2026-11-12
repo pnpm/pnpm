@@ -203,6 +203,44 @@ fn using_a_global_virtual_store() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
+    let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
+    let bin = package.join("node_modules/.bin/hello-world-js-bin");
+    let shim = fs::read_dir(bin.parent().expect("bin directory exists"))
+        .expect("read package bin directory")
+        .map(|entry| entry.expect("read bin entry"))
+        .find(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("hello-world-js-bin")
+        })
+        .expect("the dependency bin shim exists");
+    let content = fs::read_to_string(shim.path()).expect("read dependency bin shim");
+    assert!(
+        !content.contains(&workspace.to_string_lossy().to_string()),
+        "a shared bin shim must not contain the installing project path: {content:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `reinstall from warm global virtual store after deleting
 /// node_modules` (`globalVirtualStore.ts:63`) and the CLI-level `warm GVS
 /// reinstall skips internal linking` (`pnpm/test/install/globalVirtualStore.ts:80`).
