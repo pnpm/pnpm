@@ -77,6 +77,104 @@ fn edit_dependency_successfully() {
 }
 
 #[test]
+fn edit_opens_nested_dependency_in_isolated_layout() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let nested_package = "@pnpm.e2e/pkg-with-1-dep/@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let package_dir =
+        dunce::canonicalize(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep")).unwrap();
+    let nested_package_dir = package_dir
+        .ancestors()
+        .find(|ancestor| {
+            ancestor
+                .file_name()
+                .is_some_and(|name| name == "node_modules")
+        })
+        .unwrap()
+        .join("@pnpm.e2e/dep-of-pkg-with-1-dep");
+    let command = pacquet(&workspace);
+    command
+        .with_args([
+            "edit",
+            nested_package,
+            "--editor",
+            "node -e \"require('fs').writeFileSync(process.argv[1]+'/edited','yes')\"",
+        ])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(nested_package_dir.join("edited")).unwrap(), "yes");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_uses_active_workspace_member_modules() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let member_dir = workspace.join("packages/app");
+    fs::create_dir_all(&member_dir).unwrap();
+    fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "dependencies": {
+                "@pnpm.e2e/bar": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(&workspace, "packages", "\n  - 'packages/app'");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let member_package_dir = member_dir.join("node_modules/@pnpm.e2e/bar");
+    let output = pacquet(&member_dir)
+        .with_args([
+            "edit",
+            "@pnpm.e2e/bar",
+            "--editor",
+            "node -e \"require('fs').writeFileSync(process.argv[1]+'/edited','yes')\"",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(fs::read_to_string(member_package_dir.join("edited")).unwrap(), "yes");
+    assert!(!workspace.join("node_modules/@pnpm.e2e/bar/edited").exists());
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
 fn edit_dependency_fails_with_invalid_editor() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

@@ -165,10 +165,19 @@ fn resolve_package_dir(
             // pnpm's isolated layout puts a package and its dependency links
             // beside one another in `<slot>/node_modules`, not under the
             // package directory itself.
-            current_dir
-                .parent()
-                .unwrap_or(&current_dir)
-                .join(part)
+            let package_modules = current_dir
+                .ancestors()
+                .find(|ancestor| {
+                    ancestor
+                        .file_name()
+                        .is_some_and(|name| name == "node_modules")
+                })
+                .ok_or_else(|| {
+                    miette!(
+                        "Could not find package node_modules directory under isolated virtual store"
+                    )
+                })?;
+            package_modules.join(part)
         } else {
             current_dir.join("node_modules").join(part)
         };
