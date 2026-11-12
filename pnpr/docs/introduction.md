@@ -20,8 +20,8 @@ Users can sign in through [OpenID Connect](oidc.md).
 Every registry origin pnpr serves is a declared
 [registry](configuration.md#registries-and-defaultregistry) that claims the
 package names it serves, and a router resolves each package name to exactly
-one origin. There is no cross-origin fall-through, which closes
-dependency-confusion attacks by construction.
+one origin. There is no cross-origin fall-through, so clients that resolve
+through a router are protected from dependency-confusion attacks.
 
 pnpr lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under
 [`pnpr/`](https://github.com/pnpm/pnpm/tree/main/pnpr).

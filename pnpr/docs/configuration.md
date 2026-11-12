@@ -108,8 +108,13 @@ resolves to exactly one declared origin, and no configuration can express a
 cross-origin fall-through, not on "not found" and not on "unavailable". Claimed
 package patterns are enforced at the registry, on every path to it: a read of an
 unclaimed name is a definitive 404 answered before storage or the
-upstream is consulted, and a publish of an unclaimed name is rejected. This closes
-the dependency-confusion class of attacks by construction.
+upstream is consulted, and a publish of an unclaimed name is rejected.
+
+A router closes the dependency-confusion class of attacks for every client that
+resolves through it. Each registry checks only its own claims, so a request
+addressed to an upstream's own `/~<name>/` URL gets any name that upstream
+claims, including a name in a scope a hosted registry claims. Point clients at
+a router, not at an upstream.
 
 `defaultRegistry` names the registry that an ecosystem's base URL, such as
 `https://<pnpr>/npm/`, aliases. This is usually a router. When omitted, the base serves
