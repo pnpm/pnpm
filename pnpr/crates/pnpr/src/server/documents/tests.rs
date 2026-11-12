@@ -87,7 +87,11 @@ async fn a_removed_package_keeps_its_owner_record() {
         storage.write_hosted_document_if_current(&key, b"", removal, None).await.unwrap();
 
         let mut document = CrateDocument::new("demo");
-        assert!(restore_owners(&storage, &key, &mut document).await.unwrap(), "{owners:?}");
+        assert_eq!(
+            restore_owners(&storage, &key, &mut document).await.unwrap(),
+            Some(pnpr_storage::HostedDocumentVersion::Tombstone(owners.clone())),
+            "{owners:?}",
+        );
         assert_eq!(document.owners, owners);
     }
 }

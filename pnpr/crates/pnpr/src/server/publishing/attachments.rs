@@ -2,9 +2,9 @@ pub(super) use slot_writes::{write_attachment_slot, write_attachment_slots};
 
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
-    Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_against_packument, authorize_package, cleanup_tmp_slots, extract_attachments,
-    generated_archive, hosted_storage,
+    Integrity, Ownership, PendingAttachment, RegistryError, RegistrySource, Storage, Value,
+    WriteTarget, authorize_against_packument, authorize_package, authorize_with_ownership,
+    cleanup_tmp_slots, extract_attachments, generated_archive, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -232,8 +232,12 @@ pub(in super::super) async fn stage_publish(
     let storage = hosted_storage(state, namespace);
 
     let mut base = read_staged_base(state, &storage, namespace, &doc).await?;
-    check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
-    reauthorize_staged(state, &doc, &base)?;
+    let tombstone = check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
+    reauthorize_staged(state, &doc, &base, tombstone.as_ref())?;
+    if base.version.is_none() {
+        base.version =
+            tombstone.map(|tombstone| HostedDocumentVersion::Tombstone(tombstone.maintainers));
+    }
     let publisher = doc.publisher.user_id().map(str::to_string);
     let (merged, without_any) =
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
@@ -261,20 +265,32 @@ pub(in super::super) async fn stage_publish(
     })
 }
 
-/// Repeat the `publish` check against the document read under the package
-/// lock. The first check ran before the lock, so another publish may have
-/// claimed a new name since.
+/// Repeat the `publish` check against the document or tombstone read under the
+/// package lock. The first check ran before the lock, so another publish or
+/// unpublish may have changed the package's ownership since.
 fn reauthorize_staged(
     state: &AppState,
     doc: &ValidatedPublish,
     base: &StagedBase,
+    tombstone: Option<&pnpr_storage::PackageTombstone>,
 ) -> Result<(), RegistryError> {
-    let Some(packument) = &base.packument else {
-        return Ok(());
-    };
     let source = RegistrySource::Hosted(doc.registry.clone());
-    let package = (doc.name.as_str(), packument);
-    authorize_against_packument(state, &doc.publisher, &source, package, Action::Publish)
+    if let Some(packument) = &base.packument {
+        let package = (doc.name.as_str(), packument);
+        return authorize_against_packument(
+            state,
+            &doc.publisher,
+            &source,
+            package,
+            Action::Publish,
+        );
+    }
+    let ownership = match tombstone {
+        Some(tombstone) => Ownership::Owners(&tombstone.maintainers),
+        None => Ownership::Unclaimed,
+    };
+    let package = (doc.name.as_str(), &ownership);
+    authorize_with_ownership(state, &doc.publisher, &source, package, Action::Publish)
 }
 
 async fn prepare_publish_document(

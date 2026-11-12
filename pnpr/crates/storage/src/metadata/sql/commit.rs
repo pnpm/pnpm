@@ -9,6 +9,7 @@ use super::{
     oci_rows::{self, OCI_STATE_VERSION, StoredOci},
     packument::{PackumentRows, VersionRows, decompose},
     pypi_rows::{self, PYPI_STATE_VERSION, StoredPypi},
+    removed::{tombstone_owners_from, tombstone_owners_query},
     tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows, validate_packument_tags},
     to_column, to_generation,
 };
@@ -86,6 +87,7 @@ fn validate_stored_state_version(key: &PackageKey, raw_version: i64) -> Result<u
 /// before it changes anything.
 pub(super) struct StoredPackage {
     row: Option<PackageRow>,
+    tombstone_owners: Option<Vec<String>>,
     ecosystem: StoredEcosystem,
 }
 
@@ -103,7 +105,7 @@ enum StoredEcosystem {
 impl StoredPackage {
     /// The reads of a package of `key`'s ecosystem, for [`Self::from_rows`].
     pub(super) fn queries(key: &PackageKey) -> Vec<Query<'_>> {
-        let mut queries = vec![package_row_query(key)];
+        let mut queries = vec![package_row_query(key), tombstone_owners_query(key)];
         match key.ecosystem {
             Ecosystem::Npm => {
                 let (namespace, ecosystem, name) = key.params();
@@ -146,13 +148,14 @@ impl StoredPackage {
                 })
         };
         let row = package_row_from(key, next()?)?;
+        let tombstone_owners = tombstone_owners_from(next()?)?;
         let ecosystem = match key.ecosystem {
             Ecosystem::Npm => npm_from_rows(&mut next)?,
             Ecosystem::Cargo => StoredEcosystem::Cargo(cargo_rows::from_rows(next()?, next()?)?),
             Ecosystem::Pypi => StoredEcosystem::Pypi(pypi_rows::from_rows(next()?, next()?)?),
             Ecosystem::Oci => StoredEcosystem::Oci(oci_rows::from_rows(next()?, next()?)?),
         };
-        Ok(Self { row, ecosystem })
+        Ok(Self { row, tombstone_owners, ecosystem })
     }
 }
 
@@ -243,7 +246,7 @@ impl Commit<'_> {
         &self,
         stored: StoredPackage,
         bytes: &[u8],
-        expected: Expected,
+        expected: &Expected,
         principal: Option<&str>,
         records: &ReleaseRecords,
     ) -> Result<Option<bool>> {
@@ -251,7 +254,10 @@ impl Commit<'_> {
             Ecosystem::Npm => Some(decompose(bytes)?),
             Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => None,
         };
-        if !expected.admits(stored.row.as_ref().map(|row| row.generation)) {
+        if !expected.admits(
+            stored.row.as_ref().map(|row| row.generation),
+            stored.tombstone_owners.as_deref(),
+        ) {
             return Ok(None);
         }
         let changed = match stored.ecosystem {
@@ -284,7 +290,7 @@ pub(super) fn write_document(
     connection: &dyn Connection,
     key: &PackageKey,
     bytes: &[u8],
-    expected: Expected,
+    expected: &Expected,
     principal: Option<&str>,
 ) -> Result<DocumentWrite> {
     let (mut batch, results) =

@@ -1,8 +1,9 @@
 pub(super) use accounts::require_active_account;
 pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
-    Ownership, allows_with_ownership, authorize, authorize_against_packument,
-    authorize_continuation, authorize_package, authorize_with_ownership, needs_package_owners,
+    AuthorizationDecision, Ownership, allows_with_ownership, authorize,
+    authorize_against_packument, authorize_continuation, authorize_package,
+    authorize_with_ownership, authorize_without_owners, needs_package_owners,
 };
 
 mod accounts;

@@ -1,8 +1,9 @@
 use super::{
-    super::{Ownership, authorize_with_ownership, require_admin, resolve_write_target_for},
-    Action, AppState, AuthedCaller, CanonicalPackageName, ECOSYSTEM, HashMap, Identity, Path,
-    ProjectDocument, RegistryError, RegistrySource, Response, State, StatusCode, TargetRegistry,
-    Yanked, is_safe_path_segment, not_found, private_no_cache,
+    super::{require_admin, resolve_write_target_for},
+    Action, AppState, AuthedCaller, CanonicalPackageName, ECOSYSTEM, HashMap, Identity, Ownership,
+    Path, ProjectDocument, RegistryError, RegistrySource, Response, State, StatusCode,
+    TargetRegistry, Yanked, authorize_package, authorize_with_ownership, is_safe_path_segment,
+    not_found, private_no_cache,
 };
 use axum::{Json, response::IntoResponse};
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
@@ -98,33 +99,49 @@ async fn update_file(
     let target = resolve_write_target_for(state, identity, registry, ECOSYSTEM, &key)?;
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let hosted = RegistrySource::Hosted(target.source);
-    // A yank is checked against each document the retry reads, so an owner
-    // removed by a concurrent write cannot yank afterwards. A delete is an
-    // admin's, checked above.
-    let authorize = |owners: &[String]| match yanked {
-        Some(_) => {
-            let ownership = Ownership::Owners(owners);
-            let package = (key.as_str(), &ownership);
-            authorize_with_ownership(state, identity, &hosted, package, Action::Publish)
-        }
-        None => Ok(()),
-    };
-    state.inner.storage
+    let mut authorized = yanked.is_none();
+    let outcome = state.inner.storage
         .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
-            update_document(existing, &key, (filename, yanked.as_ref()), &authorize)
+            let Some(bytes) = existing else { return Ok(None) };
+            let document = ProjectDocument::parse(bytes)?;
+            if yanked.is_some() {
+                authorize_project_yank(state, identity, &hosted, (&key, &document))?;
+                authorized = true;
+            }
+            update_document(document, &key, filename, yanked.as_ref())
         })
-        .await
+        .await?;
+    if !authorized {
+        authorize_package(
+            state,
+            identity,
+            &hosted,
+            key.as_str(),
+            Action::Publish,
+            Some(target.namespace.as_str()),
+        )
+        .await?;
+    }
+    Ok(outcome)
+}
+
+fn authorize_project_yank(
+    state: &AppState,
+    identity: &Identity,
+    hosted: &RegistrySource,
+    (key, document): (&CanonicalPackageName, &ProjectDocument),
+) -> Result<(), RegistryError> {
+    let ownership = Ownership::Owners(&document.owners);
+    authorize_with_ownership(state, identity, hosted, (key.as_str(), &ownership), Action::Publish)
 }
 
 fn update_document(
-    existing: Option<&[u8]>,
+    mut document: ProjectDocument,
     key: &CanonicalPackageName,
-    (filename, yanked): (&str, Option<&Yanked>),
-    authorize: &impl Fn(&[String]) -> Result<(), RegistryError>,
+    filename: &str,
+    yanked: Option<&Yanked>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    let Some(bytes) = existing else { return Ok(None) };
-    let mut document = ProjectDocument::parse(bytes)?;
     if document.format_version > pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
             document: key.as_str().to_string(),
@@ -132,7 +149,6 @@ fn update_document(
             supported_version: pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION,
         });
     }
-    authorize(&document.owners)?;
     let Some(index) = document.files
         .iter()
         .position(|file| file.filename == filename)

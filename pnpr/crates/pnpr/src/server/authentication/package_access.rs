@@ -207,6 +207,40 @@ pub(in crate::server) fn needs_package_owners(
     !list.allows(identity) && list.references_owners()
 }
 
+/// Outcome of [`authorize_without_owners`].
+pub(in crate::server) enum AuthorizationDecision {
+    /// Allowed by the rule (or admin role) without reading stored owners.
+    AllowedWithoutOwners,
+    /// The rule references `$owners` and needs the stored document's owners.
+    NeedsOwners,
+}
+
+/// Authorize `identity` for `action` on `package` when the rule can decide
+/// without reading the package's stored owners.
+pub(in crate::server) fn authorize_without_owners(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    package: &str,
+    action: Action,
+) -> Result<AuthorizationDecision, RegistryError> {
+    let rules = source_rules(state, source).snapshot();
+    let list = permission_list(&rules, package, action);
+    if list.allows(identity) {
+        return Ok(AuthorizationDecision::AllowedWithoutOwners);
+    }
+    if list.references_owners()
+        && identity.is_authenticated()
+        && list.allows_with_context(identity, true)
+    {
+        if is_admin(state, identity) {
+            return Ok(AuthorizationDecision::AllowedWithoutOwners);
+        }
+        return Ok(AuthorizationDecision::NeedsOwners);
+    }
+    Err(denial(identity, package, action))
+}
+
 pub(in crate::server) async fn authorize_package(
     state: &AppState,
     identity: &Identity,
@@ -215,17 +249,12 @@ pub(in crate::server) async fn authorize_package(
     action: Action,
     namespace: Option<&str>,
 ) -> Result<(), RegistryError> {
-    let rules = source_rules(state, source).snapshot();
-    let list = permission_list(&rules, package, action);
-    if list.allows(identity) {
-        return Ok(());
+    match authorize_without_owners(state, identity, source, package, action)? {
+        AuthorizationDecision::AllowedWithoutOwners => return Ok(()),
+        AuthorizationDecision::NeedsOwners => {}
     }
-    if list.references_owners() && identity.is_authenticated() {
-        let is_owner =
-            is_package_owner(state, identity, (source, package), namespace, action).await?;
-        if list.allows_with_context(identity, is_owner) {
-            return Ok(());
-        }
+    if is_package_owner(state, identity, (source, package), namespace, action).await? {
+        return Ok(());
     }
     Err(denial(identity, package, action))
 }

@@ -1,8 +1,8 @@
 use super::{
-    PackageKey,
-    adapter::Connection,
+    Expected, PackageKey,
+    adapter::{Connection, Query, Row},
     batch::Batch,
-    commit::{package_row_from, package_row_query},
+    commit::{package_row_from, package_row_query, parse_json},
     to_column,
     transactions::Freshness,
 };
@@ -10,6 +10,12 @@ use crate::{BlobId, PackageTombstone, metadata::PackageMetadata};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
+
+pub(crate) enum RemovedPackage {
+    Removed(Vec<BlobId>),
+    NotFound,
+    Conflict,
+}
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
@@ -31,12 +37,13 @@ const PACKAGE_TABLES: [&str; 13] = [
 
 /// Remove every row of the package except its tag history and the identities
 /// of its versions, which stay removed, under a new generation. Returns the
-/// blobs its files were mapped to, `None` when there was no package.
+/// blobs its files were mapped to.
 pub(super) fn remove_package(
     connection: &dyn Connection,
     key: &PackageKey,
+    expected: &Expected,
     principal: Option<&str>,
-) -> Result<Option<Vec<BlobId>>> {
+) -> Result<RemovedPackage> {
     let (namespace, ecosystem, name) = key.params();
     let mapped = query!(
         "SELECT DISTINCT blob_id FROM artifact_blobs
@@ -49,8 +56,11 @@ pub(super) fn remove_package(
         Batch::begin_with(connection, &key.namespace, &[package_row_query(key), mapped])?;
     let mut results = results.into_iter();
     let Some(row) = package_row_from(key, results.next().unwrap_or_default())? else {
-        return Ok(None);
+        return Ok(RemovedPackage::NotFound);
     };
+    if !expected.admits(Some(row.generation), None) {
+        return Ok(RemovedPackage::Conflict);
+    }
     let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
     record_removed_package(batch.transaction(), key, batch.generation(), &row.state, principal)?;
     for table in PACKAGE_TABLES {
@@ -65,7 +75,7 @@ pub(super) fn remove_package(
     }
     batch.touch(key);
     batch.finish()?;
-    Ok(Some(ids))
+    Ok(RemovedPackage::Removed(ids))
 }
 
 const RECORD_PACKAGE: DialectSql = DialectSql::with_mysql(
@@ -294,6 +304,24 @@ impl PackageMetadata {
         })
         .await
     }
+}
+
+pub(super) fn tombstone_owners_query(key: &PackageKey) -> Query<'_> {
+    let (namespace, ecosystem, name) = key.params();
+    query!(
+        "SELECT maintainers FROM removed_packages
+         WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+        namespace,
+        ecosystem,
+        name,
+    )
+}
+
+pub(super) fn tombstone_owners_from(rows: Vec<Row>) -> Result<Option<Vec<String>>> {
+    rows.into_iter()
+        .next()
+        .map(|mut row| parse_json(&row.get::<String>(0)?))
+        .transpose()
 }
 
 fn read_package(connection: &dyn Connection, key: &PackageKey) -> Result<Option<PackageTombstone>> {

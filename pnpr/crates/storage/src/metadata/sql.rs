@@ -15,6 +15,7 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
+pub(crate) use removed::RemovedPackage;
 pub use rule_overrides::{
     RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrideSet, StoredRuleOverrides,
 };
@@ -109,9 +110,10 @@ impl PackageKey {
 }
 
 /// The stored document a write expects to replace.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Expected {
     Absent,
+    Tombstone(Vec<String>),
     Generation(u64),
     Any,
 }
@@ -120,6 +122,7 @@ impl Expected {
     fn from_version(version: Option<&HostedDocumentVersion>) -> Result<Self> {
         match version {
             None => Ok(Self::Absent),
+            Some(HostedDocumentVersion::Tombstone(owners)) => Ok(Self::Tombstone(owners.clone())),
             Some(HostedDocumentVersion::Generation(value)) => Ok(Self::Generation(*value)),
             Some(HostedDocumentVersion::Unversioned) => Ok(Self::Any),
             Some(HostedDocumentVersion::ObjectVersion(_)) => Err(RegistryError::Internal {
@@ -129,10 +132,13 @@ impl Expected {
         }
     }
 
-    fn admits(self, current: Option<u64>) -> bool {
+    fn admits(&self, current: Option<u64>, tombstone_owners: Option<&[String]>) -> bool {
         match self {
-            Self::Absent => current.is_none(),
-            Self::Generation(expected) => current == Some(expected),
+            Self::Absent => current.is_none() && tombstone_owners.is_none(),
+            Self::Tombstone(expected) => {
+                current.is_none() && tombstone_owners == Some(expected.as_slice())
+            }
+            Self::Generation(expected) => current == Some(*expected),
             Self::Any => true,
         }
     }

@@ -265,14 +265,16 @@ pub(super) async fn try_write(
         .read_hosted_document_for_update(&npm(name))
         .await
         .unwrap();
+    let version = match current {
+        Some(doc) => Some(doc.version),
+        None => storage
+            .read_tombstone(&npm(name))
+            .await
+            .unwrap()
+            .map(|tombstone| HostedDocumentVersion::Tombstone(tombstone.maintainers)),
+    };
     let bytes = serde_json::to_vec(document).unwrap();
-    storage.write_hosted_document_if_current(
-        &npm(name),
-        &bytes,
-        current.map(|doc| doc.version).as_ref(),
-        None,
-    )
-    .await
+    storage.write_hosted_document_if_current(&npm(name), &bytes, version.as_ref(), None).await
 }
 
 pub(super) async fn read(storage: &Storage, name: &str) -> Value {
@@ -442,14 +444,40 @@ async fn generations_advance_per_namespace(db: Db) {
 
 async fn a_write_from_a_stale_read_conflicts(db: Db) {
     let storage = storage(&db);
-    write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
+    let mut initial = packument("pkg", &["1.0.0"]);
+    initial["maintainers"] = json!([{ "name": "alice", "userId": "alice" }]);
+    write(&storage, "pkg", &initial).await;
     let stale = storage
         .read_hosted_document_for_update(&npm("pkg"))
         .await
         .unwrap()
         .unwrap();
-    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
-    let bytes = serde_json::to_vec(&packument("pkg", &["1.0.0", "3.0.0"])).unwrap();
+    let mut second = packument("pkg", &["1.0.0", "2.0.0"]);
+    second["maintainers"] = json!([{ "name": "alice", "userId": "alice" }]);
+    write(&storage, "pkg", &second).await;
+    let stale_tag = TagChange {
+        tag: "next",
+        target: Some("2.0.0"),
+        principal: Some("alice"),
+        expected: Some(&stale.version),
+    };
+    assert_eq!(
+        storage
+            .change_dist_tag(&npm("pkg"), stale_tag)
+            .await
+            .unwrap(),
+        TagUpdate::Conflict,
+    );
+    assert_eq!(
+        storage
+            .remove_package_if_current(&npm("pkg"), &stale.version, Some("alice"))
+            .await
+            .unwrap(),
+        crate::PackageRemoval::Conflict,
+    );
+    let mut third = packument("pkg", &["1.0.0", "2.0.0", "3.0.0"]);
+    third["maintainers"] = json!([{ "name": "alice", "userId": "alice" }]);
+    let bytes = serde_json::to_vec(&third).unwrap();
     let outcome = storage
         .write_hosted_document_if_current(&npm("pkg"), &bytes, Some(&stale.version), None)
         .await
@@ -464,6 +492,75 @@ async fn a_write_from_a_stale_read_conflicts(db: Db) {
     let unconditional =
         storage.write_hosted_document_if_current(&npm("pkg"), &bytes, any, None).await;
     assert_eq!(unconditional.unwrap(), DocumentWrite::Written);
+
+    // Once removed, a tombstone blocks Expected::Absent and a mismatched
+    // Expected::Tombstone, and admits only the matching Tombstone.
+    let current = storage
+        .read_hosted_document_for_update(&npm("pkg"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        storage
+            .remove_package_if_current(&npm("pkg"), &current.version, Some("alice"))
+            .await
+            .unwrap(),
+        crate::PackageRemoval::Removed,
+    );
+    assert_eq!(
+        storage
+            .remove_package_if_current(&npm("pkg"), &current.version, Some("alice"))
+            .await
+            .unwrap(),
+        crate::PackageRemoval::NotFound,
+    );
+    let reclaimed = serde_json::to_vec(&packument("pkg", &["4.0.0"])).unwrap();
+    assert_eq!(
+        storage
+            .write_hosted_document_if_current(&npm("pkg"), &reclaimed, None, None)
+            .await
+            .unwrap(),
+        DocumentWrite::Conflict,
+    );
+    let wrong_tombstone = HostedDocumentVersion::Tombstone(vec!["bob".to_string()]);
+    assert_eq!(
+        storage
+            .write_hosted_document_if_current(
+                &npm("pkg"),
+                &reclaimed,
+                Some(&wrong_tombstone),
+                None,
+            )
+            .await
+            .unwrap(),
+        DocumentWrite::Conflict,
+    );
+    let unclaimed = serde_json::to_vec(&packument("unclaimed", &["1.0.0"])).unwrap();
+    assert_eq!(
+        storage
+            .write_hosted_document_if_current(
+                &npm("unclaimed"),
+                &unclaimed,
+                Some(&wrong_tombstone),
+                None,
+            )
+            .await
+            .unwrap(),
+        DocumentWrite::Conflict,
+    );
+    let matching_tombstone = HostedDocumentVersion::Tombstone(vec!["alice".to_string()]);
+    assert_eq!(
+        storage
+            .write_hosted_document_if_current(
+                &npm("pkg"),
+                &reclaimed,
+                Some(&matching_tombstone),
+                None,
+            )
+            .await
+            .unwrap(),
+        DocumentWrite::Written,
+    );
 }
 
 async fn a_tag_change_reuses_every_fragment(db: Db) {
@@ -471,7 +568,8 @@ async fn a_tag_change_reuses_every_fragment(db: Db) {
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "1.1.0", "2.0.0"])).await;
     read(&storage, "pkg").await;
     assert_eq!(stats(&storage).fragments_rendered, 3);
-    let change = TagChange { tag: "next", target: Some("2.0.0"), principal: Some("alice") };
+    let change =
+        TagChange { tag: "next", target: Some("2.0.0"), principal: Some("alice"), expected: None };
     let update = storage
         .change_dist_tag(&npm("pkg"), change)
         .await
@@ -547,7 +645,8 @@ async fn tag_moves_are_recorded(db: Db) {
         .write_hosted_document_if_current(&npm("pkg"), &published, None, Some("carol"))
         .await
         .unwrap();
-    let set = TagChange { tag: "next", target: Some("1.0.0"), principal: Some("alice") };
+    let set =
+        TagChange { tag: "next", target: Some("1.0.0"), principal: Some("alice"), expected: None };
     storage
         .change_dist_tag(&npm("pkg"), set)
         .await
@@ -556,7 +655,7 @@ async fn tag_moves_are_recorded(db: Db) {
         .change_dist_tag(&npm("pkg"), set)
         .await
         .unwrap();
-    let remove = TagChange { tag: "next", target: None, principal: Some("bob") };
+    let remove = TagChange { tag: "next", target: None, principal: Some("bob"), expected: None };
     storage
         .change_dist_tag(&npm("pkg"), remove)
         .await
@@ -631,7 +730,7 @@ async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
         ("latest", Some("9.9.9")),
         ("latest", None),
     ] {
-        let change = TagChange { tag, target, principal: None };
+        let change = TagChange { tag, target, principal: None, expected: None };
         let error = storage
             .change_dist_tag(&npm("pkg"), change)
             .await
@@ -649,7 +748,7 @@ async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
         }
     }
     write(&storage, "pkg", &packument("pkg", &[])).await;
-    let remove = TagChange { tag: "latest", target: None, principal: None };
+    let remove = TagChange { tag: "latest", target: None, principal: None, expected: None };
     assert!(
         storage
             .change_dist_tag(&npm("pkg"), remove)

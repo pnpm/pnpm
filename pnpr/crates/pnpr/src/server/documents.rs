@@ -21,7 +21,7 @@ use pnpr_policy::Identity;
 use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobId, BlobSlot, Storage,
+    BlobId, BlobSlot, HostedDocumentVersion, Storage,
     metadata::{ArtifactBlob, BlobLookup, HostedLookup},
 };
 
@@ -326,10 +326,12 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             supported_version: Document::FORMAT_VERSION,
         });
     }
-    let record = if stored.is_some() || restore_owners(&storage, key, &mut document).await? {
-        OwnerRecord::Recorded
-    } else {
-        OwnerRecord::Unclaimed
+    let (version, record) = match stored {
+        Some(stored) => (Some(stored.version), OwnerRecord::Recorded),
+        None => match restore_owners(&storage, key, &mut document).await? {
+            Some(tombstone) => (Some(tombstone), OwnerRecord::Recorded),
+            None => (None, OwnerRecord::Unclaimed),
+        },
     };
     claim_ownership(state, target, key, &mut document, record)?;
     refuse(&document)?;
@@ -341,7 +343,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         ecosystem: Document::ECOSYSTEM,
         document: document.to_bytes(),
         base: StagedBase {
-            version: stored.map(|stored| stored.version),
+            version,
             packument: None,
             blobs: base.blobs,
             references: artifact.references,
@@ -365,18 +367,19 @@ enum OwnerRecord {
 }
 
 /// Give a package being published again after its removal the owners its
-/// tombstone kept. Returns whether there was a tombstone: one with no owners
-/// still records them, so `$owners` admits only admins.
+/// tombstone kept, and return the [`HostedDocumentVersion::Tombstone`] the
+/// commit must still see. One with no owners still records them, so `$owners`
+/// admits only admins.
 async fn restore_owners<Document: HostedDocument>(
     storage: &Storage,
     key: &CanonicalPackageName,
     document: &mut Document,
-) -> Result<bool, RegistryError> {
+) -> Result<Option<HostedDocumentVersion>, RegistryError> {
     let Some(tombstone) = storage.read_tombstone(key).await? else {
-        return Ok(false);
+        return Ok(None);
     };
-    *document.owners_mut() = tombstone.maintainers;
-    Ok(true)
+    document.owners_mut().clone_from(&tombstone.maintainers);
+    Ok(Some(HostedDocumentVersion::Tombstone(tombstone.maintainers)))
 }
 
 /// Admit the publisher against the owners `document` records, as read under

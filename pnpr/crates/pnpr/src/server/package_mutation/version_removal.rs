@@ -1,11 +1,14 @@
 //! Removing one version a tarball `DELETE` names from its packument, so its
 //! files' mappings go in that commit and their archives are reclaimed.
 
-use super::{reclaim_unpublished_blobs, unpublished_blobs};
+use super::{
+    super::{Action, AppState, WriteTarget, hosted_storage},
+    read_authorized_packument, reclaim_unpublished_blobs, unpublished_blobs,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite};
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite, wait_after_document_write_conflict};
 use serde_json::{Map, Value};
 
 /// Remove `version` from `name`'s packument when it still lists it, and
@@ -14,14 +17,19 @@ use serde_json::{Map, Value};
 /// none is. Other tags naming it are removed. Concurrent commits cause a retry.
 /// The removed version and former maintainers are recorded together.
 pub(super) async fn remove_listed_version(
-    storage: &pnpr_storage::Storage,
+    state: &AppState,
     identity: &Identity,
-    name: &CanonicalPackageName,
-    version: &str,
+    target: &WriteTarget,
+    (name, version): (&CanonicalPackageName, &str),
 ) -> Result<bool, RegistryError> {
-    for _ in 0..DOCUMENT_WRITE_RETRIES {
-        if let Some(listed) = try_remove_listed_version(storage, identity, name, version).await? {
-            return Ok(listed);
+    for attempt in 0..DOCUMENT_WRITE_RETRIES {
+        let outcome = try_remove_listed_version(state, identity, target, (name, version)).await?;
+        match outcome {
+            Some(listed) => return Ok(listed),
+            None if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
+                wait_after_document_write_conflict(attempt).await;
+            }
+            None => {}
         }
     }
     Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
@@ -30,28 +38,33 @@ pub(super) async fn remove_listed_version(
 /// One attempt at [`remove_listed_version`]; `None` when another writer
 /// changed the packument since it was read.
 async fn try_remove_listed_version(
-    storage: &pnpr_storage::Storage,
+    state: &AppState,
     identity: &Identity,
-    name: &CanonicalPackageName,
-    version: &str,
+    target: &WriteTarget,
+    (name, version): (&CanonicalPackageName, &str),
 ) -> Result<Option<bool>, RegistryError> {
-    let Some(stored) = storage.read_hosted_document_for_update(name).await? else {
+    let storage = hosted_storage(state, Some(&target.namespace));
+    let Some((mut packument, doc_version)) =
+        read_authorized_packument(state, identity, (target, name), Action::Unpublish).await?
+    else {
+        if storage.read_tombstone(name).await?.is_none() {
+            return Err(RegistryError::NotFound);
+        }
         return Ok(Some(false));
     };
-    let mut packument: Value = serde_json::from_slice(&stored.bytes)?;
     let Some(object) = packument.as_object_mut() else { return Ok(Some(false)) };
     if !drop_version(object, version) {
         return Ok(Some(false));
     }
     let removed = [version.to_string()];
-    let unpublished = unpublished_blobs(storage, name, &removed).await;
+    let unpublished = unpublished_blobs(&storage, name, &removed).await;
     let bytes = serde_json::to_vec(&packument)?;
     let principal = identity.user_id();
-    match storage.write_hosted_document_if_current(name, &bytes, Some(&stored.version), principal)
+    match storage.write_hosted_document_if_current(name, &bytes, Some(&doc_version), principal)
         .await?
     {
         DocumentWrite::Written => {
-            reclaim_unpublished_blobs(storage, name, unpublished).await;
+            reclaim_unpublished_blobs(&storage, name, unpublished).await;
             Ok(Some(true))
         }
         DocumentWrite::Conflict => Ok(None),

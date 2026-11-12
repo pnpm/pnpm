@@ -35,7 +35,7 @@ pub(crate) use self::backend::HostedBackend;
 
 pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
 
-pub use archives::{PromotedArchive, archive_temp_bases};
+pub use archives::{PackageRemoval, PromotedArchive, archive_temp_bases};
 pub use blob_id::{BlobId, parse_blob_key};
 
 pub use staged_archives::{
@@ -121,7 +121,7 @@ pub(crate) fn document_write_conflict_delay(attempt: usize) -> Duration {
     Duration::from_millis(delay)
 }
 
-pub(crate) async fn wait_after_document_write_conflict(attempt: usize) {
+pub async fn wait_after_document_write_conflict(attempt: usize) {
     tokio::time::sleep(document_write_conflict_delay(attempt)).await;
 }
 

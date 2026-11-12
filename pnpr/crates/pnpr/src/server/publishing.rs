@@ -44,9 +44,10 @@ use pnpr_storage::{
 };
 
 use super::{
-    Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_against_packument,
-    authorize_package, authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
-    parse_json_body, resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
+    Action, AppState, HostedGate, Ownership, RegistrySource, WriteTarget,
+    authorize_against_packument, authorize_package, authorize_with_ownership, authorized_upstream,
+    default_registry_target, hosted_gate, hosted_storage, parse_json_body,
+    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
     staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
 };
 
