@@ -136,7 +136,11 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
             .parent()
             .unwrap()
             .exists();
-        assert_eq!(kept, unit.after_restore == Kept, "{}", unit.file);
+        let expected_kept = match unit.after_restore {
+            Invalidated => false,
+            Kept => true,
+        };
+        assert_eq!(kept, expected_kept, "{}", unit.file);
     }
 }
 
@@ -145,7 +149,6 @@ struct Unit {
     after_restore: Fingerprint,
 }
 
-#[derive(PartialEq)]
 enum Fingerprint {
     Invalidated,
     Kept,
