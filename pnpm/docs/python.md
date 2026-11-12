@@ -153,7 +153,7 @@ pnpm reads what each release requires from the metadata file the index publishes
 
 ### Faster resolution through pnpr
 
-With [`pnprServer`](/pnpr/install-acceleration) set, the server resolves the Python graph, so pnpm does not read the index to find out what each release requires. A server that does not answer for Python, or refuses the request, makes pnpm fall back to resolving locally.
+With [`pnprServer`](/pnpr/install-acceleration) set, the server resolves the Python graph, so pnpm does not read the index to find out what each release requires. pnpm resolves locally if the server does not answer for Python, or if it refuses a setting or lockfile format the request uses. pnpm also resolves locally if the graph needs a package that only this machine can resolve, such as one from an explicit source or one whose metadata comes only from building its source distribution. Other server errors stop the install.
 
 Python graphs configured with multiple indexes, overrides, constraints, or explicit target environments resolve locally. pnpr cannot represent these resolution settings.
 
