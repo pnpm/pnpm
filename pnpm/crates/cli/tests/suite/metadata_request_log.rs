@@ -47,6 +47,51 @@ fn every_case_of_the_shared_table() {
     }
 }
 
+/// An explicit lockfile directory equal to the project default must keep a
+/// frozen CLI install on the same metadata path as an unset lockfileDir.
+#[test]
+fn explicit_default_lockfile_dir_does_not_add_frozen_metadata_requests() {
+    let unset = frozen_install_metadata_requests(false);
+    let explicit = frozen_install_metadata_requests(true);
+
+    assert_eq!(explicit, unset, "explicit lockfileDir added frozen-install metadata requests");
+}
+
+fn frozen_install_metadata_requests(explicit_lockfile_dir: bool) -> Vec<(String, Option<String>, u16)> {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_recording_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.1.0" }
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet.arg("install");
+    pacquet.assert().success();
+    drop(mock_instance.take_requests());
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove installed modules");
+    fs::remove_dir_all(cache_dir.join("v12/metadata")).expect("clear registry metadata cache");
+
+    if explicit_lockfile_dir {
+        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+        fs::write(&workspace_yaml, format!("{yaml}lockfileDir: .\n"))
+            .expect("set default-equivalent lockfileDir");
+    }
+
+    pacquet.arg("--frozen-lockfile");
+    pacquet.assert().success();
+    let mut requests: Vec<_> = mock_instance
+        .take_requests()
+        .into_iter()
+        .filter(|request| !is_tarball(request))
+        .map(|request| (request.path, request.accept, request.status))
+        .collect();
+    requests.sort();
+    drop(root);
+    requests
+}
+
 type InstallLogs = Vec<Vec<String>>;
 
 /// Each install's metadata requests as the table spells them, and its

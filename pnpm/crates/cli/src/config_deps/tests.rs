@@ -147,7 +147,7 @@ async fn update_config_lockfile_dir_uses_the_invoking_project_as_its_default() {
     assert!(config.shares_one_lockfile());
 }
 
-#[cfg(unix)]
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
 #[tokio::test]
 async fn update_config_lockfile_dir_refreshes_derived_node_path() {
     let root = tempfile::tempdir().expect("workspace tempdir");
@@ -191,7 +191,7 @@ async fn update_config_lockfile_dir_refreshes_derived_node_path() {
     );
 }
 
-#[cfg(unix)]
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
 #[tokio::test]
 async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path() {
     let root = tempfile::tempdir().expect("workspace tempdir");
@@ -242,7 +242,7 @@ async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path()
     );
 }
 
-#[cfg(unix)]
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
 #[tokio::test]
 async fn update_config_lockfile_dir_preserves_hook_node_path() {
     let root = tempfile::tempdir().expect("workspace tempdir");

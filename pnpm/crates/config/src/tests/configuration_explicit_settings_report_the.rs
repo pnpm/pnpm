@@ -403,7 +403,7 @@ pub fn lockfile_dir_equal_to_a_dedicated_project_keeps_its_default_paths() {
     assert!(!config.shares_one_lockfile());
 }
 
-#[cfg(windows)]
+#[cfg_attr(not(windows), ignore = "requires Windows path semantics")]
 #[test]
 pub fn case_equivalent_lockfile_dir_keeps_dedicated_project_layout() {
     let tmp = tempdir().unwrap();
