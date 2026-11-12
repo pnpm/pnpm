@@ -74,3 +74,16 @@ fn an_entry_without_an_integrity_is_not_keyed() {
     });
     assert_eq!(keys_for(&entries, SHA512), Vec::<String>::new());
 }
+
+#[test]
+fn an_entry_is_not_keyed_by_a_weaker_hash_than_its_strongest() {
+    let entries = entries(text_block! {
+        "lockfileVersion: '9.0'"
+        "packages:"
+        "  is-number@7.0.0:"
+        "    resolution: {integrity: sha512-Wu1VHeILBK8KAWJUAiSZQX94GmOE45Rg6/538fKwiloUu21KncEkYGPqob2oSZ5mUT73vLGrHQjKw3KMPwfDzg== sha1-dTU0W4lnNNX4DE0GxQlVUnoU8Ss=}"
+    });
+    let strongest = "sha512-Wu1VHeILBK8KAWJUAiSZQX94GmOE45Rg6/538fKwiloUu21KncEkYGPqob2oSZ5mUT73vLGrHQjKw3KMPwfDzg==";
+    assert_eq!(keys_for(&entries, SHA1), Vec::<String>::new());
+    assert_eq!(keys_for(&entries, strongest), [format!("{strongest} {SHA1}\tis-number@7.0.0")]);
+}

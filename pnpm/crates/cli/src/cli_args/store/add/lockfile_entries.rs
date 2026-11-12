@@ -11,7 +11,9 @@ use ssri::{Hash, Integrity};
 use std::path::Path;
 
 /// Every lockfile entry that pins an archive by integrity, indexed by each
-/// hash its integrity lists.
+/// hash of the strongest algorithm its integrity lists. A tarball matching
+/// only a weaker hash of an entry does not satisfy it, since installing the
+/// entry verifies the strongest one.
 #[derive(Debug, Default)]
 pub(super) struct LockfileEntries {
     store_index_keys_by_hash: FxHashMap<Hash, Vec<String>>,
@@ -36,7 +38,15 @@ impl LockfileEntries {
         for (key, metadata) in lockfile.packages.iter().flatten() {
             let Some(integrity) = pinned_integrity(&metadata.resolution) else { continue };
             let entry_key = store_index_key(&integrity.to_string(), &key.pkg_id());
-            for hash in &integrity.hashes {
+            // `Algorithm` orders the strongest first.
+            let strongest = integrity.hashes
+                .iter()
+                .map(|hash| hash.algorithm)
+                .min();
+            for hash in integrity.hashes
+                .iter()
+                .filter(|hash| Some(hash.algorithm) == strongest)
+            {
                 store_index_keys_by_hash
                     .entry(hash.clone())
                     .or_default()
