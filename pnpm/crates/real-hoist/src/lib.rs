@@ -475,10 +475,10 @@ fn get_used_dependencies(root: &Rc<HoisterResult>) -> HashMap<String, Rc<Hoister
         for (name, dep) in node.hoisted_dependencies.borrow().iter() {
             used.insert(name.clone(), Rc::clone(dep));
         }
+        // Unlike upstream, a peer edge here is a copy nested under the node,
+        // so the names its subtree resolves above the root count too.
         for dep in node.dependencies.borrow().iter() {
-            if !node.peer_names.contains(&dep.0.name) {
-                pending.push(Rc::clone(&dep.0));
-            }
+            pending.push(Rc::clone(&dep.0));
         }
     }
     used
@@ -489,26 +489,6 @@ fn get_used_dependencies(root: &Rc<HoisterResult>) -> HashMap<String, Rc<Hoister
 /// of the [`HoistingLimits`] keys and upstream's `node.locator`.
 fn node_locator(node: &HoisterResult) -> String {
     format!("{}@{}", node.ident_name, node_ident(node))
-}
-
-/// Whether two nodes are the same package *version*, ignoring the
-/// peer-resolution suffix — upstream's `ident` equality (its
-/// `makeIdent` strips the virtual segment the way this drops the
-/// `(...)` suffix). Peer-suffix variants of one version compare
-/// equal.
-fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
-    fn ident_of(node: &HoisterResult) -> String {
-        let references = node.references.borrow();
-        let reference = references
-            .iter()
-            .next()
-            .map_or("", String::as_str);
-        match reference.find('(') {
-            Some(idx) => reference[..idx].to_string(),
-            None => reference.to_string(),
-        }
-    }
-    left.ident_name == right.ident_name && ident_of(left) == ident_of(right)
 }
 
 /// Whether an ancestor strictly below the root carries a different

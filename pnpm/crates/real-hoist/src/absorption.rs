@@ -1,6 +1,6 @@
 use super::{
     HashMap, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident, path_shadowed,
-    same_ident, same_locator,
+    same_locator,
 };
 
 /// Outcome of the per-child hoist decision at the root.
@@ -58,7 +58,8 @@ pub(super) enum AbsorbDecision {
     /// The subtree of the current hoist root resolves this name
     /// through an ancestor directory (a provider hoisted above the
     /// root earlier — see [`get_used_dependencies`](crate::get_used_dependencies)), and the
-    /// candidate is a different version. Taking the root's name slot
+    /// candidate is a different locator, a peer variant included.
+    /// Taking the root's name slot
     /// would shadow those resolutions, so the candidate stays
     /// nested. Ports the `usedDependencies` gate in upstream's
     /// [`getNodeHoistInfo`][used-gate].
@@ -125,12 +126,11 @@ fn refuse_shadowed(
 
     // Used-dependency refusal: the root's subtree already
     // resolves this name from an ancestor directory; a different
-    // version must not take the root's slot (and a same-version
-    // dedup stays allowed — it resolves identically).
+    // locator, a peer variant included, must not take the root's slot.
     if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
         && used
             .get(&child.name)
-            .is_some_and(|provider| !same_ident(provider, child))
+            .is_some_and(|provider| !same_locator(provider, child))
     {
         decision = AbsorbDecision::UsedShadow;
     }
