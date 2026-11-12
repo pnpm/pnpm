@@ -398,9 +398,35 @@ pub fn lockfile_dir_equal_to_a_dedicated_project_keeps_its_default_paths() {
     let config = Config::new().current::<HostNoHome>(&project).expect("loads");
 
     assert_eq!(config.lockfile_dir, None);
-    assert_eq!(config.modules_dir, project.join("node_modules"));
-    assert_eq!(config.install_state_dir, project.join("node_modules/.pnpm"));
+    assert_eq!(config.modules_dir, workspace.join("node_modules"));
+    assert_eq!(config.install_state_dir, workspace.join("node_modules/.pnpm"));
     assert!(!config.shares_one_lockfile());
+}
+
+#[test]
+pub fn default_lockfile_dir_keeps_workspace_relative_path_settings() {
+    let tmp = tempdir().unwrap();
+    let workspace = tmp.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let settings = "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nmodulesDir: custom_modules\nvirtualStoreDir: cache\n";
+    fs::write(&workspace_yaml, settings).expect("write workspace settings");
+    let without_lockfile_dir =
+        Config::new().current::<HostNoHome>(&project).expect("loads without lockfileDir");
+
+    fs::write(&workspace_yaml, format!("{settings}lockfileDir: packages/app\n"))
+        .expect("write default lockfileDir");
+    let with_default_lockfile_dir =
+        Config::new().current::<HostNoHome>(&project).expect("loads default lockfileDir");
+
+    assert_eq!(with_default_lockfile_dir.lockfile_dir, None);
+    assert_eq!(with_default_lockfile_dir.modules_dir, without_lockfile_dir.modules_dir);
+    assert_eq!(
+        with_default_lockfile_dir.virtual_store_dir(),
+        without_lockfile_dir.virtual_store_dir(),
+    );
+    assert_eq!(with_default_lockfile_dir.install_state_dir, without_lockfile_dir.install_state_dir,);
 }
 
 #[cfg_attr(not(windows), ignore = "requires Windows path semantics")]
