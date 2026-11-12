@@ -375,7 +375,10 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
         None,
     )
     .unwrap();
-    assert_eq!(with_secret.resolution_cache_secret.as_ref(), b"pnpm-registry-mock-secret-key-32");
+    assert_eq!(
+        with_secret.resolution_cache_secret,
+        crate::derive_subkey(b"pnpm-registry-mock-secret-key-32", b"pnpr cache v1"),
+    );
 
     // No `secret:` yields a fresh 32-byte CSPRNG value.
     let without_secret = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
@@ -443,8 +446,9 @@ storage: ./storage
 packumentTtl: 42s
 requestTimeout: 55s
 shutdownTimeout: 20s
-trustedProxies: [127.0.0.1]
-trustedProxyHeader: x-real-ip
+trustedProxies:
+  networks: [127.0.0.1]
+  header: x-real-ip
 cors:
   allowedOrigins: ['https://example.com']
 routes:
@@ -504,8 +508,8 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
             "cloudflareCdn:\n  apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
         ("secret", "secret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
-        ("secrets.cache", "secrets:\n  cache: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
-        ("secrets.oci", "secrets:\n  oci: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        ("secret.cache", "secret:\n  cache: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        ("secret.oci", "secret:\n  oci: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         (
             "s3.secretAccessKey",
             "s3:\n  bucket: b\n  secretAccessKey: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
@@ -517,28 +521,20 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
             "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      login:\n        clientSecret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n        users: []\n",
         ),
         (
-            "backend.libsql.authToken",
+            "database.authToken",
             "database:\n  url: libsql://x\n  authToken: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "database.url",
+            "database:\n  url: postgres://pnpr:${PNPR_TEST_UNRESOLVED_VAR_123}@db/pnpr\n",
         ),
         (
             "upstream.auth.token",
             "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    auth:\n      type: bearer\n      token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
         (
-            "grouped.upstream.auth.token",
-            "registries:\n  npm:\n    ext:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
-        ),
-        (
             "upstream.headers.authorization",
             "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    headers:\n      Authorization: Bearer ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
-        ),
-        (
-            "grouped.nested.named.type.auth.token",
-            "registries:\n  npm:\n    type:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
-        ),
-        (
-            "grouped.nested.named.url.auth.token",
-            "registries:\n  npm:\n    url:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
     ];
 
@@ -547,7 +543,9 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
         match err {
             RegistryError::InvalidConfig { reason } => {
                 assert!(
-                    reason.contains("references unset environment variable"),
+                    reason.contains(
+                        "references the unset environment variable ${PNPR_TEST_UNRESOLVED_VAR_123}"
+                    ),
                     "expected unset env var error for {field}, got: {reason}",
                 );
             }
@@ -563,40 +561,68 @@ secret: ${PNPR_TEST_UNSET_KEY:-my-fallback-secret-at-least-32-bytes}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.has_configured_secret);
-    assert_eq!(config.resolution_cache_secret.as_ref(), b"my-fallback-secret-at-least-32-bytes");
+    assert_eq!(
+        config.resolution_cache_secret,
+        crate::derive_subkey(b"my-fallback-secret-at-least-32-bytes", b"pnpr cache v1"),
+    );
 }
 
 #[test]
-fn independent_secrets_configuration_and_derivation() {
+fn every_key_derives_from_its_configured_secret() {
     let yaml = "\
-secrets:
+secret:
   cache: my-explicit-cache-secret-32-bytes
   oci: my-explicit-oci-secret-32-bytes!!
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.has_configured_secret);
-    assert_eq!(config.cache_secret.as_ref(), b"my-explicit-cache-secret-32-bytes");
-    assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
+    assert_eq!(
+        config.cache_secret,
+        crate::derive_subkey(b"my-explicit-cache-secret-32-bytes", b"pnpr cache v1"),
+    );
+    assert_eq!(
+        config.oci_secret,
+        crate::derive_subkey(b"my-explicit-oci-secret-32-bytes!!", b"pnpr OCI token signing v1"),
+    );
 
-    let master_yaml = "secret: master-secret-at-least-32-bytes-long";
-    let master_config =
-        Config::from_yaml_str(master_yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(master_config.has_configured_secret);
-    assert_eq!(master_config.cache_secret.as_ref(), b"master-secret-at-least-32-bytes-long");
-    assert_ne!(master_config.oci_secret.as_ref(), master_config.cache_secret.as_ref());
-    assert_eq!(master_config.oci_secret.len(), 32);
+    let root = "master-secret-at-least-32-bytes-long";
+    let root_config =
+        Config::from_yaml_str(&format!("secret: {root}"), Path::new("/x"), listen(), None).unwrap();
+    assert!(root_config.has_configured_secret);
+    assert_eq!(root_config.cache_secret, crate::derive_subkey(root.as_bytes(), b"pnpr cache v1"));
+    assert_eq!(
+        root_config.oci_secret,
+        crate::derive_subkey(root.as_bytes(), b"pnpr OCI token signing v1"),
+    );
+}
+
+#[test]
+fn removed_secrets_block_is_rejected() {
+    let yaml = "secrets:\n  cache: my-explicit-cache-secret-32-bytes\n";
+    assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
 }
 
 #[test]
 fn oci_only_secret_does_not_flag_configured_cache_secret() {
     let yaml = "\
-secrets:
+secret:
   oci: my-explicit-oci-secret-32-bytes!!
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(!config.has_configured_secret);
-    assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
+    assert_eq!(
+        config.oci_secret,
+        crate::derive_subkey(b"my-explicit-oci-secret-32-bytes!!", b"pnpr OCI token signing v1"),
+    );
     assert_eq!(config.cache_secret.len(), 32);
+}
+
+#[test]
+fn unset_variable_in_a_typed_field_names_the_placeholder() {
+    let yaml = "auth:\n  users:\n    maxUsers: ${PNPR_TEST_UNRESOLVED_VAR_123}\n";
+    let reason =
+        Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err().to_string();
+    assert!(reason.contains("${PNPR_TEST_UNRESOLVED_VAR_123}"), "{reason}");
 }
 
 #[test]
@@ -611,7 +637,7 @@ fn unresolved_secret_in_a_flow_mapping_is_rejected() {
         "${PNPR_TEST_UNRESOLVED_VAR_123:-fallback}",
     );
     let config = Config::from_yaml_str(&with_default, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
+    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token.expose(), "prefix-fallback");
 }
 
 #[test]
@@ -619,7 +645,7 @@ fn optional_nonsecret_variables_in_flow_mappings_remain_optional() {
     let yaml = r#"{ storage: ${PNPR_TEST_UNRESOLVED_VAR_123}./store, cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${PNPR_TEST_UNRESOLVED_VAR_123:-fallback}, cacheTag: example } }"#;
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.storage.hosted_dir.ends_with("store"));
-    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token, "prefix-fallback");
+    assert_eq!(config.http.cloudflare_cdn.unwrap().api_token.expose(), "prefix-fallback");
 }
 
 #[test]
@@ -633,17 +659,16 @@ fn expanded_yaml_fragments_do_not_hide_unresolved_secrets() {
     let raw = r#"${CONFIG_FRAGMENT}
 cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
 "#;
-    let error = crate::secrets::validate_secret_env_vars::<FragmentEnv>(raw).unwrap_err();
+    let error = crate::loading::parse_config_file_with_env::<FragmentEnv>(raw).unwrap_err();
     let message = error.to_string();
-    assert!(message.contains("cloudflareCdn.apiToken"));
     assert!(message.contains("CF_TOKEN"));
     assert!(!message.contains("prefix-"));
     let optional = raw.replace("prefix-${CF_TOKEN}", "${CF_TOKEN-example-token}");
-    crate::secrets::validate_secret_env_vars::<FragmentEnv>(&optional).unwrap();
+    crate::loading::parse_config_file_with_env::<FragmentEnv>(&optional).unwrap();
 }
 
 #[test]
-fn unset_yaml_fragments_do_not_hide_unresolved_secrets() {
+fn unset_variable_that_breaks_the_yaml_is_an_error() {
     struct EmptyEnv;
     impl pnpm_env_replace::EnvVar for EmptyEnv {
         fn var(_: &str) -> Option<String> {
@@ -651,12 +676,10 @@ fn unset_yaml_fragments_do_not_hide_unresolved_secrets() {
         }
     }
     let raw = r#"${UNSET_NON_SECRET}
-cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: example-token, cacheTag: example }
 "#;
-    let error = crate::secrets::validate_secret_env_vars::<EmptyEnv>(raw).unwrap_err();
-    assert!(error.to_string().contains("cloudflareCdn.apiToken"));
-    let optional = raw.replace("prefix-${CF_TOKEN}", "example-token");
-    crate::secrets::validate_secret_env_vars::<EmptyEnv>(&optional).unwrap();
+    let error = crate::loading::parse_config_file_with_env::<EmptyEnv>(raw).unwrap_err();
+    assert!(error.to_string().contains("${UNSET_NON_SECRET}"), "{error}");
 }
 
 #[test]
@@ -675,5 +698,5 @@ fn flow_mapping_validation_does_not_expand_resolved_secrets_twice() {
 ui: { dir: ${OPTIONAL_DIR} }
 cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: ${CF_TOKEN}, cacheTag: example }
 "#;
-    crate::secrets::validate_secret_env_vars::<LiteralEnv>(raw).unwrap();
+    crate::loading::parse_config_file_with_env::<LiteralEnv>(raw).unwrap();
 }

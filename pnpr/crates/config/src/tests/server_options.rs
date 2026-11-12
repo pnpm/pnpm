@@ -279,7 +279,7 @@ fn a_scim_token_must_be_long_and_stays_out_of_debug_output() {
     let token = "a".repeat(crate::ScimConfig::MIN_TOKEN_LEN);
     let config = Config::from_yaml_str(&yaml(&token), Path::new("/x"), listen(), None).unwrap();
     let scim = config.identity.auth.scim.as_ref().expect("auth.scim is set");
-    assert_eq!(scim.token, token);
+    assert_eq!(scim.token.expose(), token);
     assert!(!format!("{scim:?}").contains(&token));
 }
 
@@ -377,10 +377,11 @@ fn trusted_proxies_parses_cidrs_and_loopback() {
     let yaml = "\
 storage: ./s
 trustedProxies:
-  - loopback
-  - 10.0.0.0/8
-  - 192.168.1.1
-trustedProxyHeader: forwarded
+  networks:
+    - loopback
+    - 10.0.0.0/8
+    - 192.168.1.1
+  header: forwarded
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.http.trusted_proxies.len(), 4);

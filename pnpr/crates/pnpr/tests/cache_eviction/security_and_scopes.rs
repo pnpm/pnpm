@@ -220,7 +220,7 @@ async fn cli_cache_gc_rejects_unconfigured_secret_on_populated_persistent_cache(
     .await
     .unwrap_err();
     assert!(
-        err.to_string().contains("`secret` or `secrets.cache` must be configured"),
+        err.to_string().contains("`secret` or `secret.cache` must be configured"),
         "unexpected error: {err}",
     );
     assert!(active_file.exists(), "populated private cache must not be wiped on missing secret");

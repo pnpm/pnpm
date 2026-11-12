@@ -1,7 +1,7 @@
 use super::{
     ByteSize, Config, ConfigFile, HttpConfig, Interval, MetricsConfig, Path, RegistryError,
-    SocketAddr, TrustedProxyHeader, build_cors_config, build_oci_config,
-    build_package_documents_config, build_ui_config, cdn, parse_interval, parse_trusted_proxies,
+    SocketAddr, build_cors_config, build_oci_config, build_package_documents_config,
+    build_ui_config, cdn, parse_interval, parse_trusted_proxies,
 };
 use crate::byte_size::parse_positive_byte_size;
 
@@ -13,11 +13,8 @@ pub(super) fn build_http_config(
 ) -> Result<HttpConfig, RegistryError> {
     let cors = build_cors_config(std::mem::take(&mut file.cors))?;
     let ui = build_ui_config(std::mem::take(&mut file.ui), base_dir);
-    let trusted_proxies = parse_trusted_proxies(&file.trusted_proxies)?;
-    let trusted_proxy_header = match file.trusted_proxy_header.as_deref() {
-        Some(raw) => raw.parse::<TrustedProxyHeader>()?,
-        None => TrustedProxyHeader::default(),
-    };
+    let trusted_proxies = parse_trusted_proxies(&file.trusted_proxies.networks)?;
+    let trusted_proxy_header = file.trusted_proxies.header.unwrap_or_default();
     let request_timeout = build_request_timeout(file.request_timeout.as_ref())?;
     let shutdown_timeout = build_shutdown_timeout(file.shutdown_timeout.take())?;
     let packument_ttl = build_packument_ttl(file.packument_ttl.take())?;

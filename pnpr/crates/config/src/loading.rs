@@ -3,10 +3,10 @@ use super::{
     HostedStoreConfig, Path, PathBuf, RegistryError, RemovedGroupsBlock, RemovedPackagesBlock,
     RemovedUplinksBlock, RemovedUpstreamsBlock, ResolvedFileRegistries, RoutesFile, SocketAddr,
     SystemEnv, build_features, build_identity_config, build_log_config, build_osv_config,
-    build_route_policy, config_file_in, env_replace_lossy, http_config::build_http_config,
-    resolve_file_registries, resolve_secrets, resolve_storage_paths,
+    build_route_policy, config_file_in, http_config::build_http_config, resolve_file_registries,
+    resolve_secrets, resolve_storage_paths,
 };
-use crate::{config_file::RegistryFile, secrets::validate_secret_env_vars};
+use crate::config_file::RegistryFile;
 
 impl Config {
     /// Load YAML from `path` and merge it with runtime values
@@ -219,7 +219,7 @@ impl Config {
             upstreams: file.upstreams.as_ref(),
         })?;
         let (routing, features) = build_routing_and_features(&mut file, overrides)?;
-        let secrets = resolve_secrets(file.secret.as_deref(), file.secrets.as_ref())?;
+        let secrets = resolve_secrets(file.secret.as_ref())?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
@@ -287,19 +287,7 @@ pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> 
 pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
     raw: &str,
 ) -> Result<ConfigFile, RegistryError> {
-    validate_secret_env_vars::<Sys>(raw)?;
-    let (substituted, unresolved) = env_replace_lossy::<Sys>(raw);
-    if !unresolved.is_empty() {
-        tracing::warn!(?unresolved, "config references unset environment variables");
-    }
-    let parsed: Option<ConfigFile> = serde_saphyr::from_str(&substituted)
-        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
-    let file = match parsed {
-        Some(file) => file,
-        None => serde_saphyr::from_str("{}")
-            .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?,
-    };
-    Ok(file)
+    crate::secret::parse_with_env::<Sys, ConfigFile>(raw)
 }
 
 /// The global ACL and group blocks are gone, not ignorable: they used

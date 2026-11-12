@@ -9,7 +9,7 @@ use std::fmt;
 pub struct ScimConfig {
     /// The bearer secret the identity provider sends. It authenticates only
     /// the SCIM endpoints.
-    pub token: String,
+    pub token: crate::Secret,
 }
 
 impl ScimConfig {

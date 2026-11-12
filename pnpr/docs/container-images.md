@@ -66,7 +66,7 @@ exchange their pnpr credential at `/v2/token` for a five-minute token scoped to
 actions the caller already has; the parent credential's revocation, read-only
 flag, and network restrictions all still apply. Anonymous tokens can pull public
 repositories. Scoped tokens reach neither the other pnpr APIs nor the whole
-catalog. Use the same [`secret:`](configuration.md#secret-and-secrets) and registry
+catalog. Use the same [`secret:`](configuration.md#secret) and registry
 configuration on every replica so their tokens interoperate.
 
 ## Uploads and limits

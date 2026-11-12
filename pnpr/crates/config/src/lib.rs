@@ -25,9 +25,9 @@ pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
+pub use secret::Secret;
 pub use secrets::{
-    CACHE_SECRET_MARKER, MIN_RESOLUTION_SECRET_LEN, cache_secret_fingerprint, derive_subkey,
-    random_secret, resolution_secret,
+    CACHE_SECRET_MARKER, MIN_SECRET_LEN, cache_secret_fingerprint, derive_subkey, random_secret,
 };
 pub use storage_config::{
     CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
@@ -89,6 +89,7 @@ use registry_graph::{
 
 mod s3;
 mod scim;
+mod secret;
 mod secrets;
 mod storage_config;
 mod trusted_proxy_header;
@@ -106,7 +107,7 @@ use object_store::{
     ObjectStore,
     aws::{AmazonS3Builder, AmazonS3ConfigKey},
 };
-use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use pnpm_env_replace::{EnvVar, SystemEnv};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
@@ -173,7 +174,8 @@ pub struct Config {
     pub cache_secret: Arc<[u8]>,
     /// Secret keying OCI token signing.
     pub oci_secret: Arc<[u8]>,
-    /// Whether `secret:` or `secrets:` was explicitly provided in configuration rather than generated randomly.
+    /// Whether `secret:` configures the cache key, rather than a per-process
+    /// random root.
     pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,

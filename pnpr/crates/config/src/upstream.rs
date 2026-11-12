@@ -156,7 +156,7 @@ impl fmt::Debug for RedactedHeaders<'_> {
 pub(super) struct UpstreamConfigFile {
     pub(super) url: String,
     pub(super) auth: Option<UpstreamAuthFile>,
-    pub(super) headers: IndexMap<String, String>,
+    pub(super) headers: IndexMap<String, crate::Secret>,
     /// Interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
     /// number of seconds; parsed by [`parse_interval`] in
     /// [`resolve_upstream_config`]. Kept as raw strings here so an unparsable
@@ -218,7 +218,7 @@ impl<'de> Deserialize<'de> for Interval {
 pub(super) struct UpstreamAuthFile {
     pub(super) r#type: UpstreamAuthType,
     #[serde(default)]
-    pub(super) token: Option<String>,
+    pub(super) token: Option<crate::Secret>,
     #[serde(default)]
     pub(super) token_env: Option<TokenEnv>,
 }

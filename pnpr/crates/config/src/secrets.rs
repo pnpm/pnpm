@@ -1,17 +1,20 @@
 use std::sync::Arc;
 
-use pnpm_env_replace::{EnvVar, env_replace_lossy, placeholder_ranges};
 use pnpr_error::RegistryError;
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::config_file::SecretsFile;
+use crate::secret::Secret;
 
-/// Minimum length of an explicit `secret:` in bytes.
-pub const MIN_RESOLUTION_SECRET_LEN: usize = 16;
+/// Minimum length of a configured `secret:` in bytes.
+pub const MIN_SECRET_LEN: usize = 16;
 
 /// Marker file in `cache_dir` recording the one-way fingerprint of the cache
 /// secret that initialized the directory.
 pub const CACHE_SECRET_MARKER: &str = ".cache-secret";
+
+const CACHE_KEY_PURPOSE: &[u8] = b"pnpr cache v1";
+const OCI_KEY_PURPOSE: &[u8] = b"pnpr OCI token signing v1";
 
 /// Derive a domain-separated subkey from a master secret using SHA-256 (`purpose \0 root_secret`).
 #[must_use]
@@ -36,85 +39,6 @@ pub fn cache_secret_fingerprint(cache_secret: &[u8]) -> String {
     out
 }
 
-/// The HMAC secret keying private resolution-cache entries: the YAML
-/// `secret:` when set (rejected if too short to be a safe HMAC key), else a
-/// fresh per-process value.
-pub fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
-    match secret {
-        Some(secret) => {
-            validate_secret_len("secret:", secret)?;
-            Ok(Arc::from(secret.as_bytes().to_vec()))
-        }
-        None => Ok(random_secret()),
-    }
-}
-
-/// Resolved cache and OCI secrets with configuration status.
-pub(crate) struct ResolvedSecrets {
-    pub(crate) cache: Arc<[u8]>,
-    pub(crate) oci: Arc<[u8]>,
-    pub(crate) has_configured: bool,
-}
-
-fn validate_secret_len(field: &str, secret: &str) -> Result<(), RegistryError> {
-    if secret.len() < MIN_RESOLUTION_SECRET_LEN {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "`{field}` must be at least {MIN_RESOLUTION_SECRET_LEN} bytes (it is {})",
-                secret.len(),
-            ),
-        });
-    }
-    Ok(())
-}
-
-fn resolve_cache_secret(
-    master: Option<&[u8]>,
-    secrets: Option<&SecretsFile>,
-) -> Result<Arc<[u8]>, RegistryError> {
-    if let Some(cache) = secrets.and_then(|file| file.cache.as_deref()) {
-        validate_secret_len("secrets.cache", cache)?;
-        return Ok(Arc::from(cache.as_bytes().to_vec()));
-    }
-    match master {
-        Some(master_bytes) => Ok(Arc::from(master_bytes.to_vec())),
-        None => Ok(random_secret()),
-    }
-}
-
-fn resolve_oci_secret(
-    master: Option<&[u8]>,
-    secrets: Option<&SecretsFile>,
-) -> Result<Arc<[u8]>, RegistryError> {
-    if let Some(oci) = secrets.and_then(|file| file.oci.as_deref()) {
-        validate_secret_len("secrets.oci", oci)?;
-        return Ok(Arc::from(oci.as_bytes().to_vec()));
-    }
-    let base = master.map_or_else(random_secret, |bytes| Arc::from(bytes.to_vec()));
-    Ok(derive_subkey(&base, b"pnpr OCI token signing v1"))
-}
-
-/// Resolve the cache and OCI secrets from optional master and purpose-specific secret blocks.
-pub(crate) fn resolve_secrets(
-    master_secret: Option<&str>,
-    secrets: Option<&SecretsFile>,
-) -> Result<ResolvedSecrets, RegistryError> {
-    let has_master = master_secret.is_some();
-    let has_configured = has_master || secrets.is_some_and(|file| file.cache.is_some());
-
-    let master_bytes = match master_secret {
-        Some(secret) => {
-            validate_secret_len("secret:", secret)?;
-            Some(secret.as_bytes())
-        }
-        None => None,
-    };
-
-    let cache = resolve_cache_secret(master_bytes, secrets)?;
-    let oci = resolve_oci_secret(master_bytes, secrets)?;
-    Ok(ResolvedSecrets { cache, oci, has_configured })
-}
-
 /// 32 bytes from the OS CSPRNG, for a deployment that configures no
 /// `secret:`. Private cache entries then live only for this process.
 #[must_use]
@@ -124,218 +48,101 @@ pub fn random_secret() -> Arc<[u8]> {
     Arc::from(bytes.to_vec())
 }
 
-fn validate_root_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    if let Some(secret) = val.get("secret").and_then(serde_json::Value::as_str) {
-        check_secret_env_field::<Sys>("secret", secret)?;
-    }
-    let Some(secrets) = val.get("secrets").and_then(serde_json::Value::as_object) else {
-        return Ok(());
-    };
-    if let Some(cache) = secrets.get("cache").and_then(serde_json::Value::as_str) {
-        check_secret_env_field::<Sys>("secrets.cache", cache)?;
-    }
-    if let Some(oci) = secrets.get("oci").and_then(serde_json::Value::as_str) {
-        check_secret_env_field::<Sys>("secrets.oci", oci)?;
-    }
-    Ok(())
+/// Resolved cache and OCI keys with configuration status.
+pub(crate) struct ResolvedSecrets {
+    pub(crate) cache: Arc<[u8]>,
+    pub(crate) oci: Arc<[u8]>,
+    pub(crate) has_configured: bool,
 }
 
-fn validate_release_record_secrets<Sys: EnvVar>(
-    val: &serde_json::Value,
-) -> Result<(), RegistryError> {
-    let Some(records) = val.get("releaseRecords") else { return Ok(()) };
-    for field in ["logSigningKey", "statementSigningKey"] {
-        if let Some(key) = records.get(field).and_then(serde_json::Value::as_str) {
-            check_secret_env_field::<Sys>(&format!("releaseRecords.{field}"), key)?;
-        }
-    }
-    Ok(())
+/// The `secret:` value: one root for every purpose, or a root per purpose so
+/// each rotates alone.
+#[derive(Debug)]
+pub(crate) enum SecretFile {
+    Root(Secret),
+    Keys(SecretKeysFile),
 }
 
-fn validate_s3_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    let Some(s3) = val.get("s3").and_then(serde_json::Value::as_object) else {
-        return Ok(());
-    };
-    for key in ["secretAccessKey", "secret_access_key"] {
-        if let Some(secret) = s3.get(key).and_then(serde_json::Value::as_str) {
-            check_secret_env_field::<Sys>(&format!("s3.{key}"), secret)?;
-        }
-    }
-    Ok(())
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct SecretKeysFile {
+    #[serde(default)]
+    cache: Option<Secret>,
+    #[serde(default)]
+    oci: Option<Secret>,
 }
 
-fn validate_auth_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    if let Some(token) = val.pointer("/auth/scim/token").and_then(serde_json::Value::as_str) {
-        check_secret_env_field::<Sys>("auth.scim.token", token)?;
-    }
-    if let Some(token) = val.pointer("/metrics/token").and_then(serde_json::Value::as_str) {
-        check_secret_env_field::<Sys>("metrics.token", token)?;
-    }
-    let Some(oidc) = val.pointer("/auth/oidc").and_then(serde_json::Value::as_array) else {
-        return Ok(());
-    };
-    for (index, provider) in oidc.iter().enumerate() {
-        let client_secret = provider
-            .pointer("/login/clientSecret")
-            .or_else(|| provider.pointer("/login/client_secret"))
-            .and_then(serde_json::Value::as_str);
-        if let Some(secret) = client_secret {
-            check_secret_env_field::<Sys>(
-                &format!("auth.oidc[{index}].login.clientSecret"),
-                secret,
-            )?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_database_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    for prefix in ["/backend/libsql", "/auth/libsql", "/storage/database", "/database"] {
-        for field in ["authToken", "auth_token"] {
-            let ptr = format!("{prefix}/{field}");
-            if let Some(token) = val.pointer(&ptr).and_then(serde_json::Value::as_str) {
-                check_secret_env_field::<Sys>(&ptr[1..], token)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn check_registry_auth<Sys: EnvVar>(
-    path: &str,
-    auth: &serde_json::Map<String, serde_json::Value>,
-) -> Result<(), RegistryError> {
-    for key in ["token", "bearerToken", "bearer_token"] {
-        if let Some(token) = auth.get(key).and_then(serde_json::Value::as_str) {
-            check_secret_env_field::<Sys>(&format!("{path}.auth.{key}"), token)?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_single_registry_secrets<Sys: EnvVar>(
-    path: &str,
-    reg: &serde_json::Value,
-) -> Result<(), RegistryError> {
-    let auth = reg
-        .get("auth")
-        .or_else(|| reg.pointer("/upstream/auth"))
-        .and_then(serde_json::Value::as_object);
-    if let Some(auth_map) = auth {
-        check_registry_auth::<Sys>(path, auth_map)?;
-    }
-    if let Some(headers) = reg.get("headers").and_then(serde_json::Value::as_object) {
-        for (hdr, val) in headers {
-            if let Some(val_str) = val.as_str() {
-                check_secret_env_field::<Sys>(&format!("{path}.headers.{hdr}"), val_str)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn is_flat_registry(reg_map: &serde_json::Map<String, serde_json::Value>) -> bool {
-    reg_map
-        .get("type")
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(|typ| matches!(typ, "hosted" | "upstream" | "router"))
-        || reg_map
-            .get("url")
-            .and_then(serde_json::Value::as_str)
-            .is_some()
-}
-
-fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    let Some(registries) = val.get("registries").and_then(serde_json::Value::as_object) else {
-        return Ok(());
-    };
-    for (name, entry) in registries {
-        let Some(reg_map) = entry.as_object() else {
-            continue;
-        };
-        if is_flat_registry(reg_map) {
-            validate_single_registry_secrets::<Sys>(&format!("registries.{name}"), entry)?;
-        } else {
-            for (sub_name, sub_entry) in reg_map {
-                validate_single_registry_secrets::<Sys>(
-                    &format!("registries.{name}.{sub_name}"),
-                    sub_entry,
-                )?;
-            }
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), RegistryError> {
-    if let Ok(value) = serde_saphyr::from_str(raw) {
-        return validate_secret_fields::<Sys>(&value);
-    }
-    let (expanded, _) = env_replace_lossy::<Sys>(raw);
-    let mut marker = "__pnpr_unresolved_env__".to_string();
-    while raw.contains(&marker) || expanded.contains(&marker) {
-        marker.push('_');
-    }
-    for range in placeholder_ranges(raw) {
-        let placeholder = &raw[range.clone()];
-        if env_replace_lossy::<Sys>(placeholder).1.is_empty() {
-            continue;
-        }
-        let mut marked = raw.to_string();
-        marked.replace_range(range, &marker);
-        let (expanded, _) = env_replace_lossy::<Sys>(&marked);
-        let Ok(mut value) = serde_saphyr::from_str(&expanded) else { continue };
-        restore_unresolved_placeholder(&mut value, &marker, placeholder);
-        validate_secret_fields::<Sys>(&value)?;
-    }
-    Ok(())
-}
-
-fn validate_secret_fields<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    if let Some(token) = val.pointer("/cloudflareCdn/apiToken").and_then(serde_json::Value::as_str)
+impl<'de> Deserialize<'de> for SecretFile {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
     {
-        check_secret_env_field::<Sys>("cloudflareCdn.apiToken", token)?;
-    }
-    validate_root_secrets::<Sys>(val)?;
-    validate_release_record_secrets::<Sys>(val)?;
-    validate_s3_secrets::<Sys>(val)?;
-    validate_auth_secrets::<Sys>(val)?;
-    validate_database_secrets::<Sys>(val)?;
-    validate_registry_secrets::<Sys>(val)?;
-    Ok(())
-}
-
-fn restore_unresolved_placeholder(value: &mut serde_json::Value, marker: &str, placeholder: &str) {
-    match value {
-        serde_json::Value::String(text) => {
-            // Resolved environment values are literal, not another substitution pass.
-            *text = text
-                .replace('\\', r"\\")
-                .replace("${", r"\${")
-                .replace(marker, placeholder);
-        }
-        serde_json::Value::Array(values) => {
-            for value in values {
-                restore_unresolved_placeholder(value, marker, placeholder);
-            }
-        }
-        serde_json::Value::Object(values) => {
-            for value in values.values_mut() {
-                restore_unresolved_placeholder(value, marker, placeholder);
-            }
-        }
-        _ => {}
+        deserializer.deserialize_any(SecretFileVisitor)
     }
 }
 
-fn check_secret_env_field<Sys: EnvVar>(field: &str, raw_val: &str) -> Result<(), RegistryError> {
-    let (_, unresolved) = env_replace_lossy::<Sys>(raw_val);
-    if !unresolved.is_empty() {
+struct SecretFileVisitor;
+
+impl<'de> serde::de::Visitor<'de> for SecretFileVisitor {
+    type Value = SecretFile;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a secret string or a table of `cache` and `oci` secrets")
+    }
+
+    fn visit_str<DeError: serde::de::Error>(self, value: &str) -> Result<SecretFile, DeError> {
+        Secret::checked(value.to_string()).map(SecretFile::Root).map_err(DeError::custom)
+    }
+
+    fn visit_map<Map: serde::de::MapAccess<'de>>(self, map: Map) -> Result<SecretFile, Map::Error> {
+        SecretKeysFile::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+            .map(SecretFile::Keys)
+    }
+}
+
+fn validate_secret_len(field: &str, secret: &Secret) -> Result<(), RegistryError> {
+    if secret.len() < MIN_SECRET_LEN {
         return Err(RegistryError::InvalidConfig {
             reason: format!(
-                "secret-bearing configuration field `{field}` references unset environment variable: {unresolved:?}",
+                "`{field}` must be at least {MIN_SECRET_LEN} bytes (it is {})",
+                secret.len(),
             ),
         });
     }
     Ok(())
+}
+
+/// The key for `purpose`, derived from its configured root, or from a
+/// per-process random one.
+fn purpose_key(root: Option<&Secret>, purpose: &[u8]) -> Arc<[u8]> {
+    match root {
+        Some(root) => derive_subkey(root.as_bytes(), purpose),
+        None => derive_subkey(&random_secret(), purpose),
+    }
+}
+
+/// The cache and OCI keys `secret:` configures.
+pub(crate) fn resolve_secrets(
+    secret: Option<&SecretFile>,
+) -> Result<ResolvedSecrets, RegistryError> {
+    let (cache_root, oci_root) = match secret {
+        None => (None, None),
+        Some(SecretFile::Root(root)) => {
+            validate_secret_len("secret", root)?;
+            (Some(root), Some(root))
+        }
+        Some(SecretFile::Keys(keys)) => {
+            for (field, key) in [("secret.cache", &keys.cache), ("secret.oci", &keys.oci)] {
+                if let Some(key) = key {
+                    validate_secret_len(field, key)?;
+                }
+            }
+            (keys.cache.as_ref(), keys.oci.as_ref())
+        }
+    };
+    Ok(ResolvedSecrets {
+        cache: purpose_key(cache_root, CACHE_KEY_PURPOSE),
+        oci: purpose_key(oci_root, OCI_KEY_PURPOSE),
+        has_configured: cache_root.is_some(),
+    })
 }

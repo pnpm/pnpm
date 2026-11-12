@@ -1,8 +1,9 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
     LogLevel, Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
-    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile, access::TeamFile,
-    default_storage_string, null_default::deserialize_null_default, oidc,
+    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, TrustedProxyHeader,
+    UpstreamAuthFile, access::TeamFile, default_storage_string,
+    null_default::deserialize_null_default, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -108,7 +109,7 @@ pub(super) struct UpstreamFile {
     #[serde(default)]
     pub(super) auth: Option<UpstreamAuthFile>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) headers: IndexMap<String, String>,
+    pub(super) headers: IndexMap<String, crate::Secret>,
     #[serde(default)]
     pub(super) packument_ttl: Option<Interval>,
     #[serde(default)]
@@ -201,12 +202,9 @@ pub(super) struct ConfigFile {
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     pub(super) cache: Option<CacheFile>,
-    /// Reverse-proxy addresses trusted to supply client IP headers.
+    /// Reverse proxies trusted to supply the client IP address.
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) trusted_proxies: Vec<String>,
-    /// Header name trusted to supply client IP addresses (`x-forwarded-for`, `forwarded`, `x-real-ip`).
-    #[serde(default)]
-    pub(super) trusted_proxy_header: Option<String>,
+    pub(super) trusted_proxies: TrustedProxiesFile,
     /// Request processing timeout (e.g. `60s`, `1m`).
     #[serde(default)]
     pub(super) request_timeout: Option<Interval>,
@@ -298,28 +296,26 @@ pub(super) struct ConfigFile {
     /// public.
     #[serde(default)]
     pub(super) routes: Option<RoutesFile>,
-    /// Master secret from which purpose-specific subkeys (cache HMAC, OCI token signing)
-    /// are derived when individual secrets are not configured. A random per-process
-    /// secret is generated when absent.
+    /// The roots the cache and OCI keys derive from. A random per-process
+    /// root stands in for an absent one.
     #[serde(default)]
-    pub(super) secret: Option<String>,
-    /// Optional purpose-specific secrets for independent rotation.
-    #[serde(default)]
-    pub(super) secrets: Option<SecretsFile>,
+    pub(super) secret: Option<crate::secrets::SecretFile>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) auth: AuthFile,
     #[serde(default)]
     pub(super) log: Option<LogEntryFile>,
 }
 
-/// Purpose-specific secrets allowing independent rotation of cache and OCI signing keys.
+/// Disk shape of the `trustedProxies:` block.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct SecretsFile {
+pub(super) struct TrustedProxiesFile {
+    /// Addresses and CIDR networks of the proxies.
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub(super) networks: Vec<String>,
+    /// The header the proxies put the client address in.
     #[serde(default)]
-    pub(super) cache: Option<String>,
-    #[serde(default)]
-    pub(super) oci: Option<String>,
+    pub(super) header: Option<TrustedProxyHeader>,
 }
 
 #[derive(Debug, Default, Deserialize)]

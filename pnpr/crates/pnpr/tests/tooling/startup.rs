@@ -92,7 +92,7 @@ async fn config_check_and_serve_reject_s3_or_populated_cache_without_secret() {
     )
     .unwrap();
     let s3_err = check_config(Some(&s3_cfg)).unwrap_err().to_string();
-    assert!(s3_err.contains("`secret` or `secrets.cache` must be configured"), "{s3_err}");
+    assert!(s3_err.contains("`secret` or `secret.cache` must be configured"), "{s3_err}");
     let config = Config::from_yaml(&s3_cfg, "127.0.0.1:0".parse().unwrap(), None).unwrap();
     assert_eq!(pnpr::serve(config).await.unwrap_err().to_string(), s3_err);
 

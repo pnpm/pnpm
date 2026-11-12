@@ -8,7 +8,7 @@ use super::{
 fn upstream_bearer_token_becomes_bearer_authorization() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("abc123".to_string()),
+        token: Some("abc123".to_string().into()),
         token_env: None,
     };
     let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -20,7 +20,7 @@ fn upstream_bearer_token_becomes_bearer_authorization() {
 fn upstream_basic_token_becomes_basic_authorization_verbatim() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Basic,
-        token: Some("dXNlcjpwYXNz".to_string()),
+        token: Some("dXNlcjpwYXNz".to_string().into()),
         token_env: None,
     };
     let upstream = resolve_upstream("priv", upstream_config_file(Some(auth), IndexMap::new()))
@@ -56,7 +56,7 @@ fn upstream_token_env_named_reads_that_var() {
 fn upstream_literal_token_beats_token_env() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("literal".to_string()),
+        token: Some("literal".to_string().into()),
         token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
     };
     let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -84,7 +84,7 @@ fn upstream_custom_headers_are_forwarded() {
 fn upstream_custom_authorization_header_overrides_auth_block() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("from-auth".to_string()),
+        token: Some("from-auth".to_string().into()),
         token_env: None,
     };
     let headers =
@@ -110,7 +110,7 @@ fn upstream_auth_without_resolvable_token_is_a_config_error() {
 fn upstream_auth_with_empty_literal_token_is_a_config_error() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some(String::new()),
+        token: Some(String::new().into()),
         token_env: None,
     };
     let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -146,7 +146,7 @@ fn upstream_token_env_false_resolves_no_token_and_is_a_config_error() {
 fn upstream_auth_token_with_control_char_is_a_config_error() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("bad\ntoken".to_string()),
+        token: Some("bad\ntoken".to_string().into()),
         token_env: None,
     };
     let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))

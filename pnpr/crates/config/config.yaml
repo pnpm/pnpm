@@ -20,9 +20,10 @@ storage: ./storage
 
 # Reverse-proxy addresses trusted to supply client IP headers.
 #trustedProxies:
-#  - loopback
-#  - 10.0.0.0/8
-#trustedProxyHeader: x-forwarded-for
+#  networks:
+#    - loopback
+#    - 10.0.0.0/8
+#  header: x-forwarded-for
 
 # Prometheus metrics (not served unless this block is present).
 #metrics:

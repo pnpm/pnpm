@@ -72,8 +72,9 @@ database:
 secret: ${PNPR_SECRET}
 
 # The Worker below passes the client's address in X-Real-IP.
-trustedProxies: [10.0.0.0/8]
-trustedProxyHeader: x-real-ip
+trustedProxies:
+  networks: [10.0.0.0/8]
+  header: x-real-ip
 
 auth:
   users:

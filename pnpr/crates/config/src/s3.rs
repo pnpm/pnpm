@@ -28,7 +28,7 @@ pub struct S3Settings {
     #[serde(default)]
     pub access_key_id: Option<String>,
     #[serde(default)]
-    pub secret_access_key: Option<String>,
+    pub secret_access_key: Option<crate::Secret>,
     /// Force path-style addressing (`endpoint/bucket/key`) instead of
     /// virtual-hosted (`bucket.endpoint/key`). `MinIO` typically needs
     /// this; AWS and R2 work with the default.
@@ -103,7 +103,7 @@ pub(super) fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
         builder = builder.with_access_key_id(key);
     }
     if let Some(secret) = &settings.secret_access_key {
-        builder = builder.with_secret_access_key(secret);
+        builder = builder.with_secret_access_key(secret.expose());
     }
     if let Some(force_path_style) = settings.force_path_style {
         builder = builder.with_virtual_hosted_style_request(!force_path_style);

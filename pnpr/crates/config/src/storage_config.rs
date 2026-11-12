@@ -62,10 +62,10 @@ pub(crate) struct DatabaseFile {
     /// Without it, a filesystem hosted store keeps its metadata in
     /// [`default_metadata_path`].
     #[serde(default)]
-    url: Option<String>,
+    url: Option<crate::Secret>,
     /// The libSQL database's bearer token.
     #[serde(default)]
-    auth_token: Option<String>,
+    auth_token: Option<crate::Secret>,
     /// Where the libSQL database's embedded replica lives.
     #[serde(default)]
     replica_path: Option<PathBuf>,
@@ -195,7 +195,7 @@ fn libsql_metadata(
     let settings = build_libsql_settings(
         LibsqlFile {
             url: url.to_string(),
-            auth_token: file.auth_token.clone(),
+            auth_token: file.auth_token.clone().map(crate::Secret::into_inner),
             replica_path: file.replica_path.clone(),
             sync_interval: file.sync_interval.clone(),
             max_connections: file.max_connections,
