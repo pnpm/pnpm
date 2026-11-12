@@ -1,5 +1,5 @@
 use super::{
-    super::{Add, AddError, AddOptions, AddResources},
+    super::{Add, AddError},
     add_jsr_selector, add_npm_selector, add_npm_selector_with_ranges, package_body,
 };
 use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
@@ -391,7 +391,7 @@ async fn add_runtime_request_reports_unavailable_when_runtime_provisioning_is_di
 
     let error = Add {
         manifest: &mut manifest,
-        options: AddOptions {
+        options: crate::AddOptions {
             resolved_packages: &resolved_packages,
             http_client: &http_client,
             config,
@@ -401,7 +401,7 @@ async fn add_runtime_request_reports_unavailable_when_runtime_provisioning_is_di
             lockfile_only: true,
             save_types: false,
         },
-        resources: AddResources {
+        resources: crate::AddResources {
             tarball_mem_cache: Arc::default(),
             http_client_arc: Arc::new(ThrottledClient::default()),
             dependency_groups: Some([DependencyGroup::Prod]),
