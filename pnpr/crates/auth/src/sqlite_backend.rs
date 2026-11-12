@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
 use pnpr_sql::{
-    adapter::{Adapter as _, Connection, ReadSource, WriteTransaction},
+    adapter::{Adapter as _, Connection, Param, ReadSource, WriteTransaction},
     sqlite::SqliteAdapter,
 };
 use std::{
@@ -55,6 +55,28 @@ impl SqliteAuth {
         restrict_to_owner(path)?;
         let auth = Self::with_database(SqliteAdapter::open(path)?, max_users)?;
         Ok(Self { path: Some(path.to_path_buf()), ..auth })
+    }
+
+    /// A private in-memory copy of the accounts in the database at `path`,
+    /// empty when there is none. A preview runs on it, so it neither creates
+    /// nor migrates the database.
+    pub fn preview_of(path: &Path, max_users: MaxUsers) -> Result<Self> {
+        let auth = Self::in_memory(max_users)?;
+        if !path.exists() {
+            return Ok(auth);
+        }
+        let accounts = read_account_rows(path)?;
+        auth.database.write(&mut |connection| {
+            for row in &accounts {
+                let params: Vec<Param<'_>> = row.iter().map(to_param).collect::<Result<_>>()?;
+                connection.execute(
+                    &format!("INSERT INTO users ({ACCOUNT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"),
+                    &params,
+                )?;
+            }
+            Ok(())
+        })?;
+        Ok(auth)
     }
 
     /// A private database that lives in memory, for programmatic routers and
@@ -125,6 +147,36 @@ impl SqliteAuth {
             Ok(output.expect("a successful SQLite write sets its output"))
         })
         .await?
+    }
+}
+
+/// Every column of `users`, in the order [`SqliteAuth::preview_of`] copies them.
+const ACCOUNT_COLUMNS: &str = "id, username, username_skeleton_hash, status, credential_kind, password_hash, created_at, name_revision, status_revision";
+
+fn read_account_rows(path: &Path) -> Result<Vec<Vec<rusqlite::types::Value>>> {
+    let source =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let mut statement = source.prepare(&format!("SELECT {ACCOUNT_COLUMNS} FROM users"))?;
+    let rows = statement
+        .query_map([], |row| {
+            (0..9)
+                .map(|index| row.get(index))
+                .collect()
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+fn to_param(value: &rusqlite::types::Value) -> Result<Param<'_>> {
+    use rusqlite::types::Value;
+    match value {
+        Value::Null => Ok(Param::Null),
+        Value::Integer(integer) => Ok(Param::Integer(*integer)),
+        Value::Text(text) => Ok(Param::Text(text)),
+        Value::Blob(blob) => Ok(Param::Blob(blob)),
+        Value::Real(_) => Err(RegistryError::Internal {
+            reason: "an account column holds a floating-point value".to_string(),
+        }),
     }
 }
 

@@ -93,6 +93,11 @@ fn merge_hash(
         PasswordCollisions::Keep => imported.collisions.push(name.to_string()),
         PasswordCollisions::Overwrite => {
             set_password_hash(connection, &stored.id, Some(hash))?;
+            // A password reset revokes the tokens issued under the old one.
+            connection.execute(
+                "DELETE FROM tokens WHERE user_id = ?1",
+                &[pnpr_sql::adapter::Param::Text(&stored.id)],
+            )?;
             imported.merged += 1;
         }
     }

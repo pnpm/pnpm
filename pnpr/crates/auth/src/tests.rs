@@ -520,6 +520,7 @@ async fn password_imports_keep_or_overwrite_collisions_and_dry_runs_write_nothin
     assert_eq!((imported.merged, imported.collisions), (1, vec!["alice".to_string()]));
     assert_eq!(auth.list_users().await.unwrap(), ["alice", "bob"]);
     auth.add_or_login("alice", "secret123").await.unwrap();
+    let old_token = auth.issue(&alice).await.unwrap();
 
     let overwrite = PasswordImport {
         collisions: PasswordCollisions::Overwrite,
@@ -529,10 +530,49 @@ async fn password_imports_keep_or_overwrite_collisions_and_dry_runs_write_nothin
     assert_eq!(imported.merged, 1);
     let outcome = auth.add_or_login("alice", "new-password").await.unwrap();
     assert_eq!(outcome, (UpsertOutcome::LoggedIn, alice), "an overwrite keeps the account ID");
+    assert!(
+        auth.lookup(&old_token).await
+            .unwrap()
+            .is_none(),
+        "an overwrite revokes the tokens issued under the old password",
+    );
 
     let look_alike = HashMap::from([("ALICE".to_string(), alice_hash)]);
     let err = auth.import_password_hashes(look_alike, keep).await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_preview_copies_the_accounts_without_touching_the_database() {
+    let tmp = tempfile::tempdir().unwrap();
+    let missing = tmp
+        .path()
+        .join("missing")
+        .join("metadata.sqlite");
+    let preview = SqliteAuth::preview_of(&missing, MaxUsers::Unlimited).unwrap();
+    assert!(
+        preview
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(!missing.parent().unwrap().exists());
+
+    let path = tmp.path().join("metadata.sqlite");
+    let auth = open_auth(&path);
+    let (_, alice) = auth.add_or_login("alice", "secret123").await.unwrap();
+    drop(auth);
+    let before = std::fs::read(&path).unwrap();
+    let preview =
+        SqliteAuth::preview_of(&path, MaxUsers::Unlimited).unwrap().with_bcrypt_cost(TEST_COST);
+    let hashes = HashMap::from([("alice".to_string(), bcrypt::hash("other-password", 4).unwrap())]);
+    let options =
+        PasswordImport { collisions: PasswordCollisions::Keep, mode: crate::ImportMode::Preview };
+    let imported = preview.import_password_hashes(hashes, options).await.unwrap();
+    assert_eq!(imported.collisions, ["alice"]);
+    assert_eq!(preview.account_id("alice").await.unwrap(), Some(alice));
+    assert_eq!(std::fs::read(&path).unwrap(), before);
 }
 
 #[cfg(unix)]

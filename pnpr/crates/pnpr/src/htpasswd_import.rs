@@ -45,13 +45,15 @@ pub async fn import_htpasswd(
 
     let (source_users, total_read, bcrypt_count, sha_count) =
         parse_source_entries(&source_content)?;
-    let auth = open_accounts(target_path.clone(), config.identity.auth.users.max_users).await?;
+    let mode = if options.dry_run { Preview } else { Apply };
+    let auth =
+        open_accounts(target_path.clone(), config.identity.auth.users.max_users, mode).await?;
     let imported = auth
         .import_password_hashes(
             source_users,
             pnpr_auth::PasswordImport {
                 collisions: if options.overwrite { Overwrite } else { Keep },
-                mode: if options.dry_run { Preview } else { Apply },
+                mode,
             },
         )
         .await
@@ -68,14 +70,19 @@ pub async fn import_htpasswd(
     })
 }
 
+/// The accounts at `path`, or a private copy of them for a preview.
 async fn open_accounts(
     path: PathBuf,
     max_users: pnpr_config::MaxUsers,
+    mode: pnpr_auth::ImportMode,
 ) -> miette::Result<pnpr_auth::SqliteAuth> {
-    tokio::task::spawn_blocking(move || pnpr_auth::SqliteAuth::open(&path, max_users))
-        .await
-        .into_diagnostic()?
-        .into_diagnostic()
+    tokio::task::spawn_blocking(move || match mode {
+        Preview => pnpr_auth::SqliteAuth::preview_of(&path, max_users),
+        Apply => pnpr_auth::SqliteAuth::open(&path, max_users),
+    })
+    .await
+    .into_diagnostic()?
+    .into_diagnostic()
 }
 
 fn parse_source_entries(
