@@ -30,7 +30,7 @@ pub(super) struct ConvertCtx<'a> {
     pub(super) references: ReferenceLocation,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum ReferenceLocation {
     Workspace,
     Deploy,

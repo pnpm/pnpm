@@ -146,8 +146,9 @@ pub(super) fn convert_importer_dep_version(
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<ImporterDepVersion> {
-    if ctx.references == ReferenceLocation::Deploy {
-        return Ok(version.clone());
+    match ctx.references {
+        ReferenceLocation::Deploy => return Ok(version.clone()),
+        ReferenceLocation::Workspace => {}
     }
     if let Some(local) = resolve_importer_dep_version(version, bases) {
         return local_to_importer_dep_version(alias, &local, ctx);
@@ -161,10 +162,13 @@ pub(super) fn convert_importer_version_to_snapshot_ref(
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<SnapshotDepRef> {
-    if ctx.references == ReferenceLocation::Workspace
-        && let Some(local) = resolve_importer_dep_version(version, bases)
-    {
-        return local_to_snapshot_dep_ref(alias, &local, ctx);
+    match ctx.references {
+        ReferenceLocation::Workspace => {
+            if let Some(local) = resolve_importer_dep_version(version, bases) {
+                return local_to_snapshot_dep_ref(alias, &local, ctx);
+            }
+        }
+        ReferenceLocation::Deploy => {}
     }
     Ok(match version {
         ImporterDepVersion::Regular(version) => SnapshotDepRef::Plain(version.clone()),
@@ -183,8 +187,9 @@ pub(super) fn convert_snapshot_dep_ref(
     ctx: &ConvertCtx,
     bases: &ResolveBases,
 ) -> miette::Result<SnapshotDepRef> {
-    if ctx.references == ReferenceLocation::Deploy {
-        return Ok(dep_ref.clone());
+    match ctx.references {
+        ReferenceLocation::Deploy => return Ok(dep_ref.clone()),
+        ReferenceLocation::Workspace => {}
     }
     if let Some(local) = resolve_snapshot_dep_ref(alias, dep_ref, bases) {
         return local_to_snapshot_dep_ref(alias, &local, ctx);
@@ -293,6 +298,10 @@ pub(super) fn convert_package_key(
     key: &PackageKey,
     ctx: &ConvertCtx,
 ) -> miette::Result<PackageKey> {
+    match ctx.references {
+        ReferenceLocation::Deploy => return Ok(key.clone()),
+        ReferenceLocation::Workspace => {}
+    }
     let VersionPart::File(path) = key.suffix.version() else { return Ok(key.clone()) };
     let resolved = lexical_normalize(&ctx.lockfile_dir.join(path));
     create_file_url_key(&resolved, key.suffix.peer(), ctx.projects_by_path, Some(&key.name))

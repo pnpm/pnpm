@@ -146,8 +146,19 @@ fn deploy_retains_hashed_bindings_when_relocating_workspace_snapshots() {
 
 #[test]
 fn deploy_retains_hashed_workspace_peer_bindings() {
+    for workspace_name in ["workspace", "workspace (with spaces) café"] {
+        check_workspace_peer_bindings(workspace_name);
+    }
+}
+
+fn check_workspace_peer_bindings(workspace_name: &str) {
     let provider = "provider";
-    let fixture = WorkspaceFixture::new();
+    let mut fixture = WorkspaceFixture::new();
+    let workspace = fixture.workspace.with_file_name(workspace_name);
+    if workspace != fixture.workspace {
+        fs::rename(&fixture.workspace, &workspace).unwrap();
+        fixture.workspace = workspace;
+    }
     fixture.write_root_manifest("root", ManifestDeps::default());
     fixture.append_workspace_yaml(
         "injectWorkspacePackages: true\ndedupeInjectedDeps: false\nautoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\npeersSuffixMaxLength: 3\nlockfile:\n  format: v13\n",
