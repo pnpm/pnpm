@@ -21,7 +21,13 @@ pub(super) fn convert_deploy_snapshots(
         DeploySnapshots { snapshots: HashMap::new(), linked_workspace_projects: HashMap::new() };
     for (key, snapshot) in lockfile.snapshots.iter().flatten() {
         let output_key = super::convert_package_key(key, ctx)?;
-        converted.snapshots.insert(output_key, convert_snapshot(snapshot, ctx, lockfile_dir)?);
+        let mut snapshot = convert_snapshot(snapshot, ctx, lockfile_dir)?;
+        if output_key != *key {
+            snapshot.recorded_peer_bindings = snapshot.recorded_peer_bindings
+                .as_ref()
+                .and_then(|bindings| bindings.relocated(key, &output_key));
+        }
+        converted.snapshots.insert(output_key, snapshot);
     }
     for (importer_path, project_snapshot) in &lockfile.importers {
         if importer_path == project_id {

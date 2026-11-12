@@ -54,6 +54,20 @@ impl RecordedPeerBindings {
         (key == &self.key).then_some(&self.peer_keys)
     }
 
+    /// Copy bindings for a relocated package without changing its peer context.
+    /// Returns `None` if `from` is stale or the peer suffix changed.
+    #[must_use]
+    pub fn relocated(&self, from: &PkgNameVerPeer, to: &PkgNameVerPeer) -> Option<Arc<Self>> {
+        if from != &self.key || from.suffix.peer() != to.suffix.peer() {
+            return None;
+        }
+        Some(Arc::new(Self {
+            key: to.clone(),
+            providers: self.providers.clone(),
+            peer_keys: self.peer_keys.clone(),
+        }))
+    }
+
     pub(crate) fn providers_for(&self, key: &PkgNameVerPeer) -> Option<&BoundProviders> {
         (key == &self.key).then_some(&self.providers)
     }

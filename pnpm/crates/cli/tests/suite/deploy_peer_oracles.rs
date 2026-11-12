@@ -95,6 +95,55 @@ fn frozen_check_accepts_v13_publish_directory_deploy_output() {
     check_deploys(LockfileFormat::V13, Some("dist"));
 }
 
+#[test]
+fn deploy_retains_hashed_bindings_when_relocating_workspace_snapshots() {
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.append_workspace_yaml(
+        "injectWorkspacePackages: true\ndedupeInjectedDeps: false\nautoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\npeersSuffixMaxLength: 3\nlockfile:\n  format: v13\n",
+    );
+    let shared = fixture.project("shared", "shared", ManifestDeps::default());
+    let mut manifest = json!({ "name": "shared", "version": "1.0.0" });
+    for index in 0..14 {
+        let name = format!("peer-{index:02}");
+        manifest["dependencies"][&name] = json!("npm:@pnpm.e2e/foo@100.0.0");
+        manifest["peerDependencies"][&name] = json!("*");
+    }
+    write_manifest_value(&shared, &manifest);
+    fixture.project(
+        "app",
+        "app",
+        ManifestDeps {
+            prod: &[("shared", "workspace:*"), ("peer-00", "npm:@pnpm.e2e/foo@100.1.0")],
+            ..Default::default()
+        },
+    );
+    fixture.run(["install"]);
+    let lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    let (shared_key, _) = lockfile.snapshots
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|(key, _)| {
+            key.name.to_string() == "shared" && BoundProviders::from_key(key).is_hashed()
+        })
+        .expect("a hashed shared snapshot");
+    assert!(!BoundProviders::of_snapshot((&lockfile).into(), shared_key).is_hashed());
+    let source_lockfile = fs::read(fixture.workspace.join("pnpm-lock.yaml")).unwrap();
+    let source = fixture.workspace.join("packages/app");
+    let deployed = fixture.workspace.with_file_name("deploy-retained-bindings");
+    assert_success(&fixture.command_at(
+        &fixture.workspace,
+        ["--filter", "app", "deploy", &deployed.to_string_lossy()],
+    ));
+    assert_eq!(
+        TreeView::new(&deployed).project(&deployed, false),
+        TreeView::new(&fixture.workspace).project(&source, false),
+    );
+    check_frozen_deploy(&fixture, &deployed, None);
+    assert_eq!(fs::read(fixture.workspace.join("pnpm-lock.yaml")).unwrap(), source_lockfile);
+}
+
 fn check_deploys(format: LockfileFormat, publish_directory: Option<&str>) {
     for scenario in Scenario::all() {
         eprintln!("deploy oracle: {format:?} {scenario:?}");
