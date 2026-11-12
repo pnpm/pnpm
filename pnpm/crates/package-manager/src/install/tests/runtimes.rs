@@ -383,7 +383,10 @@ async fn fresh_install_honors_skip_runtimes() {
     drop(dirs.dir);
 }
 
-#[cfg(not(feature = "runtime-provisioning"))]
+#[cfg_attr(
+    feature = "runtime-provisioning",
+    ignore = "requires a build without runtime provisioning"
+)]
 #[tokio::test]
 async fn fresh_install_reports_unavailable_runtime_provisioning() {
     let dirs = InstallDirs::new();
