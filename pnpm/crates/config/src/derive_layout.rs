@@ -189,11 +189,13 @@ impl Config {
             "NODE_PATH".to_string(),
             node_paths.join(&path_delimiter.to_string()),
         );
+        let node_options = self.extra_env
+            .get("NODE_OPTIONS")
+            .cloned()
+            .or_else(|| Sys::var("NODE_OPTIONS"));
         self.extra_env.insert(
             "NODE_OPTIONS".to_string(),
-            esm_node_path_loader::add_esm_node_path_loader_option(
-                Sys::var("NODE_OPTIONS").as_deref(),
-            ),
+            esm_node_path_loader::add_esm_node_path_loader_option(node_options.as_deref()),
         );
     }
 

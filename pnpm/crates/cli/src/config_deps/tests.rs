@@ -375,6 +375,37 @@ async fn update_config_lockfile_dir_preserves_hook_node_options() {
     assert!(node_options.contains(esm_node_path_loader), "NODE_OPTIONS was {node_options}");
 }
 
+#[tokio::test]
+async fn update_config_lockfile_dir_preserves_existing_extra_env_node_options() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    config.extra_env.insert("NODE_OPTIONS".to_string(), "--require /custom".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is configured");
+    assert!(node_options.contains("--require /custom"), "NODE_OPTIONS was {node_options}");
+    let esm_node_path_loader =
+        pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag();
+    assert!(node_options.contains(esm_node_path_loader), "NODE_OPTIONS was {node_options}");
+}
+
 /// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
 /// default a source had turned off.
 #[tokio::test]
