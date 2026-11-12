@@ -55,6 +55,15 @@ impl BoundProviders {
             .is_none_or(|providers| providers.contains_key(&target.without_peer()))
     }
 
+    /// The recorded keys for `target`'s package identity, including any cycle cut.
+    /// `None` when the target is unbound or the hash could not be recovered.
+    #[must_use]
+    pub fn provider_keys(&self, target: &PkgNameVerPeer) -> Option<&HashSet<PkgNameVerPeer>> {
+        self.0
+            .as_ref()?
+            .get(&target.without_peer())
+    }
+
     /// Matches the full provider key when recorded, or any peer context when
     /// the recorded group omits the provider's peers.
     pub(crate) fn binds_snapshot(&self, target: &PkgNameVerPeer) -> bool {

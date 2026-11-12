@@ -154,16 +154,16 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
                 continue;
             }
             for (name, peer) in locked_peer_keys(self.lockfile, &key, snapshot, self.bound_cache) {
-                if encoded_names.contains(&name) {
-                    continue;
-                }
                 let version = peer.suffix.without_peer().to_string();
                 let recovered = snapshot
+                    .filter(|_| !encoded_names.contains(&name))
                     .and_then(|snapshot| snapshot_peer_provider(snapshot, &name, &peer))
                     .and_then(|provider| provider_with_peers(self.lockfile, provider));
                 self.recovered.extend(recovered);
                 pending.extend(provider_with_peers(self.lockfile, peer));
-                self.versions.push((name, version));
+                if !encoded_names.contains(&name) {
+                    self.versions.push((name, version));
+                }
             }
         }
     }
