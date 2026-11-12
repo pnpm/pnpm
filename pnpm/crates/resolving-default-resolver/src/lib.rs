@@ -11,12 +11,16 @@
 
 pub mod standalone;
 
+pub use unavailable_tool::{RuntimeProvisioningUnavailableError, UnavailableToolResolver};
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+
+mod unavailable_tool;
 
 /// Composed chain that wraps an ordered list of per-protocol
 /// resolvers.
@@ -118,15 +122,6 @@ pub struct SpecNotSupportedByAnyResolverError {
     /// callers and tests can read the bare value without re-parsing
     /// the formatted message.
     pub specifier: String,
-}
-
-#[cfg(not(feature = "runtime-provisioning"))]
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display("Provisioning is not enabled in this build for {alias}@{specifier}")]
-#[diagnostic(code(ERR_PNPM_PROVISIONING_UNAVAILABLE))]
-pub(crate) struct ProvisioningUnavailableError {
-    pub(crate) alias: String,
-    pub(crate) specifier: String,
 }
 
 impl SpecNotSupportedByAnyResolverError {

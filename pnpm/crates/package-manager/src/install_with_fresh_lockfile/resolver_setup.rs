@@ -420,6 +420,8 @@ impl ResolverChainInputs<'_> {
         ]);
         #[cfg(feature = "runtime-provisioning")]
         chain.extend(runtime_resolvers::runtime_resolvers(self, npm_resolver));
+        #[cfg(not(feature = "runtime-provisioning"))]
+        chain.push(Box::new(pnpm_resolving_default_resolver::UnavailableToolResolver));
         chain.extend([
             Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>,
             Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>,

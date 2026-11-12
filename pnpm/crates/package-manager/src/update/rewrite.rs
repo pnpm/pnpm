@@ -400,7 +400,13 @@ pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRange
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
-#[cfg_attr(not(feature = "runtime-provisioning"), allow(clippy::needless_pass_by_ref_mut))]
+#[cfg_attr(
+    not(feature = "runtime-provisioning"),
+    expect(
+        clippy::needless_pass_by_ref_mut,
+        reason = "the runtime channel bump pushes onto `plan`"
+    )
+)]
 pub(super) fn apply_channel_bump_target(
     plan: &mut UpdatePlan,
     name: &str,

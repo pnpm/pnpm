@@ -42,11 +42,7 @@ use pnpm_resolving_npm_resolver::{
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
-#[cfg(not(feature = "runtime-provisioning"))]
-use pnpm_resolving_resolver_base::{ResolveError, ResolveFuture, ResolveOptions, WantedDependency};
 use pnpm_resolving_tarball_resolver::TarballResolver;
-#[cfg(not(feature = "runtime-provisioning"))]
-use pnpm_tool_protocol::is_tool_specifier;
 use std::{collections::HashMap, sync::Arc};
 
 /// Inputs of [`build_standalone_chain`].
@@ -115,49 +111,11 @@ pub fn build_standalone_chain(
         )));
     }
     #[cfg(not(feature = "runtime-provisioning"))]
-    chain.push(Box::new(UnavailableToolResolver));
+    chain.push(Box::new(crate::UnavailableToolResolver));
     chain.push(Box::new(build_named_registry_resolver(opts, retry_opts)?));
     chain.push(Box::new(LocalPathResolver::new(local_ctx)));
     Ok(DefaultResolver::new(chain))
 }
-
-#[cfg(not(feature = "runtime-provisioning"))]
-struct UnavailableToolResolver;
-
-#[cfg(not(feature = "runtime-provisioning"))]
-impl Resolver for UnavailableToolResolver {
-    fn resolve<'a>(
-        &'a self,
-        wanted_dependency: &'a WantedDependency,
-        _opts: &'a ResolveOptions,
-    ) -> ResolveFuture<'a> {
-        Box::pin(async move {
-            let Some(alias) = wanted_dependency.alias.as_deref() else { return Ok(None) };
-            let Some(specifier) = wanted_dependency.bare_specifier.as_deref() else {
-                return Ok(None);
-            };
-            if !matches!(alias, "node" | "deno" | "bun" | "yarn") || !is_tool_specifier(specifier) {
-                return Ok(None);
-            }
-            Err(Box::new(super::ProvisioningUnavailableError {
-                alias: alias.to_string(),
-                specifier: specifier.to_string(),
-            }) as ResolveError)
-        })
-    }
-
-    fn resolve_latest<'a>(
-        &'a self,
-        _query: &'a pnpm_resolving_resolver_base::LatestQuery,
-        _opts: &'a ResolveOptions,
-    ) -> pnpm_resolving_resolver_base::ResolveLatestFuture<'a> {
-        Box::pin(async { Ok(None) })
-    }
-}
-
-#[cfg(all(test, not(feature = "runtime-provisioning")))]
-#[path = "standalone/unavailable_tool_tests.rs"]
-mod unavailable_tool_tests;
 
 fn build_npm_resolver(
     opts: &StandaloneChainOptions<'_>,

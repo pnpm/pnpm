@@ -144,7 +144,10 @@ impl PickPolicy {
 ///
 /// Returns an error when the configured named-registry prefixes cannot be
 /// merged into an unambiguous resolver map.
-#[cfg_attr(not(feature = "runtime-provisioning"), allow(clippy::needless_pass_by_value))]
+#[cfg_attr(
+    not(feature = "runtime-provisioning"),
+    expect(clippy::needless_pass_by_value, reason = "the runtime resolvers consume `http_client`")
+)]
 pub fn create_configured_registry_resolver(
     config: &Config,
     http_client: Arc<ThrottledClient>,
@@ -154,12 +157,10 @@ pub fn create_configured_registry_resolver(
     let named = create_configured_named_registry_resolver(config, &npm, policy)?;
     let registry_resolver: Arc<dyn Resolver> =
         Arc::new(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]));
-    let chain: Vec<Box<dyn Resolver>> = vec![Box::new(Arc::clone(&registry_resolver))];
+    let mut chain: Vec<Box<dyn Resolver>> = vec![Box::new(Arc::clone(&registry_resolver))];
     #[cfg(feature = "runtime-provisioning")]
-    let chain = {
-        let mut chain = chain;
-        let node_resolver = create_configured_node_resolver(config, Arc::clone(&http_client));
-        chain.push(Box::new(node_resolver));
+    {
+        chain.push(Box::new(create_configured_node_resolver(config, Arc::clone(&http_client))));
         chain.push(Box::new(DenoResolver::new(
             Arc::clone(&http_client),
             Arc::clone(&registry_resolver),
@@ -169,8 +170,9 @@ pub fn create_configured_registry_resolver(
                 .with_mirror(config.tool_mirror(Tool::Bun)),
         ));
         chain.push(Box::new(YarnResolver::new(http_client, config.tls.strict_ssl.unwrap_or(true))));
-        chain
-    };
+    }
+    #[cfg(not(feature = "runtime-provisioning"))]
+    chain.push(Box::new(pnpm_resolving_default_resolver::UnavailableToolResolver));
     Ok(DefaultResolver::new(chain))
 }
 
@@ -311,3 +313,6 @@ pub(crate) fn pick_package_context<'a>(
         },
     }
 }
+
+#[cfg(all(test, not(feature = "runtime-provisioning")))]
+mod tests;

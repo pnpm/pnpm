@@ -44,10 +44,10 @@ jobs:
       - name: Install crates
         uses: $/.github/actions/install-crates
 
-      - name: Install just
+      - name: Install just and cargo-nextest
         uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
-          tool: just
+          tool: just,cargo-nextest
 
       - name: Measure main
         run: just engine-size --json "$RUNNER_TEMP/engine-size-main.json" > /dev/null
@@ -61,17 +61,15 @@ jobs:
       - name: Install pull request crates
         run: pnpm install --frozen-lockfile --filter pacquet --filter @pnpm/esm-loader
 
-      - name: Test reduced shell emulator
-        run: cargo test --locked -p pnpm-executor --no-default-features reports_when_shell_emulation_is_not_compiled_in
-
-      - name: Test reduced runtime resolver
-        run: cargo test --locked -p pnpm-resolving-default-resolver --no-default-features unavailable_tool_tests
-
-      - name: Test reduced runtime range updates
-        run: cargo test --locked -p pnpm-package-manager --no-default-features registry_ranges_still_bump_without_runtime_provisioning
-
-      - name: Test reduced runtime requests
-        run: cargo test --locked -p pnpm-package-manager --no-default-features add_runtime_request_reports_unavailable_when_runtime_provisioning_is_disabled
+      - name: Test reduced profile
+        run: >-
+          pnpm test:rust --locked --no-default-features
+          -p pnpm-executor
+          -p pnpm-git-fetcher
+          -p pnpm-resolving-git-resolver
+          -p pnpm-resolving-default-resolver
+          -p pnpm-deps-restorer
+          -p pnpm-package-manager
 
       - name: Measure pull request
         shell: bash

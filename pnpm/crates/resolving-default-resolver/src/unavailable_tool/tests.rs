@@ -16,7 +16,7 @@ async fn rejects_tool_runtime_requests_before_local_path_resolution() {
 
     assert_eq!(
         error.to_string(),
-        "Provisioning is not enabled in this build for node@runtime:rc/22.0.0",
+        "Runtime provisioning is not enabled in this build for node@runtime:rc/22.0.0",
     );
 }
 

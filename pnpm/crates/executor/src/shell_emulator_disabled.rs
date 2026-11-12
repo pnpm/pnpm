@@ -1,5 +1,6 @@
-use crate::ProcessTracker;
 pub use crate::shell_emulator_types::{EmulatedOutput, ShellEmulatorError};
+
+use crate::ProcessTracker;
 use std::{collections::HashMap, path::Path};
 
 pub fn execute_emulated(
@@ -13,4 +14,5 @@ pub fn execute_emulated(
 }
 
 #[cfg(test)]
+#[path = "shell_emulator_disabled/tests.rs"]
 mod tests;

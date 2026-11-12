@@ -43,12 +43,15 @@ pub struct CliArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct ReportOptions {
+    /// Also write the report as JSON to this path.
     #[clap(long)]
     pub json: Option<PathBuf>,
 
+    /// Compare stripped sizes with a report saved by `--json`.
     #[clap(long)]
     pub compare: Option<PathBuf>,
 
+    /// Build the probe without its default Cargo features.
     #[clap(long)]
     pub no_default_features: bool,
 }
