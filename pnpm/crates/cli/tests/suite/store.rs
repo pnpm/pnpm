@@ -713,6 +713,159 @@ fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
     assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
 }
 
+/// The tarball `store add` takes in place of the registry's
+/// `@pnpm.e2e/foo@100.0.0`, and the project's build policy for it.
+#[derive(Default)]
+struct DownloadedFoo<'a> {
+    /// Replaces the registry's tarball. The lockfile entry is pinned to it.
+    tarball: Option<Vec<u8>>,
+    allow_build: Option<AllowBuild<'a>>,
+}
+
+/// An `allowBuilds` entry of the project.
+#[derive(Clone, Copy)]
+struct AllowBuild<'a> {
+    key: &'a str,
+    allowed: bool,
+}
+
+/// A lockfile entry whose id is the tarball's URL, which the tarball itself
+/// does not reveal, so only the lockfile can tell `store add` to key it so.
+/// Returns the project after its offline install succeeded.
+fn install_offline_from_a_downloaded_tarball_url_entry(
+    url: &str,
+    downloaded_foo: DownloadedFoo<'_>,
+) -> (tempfile::TempDir, PathBuf) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    // Spelled with a host other than the configured registry's, the URL
+    // resolves to a tarball entry rather than a registry one.
+    let registry = npmrc_info.mock_instance.url();
+    let served =
+        format!("{registry}@pnpm.e2e/foo/-/foo-100.0.0.tgz").replace("127.0.0.1", "localhost");
+    assert!(!served.starts_with(registry), "{served}");
+    let manifest = workspace.join("package.json");
+    fs::write(
+        &manifest,
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": served } }).to_string(),
+    )
+    .expect("write package.json");
+    if let Some(AllowBuild { key, allowed }) = downloaded_foo.allow_build {
+        _utils::append_workspace_yaml_key(
+            &workspace,
+            "allowBuilds",
+            format!("{{ '{key}': {allowed} }}"),
+        );
+    }
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let published = fs::read(pnpr_fixtures::tarball_path(
+        &root.path().join("registry-storage"),
+        "@pnpm.e2e/foo",
+        "100.0.0",
+    ))
+    .expect("read the published tarball");
+    let downloaded = downloaded_foo.tarball.unwrap_or_else(|| published.clone());
+    let sha512 = |bytes: &[u8]| {
+        ssri::IntegrityOpts::new()
+            .algorithm(ssri::Algorithm::Sha512)
+            .chain(bytes)
+            .result()
+            .to_string()
+    };
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    for path in [&manifest, &lockfile_path] {
+        let text = fs::read_to_string(path).expect("read the project file");
+        assert!(text.contains(&served), "{text}");
+        let text = text
+            .replace(&served, url)
+            .replace(&sha512(&published), &sha512(&downloaded));
+        fs::write(path, text).expect("point the project at the URL");
+    }
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let downloaded_path = root.path().join("foo.tgz");
+    fs::write(&downloaded_path, downloaded).expect("write the downloaded tarball");
+    pacquet_at(&workspace)
+        .with_args(["store", "add"])
+        .with_arg(&downloaded_path)
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+    assert!(workspace.join("node_modules/@pnpm.e2e/foo/package.json").exists());
+    (root, workspace)
+}
+
+#[test]
+fn store_add_of_a_downloaded_tarball_serves_a_tarball_url_lockfile_entry() {
+    install_offline_from_a_downloaded_tarball_url_entry(
+        "https://tarballs.example.invalid/foo-100.0.0.tgz",
+        DownloadedFoo::default(),
+    );
+}
+
+const GIT_HOSTED_FOO: &str =
+    "https://codeload.github.com/pnpm-e2e/foo/tar.gz/98e8ff1da1a89f93d1397a24d7413ed15421c139";
+
+#[test]
+fn store_add_of_a_downloaded_tarball_serves_a_git_hosted_lockfile_entry() {
+    install_offline_from_a_downloaded_tarball_url_entry(GIT_HOSTED_FOO, DownloadedFoo::default());
+}
+
+/// `store add` leaves a git-hosted package as its source, and the install
+/// prepares it under the project's build policy.
+fn assert_offline_install_prepares_a_downloaded_git_hosted_package(allow_build: AllowBuild<'_>) {
+    let manifest = serde_json::json!({
+        "name": "@pnpm.e2e/foo",
+        "version": "100.0.0",
+        "scripts": {
+            "prepare": r#"node -e "require('fs').writeFileSync('prepare.txt', 'prepared')""#,
+        },
+    })
+    .to_string();
+    let tarball = _utils::gzipped_tarball(&[
+        ("package/package.json", &manifest),
+        ("package/index.js", "module.exports = 42"),
+    ]);
+    let (_root, workspace) = install_offline_from_a_downloaded_tarball_url_entry(
+        GIT_HOSTED_FOO,
+        DownloadedFoo { tarball: Some(tarball), allow_build: Some(allow_build) },
+    );
+    let package = workspace.join("node_modules/@pnpm.e2e/foo");
+    assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), "module.exports = 42");
+    assert_eq!(package.join("prepare.txt").exists(), allow_build.allowed);
+}
+
+#[test]
+fn store_add_of_a_downloaded_git_hosted_package_is_prepared_when_its_build_is_allowed() {
+    assert_offline_install_prepares_a_downloaded_git_hosted_package(AllowBuild {
+        key: &format!("@pnpm.e2e/foo@{GIT_HOSTED_FOO}"),
+        allowed: true,
+    });
+}
+
+#[test]
+fn store_add_of_a_downloaded_git_hosted_package_stays_unprepared_when_its_build_is_denied() {
+    assert_offline_install_prepares_a_downloaded_git_hosted_package(AllowBuild {
+        key: "@pnpm.e2e/foo",
+        allowed: false,
+    });
+}
+
 /// <https://github.com/pnpm/pnpm/issues/17875>
 #[test]
 fn store_add_of_a_tarball_directory_warms_the_store_recursively() {
