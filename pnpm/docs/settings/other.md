@@ -10,7 +10,9 @@ sidebar_label: "Other"
 * Type: **String**
 
 The editor command used by [`pnpm edit`](../cli/edit.md) when `--editor` is not
-specified. The command can include arguments, such as `code --wait`.
+specified. The command can include arguments, such as `code --wait`. Set this
+option in the [global configuration file](../configuring.md#global-configuration)
+or with `PNPM_CONFIG_EDITOR`. A project's `pnpm-workspace.yaml` cannot set it.
 
 ### savePrefix
 

@@ -36,7 +36,7 @@ Since v12.7.0, the same applies to [`userAgent`](./settings/network.md#useragent
 
 :::note
 
-A project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `macosBackup`, `npmrcAuthFile`, `pnpmHomeDir`, `scope`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. So are [`ci`](./settings/other.md#ci), [`globalShims`](./settings/other.md#globalshims), [`symlinkedLockfileTargetDirs`](./settings/store.md#symlinkedlockfiletargetdirs), and [`tools`](./settings/cli.md#tools). Of these, only `globalShims` may also be set in a `pnpm-workspace.yaml` in the pnpm home directory. Set them in the [global configuration file](./configuring.md#global-configuration) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
+A project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `macosBackup`, `npmrcAuthFile`, `pnpmHomeDir`, `scope`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. So are [`ci`](./settings/other.md#ci), [`editor`](./settings/other.md#editor), [`globalShims`](./settings/other.md#globalshims), [`symlinkedLockfileTargetDirs`](./settings/store.md#symlinkedlockfiletargetdirs), and [`tools`](./settings/cli.md#tools). Of these, only `globalShims` may also be set in a `pnpm-workspace.yaml` in the pnpm home directory. Set them in the [global configuration file](./configuring.md#global-configuration) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
 
 :::
 
@@ -341,6 +341,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 
 [Full reference →](./settings/other.md)
 
+* [editor](./settings/other.md#editor)
 * [savePrefix](./settings/other.md#saveprefix)
 * [saveExact](./settings/other.md#saveexact)
 * [saveTypes](./settings/other.md#savetypes)
