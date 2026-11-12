@@ -102,10 +102,6 @@ pub struct VirtualStoreLayout {
 }
 
 impl VirtualStoreLayout {
-    pub(crate) fn uses_global_virtual_store(&self) -> bool {
-        self.gvs_suffixes.is_some()
-    }
-
     pub(crate) fn relocated(&self, root: &Path) -> Self {
         Self { package_store_dir: root.to_path_buf(), ..self.clone() }
     }

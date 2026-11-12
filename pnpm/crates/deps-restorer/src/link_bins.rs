@@ -134,7 +134,7 @@ impl LinkVirtualStoreBins<'_> {
             + FsSetExecutable
             + FsEnsureExecutableBits,
     {
-        let link_options = if self.layout.uses_global_virtual_store() {
+        let link_options = if self.layout.enable_global_virtual_store() {
             let mut options = self.link_options.clone();
             options.extra_node_paths.clear();
             Cow::Owned(options)
