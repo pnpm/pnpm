@@ -930,3 +930,41 @@ async fn a_refused_setting_or_lockfile_format_is_an_unsupported_request() {
         assert_eq!(error.is_unsupported_request(), unsupported, "{code}");
     }
 }
+
+#[tokio::test]
+async fn a_cargo_resolve_accepts_a_server_that_predates_lockfile_format() {
+    for (done, accepted) in [
+        (json!({ "type": "done", "lockfile": "version = 4\n" }), true),
+        (
+            json!({ "type": "done", "lockfileFormat": "cargo-lock", "lockfile": "version = 4\n" }),
+            true,
+        ),
+        (json!({ "type": "done", "lockfileFormat": "pylock", "lockfile": "version = 4\n" }), false),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let _resolve = server
+            .mock("POST", "/-/pnpr/v0/resolve")
+            .with_body(format!("{done}\n"))
+            .create_async()
+            .await;
+
+        let resolved = PnprClient::new(server.url())
+            .resolve_cargo(super::CargoResolveOptions {
+                metadata: "{}".to_string(),
+                registry: "https://index.crates.io/".to_string(),
+                authorization: None,
+            })
+            .await;
+
+        assert_eq!(resolved.is_ok(), accepted, "{done}: {resolved:?}");
+    }
+}
+
+#[test]
+fn a_sole_lockfile_format_may_be_omitted_but_not_replaced() {
+    use super::lockfile_format::{PYLOCK, expect_sole_lockfile_format};
+
+    assert!(expect_sole_lockfile_format(None, PYLOCK).is_ok());
+    assert!(expect_sole_lockfile_format(Some(PYLOCK), PYLOCK).is_ok());
+    assert!(expect_sole_lockfile_format(Some("cargo-lock"), PYLOCK).is_err());
+}

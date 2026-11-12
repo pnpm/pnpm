@@ -85,6 +85,7 @@ impl UpdateArgs {
             let link = self.pnpr_patch_link(&state, &lockfile_path);
             if let Some(target) = pnpr_target::<Reporter>(&state, &link).await?
                 && run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link).await?
+                    == PatchRefresh::Refreshed
             {
                 return Ok(());
             }
@@ -373,14 +374,21 @@ impl UpdateArgs {
     }
 }
 
-/// Refresh patches through the pnpr server. `false` when the server refused
-/// the request and the update resolves locally instead.
+/// What [`run_patch_refresh`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatchRefresh {
+    Refreshed,
+    /// The server refused the request, so the update resolves locally.
+    ResolveLocally,
+}
+
+/// Refresh patches through the pnpr server.
 async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
     state: &State,
     selection: Option<&InstallFamilySelection>,
     target: PnprTarget<'_>,
     link: PnprLink<'_>,
-) -> miette::Result<bool> {
+) -> miette::Result<PatchRefresh> {
     let server = target.server;
     let refreshed = match selection {
         Some(selection) => {
@@ -389,7 +397,9 @@ async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
         None => install_via_pnpr::<Reporter>(state, target, link).await,
     };
     match refreshed {
-        Err(error) if resolves_locally_after::<Reporter>(&error, server) => Ok(false),
-        refreshed => refreshed.map(|()| true),
+        Err(error) if resolves_locally_after::<Reporter>(&error, server) => {
+            Ok(PatchRefresh::ResolveLocally)
+        }
+        refreshed => refreshed.map(|()| PatchRefresh::Refreshed),
     }
 }

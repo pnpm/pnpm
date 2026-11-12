@@ -195,9 +195,11 @@ fields they do not know.
 | `violations` | Yes | `violations`: a list of `name`, `version`, `code`, `reason`. The lockfile or an OSV advisory failed the client's policy. |
 | `error` | Yes | `message`. Optional: `code`. |
 
-A stream ends with exactly one terminal frame. Clients reject a `done` frame
-whose `lockfileFormat` is not one they accepted, or whose `appliedPolicies` echo
-is missing, incomplete, or differs from the requested policies.
+A stream ends with exactly one terminal frame. Clients reject a `resolve`
+`done` frame whose `lockfileFormat` is not one they accepted. For npm `resolve`
+and for `verify-lockfile`, clients also reject a `done` frame whose
+`appliedPolicies` echo is missing, incomplete, or differs from the requested
+policies.
 
 For npm requests, `appliedPolicies` includes `autoInstallPeers`, `dedupePeers`,
 `excludeLinksFromLockfile`, `addMissingPeerTypes`, `projectScopedOptionalPeers`,

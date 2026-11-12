@@ -26,3 +26,13 @@ pub(crate) fn expect_lockfile_format(
         "pnpr server returned lockfileFormat {actual:?}, expected {expected:?}",
     )))
 }
+
+/// Like [`expect_lockfile_format`], but also accepts a frame without one. A
+/// Cargo or Python request has a single format, so a server that predates
+/// `lockfileFormat` still answered in it.
+pub(crate) fn expect_sole_lockfile_format(
+    actual: Option<&str>,
+    expected: &str,
+) -> Result<(), PnprClientError> {
+    expect_lockfile_format(actual.or(Some(expected)), expected)
+}

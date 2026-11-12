@@ -111,7 +111,7 @@ When `.cargo/config.toml` sets `unstable.build-std` to a non-empty list, pnpm al
 
 ## Faster resolution through pnpr
 
-With [`pnprServer`](/pnpr/install-acceleration) set, pnpm asks the server to resolve the Cargo graph instead of fetching one sparse-index file per crate. A server that does not answer for Cargo makes pnpm fall back to resolving locally.
+With [`pnprServer`](/pnpr/install-acceleration) set, pnpm asks the server to resolve the Cargo graph instead of fetching one sparse-index file per crate. A server that does not answer for Cargo, or refuses the request, makes pnpm fall back to resolving locally.
 
 ## Rust toolchain
 

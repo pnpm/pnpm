@@ -1,7 +1,7 @@
 use super::{
     CargoResolveOptions, Deserialize, PnprClient, PnprClientError, PypiResolveOptions,
     RenderedViolation, VerifyError, VerifyLockfileOptions,
-    lockfile_format::{CARGO_LOCK, PYLOCK, expect_lockfile_format},
+    lockfile_format::{CARGO_LOCK, PYLOCK, expect_sole_lockfile_format},
     read_ndjson_frames, resolver_error_response, response_body_bounded,
 };
 
@@ -155,7 +155,7 @@ impl PnprClient {
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_pypi_frame(&frame)? {
             PypiFrame::Done { lockfile, lockfile_format } => {
-                expect_lockfile_format(lockfile_format.as_deref(), PYLOCK)?;
+                expect_sole_lockfile_format(lockfile_format.as_deref(), PYLOCK)?;
                 Ok(*lockfile)
             }
             PypiFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
@@ -181,7 +181,7 @@ impl PnprClient {
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_cargo_frame(&frame)? {
             CargoFrame::Done { lockfile, lockfile_format } => {
-                expect_lockfile_format(lockfile_format.as_deref(), CARGO_LOCK)?;
+                expect_sole_lockfile_format(lockfile_format.as_deref(), CARGO_LOCK)?;
                 Ok(lockfile)
             }
             CargoFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),

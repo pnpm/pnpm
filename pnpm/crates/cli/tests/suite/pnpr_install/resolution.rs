@@ -305,8 +305,6 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     drop((root, mock_instance));
 }
 
-/// A server that cannot honor a request field refuses the request, and the
-/// install resolves locally instead.
 #[test]
 fn install_resolves_locally_when_pnpr_refuses_the_request() {
     let CommandTempCwd {
