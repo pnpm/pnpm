@@ -56,12 +56,20 @@ impl Config {
             set_extra_env_value(&mut self.extra_env, "NODE_PATH", node_path);
         }
         if let Some(node_options) = hook_node_options {
-            let node_options = node_options.map(|node_options| {
-                esm_node_path_loader::keep_esm_node_path_loader_option(
+            let previous_node_options = self.extra_env.get("NODE_OPTIONS").map(String::as_str);
+            let node_options = match node_options {
+                Some(node_options) => Some(esm_node_path_loader::keep_esm_node_path_loader_option(
                     &node_options,
-                    self.extra_env.get("NODE_OPTIONS").map(String::as_str),
-                )
-            });
+                    previous_node_options,
+                )),
+                None if previous_node_options.is_some_and(|value| {
+                    value.contains(esm_node_path_loader::esm_node_path_loader_import_flag())
+                }) =>
+                {
+                    Some(esm_node_path_loader::esm_node_path_loader_import_flag().to_string())
+                }
+                None => None,
+            };
             set_extra_env_value(&mut self.extra_env, "NODE_OPTIONS", node_options);
         }
     }
