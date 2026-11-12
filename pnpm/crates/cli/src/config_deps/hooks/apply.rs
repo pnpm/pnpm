@@ -18,6 +18,7 @@ struct LockfileDirPathsBeforeHook {
     hook_node_options: Option<Option<String>>,
     hook_modules_dir: Option<PathBuf>,
     modules_dir_changed: bool,
+    virtual_store_dir_changed: bool,
 }
 
 /// `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
@@ -126,6 +127,7 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         &paths_before_hook,
         modules_dir,
         paths_before_hook.configured_virtual_store_dir.as_ref(),
+        paths_before_hook.virtual_store_dir_changed,
         install_state_dir,
     );
     config.refresh_node_path_after_lockfile_dir_change::<Host>(
@@ -140,38 +142,41 @@ fn restore_default_lockfile_dir_paths(
     paths_before_hook: &LockfileDirPathsBeforeHook,
     modules_dir: PathBuf,
     configured_virtual_store_dir: Option<&PathBuf>,
+    virtual_store_dir_changed: bool,
     install_state_dir: PathBuf,
 ) {
     if config.lockfile_dir.is_some() {
         return;
     }
     config.modules_dir = modules_dir;
+    if !virtual_store_dir_changed {
+        config.configured_virtual_store_dir = configured_virtual_store_dir.cloned();
+    }
+    config.install_state_dir = install_state_dir;
+    let hook_virtual_store_dir =
+        virtual_store_dir_changed.then(|| config.configured_virtual_store_dir.clone()).flatten();
+    if paths_before_hook.lockfile_dir.is_some() {
+        restore_default_lockfile_dir(config, configured_virtual_store_dir, hook_virtual_store_dir);
+    }
     if let Some(hook_modules_dir) = paths_before_hook.hook_modules_dir.as_ref() {
         config.modules_dir.clone_from(hook_modules_dir);
     }
-    if let Some(dir) = configured_virtual_store_dir {
-        config.configured_virtual_store_dir.clone_from(&Some(dir.clone()));
-    } else {
-        config.configured_virtual_store_dir = None;
-    }
-    config.install_state_dir = install_state_dir;
-    if paths_before_hook.modules_dir_changed {
-        if !config.explicit_settings.contains_key("virtualStoreDir")
-            || config.enable_global_virtual_store
-        {
-            config.install_state_dir = config.modules_dir.join(".pnpm");
-        }
-    } else if paths_before_hook.lockfile_dir.is_some() {
-        restore_default_lockfile_dir(config, configured_virtual_store_dir);
+    if paths_before_hook.modules_dir_changed
+        && (!config.explicit_settings.contains_key("virtualStoreDir")
+            || config.enable_global_virtual_store)
+    {
+        config.install_state_dir = config.modules_dir.join(".pnpm");
     }
 }
 
 fn restore_default_lockfile_dir(
     config: &mut Config,
     configured_virtual_store_dir: Option<&PathBuf>,
+    hook_virtual_store_dir: Option<PathBuf>,
 ) {
     let project_dir = config.dir.clone();
     let lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
+    let paths_dir = config.workspace_dir.clone().unwrap_or(lockfile_dir);
     let project_relative_virtual_store_dir = config.explicit_settings
         .get("virtualStoreDir")
         .and_then(Value::as_str)
@@ -182,11 +187,16 @@ fn restore_default_lockfile_dir(
                         == pnpm_fs::lexical_normalize(&project_dir.join(raw))
             })
         });
-    config.anchor_lockfile_paths(&lockfile_dir);
+    config.anchor_lockfile_paths(&paths_dir);
     if !config.enable_global_virtual_store
         && let Some(dir) = project_relative_virtual_store_dir
     {
         config.set_virtual_store_dir(dir.clone());
+    }
+    if !config.enable_global_virtual_store
+        && let Some(dir) = hook_virtual_store_dir
+    {
+        config.set_virtual_store_dir(dir);
     }
 }
 
@@ -225,6 +235,7 @@ fn lockfile_dir_paths_before_hook(
                 .and_then(Value::as_str)
                 .map(|modules_dir| pnpm_fs::lexical_normalize(&base_dir.join(modules_dir))),
             modules_dir_changed: delta.get("modulesDir").is_some(),
+            virtual_store_dir_changed: delta.get("virtualStoreDir").is_some(),
         })
 }
 
