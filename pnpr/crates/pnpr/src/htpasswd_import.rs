@@ -35,17 +35,13 @@ pub async fn import_htpasswd(
     let source_content = std::fs::read_to_string(&options.source)
         .into_diagnostic()
         .map_err(|err| {
-            miette::miette!("failed to read htpasswd file '{}': {err}", options.source.display())
+            let source = options.source.display();
+            miette::miette!("failed to read htpasswd file '{source}': {err}")
         })?;
 
     let (source_users, total_read, bcrypt_count, sha_count) =
         parse_source_entries(&source_content)?;
-    let path = target_path.clone();
-    let max_users = config.identity.auth.users.max_users;
-    let auth = tokio::task::spawn_blocking(move || pnpr_auth::SqliteAuth::open(&path, max_users))
-        .await
-        .into_diagnostic()?
-        .into_diagnostic()?;
+    let auth = open_accounts(target_path.clone(), config.identity.auth.users.max_users).await?;
     let imported = auth
         .import_password_hashes(
             source_users,
@@ -70,6 +66,16 @@ pub async fn import_htpasswd(
         dry_run: options.dry_run,
         collisions: imported.collisions,
     })
+}
+
+async fn open_accounts(
+    path: PathBuf,
+    max_users: pnpr_config::MaxUsers,
+) -> miette::Result<pnpr_auth::SqliteAuth> {
+    tokio::task::spawn_blocking(move || pnpr_auth::SqliteAuth::open(&path, max_users))
+        .await
+        .into_diagnostic()?
+        .into_diagnostic()
 }
 
 fn parse_source_entries(

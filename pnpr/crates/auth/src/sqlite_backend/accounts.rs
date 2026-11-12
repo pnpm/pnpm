@@ -1,8 +1,7 @@
 use super::SqliteAuth;
 use crate::{
-    AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
-    AccountStatusRevision, CredentialKind, PasswordChange, UpsertOutcome, UserAccount,
-    UserCreation, UserRemoval,
+    AccountCredential, AccountLifecycle, AccountStatus, AccountStatusOutcome, CredentialKind,
+    PasswordChange, UpsertOutcome, UserCreation, UserRemoval,
     account::{decode_sql_account_state, deprovisioned_login_error, should_apply_lifecycle},
     dummy_verify, hash_bcrypt, is_sha_hash, unix_millis,
     validation::{
@@ -13,8 +12,7 @@ use crate::{
 };
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
-use pnpr_sql::adapter::{Connection, Param, Row};
-use std::collections::HashMap;
+use pnpr_sql::adapter::{Connection, Param};
 
 pub(super) struct StoredAccount {
     pub(super) id: String,
@@ -59,21 +57,7 @@ impl SqliteAuth {
         if let Some(stored) = self.stored_account(username).await? {
             return self.verify_and_maybe_upgrade(username, password, stored).await;
         }
-        let max = match self.max_users {
-            MaxUsers::Disabled => {
-                dummy_verify(password, self.bcrypt_cost).await;
-                return Err(RegistryError::Unauthenticated {
-                    resource: format!("user {username:?}"),
-                });
-            }
-            MaxUsers::Unlimited => None,
-            MaxUsers::Limited(max) => Some(max),
-        };
-        if let Some(max) = max
-            && self.read(registered_count).await? >= max
-        {
-            return Err(RegistryError::TooManyUsers { max });
-        }
+        let max = self.check_registration_open(username, password).await?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         let name = username.to_string();
         let registration = self.write(move |connection| {
@@ -96,6 +80,25 @@ impl SqliteAuth {
                 self.verify_and_maybe_upgrade(username, password, stored).await
             }
         }
+    }
+
+    /// Refuse a registration the cap does not allow, before hashing its
+    /// password. Returns the cap the write rechecks.
+    async fn check_registration_open(&self, username: &str, password: &str) -> Result<Option<u64>> {
+        let max = match self.max_users {
+            MaxUsers::Disabled => {
+                dummy_verify(password, self.bcrypt_cost).await;
+                return Err(RegistryError::Unauthenticated {
+                    resource: format!("user {username:?}"),
+                });
+            }
+            MaxUsers::Unlimited => return Ok(None),
+            MaxUsers::Limited(max) => max,
+        };
+        if self.read(registered_count).await? >= max {
+            return Err(RegistryError::TooManyUsers { max });
+        }
+        Ok(Some(max))
     }
 
     async fn verify_and_maybe_upgrade(
@@ -282,86 +285,6 @@ pub(super) fn set_password_hash(
     Ok(!changed.is_empty())
 }
 
-pub(super) fn list_accounts(connection: &dyn Connection) -> Result<Vec<UserAccount>> {
-    collect_accounts(connection.query(
-        "SELECT id, username FROM users WHERE status <> 'deleted' ORDER BY username",
-        &[],
-    )?)
-}
-
-pub(super) fn accounts_by_id(connection: &dyn Connection, ids: &str) -> Result<Vec<UserAccount>> {
-    collect_accounts(connection.query(
-        "SELECT id, username FROM users
-         WHERE id IN (SELECT value FROM json_each(?1)) AND status <> 'deleted'",
-        &[Param::Text(ids)],
-    )?)
-}
-
-fn collect_accounts(rows: Vec<Row>) -> Result<Vec<UserAccount>> {
-    rows.into_iter()
-        .map(|mut row| Ok(UserAccount { id: row.get(0)?, username: row.get(1)? }))
-        .collect()
-}
-
-pub(super) fn active_account_name(
-    connection: &dyn Connection,
-    user_id: &str,
-) -> Result<Option<String>> {
-    connection
-        .query_optional(
-            "SELECT username FROM users WHERE id = ?1 AND status = 'active'",
-            &[Param::Text(user_id)],
-        )?
-        .map(|mut row| row.get(0))
-        .transpose()
-}
-
-pub(super) fn account_status(
-    connection: &dyn Connection,
-    user_id: &str,
-) -> Result<Option<AccountStatus>> {
-    connection
-        .query_optional("SELECT status FROM users WHERE id = ?1", &[Param::Text(user_id)])?
-        .map(|mut row| parse_status(user_id, &row.get::<String>(0)?))
-        .transpose()
-}
-
-pub(super) fn status_revisions(
-    connection: &dyn Connection,
-    ids: &str,
-) -> Result<HashMap<String, AccountStatusRevision>> {
-    let rows = connection.query(
-        "SELECT id, status, status_revision FROM users
-         WHERE id IN (SELECT value FROM json_each(?1))",
-        &[Param::Text(ids)],
-    )?;
-    rows.into_iter()
-        .map(|mut row| {
-            let id: String = row.get(0)?;
-            let status = parse_status(&id, &row.get::<String>(1)?)?;
-            let revision = u64::try_from(row.get::<i64>(2)?).unwrap_or(0);
-            Ok((id, AccountStatusRevision::reconciled(status, revision)))
-        })
-        .collect()
-}
-
-pub(super) fn account_login(
-    connection: &dyn Connection,
-    user_id: &str,
-) -> Result<Option<AccountLogin>> {
-    connection
-        .query_optional(
-            "SELECT username, name_revision FROM users WHERE id = ?1 AND status <> 'deleted'",
-            &[Param::Text(user_id)],
-        )?
-        .map(|mut row| {
-            let username = row.get(0)?;
-            let revision = u64::try_from(row.get::<i64>(1)?).unwrap_or(0);
-            Ok(AccountLogin { username, revision })
-        })
-        .transpose()
-}
-
 /// Give the non-deleted account `user_id` the login name `username` at name
 /// revision `revision`.
 pub(super) fn rename_account(
@@ -421,7 +344,7 @@ pub(super) fn apply_lifecycle(
     else {
         return Ok(AccountStatusOutcome::Missing);
     };
-    let actual_status = parse_status(user_id, &row.get::<String>(0)?)?;
+    let actual_status = super::account_reads::parse_status(user_id, &row.get::<String>(0)?)?;
     let actual_revision = u64::try_from(row.get::<i64>(1)?).unwrap_or(0);
     if !should_apply_lifecycle(
         actual_status,
@@ -451,11 +374,4 @@ pub(super) fn apply_lifecycle(
         }
     }
     Ok(AccountStatusOutcome::Applied)
-}
-
-fn parse_status(user_id: &str, raw: &str) -> Result<AccountStatus> {
-    AccountStatus::parse(raw)
-        .ok_or_else(|| RegistryError::Internal {
-            reason: format!("user {user_id} has an unrecognized status {raw:?}"),
-        })
 }

@@ -55,7 +55,7 @@ impl TokenBackend for SqliteAuth {
                 &format!(
                     "SELECT {TOKEN_COLUMNS}, u.username FROM tokens t
                      JOIN users u ON u.id = t.user_id AND u.status = 'active'
-                     WHERE t.token_hash = ?1"
+                     WHERE t.token_hash = ?1",
                 ),
                 &[Param::Text(&token_hash)],
             )?

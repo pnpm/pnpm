@@ -44,7 +44,7 @@ fn insert_raw_token(path: &Path, token_hash: &str, user_id: &str, extra: (&str, 
         .execute(
             &format!(
                 "INSERT INTO tokens (token_hash, user_id, created_at, last_used_at, {column})
-                 VALUES (?1, ?2, -1, -42, ?3)"
+                 VALUES (?1, ?2, -1, -42, ?3)",
             ),
             rusqlite::params![token_hash, user_id, value],
         )
@@ -196,7 +196,7 @@ async fn deactivated_accounts_keep_their_registration_slot_until_deleted() {
     assert!(
         auth.lookup(&raw).await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     let capped = auth.add_or_login("bob", "secret123").await.unwrap_err();
     assert!(matches!(capped, pnpr_error::RegistryError::TooManyUsers { max: 1 }));
@@ -299,7 +299,7 @@ async fn tokens_round_trip_and_carry_their_restrictions() {
     assert!(
         auth.lookup("not-a-token").await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
 
     auth.touch(&raw, looked_up.last_used_at + 100).await
@@ -327,12 +327,12 @@ async fn expired_tokens_do_not_authenticate_and_are_deleted() {
     assert!(
         auth.lookup(&issued[0]).await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     assert!(
         auth.lookup_record(&issued[1]).await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
 
     assert_eq!(auth.delete_expired(1_000).await.unwrap(), 2);
@@ -345,12 +345,12 @@ async fn expired_tokens_do_not_authenticate_and_are_deleted() {
     assert!(
         auth.lookup(&issued[2]).await
             .unwrap()
-            .is_some()
+            .is_some(),
     );
     assert!(
         auth.lookup(&issued[3]).await
             .unwrap()
-            .is_some()
+            .is_some(),
     );
 }
 
@@ -371,31 +371,31 @@ async fn tokens_of_a_removed_owner_stop_authenticating_but_stay_listed() {
         auth.list_for_user(&alice).await
             .unwrap()
             .len(),
-        1
+        1,
     );
     assert_eq!(
         auth.list_for_user(&bob).await
             .unwrap()
             .len(),
-        1
+        1,
     );
 
     auth.delete_user(&alice).await.unwrap();
     assert!(
         auth.lookup(&token).await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     assert!(
         auth.lookup_record(&token).await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     assert_eq!(
         auth.list_for_user(&alice).await
             .unwrap()
             .len(),
-        1
+        1,
     );
 }
 
@@ -491,7 +491,7 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
         credential
             .password_hash()
             .unwrap()
-            .starts_with("$2y$")
+            .starts_with("$2y$"),
     );
     let outcome = auth.add_or_login("verdaccio_user", "test-password").await.unwrap();
     assert_eq!(outcome, (UpsertOutcome::LoggedIn, id));

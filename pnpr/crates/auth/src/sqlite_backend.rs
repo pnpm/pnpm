@@ -8,11 +8,12 @@
 //! directly. The `auth_counters` row the shared databases keep is not read
 //! here: a shared backend reconciles it with the `users` rows at startup.
 
+pub use import::{ImportedPasswords, PasswordCollisions, PasswordImport};
+
+mod account_reads;
 mod accounts;
 mod import;
 mod tokens;
-
-pub use import::{ImportedPasswords, PasswordCollisions, PasswordImport};
 
 use crate::{
     AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
@@ -146,12 +147,12 @@ impl UserBackend for SqliteAuth {
     }
 
     async fn list_accounts(&self) -> Result<Vec<UserAccount>> {
-        self.read(accounts::list_accounts).await
+        self.read(account_reads::list_accounts).await
     }
 
     async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<UserAccount>> {
         let ids = serde_json::to_string(user_ids)?;
-        self.read(move |connection| accounts::accounts_by_id(connection, &ids)).await
+        self.read(move |connection| account_reads::accounts_by_id(connection, &ids)).await
     }
 
     async fn credential(&self, username: &str) -> Result<Option<AccountCredential>> {
@@ -218,12 +219,12 @@ impl UserBackend for SqliteAuth {
 
     async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
         let user_id = user_id.to_string();
-        self.read(move |connection| accounts::active_account_name(connection, &user_id)).await
+        self.read(move |connection| account_reads::active_account_name(connection, &user_id)).await
     }
 
     async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
         let user_id = user_id.to_string();
-        self.read(move |connection| accounts::account_status(connection, &user_id)).await
+        self.read(move |connection| account_reads::account_status(connection, &user_id)).await
     }
 
     async fn status_revisions(
@@ -231,7 +232,7 @@ impl UserBackend for SqliteAuth {
         user_ids: &[String],
     ) -> Result<HashMap<String, AccountStatusRevision>> {
         let ids = serde_json::to_string(user_ids)?;
-        self.read(move |connection| accounts::status_revisions(connection, &ids)).await
+        self.read(move |connection| account_reads::status_revisions(connection, &ids)).await
     }
 
     async fn apply_account_status(
@@ -258,7 +259,7 @@ impl UserBackend for SqliteAuth {
 
     async fn account_login(&self, user_id: &str) -> Result<Option<AccountLogin>> {
         let user_id = user_id.to_string();
-        self.read(move |connection| accounts::account_login(connection, &user_id)).await
+        self.read(move |connection| account_reads::account_login(connection, &user_id)).await
     }
 
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
@@ -266,7 +267,7 @@ impl UserBackend for SqliteAuth {
         let (user_id, username) = (user_id.to_string(), username.to_string());
         self.write(move |connection| {
             let login =
-                accounts::account_login(connection, &user_id)?.ok_or(RegistryError::NotFound)?;
+                account_reads::account_login(connection, &user_id)?.ok_or(RegistryError::NotFound)?;
             let next = crate::validation::name_revision_bounds(login.revision)?
                 .ok_or_else(|| RegistryError::Internal {
                     reason: format!("user {user_id} has no rename revision left"),
@@ -292,7 +293,7 @@ impl UserBackend for SqliteAuth {
         let (user_id, username) = (user_id.to_string(), username.to_string());
         self.write(move |connection| {
             let login =
-                accounts::account_login(connection, &user_id)?.ok_or(RegistryError::NotFound)?;
+                account_reads::account_login(connection, &user_id)?.ok_or(RegistryError::NotFound)?;
             if i64::try_from(login.revision).ok() != Some(expected) {
                 return Ok(UserRename::CurrentChanged);
             }

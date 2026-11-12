@@ -51,7 +51,7 @@ fn revision_accounts_use_the_revisions_format_and_separate_files() {
         fs::read_dir(new_home.join("auth"))
             .unwrap()
             .next()
-            .is_none()
+            .is_none(),
     );
 }
 
