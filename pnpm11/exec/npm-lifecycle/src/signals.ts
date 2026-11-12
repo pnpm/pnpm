@@ -369,15 +369,53 @@ const watchedLeaders: number[] = []
 let watchdogLifeline: Writable | undefined
 
 /** The child writes its registration before exec and closes its copy of the lifeline. */
-export function prepareProcessGroupWatchdog (): { lifeline: Writable, watch: (leader: number) => ProcessGroupWatchdog } {
+export function prepareProcessGroupWatchdog (): PreparedProcessGroupWatchdog {
   if (watchdogLifeline == null) startWatchdog()
+  const lifeline = watchdogLifeline!
   return {
-    lifeline: watchdogLifeline!,
+    lifeline,
     watch: (leader) => {
       watchedLeaders.push(leader)
       return createProcessGroupWatch(leader)
     },
+    recover: (leader) => recoverProcessGroupWatchdog(lifeline, leader),
   }
+}
+
+interface PreparedProcessGroupWatchdog {
+  lifeline: Writable
+  watch: (leader: number) => ProcessGroupWatchdog
+  recover: (leader: number) => Promise<void>
+}
+
+async function recoverProcessGroupWatchdog (lifeline: Writable, leader: number): Promise<void> {
+  if (watchdogLifeline !== lifeline) return flushWatchdogRegistration()
+  try {
+    await writeWatchdogRegistration(lifeline, `+${leader}\n`)
+    return
+  } catch (error: unknown) {
+    const code = errorCode(error)
+    if (code !== 'EPIPE' && code !== 'ERR_STREAM_DESTROYED') throw error
+    if (watchdogLifeline === lifeline) {
+      watchdogLifeline = undefined
+      lifeline.destroy()
+    }
+  }
+  return flushWatchdogRegistration()
+}
+
+function flushWatchdogRegistration (): Promise<void> {
+  if (watchdogLifeline == null) startWatchdog()
+  return writeWatchdogRegistration(watchdogLifeline!, '')
+}
+
+function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    lifeline.write(line, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
 }
 
 /**
@@ -388,8 +426,8 @@ export function prepareProcessGroupWatchdog (): { lifeline: Writable, watch: (le
  * webServer stops the command it started, ends pnpm and leaves the script
  * running, holding the caller's pipes open
  * (https://github.com/pnpm/pnpm/issues/15555). The signal cannot be relayed,
- * so a sh in a group of its own reads a pipe on which children register
- * before exec and pnpm releases their groups, and kills
+ * so a sh in a group of its own reads a pipe naming watched and released
+ * groups, and kills
  * the groups still named when the pipe ends. One watchdog serves every group
  * of a pnpm process. Without a sh to run there is no watchdog, and the groups
  * are on their own.

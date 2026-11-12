@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn as spawnProcess, type SpawnOptions, type StdioOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { Socket } from 'node:net'
 import path from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
@@ -96,15 +97,41 @@ function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw
   }
   const stdio = scriptStdio(options.stdio)
   // POSIX shells only guarantee single-digit descriptors.
-  if (stdio.length > 9) return { raw: spawnProcess(cmd, args, options) }
+  if (stdio.length > 8) return { raw: spawnProcess(cmd, args, options) }
   const watch = prepareProcessGroupWatchdog()
   const descriptor = stdio.length
-  const registration = `printf '+%s\\n' "$$" >&${descriptor} || exit $?; exec ${descriptor}>&-; exec "$@"`
+  const receipt = descriptor + 1
+  const registration = [
+    "trap '' PIPE",
+    `if ! printf '+%s\\n' "$$" >&${descriptor} 2>/dev/null; then`,
+    `  printf 'retry\\n' >&${receipt} || exit $?`,
+    `  read -r registered <&${receipt} || exit 125`,
+    '  [ "$registered" = registered ] || exit 125',
+    'fi',
+    `exec ${descriptor}>&- ${receipt}>&-`,
+    'trap - PIPE',
+    'exec "$@"',
+  ].join('\n')
   const raw = spawnProcess(shell, ['-c', registration, shell, cmd, ...args], {
     ...options,
-    stdio: [...stdio, watch.lifeline],
+    stdio: [...stdio, watch.lifeline, 'pipe'],
   })
+  if (raw.pid != null) recoverScriptRegistration(raw, receipt, () => watch.recover(raw.pid!))
   return { raw, watchdog: raw.pid == null ? undefined : watch.watch(raw.pid) }
+}
+
+function recoverScriptRegistration (raw: ChildProcess, descriptor: number, recover: () => Promise<void>): void {
+  const receipt = raw.stdio[descriptor]
+  if (!(receipt instanceof Socket)) throw new Error('The watchdog receipt is not a duplex pipe')
+  receipt.on('error', (error) => raw.emit('error', error))
+  receipt.once('data', () => {
+    recover().then(() => {
+      receipt.end('registered\n')
+    }, (error: Error) => {
+      raw.kill('SIGKILL')
+      raw.emit('error', error)
+    })
+  })
 }
 
 function scriptExists (cmd: string, options: SpawnOptions): boolean {

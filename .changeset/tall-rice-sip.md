@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Fixed scripts and their descendants surviving when pnpm is killed during script startup.
+pnpm stops scripts and their descendants when it is killed during script startup [pnpm/tasks#313](https://github.com/pnpm/tasks/issues/313).

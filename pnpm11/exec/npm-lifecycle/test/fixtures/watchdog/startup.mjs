@@ -19,7 +19,7 @@ if (mode === 'script') {
     if (args.some((arg) => arg.includes('startup.mjs') && arg.includes('script'))) {
       leaders.push(child.pid)
       if (leaders.length === count) {
-        process.stdout.write(`${JSON.stringify(leaders)}\n`)
+        fs.writeSync(1, `${JSON.stringify(leaders)}\n`)
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30_000)
       }
     }

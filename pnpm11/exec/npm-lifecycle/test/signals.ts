@@ -14,6 +14,20 @@ const testOnPosix = process.platform === 'win32' ? test.skip : test
 const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
 const startupScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'startup.mjs')
 
+testOnPosix.each(['observed', 'pending'])('a script starts after its inherited watchdog pipe loses its reader (%s replacement)', (replacement) => {
+  const directory = temporaryDirectory()
+  try {
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'restart.mjs'), directory, 'runner', replacement], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+    expect(fs.readFileSync(path.join(directory, 'ran'), 'utf8')).toBe('ran')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
 testOnPosix.each([
   { count: 1, mode: 'default' },
   { count: 3, mode: 'default' },
