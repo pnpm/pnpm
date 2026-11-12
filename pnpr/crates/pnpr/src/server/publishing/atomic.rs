@@ -152,7 +152,7 @@ async fn commit_staged(
     };
     let promoted = promote_fenced(state, &mut staged).await?;
     let rebases = super::rebase::rebase_bases(&mut staged);
-    let (documents, logged) = batch_documents(staged);
+    let (documents, committed) = batch_documents(staged);
     let publication = super::rebase::Publication {
         namespace: &namespace,
         artifacts: promoted.artifacts.clone(),
@@ -169,12 +169,62 @@ async fn commit_staged(
         }
     };
     if !commit.replayed {
-        for ecosystem in logged {
-            let log = LogId { namespace: namespace.clone(), ecosystem };
+        committed.announce(state, &namespace);
+    }
+    Ok(commit.into())
+}
+
+/// What follows a commit that is not a replay.
+struct Committed {
+    /// The ecosystems whose logs the records the commit brings are sequenced in.
+    logged: std::collections::BTreeSet<pnpr_package_name::Ecosystem>,
+    publishes: Vec<PublishAudit>,
+}
+
+impl Committed {
+    /// Audit each publish and integrate the logs it extends.
+    fn announce(self, state: &AppState, namespace: &str) {
+        for publish in &self.publishes {
+            publish.record(namespace);
+        }
+        for ecosystem in self.logged {
+            let log = LogId { namespace: namespace.to_string(), ecosystem };
             super::super::release_record_logs::integrate_in_background(state, log);
         }
     }
-    Ok(commit.into())
+}
+
+/// What the `package.publish` audit record of a committed publish names.
+struct PublishAudit {
+    publisher: Identity,
+    ecosystem: pnpr_package_name::Ecosystem,
+    name: String,
+    /// What the publish introduces, comma-separated.
+    releases: String,
+}
+
+impl PublishAudit {
+    fn of(stage: &StagedPublish) -> Self {
+        PublishAudit {
+            publisher: stage.publisher.clone(),
+            ecosystem: stage.ecosystem,
+            name: stage.name.as_str().to_string(),
+            releases: stage.verification.releases.join(","),
+        }
+    }
+
+    fn record(&self, namespace: &str) {
+        let actor = crate::audit::Actor::of(&self.publisher);
+        crate::audit!(
+            actor,
+            "package.publish",
+            package = %self.name,
+            ecosystem = %self.ecosystem,
+            releases = %self.releases,
+            namespace = %namespace,
+            "package published",
+        );
+    }
 }
 
 /// Resolve the single namespace of `staged` and reconcile every ecosystem's
@@ -200,28 +250,38 @@ async fn prepare_staged_namespace(
     Ok(namespace)
 }
 
-/// The documents a commit writes, and the ecosystems whose logs the records
-/// they bring are sequenced in.
-fn batch_documents(
-    staged: Vec<StagedPublish>,
-) -> (Vec<BatchDocument>, std::collections::BTreeSet<pnpr_package_name::Ecosystem>) {
+/// The documents a commit writes, and what follows it.
+fn batch_documents(staged: Vec<StagedPublish>) -> (Vec<BatchDocument>, Committed) {
     let logged = staged
         .iter()
         .filter(|stage| !stage.verification.records.is_empty())
         .map(|stage| stage.ecosystem)
         .collect();
+    let publishes = staged
+        .iter()
+        .map(PublishAudit::of)
+        .collect();
     let documents = staged
         .into_iter()
         .map(|stage| BatchDocument {
+            principal: dist_tag_principal(&stage),
             ecosystem: stage.ecosystem,
             name: stage.name.as_str().to_string(),
             bytes: stage.document,
             expected: stage.base.version,
-            principal: stage.publisher,
             records: stage.verification.records,
         })
         .collect();
-    (documents, logged)
+    (documents, Committed { logged, publishes })
+}
+
+/// Who a document records with every dist-tag it moves. Only an npm
+/// document has dist-tags.
+fn dist_tag_principal(stage: &StagedPublish) -> Option<String> {
+    if stage.ecosystem != pnpr_package_name::Ecosystem::Npm {
+        return None;
+    }
+    stage.publisher.user_id().map(str::to_string)
 }
 
 /// The one hosted namespace every package of a publish belongs to. A

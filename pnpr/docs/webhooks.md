@@ -23,7 +23,7 @@ Instead, pnpr provides durable, structured integration points designed to feed e
 
 ### 1. Structured audit logs
 
-Administrative and destructive operations in pnpr emit a structured event under the `pnpr::audit` tracing target at `info` level. They cover account, team, rule, and SCIM changes, token revocation, unpublishes, packument and maintainer updates, dist-tag changes, and image deletions. Publishes and token creation are not audited. The full list of actions and their fields is in [Admin audit logs](configuration.md#admin-audit-logs).
+pnpr emits a structured event under the `pnpr::audit` tracing target at `info` level for sign-ins, failed logins, token changes, publishes, and administrative and destructive operations. They cover account, team, rule, and SCIM changes, unpublishes, packument and maintainer updates, dist-tag changes, and image deletions. The full list of actions and their fields is in [Admin audit logs](configuration.md#admin-audit-logs).
 
 When configured with `log.format: json`, pnpr outputs each audit event as a single-line JSON record on `stdout`:
 
@@ -35,6 +35,7 @@ When configured with `log.format: json`, pnpr outputs each audit event as a sing
   "fields": {
     "action": "package.dist_tag_set",
     "actor": "alice",
+    "actor_id": "8f3c1d2e9a7b4c5d6e0f1a2b3c4d5e6f",
     "package": "@mycompany/utils",
     "tag": "latest",
     "version": "1.2.0",

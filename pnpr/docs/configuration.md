@@ -995,39 +995,55 @@ Every request emits an access log record under the tracing target `pnpr::access`
 
 ### Admin audit logs
 
-Administrative and destructive operations emit structured audit records under the tracing target `pnpr::audit` at `info` level. When structured logging is enabled (`format: json`), these events output as JSON objects that inherit the active request span context, including `request_id`, `client_ip`, `method`, and `uri`. The `pnpr::audit=info` directive is included across all configured log levels so audit events are retained by default. Operators can filter or silence them via `RUST_LOG` (for example, `RUST_LOG=pnpr::audit=off`).
+Sign-ins, token changes, publishes, and administrative and destructive operations emit structured audit records under the tracing target `pnpr::audit` at `info` level. When structured logging is enabled (`format: json`), these events output as JSON objects that inherit the active request span context, including `request_id`, `client_ip`, `method`, and `uri`. The `pnpr::audit=info` directive is included across all configured log levels so audit events are retained by default. Operators can filter or silence them via `RUST_LOG` (for example, `RUST_LOG=pnpr::audit=off`).
 
-Audit events record the `action`, the `actor` (the authenticated username, `"scim"` for SCIM actions, or `"-"` when unauthenticated), and operation-specific attributes:
+Every audit event records:
 
+- `action`: what happened, from the list below.
+- `actor_id`: the account ID of whoever performed the action, or `"-"` for SCIM actions, unauthenticated callers, and pnpr itself. An account keeps its ID when it is renamed, so attribute actions by `actor_id`.
+- `actor`: the account's name at the time of the action, `"scim"` for SCIM actions, or `"-"`.
+
+Events about another account name it with `user` and `user_id`. The operation-specific attributes are:
+
+- **Sign-in and tokens**:
+  - `auth.sign_in`: signing in with a password through `npm login`, or through an OIDC provider (`method` is `password` or `oidc`, `provider` for OIDC).
+  - `auth.login_failed`: a refused password sign-in, or a wrong password when a signed-in account confirms it (`user`, `method`).
+  - `auth.workload_use`: a request authenticated with OIDC workload credentials (`subject`, `registry`). The actor is the account the workload is bound to.
+  - `token.create`: creating a token (`token_key`, `readonly`).
+  - `token.revoke`: revoking one of the caller's own tokens, by key or on logout (`token_key`).
 - **User management**:
   - `user.create`: creating an account (`actor`, `user`, `user_id`).
   - `user.password_update`: changing an account password (`actor`, `user`, `user_id`).
   - `user.rename`: renaming an account (`actor`, `user`, `user_id`).
   - `user.token_revoke`: revoking user tokens (`actor`, `user`, `user_id`, `token_key`).
   - `user.delete`: deleting an account (`actor`, `user`, `user_id`, `tokens_revoked`).
-  - `user.register`: self-registering a new account (`actor`, `user`).
+  - `user.register`: self-registering a new account (`actor`, `user`, `user_id`).
 - **Rule overrides**:
   - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`, `ecosystem`, `version`).
   - `rules.delete`: removing dynamic package access rules (`actor`, `registry`).
 - **Team administration and package access**:
   - `team.create`: creating a team (`actor`, `scope`, `team`).
   - `team.destroy`: deleting a team (`actor`, `scope`, `team`).
-  - `team.member_add`: adding a user to a team (`actor`, `scope`, `team`, `user`).
-  - `team.member_remove`: removing a user from a team (`actor`, `scope`, `team`, `user`).
+  - `team.member_add`: adding a user to a team (`actor`, `scope`, `team`, `user`, `user_id`).
+  - `team.member_remove`: removing a user from a team (`actor`, `scope`, `team`, `user`, `user_id`).
   - `team.access_grant`: granting package permissions to a team (`actor`, `scope`, `team`, `package`, `permissions`).
   - `team.access_revoke`: revoking package permissions from a team (`actor`, `scope`, `team`, `package`).
 - **SCIM provisioning**:
-  - `scim.user_create`: provisioning a SCIM user (`actor`, `user`, `active`).
-  - `scim.user_replace`: replacing SCIM user attributes (`actor`, `user`, `active`).
-  - `scim.user_patch`: updating SCIM user status (`actor`, `user`, `active`).
-  - `scim.user_delete`: deprovisioning a SCIM user (`actor`, `user`).
-- **Package unpublishing and mutations**:
+  - `scim.user_create`: provisioning a SCIM user (`actor`, `user`, `user_id`, `active`).
+  - `scim.user_replace`: replacing SCIM user attributes (`actor`, `user`, `user_id`, `active`).
+  - `scim.user_patch`: updating SCIM user status (`actor`, `user`, `user_id`, `active`).
+  - `scim.user_delete`: deprovisioning a SCIM user (`actor`, `user`, `user_id`).
+- **Publishing, unpublishing, and package mutations**:
+  - `package.publish`: committing a publish, once per package (`actor`, `package`, `ecosystem`, `releases`, `namespace`). `releases` lists what the publish adds, comma-separated: npm and Cargo versions, Python distribution filenames, or OCI manifest digests. A retried request that pnpr answers from its recorded outcome is not audited again.
   - `package.unpublish`: unpublishing an entire package (`actor`, `package`, `registry`).
   - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`, `version`, `registry`).
   - `package.update_packument`: modifying packument metadata directly (`actor`, `package`, `registry`).
   - `package.update_maintainers`: changing a package's maintainers (`actor`, `package`, `registry`).
+  - `package.add_owners` and `package.remove_owners`: changing a package's owners (`actor`, `package`, `registry`, `owners`). `owners` lists the logins added or removed, comma-separated.
   - `package.dist_tag_set`: assigning a dist-tag (`actor`, `package`, `tag`, `version`, `registry`).
   - `package.dist_tag_remove`: deleting a dist-tag (`actor`, `package`, `tag`, `registry`).
+  - `package.note_set` and `package.note_delete`: changing a version note (`actor`, `package`, `version`, `registry`).
+  - `publication.note_change`: changing a publication note (`actor`, `namespace`, `publication`).
   - `oci.delete_blob`: deleting an OCI blob (`actor`, `repository`, `digest`).
   - `oci.delete_manifest`: deleting an OCI manifest (`actor`, `repository`, `reference`).
 

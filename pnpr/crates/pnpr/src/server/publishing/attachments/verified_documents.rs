@@ -71,7 +71,11 @@ async fn verified_document(
         Ok((notices, records)) => Ok(VerifiedDocument {
             document: serialize_staged_document(merged, &written.tars),
             slots: written.slots,
-            verification: Verification { notices, records },
+            verification: Verification {
+                notices,
+                releases: records.keys().cloned().collect(),
+                records,
+            },
         }),
         Err(err) => {
             cleanup_tmp_slots(written.slots).await;

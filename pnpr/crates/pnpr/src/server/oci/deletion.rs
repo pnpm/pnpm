@@ -38,11 +38,10 @@ impl Request {
     }
 
     fn log_oci_blob_deleted(&self, repository: &CanonicalPackageName, digest: &Digest) {
-        let actor = self.identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "oci.delete_blob",
-            actor = %actor,
+        let actor = crate::audit::Actor::of(&self.identity);
+        crate::audit!(
+            actor,
+            "oci.delete_blob",
             repository = %repository.as_str(),
             digest = %digest,
             "oci blob deleted",

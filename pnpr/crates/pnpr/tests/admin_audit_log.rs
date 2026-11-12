@@ -1,5 +1,6 @@
 //! Integration tests verifying that administrative, user, rule, team, SCIM,
-//! and unpublish operations emit structured audit records under `pnpr::audit`.
+//! sign-in, token, publish, and unpublish operations emit structured audit
+//! records under `pnpr::audit`.
 
 use axum::{
     body::{Body, to_bytes},
@@ -244,11 +245,11 @@ fn assert_request_span(record: &AuditRecord, expected_method: &str) {
     assert_eq!(record.span_fields.get("method").map(String::as_str), Some(expected_method));
     assert!(record.span_fields.contains_key("uri"));
     // The span records the caller. A SCIM call authenticates with the SCIM
-    // token rather than as a user, and a registration's actor is the new
-    // account, not the anonymous caller.
+    // token rather than as a user, and the actor of a registration or a
+    // password sign-in is the account, not the anonymous caller.
     let caller = match (record.action.as_str(), record.fields.get("actor").map(String::as_str)) {
         (_, Some("scim")) => return,
-        ("user.register", _) => Some("-"),
+        ("user.register" | "auth.sign_in", _) => Some("-"),
         (_, actor) => actor,
     };
     assert_eq!(record.span_fields.get("user").map(String::as_str), caller, "{record:?}");
@@ -298,6 +299,8 @@ async fn audit_log_user_admin_and_registration() {
     let user_path = format!("/-/pnpr/v0/admin/users/{user_id}");
     let ev = find_event(&logs, "user.create", "user", "aud_u1");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
+    let root_id = crate::tokens::account_id(&app, "root", Some(&root)).await.unwrap();
+    assert_eq!(ev.fields.get("actor_id"), Some(&root_id));
     assert_eq!(ev.fields.get("user_id").map(String::as_str), Some(user_id));
     assert_request_span(&ev, "POST");
 
@@ -340,6 +343,8 @@ async fn audit_log_user_admin_and_registration() {
         .unwrap();
     let ev = find_event(&logs, "user.register", "user", "aud_reg_user");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_reg_user"));
+    assert_eq!(ev.fields.get("actor_id"), Some(&reg_id));
+    assert_eq!(ev.fields.get("user_id"), Some(&reg_id));
     assert_request_span(&ev, "PUT");
 
     let (status, _) = send(
@@ -426,6 +431,10 @@ async fn audit_log_team_admin() {
     assert_eq!(status, StatusCode::CREATED);
     let ev = find_event(&logs, "team.member_add", "user", "audmember");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
+    let member_id = crate::tokens::account_id(&app, "audmember", Some(&root))
+        .await
+        .unwrap();
+    assert_eq!(ev.fields.get("user_id"), Some(&member_id));
     assert_eq!(ev.fields.get("team").map(String::as_str), Some("auddevs"));
     assert_request_span(&ev, "PUT");
 
@@ -503,6 +512,8 @@ async fn audit_log_scim_operations() {
     let resource_path = format!("/-/pnpr/v0/scim/v2/Users/{}", created["id"].as_str().unwrap());
     let ev = find_event(&logs, "scim.user_create", "user", "aud_scim_user@example.com");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("scim"));
+    assert_eq!(ev.fields.get("actor_id").map(String::as_str), Some("-"));
+    assert_eq!(ev.fields.get("user_id").map(String::as_str), created["id"].as_str());
     assert_request_span(&ev, "POST");
 
     // 2. scim.user_replace
@@ -724,6 +735,7 @@ async fn audit_log_oci_deletion_operations() {
         "layers": [],
     });
     let manifest_bytes = serde_json::to_vec(&manifest).unwrap();
+    let manifest_digest = format!("sha256:{}", sha256_hex(&manifest_bytes));
     let status = send_bytes(
         &app,
         "PUT",
@@ -734,6 +746,9 @@ async fn audit_log_oci_deletion_operations() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
+    let publish_event = find_event(&logs, "package.publish", "package", "acme/app");
+    assert_eq!(publish_event.fields.get("ecosystem").map(String::as_str), Some("oci"));
+    assert_eq!(publish_event.fields.get("releases"), Some(&manifest_digest));
 
     // 3. Delete manifest
     let status =
@@ -823,4 +838,78 @@ async fn renaming_an_account_audits_its_stable_id_and_new_name() {
     assert_eq!(event.fields.get("actor").map(String::as_str), Some("root"));
     assert_eq!(event.fields.get("user").map(String::as_str), Some("aud_after"));
     assert_request_span(&event, "PATCH");
+
+    login(&app, "aud_after", "secret123").await;
+    let event = find_event(&logs, "auth.sign_in", "actor", "aud_after");
+    assert_eq!(event.fields.get("actor_id").map(String::as_str), Some(id));
+}
+
+#[tokio::test]
+async fn audit_log_sign_in_and_tokens() {
+    let logs = init_audit_subscriber();
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let session = login(&app, "aud_tokens", "password1").await;
+    let id = crate::tokens::account_id(&app, "aud_tokens", Some(&session)).await.unwrap();
+
+    let ev = find_event(&logs, "auth.sign_in", "actor_id", &id);
+    assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_tokens"));
+    assert_eq!(ev.fields.get("method").map(String::as_str), Some("password"));
+    assert_request_span(&ev, "PUT");
+
+    let body = json!({ "name": "aud_tokens", "password": "wrong-password" });
+    let (status, _) =
+        send(&app, "PUT", "/-/user/org.couchdb.user:aud_tokens", None, Some(body)).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let ev = find_event(&logs, "auth.login_failed", "user", "aud_tokens");
+    assert_eq!(ev.fields.get("actor").map(String::as_str), Some("-"));
+    assert_eq!(ev.fields.get("actor_id").map(String::as_str), Some("-"));
+    assert_eq!(ev.fields.get("method").map(String::as_str), Some("password"));
+
+    let (status, created) = send(
+        &app,
+        "POST",
+        "/-/npm/v1/tokens",
+        Some(&session),
+        Some(json!({ "password": "password1", "readonly": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let key = created["key"].as_str().unwrap();
+    let ev = find_event(&logs, "token.create", "token_key", key);
+    assert_eq!(ev.fields.get("actor_id"), Some(&id));
+    assert_eq!(ev.fields.get("readonly").map(String::as_str), Some("true"));
+    assert_request_span(&ev, "POST");
+
+    let (status, _) =
+        send(&app, "DELETE", &format!("/-/npm/v1/tokens/token/{key}"), Some(&session), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let ev = find_event(&logs, "token.revoke", "token_key", key);
+    assert_eq!(ev.fields.get("actor_id"), Some(&id));
+    assert_request_span(&ev, "DELETE");
+
+    let (status, _) =
+        send(&app, "DELETE", &format!("/-/user/token/{session}"), Some(&session), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let ev = find_event(&logs, "token.revoke", "token_key", &sha256_hex(session.as_bytes()));
+    assert_eq!(ev.fields.get("actor_id"), Some(&id));
+}
+
+#[tokio::test]
+async fn audit_log_publish() {
+    let logs = init_audit_subscriber();
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let publisher = login(&app, "aud_pub", "password").await;
+    let id = crate::tokens::account_id(&app, "aud_pub", Some(&publisher)).await.unwrap();
+
+    let body = publish_doc("audit-pub-pkg", "1.2.3", b"tarball-contents");
+    let (status, _) = send(&app, "PUT", "/npm/audit-pub-pkg", Some(&publisher), Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let ev = find_event(&logs, "package.publish", "package", "audit-pub-pkg");
+    assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_pub"));
+    assert_eq!(ev.fields.get("actor_id"), Some(&id));
+    assert_eq!(ev.fields.get("ecosystem").map(String::as_str), Some("npm"));
+    assert_eq!(ev.fields.get("releases").map(String::as_str), Some("1.2.3"));
+    assert_request_span(&ev, "PUT");
 }

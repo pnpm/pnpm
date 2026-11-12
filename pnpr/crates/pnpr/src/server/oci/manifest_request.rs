@@ -149,11 +149,10 @@ impl Request {
     }
 
     fn log_oci_manifest_deleted(&self, repository: &str, reference: &str) {
-        let actor = self.identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "oci.delete_manifest",
-            actor = %actor,
+        let actor = crate::audit::Actor::of(&self.identity);
+        crate::audit!(
+            actor,
+            "oci.delete_manifest",
             repository = %repository,
             reference = %reference,
             "oci manifest deleted",

@@ -101,10 +101,10 @@ async fn retired_identities_without_passwords_are_refused() {
     let users = std::sync::Arc::clone(&auth.users);
     let id = users.provision_user("oidc-member").await.unwrap();
     let (state, _router) = super::super::routing::state_and_router(config, auth, None).unwrap();
-    assert!(super::super::authentication::require_active_account(&state, &id).await.is_ok());
+    assert!(super::super::authentication::active_account_name(&state, &id).await.is_ok());
     users.delete_user(&id).await.unwrap();
     assert!(matches!(
-        super::super::authentication::require_active_account(&state, &id).await,
+        super::super::authentication::active_account_name(&state, &id).await,
         Err(pnpr_error::RegistryError::Unauthenticated { .. }),
     ));
 }

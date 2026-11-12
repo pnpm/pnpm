@@ -324,13 +324,14 @@ fn log_owners_changed(
         OwnerChange::Add => "package.add_owners",
         OwnerChange::Remove => "package.remove_owners",
     };
-    tracing::info!(
-        target: "pnpr::audit",
+    let actor = crate::audit::Actor::of(identity);
+    let owners = logins.join(",");
+    crate::audit!(
+        actor,
         action,
-        actor = %identity.username().unwrap_or("-"),
         package = %key.as_str(),
         registry = %source,
-        owners = %logins.join(","),
+        owners = %owners,
         "package owners changed",
     );
 }

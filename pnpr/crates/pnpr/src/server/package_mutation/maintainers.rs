@@ -138,11 +138,10 @@ fn check_maintainer_authority(
 }
 
 fn log_maintainers_updated(identity: &Identity, name: &CanonicalPackageName, source: &str) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.update_maintainers",
-        actor = %actor,
+    let actor = crate::audit::Actor::of(identity);
+    crate::audit!(
+        actor,
+        "package.update_maintainers",
         package = %name.as_str(),
         registry = %source,
         "package maintainers updated",

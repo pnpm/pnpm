@@ -140,7 +140,7 @@ impl Collection<'_> {
         let ids = unmapped.keys().cloned().collect();
         let removed = self.storage.reclaim_blobs_with(ids, |blob| {
             let size = unmapped.get(&blob.id).map_or(0, |row| row.size);
-            tracing::info!(target: "pnpr::audit", action = "gc.remove_archive", actor = "-", key = %blob.key(), size, "removed archive");
+            crate::audit!(crate::audit::Actor::NONE, "gc.remove_archive", key = %blob.key(), size, "removed archive");
         })
         .await?;
         Ok(report_of(&removed, |blob| unmapped.get(&blob.id).map_or(0, |row| row.size)))

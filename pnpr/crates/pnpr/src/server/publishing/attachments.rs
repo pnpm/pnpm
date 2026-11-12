@@ -178,8 +178,8 @@ pub(in super::super) struct StagedPublish {
     /// default hosted namespace. Threaded into the commit so the write
     /// lands in the right namespace.
     pub(in super::super) namespace: Option<String>,
-    /// Who published it, recorded with every dist-tag the document moves.
-    pub(in super::super) publisher: Option<String>,
+    /// Who published it.
+    pub(in super::super) publisher: Identity,
     /// What verifying the published archives produced.
     pub(in super::super) verification: Verification,
 }
@@ -216,6 +216,9 @@ pub(in super::super) struct Verification {
     /// The release record of each version the document introduces, which
     /// the metadata store accepts with it.
     pub(in super::super) records: pnpr_storage::metadata::ReleaseRecords,
+    /// What the publish introduces, as the `package.publish` audit record
+    /// names it.
+    pub(in super::super) releases: Vec<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -238,16 +241,21 @@ pub(in super::super) async fn stage_publish(
         base.version =
             tombstone.map(|tombstone| HostedDocumentVersion::Tombstone(tombstone.maintainers));
     }
-    let publisher = doc.publisher.user_id().map(str::to_string);
+    let principal = doc.publisher.user_id().map(str::to_string);
     let (merged, without_any) =
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
     drop(doc.incoming);
     let ValidatedPublish {
-        name, prepared, tarballs, variants, ..
+        name,
+        prepared,
+        tarballs,
+        variants,
+        publisher,
+        ..
     } = doc;
 
     let verified = write_verified(
-        (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
+        (&storage, principal.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
         (prepared, tarballs),
         (merged, &variants, &without_any),

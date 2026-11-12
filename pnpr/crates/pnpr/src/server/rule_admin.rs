@@ -84,11 +84,10 @@ async fn put_rules(
             });
         }
         let (rules, version) = replace_rules(&state, registry, changes, expected.as_deref()).await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "rules.replace",
-            actor = %actor,
+        let actor = crate::audit::Actor::of(&identity);
+        crate::audit!(
+            actor,
+            "rules.replace",
             ecosystem = %path.ecosystem,
             registry = %path.name,
             version = %version,
@@ -116,11 +115,10 @@ async fn delete_rules(
         let expected = if_match(&headers)?;
         let (_, version) =
             replace_rules(&state, registry, RuleChanges::default(), expected.as_deref()).await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "rules.delete",
-            actor = %actor,
+        let actor = crate::audit::Actor::of(&identity);
+        crate::audit!(
+            actor,
+            "rules.delete",
             ecosystem = %path.ecosystem,
             registry = %path.name,
             "package rules deleted",

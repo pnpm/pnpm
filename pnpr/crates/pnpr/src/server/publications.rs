@@ -309,14 +309,14 @@ async fn change_publication_note(
         .user_id()
         .unwrap_or("-")
         .to_string();
-    let change = NoteChange { text, principal: principal.clone() };
+    let change = NoteChange { text, principal };
     if !database.set_publication_note(&publication.namespace, publication.id, change).await? {
         return Err(RegistryError::NotFound);
     }
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "publication.note_change",
-        actor = %principal,
+    let actor = crate::audit::Actor::of(identity);
+    crate::audit!(
+        actor,
+        "publication.note_change",
         namespace = %publication.namespace,
         publication = publication.id,
         "publication note changed",

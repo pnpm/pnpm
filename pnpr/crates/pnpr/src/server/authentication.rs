@@ -1,4 +1,4 @@
-pub(super) use accounts::require_active_account;
+pub(super) use accounts::active_account_name;
 pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
     AuthorizationDecision, Ownership, allows_with_ownership, authorize,
@@ -10,7 +10,7 @@ mod accounts;
 mod credentials;
 mod package_access;
 
-use accounts::{account_identity, active_account_name};
+use accounts::account_identity;
 
 use std::net::IpAddr;
 
@@ -341,7 +341,16 @@ async fn resolve_caller(
                 })?;
             super::oidc::check_workload_request(&workload, method, path)?;
             let scope = WorkloadScope::new(&state.inner.config, &workload);
-            return Ok((account_identity(state, &workload.identity.user_id).await?, Some(scope)));
+            let identity = account_identity(state, &workload.identity.user_id).await?;
+            let actor = crate::audit::Actor::of(&identity);
+            crate::audit!(
+                actor,
+                "auth.workload_use",
+                subject = %workload.identity.subject,
+                registry = %workload.registry,
+                "workload credentials used",
+            );
+            return Ok((identity, Some(scope)));
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;

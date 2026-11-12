@@ -158,15 +158,16 @@ async fn write_version_note(
         .unwrap_or("-")
         .to_string();
     let deleted = text.is_none();
-    let change = NoteChange { text, principal: principal.clone() };
+    let change = NoteChange { text, principal };
     let NotesTarget { database, name, target } = notes;
     if !database.set_version_note(name, &target.namespace, version, change).await? {
         return Err(RegistryError::NotFound);
     }
-    tracing::info!(
-        target: "pnpr::audit",
-        action = if deleted { "package.note_delete" } else { "package.note_set" },
-        actor = %principal,
+    let actor = crate::audit::Actor::of(identity);
+    let action = if deleted { "package.note_delete" } else { "package.note_set" };
+    crate::audit!(
+        actor,
+        action,
         package = %name.as_str(),
         version = %version,
         registry = %target.source,

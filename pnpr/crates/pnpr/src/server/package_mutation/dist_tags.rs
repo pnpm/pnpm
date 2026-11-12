@@ -195,13 +195,12 @@ fn parse_tag_target(body: Option<&[u8]>) -> Result<Option<String>, RegistryError
 }
 
 fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOutcome) {
-    let actor = identity.username().unwrap_or("-");
+    let actor = crate::audit::Actor::of(identity);
     let source = &outcome.source;
     if let Some(version) = &outcome.version {
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "package.dist_tag_set",
-            actor = %actor,
+        crate::audit!(
+            actor,
+            "package.dist_tag_set",
             package = %request.raw_name,
             tag = %request.tag,
             version = %version,
@@ -209,10 +208,9 @@ fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOu
             "package dist-tag set",
         );
     } else {
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "package.dist_tag_remove",
-            actor = %actor,
+        crate::audit!(
+            actor,
+            "package.dist_tag_remove",
             package = %request.raw_name,
             tag = %request.tag,
             registry = %source,
