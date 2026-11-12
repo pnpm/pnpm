@@ -10,8 +10,8 @@ use pnpr_storage::{DOCUMENT_WRITE_RETRIES, PackageRemoval, wait_after_document_w
 
 use super::{
     super::{
-        Action, AppState, RegistrySource, authorize_without_owners, hosted_storage,
-        resolve_write_target,
+        Action, AppState, AuthorizationDecision, RegistrySource, authorize_package,
+        authorize_without_owners, hosted_storage, resolve_write_target,
     },
     read_authorized_packument,
 };
@@ -53,18 +53,30 @@ async fn try_delete_package(
 ) -> Result<Option<Response>, Response> {
     let source = RegistrySource::Hosted(target.source.clone());
     let storage = hosted_storage(state, Some(&target.namespace));
-    if authorize_without_owners(state, identity, &source, name.as_str(), Action::Unpublish)
+    match authorize_without_owners(state, identity, &source, name.as_str(), Action::Unpublish)
         .map_err(IntoResponse::into_response)?
     {
-        if storage
-            .remove_package(name, identity.user_id())
-            .await
-            .map_err(IntoResponse::into_response)?
-        {
-            log_package_deleted(identity, name, &target.source);
+        AuthorizationDecision::AllowedWithoutOwners => {
+            if storage
+                .remove_package(name, identity.user_id())
+                .await
+                .map_err(IntoResponse::into_response)?
+            {
+                log_package_deleted(identity, name, &target.source);
+            }
+            return Ok(Some(ok_created_response()));
         }
-        return Ok(Some(ok_created_response()));
+        AuthorizationDecision::NeedsOwners => {}
     }
+    remove_authorized_package(state, identity, target, (&storage, name)).await
+}
+
+async fn remove_authorized_package(
+    state: &AppState,
+    identity: &Identity,
+    target: &super::super::WriteTarget,
+    (storage, name): (&pnpr_storage::Storage, &CanonicalPackageName),
+) -> Result<Option<Response>, Response> {
     let Some((_, version)) =
         read_authorized_packument(state, identity, (target, name), Action::Unpublish)
             .await
@@ -81,7 +93,21 @@ async fn try_delete_package(
             log_package_deleted(identity, name, &target.source);
             Ok(Some(ok_created_response()))
         }
-        PackageRemoval::NotFound | PackageRemoval::Conflict => Ok(None),
+        PackageRemoval::NotFound => {
+            let source = RegistrySource::Hosted(target.source.clone());
+            authorize_package(
+                state,
+                identity,
+                &source,
+                name.as_str(),
+                Action::Unpublish,
+                Some(&target.namespace),
+            )
+            .await
+            .map_err(IntoResponse::into_response)?;
+            Ok(Some(ok_created_response()))
+        }
+        PackageRemoval::Conflict => Ok(None),
     }
 }
 

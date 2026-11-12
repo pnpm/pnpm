@@ -304,7 +304,7 @@ async fn pipeline(
         .collect();
     let is_read_end =
         matches!(steps.as_slice(), [step] if step["stmt"]["sql"].as_str() == Some("COMMIT"));
-    primary.round_trips.record(steps);
+    primary.round_trips.record(steps).await;
     let requests = body["requests"].as_array().unwrap();
     let kind = if requests
         .iter()
@@ -337,7 +337,8 @@ async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> Result<Str
             .as_array()
             .cloned()
             .unwrap_or_default(),
-    );
+    )
+    .await;
     let conn = primary.streams.take(body["baton"].as_str(), Request::Statements).await?;
     let entries = hrana::cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
     let baton = primary.streams.keep(conn);

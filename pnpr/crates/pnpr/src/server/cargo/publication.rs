@@ -226,7 +226,7 @@ pub(super) async fn delete_yank(
     TargetRegistry(registry): TargetRegistry,
     Path(params): Path<HashMap<String, String>>,
 ) -> Response {
-    set_yanked(&state, &identity, registry.as_deref(), &params, true).await
+    set_yanked(&state, &identity, registry.as_deref(), &params, YankAction::Yank).await
 }
 
 /// `PUT api/v1/crates/<crate>/<version>/unyank`.
@@ -236,7 +236,25 @@ pub(super) async fn put_unyank(
     TargetRegistry(registry): TargetRegistry,
     Path(params): Path<HashMap<String, String>>,
 ) -> Response {
-    set_yanked(&state, &identity, registry.as_deref(), &params, false).await
+    set_yanked(&state, &identity, registry.as_deref(), &params, YankAction::Unyank).await
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum YankAction {
+    Yank,
+    Unyank,
+}
+
+impl YankAction {
+    const fn is_yanked(self) -> bool {
+        matches!(self, Self::Yank)
+    }
+}
+
+struct CrateYank<'request> {
+    key: &'request CanonicalPackageName,
+    version: &'request str,
+    action: YankAction,
 }
 
 /// Yanking is an owner action on crates.io, so it takes the same `publish`
@@ -246,7 +264,7 @@ pub(super) async fn set_yanked(
     identity: &Identity,
     registry: Option<&str>,
     params: &HashMap<String, String>,
-    yanked: bool,
+    action: YankAction,
 ) -> Response {
     let (Some(name), Some(version)) = (params.get("name"), params.get("version")) else {
         return not_found();
@@ -260,7 +278,8 @@ pub(super) async fn set_yanked(
         Err(err) => return error_response(err),
     };
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
-    match apply_yank(state, identity, target, (&key, version, yanked)).await {
+    let yank = CrateYank { key: &key, version, action };
+    match apply_yank(state, identity, target, &yank).await {
         Ok(DocumentUpdate::Written) => json_response(StatusCode::OK, &ok_json()),
         Ok(DocumentUpdate::NotFound) => not_found(),
         Err(err) => error_response(err),
@@ -271,18 +290,18 @@ async fn apply_yank(
     state: &AppState,
     identity: &Identity,
     target: crate::server::WriteTarget,
-    (key, version, yanked): (&CanonicalPackageName, &str, bool),
+    yank: &CrateYank<'_>,
 ) -> Result<DocumentUpdate, RegistryError> {
     let hosted = RegistrySource::Hosted(target.source);
     let mut authorized = false;
     let outcome = state.inner.storage
         .for_hosted(&target.namespace, ECOSYSTEM)
-        .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, None, |existing| {
+        .update_hosted_document_with_retry(yank.key, DOCUMENT_WRITE_RETRIES, None, |existing| {
             let Some(bytes) = existing else { return Ok(None) };
             let document = CrateDocument::parse(bytes)?;
-            authorize_crate_yank(state, identity, &hosted, (key, &document))?;
+            authorize_crate_yank(state, identity, &hosted, (yank.key, &document))?;
             authorized = true;
-            update_crate_yank_status(document, key, version, yanked)
+            update_crate_yank_status(document, yank)
         })
         .await?;
     if !authorized {
@@ -290,7 +309,7 @@ async fn apply_yank(
             state,
             identity,
             &hosted,
-            key.as_str(),
+            yank.key.as_str(),
             Action::Publish,
             Some(&target.namespace),
         )
@@ -311,18 +330,16 @@ fn authorize_crate_yank(
 
 fn update_crate_yank_status(
     mut document: CrateDocument,
-    key: &CanonicalPackageName,
-    version: &str,
-    yanked: bool,
+    yank: &CrateYank<'_>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     if document.format_version > pnpr_cargo::CRATE_DOCUMENT_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
-            document: key.as_str().to_string(),
+            document: yank.key.as_str().to_string(),
             format_version: document.format_version,
             supported_version: pnpr_cargo::CRATE_DOCUMENT_FORMAT_VERSION,
         });
     }
-    let Some(entry) = document.version_mut(version) else { return Ok(None) };
-    entry.yanked = yanked;
+    let Some(entry) = document.version_mut(yank.version) else { return Ok(None) };
+    entry.yanked = yank.action.is_yanked();
     Ok(Some(document.to_bytes()))
 }

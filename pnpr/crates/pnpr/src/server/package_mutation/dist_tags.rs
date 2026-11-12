@@ -16,9 +16,9 @@ use pnpr_storage::{
 
 use super::read_authorized_packument;
 use crate::server::{
-    Action, AppState, GENERATION_HEADER, RegistrySource, authorize_without_owners,
-    filter_osv_vulnerable_dist_tags, hosted_storage, load_packument_for_read, not_found,
-    resolve_write_target,
+    Action, AppState, AuthorizationDecision, GENERATION_HEADER, RegistrySource,
+    authorize_without_owners, filter_osv_vulnerable_dist_tags, hosted_storage,
+    load_packument_for_read, not_found, resolve_write_target,
 };
 
 /// `GET /-/package/:pkg/dist-tags` (path-less) or
@@ -151,19 +151,20 @@ async fn try_update_dist_tag(
 ) -> Result<Option<TagOutcome>, Response> {
     let source = RegistrySource::Hosted(target.source.clone());
     let expected =
-        if authorize_without_owners(state, identity, &source, name.as_str(), Action::Publish)
+        match authorize_without_owners(state, identity, &source, name.as_str(), Action::Publish)
             .map_err(IntoResponse::into_response)?
         {
-            None
-        } else {
-            let Some((_, version)) =
-                read_authorized_packument(state, identity, (target, name), Action::Publish)
-                    .await
-                    .map_err(IntoResponse::into_response)?
-            else {
-                return Err(not_found());
-            };
-            Some(version)
+            AuthorizationDecision::AllowedWithoutOwners => None,
+            AuthorizationDecision::NeedsOwners => {
+                let Some((_, version)) =
+                    read_authorized_packument(state, identity, (target, name), Action::Publish)
+                        .await
+                        .map_err(IntoResponse::into_response)?
+                else {
+                    return Err(not_found());
+                };
+                Some(version)
+            }
         };
     let version = parse_tag_target(request.body).map_err(IntoResponse::into_response)?;
     let change = TagChange {
