@@ -10,11 +10,10 @@ use crate::{BlobId, PackageTombstone, metadata::PackageMetadata};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use serde_json::Value;
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 12] = [
+const PACKAGE_TABLES: [&str; 13] = [
     "artifact_blobs",
     "release_records",
     "accepted_manifests",
@@ -26,6 +25,7 @@ const PACKAGE_TABLES: [&str; 12] = [
     "pypi_files",
     "oci_tags",
     "oci_manifests",
+    "package_owners",
     "packages",
 ];
 
@@ -86,13 +86,7 @@ pub(super) fn record_package(
     state: &[u8],
     principal: Option<&str>,
 ) -> Result<()> {
-    let maintainers = if key.ecosystem == Ecosystem::Npm {
-        maintainer_ids(&serde_json::from_slice(state)?)
-    } else {
-        // Other ecosystems' documents are opaque here; one that does not
-        // parse records no owners.
-        serde_json::from_slice(state).map_or_else(|_| Vec::new(), |state| owner_ids(&state))
-    };
+    let maintainers = super::owners::state_owners(key.ecosystem, state)?;
     let maintainers = serde_json::to_string(&maintainers)?;
     let (namespace, ecosystem, name) = key.params();
     connection.execute(
@@ -287,37 +281,6 @@ pub(super) fn record_removed_oci_digests<'digests>(
         RECORD_REMOVED_MANIFESTS.get(connection.dialect()),
         params![namespace, name, removed, to_column(generation)],
     )
-}
-
-/// The `owners` a crate, project, or image document records.
-fn owner_ids(state: &Value) -> Vec<String> {
-    state
-        .get("owners")
-        .and_then(Value::as_array)
-        .map(|owners| {
-            owners
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn maintainer_ids(state: &Value) -> Vec<String> {
-    let mut ids = Vec::new();
-    if let Some(entries) = state.get("maintainers").and_then(Value::as_array) {
-        for entry in entries {
-            if let Some(id) = entry.get("userId").and_then(Value::as_str)
-                && !ids
-                    .iter()
-                    .any(|existing| existing == id)
-            {
-                ids.push(id.to_string());
-            }
-        }
-    }
-    ids
 }
 
 impl PackageMetadata {

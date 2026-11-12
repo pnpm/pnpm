@@ -343,23 +343,55 @@ async fn organization_listing_reports_write_for_maintainers_under_the_default_ru
     let app = app_router(config, &[]).await;
     let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
-    let doc = publish_doc("@acme/lib", "1.0.0", b"tarball-1");
-    let response = app
-        .clone()
-        .oneshot(authed_put("/npm/@acme%2flib", &alice_token, doc))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
+    for (pkg, token, tarball) in [
+        ("@acme%2flib", &alice_token, &b"tarball-1"[..]),
+        ("@acme%2ftool", &bob_token, &b"tarball-2"[..]),
+    ] {
+        let name = pkg.replace("%2f", "/");
+        let doc = publish_doc(&name, "1.0.0", tarball);
+        let response = app
+            .clone()
+            .oneshot(authed_put(&format!("/npm/{pkg}"), token, doc))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
 
-    for (token, permission) in [(&alice_token, "write"), (&bob_token, "read")] {
+    for (token, expected) in [
+        (&alice_token, json!({ "@acme/lib": "write", "@acme/tool": "read" })),
+        (&bob_token, json!({ "@acme/lib": "read", "@acme/tool": "write" })),
+    ] {
         let response = app
             .clone()
             .oneshot(authed_get("/npm/-/org/acme/package", token))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(body_json(response.into_body()).await["@acme/lib"], json!(permission));
+        assert_eq!(body_json(response.into_body()).await, expected);
     }
+
+    let add_bob = json!({
+        "_id": "@acme/lib",
+        "_rev": "1-abc",
+        "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+    });
+    let response = app
+        .clone()
+        .oneshot(authed_put("/npm/@acme%2flib/-rev/1-abc", &alice_token, add_bob))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let response = app
+        .clone()
+        .oneshot(authed_get("/npm/-/org/acme/package", &bob_token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(response.into_body()).await,
+        json!({ "@acme/lib": "write", "@acme/tool": "write" }),
+    );
 }
 
 #[tokio::test]

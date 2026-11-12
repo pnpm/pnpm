@@ -43,7 +43,7 @@ use crate::{DocumentUpdate, DocumentWrite, Storage, wait_after_document_write_co
 use pnpr_config::MetadataBackend;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
-use std::{fmt, sync::Arc};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 /// The field of a stored npm version that records the interpretation profile
 /// its manifest was accepted under, as `profile`, and the digests of the raw
@@ -260,6 +260,25 @@ impl Storage {
         change: TagChange<'_>,
     ) -> Result<TagUpdate> {
         self.metadata.change_tag(name, change).await
+    }
+
+    /// The account IDs of `name`'s recorded owners on the primary, falling
+    /// back to its tombstone when the package was removed, or `None` when the
+    /// name has neither a live package nor a tombstone.
+    pub async fn read_package_owners(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<Vec<String>>> {
+        self.metadata.read_package_owners(name).await
+    }
+
+    /// The account IDs of the recorded owners of each live package in `names`,
+    /// keyed by package name. A live package with no owners has no entry.
+    pub async fn read_packages_owners(
+        &self,
+        names: &[String],
+    ) -> Result<BTreeMap<String, Vec<String>>> {
+        self.metadata.read_packages_owners(names).await
     }
 
     /// The metadata database.

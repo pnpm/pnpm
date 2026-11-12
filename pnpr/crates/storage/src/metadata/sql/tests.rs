@@ -248,7 +248,7 @@ pub(super) fn packument(name: &str, versions: &[&str]) -> Value {
         "dist-tags": versions.last().map_or_else(|| json!({}), |version| json!({ "latest": version })),
         "versions": manifests,
         "time": time,
-        "maintainers": [{ "name": "someone" }],
+        "maintainers": [{ "name": "someone", "userId": "u-someone" }],
     })
 }
 
@@ -726,7 +726,7 @@ async fn removing_versions_and_packages(db: Db) {
     );
     for table in version_tables
         .into_iter()
-        .chain(["tags", "packages"])
+        .chain(["tags", "package_owners", "packages"])
     {
         assert_eq!(row_count(&storage, table).await, 0, "{table}");
     }
@@ -750,6 +750,7 @@ async fn removing_versions_and_packages(db: Db) {
     assert_eq!(read(&storage, "pkg").await, republished);
     assert_eq!(storage.hosted_published_package_names().await.unwrap(), vec!["pkg".to_string()]);
     write(&storage, "pkg", &json!({ "name": "pkg", "versions": {}, "dist-tags": {} })).await;
+    assert_eq!(row_count(&storage, "package_owners").await, 0);
     assert_eq!(row_count(&storage, "packages").await, 0);
     assert!(
         storage
@@ -833,6 +834,163 @@ async fn a_removed_version_is_never_accepted_again(db: Db) {
     assert!(matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { .. })));
 }
 
+async fn package_owners_read_without_rendering_views(db: Db) {
+    let storage = storage(&db);
+    let write_unversioned = async |target: &Storage, name: &CanonicalPackageName, doc: &Value| {
+        let bytes = serde_json::to_vec(doc).unwrap();
+        let any = HostedDocumentVersion::Unversioned;
+        target
+            .write_hosted_document_if_current(name, &bytes, Some(&any), None)
+            .await
+            .unwrap();
+    };
+    assert_eq!(
+        storage
+            .read_package_owners(&npm("@scope/absent"))
+            .await
+            .unwrap(),
+        None,
+    );
+    assert!(
+        storage
+            .read_packages_owners(&[])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(
+        storage
+            .read_packages_owners(&["@scope/absent".to_string()])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+
+    let mut pkg_a = packument("@scope/a", &["1.0.0", "2.0.0"]);
+    pkg_a["maintainers"] = json!([
+        { "name": "bob", "userId": "u-bob" },
+        { "name": "alice", "userId": "u-alice" },
+        { "name": "alice-dup", "userId": "u-alice" },
+    ]);
+    let mut pkg_b = packument("@scope/b", &["1.0.0"]);
+    pkg_b["maintainers"] = json!([{ "name": "bob", "userId": "u-bob" }]);
+    let mut pkg_c = packument("@scope/c", &["1.0.0"]);
+    pkg_c["maintainers"] = json!([]);
+    write_unversioned(&storage, &npm("@scope/a"), &pkg_a).await;
+    write_unversioned(&storage, &npm("@scope/b"), &pkg_b).await;
+    write_unversioned(&storage, &npm("@scope/c"), &pkg_c).await;
+
+    assert_eq!(
+        storage
+            .read_package_owners(&npm("@scope/a"))
+            .await
+            .unwrap(),
+        Some(vec!["u-alice".to_string(), "u-bob".to_string()]),
+    );
+    assert_eq!(
+        storage
+            .read_package_owners(&npm("@scope/b"))
+            .await
+            .unwrap(),
+        Some(vec!["u-bob".to_string()]),
+    );
+    assert_eq!(
+        storage
+            .read_package_owners(&npm("@scope/c"))
+            .await
+            .unwrap(),
+        Some(Vec::new()),
+    );
+
+    let batched = storage
+        .read_packages_owners(&[
+            "@scope/a".to_string(),
+            "@scope/b".to_string(),
+            "@scope/c".to_string(),
+            "@scope/absent".to_string(),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(
+        batched,
+        std::collections::BTreeMap::from([
+            ("@scope/a".to_string(), vec!["u-alice".to_string(), "u-bob".to_string()]),
+            ("@scope/b".to_string(), vec!["u-bob".to_string()]),
+        ]),
+    );
+
+    // Dropping one version records a tombstone in `removed_packages`, while the
+    // live package clears its maintainers. `read_package_owners` must report the
+    // live package's empty owner list rather than the tombstone's.
+    let mut pkg_a_remaining = packument("@scope/a", &["2.0.0"]);
+    pkg_a_remaining["maintainers"] = json!([]);
+    write_unversioned(&storage, &npm("@scope/a"), &pkg_a_remaining).await;
+    assert_eq!(
+        storage
+            .read_package_owners(&npm("@scope/a"))
+            .await
+            .unwrap(),
+        Some(Vec::new()),
+    );
+    assert!(
+        storage
+            .read_packages_owners(&["@scope/a".to_string()])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+
+    // Updating maintainers and then removing the package falls back to the
+    // tombstone for single-package checks and omits it from live batches.
+    pkg_b["maintainers"] = json!([{ "name": "carol", "userId": "u-carol" }]);
+    write_unversioned(&storage, &npm("@scope/b"), &pkg_b).await;
+    assert!(
+        storage
+            .remove_package(&npm("@scope/b"), Some("carol"))
+            .await
+            .unwrap(),
+    );
+    assert_eq!(
+        storage
+            .read_package_owners(&npm("@scope/b"))
+            .await
+            .unwrap(),
+        Some(vec!["u-carol".to_string()]),
+    );
+    assert!(
+        storage
+            .read_packages_owners(&["@scope/b".to_string()])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(row_count(&storage, "package_owners").await, 0);
+
+    let cargo = storage.for_hosted("", Ecosystem::Cargo);
+    let crate_name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
+    let crate_doc = json!({
+        "formatVersion": 1,
+        "owners": ["u-crate"],
+        "versions": [{ "name": "serde", "vers": "1.0.0", "deps": [], "cksum": "00", "features": {}, "yanked": false }],
+        "unpublished": [],
+    });
+    write_unversioned(&cargo, &crate_name, &crate_doc).await;
+    assert_eq!(
+        cargo.read_package_owners(&crate_name).await.unwrap(),
+        Some(vec!["u-crate".to_string()]),
+    );
+    assert_eq!(
+        cargo
+            .read_packages_owners(&["serde".to_string()])
+            .await
+            .unwrap(),
+        std::collections::BTreeMap::from([("serde".to_string(), vec!["u-crate".to_string()])]),
+    );
+
+    let rendered = stats(&storage);
+    assert_eq!((rendered.fragments_rendered, rendered.views_assembled), (0, 0), "{rendered:?}");
+}
+
 conformance! {
     a_packument_reads_back_as_written,
     an_accepted_version_cannot_change,
@@ -845,6 +1003,7 @@ conformance! {
     invalid_tag_changes_leave_metadata_unchanged,
     invalid_document_tags_leave_metadata_unchanged,
     a_version_reads_without_the_package_view,
+    package_owners_read_without_rendering_views,
     removing_versions_and_packages,
     a_removed_version_is_never_accepted_again,
     an_archive_manifest_record_is_the_accepted_interpretation,

@@ -217,16 +217,21 @@ impl Commit<'_> {
             current.is_none_or(|row| row.state_version != state_version || row.state != state);
         if changed {
             self.write_state(state_version, &state)?;
+            self.write_owners(current, &state)?;
         }
         Ok(changed)
     }
 
     pub(super) fn delete_state(&self) -> Result<()> {
         let (namespace, ecosystem, name) = self.key.params();
-        self.transaction.execute(
-            "DELETE FROM packages WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![namespace, ecosystem, name],
-        )?;
+        for table in ["package_owners", "packages"] {
+            self.transaction.execute(
+                &format!(
+                    "DELETE FROM {table} WHERE namespace = ?1 AND ecosystem = ?2 AND name = ?3",
+                ),
+                params![namespace, ecosystem, name],
+            )?;
+        }
         Ok(())
     }
 

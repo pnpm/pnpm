@@ -1,8 +1,9 @@
 use super::{
     Action, AppState, Body, CanonicalPackageName, DiscoverySource, Ecosystem, FetchOutcome,
-    HostedConfig, HostedGate, Identity, Map, RegistryError, RegistrySource, Response, StatusCode,
-    Value, authorize, authorize_package, default_registry_target, discovery_sources, header,
-    hosted_gate, hosted_storage, json, not_found, resolve_registry_source,
+    HostedConfig, HostedGate, Identity, Map, Ownership, RegistryError, RegistrySource, Response,
+    StatusCode, Value, authorize, authorize_with_ownership, default_registry_target,
+    discovery_sources, header, hosted_gate, hosted_storage, json, needs_package_owners, not_found,
+    resolve_registry_source,
 };
 use axum::response::IntoResponse;
 
@@ -81,21 +82,26 @@ pub(super) async fn add_hosted_org_packages(
     let storage = hosted_storage(state, Some(&hosted.namespace));
     let mut names = storage.hosted_package_names().await?;
     names.sort();
+    names.retain(|name| hosted_org_package_is_visible(state, identity, &scan, name));
     let resolved = RegistrySource::Hosted(scan.source.to_string());
+    let owner_checked: Vec<String> = names
+        .iter()
+        .filter(|name| needs_package_owners(state, identity, &resolved, name, Action::Publish))
+        .cloned()
+        .collect();
+    let owners_by_package = storage.read_packages_owners(&owner_checked).await?;
     for name in names {
-        if !hosted_org_package_is_visible(state, identity, &scan, &name) {
-            continue;
-        }
-        let permission = match authorize_package(
+        let owners = owners_by_package
+            .get(&name)
+            .map_or(&[][..], Vec::as_slice);
+        let ownership = Ownership::Owners(owners);
+        let permission = match authorize_with_ownership(
             state,
             identity,
             &resolved,
-            &name,
+            (&name, &ownership),
             Action::Publish,
-            Some(&hosted.namespace),
-        )
-        .await
-        {
+        ) {
             Ok(()) => "write",
             Err(RegistryError::Forbidden { .. } | RegistryError::Unauthenticated { .. }) => "read",
             Err(err) => return Err(err),
