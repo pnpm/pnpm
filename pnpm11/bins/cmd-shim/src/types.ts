@@ -96,7 +96,8 @@ export type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 
  */
 export interface FdFs {
   open: (file: string, flags: string) => Promise<number>
-  read: (fd: number, buffer: Buffer, offset: number, length: number, position: number) => Promise<{ bytesRead: number }>
+  /** Reads into the whole of `target`, starting at byte `position` of the file. May fill less than all of it. */
+  read: (fd: number, target: Buffer, position: number) => Promise<{ bytesRead: number }>
   close: (fd: number) => Promise<void>
 }
 

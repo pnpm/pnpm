@@ -418,6 +418,26 @@ describe('large bin target', () => {
   })
 })
 
+describe('bin target returned in short reads', () => {
+  const src = path.resolve(fixtures, 'src.short-reads')
+  const to = path.resolve(fixtures, 'short-reads.shim')
+  const shortReadFs = {
+    ...fs,
+    read (fd, buffer, offset, length, position, callback) {
+      fs.read(fd, buffer, offset, Math.min(length, 3), position, callback)
+    },
+  }
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.writeFile(src, '#!/usr/bin/env node --expose-gc\nconsole.log(1)\n')
+    return cmdShim(src, to, { createCmdFile: false, fs: shortReadFs })
+  })
+
+  test('keeps reading until the shebang line is complete', async () => {
+    assert.match(fs.readFileSync(to, 'utf8'), /exec "\$basedir\/node"  --expose-gc "\$basedir_abs"\/'src\.short-reads'/)
+  })
+})
+
 describe('batch script', () => {
   const src = path.resolve(fixtures, 'src.bat')
   const to = path.resolve(fixtures, 'bat.shim')

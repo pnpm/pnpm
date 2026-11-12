@@ -56,14 +56,20 @@ const extensionToProgramMap = new Map([
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = { ...DEFAULT_OPTIONS, ...opts } as InternalOptions
   opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, realpath: fs.promises.realpath } as unknown as FsPromises)
-  opts_.fd_ = opts_.fs ? promisifyFdFs(opts_.fs) : gfsPromises
+  opts_.fd_ = opts_.fs ? promisifyFdFs(opts_.fs) : gracefulFdFs
   return opts_
+}
+
+const gracefulFdFs: FdFs = {
+  open: gfsPromises.open,
+  read: async (fd, target, position) => gfsPromises.read(fd, target, 0, target.length, position),
+  close: gfsPromises.close,
 }
 
 function promisifyFdFs (fs_: typeof fs): FdFs {
   return {
     open: promisify(fs_.open),
-    read: async (fd, buffer, offset, length, position) => readBytes(fs_, { fd, buffer, offset, length, position }),
+    read: async (fd, target, position) => readBytes(fs_, { fd, target, position }),
     close: promisify(fs_.close),
   }
 }
@@ -74,10 +80,10 @@ function promisifyFdFs (fs_: typeof fs): FdFs {
  */
 async function readBytes (
   fs_: typeof fs,
-  { fd, buffer, offset, length, position }: { fd: number, buffer: Buffer, offset: number, length: number, position: number }
+  { fd, target, position }: { fd: number, target: Buffer, position: number }
 ): Promise<{ bytesRead: number }> {
   return new Promise((resolve, reject) => {
-    fs_.read(fd, buffer, offset, length, position, (err, bytesRead) => {
+    fs_.read(fd, target, 0, target.length, position, (err, bytesRead) => {
       if (err) reject(err)
       else resolve({ bytesRead })
     })
@@ -336,15 +342,23 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
 }
 
 /**
- * Reads only the start of `file`, which is enough to hold its shebang line.
- * Bin targets can be native executables of hundreds of megabytes.
+ * Returns the first `SHEBANG_READ_LIMIT_BYTES` bytes of `file` decoded as UTF-8,
+ * or the whole file if it is shorter. Bin targets can be native executables of
+ * hundreds of megabytes, so the rest is never read.
+ * Rejects with the `open` error when `file` does not exist.
  */
 async function readFileHead (file: string, opts: InternalOptions): Promise<string> {
   const fd = await opts.fd_.open(file, 'r')
   try {
     const buffer = Buffer.alloc(SHEBANG_READ_LIMIT_BYTES)
-    const { bytesRead } = await opts.fd_.read(fd, buffer, 0, buffer.length, 0)
-    return buffer.toString('utf8', 0, bytesRead)
+    let filled = 0
+    while (filled < buffer.length) {
+      // eslint-disable-next-line no-await-in-loop -- each read continues at the offset the previous one reached
+      const { bytesRead } = await opts.fd_.read(fd, buffer.subarray(filled), filled)
+      if (bytesRead === 0) break
+      filled += bytesRead
+    }
+    return buffer.toString('utf8', 0, filled)
   } finally {
     await opts.fd_.close(fd)
   }
