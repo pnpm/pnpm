@@ -21,7 +21,7 @@ struct LockfileDirPathsBeforeHook {
     hook_virtual_store_dir: HookVirtualStoreDir,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum HookVirtualStoreDir {
     Unchanged,
     Cleared,
@@ -173,18 +173,18 @@ fn restore_default_lockfile_dir_paths(
         .configured_virtual_store_dir
         .as_ref();
     config.modules_dir = modules_dir;
-    match paths_before_hook.hook_virtual_store_dir {
+    let hook_virtual_store_dir = match paths_before_hook.hook_virtual_store_dir {
         HookVirtualStoreDir::Unchanged => {
             config.configured_virtual_store_dir = configured_virtual_store_dir.cloned();
+            None
         }
-        HookVirtualStoreDir::Cleared => config.configured_virtual_store_dir = None,
-        HookVirtualStoreDir::Set => {}
-    }
+        HookVirtualStoreDir::Cleared => {
+            config.configured_virtual_store_dir = None;
+            None
+        }
+        HookVirtualStoreDir::Set => config.configured_virtual_store_dir.clone(),
+    };
     config.install_state_dir = install_state_dir;
-    let hook_virtual_store_dir = (paths_before_hook.hook_virtual_store_dir
-        == HookVirtualStoreDir::Set)
-        .then(|| config.configured_virtual_store_dir.clone())
-        .flatten();
     if paths_before_hook.lockfile_dir.is_some() {
         restore_default_lockfile_dir(config, configured_virtual_store_dir, hook_virtual_store_dir);
     }
