@@ -1,7 +1,42 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::PkgNameVerPeer;
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
+
+/// Providers recorded before a snapshot's peer suffix was hashed.
+#[derive(Debug, Clone)]
+pub struct RecordedPeerBindings {
+    key: PkgNameVerPeer,
+    providers: BoundProviders,
+}
+
+impl RecordedPeerBindings {
+    /// `peers` must be the values used to construct `key`.
+    pub(crate) fn for_key(key: &PkgNameVerPeer, peers: &[PeerId]) -> Option<Arc<Self>> {
+        let hash = key.suffix
+            .peer()
+            .strip_prefix(key.suffix.patch_group())?
+            .strip_prefix('(')?
+            .strip_suffix(')')?;
+        if !is_peer_suffix_hash(hash) {
+            return None;
+        }
+        let bindings = PeerBindings::Explicit(
+            peers
+                .iter()
+                .map(PeerId::as_segment)
+                .collect(),
+        );
+        Some(Arc::new(Self { key: key.clone(), providers: BoundProviders::of(&bindings) }))
+    }
+
+    pub(crate) fn providers_for(&self, key: &PkgNameVerPeer) -> Option<&BoundProviders> {
+        (key == &self.key).then_some(&self.providers)
+    }
+}
 
 /// The providers one key's peer bindings name. Provider groups may omit
 /// their own peers (`dedupePeers`). Unrecovered hashes name no providers.
@@ -78,10 +113,8 @@ impl BoundProviders {
     }
 }
 
-/// The peer providers a snapshot key records in its peer suffix. The
-/// suffix is the only record of the providers peer resolution bound,
-/// including where it cut a peer cycle short, so every reader goes
-/// through [`PeerBindings::from_key`].
+/// The peer providers encoded in a snapshot key, including cycle cuts.
+/// Use [`BoundProviders::of_snapshot`] when the snapshot is available.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PeerBindings {
     /// The spelled-out segments, in suffix order. A segment is a
