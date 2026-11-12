@@ -58,3 +58,73 @@ async fn a_large_roster_uses_one_targeted_bulk_account_lookup() {
     assert_eq!(backend.account_reads.load(Ordering::Relaxed), 1);
     assert_eq!(backend.bulk_reads.load(Ordering::Relaxed), 1);
 }
+
+#[tokio::test]
+async fn org_package_listing_does_not_render_package_views() {
+    let directory = tempfile::tempdir().unwrap();
+    let yaml = format!(
+        "storage: '{}'\nregistries:\n  local:\n    type: hosted\n    namespace: ''\n    packages:\n      '@acme/*': {{}}\ndefaultRegistry: local\n",
+        directory
+            .path()
+            .join("storage")
+            .display(),
+    );
+    let path = directory.path().join("config.yaml");
+    std::fs::write(&path, yaml).unwrap();
+    let config = Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let backend = Arc::new(OneToken {
+        accounts: BTreeSet::from(["alice".to_string(), "bob".to_string()]),
+        raw: "session".to_string(),
+        record: record(false, &[]),
+        account_reads: std::sync::atomic::AtomicUsize::default(),
+        bulk_reads: std::sync::atomic::AtomicUsize::default(),
+    });
+    let auth = AuthState { users: Arc::clone(&backend) as _, tokens: Arc::clone(&backend) as _ };
+    let (state, app) = super::super::state_and_router(config, auth, None).unwrap();
+    let any = pnpr_storage::HostedDocumentVersion::Unversioned;
+    for (name, maintainers) in [
+        ("@acme/owned", serde_json::json!([{ "name": "alice", "userId": "alice" }])),
+        ("@acme/other", serde_json::json!([{ "name": "bob", "userId": "bob" }])),
+        ("@acme/unowned", serde_json::json!([])),
+    ] {
+        let canonical =
+            pnpr_package_name::CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)
+                .unwrap();
+        let doc = serde_json::to_vec(&serde_json::json!({
+            "name": name,
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": {
+                "1.0.0": {
+                    "name": name,
+                    "version": "1.0.0",
+                    "readme": "# Large readme",
+                    "dist": { "integrity": "sha512-1", "tarball": "t.tgz" },
+                }
+            },
+            "maintainers": maintainers,
+        }))
+        .unwrap();
+        state.inner.storage
+            .write_hosted_document_if_current(&canonical, &doc, Some(&any), None)
+            .await
+            .unwrap();
+    }
+
+    let response = app
+        .oneshot(signed(Method::GET, "/npm/-/org/acme/package", "session"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let listing: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        listing,
+        serde_json::json!({
+            "@acme/other": "read",
+            "@acme/owned": "write",
+            "@acme/unowned": "read",
+        }),
+    );
+    let rendered = state.inner.storage.sql_metadata().render_stats();
+    assert_eq!((rendered.fragments_rendered, rendered.views_assembled), (0, 0), "{rendered:?}");
+}

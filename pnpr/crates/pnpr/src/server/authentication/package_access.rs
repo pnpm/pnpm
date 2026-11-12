@@ -87,11 +87,23 @@ pub(in crate::server) fn authorize_with_ownership(
     action: Action,
 ) -> Result<(), RegistryError> {
     let rules = source_rules(state, source).snapshot();
-    let is_owner = owns(state, identity, ownership, action);
-    if permission_list(&rules, package, action).allows_with_context(identity, is_owner) {
+    if allows_with_ownership(state, identity, &rules, (package, ownership), action) {
         return Ok(());
     }
     Err(denial(identity, package, action))
+}
+
+/// Whether `rules` allow `identity` to perform `action` on `package` given
+/// `ownership`.
+pub(in crate::server) fn allows_with_ownership(
+    state: &AppState,
+    identity: &Identity,
+    rules: &RuleTable,
+    (package, ownership): (&str, &Ownership<'_>),
+    action: Action,
+) -> bool {
+    let is_owner = owns(state, identity, ownership, action);
+    permission_list(rules, package, action).allows_with_context(identity, is_owner)
 }
 
 /// [`authorize_with_ownership`] against the maintainers an npm `packument`
@@ -103,7 +115,7 @@ pub(in crate::server) fn authorize_against_packument(
     (package, packument): (&str, &serde_json::Value),
     action: Action,
 ) -> Result<(), RegistryError> {
-    let owners = document_owners(Ecosystem::Npm, packument);
+    let owners = packument_owners(packument);
     let ownership = Ownership::Owners(&owners);
     authorize_with_ownership(state, identity, source, (package, &ownership), action)
 }
@@ -129,27 +141,14 @@ fn is_admin(state: &AppState, identity: &Identity) -> bool {
         .is_some_and(|user| state.inner.config.identity.admins.contains(user))
 }
 
-/// The owners a stored document records: an npm packument's maintainer
-/// account IDs, or the `owners` of a crate, project, or image document.
-fn document_owners(ecosystem: Ecosystem, document: &serde_json::Value) -> Vec<String> {
-    let ids = match ecosystem {
-        Ecosystem::Npm => document
-            .get("maintainers")
-            .and_then(serde_json::Value::as_array)
-            .map(|maintainers| {
-                maintainers
-                    .iter()
-                    .filter_map(|entry| entry.get("userId"))
-                    .collect::<Vec<_>>()
-            }),
-        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => document
-            .get("owners")
-            .and_then(serde_json::Value::as_array)
-            .map(|owners| owners.iter().collect()),
-    };
-    ids.unwrap_or_default()
+/// The maintainer account IDs an npm `packument` records.
+fn packument_owners(packument: &serde_json::Value) -> Vec<String> {
+    packument
+        .get("maintainers")
+        .and_then(serde_json::Value::as_array)
         .into_iter()
-        .filter_map(serde_json::Value::as_str)
+        .flatten()
+        .filter_map(|entry| entry.get("userId").and_then(serde_json::Value::as_str))
         .map(str::to_string)
         .collect()
 }
@@ -180,8 +179,8 @@ fn denial(identity: &Identity, package: &str, action: Action) -> RegistryError {
     }
 }
 
-/// Read the ownership of `package` from the current document, never a
-/// replica's copy that may predate an owner's removal.
+/// Read the recorded owners of `package` from the primary metadata store,
+/// never a replica's copy that may predate an owner's removal.
 async fn read_ownership(
     state: &AppState,
     (package, ecosystem): (&str, Ecosystem),
@@ -189,16 +188,23 @@ async fn read_ownership(
 ) -> Result<Option<Vec<String>>, RegistryError> {
     let canonical = CanonicalPackageName::from_stored(package, ecosystem);
     let storage = state.inner.storage.for_hosted(namespace.unwrap_or(""), ecosystem);
-    if let Some(stored) = storage.read_hosted_document_for_update(&canonical).await? {
-        let owners = serde_json::from_slice::<serde_json::Value>(&stored.bytes)
-            .map(|document| document_owners(ecosystem, &document))
-            .unwrap_or_default();
-        return Ok(Some(owners));
+    storage.read_package_owners(&canonical).await
+}
+
+/// Whether deciding `action` for `identity` on `package` under `rules` requires
+/// reading `package`'s recorded owners.
+pub(in crate::server) fn needs_package_owners(
+    state: &AppState,
+    identity: &Identity,
+    rules: &RuleTable,
+    package: &str,
+    action: Action,
+) -> bool {
+    if !identity.is_authenticated() || is_admin(state, identity) {
+        return false;
     }
-    if let Some(tombstone) = storage.read_tombstone(&canonical).await? {
-        return Ok(Some(tombstone.maintainers));
-    }
-    Ok(None)
+    let list = permission_list(rules, package, action);
+    !list.allows(identity) && list.references_owners()
 }
 
 pub(in crate::server) async fn authorize_package(

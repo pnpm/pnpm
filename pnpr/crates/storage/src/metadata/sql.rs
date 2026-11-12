@@ -36,6 +36,7 @@ mod log;
 mod mappings;
 mod notes;
 mod oci_rows;
+mod owners;
 mod packument;
 mod publications;
 mod publish;
