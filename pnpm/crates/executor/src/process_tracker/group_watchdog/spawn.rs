@@ -9,9 +9,10 @@ use std::{
     },
 };
 
-pub(super) fn registered(command: &mut Command, watchdog: &mut GroupWatchdog) -> io::Result<Child> {
+pub(super) fn registered(command: &mut Command, watchdog: &GroupWatchdog) -> io::Result<Child> {
     let (mut reader, writer) = {
         // macOS sets CLOEXEC after creating a pipe; exclude concurrent forks.
+        #[cfg(not(any(target_os = "linux", target_os = "android")))]
         let _spawning = pnpm_process::watchdog_spawning();
         io::pipe()?
     };

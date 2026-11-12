@@ -194,8 +194,10 @@ PROPTEST_CASES=1024 PROPTEST_RNG_SEED=143 PROPTEST_MAX_SHRINK_ITERS=256 pnpm tes
 
 Keep a minimized failure as a fixed regression test when fixing its cause.
 The moving-provider property checks frozen acceptance and stability of the
-installed dependency graph after dependency changes. It keeps published manifests unchanged and allows
-valid locked peer choices to differ from fresh resolution.
+installed dependency graph after additions, version changes, and removals.
+It keeps published manifests unchanged and uses the production version picker
+with manifest and lockfile preferences. Valid locked peer choices may differ
+from fresh resolution.
 
 ## Benchmarking
 

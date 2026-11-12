@@ -228,8 +228,11 @@ pub fn spawn_child<'tracker>(
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
     #[cfg(unix)]
-    let (child, watched) =
-        if own_process_group { group_watchdog::spawn(command)? } else { (command.spawn()?, false) };
+    let group_watchdog::ChildWatch { child, watched } = if own_process_group {
+        group_watchdog::spawn(command)?
+    } else {
+        group_watchdog::ChildWatch { child: command.spawn()?, watched: false }
+    };
     #[cfg(not(unix))]
     let child = command.spawn()?;
     crate::job_control::assign_child(&child);

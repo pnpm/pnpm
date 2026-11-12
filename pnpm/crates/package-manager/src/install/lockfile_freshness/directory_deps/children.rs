@@ -81,8 +81,9 @@ pub(super) fn check_recorded_local_targets(
                             check,
                             dep,
                             local_manifest,
-                            (snapshot, &bound),
+                            (snapshot, key, &bound),
                             child,
+                            visited,
                         ))
             }))
             || !recorded_local_target_is_fresh(check, dep, snapshot, child)
@@ -115,8 +116,13 @@ fn peer_replaces_child(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     manifest: &PackageManifest,
-    (snapshot, bound): (&pnpm_lockfile::SnapshotEntry, &pnpm_lockfile::BoundProviders),
+    (snapshot, key, bound): (
+        &pnpm_lockfile::SnapshotEntry,
+        &pnpm_lockfile::PackageKey,
+        &pnpm_lockfile::BoundProviders,
+    ),
     child: &DependencySpec,
+    visited: &Visited,
 ) -> bool {
     let Some(optional) =
         declared_peer_dependencies(manifest.value()).get(&child.alias).map(|peer| peer.optional)
@@ -130,7 +136,8 @@ fn peer_replaces_child(
     let Some(recorded) = recorded_child(snapshot, &child.alias, group) else {
         // The shared children's owner may take a peer this occurrence leaves unbound.
         return recorded_child(snapshot, &child.alias, RecordedDeps::Required).is_none()
-            && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_none();
+            && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_none()
+            && visited.peer_children.contains(check.lockfile, key, &child.alias);
     };
     (!bound.is_hashed()
         && child.alias

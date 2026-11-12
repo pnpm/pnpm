@@ -5,12 +5,12 @@ use proptest::prelude::*;
 struct DependencyChange {
     importer: usize,
     target: usize,
-    major: u8,
+    major: Option<u8>,
 }
 
 fn dependency_change() -> impl Strategy<Value = DependencyChange> {
-    (0usize..3, 0usize..5, any::<bool>()).prop_map(|(importer, target, second_major)| {
-        DependencyChange { importer, target, major: if second_major { 2 } else { 1 } }
+    (0usize..3, 0usize..5, prop::option::of(1u8..=2)).prop_map(|(importer, target, major)| {
+        DependencyChange { importer, target, major }
     })
 }
 
@@ -41,7 +41,9 @@ fn check_changes(
         let target = target % workspace.packages.len();
         let edges = &mut workspace.importers[importer];
         edges.retain(|edge| edge.target != target);
-        edges.push(model::Edge { target, major });
+        if let Some(major) = major {
+            edges.push(model::Edge { target, major });
+        }
         let installed = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
             .expect("changed workspace resolves");
         lockfile = lockfile_with_settings(&installed, &workspace, settings);
@@ -131,7 +133,7 @@ fn changed_optional_provider_is_stable() {
             check_changes(
                 workspace.clone(),
                 settings,
-                vec![DependencyChange { importer: 1, target: 0, major: 2 }],
+                vec![DependencyChange { importer: 1, target: 0, major: Some(2) }],
             )
             .unwrap();
         }
@@ -227,7 +229,7 @@ fn changed_injected_provider_is_stable() {
         injected: true,
         format: pnpm_lockfile::LockfileFormat::V13,
     };
-    let changes = vec![DependencyChange { importer: 1, target: 1, major: 1 }];
+    let changes = vec![DependencyChange { importer: 1, target: 1, major: Some(1) }];
     check_changes(workspace, settings, changes).unwrap();
 }
 
@@ -276,8 +278,8 @@ fn changed_catalog_provider_is_frozen_fresh() {
         workspace,
         settings,
         vec![
-            DependencyChange { importer: 1, target: 2, major: 1 },
-            DependencyChange { importer: 0, target: 3, major: 2 },
+            DependencyChange { importer: 1, target: 2, major: Some(1) },
+            DependencyChange { importer: 0, target: 3, major: Some(2) },
         ],
     )
     .unwrap();
@@ -334,8 +336,12 @@ fn changed_catalog_provider_with_peers_is_frozen_fresh() {
         .unwrap()
         .insert("p2".to_string(), "^1.0.0".to_string());
     assert!(fixture.frozen_check(&lockfile, settings).is_err());
-    check_changes(workspace, settings, vec![DependencyChange { importer: 1, target: 0, major: 1 }])
-        .unwrap();
+    check_changes(
+        workspace,
+        settings,
+        vec![DependencyChange { importer: 1, target: 0, major: Some(1) }],
+    )
+    .unwrap();
 }
 
 #[test]
@@ -376,7 +382,7 @@ fn required_catalog_peer_keeps_the_owners_child_classification() {
         check_changes(
             workspace.clone(),
             settings,
-            vec![DependencyChange { importer: 0, target: 0, major: 1 }],
+            vec![DependencyChange { importer: 0, target: 0, major: Some(1) }],
         )
         .unwrap();
     }
@@ -439,8 +445,204 @@ fn changed_required_provider_on_a_dependency_cycle_is_stable() {
         check_changes(
             workspace,
             settings,
-            vec![DependencyChange { importer: 0, target: 0, major: 1 }],
+            vec![DependencyChange { importer: 0, target: 0, major: Some(1) }],
         )
         .unwrap();
     }
+}
+
+#[test]
+fn missing_required_catalog_peer_child_is_outdated() {
+    use model::{PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(1),
+                        optional: false,
+                        also_dependency: true,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![vec![]],
+    };
+    let settings = Settings {
+        auto_install_peers: false,
+        catalogs: true,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        ..Default::default()
+    };
+    let fresh = resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    let mut lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let fixture = fixture::Fixture::new(&workspace, settings);
+    fixture.frozen_check(&lockfile, settings).unwrap();
+    let shared = "shared".parse().unwrap();
+    let key = lockfile.importers["."].dependencies.as_ref().unwrap()[&shared]
+        .version
+        .resolved_key(&shared)
+        .unwrap();
+    let removed = lockfile.snapshots
+        .as_mut()
+        .unwrap()
+        .get_mut(&key)
+        .unwrap()
+        .dependencies
+        .as_mut()
+        .unwrap()
+        .remove(&"p1".parse().unwrap());
+    assert!(removed.is_some());
+    assert!(fixture.frozen_check(&lockfile, settings).is_err());
+    let orphan_key = format!("{}(p1@2.0.0)", key.without_peer()).parse().unwrap();
+    assert_ne!(key, orphan_key);
+    let mut orphan = lockfile.snapshots.as_ref().unwrap()[&key].clone();
+    orphan.dependencies
+        .as_mut()
+        .unwrap()
+        .insert("p1".parse().unwrap(), "2.0.0".parse().unwrap());
+    lockfile.snapshots
+        .as_mut()
+        .unwrap()
+        .insert(orphan_key, orphan);
+    assert!(fixture.frozen_check(&lockfile, settings).is_err());
+}
+
+#[test]
+fn removed_direct_provider_is_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![leaf.clone(), leaf.clone()],
+            vec![
+                leaf,
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 1 }, Edge { target: 1, major: 2 }]],
+    };
+    check_changes(
+        workspace,
+        Settings::default(),
+        vec![DependencyChange { importer: 0, target: 0, major: None }],
+    )
+    .unwrap();
+}
+
+#[test]
+fn removed_nested_optional_provider_is_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let peer = |target, major, optional| Peer {
+        target,
+        range: PeerRange::Major(major),
+        optional,
+        also_dependency: false,
+    };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                leaf(),
+                PackageVersion { dependencies: vec![Edge { target: 2, major: 2 }], peers: vec![] },
+            ],
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(2, 1, false)] },
+                PackageVersion { dependencies: vec![], peers: vec![peer(0, 2, false)] },
+            ],
+            vec![leaf(), PackageVersion { dependencies: vec![], peers: vec![peer(1, 1, true)] }],
+        ],
+        importers: vec![
+            vec![Edge { target: 1, major: 2 }],
+            vec![Edge { target: 0, major: 2 }],
+            vec![Edge { target: 2, major: 2 }],
+        ],
+    };
+    let settings = Settings {
+        auto_install_peers: false,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+        peers_suffix_max_length: 20,
+        ..Default::default()
+    };
+    check_changes(
+        workspace,
+        settings,
+        vec![
+            DependencyChange { importer: 1, target: 1, major: Some(1) },
+            DependencyChange { importer: 1, target: 0, major: None },
+            DependencyChange { importer: 1, target: 1, major: None },
+        ],
+    )
+    .unwrap();
+}
+
+#[test]
+fn added_provider_updates_optional_candidates_child_owner() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(2),
+                        optional: false,
+                        also_dependency: true,
+                    }],
+                },
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Major(1),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Any,
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![vec![Edge { target: 2, major: 1 }], vec![Edge { target: 1, major: 1 }]],
+    };
+    check_changes(
+        workspace,
+        Settings { auto_install_peers: false, ..Default::default() },
+        vec![
+            DependencyChange { importer: 1, target: 0, major: Some(2) },
+            DependencyChange { importer: 0, target: 1, major: Some(1) },
+        ],
+    )
+    .unwrap();
 }

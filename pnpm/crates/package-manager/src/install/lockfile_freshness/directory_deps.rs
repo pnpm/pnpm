@@ -16,6 +16,7 @@ mod nested;
 mod package;
 mod peers;
 mod recorded;
+mod recorded_peer_children;
 mod scope;
 mod spec;
 

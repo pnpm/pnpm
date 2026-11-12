@@ -127,6 +127,15 @@ impl Lockfile {
     /// Verifies that every dependency reference reachable from an importer
     /// resolves to an entry in `snapshots`. Returns the first missing key.
     pub fn verify_importer_snapshot_links(&self) -> Result<(), LockfileMissingDependencyError> {
+        self.reachable_snapshot_keys()
+            .map(|_| ())
+    }
+
+    /// Every snapshot reachable from any importer, including optional dependencies.
+    /// Returns the first dependency reference with no snapshot.
+    pub fn reachable_snapshot_keys(
+        &self,
+    ) -> Result<HashSet<PackageKey>, LockfileMissingDependencyError> {
         let options = FilterByImportersOptions {
             include: IncludedDependencies::default(),
             skipped: HashSet::new(),
@@ -137,8 +146,7 @@ impl Lockfile {
             .values()
             .flat_map(importer_keys)
             .collect();
-        collect_reachable(self, seeds, &options, &PeerSatisfactionEdges::default())?;
-        Ok(())
+        collect_reachable(self, seeds, &options, &PeerSatisfactionEdges::default())
     }
 }
 

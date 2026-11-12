@@ -48,12 +48,25 @@ struct RequiredPeerPicker<'a> {
     picked: RefCell<HashMap<(String, String), RequiredPeerPick>>,
 }
 
+impl<'a> RequiredPeerPicker<'a> {
+    fn new(candidate_peers: &'a CandidatePeers<'a>, detached: &'a DetachedPeers) -> Self {
+        Self { candidate_peers, detached, picked: RefCell::new(HashMap::default()) }
+    }
+}
+
 /// What [`ImporterHoistState::hoistable_optional_peers`] picked.
 pub(super) struct HoistableOptionalPeers {
     /// `peer_name → version` to hoist.
     pub(super) versions: BTreeMap<String, String>,
     /// Names whose every candidate failed [`accepts_optional_peer_candidate`].
     pub(super) rejected: HashSet<String>,
+}
+
+impl HoistableOptionalPeers {
+    fn new(versions: BTreeMap<String, String>, mut rejected: HashSet<String>) -> Self {
+        rejected.retain(|name| !versions.contains_key(name));
+        Self { versions, rejected }
+    }
 }
 
 impl ImporterHoistState {
@@ -174,7 +187,8 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        let candidate_peers = CandidatePeers::new(self.ctx.workspace());
+        let candidate_peers =
+            CandidatePeers::new(self.ctx.workspace(), self.policy.peers.auto_install_peers);
         let mut detached = DetachedPeers::default();
         loop {
             let hoistable = self.pick_hoistable_optional_peers(&candidate_peers, &detached);
@@ -190,7 +204,10 @@ impl ImporterHoistState {
                 if let (Some(manifest), Some(version)) = (&manifest, &version) {
                     candidate_peers.insert_detached(
                         format!("{}@{version}", key.0),
-                        CandidatePeer::from_manifest(manifest),
+                        CandidatePeer::from_manifest(
+                            manifest,
+                            self.policy.peers.auto_install_peers,
+                        ),
                     );
                 }
                 detached.versions.insert(key, version);
@@ -236,14 +253,13 @@ impl ImporterHoistState {
     ) -> HoistableOptionalPeers {
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let hoist_preferred = self.optional_peer_preferred_versions(&provided_peer_versions);
-        let picker = RequiredPeerPicker {
-            candidate_peers,
-            detached,
-            picked: RefCell::new(HashMap::default()),
-        };
+        let picker = RequiredPeerPicker::new(candidate_peers, detached);
         let pick_required_peer_versions = |missing_of_wave: &[Vec<CandidatePeer>]| {
             self.required_peer_versions(missing_of_wave, &picker)
         };
+        let resolved = self.ctx.run_resolved_versions(
+            self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
+        );
         let rejected = RefCell::new(HashSet::default());
         let accepts_candidate = |name: &str, version: &str| {
             let accepted = accepts_optional_peer_candidate(
@@ -252,7 +268,12 @@ impl ImporterHoistState {
                 &provided_peer_versions,
                 (name, version),
             );
-            if !accepted {
+            // Dedupe can only attach providers present in the current graph.
+            if !accepted
+                && resolved
+                    .get(name)
+                    .is_some_and(|versions| versions.contains(version))
+            {
                 rejected.borrow_mut().insert(name.to_string());
             }
             accepted
@@ -267,9 +288,7 @@ impl ImporterHoistState {
             ),
             &accepts_candidate,
         );
-        let mut rejected = rejected.into_inner();
-        rejected.retain(|name| !versions.contains_key(name));
-        HoistableOptionalPeers { versions, rejected }
+        HoistableOptionalPeers::new(versions, rejected.into_inner())
     }
 
     /// The preferred versions a missing optional peer may be hoisted at,

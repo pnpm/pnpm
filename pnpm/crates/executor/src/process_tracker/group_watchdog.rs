@@ -21,7 +21,7 @@
 use std::{
     io::{self, Write},
     process::{Child, ChildStdin, Stdio},
-    sync::{Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
 use crate::process::Command;
@@ -53,12 +53,27 @@ while read -r line; do
 done
 for group in $groups; do kill -9 -"$group"; done"#;
 
-/// The watch pnpm keeps over the process groups it creates.
-static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
+/// Spawns hold a shared guard through registration; replacement needs an exclusive guard.
+static WATCH: RwLock<GroupWatch> = RwLock::new(GroupWatch::new());
 
 /// Register the child's group before its executable can run.
-pub(super) fn spawn(command: &mut Command) -> io::Result<(Child, bool)> {
-    lock().spawn(command)
+pub(super) fn spawn(command: &mut Command) -> io::Result<ChildWatch> {
+    loop {
+        let watch = lock();
+        if watch.shell_missing || watch.watchdog.as_ref().is_some_and(GroupWatchdog::is_running) {
+            return watch.spawn(command);
+        }
+        drop(watch);
+        WATCH
+            .write()
+            .expect("group watch lock is not poisoned")
+            .start()?;
+    }
+}
+
+pub(super) struct ChildWatch {
+    pub(super) child: Child,
+    pub(super) watched: bool,
 }
 
 /// Stop watching the process group led by `leader`, so pnpm's own exit
@@ -67,8 +82,8 @@ pub(super) fn release(leader: u32) {
     lock().release(leader);
 }
 
-fn lock() -> MutexGuard<'static, GroupWatch> {
-    WATCH.lock().expect("group watch lock is not poisoned")
+fn lock() -> RwLockReadGuard<'static, GroupWatch> {
+    WATCH.read().expect("group watch lock is not poisoned")
 }
 
 /// The groups under watch and the watchdog that kills them should pnpm
@@ -77,13 +92,13 @@ pub(super) struct GroupWatch {
     watchdog: Option<GroupWatchdog>,
     /// The leader of every group under watch, so a watchdog started in
     /// place of one that died takes over all of them.
-    leaders: Vec<u32>,
+    leaders: Mutex<Vec<u32>>,
     shell_missing: bool,
 }
 
 impl GroupWatch {
     pub(super) const fn new() -> Self {
-        Self { watchdog: None, leaders: Vec::new(), shell_missing: false }
+        Self { watchdog: None, leaders: Mutex::new(Vec::new()), shell_missing: false }
     }
 
     /// Start or replace the watchdog.
@@ -99,16 +114,16 @@ impl GroupWatch {
         self.start_watchdog()
     }
 
-    pub(super) fn spawn(&mut self, command: &mut Command) -> io::Result<(Child, bool)> {
-        if !self.start()? {
+    pub(super) fn spawn(&self, command: &mut Command) -> io::Result<ChildWatch> {
+        if self.shell_missing {
             return command
                 .spawn()
-                .map(|child| (child, false));
+                .map(|child| ChildWatch { child, watched: false });
         }
-        let watchdog = self.watchdog.as_mut().expect("started watchdog");
+        let watchdog = self.watchdog.as_ref().expect("started watchdog");
         let child = spawn::registered(command, watchdog)?;
-        self.leaders.push(child.id());
-        Ok((child, true))
+        self.leaders().push(child.id());
+        Ok(ChildWatch { child, watched: true })
     }
 
     /// Watch an already running group.
@@ -117,7 +132,7 @@ impl GroupWatch {
         if self.shell_missing {
             return Ok(false);
         }
-        self.leaders.push(leader);
+        self.leaders().push(leader);
         if let Some(watchdog) = &mut self.watchdog
             && watchdog.watch(leader).is_ok()
         {
@@ -125,25 +140,30 @@ impl GroupWatch {
         }
         let started = self.start_watchdog();
         if !matches!(started, Ok(true)) {
-            self.leaders.pop();
+            self.leaders().pop();
         }
         started
     }
 
     /// See [`release`].
-    pub(super) fn release(&mut self, leader: u32) {
-        let Some(index) = self.leaders
+    pub(super) fn release(&self, leader: u32) {
+        let mut leaders = self.leaders();
+        let Some(index) = leaders
             .iter()
             .position(|&watched| watched == leader)
         else {
             return;
         };
-        self.leaders.swap_remove(index);
-        if let Some(watchdog) = &mut self.watchdog {
+        leaders.swap_remove(index);
+        if let Some(watchdog) = &self.watchdog {
             // A watchdog that died already cannot be told, and needs no
             // telling: its replacement learns only the groups still watched.
             let _ = watchdog.release(leader);
         }
+    }
+
+    fn leaders(&self) -> MutexGuard<'_, Vec<u32>> {
+        self.leaders.lock().expect("group leaders lock is not poisoned")
     }
 
     /// Start a watchdog over every group in [`Self::leaders`], replacing
@@ -154,14 +174,16 @@ impl GroupWatch {
         {
             // pnpm still holds its pipe, so a watchdog that is only refusing
             // writes would never see end of input and could not be reaped.
-            let _ = replaced.process.kill();
-            let _ = replaced.process.wait();
+            let process =
+                replaced.process.get_mut().expect("watchdog process lock is not poisoned");
+            let _ = process.kill();
+            let _ = process.wait();
         }
-        let Some(mut watchdog) = GroupWatchdog::spawn()? else {
+        let Some(watchdog) = GroupWatchdog::spawn()? else {
             self.shell_missing = true;
             return Ok(false);
         };
-        for &leader in &self.leaders {
+        for &leader in &*self.leaders() {
             watchdog.watch(leader)?;
         }
         self.watchdog = Some(watchdog);
@@ -172,7 +194,7 @@ impl GroupWatch {
 /// A `sh` that kills the process groups pnpm names to it if pnpm dies
 /// before it has finished with them.
 struct GroupWatchdog {
-    process: Child,
+    process: Mutex<Child>,
     /// The pipe the watchdog reads. Its end of input is what tells the
     /// watchdog that pnpm is gone.
     lifeline: ChildStdin,
@@ -203,27 +225,33 @@ impl GroupWatchdog {
             Err(error) => return Err(error),
         };
         let lifeline = process.stdin.take().expect("the watchdog's stdin is piped");
-        Ok(Some(Self { process, lifeline }))
+        Ok(Some(Self { process: Mutex::new(process), lifeline }))
     }
 
     /// Whether the watchdog has not exited. One reaped elsewhere, such as
     /// under an inherited ignored `SIGCHLD`, counts as exited: its pid may
     /// name another process by now, so it must not be signalled.
-    fn is_running(&mut self) -> bool {
-        matches!(self.process.try_wait(), Ok(None))
+    fn is_running(&self) -> bool {
+        matches!(
+            self.process
+                .lock()
+                .expect("watchdog process lock is not poisoned")
+                .try_wait(),
+            Ok(None),
+        )
     }
 
-    fn watch(&mut self, leader: u32) -> io::Result<()> {
+    fn watch(&self, leader: u32) -> io::Result<()> {
         self.send(&format!("+{leader}\n"))
     }
 
-    fn release(&mut self, leader: u32) -> io::Result<()> {
+    fn release(&self, leader: u32) -> io::Result<()> {
         self.send(&format!("-{leader}\n"))
     }
 
     /// Write `line` at once: the pipe is unbuffered.
-    fn send(&mut self, line: &str) -> io::Result<()> {
-        self.lifeline.write_all(line.as_bytes())
+    fn send(&self, line: &str) -> io::Result<()> {
+        (&self.lifeline).write_all(line.as_bytes())
     }
 }
 

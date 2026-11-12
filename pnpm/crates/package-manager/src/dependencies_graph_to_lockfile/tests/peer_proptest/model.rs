@@ -17,18 +17,31 @@ use super::super::{make_resolve_result as fake_result, single_importer_opts};
 
 pub(super) struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,
+    metadata: HashMap<String, pnpm_registry::Package>,
 }
 
 impl Resolver for StubResolver {
     fn resolve<'a>(
         &'a self,
         wanted: &'a WantedDependency,
-        _opts: &'a ResolveOptions,
+        opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
-        let key = (
-            wanted.alias.clone().unwrap_or_default(),
-            wanted.bare_specifier.clone().unwrap_or_default(),
-        );
+        let name = wanted.alias.clone().unwrap_or_default();
+        let specifier = wanted.bare_specifier.clone().unwrap_or_default();
+        let version = self.metadata
+            .get(&name)
+            .and_then(|meta| {
+                let selectors = pnpm_resolving_npm_resolver::preferred_selectors(opts, &name);
+                pnpm_resolving_npm_resolver::pick_version_by_version_range(
+                    &pnpm_resolving_npm_resolver::PickVersionByVersionRangeOptions {
+                        meta,
+                        version_range: &specifier,
+                        preferred_version_selectors: selectors.as_deref(),
+                        published_by: None,
+                    },
+                )
+            });
+        let key = (name, version.unwrap_or(specifier));
         Box::pin(async move { Ok(self.table.get(&key).cloned()) })
     }
 
@@ -296,29 +309,30 @@ pub(super) fn package_manifest(
     })
 }
 
-/// The form a caret range takes once auto-installed peers merge it with
-/// the other ranges that want the same peer.
-fn desugared_caret(major: u8) -> String {
-    format!(">={major}.0.0 <{}.0.0-0", major + 1)
-}
-
-/// Each package answers its caret range in both spellings, its exact
-/// version, and `*` (the highest version).
+/// Resolve generated registry packages with the production version picker.
 pub(super) fn stub_resolver(
     workspace: &Workspace,
     fixture: &super::fixture::Fixture,
 ) -> StubResolver {
     let mut table = HashMap::default();
+    let mut metadata = HashMap::default();
     for (index, versions) in workspace.packages.iter().enumerate() {
         let name = package_name(index);
+        let published: BTreeMap<_, _> = MAJORS
+            .into_iter()
+            .zip(versions)
+            .map(|(major, version)| (exact(major), package_manifest(index, major, version)))
+            .collect();
+        metadata.insert(
+            name.clone(),
+            serde_json::from_value(serde_json::json!({
+                "name": name, "dist-tags": { "latest": "2.0.0" }, "versions": published,
+            }))
+            .unwrap(),
+        );
         for (major, version) in MAJORS.into_iter().zip(versions) {
             let result = fake_result(&name, &exact(major), package_manifest(index, major, version));
-            table.insert((name.clone(), caret(major)), result.clone());
-            table.insert((name.clone(), exact(major)), result.clone());
-            table.insert((name.clone(), desugared_caret(major)), result.clone());
-            if major == MAJORS[MAJORS.len() - 1] {
-                table.insert((name.clone(), "*".to_string()), result);
-            }
+            table.insert((name.clone(), exact(major)), result);
         }
     }
     if let Some((_, manifest)) = fixture.manifests
@@ -336,7 +350,7 @@ pub(super) fn stub_resolver(
             });
         table.insert(("shared".to_string(), "workspace:*".to_string()), result);
     }
-    StubResolver { table }
+    StubResolver { table, metadata }
 }
 
 /// The `dependencies` of one importer, by alias.
