@@ -795,3 +795,54 @@ fn removing_a_direct_provider_preserves_nested_injected_peer_pins() {
     )
     .unwrap();
 }
+
+#[test]
+fn adding_a_consumer_to_a_peer_cycle_preserves_required_pins() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let peer = |target, range| Peer { target, range, optional: false, also_dependency: false };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(2, PeerRange::Major(1))] },
+                leaf(),
+            ],
+            vec![
+                PackageVersion { dependencies: vec![Edge { target: 0, major: 2 }], peers: vec![] },
+                leaf(),
+            ],
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(0, PeerRange::Major(1))] },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![peer(0, PeerRange::Any), peer(1, PeerRange::Major(1))],
+                },
+            ],
+        ],
+        importers: vec![vec![Edge { target: 3, major: 1 }]],
+    };
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        for peers_suffix_max_length in [20, 1000] {
+            check_changes(
+                workspace.clone(),
+                Settings {
+                    peers_suffix_max_length,
+                    catalogs: true,
+                    injected: true,
+                    format,
+                    ..Default::default()
+                },
+                vec![
+                    DependencyChange { importer: 0, target: 4, major: Some(2) },
+                    DependencyChange { importer: 0, target: 0, major: Some(1) },
+                ],
+            )
+            .unwrap();
+        }
+    }
+}

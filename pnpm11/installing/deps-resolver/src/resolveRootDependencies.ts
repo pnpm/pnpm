@@ -168,6 +168,9 @@ function createImporterPeersHoister (hoisting: PeerHoisting, index: number): (mi
     allPreferredVersions: ctx.allPreferredVersions,
     isUpdateTarget: hoisting.hoistedPeersUpdateDepths[index] < 0 ? undefined : options.updateMatching,
     lockfileOnlyVersions: hoisting.lockfileOnlyVersions,
+    get lockedVersions () {
+      return getLockedPeerVersionsOfImporter(hoisting, index)
+    },
     workspaceRootDeps: hoisting.workspaceRootDeps,
     overrideBareSpecifier: ctx.overrideBareSpecifier == null
       ? undefined
