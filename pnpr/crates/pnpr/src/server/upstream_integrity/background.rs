@@ -1,4 +1,5 @@
 use super::{AppState, CanonicalPackageName, Upstream, complete_missing_tarball_integrities};
+use pnpr_storage::{BoundedCache, DocumentStamp};
 use std::{collections::HashMap, sync::Mutex};
 use tokio::sync::{Semaphore, watch};
 
@@ -8,6 +9,8 @@ type JobKey = (String, String);
 
 pub(in crate::server) struct BackgroundIntegrity {
     jobs: Mutex<HashMap<JobKey, PendingJob>>,
+    attempted: Mutex<BoundedCache<JobKey, DocumentStamp>>,
+    // These semaphores are never closed, so acquiring permits cannot fail.
     slots: Semaphore,
     pub(super) downloads: Semaphore,
 }
@@ -22,6 +25,7 @@ impl Default for BackgroundIntegrity {
         Self {
             jobs: Mutex::default(),
             slots: Semaphore::new(MAX_ACTIVE_PACKUMENTS),
+            attempted: Mutex::default(),
             downloads: Semaphore::new(super::MAX_CONCURRENT_PIN_DOWNLOADS),
         }
     }
@@ -44,17 +48,42 @@ impl Drop for Job {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Trigger {
+    Refresh,
+    Resume(DocumentStamp),
+}
+
 pub(in crate::server) fn schedule(
     state: &AppState,
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
 ) {
+    start(state, namespace, upstream, name, Trigger::Refresh);
+}
+
+fn start(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+    trigger: Trigger,
+) {
     let key = (namespace.to_string(), name.as_str().to_string());
     {
         let mut jobs = state.inner.proxy.integrity_backfill.jobs.lock().unwrap();
         if let Some(job) = jobs.get_mut(&key) {
-            job.changed = true;
+            job.changed |= matches!(trigger, Trigger::Refresh);
+            return;
+        }
+        if let Trigger::Resume(stamp) = trigger
+            && state.inner.proxy.integrity_backfill.attempted
+                .lock()
+                .unwrap()
+                .get(&key)
+                == Some(&stamp)
+        {
             return;
         }
         jobs.insert(key.clone(), PendingJob { changed: false, completion: watch::channel(()).0 });
@@ -72,30 +101,58 @@ pub(in crate::server) async fn wait_for_pin(
     name: &CanonicalPackageName,
     filename: &str,
 ) -> Result<(), super::RegistryError> {
-    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name).await? else {
+    let key = (namespace.to_string(), name.as_str().to_string());
+    let Some(stamp) = state.inner.storage.upstream_document_stamp(namespace, name).await? else {
         return Ok(());
+    };
+    let has_pending = state.inner.proxy.integrity_backfill.jobs
+        .lock()
+        .unwrap()
+        .contains_key(&key);
+    if !has_pending
+        && state.inner.proxy.integrity_backfill.attempted
+            .lock()
+            .unwrap()
+            .get(&key)
+            == Some(&stamp)
+    {
+        return Ok(());
+    }
+    if !eligible_for_pin(state, namespace, name, filename).await? {
+        return Ok(());
+    }
+    start(state, namespace, upstream, name, Trigger::Resume(stamp));
+    if tokio::time::timeout(upstream.timeout(), wait(state, namespace, name))
+        .await
+        .is_err()
+    {
+        tracing::warn!(package = %name.as_str(), "timed out waiting for integrity backfill");
+    }
+    Ok(())
+}
+
+async fn eligible_for_pin(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<bool, super::RegistryError> {
+    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name).await? else {
+        return Ok(false);
     };
     let package = name.clone();
     let filename = filename.to_string();
-    let eligible = state.inner.packuments.workers.run(move || {
+    let osv_index = state.inner.osv_index.clone();
+    state.inner.packuments.workers.run(move || {
         let doc = serde_json::from_slice(&bytes)?;
         Ok::<_, super::RegistryError>(
-            super::missing_integrity_tarballs(&doc, &package, None)
+            super::missing_integrity_tarballs(&doc, &package, osv_index.as_ref())
                 .into_iter()
                 .take(super::MAX_PINNED_VERSIONS_PER_PACKUMENT)
                 .any(|candidate| candidate.filename == filename),
         )
     })
-    .await??;
-    // Only refresh starts work; failed pins are retried at the next refresh.
-    if eligible
-        && tokio::time::timeout(upstream.timeout(), wait(state, namespace, name))
-            .await
-            .is_err()
-    {
-        tracing::warn!(package = %name.as_str(), "timed out waiting for integrity backfill");
-    }
-    Ok(())
+    .await?
 }
 
 pub(in crate::server) async fn wait(
@@ -119,12 +176,18 @@ impl Job {
             let permit = self.state.inner.proxy.integrity_backfill.slots.acquire().await.unwrap();
             let result = self.complete(&upstream, &name).await;
             drop(permit);
-            if let Err(err) = result {
+            if let Err(err) = &result {
                 tracing::warn!(%err, package = %name.as_str(), "integrity backfill failed");
             }
             let mut jobs = self.state.inner.proxy.integrity_backfill.jobs.lock().unwrap();
             if std::mem::take(&mut jobs.get_mut(&self.key).unwrap().changed) {
                 continue;
+            }
+            if let Ok(Some(stamp)) = result {
+                self.state.inner.proxy.integrity_backfill.attempted
+                    .lock()
+                    .unwrap()
+                    .insert(self.key.clone(), stamp, 1, 16 * 1024);
             }
             jobs.remove(&self.key);
             self.completed = true;
@@ -136,15 +199,15 @@ impl Job {
         &self,
         upstream: &Upstream,
         name: &CanonicalPackageName,
-    ) -> Result<(), super::RegistryError> {
+    ) -> Result<Option<DocumentStamp>, super::RegistryError> {
         let Some(bytes) =
             self.state.inner.storage.read_upstream_document_any(&self.key.0, name).await?
         else {
-            return Ok(());
+            return Ok(None);
         };
         complete_missing_tarball_integrities(&self.state, &self.key.0, upstream, name, bytes)
             .await?;
-        Ok(())
+        self.state.inner.storage.upstream_document_stamp(&self.key.0, name).await
     }
 }
 

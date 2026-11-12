@@ -246,3 +246,100 @@ async fn pin_waits_are_bounded_and_skip_unusable_metadata() {
     .unwrap()
     .unwrap();
 }
+
+#[tokio::test]
+async fn a_download_resumes_cached_work_after_restart() {
+    let mut server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let app = state(tmp.path(), &server.url());
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let filename = "example-1.0.0.tgz";
+    let archive = server
+        .mock("GET", "/example/-/example-1.0.0.tgz")
+        .with_status(200)
+        .with_body("archive")
+        .expect(1)
+        .create_async()
+        .await;
+    let doc = json!({"versions":{"1.0.0":{"dist":{"tarball":format!("{}/example/-/{filename}", server.url())}}}});
+    app.inner.storage
+        .write_upstream_document("test", &name, &serde_json::to_vec(&doc).unwrap())
+        .await
+        .unwrap();
+    drop(app);
+    let app = state(tmp.path(), &server.url());
+    let upstream = &app.inner.proxy.upstreams["mirror"];
+    super::wait_for_pin(&app, "test", upstream, &name, filename).await.unwrap();
+    let bytes = app.inner.storage
+        .read_upstream_document_any("test", &name)
+        .await
+        .unwrap()
+        .unwrap();
+    let doc: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(doc["versions"]["1.0.0"]["dist"]["integrity"].as_str().is_some());
+    archive.assert_async().await;
+}
+
+#[tokio::test]
+async fn waiting_applies_the_cap_after_vulnerability_screening() {
+    let mut server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let mut app = state(tmp.path(), &server.url());
+    let advisories = tmp.path().join("advisories");
+    std::fs::create_dir(&advisories).unwrap();
+    let advisory = advisories.join("advisory.json");
+    std::fs::write(&advisory, serde_json::to_vec(&json!({
+        "id":"GHSA-example", "affected":[{"package":{"ecosystem":"npm","name":"example"},"versions":["1.0.0"]}]
+    })).unwrap()).unwrap();
+    std::sync::Arc::get_mut(&mut app.inner).unwrap().osv_index =
+        Some(std::sync::Arc::new(pnpr_osv::OsvIndex::load_from_path(&advisories).unwrap()));
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let mut doc = json!({"versions":{}});
+    for index in 0..65 {
+        doc["versions"][format!("1.0.{index}")] = json!({"dist":{"tarball":format!("{}/example/-/example-1.0.{index}.tgz",server.url())}});
+    }
+    let last = doc["versions"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .next_back()
+        .unwrap()
+        .clone();
+    let filename = format!("example-{last}.tgz");
+    app.inner.storage
+        .write_upstream_document("test", &name, &serde_json::to_vec(&doc).unwrap())
+        .await
+        .unwrap();
+    let archive = server
+        .mock("GET", mockito::Matcher::Regex("/example/-/example-.*".to_string()))
+        .with_status(200)
+        .with_body("archive")
+        .expect(64)
+        .create_async()
+        .await;
+    let held = app.inner.proxy.integrity_backfill.slots
+        .acquire_many(MAX_ACTIVE_PACKUMENTS as u32)
+        .await
+        .unwrap();
+    let upstream = &app.inner.proxy.upstreams["mirror"];
+    schedule(&app, "test", upstream, &name);
+    let waiter_state = app.clone();
+    let waiter_name = name.clone();
+    let mut waiter = tokio::spawn(async move {
+        let upstream = &waiter_state.inner.proxy.upstreams["mirror"];
+        super::wait_for_pin(&waiter_state, "test", upstream, &waiter_name, &filename)
+            .await
+            .unwrap();
+    });
+    assert!(tokio::time::timeout(Duration::from_millis(100), &mut waiter).await.is_err());
+    drop(held);
+    tokio::time::timeout(Duration::from_secs(10), waiter).await.unwrap().unwrap();
+    let bytes = app.inner.storage
+        .read_upstream_document_any("test", &name)
+        .await
+        .unwrap()
+        .unwrap();
+    let pinned: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(pinned["versions"][&last]["dist"]["integrity"].as_str().is_some());
+    archive.assert_async().await;
+}

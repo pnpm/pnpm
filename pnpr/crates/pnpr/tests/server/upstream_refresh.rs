@@ -206,7 +206,7 @@ async fn backfill_cached_tarball(cached_bytes: &[u8], downloads: usize) {
     initial.remove_async().await;
     let cache = public_cache_blob(tmp.path(), "foo", "foo-1.0.0.tgz");
     tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
-    tokio::fs::write(cache, cached_bytes).await.unwrap();
+    tokio::fs::write(&cache, cached_bytes).await.unwrap();
     tokio::fs::write(super::public_cache_pkg(tmp.path(), "foo").join("document.json"), &unpinned)
         .await
         .unwrap();
@@ -228,6 +228,13 @@ async fn backfill_cached_tarball(cached_bytes: &[u8], downloads: usize) {
     assert_eq!(response.status(), StatusCode::OK);
     let doc = super::integrity_backfill::wait_for_pins(tmp.path(), 1).await;
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["integrity"], super::sha512_integrity(bytes));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while tokio::fs::read(&cache).await.unwrap().as_slice() != bytes {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the cache contains the verified bytes");
     metadata.assert_async().await;
     tarball.assert_async().await;
 }
@@ -280,7 +287,9 @@ async fn an_inflight_download_cannot_restore_an_evicted_blob() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let download = tokio::spawn(body_bytes(response.into_body()));
-    observed.recv().await.unwrap();
+    tokio::time::timeout(Duration::from_secs(10), observed.recv()).await
+        .expect("the archive request starts")
+        .unwrap();
     initial.remove_async().await;
     let removed = upstream
         .mock("GET", "/foo")
@@ -423,7 +432,9 @@ async fn cold_downloads_wait_for_missing_integrity() {
                     .unwrap(),
             ),
         );
-        observed.recv().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(10), observed.recv()).await
+            .expect("the archive request starts")
+            .unwrap();
         assert!(!request.is_finished());
         release.send(()).unwrap();
         let response = request.await.unwrap().unwrap();
@@ -432,4 +443,56 @@ async fn cold_downloads_wait_for_missing_integrity() {
         metadata.assert_async().await;
         archive.assert_async().await;
     }
+}
+
+#[tokio::test]
+async fn the_first_packument_evicts_orphaned_blobs() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"current archive";
+    let mut doc = foo_packument(&upstream.url());
+    doc["versions"]["1.0.0"]["dist"]["integrity"] = json!(super::sha512_integrity(bytes));
+    let metadata = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(doc.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let archive = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let namespace = pnpr::cache_maintenance::active_cache_namespaces(&config)
+        .into_iter()
+        .find(|namespace| namespace.starts_with("~public/"))
+        .unwrap();
+    tokio::fs::create_dir_all(
+        tmp.path()
+            .join(".pnpr-cache")
+            .join(namespace),
+    )
+    .await
+    .unwrap();
+    let cache = public_cache_blob(tmp.path(), "foo", "foo-1.0.0.tgz");
+    tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
+    tokio::fs::write(&cache, b"orphaned archive").await.unwrap();
+    let app = router(config);
+    let response = app
+        .oneshot(
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    assert_eq!(tokio::fs::read(&cache).await.unwrap(), bytes);
+    metadata.assert_async().await;
+    archive.assert_async().await;
 }

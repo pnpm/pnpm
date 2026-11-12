@@ -59,7 +59,7 @@ fn reconcile(
     let Some(previous) = previous else {
         return Ok(Reconciliation {
             packument: RefreshedPackument { bytes, needs_backfill },
-            eviction: BlobEviction::Files(HashSet::new()),
+            eviction: BlobEviction::Package,
         });
     };
     let Ok(previous) = serde_json::from_slice::<Value>(previous) else {
