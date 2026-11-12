@@ -232,6 +232,8 @@ fn check_deployed_self_link(format: &str) {
     fs::copy(fixture.workspace.join(".npmrc"), deployed.join(".npmrc")).unwrap();
     fs::remove_dir_all(deployed.join("node_modules")).unwrap();
     assert_success(&fixture.command_at(&deployed, ["install", "--frozen-lockfile"]));
+    let linked = resolve_node_modules_package(&deployed, "app").unwrap();
+    assert_eq!(fs::canonicalize(linked).unwrap(), fs::canonicalize(&deployed).unwrap());
     assert_eq!(fs::read(deployed.join("pnpm-lock.yaml")).unwrap(), lockfile);
 }
 
