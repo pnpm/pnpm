@@ -58,7 +58,7 @@ test('shared global virtual store bin shims do not capture the installing projec
   expect(fs.readFileSync(path.join(binDir, shim!), 'utf8')).not.toContain(projectHoistedModulesDir)
 
   const shimPath = path.join(binDir, shim!)
-  fs.appendFileSync(shimPath, `\n${projectHoistedModulesDir}\n`)
+  fs.appendFileSync(shimPath, `\nexport NODE_PATH='${projectHoistedModulesDir}'\n`)
   await execPnpm(['install'])
   expect(fs.readFileSync(shimPath, 'utf8')).not.toContain(projectHoistedModulesDir)
 })

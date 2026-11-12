@@ -241,7 +241,7 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
         "a shared bin shim must not contain the project hoisted modules path: {content:?}",
     );
 
-    let stale_content = format!("{content}\n{project_hoisted_modules_path}\n");
+    let stale_content = format!("{content}\nexport NODE_PATH='{project_hoisted_modules_path}'\n");
     fs::write(&shim_path, stale_content).expect("restore a shim written by an earlier install");
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
