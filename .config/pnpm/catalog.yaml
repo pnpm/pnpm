@@ -9,7 +9,9 @@ catalog:
   '@cyclonedx/cyclonedx-library': 10.5.0
   '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.8.0
+  # @inquirer/prompts 8.8.0 (and its @inquirer/* dependencies) require Node.js
+  # ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's supported floor of Node.js >=22.13.
+  '@inquirer/prompts': 8.7.5
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
@@ -325,6 +327,7 @@ update:
   ignoreDeps:
     - '@babel/core'
     - '@babel/plugin-transform-explicit-resource-management'
+    - '@inquirer/prompts'
     - '@jest/globals'
     - '@types/node'
     - '@yarnpkg/core'
