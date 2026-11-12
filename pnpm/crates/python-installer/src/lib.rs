@@ -238,7 +238,7 @@ impl PythonPrepare<'_> {
             interpreter: self.interpreter,
             resolution: registry::Resolution::new(self.interpreter.target.clone()),
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &self.context.config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&self.context.config.store_dir),
                 index: self.store.index.clone(),
                 index_writer: Some(Arc::clone(self.store.writer)),
                 verify_integrity: self.context.config.verify_store_integrity,

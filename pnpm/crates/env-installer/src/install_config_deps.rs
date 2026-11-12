@@ -264,7 +264,7 @@ async fn materialize<Reporter: self::Reporter>(
             id: &package_id,
         },
         store: pnpm_tarball::ArchiveStoreContext {
-            dir: opts.store.dir,
+            dir: std::borrow::Cow::Borrowed(opts.store.dir),
             index: opts.store_index.reader.clone(),
             index_writer: opts.store_index.writer.clone(),
             verify_integrity: opts.store.verify_integrity,

@@ -76,7 +76,7 @@ pub trait GitProbe: Send + Sync {
 pub struct GitFetchContext {
     pub source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
     pub http_client: Arc<ThrottledClient>,
-    pub store_dir: &'static StoreDir,
+    pub store_dir: std::borrow::Cow<'static, StoreDir>,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
@@ -280,7 +280,7 @@ async fn read_archive(
     FetchTarballForResolution {
         http_client: &ctx.http_client,
         store: pnpm_tarball::ResolutionStore {
-            dir: ctx.store_dir,
+            dir: &ctx.store_dir,
             index_writer: ctx.store_index_writer.clone(),
         },
         // A git host's archive URL is the package's only identifier at

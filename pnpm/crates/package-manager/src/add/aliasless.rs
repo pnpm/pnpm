@@ -153,7 +153,7 @@ fn aliasless_tarball_resolver(
             store: pnpm_tarball::ArchiveStoreContext {
                 strict_pkg_content_check: false,
                 prefetched_cas_paths: None,
-                dir: &config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&config.store_dir),
                 index_writer: None,
                 index: None,
                 verify_integrity: config.verify_store_integrity,
@@ -345,7 +345,7 @@ pub(super) fn aliasless_git_resolver(
     .with_fetch_context(GitFetchContext {
         source_cache: Arc::clone(inputs.git_source_cache),
         http_client: Arc::clone(http_client),
-        store_dir: &config.store_dir,
+        store_dir: std::borrow::Cow::Borrowed(&config.store_dir),
         store_index_writer: None,
         auth_headers: Arc::clone(&config.auth_headers),
         retry_opts: config.retry_opts(),

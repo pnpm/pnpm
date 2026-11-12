@@ -53,7 +53,8 @@ use verify_lockfile::{VerifyFailure, verify_input_lockfile};
 
 mod config_cache;
 use config_cache::{
-    MAX_CONFIG_KEY_BYTES, MAX_INTERNED_CONFIGS, TOO_MANY_CONFIGS_MESSAGE, intern_config,
+    ActiveConfig, CONFIG_KEY_TOO_LARGE_MESSAGE, ConfigCache, MAX_CACHED_CONFIGS,
+    MAX_CONFIG_KEY_BYTES, intern_config,
 };
 
 mod cache;
@@ -114,10 +115,8 @@ use self::{
 /// Per-server engine backing the pnpr install endpoint: it holds the
 /// store, cache, and HTTP client used to resolve a client's project. The
 /// store and cache dirs are fixed for the server's lifetime; the
-/// *registries* come from each client request (the server resolves
-/// against the client's registries, not its own), so the `&'static Config`
-/// the install path requires is interned per distinct client registry
-/// configuration rather than leaked once or per request.
+/// registries come from each client request. Configurations are cached
+/// by their effective settings and shared with active requests.
 ///
 /// Held lazily in a [`OnceLock`] on the server's state so servers that
 /// never receive such a request pay nothing, and so each server in
@@ -125,11 +124,8 @@ use self::{
 pub(crate) struct Resolver {
     store_dir: StoreDir,
     client: Arc<ThrottledClient>,
-    /// One leaked `Config` per distinct client registry configuration,
-    /// keyed by its canonical JSON. Capped at [`MAX_INTERNED_CONFIGS`] so a
-    /// caller varying its registry/policy fields can't grow the leak
-    /// without bound; see [`intern_config`].
-    configs: Mutex<HashMap<String, &'static PacquetConfig>>,
+    /// Configurations keyed by canonical JSON, with least recently used eviction.
+    configs: ConfigCache,
     osv_index: Option<Arc<OsvIndex>>,
     /// Route-classification inputs (public/private rules, pnpr-managed
     /// upstream credentials, hosted origin, package policy), resolved once
@@ -231,7 +227,7 @@ impl Resolver {
         Resolver {
             store_dir: StoreDir::new(store_dir),
             client,
-            configs: Mutex::new(HashMap::new()),
+            configs: ConfigCache::default(),
             osv_index,
             route_context,
             local_registry: crate::server::LocalRegistry::new(config.http.public_url.clone()),
@@ -259,22 +255,23 @@ impl Resolver {
             .join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
-    /// Resolve (or build + intern) the `&'static Config` for a request's
-    /// registry configuration. Pacquet's install path resolves against
-    /// `config.features.registry` / `registries_by_prefix` / `overrides`, so a request
-    /// from a client with a different registry setup gets its own Config.
-    ///
-    /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
-    /// been interned — see [`intern_config`].
-    fn config_for(&self, request: &ResolveRequest) -> Option<&'static PacquetConfig> {
-        intern_config(
-            &self.configs,
+    /// Reuse the request's configuration while bounding active work and cached entries.
+    fn config_for(&self, request: &ResolveRequest) -> Result<ActiveConfig, Response> {
+        let permit = Arc::clone(&self.configs.admission)
+            .try_acquire_owned()
+            .map_err(|_| {
+                json_error(StatusCode::SERVICE_UNAVAILABLE, "too many active resolver requests")
+            })?;
+        let config = intern_config(
+            &self.configs.entries,
             &self.store_dir,
             &self.cache.dir,
             request,
-            MAX_INTERNED_CONFIGS,
+            MAX_CACHED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
         )
+        .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, CONFIG_KEY_TOO_LARGE_MESSAGE))?;
+        Ok(ActiveConfig { config, _permit: permit })
     }
 }
 
@@ -354,8 +351,9 @@ async fn resolve_npm_request(
     }
 
     // Resolve against the client's registries, not the server's own.
-    let Some(config) = runtime.config_for(&request) else {
-        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
+    let config = match runtime.config_for(&request) {
+        Ok(config) => config,
+        Err(response) => return response,
     };
     // Auth is selected by this server's route policy for the caller, not
     // forwarded from the client. Every metadata/tarball fetch the
@@ -363,10 +361,10 @@ async fn resolve_npm_request(
     // then decides whether the resolution may populate the shared cache.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let tarball_router = request_tarball_router(runtime, &identity, config);
+    let tarball_router = request_tarball_router(runtime, &identity, &config);
 
     let verified_dist_stats =
-        match verify_request_lockfile(runtime, config, &request, &request_auth, &tarball_router)
+        match verify_request_lockfile(runtime, &config, &request, &request_auth, &tarball_router)
             .await
         {
             Ok(stats) => stats,
@@ -376,14 +374,14 @@ async fn resolve_npm_request(
     // Short-circuit paths that produce the whole lockfile without an
     // incremental tree walk.
     if let Some(response) =
-        frozen_lockfile_response(runtime, config, &request, &tarball_router, verified_dist_stats)
+        frozen_lockfile_response(runtime, &config, &request, &tarball_router, verified_dist_stats)
     {
         return response;
     }
     // The base key is auth-excluded and shared by every candidate for the
     // same resolution inputs. Candidate footprints decide which callers
     // may reuse a stored lockfile.
-    let resolution_cache_key = resolution_cache_key(config, &request);
+    let resolution_cache_key = resolution_cache_key(&config, &request);
     if let Some(response) =
         cached_resolution_response(runtime, &identity, resolution_cache_key.as_ref(), &request)
     {
@@ -414,7 +412,7 @@ async fn resolve_npm_request(
 /// the resolver's pick-time gate (the policy is wired into `config`).
 async fn verify_request_lockfile(
     runtime: &Resolver,
-    config: &'static PacquetConfig,
+    config: &PacquetConfig,
     request: &ResolveRequest,
     request_auth: &Arc<AuthHeaders>,
     tarball_router: &TarballRouter,
@@ -453,7 +451,7 @@ fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> 
 /// frame.
 fn frozen_lockfile_response(
     runtime: &Resolver,
-    config: &'static PacquetConfig,
+    config: &PacquetConfig,
     request: &ResolveRequest,
     tarball_router: &TarballRouter,
     verified_dist_stats: Option<ObservedDistStats>,

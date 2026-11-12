@@ -28,7 +28,7 @@ where
         tarball_mem_cache: Arc<MemCache>,
         resolved_packages: &'a ResolvedPackages,
         http_client: (&'a ThrottledClient, Arc<ThrottledClient>),
-        config: &'static Config,
+        config: &'a Config,
         manifest: &'a PackageManifest,
         lockfile: MaybeLazyLockfile<'a>,
         dependency_groups: DependencyGroupList,

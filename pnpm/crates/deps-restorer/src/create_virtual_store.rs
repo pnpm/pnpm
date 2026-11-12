@@ -179,13 +179,13 @@ impl CasPrefetch {
     /// [`CreateVirtualStore::run`]: the plan pass consumes one derived
     /// key per snapshot.
     pub async fn start(
-        config: &'static Config,
+        config: &Config,
         entries: LockfileEntries<'_>,
         allow_build_policy: &crate::AllowBuildPolicy,
         supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
         store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
     ) -> Self {
-        let store_dir: &'static _ = &config.store_dir;
+        let store_dir = &config.store_dir;
         // Open the read-only SQLite index once for the whole run instead
         // of per snapshot. Every `InstallPackageBySnapshot` performs a
         // cache lookup against this index before falling through to the
@@ -220,13 +220,14 @@ impl CasPrefetch {
         let keys = prefetch_keys(&cache_keys);
         #[cfg(test)]
         tests::record_prefetch_start(&keys);
-        let task = PrefetchTask::Running(tokio::spawn(prefetch_cas_paths(
-            store_index.clone(),
-            store_dir,
-            keys,
-            PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
-            SharedVerifiedFilesCache::clone(&verified_files_cache),
-        )));
+        let owned_store_dir = store_dir.clone();
+        let task_index = store_index.clone();
+        let integrity_check = PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity);
+        let task_verified = SharedVerifiedFilesCache::clone(&verified_files_cache);
+        let task = PrefetchTask::Running(tokio::spawn(async move {
+            prefetch_cas_paths(task_index, &owned_store_dir, keys, integrity_check, task_verified)
+                .await
+        }));
         CasPrefetch { store_index, verified_files_cache, cache_keys, task }
     }
 }
@@ -471,10 +472,7 @@ fn removed_child_aliases(
 /// `install_without_lockfile.rs`. Skipped under `frozenStore`: the store is
 /// read-only and complete, so no directory creation is attempted under its
 /// root.
-async fn init_store_dir_unless_frozen(
-    config: &Config,
-    store_dir: &'static pnpm_store_dir::StoreDir,
-) {
+async fn init_store_dir_unless_frozen(config: &Config, store_dir: &pnpm_store_dir::StoreDir) {
     if config.frozen_store {
         return;
     }

@@ -62,6 +62,16 @@ For frozen restores with an already-fresh lockfile, pnpm can use
 `POST /-/pnpr/v0/verify-lockfile` to get only the server-side trust verdict
 instead of resolving again.
 
+pnpr caches client configurations and evicts the least recently used entries
+when the cache is full. Active requests keep their configuration until they
+finish.
+
+Up to 1,024 npm resolution and lockfile verification requests can run at once.
+Further requests return `503 Service Unavailable` until active work finishes.
+
+Oversized resolver settings return `400 Bad Request`. Lockfile verification
+with `trustLockfile` skips the size and concurrency checks.
+
 ## Cargo and Python
 
 Added in: v0.1.0-alpha.11

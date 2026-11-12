@@ -41,7 +41,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     download_priority: u64,
     package_id: &str,
     attempt: u32,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     revision_addressed: bool,
@@ -150,7 +150,7 @@ pub(super) struct TarballDownload<'a> {
     pub(super) package_unpacked_size: Option<usize>,
     pub(super) tar_limits: TarLimits,
     pub(super) package_id: &'a str,
-    pub(super) store_dir: &'static StoreDir,
+    pub(super) store_dir: &'a StoreDir,
     pub(super) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 }
 
@@ -191,7 +191,7 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     package_url: &str,
     package_id: &str,
     attempt: u32,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<ExtractedFiles, TarballError> {
     let (permit, buffer) =
@@ -223,7 +223,7 @@ pub(crate) async fn fetch_local_tarball_with_sha1<Reporter: self::Reporter>(
     tar_limits: TarLimits,
     package_url: &str,
     package_id: &str,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<(ExtractedFiles, Integrity), TarballError> {
     let (permit, buffer) = read_local_archive::<Reporter>(path, package_url, package_id, 0).await?;
@@ -399,7 +399,7 @@ impl TarballDownload<'_> {
                 content_coding,
                 verification: self.verification.clone(),
                 limits: self.tar_limits.with_unpacked_size(self.package_unpacked_size),
-                store_dir: self.store_dir,
+                store_dir: self.store_dir.clone(),
                 ignore_file_pattern: self.ignore_file_pattern,
             },
             &mut progress,

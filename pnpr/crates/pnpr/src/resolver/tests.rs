@@ -1,3 +1,5 @@
+mod streaming;
+
 mod wire_protocol;
 
 mod request_validation;

@@ -40,7 +40,7 @@ async fn network_fetch_records_progress_key() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -116,7 +116,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: None,
             verify_integrity: false,
@@ -224,7 +224,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             id: "first@1.0.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -266,7 +266,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             id: "second@2.0.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -380,7 +380,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -433,7 +433,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,

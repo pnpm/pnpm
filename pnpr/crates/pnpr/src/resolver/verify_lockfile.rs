@@ -1,11 +1,11 @@
 use super::{
     Arc, AuthHeaders, Bytes, Footprint, Identity, InMemoryPackageMetaCache, Lockfile, Mutex,
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
-    ResolveRequest, Resolver, Response, StatusCode, TOO_MANY_CONFIGS_MESSAGE, TarballRouter,
-    build_resolution_verifiers, collect_resolution_policy_violations, hash_lockfile, json_error,
-    ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile,
-    reject_inline_url_auth, reject_invalid_registries, reject_off_allowlist_fetches,
-    verify_done_or_osv_violations, violations_frame,
+    ResolveRequest, Resolver, Response, StatusCode, TarballRouter, build_resolution_verifiers,
+    collect_resolution_policy_violations, hash_lockfile, json_error, ndjson_single_frame,
+    observed_dist_stats_sink, osv_violations_for_lockfile, reject_inline_url_auth,
+    reject_invalid_registries, reject_off_allowlist_fetches, verify_done_or_osv_violations,
+    violations_frame,
 };
 
 /// Handle `POST /-/pnpr/v0/verify-lockfile`: verify the client's input
@@ -38,15 +38,25 @@ pub(crate) async fn handle_verify_lockfile(
         return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile, &request);
     }
 
-    let Some(config) = runtime.config_for(&request) else {
-        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
+    verify_untrusted_lockfile(runtime, identity, &request, input_lockfile).await
+}
+
+async fn verify_untrusted_lockfile(
+    runtime: &Resolver,
+    identity: Identity,
+    request: &ResolveRequest,
+    input_lockfile: &Lockfile,
+) -> Response {
+    let config = match runtime.config_for(request) {
+        Ok(config) => config,
+        Err(response) => return response,
     };
     // Verifier packument fetches run under the same route hook, so they
     // select the same pnpr-managed credentials and are recorded in the
     // same footprint as a resolve would be — a verifier can't read or
     // populate a cache scope a resolve wouldn't.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
-    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
+    let request_auth = runtime.hooked_auth(request, &identity, &footprint);
     let tarball_router = TarballRouter::new(
         Arc::clone(&runtime.route_context),
         identity.clone(),
@@ -58,12 +68,12 @@ pub(crate) async fn handle_verify_lockfile(
     );
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
-    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
+    match verify_input_lockfile(runtime, &config, &request_auth, &input_lockfile).await {
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
         Ok(_) => {
-            verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile, &request)
+            verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile, request)
         }
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
@@ -90,7 +100,7 @@ pub(super) enum VerifyFailure {
 /// failure (e.g. an invalid exclude pattern) returns a ready-made 500.
 pub(super) async fn verify_input_lockfile(
     runtime: &Resolver,
-    config: &'static PacquetConfig,
+    config: &PacquetConfig,
     auth_headers: &Arc<AuthHeaders>,
     lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {

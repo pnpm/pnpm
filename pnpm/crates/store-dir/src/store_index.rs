@@ -246,10 +246,11 @@ impl StoreIndex {
     /// handle for the empty-store case. It is surfaced at `warn!` so a
     /// silent panic stays diagnosable.
     pub async fn open_shared(
-        store_dir: &'static StoreDir,
+        store_dir: &StoreDir,
         frozen_store: bool,
     ) -> Option<SharedReadonlyStoreIndex> {
-        match tokio::task::spawn_blocking(move || StoreIndex::shared_for(store_dir, frozen_store))
+        let store_dir = store_dir.clone();
+        match tokio::task::spawn_blocking(move || StoreIndex::shared_for(&store_dir, frozen_store))
             .await
         {
             Ok(index) => index,

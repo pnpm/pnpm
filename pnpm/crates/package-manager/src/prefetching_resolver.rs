@@ -63,7 +63,7 @@ use tokio::sync::OnceCell;
 pub struct PrefetchContext<'a> {
     pub http_client: &'a Arc<ThrottledClient>,
     pub mem_cache: &'a Arc<MemCache>,
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub requester: &'a str,
     pub supported_architectures: Option<&'a SupportedArchitectures>,
     /// Install-scoped set the background download records when it emits
@@ -93,13 +93,9 @@ pub struct PrefetchPolicy<'a> {
     pub tracked: Option<&'a Arc<crate::PrefetchDownloads>>,
 }
 
-/// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
-/// the wrapper. Every field is either an `Arc` clone or a `Copy`
-/// scalar so each [`tokio::spawn`]ed download task can capture an
-/// independent set without leaking lifetimes back into the resolver's
-/// type.
+/// Owned inputs shared by background downloads.
 struct OwnedFetchCtx {
-    config: &'static Config,
+    config: Arc<Config>,
     mem_cache: Arc<MemCache>,
     requester: Arc<str>,
     progress_reported: SharedReportedProgressKeys,
@@ -374,7 +370,7 @@ impl OwnedFetchCtx {
                 url: package_url,
                 id: package_id,
             },
-            store: self.store.clone(),
+            store: self.store.borrowed(),
 
             requester: &self.requester,
 
@@ -403,7 +399,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
             },
     } = prefetch_ctx;
     OwnedFetchCtx {
-        config,
+        config: Arc::new((*config).clone()),
         mem_cache: Arc::clone(mem_cache),
         requester: Arc::<str>::from(*requester),
         progress_reported: SharedReportedProgressKeys::clone(progress_reported),
@@ -471,12 +467,9 @@ mod tar_integrity;
 mod tests;
 
 impl PrefetchStoreRefs<'_> {
-    fn archive_context(
-        &self,
-        config: &'static Config,
-    ) -> pnpm_tarball::ArchiveStoreContext<'static> {
+    fn archive_context(&self, config: &Config) -> pnpm_tarball::ArchiveStoreContext<'static> {
         pnpm_tarball::ArchiveStoreContext {
-            dir: &config.store_dir,
+            dir: std::borrow::Cow::Owned(config.store_dir.clone()),
             index: self.index.cloned(),
             index_writer: self.index_writer.cloned(),
             verified_files_cache: SharedVerifiedFilesCache::clone(self.verified_files_cache),

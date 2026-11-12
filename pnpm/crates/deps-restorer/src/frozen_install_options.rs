@@ -12,7 +12,7 @@ use std::{
 
 #[derive(Clone, Copy)]
 pub struct FrozenInstallDrivers<'a> {
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub http_client: &'a ThrottledClient,
     pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 

@@ -286,7 +286,7 @@ impl CrateDownload {
 impl CrateStore {
     fn archive_context(&self) -> pnpm_tarball::ArchiveStoreContext<'_> {
         pnpm_tarball::ArchiveStoreContext {
-            dir: self.dir,
+            dir: std::borrow::Cow::Borrowed(self.dir),
             index: self.index.as_ref().map(Arc::clone),
             index_writer: Some(Arc::clone(&self.index_writer)),
             verify_integrity: self.verify_integrity,

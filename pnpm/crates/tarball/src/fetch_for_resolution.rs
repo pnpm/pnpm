@@ -65,7 +65,7 @@ pub struct NotModifiedResponse {
 /// `ResolveResult`.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,
-    pub store: ResolutionStore,
+    pub store: ResolutionStore<'a>,
     /// The archive to read and what is already known about it.
     ///
     /// `id` is used for scoped auth lookup and for the store-index row
@@ -104,8 +104,8 @@ pub struct FetchTarballForResolution<'a> {
 }
 
 /// The store a resolution-time read extracts into.
-pub struct ResolutionStore {
-    pub dir: &'static StoreDir,
+pub struct ResolutionStore<'a> {
+    pub dir: &'a StoreDir,
     /// Receives the store-index row of the archive, when there is one to write.
     pub index_writer: Option<Arc<StoreIndexWriter>>,
 }

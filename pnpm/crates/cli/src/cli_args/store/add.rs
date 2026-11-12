@@ -306,7 +306,7 @@ impl<'a> AddOne<'a> {
                 id: archive.id,
             },
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &self.config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&self.config.store_dir),
                 index: self.store.index.clone(),
                 index_writer: Some(Arc::clone(self.store.index_writer)),
                 verify_integrity: self.config.verify_store_integrity,

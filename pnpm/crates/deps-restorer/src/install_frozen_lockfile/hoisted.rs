@@ -72,7 +72,7 @@ pub struct HoistedLinkerInputs<'a> {
     pub graph: crate::HoistedLinkGraph<'a>,
     pub prior: crate::PriorHoistedState<'a>,
     pub projects: crate::HoistedProjects<'a>,
-    pub config: &'static Config,
+    pub config: &'a Config,
     /// `(node_detected, node_version)` from the installability host
     /// probe. `None` when no installability check ran (the fresh
     /// path, and constraint-free frozen lockfiles).

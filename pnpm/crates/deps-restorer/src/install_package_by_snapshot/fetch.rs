@@ -262,7 +262,7 @@ impl InstallPackageBySnapshot<'_> {
                 id: package_id,
             },
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&config.store_dir),
                 index: self.fetching.store_index.cloned(),
                 index_writer: self.fetching.store_index_writer.cloned(),
                 verify_integrity: config.verify_store_integrity,

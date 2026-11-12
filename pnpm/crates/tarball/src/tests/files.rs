@@ -82,7 +82,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: None,
             verify_integrity: true,
@@ -168,7 +168,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,
@@ -677,7 +677,7 @@ async fn falls_through_when_cafs_file_missing() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: None,
             verify_integrity: true,
@@ -759,7 +759,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: None,
             verify_integrity: true,
@@ -873,7 +873,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
             id: package_id,
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: StoreIndex::shared_readonly_in(store_path),
             index_writer: Some(Arc::clone(&writer)),
             verify_integrity: true,

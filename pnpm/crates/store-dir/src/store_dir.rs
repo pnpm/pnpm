@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha512, digest};
 use std::{
     path::{self, PathBuf},
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
 };
 
 /// Content hash of a file.
@@ -31,14 +31,14 @@ pub const STORE_VERSION: &str = "v11-wasm";
 // directions through the `PathBuf` boundary so deserialization goes
 // back through [`From<PathBuf>`] and the [`STORE_VERSION`] suffix
 // invariant holds for persisted unsuffixed paths too.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {
     /// The [`STORE_VERSION`]-suffixed store path, equivalent to pnpm's
     /// `storeDir`. Consumers should reach for the purpose-built helpers
     /// ([`Self::files`][], [`Self::tmp`], [`Self::links`],
     /// [`Self::projects`]) rather than this raw path.
-    root: PathBuf,
+    root: Arc<PathBuf>,
 
     /// Runtime cache of shard bytes (`files/XX/`) this process has already
     /// ensured exist. The CAS layout has exactly 256 shards keyed by the
@@ -52,20 +52,30 @@ pub struct StoreDir {
     /// serialised wire shape — `#[serde(from/into)]` round-trips only
     /// through `PathBuf`, so the cache is regenerated empty on every
     /// deserialise.
-    ensured_shards: DashSet<u8>,
+    ensured_shards: Arc<DashSet<u8>>,
 
     /// Memoised `<root>/files` directory. Resolved lazily on the first
-    /// CAS path lookup and reused across every subsequent file write
+    /// CAS path lookup or handle clone and reused across every subsequent file write
     /// — saves one `Path::join` allocation per file on the hot path,
     /// ~170k on the alotta-files clean install. `OnceLock` so
     /// initialization across rayon threads stays race-free.
     #[serde(skip, default)]
-    cached_files_dir: OnceLock<PathBuf>,
+    cached_files_dir: OnceLock<Arc<PathBuf>>,
+}
+
+impl Clone for StoreDir {
+    fn clone(&self) -> Self {
+        Self {
+            root: Arc::clone(&self.root),
+            ensured_shards: Arc::clone(&self.ensured_shards),
+            cached_files_dir: OnceLock::from(Arc::clone(self.files_dir_handle())),
+        }
+    }
 }
 
 impl From<StoreDir> for PathBuf {
     fn from(store_dir: StoreDir) -> Self {
-        store_dir.root
+        Arc::unwrap_or_clone(store_dir.root)
     }
 }
 
@@ -90,7 +100,11 @@ impl From<PathBuf> for StoreDir {
         } else {
             root.join(STORE_VERSION)
         };
-        StoreDir { root, ensured_shards: DashSet::new(), cached_files_dir: OnceLock::new() }
+        StoreDir {
+            root: Arc::new(root),
+            ensured_shards: Arc::default(),
+            cached_files_dir: OnceLock::new(),
+        }
     }
 }
 
@@ -126,7 +140,11 @@ impl StoreDir {
 
     /// Borrow the memoised `<root>/files` path.
     pub(crate) fn files_dir(&self) -> &PathBuf {
-        self.cached_files_dir.get_or_init(|| self.root.join("files"))
+        self.files_dir_handle()
+    }
+
+    fn files_dir_handle(&self) -> &Arc<PathBuf> {
+        self.cached_files_dir.get_or_init(|| Arc::new(self.root.join("files")))
     }
 
     /// Path to a file in the store directory.

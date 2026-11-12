@@ -78,7 +78,7 @@ pub(super) async fn without_verified_store_hits(
         .collect();
     let verified = prefetch_cas_paths(
         store.index.clone(),
-        store.dir,
+        &store.dir,
         keys,
         PrefetchIntegrityCheck::eager_if(verify_store_integrity),
         std::sync::Arc::clone(&store.verified_files_cache),

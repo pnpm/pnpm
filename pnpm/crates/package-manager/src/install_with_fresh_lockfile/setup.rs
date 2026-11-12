@@ -117,7 +117,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     let (resolution_observer, observer, progress_reported) =
         take_resolution_observer(&mut owned.resolution.observer);
 
-    let store_dir: &'static _ = &install.drivers.config.store_dir;
+    let store_dir = &install.drivers.config.store_dir;
     // Eagerly create `files/00..ff` under the v11 store root so per-
     // tarball CAFS writes never pay a `create_dir_all` syscall on the
     // hot path.

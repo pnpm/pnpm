@@ -22,7 +22,7 @@ use crate::install_state::{ResolvedImporters, filesystem_now_ms_in_modules, vali
 use std::{collections::HashSet, path::PathBuf};
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
-    pub(crate) completion: crate::install::state_options::ApplyCompletionContext,
+    pub(crate) completion: crate::install::state_options::ApplyCompletionContext<'a>,
     pub(crate) mode: crate::install::state_options::CompletionMode,
     pub(crate) prior: crate::install::state_options::ApplyPriorState,
     pub(crate) projects: crate::install::state_options::ApplyProjectSelection<'a>,

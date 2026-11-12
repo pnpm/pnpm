@@ -79,7 +79,7 @@ impl StoreCaches {
 /// WAL / SHM sidecar under the read-only root).
 pub(super) async fn open_store_index_handles(
     config: &Config,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     caches: StoreCaches,
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
@@ -143,7 +143,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub registry:
         crate::install_with_fresh_lockfile::resolution_inputs::ResolverRegistryContext<'a>,
     pub store: crate::install_with_fresh_lockfile::resolution_inputs::ResolverStoreContext<'a>,
-    pub config: &'static Config,
+    pub config: &'a Config,
 }
 
 /// The assembled resolver chain plus the pieces later install phases
@@ -289,7 +289,7 @@ impl ResolverChainInputs<'_> {
         .with_fetch_context(GitFetchContext {
             source_cache: Arc::clone(self.fetching.git_sources),
             http_client: Arc::clone(self.fetching.http_client),
-            store_dir: self.store.dir,
+            store_dir: std::borrow::Cow::Owned(self.store.dir.clone()),
             store_index_writer: Some(Arc::clone(self.store.index_writer)),
             auth_headers: Arc::clone(self.fetching.auth_headers),
             retry_opts: self.retry_opts(),
@@ -323,7 +323,7 @@ impl ResolverChainInputs<'_> {
                 store: pnpm_tarball::ArchiveStoreContext {
                     strict_pkg_content_check: false,
                     prefetched_cas_paths: None,
-                    dir: self.store.dir,
+                    dir: std::borrow::Cow::Owned(self.store.dir.clone()),
                     index_writer: Some(Arc::clone(self.store.index_writer)),
                     index: self.store.index.cloned(),
                     verify_integrity: self.config.verify_store_integrity,

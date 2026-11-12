@@ -62,7 +62,7 @@ enum CachedRow {
 /// npm-specific check for a raw archive projection.
 pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     index: Option<SharedReadonlyStoreIndex>,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     cache_key: String,
     verify_store_integrity: bool,
     package_content_check: PackageContentCheck,
@@ -70,10 +70,11 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
 ) -> Result<Option<CachedCasPaths>, TarballError> {
     let Some(index) = index else { return Ok(None) };
     let outer_cache_key = cache_key.clone();
+    let store_dir = store_dir.clone();
     let result = tokio::task::spawn_blocking(move || {
         cached_row(
             &index,
-            store_dir,
+            &store_dir,
             &cache_key,
             verify_store_integrity,
             package_content_check,
@@ -138,7 +139,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
 /// Look up one row and decide whether it can stand in for a download.
 fn cached_row(
     index: &SharedReadonlyStoreIndex,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     cache_key: &str,
     verify_store_integrity: bool,
     package_content_check: PackageContentCheck,
@@ -221,7 +222,7 @@ fn read_row(index: &SharedReadonlyStoreIndex, cache_key: &str) -> Option<Package
 /// share the legacy row.
 pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>(
     index: Option<SharedReadonlyStoreIndex>,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     integrity: &str,
     package_id: &str,
     verify_store_integrity: bool,

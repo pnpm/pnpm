@@ -1,6 +1,6 @@
 use super::{
-    Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile, Mutex, OsvIndex,
-    PackageVersionGuard, PacquetConfig, ResolveRequest, Resolver, Response, StoreCandidate,
+    ActiveConfig, Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile,
+    Mutex, OsvIndex, PackageVersionGuard, ResolveRequest, Resolver, Response, StoreCandidate,
     StreamObserver, TarballRouter, ThrottledClient, done_frame, error_frame_with_code,
     ndjson_stream_response, osv_violations_for_lockfile, resolve, store_resolution_candidate,
     violations_frame,
@@ -8,7 +8,7 @@ use super::{
 
 /// What one streamed resolve carries out of the request handling.
 pub(super) struct StreamedResolveInputs {
-    pub(super) config: &'static PacquetConfig,
+    pub(super) config: ActiveConfig,
     pub(super) request: ResolveRequest,
     pub(super) request_auth: Arc<AuthHeaders>,
     pub(super) tarball_router: TarballRouter,
@@ -33,7 +33,8 @@ pub(super) fn stream_resolve_response(
         package_version_guard,
         tarball_router: inputs.tarball_router.clone(),
     });
-    tokio::spawn(stream_resolution(StreamedResolve {
+    let disconnected = tx.clone();
+    let task = StreamedResolve {
         client: Arc::clone(&runtime.client),
         observer,
         osv_index: runtime.osv_index.clone(),
@@ -42,7 +43,13 @@ pub(super) fn stream_resolve_response(
         cache_secret: Arc::clone(&runtime.cache.secret),
         inputs,
         tx,
-    }));
+    };
+    tokio::spawn(async move {
+        tokio::select! {
+            () = disconnected.closed() => {},
+            () = stream_resolution(task) => {},
+        }
+    });
     ndjson_stream_response(rx)
 }
 
@@ -64,7 +71,7 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
     let StreamedResolve { inputs, tx, .. } = &task;
     let StreamedResolveInputs { config, tarball_router, .. } = inputs;
     let resolved = Box::pin(resolve::resolve(
-        task.inputs.config,
+        &task.inputs.config,
         &task.client,
         &task.inputs.request,
         &task.inputs.request_auth,
