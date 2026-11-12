@@ -104,8 +104,8 @@ impl ImporterHoistState {
         picker: &RequiredPeerPicker<'_>,
     ) -> RequiredPeerPick {
         let names = || std::iter::once(name);
-        let preferred = self.required_peer_preferred_versions(names());
         let resolved_versions = self.ctx.run_resolved_versions(names());
+        let preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
         let missing = [(name.to_string(), MissingPeerInfo { range: range.to_string() })];
         let Some(specifier) =
             hoist_peers(&self.hoist_peers_options(&preferred, &resolved_versions), &missing)

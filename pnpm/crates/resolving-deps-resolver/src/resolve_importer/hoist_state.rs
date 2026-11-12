@@ -2,6 +2,7 @@ use super::{
     Arc, BTreeMap, DependencyOverrider, DirectDep, DirectSeeds, HashMap, HashSet, HoistSettings,
     ImporterHoistState, LockedPeers, MissingPeer, PreferredVersions, TreeCtx, WorkspaceRootDep,
 };
+use pnpm_resolving_resolver_base::DIRECT_DEP_SELECTOR_WEIGHT;
 
 pub(super) struct ImporterHoistPolicy {
     pub(super) peers: crate::ImporterPeerOptions,
@@ -81,31 +82,33 @@ pub(super) struct ImporterHoistSelection {
 }
 
 impl super::ImporterHoistState {
-    /// With auto-install disabled, lockfile weights may retain this importer's
-    /// peers, but cannot introduce providers absent from its pins and the graph.
+    /// With auto-install disabled, retain manifest preferences, current providers,
+    /// and peer pins recorded for this importer.
     pub(super) fn required_peer_preferred_versions<'name>(
         &self,
         names: impl Iterator<Item = &'name str>,
+        resolved: &HashMap<String, HashSet<String>>,
     ) -> PreferredVersions {
         let mut preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names);
-        if self.policy.peers.auto_install_peers
-            || self.ctx
-                .workspace()
-                .wanted_lockfile()
-                .is_none()
-        {
+        if self.policy.peers.auto_install_peers {
             return preferred;
         }
-        let resolved = self.ctx.run_resolved_versions(preferred.keys().map(String::as_str));
+        let Some(lockfile) = self.ctx.workspace().wanted_lockfile() else {
+            return preferred;
+        };
+        let locked = lockfile.importers
+            .contains_key(&self.importer_id)
+            .then_some(&self.selection.locked_versions);
         preferred.retain(|name, versions| {
-            versions.retain(|version, _| {
-                resolved
-                    .get(name)
-                    .is_some_and(|resolved| resolved.contains(version))
-                    || self.selection.locked_versions
+            versions.retain(|version, entry| {
+                entry.weight() >= DIRECT_DEP_SELECTOR_WEIGHT
+                    || resolved
                         .get(name)
-                        .is_some_and(|locked| locked.contains(version))
+                        .is_some_and(|versions| versions.contains(version))
+                    || locked
+                        .and_then(|locked| locked.get(name))
+                        .is_some_and(|versions| versions.contains(version))
             });
             !versions.is_empty()
         });

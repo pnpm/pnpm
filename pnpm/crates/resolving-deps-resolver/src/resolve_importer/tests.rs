@@ -11,6 +11,8 @@ mod overrides;
 
 mod optional_peers;
 
+mod hoist_preferences;
+mod locked_peer_cycles;
 mod locked_peers;
 
 mod hashed_peer_suffix;

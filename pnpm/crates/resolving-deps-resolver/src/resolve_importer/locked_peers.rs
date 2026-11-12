@@ -125,18 +125,21 @@ fn locked_peer_versions_for_key_cached(
 ) -> Vec<(String, String)> {
     let mut versions = Vec::new();
     let mut visited = HashSet::default();
-    let mut pinned_names = HashSet::default();
-    let mut pending = VecDeque::from([(key.clone(), snapshot)]);
-    while let Some((key, snapshot)) = pending.pop_front() {
+    let mut pinned_depths = HashMap::default();
+    let mut pending = VecDeque::from([(key.clone(), snapshot, 0)]);
+    while let Some((key, snapshot, depth)) = pending.pop_front() {
         if !visited.insert(key.clone()) {
             continue;
         }
         for (name, peer) in locked_peer_keys(lockfile, &key, snapshot, bound_cache) {
-            if !pinned_names.insert(name.clone()) {
+            if *pinned_depths.entry(name.clone()).or_insert(depth) < depth {
                 continue;
             }
             versions.push((name, peer.suffix.without_peer().to_string()));
-            pending.extend(provider_with_peers(lockfile, peer));
+            pending.extend(
+                provider_with_peers(lockfile, peer)
+                    .map(|(key, snapshot)| (key, snapshot, depth + 1)),
+            );
         }
     }
     versions
