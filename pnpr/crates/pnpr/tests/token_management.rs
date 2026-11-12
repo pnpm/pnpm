@@ -8,7 +8,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
+use pnpr::{AuthState, Config, MaxUsers, TokensConfig, router, router_with_auth};
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -655,12 +655,18 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     assert!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()) < caller_expires);
 }
 
-#[tokio::test]
-async fn max_lifetime_caps_login_and_created_tokens() {
-    const WEEK_SECS: i64 = 7 * 86_400;
+const DAY_SECS: i64 = 86_400;
+
+/// Log in, then create a token for each request, and check that each token
+/// expires the given number of seconds after it was issued.
+async fn assert_token_lifetimes(
+    tokens: TokensConfig,
+    login_lifetime: i64,
+    created: &[(Value, i64)],
+) {
     let tmp = TempDir::new().unwrap();
     let mut config = static_config(tmp.path().to_path_buf());
-    config.identity.auth.tokens.max_lifetime = Some(std::time::Duration::from_hours(7 * 24));
+    config.identity.auth.tokens = tokens;
     let app = router(config);
     let assert_expires_after = |body: &Value, issued: (i64, i64), lifetime: i64| {
         let expires = rfc3339_unix_seconds(body["expires"].as_str().unwrap());
@@ -681,14 +687,10 @@ async fn max_lifetime_caps_login_and_created_tokens() {
     assert_expires_after(
         &body_json(listed.into_body()).await["objects"][0],
         login_issued,
-        WEEK_SECS,
+        login_lifetime,
     );
 
-    for (requested, lifetime) in [
-        (json!({}), WEEK_SECS),
-        (json!({ "expires": 30 }), WEEK_SECS),
-        (json!({ "expires": 1 }), 86_400),
-    ] {
+    for (requested, lifetime) in created {
         let mut payload = requested.clone();
         payload["password"] = json!("secret123");
         let before = chrono::Utc::now().timestamp();
@@ -699,6 +701,38 @@ async fn max_lifetime_caps_login_and_created_tokens() {
             .unwrap();
         let issued = (before, chrono::Utc::now().timestamp());
         assert_eq!(response.status(), StatusCode::OK, "{requested}");
-        assert_expires_after(&body_json(response.into_body()).await, issued, lifetime);
+        assert_expires_after(&body_json(response.into_body()).await, issued, *lifetime);
     }
+}
+
+#[tokio::test]
+async fn tokens_without_a_requested_expiry_take_the_default_lifetime() {
+    assert_token_lifetimes(
+        TokensConfig::default(),
+        90 * DAY_SECS,
+        &[
+            (json!({}), 90 * DAY_SECS),
+            (json!({ "expires": null }), 90 * DAY_SECS),
+            (json!({ "expires": 365 }), 365 * DAY_SECS),
+            (json!({ "expires": 1 }), DAY_SECS),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn max_lifetime_caps_login_and_created_tokens() {
+    assert_token_lifetimes(
+        TokensConfig {
+            max_lifetime: Some(std::time::Duration::from_hours(7 * 24)),
+            ..TokensConfig::default()
+        },
+        7 * DAY_SECS,
+        &[
+            (json!({}), 7 * DAY_SECS),
+            (json!({ "expires": 30 }), 7 * DAY_SECS),
+            (json!({ "expires": 1 }), DAY_SECS),
+        ],
+    )
+    .await;
 }

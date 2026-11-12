@@ -98,25 +98,33 @@ auth:
 }
 
 #[test]
-fn auth_tokens_max_lifetime_is_an_interval() {
-    let config_with = |max_lifetime: &str| {
-        let yaml = format!("storage: ./s\nauth:\n  tokens:\n    maxLifetime: {max_lifetime}\n");
+fn auth_token_lifetimes_are_intervals() {
+    use std::time::Duration;
+    let config_with = |key: &str, lifetime: &str| {
+        let yaml = format!("storage: ./s\nauth:\n  tokens:\n    {key}: {lifetime}\n");
         Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
     };
-    let config = config_with("90d").unwrap();
-    assert_eq!(
-        config.identity.auth.tokens.max_lifetime,
-        Some(std::time::Duration::from_hours(90 * 24)),
-    );
-    let config = config_with("1m").unwrap();
-    assert_eq!(config.identity.auth.tokens.max_lifetime, Some(std::time::Duration::from_mins(1)));
-    for invalid in ["0", "0d", "0.0004s", "59s", "soon"] {
-        let error = config_with(invalid)
-            .map(|_| ())
-            .unwrap_err();
-        assert!(error.to_string().contains("auth.tokens.maxLifetime"), "{invalid}: {error}");
+    let tokens = config_with("maxLifetime", "90d").unwrap().identity.auth.tokens;
+    assert_eq!(tokens.max_lifetime, Some(Duration::from_hours(90 * 24)));
+    let tokens = config_with("maxLifetime", "1m").unwrap().identity.auth.tokens;
+    assert_eq!(tokens.max_lifetime, Some(Duration::from_mins(1)));
+    let tokens = config_with("defaultLifetime", "1w").unwrap().identity.auth.tokens;
+    assert_eq!(tokens.default_lifetime, Duration::from_hours(7 * 24));
+    for key in ["defaultLifetime", "maxLifetime"] {
+        for invalid in ["0", "0d", "0.0004s", "59s", "soon"] {
+            let error = config_with(key, invalid)
+                .map(|_| ())
+                .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("auth.tokens.{key}")),
+                "{invalid}: {error}",
+            );
+        }
     }
     let config = Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.identity.auth.tokens.default_lifetime, Duration::from_hours(90 * 24));
     assert_eq!(config.identity.auth.tokens.max_lifetime, None);
 }
 

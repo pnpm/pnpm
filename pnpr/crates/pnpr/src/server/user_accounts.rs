@@ -212,8 +212,8 @@ async fn log_in(
     {
         return Err(deprovisioned(name));
     }
-    let expires_at = super::tokens::latest_token_expiry(state, pnpr_auth::unix_millis());
-    let new_token = pnpr_auth::NewToken::new().with_expires_at(expires_at);
+    let expires_at = super::tokens::unrequested_token_expiry(state, pnpr_auth::unix_millis());
+    let new_token = pnpr_auth::NewToken::new().with_expires_at(Some(expires_at));
     let (outcome, id, token) =
         match state.inner.identity.auth.password_login(name, password, new_token).await {
             Err(RegistryError::TooManyUsers { .. }) => {

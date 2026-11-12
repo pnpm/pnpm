@@ -129,18 +129,30 @@ pub struct UsersConfig {
     pub max_users: MaxUsers,
 }
 
-/// Where the token database lives. SQLite-backed when `file` is
+/// Where the token database lives, and how long the bearer tokens issued by a
+/// login or `POST /-/npm/v1/tokens` stay valid. SQLite-backed when `file` is
 /// set; an in-memory map otherwise.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TokensConfig {
     pub file: Option<PathBuf>,
-    /// The longest a bearer token issued by a login or `POST /-/npm/v1/tokens`
-    /// stays valid. `None` lets a token never expire.
+    /// The lifetime of a token whose request sets no expiry. Defaults to
+    /// [`TokensConfig::DEFAULT_LIFETIME`].
+    pub default_lifetime: Duration,
+    /// The longest a token stays valid. `None` sets no limit.
     pub max_lifetime: Option<Duration>,
 }
 
 impl TokensConfig {
-    pub const MIN_MAX_LIFETIME: Duration = Duration::from_mins(1);
+    pub const DEFAULT_LIFETIME: Duration = Duration::from_hours(90 * 24);
+    /// The shortest configurable lifetime. A shorter token could expire while
+    /// the login that issues it is still verifying the password.
+    pub const MIN_LIFETIME: Duration = Duration::from_mins(1);
+}
+
+impl Default for TokensConfig {
+    fn default() -> Self {
+        Self { file: None, default_lifetime: Self::DEFAULT_LIFETIME, max_lifetime: None }
+    }
 }
 
 /// Three-state cap on `auth.users.max_users`:
@@ -239,23 +251,29 @@ pub(super) fn build_auth_config(
         },
         tokens: TokensConfig {
             file: tokens_file,
-            max_lifetime: build_max_token_lifetime(file.tokens.max_lifetime.as_ref())?,
+            default_lifetime: build_token_lifetime(
+                "defaultLifetime",
+                file.tokens.default_lifetime.as_ref(),
+            )?
+            .unwrap_or(TokensConfig::DEFAULT_LIFETIME),
+            max_lifetime: build_token_lifetime("maxLifetime", file.tokens.max_lifetime.as_ref())?,
         },
         scim: file.scim.clone(),
     })
 }
 
-/// The `auth.tokens.maxLifetime` key. A lifetime under
-/// [`TokensConfig::MIN_MAX_LIFETIME`] is refused: a token could expire while
-/// the login that issues it is still verifying the password.
-fn build_max_token_lifetime(raw: Option<&Interval>) -> Result<Option<Duration>, RegistryError> {
+/// The `auth.tokens.{key}` lifetime, at least [`TokensConfig::MIN_LIFETIME`].
+fn build_token_lifetime(
+    key: &str,
+    raw: Option<&Interval>,
+) -> Result<Option<Duration>, RegistryError> {
     let Some(Interval(raw)) = raw else {
         return Ok(None);
     };
     match parse_interval(raw) {
-        Some(lifetime) if lifetime >= TokensConfig::MIN_MAX_LIFETIME => Ok(Some(lifetime)),
+        Some(lifetime) if lifetime >= TokensConfig::MIN_LIFETIME => Ok(Some(lifetime)),
         _ => Err(RegistryError::InvalidConfig {
-            reason: format!("auth.tokens.maxLifetime {raw:?} is not an interval of at least 1m"),
+            reason: format!("auth.tokens.{key} {raw:?} is not an interval of at least 1m"),
         }),
     }
 }

@@ -115,7 +115,10 @@ async fn create_verified_token(
         .ok_or_else(|| RegistryError::Unauthenticated { resource: format!("user {username:?}") })?;
     let verified_credential =
         verify_caller_password(state, client_ip, username, request.password()).await?;
-    request = request.expiring_by(latest_token_expiry(state, pnpr_auth::unix_millis()));
+    let now = pnpr_auth::unix_millis();
+    request = request
+        .expiring_by_default(default_token_expiry(state, now))
+        .expiring_by(latest_token_expiry(state, now));
     if matches!(verified_credential, pnpr_auth::AccountCredential::None) {
         request = request.within(credential_limits(state, caller.credential).await?)?;
     }
@@ -131,10 +134,22 @@ async fn create_verified_token(
     Ok(json_response(StatusCode::OK, &create_token_response(&raw, &record)))
 }
 
+/// When a token issued at `now` without a requested expiry expires: after
+/// `auth.tokens.defaultLifetime`, but no later than `auth.tokens.maxLifetime`.
+pub(super) fn unrequested_token_expiry(state: &AppState, now: u64) -> u64 {
+    let default = default_token_expiry(state, now);
+    latest_token_expiry(state, now).map_or(default, |latest| latest.min(default))
+}
+
+fn default_token_expiry(state: &AppState, now: u64) -> u64 {
+    payload::expiry_after(state.inner.config.identity.auth.tokens.default_lifetime, now)
+}
+
 /// When a token issued at `now` expires at the latest under
 /// `auth.tokens.maxLifetime`. `None` when no maximum is configured.
-pub(super) fn latest_token_expiry(state: &AppState, now: u64) -> Option<u64> {
-    payload::max_lifetime_expiry(state.inner.config.identity.auth.tokens.max_lifetime, now)
+fn latest_token_expiry(state: &AppState, now: u64) -> Option<u64> {
+    let max_lifetime = state.inner.config.identity.auth.tokens.max_lifetime?;
+    Some(payload::expiry_after(max_lifetime, now))
 }
 
 /// The limits of the browser session or token that `credential` carries.

@@ -734,17 +734,23 @@ auth:
     file: ./tokens.db
 ```
 
-`auth.tokens.maxLifetime` limits how long a token from a password login or
-`npm token create` stays valid, for example `90d`. It must be at least `1m`.
-Units are `s`, `m`, `h`, `d`, and `w`. A token created with a later expiry, or
-with none, expires after the maximum instead. Without the setting, tokens do
-not expire unless their creator sets an expiry. A [browser sign-in](oidc.md)
-keeps its session's expiry of at most an hour.
+Two settings limit how long a token from a password login or
+`npm token create` stays valid:
+
+- `auth.tokens.defaultLifetime`: the lifetime of a login token, and of a
+  created token that sets no expiry. Defaults to `90d`.
+- `auth.tokens.maxLifetime`: the longest any token stays valid. A token with a
+  later expiry expires after the maximum instead. Without the setting, a
+  created token can set any expiry.
+
+Each must be at least `1m`. Units are `s`, `m`, `h`, `d`, and `w`. A
+[browser sign-in](oidc.md) keeps its session's expiry of at most an hour.
 
 ```yaml title="pnpr.yaml"
 auth:
   tokens:
-    maxLifetime: 90d
+    defaultLifetime: 30d
+    maxLifetime: 52w
 ```
 
 Omitted `maxUsers` means registration disabled, not unlimited registration.
