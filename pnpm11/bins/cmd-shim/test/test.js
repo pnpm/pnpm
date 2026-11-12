@@ -379,25 +379,30 @@ describe('large bin target', () => {
   const to = path.resolve(fixtures, 'large.shim')
   /** @type {number} */
   let bytesReadFromSrc = 0
+  /** @type {Set<number>} */
+  const srcFds = new Set()
   const countingFs = {
     ...fs,
+    open (file, ...rest) {
+      const callback = rest.pop()
+      fs.open(file, ...rest, (err, fd) => {
+        if (!err && file === src) srcFds.add(fd)
+        callback(err, fd)
+      })
+    },
+    read (fd, ...rest) {
+      const callback = rest.pop()
+      fs.read(fd, ...rest, (err, bytesRead, buffer) => {
+        if (!err && srcFds.has(fd)) bytesReadFromSrc += bytesRead
+        callback(err, bytesRead, buffer)
+      })
+    },
     promises: {
       ...fs.promises,
       async readFile (file, ...rest) {
         const content = await fs.promises.readFile(file, ...rest)
         if (file === src) bytesReadFromSrc += Buffer.byteLength(content)
         return content
-      },
-      async open (file, ...rest) {
-        const handle = await fs.promises.open(file, ...rest)
-        if (file !== src) return handle
-        const read = handle.read.bind(handle)
-        handle.read = async (...args) => {
-          const result = await read(...args)
-          bytesReadFromSrc += result.bytesRead
-          return result
-        }
-        return handle
       },
     },
   }

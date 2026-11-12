@@ -1,5 +1,6 @@
 ---
 "@pnpm/bins.cmd-shim": patch
+"@pnpm/fs.graceful-fs": patch
 "pnpm": patch
 ---
 

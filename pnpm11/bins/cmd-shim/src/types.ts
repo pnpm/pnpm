@@ -82,12 +82,23 @@ export const DEFAULT_OPTIONS = {
  */
 export type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPTIONS>> & {
   fs_: FsPromises
+  fd_: FdFs
   isTargetMissing?: boolean
   /** Reject a missing source instead of shimming it. */
   requireSource?: boolean
 }
 
-export type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 'open' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
+export type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
+
+/**
+ * File-descriptor reads. Unless the caller supplies its own `fs`, they go
+ * through graceful-fs, which queues an `open` that fails with EMFILE or ENFILE.
+ */
+export interface FdFs {
+  open: (file: string, flags: string) => Promise<number>
+  read: (fd: number, buffer: Buffer, offset: number, length: number, position: number) => Promise<{ bytesRead: number }>
+  close: (fd: number) => Promise<void>
+}
 
 export type ShimGenerator = (src: string, to: string, opts: InternalOptions) => string
 

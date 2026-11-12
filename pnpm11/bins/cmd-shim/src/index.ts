@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 import { isError } from '@pnpm/error'
 import gfsPromises from '@pnpm/fs.graceful-fs'
@@ -15,6 +16,7 @@ import {
   TARGET_MISSING_MARKER,
 } from './generateShShim.js'
 import type {
+  FdFs,
   FsPromises,
   GetShShimDirOptions,
   InternalOptions,
@@ -53,8 +55,33 @@ const extensionToProgramMap = new Map([
 
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = { ...DEFAULT_OPTIONS, ...opts } as InternalOptions
-  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, open: fs.promises.open, realpath: fs.promises.realpath } as unknown as FsPromises)
+  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, realpath: fs.promises.realpath } as unknown as FsPromises)
+  opts_.fd_ = opts_.fs ? promisifyFdFs(opts_.fs) : gfsPromises
   return opts_
+}
+
+function promisifyFdFs (fs_: typeof fs): FdFs {
+  return {
+    open: promisify(fs_.open),
+    read: async (fd, buffer, offset, length, position) => readBytes(fs_, { fd, buffer, offset, length, position }),
+    close: promisify(fs_.close),
+  }
+}
+
+/**
+ * `fs.read` without `promisify`: a replacement `fs` such as memfs has no
+ * `promisify.custom` on `read`, so `promisify` would resolve to the byte count alone.
+ */
+async function readBytes (
+  fs_: typeof fs,
+  { fd, buffer, offset, length, position }: { fd: number, buffer: Buffer, offset: number, length: number, position: number }
+): Promise<{ bytesRead: number }> {
+  return new Promise((resolve, reject) => {
+    fs_.read(fd, buffer, offset, length, position, (err, bytesRead) => {
+      if (err) reject(err)
+      else resolve({ bytesRead })
+    })
+  })
 }
 
 /**
@@ -313,13 +340,13 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
  * Bin targets can be native executables of hundreds of megabytes.
  */
 async function readFileHead (file: string, opts: InternalOptions): Promise<string> {
-  const handle = await opts.fs_.open(file, 'r')
+  const fd = await opts.fd_.open(file, 'r')
   try {
     const buffer = Buffer.alloc(SHEBANG_READ_LIMIT_BYTES)
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    const { bytesRead } = await opts.fd_.read(fd, buffer, 0, buffer.length, 0)
     return buffer.toString('utf8', 0, bytesRead)
   } finally {
-    await handle.close()
+    await opts.fd_.close(fd)
   }
 }
 

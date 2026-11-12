@@ -12,6 +12,7 @@ const fileLockRetrySleepBuffer = new Int32Array(new SharedArrayBuffer(4))
 
 export default { // eslint-disable-line
   chmod: promisify(gfs.chmod),
+  close: promisify(gfs.close),
   copyFile: promisify(gfs.copyFile),
   copyFileSync: withEagainRetry(gfs.copyFileSync),
   createReadStream: gfs.createReadStream,
@@ -19,6 +20,8 @@ export default { // eslint-disable-line
   linkSync: withEagainRetry(gfs.linkSync),
   mkdir: promisify(gfs.mkdir),
   mkdirSync: withEagainRetry(gfs.mkdirSync),
+  open: promisify(gfs.open),
+  read: promisify(gfs.read),
   renameSync: withEagainRetry(gfs.renameSync),
   readFile: promisify(gfs.readFile),
   readFileSync: gfs.readFileSync,
