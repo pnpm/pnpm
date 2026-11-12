@@ -38,6 +38,7 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
     let second = storage(&db);
     let mut attrs = Map::new();
     attrs.insert("displayName".to_string(), json!("Alice"));
+    attrs.insert("externalId".to_string(), json!("subject-1"));
     let created = first
         .insert_scim_user(NewScimUser {
             user_id: "u-alice".to_string(),
@@ -62,6 +63,7 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
 
     let initial_delta = second.read_scim_statuses_since(0).await.unwrap();
     assert_eq!(initial_delta.len(), 1);
+    assert_eq!(initial_delta[0].external_id.as_deref(), Some("subject-1"));
     assert!(
         second
             .read_scim_statuses_since(created.generation)
@@ -106,6 +108,8 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
         panic!("expected removal");
     };
     assert!(!removed.active);
+    let removed_delta = first.read_scim_statuses_since(deactivated.generation).await.unwrap();
+    assert_eq!(removed_delta[0].external_id, None);
     assert!(
         first
             .read_scim_user("u-alice")
@@ -452,7 +456,25 @@ async fn removing_an_owned_document_keeps_its_owners_and_remover(db: Db) {
     assert_eq!(removed.unpublished_by.as_deref(), Some("remover-id"));
 }
 
+async fn unreadable_scim_attributes_identify_the_account_in_status_reads(db: Db) {
+    let storage = storage(&db);
+    storage
+        .insert_scim_user(NewScimUser {
+            user_id: "example-account".to_string(),
+            active: true,
+            attributes: Map::new(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+    execute(&db, "UPDATE scim_users SET attributes = '{' WHERE user_id = 'example-account'").await;
+    let error = storage.read_scim_statuses_since(0).await.unwrap_err();
+    assert!(matches!(error, pnpr_error::RegistryError::Internal { .. }));
+    assert!(error.to_string().contains("example-account"));
+}
+
 conformance!(
+    unreadable_scim_attributes_identify_the_account_in_status_reads,
     record_keys_preserve_case,
     scim_users_track_incremental_generations_and_deprovisions,
     team_rosters_and_rule_overrides_use_current_generations,

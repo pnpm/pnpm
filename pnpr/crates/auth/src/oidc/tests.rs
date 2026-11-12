@@ -1,7 +1,7 @@
 use super::{
     LoginReturn, MetadataFreshness, OidcState, SessionUser,
     groups::granted_teams,
-    token_payload, verify_workload,
+    rejected, token_payload, verify_workload,
     workload::{binding_matches, validate_times},
 };
 use axum::{
@@ -266,56 +266,6 @@ async fn discovers_caches_and_enforces_workload_bindings() {
     task.abort();
 }
 
-#[tokio::test]
-async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
-    let (provider, task) = mock_provider().await;
-    let mut config = config(&provider.issuer);
-    config.login = Some(OidcLogin {
-        client_secret: Some("secret".to_string()),
-        users: vec![config.workloads.remove(0).identity],
-        groups: Some(groups(&[("platform-eng", "platform"), ("finance", "finance")])),
-    });
-    let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    let start = state.start("example", LoginReturn::Token).await.unwrap();
-    let url = Url::parse(&start.url).unwrap();
-    let query: HashMap<_, _> = url.query_pairs().into_owned().collect();
-    assert_eq!(query["response_type"], "code");
-    assert_eq!(query["code_challenge_method"], "S256");
-    assert_eq!(query["redirect_uri"], "https://registry.example/-/oidc/example/callback");
-    *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
-    *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
-    let session =
-        state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
-    let user = state
-        .session(&session.token)
-        .unwrap()
-        .unwrap();
-    assert_eq!(user.user_id, "ci");
-    let teams: Vec<&str> = user.teams
-        .iter()
-        .map(|grant| grant.team_id.as_str())
-        .collect();
-    assert_eq!(teams, ["platform"]);
-    assert!(session.expires <= Utc::now().timestamp() + 300);
-    assert_eq!(session.returns_to, LoginReturn::Token);
-    assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
-    assert!(state.revoke_session(&session.token));
-    assert!(state.session(&session.token).is_err());
-    let start = state.start("example", LoginReturn::Ui).await.unwrap();
-    assert!(state.finish("example", &start.state, "other-browser", "code").await.is_err());
-    let query: HashMap<_, _> = Url::parse(&start.url)
-        .unwrap()
-        .query_pairs()
-        .into_owned()
-        .collect();
-    *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
-    *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
-    let session =
-        state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
-    assert_eq!(session.returns_to, LoginReturn::Ui);
-    task.abort();
-}
-
 #[test]
 fn revoking_a_user_drops_only_that_users_sessions() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
@@ -383,6 +333,7 @@ async fn workloads_verify_against_issuers_without_an_authorization_endpoint() {
     assert_eq!(workload.identity.user_id, "ci");
     let mut login = config(&provider.issuer);
     login.login = Some(OidcLogin {
+        scim: false,
         client_secret: None,
         users: vec![login.workloads.remove(0).identity],
         groups: None,
@@ -481,6 +432,7 @@ async fn rejects_expired_state_and_wrong_nonce() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
+        scim: false,
         client_secret: None,
         users: vec![config.workloads.remove(0).identity],
         groups: None,
@@ -494,7 +446,14 @@ async fn rejects_expired_state_and_wrong_nonce() {
         .collect();
     *provider.nonce.lock().unwrap() = Some("wrong-nonce".to_string());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
-    assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
+    assert!(
+        state
+            .finish("example", &start.state, &start.browser_secret, "code", |_| Err::<String, _>(
+                rejected()
+            ))
+            .await
+            .is_err(),
+    );
     assert!(
         state.browser.sessions
             .lock()
@@ -505,7 +464,14 @@ async fn rejects_expired_state_and_wrong_nonce() {
     let mut login = state.open_login(&start.browser_secret).unwrap();
     login.expires = Utc::now().timestamp() - 1;
     let expired_cookie = state.seal_login(&login).unwrap();
-    assert!(state.finish("example", &start.state, &expired_cookie, "code").await.is_err());
+    assert!(
+        state
+            .finish("example", &start.state, &expired_cookie, "code", |_| Err::<String, _>(
+                rejected()
+            ))
+            .await
+            .is_err(),
+    );
     task.abort();
 }
 
@@ -514,6 +480,7 @@ async fn selects_client_secret_post_from_discovery() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
+        scim: false,
         client_secret: Some("secret".to_string()),
         users: vec![config.workloads.remove(0).identity],
         groups: None,
@@ -528,7 +495,12 @@ async fn selects_client_secret_post_from_discovery() {
         .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
-    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    state
+        .finish("example", &start.state, &start.browser_secret, "code", |_| {
+            Err::<String, _>(rejected())
+        })
+        .await
+        .unwrap();
     task.abort();
 }
 
@@ -537,6 +509,7 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
+        scim: false,
         client_secret: None,
         users: vec![config.workloads.remove(0).identity],
         groups: None,
@@ -559,8 +532,20 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
             .unwrap()
             .is_empty(),
     );
-    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
-    assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
+    state
+        .finish("example", &start.state, &start.browser_secret, "code", |_| {
+            Err::<String, _>(rejected())
+        })
+        .await
+        .unwrap();
+    assert!(
+        state
+            .finish("example", &start.state, &start.browser_secret, "code", |_| Err::<String, _>(
+                rejected()
+            ))
+            .await
+            .is_err(),
+    );
     task.abort();
 }
 
@@ -595,18 +580,35 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
+        scim: false,
         client_secret: None,
         users: vec![config.workloads.remove(0).identity],
         groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example", LoginReturn::Token).await.unwrap();
-    let first = state.finish("example", &start.state, &start.browser_secret, "invalid");
-    let concurrent = state.finish("example", &start.state, &start.browser_secret, "invalid");
+    let first = state.finish("example", &start.state, &start.browser_secret, "invalid", |_| {
+        Err::<String, _>(rejected())
+    });
+    let concurrent =
+        state.finish("example", &start.state, &start.browser_secret, "invalid", |_| {
+            Err::<String, _>(rejected())
+        });
     let (first, concurrent) = tokio::join!(first, concurrent);
     assert!(first.is_err());
     assert!(concurrent.is_err());
-    assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
+    assert!(
+        state
+            .finish(
+                "example",
+                &start.state,
+                &start.browser_secret,
+                "invalid",
+                |_| Err::<String, _>(rejected())
+            )
+            .await
+            .is_err(),
+    );
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
     assert!(
         state.browser.sessions
@@ -622,6 +624,7 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
+        scim: false,
         client_secret: None,
         users: vec![config.workloads.remove(0).identity],
         groups: None,
@@ -635,7 +638,18 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     }
     assert_eq!(state.attempts.lock().unwrap().len(), super::MAX_ENTRIES);
     let permits = state.exchanges.try_acquire_many(16).unwrap();
-    assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
+    assert!(
+        state
+            .finish(
+                "example",
+                &start.state,
+                &start.browser_secret,
+                "invalid",
+                |_| Err::<String, _>(rejected())
+            )
+            .await
+            .is_err(),
+    );
     assert_eq!(*provider.token_requests.lock().unwrap(), 0);
     drop(permits);
     let query: HashMap<_, _> = Url::parse(&start.url)
@@ -645,7 +659,12 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
         .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
-    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    state
+        .finish("example", &start.state, &start.browser_secret, "code", |_| {
+            Err::<String, _>(rejected())
+        })
+        .await
+        .unwrap();
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
     task.abort();
 }
@@ -676,6 +695,7 @@ fn groups(grants: &[(&str, &str)]) -> OidcGroups {
 #[test]
 fn a_groups_claim_grants_the_teams_of_the_groups_it_lists() {
     let login = OidcLogin {
+        scim: false,
         client_secret: None,
         users: Vec::new(),
         groups: Some(groups(&[("eng", "platform"), ("eng", "release"), ("ops", "ops")])),
@@ -716,6 +736,7 @@ fn a_handoff_code_redeems_its_session_once() {
 fn empty_client_secret_is_rejected() {
     let mut config = config("https://issuer.example");
     config.login = Some(OidcLogin {
+        scim: false,
         client_secret: Some("   ".to_string()),
         users: vec![OidcBinding {
             subject: "user-1".to_string(),
@@ -731,3 +752,5 @@ fn empty_client_secret_is_rejected() {
 }
 
 mod password_cleanup;
+
+mod browser_login;

@@ -491,3 +491,48 @@ registries:
             .references_owners(),
     );
 }
+
+#[test]
+fn artifact_teams_use_the_selected_registry_directory() {
+    let yaml = "storage: ./s
+registries:
+  local:
+    type: hosted
+    teams:
+      builders: {name: builders, members: [account-one]}
+  other:
+    type: hosted
+    namespace: other
+    teams:
+      builders: {name: builders, members: [account-two]}
+artifacts:
+  enabled: true
+  owners:
+    example:
+      access: team:local:builders
+      publish: team:local:builders
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let policy = &config.features.artifacts.owners["example"];
+    assert!(policy.access.allows(&Identity::user("account-one")));
+    assert!(!policy.access.allows(&Identity::user("account-two")));
+    let directory = &config.routing.hosted["local"].teams;
+    let mut teams = (*directory.snapshot()).clone();
+    teams.get_mut("builders").unwrap().members = ["account-two".to_string()].into();
+    directory.replace(teams);
+    assert!(!policy.publish.allows(&Identity::user("account-one")));
+    assert!(policy.publish.allows(&Identity::user("account-two")));
+    let session = Identity::account_member(
+        "account-three",
+        "example",
+        vec![pnpr_policy::Membership {
+            directory: directory.clone(),
+            team_id: "builders".to_string(),
+        }],
+    );
+    assert!(policy.access.allows(&session));
+    for reference in ["team:builders", "team:missing:builders", "team:local:missing", "$owners"] {
+        let invalid = yaml.replace("team:local:builders", reference);
+        assert!(Config::from_yaml_str(&invalid, Path::new("/x"), listen(), None).is_err());
+    }
+}

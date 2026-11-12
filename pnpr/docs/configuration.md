@@ -845,10 +845,14 @@ artifacts:
   - its [pipeline run records](pipeline-runs.md).
 
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
-  signed-in account. Teams are declared per registry, so `team:` entries are
-  refused here. Publishing also requires `access`. An empty list denies
+  signed-in account. Use `team:<registry>:<teamId>` for a hosted registry's team,
+  for example `team:local:builders`. The registry key and team ID must exist
+  in the config. These rules follow live team roster updates and OIDC session
+  grants for that registry. The team API refuses to delete a team while an
+  artifact owner rule references it. Publishing also requires `access`. An empty list denies
   everyone. An owner nobody may read is invisible: requests for it answer
   as if it did not exist. An undeclared owner is unavailable.
+  See [Access evaluation](access.md) for how these rules combine with authentication.
   `owners` is read even when `enabled` is false, for a server that only stores
   pipeline runs.
 

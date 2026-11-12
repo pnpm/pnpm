@@ -47,23 +47,31 @@ impl AccessSpec {
     /// become a grant to nobody. The returned error is the reason only; the
     /// caller prefixes the registry/field context it alone knows.
     pub(super) fn to_access_list(&self, teams: &TeamDirectory) -> Result<AccessList, String> {
-        let declared = teams.snapshot();
+        self.to_access_list_resolving(|team| Ok((team.to_string(), teams.clone())))
+    }
+
+    pub(super) fn to_access_list_resolving(
+        &self,
+        resolve: impl Fn(&str) -> Result<(String, TeamDirectory), String>,
+    ) -> Result<AccessList, String> {
         let mut tokens = Vec::with_capacity(self.entries().len());
         for entry in self.entries() {
-            validate_access_token(entry)?;
-            tokens.push(match entry.strip_prefix("team:") {
-                Some(team) if declared.contains_key(team) => {
-                    AccessToken::Team { id: team.to_string(), directory: teams.clone() }
-                }
-                Some(_) => {
+            let token = if let Some(reference) = entry.strip_prefix("team:") {
+                let (id, directory) = resolve(reference)?;
+                validate_access_token(&format!("team:{id}"))?;
+                let declared = directory.snapshot();
+                if !declared.contains_key(&id) {
                     return Err(format!(
-                        "access token {entry:?} references a team this registry does not \
-                         declare{}",
+                        "access token {entry:?} references a team this registry does not declare{}",
                         declared_teams(&declared),
                     ));
                 }
-                None => AccessToken::from(entry.as_str()),
-            });
+                AccessToken::Team { id, directory }
+            } else {
+                validate_access_token(entry)?;
+                AccessToken::from(entry.as_str())
+            };
+            tokens.push(token);
         }
         Ok(AccessList::new(tokens))
     }

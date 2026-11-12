@@ -9,7 +9,7 @@ mod web_ui;
 
 use super::{
     PeerAddr,
-    authentication::{bearer_credentials, token_credentials},
+    authentication::token_credentials,
     restrictions::{cidr_contains, cidr_whitelist_allows, is_write_request},
     router_with_auth, tilde_registry,
 };
@@ -159,15 +159,6 @@ fn token_credentials_accepts_every_client_token_shape() {
     assert_eq!(token_credentials(&basic("alice:")), None);
     assert_eq!(token_credentials("Basic not-base64!"), None);
     assert_eq!(token_credentials("Digest abc"), None);
-}
-
-#[test]
-fn bearer_credentials_extracts_only_bearer_tokens() {
-    assert_eq!(bearer_credentials("Bearer abc123"), Some("abc123"));
-    assert_eq!(bearer_credentials("bearer abc123"), Some("abc123")); // case-insensitive
-    assert_eq!(bearer_credentials("  Bearer   abc123  "), Some("abc123"));
-    assert_eq!(bearer_credentials("Basic dXNlcjpwYXNz"), None);
-    assert_eq!(bearer_credentials("abc123"), None);
 }
 
 // ---------------------------------------------------------------

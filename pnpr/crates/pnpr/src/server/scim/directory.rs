@@ -40,6 +40,7 @@ pub(super) struct ScimTracker {
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
     active_by_id: RwLock<BTreeMap<String, bool>>,
+    pub(super) subjects: RwLock<super::subjects::SubjectDirectory>,
     tracker: Mutex<ScimTracker>,
     /// Set by a failed read of the directory, cleared by the next successful
     /// read.
@@ -52,6 +53,12 @@ impl ScimState {
     }
 
     fn apply_statuses(&self, state: &AppState, statuses: &[ScimStatus]) {
+        let mut subjects = self.subjects.write().unwrap_or_else(PoisonError::into_inner);
+        for status in statuses {
+            if subjects.apply(status) {
+                state.inner.identity.oidc.revoke_user_sessions(&status.user_id);
+            }
+        }
         if !statuses.is_empty() {
             let mut active_by_id =
                 self.active_by_id.write().unwrap_or_else(PoisonError::into_inner);
@@ -364,3 +371,6 @@ pub(super) async fn deprovision(state: &AppState, user_id: &str) -> Result<(), R
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

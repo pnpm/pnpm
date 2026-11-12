@@ -41,6 +41,9 @@ Create the account with `pnpr add-user` or SCIM before binding it. There is no
 automatic account creation or linking by email or username. Renaming the
 account does not change the binding. A deleted account ID cannot sign in.
 
+For SCIM-provisioned accounts, [enable `login.scim`](scim.md#sign-in-through-oidc)
+to bind subjects without per-user configuration.
+
 ### Teams from groups
 
 A signed-in session can also join teams through the groups your identity
@@ -228,7 +231,8 @@ Every block rejects unknown keys.
 | `issuer` | yes | The provider's issuer URL. |
 | `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |
 | `login.clientSecret` | no | Client secret for browser sign-in. Omit for public clients with PKCE. |
-| `login.users` | yes, with `login` | Bindings of `subject`, `userId`, and optional `claims`. |
+| `login.users` | unless `login.scim` is true | Bindings of `subject`, `userId`, and optional `claims`. |
+| `login.scim` | no | Match the verified `sub` to a provisioned SCIM `externalId`. Requires `auth.scim`; only one provider may enable it. Mutually exclusive with nonempty `login.users`. |
 | `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
 | `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `teamId`. See [Teams from groups](#teams-from-groups). |
 | `workloads[].identity` | yes | A binding of `subject`, `userId`, and optional `claims`. |
@@ -262,3 +266,5 @@ callbacks perform network operations concurrently.
 
 pnpr omits OIDC callback query strings from its request logs. Configure reverse
 proxies to omit them too.
+
+See [Access evaluation](access.md) for how sessions, personal tokens, teams, and package rules combine.

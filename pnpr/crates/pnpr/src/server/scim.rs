@@ -6,10 +6,12 @@
 //! Deactivation revokes credentials; deletion also frees the login name.
 
 pub(super) use directory::{ScimState, is_deprovisioned, reload_directory};
+pub(super) use subjects::{resolve_subject, validate_oidc};
 
 mod directory;
 mod discovery;
 mod resources;
+mod subjects;
 #[cfg(test)]
 mod tests;
 

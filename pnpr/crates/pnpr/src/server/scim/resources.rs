@@ -48,18 +48,18 @@ pub(super) fn parse_user(body: &Value) -> Result<(String, ScimUser), RegistryErr
         .get("active")
         .map(parse_active)
         .unwrap_or(Ok(true))?;
-    let attributes = object
+    let mut attributes = object
         .iter()
         .filter(|(key, _)| !MANAGED_ATTRIBUTES.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
+    normalize_external_id(&mut attributes)?;
     Ok((username.to_string(), ScimUser { username: username.to_string(), active, attributes }))
 }
 
 /// Apply a `PatchOp` body to `user`. `active` and top-level or `name.*`
 /// attributes change. Operations on a filtered path such as
-/// `emails[type eq "work"].value` are accepted and ignored, because pnpr
-/// reads no attribute but `active`.
+/// `emails[type eq "work"].value` are accepted and ignored.
 pub(super) fn apply_patch(user: &mut ScimUser, body: &Value) -> Result<(), RegistryError> {
     let schemas = body.get("schemas").and_then(Value::as_array);
     if !schemas.is_some_and(|schemas| {
@@ -76,7 +76,7 @@ pub(super) fn apply_patch(user: &mut ScimUser, body: &Value) -> Result<(), Regis
     for operation in operations {
         apply_operation(user, operation)?;
     }
-    Ok(())
+    normalize_external_id(&mut user.attributes)
 }
 
 fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), RegistryError> {
@@ -91,6 +91,7 @@ fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), Registr
             let values = value
                 .and_then(Value::as_object)
                 .ok_or_else(|| invalid("an operation without a path needs an object value"))?;
+            let _ = external_id_key(values)?;
             values
                 .iter()
                 .try_for_each(|(path, value)| set(user, path, Some(value)))
@@ -105,10 +106,7 @@ fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), Registr
 
 /// Set or, with `None`, remove the attribute at `path`.
 fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), RegistryError> {
-    let path = path
-        .strip_prefix(USER_SCHEMA)
-        .map(|rest| rest.trim_start_matches(':'))
-        .unwrap_or(path);
+    let path = user_attribute_path(path);
     if path.contains('[') {
         return Ok(());
     }
@@ -134,6 +132,7 @@ fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), Reg
             reason: format!("{path} cannot be changed through PATCH"),
         });
     }
+    let path = if path.eq_ignore_ascii_case("externalId") { "externalId" } else { path };
     let keys = attribute_keys(path);
     if keys.len() > MAX_PATH_DEPTH {
         return Err(RegistryError::BadRequest {
@@ -217,4 +216,32 @@ pub(super) fn parse_filter(filter: &str) -> Result<String, RegistryError> {
 
 fn invalid(reason: &str) -> RegistryError {
     RegistryError::BadRequest { reason: reason.to_string() }
+}
+
+fn user_attribute_path(path: &str) -> &str {
+    path.strip_prefix(USER_SCHEMA)
+        .map(|rest| rest.trim_start_matches(':'))
+        .unwrap_or(path)
+}
+
+fn external_id_key(attributes: &Map<String, Value>) -> Result<Option<String>, RegistryError> {
+    let mut entries = attributes
+        .iter()
+        .filter(|(key, _)| user_attribute_path(key).eq_ignore_ascii_case("externalId"));
+    let Some((key, value)) = entries.next() else { return Ok(None) };
+    if entries.next().is_some() {
+        return Err(invalid("externalId must appear only once"));
+    }
+    if value.as_str().is_none_or(str::is_empty) {
+        return Err(invalid("externalId must be a nonempty string"));
+    }
+    Ok(Some(key.clone()))
+}
+
+fn normalize_external_id(attributes: &mut Map<String, Value>) -> Result<(), RegistryError> {
+    if let Some(key) = external_id_key(attributes)? {
+        let value = attributes.remove(&key).expect("attribute exists");
+        attributes.insert("externalId".to_string(), value);
+    }
+    Ok(())
 }

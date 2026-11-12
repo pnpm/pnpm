@@ -73,6 +73,8 @@ pub(super) async fn destroy_team_in_roster(
     let canonical = canonical_registry_key(state, registry);
     let _reload = managed.reload.lock().await;
     let rules = state.inner.config.routing.hosted[registry].rules.clone();
+    let directory = state.inner.config.routing.hosted[registry].teams.clone();
+    let owners = state.inner.config.features.artifacts.owners.clone();
     let team_label = name.to_string();
     let result = state
         .inner
@@ -83,6 +85,15 @@ pub(super) async fn destroy_team_in_roster(
                     reason: format!(
                         "team {team_label:?} is named by this registry's `packages:` rules; remove it from the configuration first",
                     ),
+                });
+            }
+            let artifact_reference = owners.values().any(|policy| {
+                policy.access.references_team_in(team_id, &directory)
+                    || policy.publish.references_team_in(team_id, &directory)
+            });
+            if artifact_reference {
+                return Err(RegistryError::AdminConflict {
+                    reason: format!("team {team_label:?} is named by `artifacts.owners`; remove it from the configuration first"),
                 });
             }
             Ok(())
