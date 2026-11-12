@@ -90,6 +90,23 @@ minimumReleaseAgeExclude:
 minimumReleaseAgeExcludePrune: true
 
 overrides:
+  # Keep the @inquirer/* dependencies of the pinned @inquirer/prompts on the
+  # releases before 8.8.0 (see the catalog), which still support Node.js 22.13.
+  '@inquirer/ansi@2': ~2.0.10
+  '@inquirer/checkbox@5': ~5.2.8
+  '@inquirer/confirm@6': ~6.3.5
+  '@inquirer/core@12': ~12.0.6
+  '@inquirer/editor@5': ~5.3.6
+  '@inquirer/expand@5': ~5.1.8
+  '@inquirer/external-editor@3': ~3.0.7
+  '@inquirer/figures@2': ~2.0.10
+  '@inquirer/input@5': ~5.1.9
+  '@inquirer/number@4': ~4.2.6
+  '@inquirer/password@5': ~5.2.5
+  '@inquirer/rawlist@5': ~5.3.8
+  '@inquirer/search@4': ~4.3.6
+  '@inquirer/select@5': ~5.2.8
+  '@inquirer/type@4': ~4.2.1
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
   '@yarnpkg/nm>@yarnpkg/core': 'catalog:'
