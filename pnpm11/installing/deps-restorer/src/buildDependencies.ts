@@ -183,7 +183,10 @@ function addPreviouslyIgnoredBuilds (
 ): IgnoredBuilds | undefined {
   const { opts } = ctx
   if (!opts.modulesFile?.ignoredBuilds?.size) return ignoredBuilds
-  const currentPackages = mergeIntoCurrentLockfile(ctx, depGraph).packages
+  const skippedHoistedTree = ctx.skipPostImportLinking && opts.nodeLinker === 'hoisted'
+  const currentPackages = (skippedHoistedTree && ctx.currentLockfile != null
+    ? ctx.currentLockfile
+    : mergeIntoCurrentLockfile(ctx, depGraph)).packages
   const allIgnoredBuilds = ignoredBuilds ?? new Set()
   for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
     if (currentPackages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, depGraph.allowBuild)) {

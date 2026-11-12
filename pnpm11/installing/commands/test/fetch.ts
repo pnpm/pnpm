@@ -563,9 +563,11 @@ test('fetch with nodeLinker=hoisted preserves existing hoistedLocations and igno
     strictDepBuilds: false,
   })
 
+  const allowBuilds = { '@pnpm.e2e/pre-and-postinstall-scripts-example': true }
+
   await fetch.handler({
     ...DEFAULT_OPTIONS,
-    allowBuilds: {},
+    allowBuilds,
     cacheDir,
     dir: project.dir(),
     nodeLinker: 'hoisted',
@@ -574,6 +576,7 @@ test('fetch with nodeLinker=hoisted preserves existing hoistedLocations and igno
 
   project.storeHas('is-positive')
   expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/is-positive'))).toBe(false)
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(false)
   const modulesAfterFetch = project.readModulesManifest()
   expect(modulesAfterFetch?.hoistedLocations).toStrictEqual(modulesBeforeFetch?.hoistedLocations)
   expect(Array.from(modulesAfterFetch?.ignoredBuilds ?? [])).toStrictEqual([
@@ -582,7 +585,7 @@ test('fetch with nodeLinker=hoisted preserves existing hoistedLocations and igno
 
   await install.handler({
     ...DEFAULT_OPTIONS,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    allowBuilds,
     cacheDir,
     dir: project.dir(),
     frozenLockfile: true,

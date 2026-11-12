@@ -190,14 +190,16 @@ pub(crate) fn modules_layout_consistent_with(
     node_linker: NodeLinker,
 ) -> bool {
     // A `virtualStoreOnly` install (`pnpm fetch`) forces empty hoist
-    // patterns; neither `fetch` nor the follow-up install must read that
+    // patterns; neither the follow-up install nor a hoisted `fetch`
+    // (which leaves `node_modules` untouched) must read that forced
     // difference as layout drift and purge `node_modules`.
     // Patterns compare normalized (upstream's `?? []`): `None` and an
     // empty list are the same disabled state, so the pair must not read
     // as layout drift — a purge every install for `hoistPattern: []`
     // projects, and a spurious `*_DIFF` error for `add` / `remove`.
+    let skips_hoisted_tree = config.virtual_store_only && node_linker == NodeLinker::Hoisted;
     let hoist_patterns_match = modules.virtual_store_only == Some(true)
-        || config.virtual_store_only
+        || skips_hoisted_tree
         || (normalized_pattern(modules.hoist_pattern.as_deref())
             == normalized_pattern(config.hoist_pattern.as_deref())
             && normalized_pattern(modules.public_hoist_pattern.as_deref())

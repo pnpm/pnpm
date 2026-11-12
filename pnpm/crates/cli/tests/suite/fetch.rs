@@ -540,12 +540,26 @@ fn fetch_under_hoisted_preserves_existing_hoisted_locations_and_ignored_builds()
         .assert()
         .success();
 
+    fs::write(
+        &yaml_path,
+        format!("{base_yaml}nodeLinker: hoisted\nallowBuilds:\n  '{BUILT_DEP}': true\n"),
+    )
+    .expect("approve build in pnpm-workspace.yaml");
+
     pacquet_at(&workspace)
         .with_arg("fetch")
         .assert()
         .success();
 
     assert!(!workspace.join("node_modules/is-positive").exists());
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join(BUILT_DEP)
+            .join("generated-by-postinstall.js")
+            .exists(),
+        "hoisted fetch must not build an existing package on disk",
+    );
     let modules_after_fetch = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
         &workspace.join("node_modules"),
     )
@@ -554,11 +568,6 @@ fn fetch_under_hoisted_preserves_existing_hoisted_locations_and_ignored_builds()
     assert_eq!(modules_after_fetch.hoisted_locations, modules_before_fetch.hoisted_locations);
     assert_eq!(modules_after_fetch.ignored_builds, modules_before_fetch.ignored_builds);
 
-    fs::write(
-        &yaml_path,
-        format!("{base_yaml}nodeLinker: hoisted\nallowBuilds:\n  '{BUILT_DEP}': true\n"),
-    )
-    .expect("approve build in pnpm-workspace.yaml");
     pacquet_at(&workspace)
         .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()

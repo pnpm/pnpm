@@ -20,7 +20,7 @@ pub(in super::super) fn refuse_drifted_modules_dir(
             modules_dir: config.modules_dir.display().to_string(),
         });
     };
-    check_modules_settings_diff(modules, config)?;
+    check_modules_settings_diff(modules, config, node_linker)?;
     // A manifest from before `nodeLinker` existed omits it; those trees are
     // isolated.
     let recorded_linker = modules.node_linker.unwrap_or(ModulesNodeLinker::Isolated);
@@ -38,13 +38,16 @@ pub(in super::super) fn refuse_drifted_modules_dir(
 fn check_modules_settings_diff(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
+    node_linker: NodeLinker,
 ) -> Result<(), InstallError> {
     if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
         return Err(InstallError::VirtualStoreDirMaxLengthDiff);
     }
     // A `virtualStoreOnly` install (`pnpm fetch`) forces empty hoist
-    // patterns; neither `fetch` nor the follow-up install must fail on them.
-    if modules.virtual_store_only != Some(true) && !config.virtual_store_only {
+    // patterns; neither the follow-up install nor a hoisted `fetch` must
+    // fail on them.
+    let skips_hoisted_tree = config.virtual_store_only && node_linker == NodeLinker::Hoisted;
+    if modules.virtual_store_only != Some(true) && !skips_hoisted_tree {
         check_hoist_patterns_diff(modules, config)?;
     }
     check_compatibility(modules, config)

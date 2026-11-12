@@ -152,25 +152,11 @@ pub(super) fn merge_committed_modules_metadata(
     {
         keep_recorded_layout(next_modules, recorded);
     }
-    let skipped_hoisted_tree = inputs.tree.config.virtual_store_only
-        && inputs.tree.node_linker == pnpm_config::NodeLinker::Hoisted;
-    if skipped_hoisted_tree
-        && !inputs.prior.is_inconsistent
-        && let Some(previous) = inputs.prior.metadata
-    {
-        next_modules.hoisted_locations.clone_from(&previous.hoisted_locations);
-        next_modules.injected_deps.clone_from(&previous.injected_deps);
-    }
+    let retention = preserve_skipped_hoisted_tree_metadata(inputs, next_modules);
     if let (Some(previous), Some(current), Some(policy)) =
         (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)
     {
-        retain_current_ignored_builds(
-            next_modules,
-            previous,
-            current,
-            policy,
-            skipped_hoisted_tree,
-        );
+        retain_current_ignored_builds(next_modules, previous, current, policy, retention);
     }
     if inputs.prior.filtered_install
         && !inputs.prior.is_inconsistent
@@ -179,6 +165,27 @@ pub(super) fn merge_committed_modules_metadata(
     {
         merge_filtered_modules_metadata(next_modules, previous, current, selected);
     }
+}
+
+fn preserve_skipped_hoisted_tree_metadata(
+    inputs: &CommitModulesStateInputs<'_>,
+    next_modules: &mut Modules,
+) -> IgnoredBuildRetention {
+    if !inputs.tree.config.virtual_store_only
+        || inputs.tree.node_linker != pnpm_config::NodeLinker::Hoisted
+    {
+        return IgnoredBuildRetention::SettledByBuildPhase;
+    }
+    if !inputs.prior.is_inconsistent {
+        if let Some(recorded) = inputs.prior.layout {
+            next_modules.included = recorded.included;
+        }
+        if let Some(previous) = inputs.prior.metadata {
+            next_modules.hoisted_locations.clone_from(&previous.hoisted_locations);
+            next_modules.injected_deps.clone_from(&previous.injected_deps);
+        }
+    }
+    IgnoredBuildRetention::DeferredByHoistedFetch
 }
 /// Stamp `prunedAt` only when the sweep ran (or there was no prior
 /// `.modules.yaml`); otherwise preserve the recorded timestamp so
@@ -354,18 +361,26 @@ pub(super) fn save_relinked_wanted_lockfile(
     }
     Ok(())
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum IgnoredBuildRetention {
+    SettledByBuildPhase,
+    DeferredByHoistedFetch,
+}
+
 pub(super) fn retain_current_ignored_builds(
     next: &mut Modules,
     previous: &pnpm_modules_yaml::ModulesLayout,
     current: &Lockfile,
     allow_build_policy: &crate::AllowBuildPolicy,
-    defer_hoisted_builds: bool,
+    retention: IgnoredBuildRetention,
 ) {
     let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
     for dep_path in previous_ignored {
         let decision = allow_build_policy.check(dep_path.as_str());
-        let still_unbuilt =
-            if defer_hoisted_builds { decision != Some(false) } else { decision.is_none() };
+        let still_unbuilt = match retention {
+            IgnoredBuildRetention::SettledByBuildPhase => decision.is_none(),
+            IgnoredBuildRetention::DeferredByHoistedFetch => decision != Some(false),
+        };
         if current_contains_ignored_build(current, dep_path.as_str()) && still_unbuilt {
             next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
         }

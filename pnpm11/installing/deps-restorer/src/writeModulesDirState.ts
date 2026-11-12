@@ -29,8 +29,12 @@ export async function writeModulesDirState (ctx: HeadlessContext, depGraph: Head
   if (!ctx.skipPostImportLinking && !opts.ignorePackageManifest) {
     await linkBinsOfImporters(ctx, depGraph, outcome)
   }
+  const skippedHoistedTree = ctx.skipPostImportLinking && opts.nodeLinker === 'hoisted'
+  const nextCurrentLockfile = skippedHoistedTree && ctx.currentLockfile != null
+    ? ctx.currentLockfile
+    : mergeIntoCurrentLockfile(ctx, depGraph)
   await writeModulesManifestOfInstall(ctx, depGraph, outcome)
-  await writeLockfilesOfInstall(ctx, mergeIntoCurrentLockfile(ctx, depGraph))
+  await writeLockfilesOfInstall(ctx, nextCurrentLockfile)
 }
 
 const mergedCurrentLockfiles = new WeakMap<HeadlessDepGraph, LockfileObject>()
@@ -131,7 +135,7 @@ async function writeModulesManifestOfInstall (ctx: HeadlessContext, depGraph: He
   await writeModulesManifest(ctx.rootModulesDir, {
     hoistedDependencies: outcome.newHoistedDependencies!,
     hoistPattern: opts.hoistPattern,
-    included: opts.include,
+    included: skippedHoistedTree && opts.modulesFile != null ? opts.modulesFile.included : opts.include,
     injectedDeps,
     ignoredBuilds: outcome.ignoredBuilds,
     layoutVersion: LAYOUT_VERSION,

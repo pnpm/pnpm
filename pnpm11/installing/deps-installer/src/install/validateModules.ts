@@ -102,11 +102,12 @@ function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptio
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }
-  // virtualStoreOnly installs (e.g. `pnpm fetch`) force empty hoist patterns
-  // into .modules.yaml; neither fetch nor the follow-up install must purge.
+  // virtualStoreOnly installs (e.g. `pnpm fetch`) force empty hoist patterns.
+  // Neither the follow-up install nor a hoisted `fetch` (which leaves
+  // `node_modules` untouched) must purge over that forced difference.
   if (
     !modules.virtualStoreOnly &&
-    !opts.virtualStoreOnly &&
+    !skipsHoistedTree(opts) &&
     !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
   ) {
     return new PnpmError(
@@ -173,8 +174,12 @@ function needsPurge (check: () => void, canPurge: boolean): boolean {
   }
 }
 
+function skipsHoistedTree (opts: ValidateModulesOptions): boolean {
+  return Boolean(opts.virtualStoreOnly && opts.nodeLinker === 'hoisted')
+}
+
 function checkHoistPattern (modules: Modules, opts: ValidateModulesOptions): void {
-  if (modules.virtualStoreOnly || opts.virtualStoreOnly || equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) return
+  if (modules.virtualStoreOnly || skipsHoistedTree(opts) || equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) return
   throw new PnpmError(
     'HOIST_PATTERN_DIFF',
     'This modules directory was created using a different hoist-pattern value.' +
