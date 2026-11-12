@@ -25,6 +25,7 @@ impl MachineSettings {
             ci: Some(config.ci),
             state_dir: Some(path(&config.state_dir)),
             scope: config.scope.clone(),
+            editor: config.editor.clone(),
             // Reported as the user set them; see
             // `WorkspaceSettings::with_resolved_paths`.
             global_dir: as_set(config, "globalDir"),
