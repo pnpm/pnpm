@@ -33,14 +33,6 @@ impl Umask {
 
     /// The bits as the platform's `mode_t`, for a caller that makes the
     /// `umask` call itself.
-    ///
-    /// # Panics
-    ///
-    /// If the value holds a bit above the permission triples, which
-    /// [`Umask::from_mask`] makes impossible. The conversion is written
-    /// fallibly so that a constructor added later without that masking
-    /// fails here, rather than truncating in silence on a platform whose
-    /// `mode_t` is a `u16`.
     #[cfg(unix)]
     #[must_use]
     pub fn narrow(self) -> libc::mode_t {
