@@ -1229,7 +1229,8 @@ snapshots:
       provider: link:packages/provider
 ",
     ));
-    written_and_read(&lockfile);
+    let (_, restored) = written_and_read(&lockfile);
+    written_and_read(&restored);
 }
 
 #[test]

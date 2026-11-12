@@ -8,6 +8,7 @@ use crate::{
     BoundProviders, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
     SnapshotDepRef, SnapshotEntry, split_peer_suffix_segments,
 };
+use pnpm_deps_path::link_path_to_peer_version;
 use std::{
     collections::{HashMap, HashSet},
     sync::OnceLock,
@@ -299,8 +300,16 @@ pub(super) fn binds_reference(
     alias: &PkgName,
     reference: &SnapshotDepRef,
 ) -> bool {
-    providers.is_none_or(|providers| match reference.resolve(alias) {
+    let Some(providers) = providers else { return true };
+    match reference.resolve(alias) {
         Some(target) => providers.binds_snapshot(&target),
-        None => providers.is_hashed() && reference.as_link_target().is_some(),
-    })
+        None => reference
+            .as_link_target()
+            .is_some_and(|path| {
+                providers.is_hashed()
+                    || format!("{alias}@{}", link_path_to_peer_version(path))
+                        .parse()
+                        .is_ok_and(|target| providers.binds_snapshot(&target))
+            }),
+    }
 }
