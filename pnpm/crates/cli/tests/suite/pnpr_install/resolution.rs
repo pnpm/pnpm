@@ -384,6 +384,8 @@ fn update_patches_resolves_locally_when_pnpr_refuses_the_request() {
         .with_arg("install")
         .assert()
         .success();
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     let (server, resolve_mock) = refusing_pnpr_server();
 
     let output = pacquet_at(&workspace)
