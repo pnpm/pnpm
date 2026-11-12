@@ -57,9 +57,16 @@ fn explicit_default_lockfile_dir_does_not_add_frozen_metadata_requests() {
     assert_eq!(explicit, unset, "explicit lockfileDir added frozen-install metadata requests");
 }
 
-fn frozen_install_metadata_requests(explicit_lockfile_dir: bool) -> Vec<(String, Option<String>, u16)> {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_recording_mocked_registry();
+fn frozen_install_metadata_requests(
+    explicit_lockfile_dir: bool,
+) -> Vec<(String, Option<String>, u16)> {
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_recording_mocked_registry();
     let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
     let manifest = serde_json::json!({
         "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.1.0" }
