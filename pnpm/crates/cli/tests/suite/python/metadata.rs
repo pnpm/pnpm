@@ -567,6 +567,6 @@ fn a_virtual_workspace_root_leaves_its_requirements_and_environment_alone() {
         .assert()
         .success();
     assert!(member.join(".venv").exists());
-    assert_eq!(fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(), "preserve",);
+    assert_eq!(fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(), "preserve");
     assert!(!root.path().join("pylock.toml").exists());
 }
