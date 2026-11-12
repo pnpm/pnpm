@@ -146,7 +146,7 @@ function pickMissingPeerSpec (
   return pickPreferredPeerSpec(preferredSelectors, {
     autoInstallPeers: opts.autoInstallPeers,
     lockfileOnlyVersions: opts.lockfileOnlyVersions?.get(peerName),
-    lockedVersions: opts.isUpdateTarget?.(peerName) ? undefined : opts.lockedVersions?.get(peerName),
+    getLockedVersions: () => opts.isUpdateTarget?.(peerName) ? undefined : opts.lockedVersions?.get(peerName),
     range,
   })
 }
@@ -157,7 +157,7 @@ function isRegistryPeerSpecifier (range: string): boolean {
 
 function pickPreferredPeerSpec (
   preferredSelectors: VersionSelectors,
-  { autoInstallPeers, lockfileOnlyVersions, lockedVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, lockedVersions?: Set<string>, range: string }
+  { autoInstallPeers, lockfileOnlyVersions, getLockedVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, getLockedVersions: () => Set<string> | undefined, range: string }
 ): string | undefined {
   const nonVersions = getNonVersionSelectors(preferredSelectors)
   // Dedupe onto a preferred version only when it actually satisfies the
@@ -171,7 +171,7 @@ function pickPreferredPeerSpec (
   const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
   if (isSemverRange) {
     const satisfyingVersion = pickProviderVersion(preferredSelectors, {
-      tiers: getRequiredPeerTiers(preferredSelectors, { lockfileOnly: lockfileOnlyVersions, locked: lockedVersions }),
+      tiers: getRequiredPeerTiers(preferredSelectors, { lockfileOnly: lockfileOnlyVersions, getLockedVersions }),
       qualifies: (version) => semver.satisfies(version, rangeForMatch, { includePrerelease: true }),
     })
     if (satisfyingVersion) {
@@ -207,13 +207,14 @@ function getOptionalPeerTiers (
 }
 
 /** Current providers first, then the importer's recorded peer pins. */
-function getRequiredPeerTiers (
+function * getRequiredPeerTiers (
   selectors: VersionSelectors,
-  { lockfileOnly, locked = new Set() }: { lockfileOnly?: Set<string>, locked?: Set<string> }
-): Array<Set<string>> {
-  if (lockfileOnly == null) return []
-  const resolved = new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))
-  return [resolved, locked]
+  { lockfileOnly, getLockedVersions }: { lockfileOnly?: Set<string>, getLockedVersions: () => Set<string> | undefined }
+): Iterable<Set<string>> {
+  if (lockfileOnly == null) return
+  yield new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))
+  const locked = getLockedVersions()
+  if (locked != null) yield locked
 }
 
 /**
@@ -223,7 +224,7 @@ function getRequiredPeerTiers (
  */
 function pickProviderVersion (
   selectors: VersionSelectors,
-  { tiers = [], qualifies }: { tiers?: Array<Set<string>>, qualifies: (version: string) => boolean }
+  { tiers = [], qualifies }: { tiers?: Iterable<Set<string>>, qualifies: (version: string) => boolean }
 ): string | undefined {
   for (const tier of tiers) {
     const picked = pickHighestVersion(selectors, { tier, qualifies })

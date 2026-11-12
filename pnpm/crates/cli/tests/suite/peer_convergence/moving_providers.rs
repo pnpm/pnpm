@@ -556,3 +556,79 @@ fn check_required_peer_pins(bundle: Option<&OsStr>, format: &str) {
     let repeated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     assert_eq!(changed, repeated, "{bundle:?}, {format}");
 }
+
+#[test]
+fn specifier_changes_and_updates_release_required_peer_pins() {
+    for update in [false, true] {
+        if let Some(bundle) = read_v11_bundle_path() {
+            check_changed_consumer_pin(Some(&bundle), ("v9", update));
+        }
+        for format in ["v9", "v13"] {
+            check_changed_consumer_pin(None, (format, update));
+        }
+    }
+}
+
+fn check_changed_consumer_pin(bundle: Option<&OsStr>, (format, update): (&str, bool)) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"consumer","version":"1.0.0","peerDependencies":{"provider":"*"}}),
+            json!({"name":"provider","version":"1.0.0"}),
+            json!({"name":"provider","version":"2.0.0"}),
+            json!({"name":"other","version":"1.0.0","dependencies":{"provider":"2.0.0"}}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: true\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: false\nlockfile:\n  format: {format}\n"));
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps {
+            prod: &[("consumer", "1.0.0"), ("provider", "1.0.0"), ("other", "1.0.0")],
+            ..Default::default()
+        },
+    );
+    install_lockfile(&fixture, bundle);
+    let initial = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    let consumer_name = "consumer".parse().unwrap();
+    assert_eq!(
+        initial.importers["."].dependencies.as_ref().unwrap()[&consumer_name]
+            .version
+            .resolved_key(&consumer_name)
+            .unwrap()
+            .to_string(),
+        "consumer@1.0.0(provider@1.0.0)",
+        "{bundle:?}, {format}",
+    );
+
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps {
+            prod: &[("consumer", if update { "1.0.0" } else { "^1.0.0" })],
+            ..Default::default()
+        },
+    );
+    if update {
+        let args = ["update", "provider", "--depth", "100", "--lockfile-only"];
+        let output = match bundle {
+            Some(bundle) => fixture.v11_command_at(bundle, &fixture.workspace, args),
+            None => fixture.command_at(&fixture.workspace, args),
+        };
+        assert_success(&output);
+    } else {
+        install_lockfile(&fixture, bundle);
+    }
+    let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    let alias = "consumer".parse().unwrap();
+    let key = changed.importers["."].dependencies.as_ref().unwrap()[&alias]
+        .version
+        .resolved_key(&alias)
+        .unwrap();
+    let provider_name = "provider".parse().unwrap();
+    let provider = changed.snapshots.as_ref().unwrap()[&key].dependencies.as_ref().unwrap()
+        [&provider_name]
+        .resolve(&provider_name)
+        .unwrap();
+    assert_eq!(provider.without_peer().to_string(), "provider@2.0.0", "{bundle:?}, {format}");
+}

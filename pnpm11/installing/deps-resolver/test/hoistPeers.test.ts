@@ -662,3 +662,15 @@ test.each([
     workspaceRootDeps: [],
   }, [['peer', { range }]])).toEqual({ peer: expected })
 })
+
+test('required peers do not read importer pins when a current provider satisfies the range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: { peer: { '1.0.0': 'version', latest: 'tag' } },
+    lockfileOnlyVersions: new Map(),
+    get lockedVersions (): never {
+      throw new Error('unexpected importer pin lookup')
+    },
+    workspaceRootDeps: [],
+  }, [['peer', { range: '*' }]])).toEqual({ peer: '1.0.0 || latest' })
+})
