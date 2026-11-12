@@ -81,9 +81,11 @@ fn resolve_edit_target(state: &State, parts: &[String]) -> miette::Result<(PathB
         }
     }
     let lockfile = state.lockfile.get().map_err(miette::Report::new)?;
+    let virtual_store_dir = dunce::canonicalize(state.config.virtual_store_dir())
+        .unwrap_or_else(|_| state.config.virtual_store_dir().to_path_buf());
     let rebuild_selection = package_rebuild_selection(
         &package_dir,
-        state.config.virtual_store_dir(),
+        &virtual_store_dir,
         state.config.virtual_store_dir_max_length as usize,
         lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
     )?;

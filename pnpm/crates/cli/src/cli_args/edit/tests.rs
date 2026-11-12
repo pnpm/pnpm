@@ -1,6 +1,6 @@
 use super::{
-    de_hardlink_dir, find_installed_snapshot_key, parse_package_path, resolve_package_dir,
-    split_shell_args,
+    de_hardlink_dir, find_installed_snapshot_key, package_rebuild_selection, parse_package_path,
+    resolve_package_dir, split_shell_args,
 };
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -94,6 +94,35 @@ fn rebuild_selection_matches_the_exact_scoped_peer_snapshot() {
     .unwrap();
 
     assert_eq!(selected, &peer_key);
+}
+
+#[cfg(unix)]
+#[test]
+fn rebuild_selection_matches_a_package_through_a_symlinked_virtual_store() {
+    let tmp = tempdir().unwrap();
+    let virtual_store_dir = tmp.path().join("project/node_modules/.pnpm");
+    let key = "@scope/foo@1.2.3(bar@2.0.0)".parse::<pnpm_lockfile::PackageKey>().unwrap();
+    let package_dir = virtual_store_dir
+        .join(key.to_virtual_store_name(120))
+        .join("node_modules/@scope/foo");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(package_dir.join("package.json"), r#"{"name":"@scope/foo"}"#).unwrap();
+    let alias = tmp.path().join("virtual-store");
+    std::os::unix::fs::symlink(&virtual_store_dir, &alias).unwrap();
+    let canonical_virtual_store_dir = dunce::canonicalize(alias).unwrap();
+    let snapshots =
+        std::collections::HashMap::from([(key.clone(), pnpm_lockfile::SnapshotEntry::default())]);
+
+    assert_eq!(
+        package_rebuild_selection(
+            &dunce::canonicalize(package_dir).unwrap(),
+            &canonical_virtual_store_dir,
+            120,
+            Some(&snapshots),
+        )
+        .unwrap(),
+        [key.to_string()],
+    );
 }
 
 #[cfg(unix)]
