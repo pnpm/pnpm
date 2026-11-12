@@ -814,3 +814,36 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
         );
     }
 }
+
+#[test]
+fn recorded_hashed_pins_match_explicit_pins() {
+    use pnpm_deps_path::PeerId;
+    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+
+    for snapshot in [
+        SnapshotEntry::default(),
+        snapshot_with_dependencies([
+            ("first", alias_dependency("provider@1.0.0(nested@2.0.0)")),
+            ("second", alias_dependency("provider@1.0.0(nested@2.0.0)")),
+        ]),
+    ] {
+        let peers = vec![
+            PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into()),
+            PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into()),
+        ];
+        let versions = |max_length| {
+            let key = format!("consumer@1.0.0{}", PeerBindings::suffix_of(&peers, max_length));
+            let mut snapshot = snapshot.clone();
+            snapshot.recorded_peer_bindings =
+                RecordedPeerBindings::for_dep_path(&key.clone().into(), &peers);
+            let lockfile = peer_context_lockfile(
+                Some(("consumer@1.0.0", peer_declaring_metadata(["first", "second"]))),
+                [(&key, snapshot)],
+            );
+            importer_locked_peer_versions(Some(&lockfile), "missing-importer", |_| true)
+        };
+        let explicit = versions(1000);
+        assert!(!explicit.is_empty());
+        assert_eq!(versions(3), explicit);
+    }
+}

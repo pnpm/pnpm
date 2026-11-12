@@ -195,12 +195,18 @@ fn locked_peer_keys(
     let metadata = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&key.without_peer()));
-    let peers: Vec<pnpm_lockfile::PkgNameVerPeer> = match PeerBindings::from_key(key) {
-        None => return Vec::new(),
-        Some(PeerBindings::Hashed) => {
-            return hashed_peer_keys(lockfile, key, snapshot, metadata, bound_cache);
-        }
-        Some(bindings) => bindings.providers().collect(),
+    let recorded = snapshot
+        .and_then(|snapshot| snapshot.recorded_peer_bindings.as_ref())
+        .and_then(|bindings| bindings.peer_keys_for(key));
+    let peers = match recorded {
+        Some(peers) => peers.to_vec(),
+        None => match PeerBindings::from_key(key) {
+            None => return Vec::new(),
+            Some(PeerBindings::Hashed) => {
+                return hashed_peer_keys(lockfile, key, snapshot, metadata, bound_cache);
+            }
+            Some(bindings) => bindings.providers().collect(),
+        },
     };
     if peers.is_empty() {
         return Vec::new();

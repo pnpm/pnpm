@@ -409,3 +409,25 @@ fn recorded_bindings_only_describe_the_key_that_created_them() {
         assert!(super::BoundProviders::of_snapshot(entries, &renamed).is_hashed());
     }
 }
+
+#[test]
+fn recorded_peer_keys_preserve_suffix_order_and_duplicate_groups() {
+    use pnpm_deps_path::PeerId;
+    let peers = [
+        PeerId::DepPath("second@2.0.0(nested@3.0.0)".into()),
+        PeerId::DepPath("first@1.0.0".into()),
+        PeerId::DepPath("first@1.0.0".into()),
+    ];
+    let suffix = super::PeerBindings::suffix_of(&peers, 3);
+    let key = format!("consumer@1.0.0{suffix}").parse().unwrap();
+    let bindings = super::RecordedPeerBindings::for_key(&key, &peers).unwrap();
+    let keys: Vec<_> = bindings
+        .peer_keys_for(&key)
+        .unwrap()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(keys, ["first@1.0.0", "first@1.0.0", "second@2.0.0(nested@3.0.0)"]);
+    let renamed = format!("consumer@2.0.0{suffix}").parse().unwrap();
+    assert!(bindings.peer_keys_for(&renamed).is_none());
+}
