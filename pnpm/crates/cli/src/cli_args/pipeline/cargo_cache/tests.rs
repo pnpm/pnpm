@@ -1,4 +1,5 @@
 use super::{CargoCache, prepend_path};
+use Fingerprint::{Invalidated, Kept};
 use std::{collections::BTreeMap, env, fs, path::PathBuf, process::Command};
 
 fn project() -> tempfile::TempDir {
@@ -105,15 +106,22 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
     let entry = cache.path().join("entry");
     let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
     let units = [
-        ("debug/.fingerprint/my-probe-1/bin-probe", true),
-        ("debug/.fingerprint/dep-2/run-build-script-build", true),
-        ("debug/.fingerprint/dep-3/lib-dep", false),
-        ("debug/build/my-probe/4/fingerprint/bin-probe", true),
-        ("debug/build/dep/5/fingerprint/run-build-script-build", true),
-        ("debug/build/dep/6/fingerprint/lib-dep", false),
+        Unit { file: "debug/.fingerprint/my-probe-1/bin-probe", after_restore: Invalidated },
+        Unit {
+            file: "debug/.fingerprint/dep-2/run-build-script-build",
+            after_restore: Invalidated,
+        },
+        Unit { file: "debug/.fingerprint/dep-3/lib-dep", after_restore: Kept },
+        Unit { file: "debug/build/my-probe/4/fingerprint/bin-probe", after_restore: Invalidated },
+        Unit {
+            file: "debug/build/dep/5/fingerprint/run-build-script-build",
+            after_restore: Invalidated,
+        },
+        Unit { file: "debug/build/dep/6/fingerprint/lib-dep", after_restore: Kept },
+        Unit { file: "debug/build/my-probe/7/out/fingerprint/data", after_restore: Kept },
     ];
-    for (file, _) in units {
-        let path = publisher.target.join(file);
+    for unit in &units {
+        let path = publisher.target.join(unit.file);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, "").unwrap();
     }
@@ -122,10 +130,25 @@ fn restore_invalidates_local_units_and_build_script_runs_in_both_layouts() {
         .unwrap();
     let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
-    for (file, invalidated) in units {
-        let fingerprint = consumer.target.join(file);
-        assert_eq!(fingerprint.parent().unwrap().exists(), !invalidated, "{file}");
+    for unit in &units {
+        let fingerprint_dir = consumer.target.join(unit.file);
+        let kept = fingerprint_dir
+            .parent()
+            .unwrap()
+            .exists();
+        assert_eq!(kept, unit.after_restore == Kept, "{}", unit.file);
     }
+}
+
+struct Unit {
+    file: &'static str,
+    after_restore: Fingerprint,
+}
+
+#[derive(PartialEq)]
+enum Fingerprint {
+    Invalidated,
+    Kept,
 }
 
 #[test]
