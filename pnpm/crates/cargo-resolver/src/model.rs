@@ -149,6 +149,26 @@ impl fmt::Display for PackageKey {
     }
 }
 
+/// Error returned when cooperative cancellation aborts Cargo discovery or resolution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CancelError;
+
+impl fmt::Display for CancelError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Cargo resolution cancelled")
+    }
+}
+
+impl std::error::Error for CancelError {}
+
+impl miette::Diagnostic for CancelError {}
+
+pub(crate) fn ensure_not_cancelled(
+    should_cancel: &(dyn Fn() -> bool + Send + Sync),
+) -> miette::Result<()> {
+    if should_cancel() { Err(CancelError.into()) } else { Ok(()) }
+}
+
 const fn default_true() -> bool {
     true
 }

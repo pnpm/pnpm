@@ -23,6 +23,8 @@ mod workspace_links;
 
 mod resolution_order;
 
+mod snapshot_budget;
+
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -298,6 +300,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
                 overrides_hook: None,
                 pnpmfile_hook: None,
             },
+            max_snapshots: None,
         },
         reuse: crate::WorkspaceLockfileReuse {
             lockfile: None,

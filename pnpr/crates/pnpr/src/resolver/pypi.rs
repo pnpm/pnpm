@@ -39,20 +39,21 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use axum::{http::StatusCode, response::Response};
+use axum::response::Response;
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pnpm_python_resolver::{
     IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
-    metadata_url, parse_requirement, validate_url,
+    metadata_url, validate_url,
 };
 use pnpr_pypi::archive::MAX_METADATA_BYTES;
-use pnpr_route::{Footprint, url_has_inline_credentials};
+use pnpr_route::Footprint;
 
 use crate::server::StripedLocks;
 
 use super::{
-    Resolver, json_error, json_error_with_code, package_route::PackageRoute, parse_request,
-    protocol::PypiResolveRequest, request_validation::forbidden_off_allowlist,
+    Resolver,
+    limits::{AdmittedResolve, request_timeout_response},
+    package_route::PackageRoute,
 };
 
 /// How many requirements one request may name. A project's manifest
@@ -94,41 +95,27 @@ const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 pub(super) async fn handle_resolve(
     runtime: &Resolver,
     identity: pnpr_policy::Identity,
-    body: &[u8],
+    body: axum::body::Bytes,
+    deadline: tokio::time::Instant,
+    admitted: AdmittedResolve<'_>,
 ) -> Response {
-    let request: PypiResolveRequest = match parse_request(body) {
-        Ok(request) => request,
+    let validated = match response::validate_request(runtime, body) {
+        Ok(validated) => validated,
         Err(response) => return response,
     };
-    let index = match index_url(&request.index) {
-        Ok(index) => index,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err),
+    let _permit = match admitted.acquire(deadline).await {
+        Ok(permit) => permit,
+        Err(response) => return response,
     };
-    if let Some(response) = reject_unusable_request(runtime, &request, &index) {
-        return response;
+    if tokio::time::Instant::now() >= deadline {
+        return request_timeout_response();
     }
-    let requirements = match request.requirements
-        .iter()
-        .map(|requirement| parse_requirement(requirement))
-        .collect::<miette::Result<Vec<_>>>()
+    match tokio::time::timeout_at(deadline, response::resolve_request(runtime, identity, validated))
+        .await
     {
-        Ok(requirements) => requirements,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &super::report_message(&err)),
-    };
-
-    if requirements
-        .iter()
-        .any(|requirement| {
-            matches!(requirement.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_)))
-        })
-    {
-        return json_error_with_code(
-            StatusCode::BAD_REQUEST,
-            "Python direct URL requirements must be resolved by the client",
-            Some("ERR_PNPR_PYPI_CLIENT_RESOLVE_REQUIRED"),
-        );
+        Ok(response) if tokio::time::Instant::now() < deadline => response,
+        Ok(_) | Err(_) => request_timeout_response(),
     }
-    response::resolve_request(runtime, identity, index, request, requirements).await
 }
 
 type Solved = (BTreeMap<pep508_rs::PackageName, pep440_rs::Version>, Packages);
@@ -497,33 +484,3 @@ fn budget_exhausted(kind: &str) -> String {
 
 #[cfg(test)]
 mod tests;
-
-fn reject_unusable_request(
-    runtime: &Resolver,
-    request: &PypiResolveRequest,
-    index: &url::Url,
-) -> Option<Response> {
-    if url_has_inline_credentials(index.as_str()) {
-        return Some(json_error(
-            StatusCode::BAD_REQUEST,
-            "inline URL credentials (user:pass@host) are not allowed; \
-             configure an upstream credential alias instead",
-        ));
-    }
-    if !runtime.route_context.allows_registry(index.as_str()) {
-        return Some(forbidden_off_allowlist(index.as_str()));
-    }
-    if request.requirements.len() > MAX_REQUIREMENTS {
-        return Some(json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("a resolve request may name at most {MAX_REQUIREMENTS} requirements"),
-        ));
-    }
-    if request.target.tags.len() > MAX_TAGS {
-        return Some(json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("a resolve request may name at most {MAX_TAGS} wheel tags"),
-        ));
-    }
-    None
-}

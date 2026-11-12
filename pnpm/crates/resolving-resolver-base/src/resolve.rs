@@ -513,6 +513,10 @@ pub trait Resolver: Send + Sync {
         query: &'a LatestQuery,
         opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a>;
+
+    /// Notified when the dependency walk reuses a prior lockfile resolution
+    /// without invoking [`Self::resolve`].
+    fn on_reused(&self, _result: &ResolveResult) {}
 }
 
 /// Lets a shared `Arc<dyn Resolver>` occupy a `Box<dyn Resolver>`
@@ -537,6 +541,10 @@ impl Resolver for Arc<dyn Resolver> {
         opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
         (**self).resolve_latest(query, opts)
+    }
+
+    fn on_reused(&self, result: &ResolveResult) {
+        (**self).on_reused(result);
     }
 }
 

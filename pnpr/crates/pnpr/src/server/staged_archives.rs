@@ -17,11 +17,7 @@ use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
 use pnpr_error::RegistryError;
 use pnpr_storage::{BlobId, StagedArchiveKey, Storage};
 use sha2::{Digest as _, Sha512};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use std::collections::HashMap;
 
 /// The most a principal may hold staged at once, across all its archives.
 /// Archives of a release wait here only until its commit, so this is many
@@ -40,56 +36,7 @@ pub(super) const MAX_CONCURRENT_STAGED_UPLOADS: usize = 4;
 
 /// Uploads one principal may have received at once, of the server's
 /// [`MAX_CONCURRENT_STAGED_UPLOADS`].
-const MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL: usize = 2;
-
-/// A semaphore per principal with an upload in flight, bounding how many of
-/// the server's upload permits one principal holds. A principal's entry goes
-/// when its last upload does.
-#[derive(Default)]
-pub(super) struct PrincipalUploads(Mutex<HashMap<String, Arc<Semaphore>>>);
-
-impl PrincipalUploads {
-    /// Wait for one of `principal`'s upload permits.
-    async fn acquire(&self, principal: &str) -> PrincipalUpload<'_> {
-        let semaphore = Arc::clone(
-            self.0
-                .lock()
-                .expect("the principal upload map is never poisoned")
-                .entry(principal.to_string())
-                .or_insert_with(|| {
-                    Arc::new(Semaphore::new(MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL))
-                }),
-        );
-        let permit = Arc::clone(&semaphore)
-            .acquire_owned()
-            .await
-            .expect("a principal's upload semaphore is never closed");
-        PrincipalUpload { uploads: self, principal: principal.to_string(), permit: Some(permit) }
-    }
-}
-
-/// One principal's upload permit, which removes the principal's entry when
-/// it is the last one using it.
-struct PrincipalUpload<'a> {
-    uploads: &'a PrincipalUploads,
-    principal: String,
-    permit: Option<OwnedSemaphorePermit>,
-}
-
-impl Drop for PrincipalUpload<'_> {
-    fn drop(&mut self) {
-        drop(self.permit.take());
-        let mut uploads =
-            self.uploads.0.lock().expect("the principal upload map is never poisoned");
-        // Only the map holds it: no upload is in flight or waiting.
-        if uploads
-            .get(&self.principal)
-            .is_some_and(|semaphore| Arc::strong_count(semaphore) == 1)
-        {
-            uploads.remove(&self.principal);
-        }
-    }
-}
+pub(super) const MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL: usize = 2;
 
 /// The slowest upload rate a staged archive is given time for.
 const MIN_UPLOAD_BYTES_PER_SECOND: u64 = 256 * 1024;

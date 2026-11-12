@@ -1057,6 +1057,7 @@ fn incremental_discovery_asks_for_what_a_full_walk_asks_for() {
     }
 }
 
+mod cancellation;
 mod freshness;
 mod lockfile_features;
 mod missing_features;

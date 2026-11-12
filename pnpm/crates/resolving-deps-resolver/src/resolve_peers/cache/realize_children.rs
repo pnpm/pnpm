@@ -33,8 +33,17 @@ impl Walker<'_> {
         context: &DeferredChildContext<'_>,
     ) -> NodeOutput {
         match self.deferred_child_resolution(context.walk.parent_refs, &context.edge.pkg_id) {
-            DeferredChildResolution::Pure(dep_path) => self.peerless_output(dep_path),
-            DeferredChildResolution::Cached(cached) => cached.output,
+            DeferredChildResolution::Pure(dep_path) => {
+                let mut output = self.peerless_output(dep_path);
+                output.subtree_dep_paths = self.traversal.snapshot_budget
+                    .replay_cached_subtree_for_mode(self.traversal.mode, &output.dep_path);
+                output
+            }
+            DeferredChildResolution::Cached(mut cached) => {
+                cached.output.subtree_dep_paths = self.traversal.snapshot_budget
+                    .replay_cached_subtree_for_mode(self.traversal.mode, &cached.output.dep_path);
+                cached.output
+            }
             DeferredChildResolution::Materialize(pkg_id) => {
                 self.tree.dependencies_tree.insert(
                     context.node_id.clone(),

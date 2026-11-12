@@ -1,7 +1,7 @@
 use super::{
     Arc, BTreeMap, ChildEdge, DepPath, DepPathRecording, DirectDep, HashMap, HashSet, NodeId,
     ParentPkgInfo, ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain,
-    UndoRealize, Walker,
+    SubtreePaths, UndoRealize, Walker,
 };
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -20,6 +20,7 @@ pub(in super::super) struct NodeOutput {
     /// slice, propagated bottom-up so discovery can aggregate it from
     /// the importer's direct deps alone.
     pub(in super::super) subtree_missing_by_pkg: SubtreeMissingByPkg,
+    pub(in super::super) subtree_dep_paths: Option<Arc<SubtreePaths>>,
 }
 
 /// Sentinel for "this node's subtree is still missing peer `X`", carrying the
@@ -50,6 +51,7 @@ pub(super) struct ChildOutputs {
     pub(super) missing_peers: HashMap<String, MissingPeerInfo>,
     pub(super) dep_paths: BTreeMap<String, DepPath>,
     pub(super) missing_summaries: Vec<Arc<MissingSummary>>,
+    pub(super) dep_path_subtrees: Vec<Arc<SubtreePaths>>,
 }
 
 impl ChildOutputs {
@@ -66,12 +68,10 @@ impl ChildOutputs {
             auto_install_resolved_peers,
             missing_peers,
             subtree_missing_by_pkg,
+            subtree_dep_paths,
         } = output;
-        if let Some(summary) = subtree_missing_by_pkg
-            && !self.missing_summaries.iter().any(|existing| Arc::ptr_eq(existing, &summary))
-        {
-            self.missing_summaries.push(summary);
-        }
+        push_arc_unique(&mut self.missing_summaries, subtree_missing_by_pkg);
+        push_arc_unique(&mut self.dep_path_subtrees, subtree_dep_paths);
         match dep_paths {
             DepPathRecording::Record => {
                 self.dep_paths.insert(alias.to_string(), dep_path);
@@ -87,6 +87,14 @@ impl ChildOutputs {
         for (name, info) in missing_peers.iter() {
             merge_missing_peer_info(&mut self.missing_peers, name, info);
         }
+    }
+}
+
+fn push_arc_unique<Item>(target: &mut Vec<Arc<Item>>, incoming: Option<Arc<Item>>) {
+    if let Some(item) = incoming
+        && !target.iter().any(|existing| Arc::ptr_eq(existing, &item))
+    {
+        target.push(item);
     }
 }
 
@@ -263,6 +271,19 @@ pub(super) struct SettledPeers {
     pub(super) missing_from_children: Arc<HashMap<String, MissingPeerInfo>>,
     pub(super) subtree_missing_by_pkg: SubtreeMissingByPkg,
     pub(super) is_pure: bool,
+}
+
+impl SettledPeers {
+    pub(super) fn as_walk_result(&self) -> WalkResult<'_> {
+        WalkResult {
+            dep_path: &self.dep_path,
+            all_resolved_peers: &self.all_resolved,
+            all_missing_peers: &self.all_missing,
+            missing_peers_of_children: &self.missing_from_children,
+            subtree_missing_by_pkg: &self.subtree_missing_by_pkg,
+            is_pure: self.is_pure,
+        }
+    }
 }
 
 /// The still-lazy children a discovery walk descends into.

@@ -269,7 +269,11 @@ impl Walker<'_> {
         if !retain {
             return;
         }
-        self.caches.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+        if let Some(prev) = self.caches.node_dep_paths.insert(node_id.clone(), dep_path.clone())
+            && &prev != dep_path
+        {
+            self.caches.evict_peers_referencing(node_id);
+        }
         self.traversal.visited_this_call.insert(node_id.clone());
     }
 }

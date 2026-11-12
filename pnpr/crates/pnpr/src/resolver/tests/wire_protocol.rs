@@ -68,12 +68,13 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
 fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint};
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8);
     let registry = public_registry_config("https://r.test/");
     let observer = super::super::StreamObserver {
         tx,
         package_version_guard: Some(Arc::new(AllowAllVersions)),
         tarball_router: tarball_router(&registry, Identity::Anonymous),
+        graph_limit: super::super::limits::GraphLimitTracker::new(16),
     };
 
     let hint = |unpacked_size, file_count, revision, requires_build| ResolvedPackageHint {
@@ -246,12 +247,14 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     );
 
     let registry = public_registry_config("https://registry.example.test/");
-    let frames = super::super::frozen_package_frames(
+    let frames = super::super::wire::frozen_package_frames_until(
         &config(),
         &tarball_router(&registry, Identity::Anonymous),
         &lockfile,
         &stats,
-    );
+        &|| false,
+    )
+    .unwrap();
     assert_eq!(frames.len(), 1);
 
     let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
@@ -279,12 +282,14 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
 
-    let frames = super::super::frozen_package_frames(
+    let frames = super::super::wire::frozen_package_frames_until(
         &pnpm_config,
         &tarball_router(&registry, user("alice")),
         &lockfile,
         &stats,
-    );
+        &|| false,
+    )
+    .unwrap();
 
     let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
     let tarball = frame["tarball"].as_str().expect("tarball URL");
@@ -294,6 +299,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
 
 #[test]
 fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() {
+    use super::super::wire::osv::is_osv_checkable_resolution;
     use pnpm_lockfile::{LockfileResolution, TarballResolution};
 
     let tarball = |url: &str, git_hosted: Option<bool>| {
@@ -307,32 +313,32 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
     };
 
     // `gitHosted: true` must not let a normal https registry tarball opt out.
-    assert!(super::super::wire::is_osv_checkable_resolution(&tarball(
+    assert!(is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
         Some(true),
     )));
     // A URL that strict parsing would reject is still scanned when it is HTTP or HTTPS.
-    assert!(super::super::wire::is_osv_checkable_resolution(&tarball(
+    assert!(is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
         None,
     )));
     // Mutable git-host archive refs are still checked.
-    assert!(super::super::wire::is_osv_checkable_resolution(&tarball(
+    assert!(is_osv_checkable_resolution(&tarball(
         "https://codeload.github.com/foo/bar/tar.gz/abc123",
         Some(false),
     )));
     // Genuinely git-hosted-by-URL tarballs are skipped regardless of the flag.
-    assert!(!super::super::wire::is_osv_checkable_resolution(&tarball(
+    assert!(!is_osv_checkable_resolution(&tarball(
         "https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567",
         Some(false),
     )));
     // Non-http schemes are skipped.
-    assert!(!super::super::wire::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
+    assert!(!is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
 }
 
 #[test]
 fn tarball_url_version_extracts_conventional_names_only() {
-    use super::super::wire::tarball_url_version;
+    use super::super::wire::osv::tarball_url_version;
 
     assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"), Some("1.2.3"));
     // Scoped packages name the tarball file with the unscoped name.
@@ -352,11 +358,11 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
 
-#[tokio::test]
-async fn npm_success_frames_echo_every_policy() {
+#[test]
+fn npm_success_frames_echo_every_policy() {
     use super::super::{
         protocol::AppliedPolicies,
-        wire::{done_frame, verify_done_or_osv_violations},
+        wire::{try_done_frame_until, verify_done_frame},
     };
     use serde_json::{Value, json};
 
@@ -390,12 +396,11 @@ async fn npm_success_frames_echo_every_policy() {
         "trustLockfile": false,
     });
     let lockfile = lockfile("1.0.0");
-    let resolve: Value = serde_json::from_slice(&done_frame(&lockfile, &applied)).unwrap();
+    let resolve_bytes = try_done_frame_until(&lockfile, &applied, &|| false).unwrap().unwrap();
+    let resolve: Value = serde_json::from_slice(&resolve_bytes).unwrap();
     assert_eq!(resolve["appliedPolicies"], expected);
     assert_eq!(resolve["lockfileFormat"], "pnpm-lock/9.0");
-    let verify = verify_done_or_osv_violations(None, &lockfile, &request);
-    let body = axum::body::to_bytes(verify.into_body(), usize::MAX).await.unwrap();
-    let verify: Value = serde_json::from_slice(&body).unwrap();
+    let verify: Value = serde_json::from_slice(&verify_done_frame(&request)).unwrap();
     assert_eq!(verify["appliedPolicies"], expected);
 
     let defaults =
@@ -429,7 +434,7 @@ fn streaming_errors_share_the_http_error_fields() {
 
 #[test]
 fn a_cargo_done_frame_names_its_lockfile_format() {
-    use super::super::wire::cargo_done_frame;
+    use super::cargo_done_frame;
 
     let cargo: serde_json::Value =
         serde_json::from_slice(&cargo_done_frame("version = 4\n")).unwrap();

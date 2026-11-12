@@ -103,11 +103,21 @@ impl Walker<'_> {
         self.nodes.cache_owners.get(node_id).unwrap_or(node_id)
     }
 
+    pub(super) fn exceeds_final_snapshot_budget(&self, dep_path: &DepPath) -> bool {
+        self.traversal.snapshot_budget.max_snapshots.is_some_and(|max| {
+            self.output.graph.len() >= max && !self.output.graph.contains_key(dep_path)
+        })
+    }
+
     /// Record one walked node: its entry in the provisional
     /// depPath-keyed graph, and the [`NodeRecord`] the post-walk rebuild
     /// consumes. A discovery pass runs neither of the passes that read
     /// these, so it never calls this.
     pub(super) fn record_walked_node(&mut self, mut node: WalkedNode<'_>) {
+        if self.exceeds_final_snapshot_budget(node.dep_path) {
+            self.traversal.snapshot_budget.exceeded = true;
+            return;
+        }
         // Seeds both the node's record edges and its graph children, so
         // it is computed once: a second call would rescan the ancestor
         // chain and re-realize every matching occurrence's children.
@@ -330,6 +340,9 @@ impl Walker<'_> {
             let candidate =
                 self.graph_node_for_record(node_id, record, dep_path, depth, final_dep_paths);
             insert_graph_node(&mut graph, candidate, &transitive_peer_dependencies_by_dep_path);
+            if self.traversal.snapshot_budget.max_snapshots.is_some_and(|max| graph.len() > max) {
+                break;
+            }
         }
         graph
     }

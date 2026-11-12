@@ -1,5 +1,10 @@
+pub(super) mod osv;
+
+pub(super) use frozen_frames::frozen_package_frames_until;
+pub(super) use osv::{osv_violations_for_lockfile_until, verify_done_frame};
 pub(super) use tarball_router::TarballRouter;
 
+mod frozen_frames;
 mod tarball_router;
 
 use std::{collections::HashMap, sync::Arc};
@@ -9,23 +14,24 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
+use osv::is_http_tarball_url;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution, TarballRevision,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution,
     is_git_hosted_tarball_url, pick_registry_for_package,
 };
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
-use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
-
-use pnpr_osv::{OsvIndex, format_advisory_ids};
-
-use super::protocol::LockfileFormat;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
 use pnpr_upstream::{
     tarball_basename, tarball_basename_for_package, version_route_tarball_version,
+};
+
+use super::{
+    limits::{GRAPH_TOO_LARGE_CODE, GraphLimitTracker},
+    protocol::LockfileFormat,
 };
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
@@ -34,26 +40,45 @@ use pnpr_upstream::{
 /// the client incrementally rather than being buffered by the encoder.
 const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 
+/// Maximum serialized byte length of a single terminal NDJSON frame, aligned
+/// with `pnpm-pnpr-client`'s 32 MiB line cap.
+pub(super) const MAX_NDJSON_FRAME_BYTES: usize = 32 * 1024 * 1024;
+
 /// [`ResolutionObserver`](pnpm_package_manager::ResolutionObserver)
 /// that turns each resolved tarball into a `package` NDJSON frame and
-/// pushes it down the response channel. `on_resolved` is best-effort: a
-/// closed channel (client hung up) or a serialization failure drops the
-/// frame silently — the resolve still runs to completion server-side.
+/// pushes it down the bounded response channel.
+///
+/// `package` frames are opportunistic prefetch hints (the terminal `done`
+/// frame carries the full lockfile), so a full channel drops excess hints
+/// rather than blocking resolution. When the graph exceeds the package cap,
+/// [`GraphLimitTracker`] wakes the outer task to abort resolution.
 pub(super) struct StreamObserver {
-    pub(super) tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+    pub(super) tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     pub(super) package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
     pub(super) tarball_router: TarballRouter,
+    pub(super) graph_limit: Arc<GraphLimitTracker>,
 }
 
 impl pnpm_package_manager::ResolutionObserver for StreamObserver {
+    fn on_resolution_id(&self, _id: &str) {
+        self.graph_limit.record_package();
+    }
+
     fn on_resolved(&self, hint: pnpm_package_manager::ResolvedPackageHint<'_>) {
+        if self.graph_limit.is_exceeded() {
+            return;
+        }
         if let Ok(line) = ndjson_line(&package_frame(&self.tarball_router, &hint)) {
-            let _ = self.tx.send(line);
+            let _ = self.tx.try_send(line);
         }
     }
 
     fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
-        self.package_version_guard.clone()
+        self.package_version_guard.as_ref().map(Arc::clone)
+    }
+
+    fn max_snapshots(&self) -> Option<usize> {
+        Some(self.graph_limit.max_snapshots())
     }
 }
 
@@ -96,173 +121,172 @@ pub(super) fn package_frame(
     frame
 }
 
-/// `package` frames for every tarball-fetchable entry of a verified
-/// frozen lockfile, deduplicated by tarball URL. Mirrors what the
-/// streaming resolve's [`StreamObserver`] would have announced had the
-/// tree walk run: the client prefetches each tarball on arrival, with
-/// `unpackedSize` (from the verification fan-out's metadata, when the
-/// registry published one) prioritizing the largest downloads.
-///
-/// Tarball URLs are derived with the same
-/// [`tarball_url_and_integrity`] the client's frozen materialization
-/// uses, so the announced URLs match the client's mem-cache keys
-/// byte-for-byte. Non-tarball resolutions (git, directory, binary,
-/// variations) are skipped — the client fetches those through their
-/// own protocol paths.
-pub(super) fn frozen_package_frames(
-    config: &PacquetConfig,
-    router: &TarballRouter,
-    lockfile: &Lockfile,
-    dist_stats: &ObservedDistStats,
-) -> Vec<Vec<u8>> {
-    let Some(packages) = lockfile.packages.as_ref() else {
-        return Vec::new();
-    };
-    let mut seen_urls = std::collections::HashSet::new();
-    let mut frames = Vec::new();
-    for (package_key, snapshot) in packages {
-        if let Some(line) = frozen_package_frame(
-            FrozenFrameInputs { config, router, dist_stats, package_key, snapshot },
-            &mut seen_urls,
-        ) {
-            frames.push(line);
+const CANCEL_CHECK_INTERVAL_BYTES: usize = 64 * 1024;
+
+fn oversized_terminal_frame() -> Vec<u8> {
+    error_frame_with_code(
+        &format!("resolved response exceeds maximum frame size of {MAX_NDJSON_FRAME_BYTES} bytes"),
+        Some(GRAPH_TOO_LARGE_CODE),
+    )
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DoneFrame<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    applied_policies: &'a super::protocol::AppliedPolicies,
+    lockfile_format: &'static str,
+    lockfile: &'a Lockfile,
+    stats: DoneStats,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DoneStats {
+    total_packages: usize,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CargoDoneFrame<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    lockfile_format: &'static str,
+    lockfile: &'a str,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PypiDoneFrame<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    lockfile_format: &'static str,
+    lockfile: &'a pnpm_python_resolver::Lockfile,
+}
+
+#[derive(serde::Serialize)]
+struct ViolationsFrame<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    violations: &'a [serde_json::Value],
+}
+
+struct BoundedFrameWriter<'a> {
+    buf: Vec<u8>,
+    since_check: usize,
+    cancelled: bool,
+    exceeded: bool,
+    should_cancel: &'a dyn Fn() -> bool,
+}
+
+impl std::io::Write for BoundedFrameWriter<'_> {
+    fn write(&mut self, chunk: &[u8]) -> std::io::Result<usize> {
+        if (self.buf.is_empty() || self.since_check >= CANCEL_CHECK_INTERVAL_BYTES)
+            && (self.should_cancel)()
+        {
+            self.cancelled = true;
+            return Err(std::io::Error::other("cancelled"));
         }
+        if self.since_check >= CANCEL_CHECK_INTERVAL_BYTES {
+            self.since_check = 0;
+        }
+        if self.buf.len().saturating_add(chunk.len()) >= MAX_NDJSON_FRAME_BYTES {
+            self.exceeded = true;
+            return Err(std::io::Error::other("frame exceeds limit"));
+        }
+        self.buf.extend_from_slice(chunk);
+        self.since_check = self.since_check.saturating_add(chunk.len());
+        Ok(chunk.len())
     }
-    frames
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
-#[derive(Clone, Copy)]
-struct FrozenFrameInputs<'a> {
-    config: &'a PacquetConfig,
-    router: &'a TarballRouter,
-    dist_stats: &'a ObservedDistStats,
-    package_key: &'a PackageKey,
-    snapshot: &'a PackageMetadata,
-}
-
-/// The `package` frame for one frozen lockfile entry, or `None` when the
-/// entry is not a registry or tarball package or its URL was announced
-/// already.
-fn frozen_package_frame(
-    inputs: FrozenFrameInputs<'_>,
-    seen_urls: &mut std::collections::HashSet<String>,
-) -> Option<Vec<u8>> {
-    if !matches!(
-        inputs.snapshot.resolution,
-        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-    ) {
+pub(super) fn serialize_bounded_frame<Frame: serde::Serialize>(
+    value: &Frame,
+    fallback_message: &'static str,
+    should_cancel: &dyn Fn() -> bool,
+) -> Option<Result<Vec<u8>, Vec<u8>>> {
+    if should_cancel() {
         return None;
     }
-    // The frame carries the integrity the client prefetches against;
-    // an entry that pins none has no frame to announce.
-    let Ok((upstream_tarball_url, Some(integrity))) =
-        tarball_url_and_integrity(&inputs.snapshot.resolution, inputs.package_key, inputs.config)
-    else {
-        return None;
+    let mut writer = BoundedFrameWriter {
+        buf: Vec::new(),
+        since_check: 0,
+        cancelled: false,
+        exceeded: false,
+        should_cancel,
     };
-    let name = inputs.package_key.name.to_string();
-    let version = inputs.package_key.suffix.version().to_string();
-    let tarball_url = inputs.router.route_url(&name, &version, &upstream_tarball_url);
-    if !seen_urls.insert(tarball_url.clone()) {
+    let written = serde_json::to_writer(&mut writer, value);
+    if writer.cancelled || should_cancel() {
         return None;
     }
-    let id = format!("{name}@{version}");
-    let revision =
-        pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
-    let stats = frozen_dist_stats(inputs.dist_stats, &name, &version);
-    let frame = package_frame(
-        inputs.router,
-        &ResolvedPackageHint {
-            integrity: &integrity.to_string(),
-            tarball_url: &tarball_url,
-            unpacked_size: stats.unpacked_size,
-            file_count: stats.file_count,
-            revision,
-            requires_build: stats.requires_build,
-            // The URL is already routed (canonical → endpoint above), so
-            // re-routing by registry would be redundant; route_url is a
-            // no-op on an already-routed URL.
-            from_registry: false,
-            identity: pnpm_package_manager::ResolvedPackageIdentity {
-                id: &id,
-                name: &name,
-                version: &version,
-            },
-        },
-    );
-    ndjson_line(&frame).ok()
-}
-
-fn frozen_dist_stats(
-    stats: &ObservedDistStats,
-    name: &str,
-    version: &str,
-) -> pnpm_resolving_npm_resolver::DistStats {
-    stats
-        .get(&(name.to_string(), version.to_string()))
-        .map_or_else(pnpm_resolving_npm_resolver::DistStats::default, |entry| *entry)
-}
-
-/// The tarball revision a frame announces. Only a URL still pointing at the
-/// upstream carries one: a routed URL is served by pnpr, which addresses the
-/// tarball by integrity rather than by revision.
-fn pnpr_served_revision(
-    resolution: &LockfileResolution,
-    tarball_url: &str,
-    upstream_tarball_url: &str,
-) -> Option<u64> {
-    if tarball_url != upstream_tarball_url {
-        return None;
+    if writer.exceeded {
+        return Some(Err(oversized_terminal_frame()));
     }
-    match resolution {
-        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
-        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
-        _ => None,
+    if written.is_err() {
+        return Some(Err(error_frame(fallback_message)));
     }
+    writer.buf.push(b'\n');
+    Some(Ok(writer.buf))
 }
 
-/// Terminal `done` frame: the full resolved lockfile + stats. The client
-/// writes the lockfile and fetches every tarball itself.
-pub(super) fn done_frame(
+pub(super) fn try_done_frame_until(
     lockfile: &Lockfile,
     applied_policies: &super::protocol::AppliedPolicies,
-) -> Vec<u8> {
-    let total_packages = lockfile.packages.as_ref().map_or(0, std::collections::HashMap::len);
-    let frame = serde_json::json!({
-        "type": "done",
-        "appliedPolicies": applied_policies,
-        "lockfileFormat": LockfileFormat::PnpmLockV9.wire_name(),
-        "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
-        "stats": { "totalPackages": total_packages },
-    });
-    ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
+    should_cancel: &dyn Fn() -> bool,
+) -> Option<Result<Vec<u8>, Vec<u8>>> {
+    let total_packages = lockfile.packages
+        .as_ref()
+        .map(HashMap::len)
+        .unwrap_or(0);
+    let frame = DoneFrame {
+        kind: "done",
+        applied_policies,
+        lockfile_format: LockfileFormat::PnpmLockV9.wire_name(),
+        lockfile,
+        stats: DoneStats { total_packages },
+    };
+    serialize_bounded_frame(&frame, "failed to serialize lockfile", should_cancel)
 }
 
 /// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
 /// the client writes verbatim. Cargo's lockfile is a TOML document rather
 /// than a structure the server rewrites, so it rides the frame as text.
-pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
-    let frame = serde_json::json!({
-        "type": "done",
-        "lockfileFormat": LockfileFormat::CargoLock.wire_name(),
-        "lockfile": lockfile,
-    });
-    ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
+pub(super) fn cargo_done_frame_until(
+    lockfile: &str,
+    should_cancel: &dyn Fn() -> bool,
+) -> Option<Vec<u8>> {
+    serialize_bounded_frame(
+        &CargoDoneFrame {
+            kind: "done",
+            lockfile_format: LockfileFormat::CargoLock.wire_name(),
+            lockfile,
+        },
+        "failed to serialize lockfile",
+        should_cancel,
+    )
+    .map(|result| result.unwrap_or_else(|err| err))
 }
 
 /// Terminal `done` frame of a Python resolve: the `pylock.toml` document
 /// the client writes. It rides the frame as JSON, which is the shape the
 /// client's own lockfile type reads.
 pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<u8> {
-    let Ok(lockfile) = serde_json::to_value(lockfile) else {
-        return error_frame("failed to serialize lockfile");
-    };
-    let frame = serde_json::json!({
-        "type": "done",
-        "lockfileFormat": LockfileFormat::Pylock.wire_name(),
-        "lockfile": lockfile,
-    });
-    ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
+    serialize_bounded_frame(
+        &PypiDoneFrame {
+            kind: "done",
+            lockfile_format: LockfileFormat::Pylock.wire_name(),
+            lockfile,
+        },
+        "failed to serialize lockfile",
+        &|| false,
+    )
+    .expect("unconditional frame serialization cannot cancel")
+    .unwrap_or_else(|err| err)
 }
 
 /// Non-terminal `progress` frame. A streamed resolve sends one every
@@ -300,169 +324,17 @@ pub(super) fn error_frame_with_code(message: &str, code: Option<&str>) -> Vec<u8
 /// the client rebuilds the identical `VerifyError` and aborts the same
 /// way the local gate would.
 pub(super) fn violations_frame(violations: &[serde_json::Value]) -> Vec<u8> {
-    let frame = serde_json::json!({ "type": "violations", "violations": violations });
-    ndjson_line(&frame).unwrap_or_else(|_| error_frame("verification failed"))
-}
-
-fn verify_done_frame(request: &super::protocol::ResolveRequest) -> Vec<u8> {
-    let applied = super::protocol::AppliedPolicies::from_request(request);
-    ndjson_line(&serde_json::json!({ "type": "done", "appliedPolicies": applied }))
-        .unwrap_or_else(|_| error_frame("verification failed"))
-}
-
-const OSV_VULNERABILITY_CODE: &str = "ERR_PNPR_OSV_VULNERABILITY";
-
-pub(super) fn verify_done_or_osv_violations(
-    osv_index: Option<&Arc<OsvIndex>>,
-    lockfile: &Lockfile,
-    request: &super::protocol::ResolveRequest,
-) -> Response {
-    let Some(osv_index) = osv_index else {
-        return ndjson_single_frame(&verify_done_frame(request));
-    };
-    let violations = osv_violations_for_lockfile(osv_index, lockfile);
-    if violations.is_empty() {
-        ndjson_single_frame(&verify_done_frame(request))
-    } else {
-        ndjson_single_frame(&violations_frame(&violations))
-    }
-}
-
-pub(super) fn osv_violations_for_lockfile(
-    index: &OsvIndex,
-    lockfile: &Lockfile,
-) -> Vec<serde_json::Value> {
-    let Some(packages) = lockfile.packages.as_ref() else {
-        return Vec::new();
-    };
-
-    let mut seen = std::collections::HashSet::new();
-    let mut violations = Vec::new();
-    for (package_key, snapshot) in packages {
-        if !is_osv_checkable_resolution(&snapshot.resolution) {
-            continue;
-        }
-        let name = package_key.name.to_string();
-        let version = package_key.suffix.version().to_string();
-        let ids = vulnerability_ids_for_entry(index, &snapshot.resolution, &name, &version);
-        if ids.is_empty() {
-            continue;
-        }
-        // Dedup only the rare vulnerable hits — several lockfile keys can
-        // share one name@version via peer suffixes — so the common
-        // (non-vulnerable) entry never pays for the set.
-        if !seen.insert((name.clone(), version.clone())) {
-            continue;
-        }
-        violations.push(serde_json::json!({
-            "name": name,
-            "version": version,
-            "code": OSV_VULNERABILITY_CODE,
-            "reason": format!(
-                "is listed in the local OSV database as vulnerable ({})",
-                format_advisory_ids(&ids),
-            ),
-        }));
-    }
-    violations
-}
-
-/// The advisory ids one lockfile entry matches.
-///
-/// For a tarball resolution the fetched artifact's identity is its URL, not the
-/// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
-/// `name@version` while pointing the tarball at a vulnerable artifact, so the
-/// version in the tarball filename is screened too. This is additive — a
-/// mismatch alone is never a violation (custom registries may name tarballs
-/// differently), only an actually-vulnerable version is.
-fn vulnerability_ids_for_entry(
-    index: &OsvIndex,
-    resolution: &LockfileResolution,
-    name: &str,
-    version: &str,
-) -> Vec<String> {
-    let mut ids = index.vulnerability_ids(name, version);
-    if let LockfileResolution::Tarball(tarball) = resolution
-        && let Some(url_version) = tarball_url_version(&tarball.tarball, name)
-        && url_version != version
-    {
-        ids.extend(index.vulnerability_ids(name, url_version));
-        ids.sort_unstable();
-        ids.dedup();
-    }
-    ids
-}
-
-/// Best-effort extraction of the version from a registry tarball URL of
-/// the conventional `<unscoped-name>-<version>.tgz` shape. Returns `None`
-/// for non-standard naming so a legitimate custom registry isn't
-/// misjudged. Never parses the URL strictly — the lockfile is untrusted.
-pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
-    if let Ok(canonical) = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)
-        && let Some(version) = version_route_tarball_version(url, &canonical)
-    {
-        return Some(version);
-    }
-    let last = url.rsplit('/').next()?;
-    let last = last
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(last);
-    let stem = strip_tarball_suffix(last)?;
-    let unscoped = name.rsplit('/').next().unwrap_or(name);
-    let version = stem.strip_prefix(unscoped)?.strip_prefix('-')?;
-    (!version.is_empty()).then_some(version)
-}
-
-/// Strip a `.tgz` / `.tar.gz` tarball suffix case-insensitively, so a
-/// tampered lockfile can't dodge the URL-version cross-check with a
-/// `.TGZ` or `.tar.gz` variant. Returns `None` for any other suffix.
-fn strip_tarball_suffix(name: &str) -> Option<&str> {
-    [".tar.gz", ".tgz"]
-        .into_iter()
-        .find_map(|suffix| {
-            let head_len = name.len().checked_sub(suffix.len())?;
-            let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
-            tail.eq_ignore_ascii_case(suffix).then_some(head)
-        })
-}
-
-pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
-    match resolution {
-        LockfileResolution::Registry(_) => true,
-        // A frozen lockfile is attacker-controlled, so gate on the tarball
-        // URL rather than the tamper-prone `git_hosted` flag or strict URL
-        // parsing — otherwise `gitHosted: true` or a barely-malformed URL
-        // would let a vulnerable package opt out of the OSV scan. Mirrors
-        // the npm verifier's URL-based gate.
-        LockfileResolution::Tarball(tarball) => {
-            is_http_tarball_url(&tarball.tarball) && !is_git_hosted_tarball_url(&tarball.tarball)
-        }
-        // Custom resolutions are not registry artifacts, so OSV has
-        // no `name@version` advisory coordinates for them.
-        LockfileResolution::Directory(_)
-        | LockfileResolution::Git(_)
-        | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_)
-        | LockfileResolution::Custom(_) => false,
-    }
-}
-
-/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
-/// registry artifact is served over. Case-insensitive (so a tampered
-/// uppercase scheme can't slip past) without allocating a lowercased copy.
-fn is_http_tarball_url(url: &str) -> bool {
-    let bytes = url.as_bytes();
-    bytes
-        .get(..8)
-        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
-        || bytes
-            .get(..7)
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
+    serialize_bounded_frame(
+        &ViolationsFrame { kind: "violations", violations },
+        "verification failed",
+        &|| false,
+    )
+    .expect("unconditional frame serialization cannot cancel")
+    .unwrap_or_else(|err| err)
 }
 
 /// Serialize one frame to a newline-terminated NDJSON line.
-fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> {
+pub(super) fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> {
     let mut bytes = serde_json::to_vec(value)?;
     bytes.push(b'\n');
     Ok(bytes)
@@ -479,27 +351,49 @@ pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
         .expect("binary response is always valid")
 }
 
-/// A 200 NDJSON response carrying several already-serialized frames in
-/// one fixed body. Used by the frozen fast path, where every frame is
-/// known up front — no channel to stream from.
-pub(super) fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .body(Body::from(frames.concat()))
-        .expect("binary response is always valid")
+/// A 200 NDJSON response streaming already-serialized frames without copying
+/// them into a single contiguous buffer. Used by the frozen fast path, where
+/// every frame is known up front.
+pub(super) fn ndjson_frames_until(
+    frames: Vec<Vec<u8>>,
+    should_cancel: &dyn Fn() -> bool,
+) -> Option<Response> {
+    if should_cancel() {
+        return None;
+    }
+    let stream = futures_util::stream::iter(
+        frames
+            .into_iter()
+            .map(|line| Ok::<_, std::convert::Infallible>(axum::body::Bytes::from(line))),
+    );
+    Some(
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+            .body(Body::from_stream(stream))
+            .expect("streaming response is always valid"),
+    )
 }
 
-/// A 200 NDJSON response whose body drains the frame channel as the
-/// detached resolve task produces frames. Closing the channel (the task
-/// dropped its sender) ends the body.
+pub(super) struct AbortOnDrop(pub(super) tokio::task::AbortHandle);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 pub(super) fn ndjson_stream_response(
-    rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    abort_on_drop: AbortOnDrop,
 ) -> Response {
-    let stream = futures_util::stream::unfold(rx, |mut rx| async move {
-        rx.recv().await
-            .map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
-    });
+    let stream =
+        futures_util::stream::unfold((rx, abort_on_drop), |(mut rx, abort_on_drop)| async move {
+            rx.recv().await
+                .map(|line| {
+                    (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), (rx, abort_on_drop))
+                })
+        });
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)

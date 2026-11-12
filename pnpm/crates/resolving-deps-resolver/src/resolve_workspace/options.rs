@@ -89,6 +89,7 @@ pub struct WorkspaceResolveHooks {
     /// check but drops the notification.
     pub deprecation_log: Option<crate::DeprecationLogFn>,
     pub manifests: crate::ManifestTransformHooks,
+    pub max_snapshots: Option<usize>,
 }
 
 #[derive(smart_default::SmartDefault)]
@@ -152,6 +153,7 @@ pub(super) struct PassSettings {
     pub(super) recorded_time: Option<BTreeMap<String, String>>,
     pub(super) peers: WorkspacePeerResolutionOptions,
     pub(super) version: WorkspaceVersionResolution,
+    pub(super) max_snapshots: Option<usize>,
 }
 
 impl WorkspaceResolveOptions {
@@ -161,7 +163,9 @@ impl WorkspaceResolveOptions {
                 self.reuse.lockfile.as_ref().and_then(|lockfile| lockfile.time.clone())
             })
             .flatten();
-        let settings = PassSettings { recorded_time, peers: self.peers, version: self.version };
+        let max_snapshots = self.hooks.max_snapshots;
+        let settings =
+            PassSettings { recorded_time, peers: self.peers, version: self.version, max_snapshots };
         let workspace = WorkspaceTreeCtx::default()
             .with_shared_workspace_resolutions(self.share_workspace_resolutions)
             .with_hooks(self.hooks)

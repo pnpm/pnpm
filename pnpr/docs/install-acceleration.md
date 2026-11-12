@@ -66,11 +66,16 @@ pnpr caches client configurations and evicts the least recently used entries
 when the cache is full. Active requests keep their configuration until they
 finish.
 
-Up to 1,024 npm resolution and lockfile verification requests can run at once.
-Further requests return `503 Service Unavailable` until active work finishes.
+Up to 64 resolution and lockfile verification requests can be admitted at once
+per server instance, and up to 8 per caller identity. Further requests return
+`503 Service Unavailable` until admitted work finishes. Up to 16 admitted
+requests run at once per server instance, and up to 4 per caller identity.
+Queued requests wait for a slot up to the request deadline
+(`504 Gateway Timeout`).
 
 Oversized resolver settings return `400 Bad Request`. Lockfile verification
-with `trustLockfile` skips the size and concurrency checks.
+with `trustLockfile` skips configuration interning while still enforcing
+admission, concurrency, deadline, request body, and dependency graph limits.
 
 ## Cargo and Python
 

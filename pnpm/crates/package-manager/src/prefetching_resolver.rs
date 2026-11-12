@@ -452,6 +452,10 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
     ) -> ResolveLatestFuture<'a> {
         self.inner.resolve_latest(query, opts)
     }
+
+    fn on_reused(&self, result: &ResolveResult) {
+        self.inner.on_reused(result);
+    }
 }
 
 fn is_remote_tarball(resolution: &LockfileResolution) -> bool {

@@ -25,6 +25,8 @@
 //! reach this path; a Cargo resolve is held to the same rules a local one
 //! is.
 
+pub(in crate::resolver) mod solve;
+
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -44,15 +46,15 @@ use pnpr_route::{Footprint, url_has_inline_credentials};
 
 use crate::server::StripedLocks;
 use locked_entry::LockedEntry;
+use solve::{solve_cargo as run_solve_cargo, spawn_init_discovery, spawn_step_discovery};
 
 use super::{
     Resolver, json_error,
+    limits::{AdmittedResolve, CancelToken, ResolvePermit, request_timeout_response},
     package_route::PackageRoute,
     parse_request,
     protocol::CargoResolveRequest,
-    report_message,
     request_validation::forbidden_off_allowlist,
-    wire::{cargo_done_frame, error_frame, ndjson_single_frame},
 };
 
 /// How many index files one resolve may fetch. A crate graph reaches a few
@@ -95,12 +97,15 @@ const INDEX_FETCH_CONCURRENCY: usize = 16;
 pub(super) async fn handle_resolve(
     runtime: &Resolver,
     identity: Identity,
-    body: &[u8],
+    body: axum::body::Bytes,
+    deadline: tokio::time::Instant,
+    admitted: AdmittedResolve<'_>,
 ) -> Response {
-    let request: CargoResolveRequest = match parse_request(body) {
+    let request: CargoResolveRequest = match parse_request(&body) {
         Ok(request) => request,
         Err(response) => return response,
     };
+    drop(body);
     let registry = request.registry
         .as_deref()
         .unwrap_or(pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX)
@@ -117,24 +122,24 @@ pub(super) async fn handle_resolve(
         return forbidden_off_allowlist(&registry);
     }
 
+    let permit = match admitted.acquire(deadline).await {
+        Ok(permit) => permit,
+        Err(response) => return response,
+    };
+    if tokio::time::Instant::now() >= deadline {
+        return request_timeout_response();
+    }
     let index = IndexFetcher::new(runtime, identity, registry);
-
     let metadata = request.metadata;
     let source = pnpm_cargo_resolver::registry_source(&index.registry);
-    let index_files = match index.fetch_for(&metadata).await {
-        Ok(index_files) => index_files,
-        Err(err) => return ndjson_single_frame(&error_frame(&err)),
-    };
-    // pubgrub's solve is CPU-bound and can run for a while on a large
-    // workspace, so it stays off the async runtime's worker threads.
-    let lockfile = tokio::task::spawn_blocking(move || {
-        pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files, &source)
-    })
-    .await;
-    match lockfile {
-        Ok(Ok(lockfile)) => ndjson_single_frame(&cargo_done_frame(&lockfile)),
-        Ok(Err(err)) => ndjson_single_frame(&error_frame(&report_message(&err))),
-        Err(err) => ndjson_single_frame(&error_frame(&err.to_string())),
+    match tokio::time::timeout_at(
+        deadline,
+        run_solve_cargo(index, metadata, source, permit, deadline),
+    )
+    .await
+    {
+        Ok(response) if tokio::time::Instant::now() < deadline => response,
+        Ok(_) | Err(_) => request_timeout_response(),
     }
 }
 
@@ -158,33 +163,8 @@ fn index_budget_exhausted(name: &str) -> String {
     )
 }
 
-fn init_discovery(
-    metadata: &str,
-    source: &str,
-) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
-    let mut discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, source)
-        .map_err(|err| report_message(&err))?;
-    let names = discovery.missing_names().map_err(|err| report_message(&err))?;
-    Ok((discovery, names))
-}
-
-struct DiscoveryStep {
-    discovery: pnpm_cargo_resolver::IndexDiscovery,
-    missing: Vec<String>,
-    entries: BTreeMap<String, String>,
-}
-
-fn step_discovery(
-    mut discovery: pnpm_cargo_resolver::IndexDiscovery,
-    entries: BTreeMap<String, String>,
-) -> Result<DiscoveryStep, String> {
-    discovery.add_entries(&entries).map_err(|err| report_message(&err))?;
-    let missing = discovery.missing_names().map_err(|err| report_message(&err))?;
-    Ok(DiscoveryStep { discovery, missing, entries })
-}
-
 /// Reads a sparse index for one resolve: cache first, then the registry.
-struct IndexFetcher {
+pub(in crate::resolver) struct IndexFetcher {
     client: Arc<ThrottledClient>,
     hook: Arc<pnpr_route::RouteHook>,
     locks: Arc<StripedLocks>,
@@ -201,7 +181,11 @@ struct IndexFetcher {
 }
 
 impl IndexFetcher {
-    fn new(runtime: &Resolver, identity: Identity, registry: String) -> Self {
+    pub(in crate::resolver) fn new(
+        runtime: &Resolver,
+        identity: Identity,
+        registry: String,
+    ) -> Self {
         Self {
             client: Arc::clone(&runtime.client),
             hook: Arc::new(pnpr_route::RouteHook::new(
@@ -222,14 +206,16 @@ impl IndexFetcher {
     /// waves: each wave asks discovery which names are still missing,
     /// fetches those, and repeats until nothing is missing. Discovery is
     /// CPU-bound, so it runs off the runtime's worker threads.
-    async fn fetch_for(&self, metadata: &str) -> Result<BTreeMap<String, String>, String> {
+    async fn fetch_for(
+        &self,
+        metadata: &str,
+        permit: &Arc<ResolvePermit>,
+        cancel: &CancelToken,
+    ) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
         let source = pnpm_cargo_resolver::registry_source(&self.registry);
-        let metadata = metadata.to_string();
         let (mut discovery, mut missing) =
-            tokio::task::spawn_blocking(move || init_discovery(&metadata, &source))
-                .await
-                .map_err(|err| err.to_string())??;
+            spawn_init_discovery(metadata.to_string(), source, permit, cancel).await?;
         for _ in 0..MAX_INDEX_WAVES {
             if missing.is_empty() {
                 return Ok(index_files);
@@ -247,9 +233,7 @@ impl IndexFetcher {
                 .buffer_unordered(INDEX_FETCH_CONCURRENCY)
                 .try_collect::<BTreeMap<_, _>>()
                 .await?;
-            let step = tokio::task::spawn_blocking(move || step_discovery(discovery, fetched))
-                .await
-                .map_err(|err| err.to_string())??;
+            let step = spawn_step_discovery(discovery, fetched, permit, cancel).await?;
             discovery = step.discovery;
             missing = step.missing;
             index_files.extend(step.entries);

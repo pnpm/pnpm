@@ -73,6 +73,7 @@ pub(super) struct ObserverSettings {
         Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     minimum_release_age_exclude_override: Option<Vec<String>>,
     pub(super) can_fast_update_overrides: bool,
+    pub(super) max_snapshots: Option<usize>,
 }
 impl ObserverSettings {
     fn of(observer: Option<&Arc<dyn crate::ResolutionObserver>>) -> Self {
@@ -82,6 +83,7 @@ impl ObserverSettings {
                 observer.minimum_release_age_exclude_override()
             }),
             can_fast_update_overrides: observer.is_none(),
+            max_snapshots: observer.and_then(|observer| observer.max_snapshots()),
         }
     }
 }

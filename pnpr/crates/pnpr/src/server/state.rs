@@ -74,8 +74,8 @@ pub(super) struct MutationLocks {
     /// [`super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS`].
     pub(super) staged_archive_uploads: tokio::sync::Semaphore,
     /// The same, per principal, so one account cannot hold every upload
-    /// permit. See [`super::staged_archives::PrincipalUploads`].
-    pub(super) staged_archive_uploads_by_principal: super::staged_archives::PrincipalUploads,
+    /// permit.
+    pub(super) staged_archive_uploads_by_principal: super::KeyedSemaphores,
     pub(super) logs: super::release_record_logs::LogIntegrationState,
 }
 
@@ -115,8 +115,9 @@ impl AppInner {
                 staged_archive_uploads: tokio::sync::Semaphore::new(
                     super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS,
                 ),
-                staged_archive_uploads_by_principal:
-                    super::staged_archives::PrincipalUploads::default(),
+                staged_archive_uploads_by_principal: super::KeyedSemaphores::new(
+                    super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL,
+                ),
                 logs: super::release_record_logs::LogIntegrationState::default(),
             },
             identity,

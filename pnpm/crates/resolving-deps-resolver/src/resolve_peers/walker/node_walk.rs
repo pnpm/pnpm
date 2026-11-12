@@ -2,11 +2,9 @@ use super::{
     Arc, BTreeMap, CacheHitContext, ChildChains, ChildEdge, ChildOutputs, ChildParentRefs,
     ChildrenWalk, DeferredChildren, DepPath, HashMap, MissingSummary, NodeEntry, NodeId,
     NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs, PeerWalkMode,
-    PeersCacheItem, SettledPeers, SharedChain, WalkResult, WalkedNode, Walker, chain_with_pkg_id,
-    merge_realize_undo,
+    PeersCacheItem, SettledPeers, SharedChain, SubtreePaths, UndoRealize, WalkedNode, Walker,
+    chain_with_pkg_id, merge_realize_undo,
 };
-
-impl Walker<'_> {}
 
 impl Walker<'_> {
     pub(in super::super) fn resolve_node(
@@ -37,26 +35,64 @@ impl Walker<'_> {
         // The cache lookup uses the augmented view because a node's
         // own children count as parents for its own descendants' peer
         // resolution.
-        if let Some(cached) =
-            self.find_hit(&refs.refs, &entry.pkg.id).map(PeersCacheItem::to_cached_node_output)
-        {
-            return self.finish_cache_hit(
-                cached,
-                CacheHitContext {
-                    node_id,
-                    tree_node_depth: entry.depth,
-                    parent_chain_names: walk.chain_names,
-                    parent_pkg_ids_chain: walk.parent_pkg_ids,
-                    preview_undo: entry.preview_undo,
-                },
-            );
+        if let Some(output) = self.try_resolve_cached_node(node_id, &mut entry, &refs.refs, walk) {
+            return output;
         }
         let mut walked =
             self.walk_children(node_id, &mut entry, &refs.refs, &parent_dep_paths, walk);
+        if self.traversal.snapshot_budget.exceeded {
+            return self.abort_exceeded_node_walk(node_id, &entry.pkg.id, walked.realize_undo);
+        }
         let settled = self.settle_peers(&entry, &refs.refs, walk, &mut walked);
-        self.record_node(node_id, &entry, walk, &mut walked, &settled);
+        let subtree_dep_paths = self.record_node(node_id, &entry, walk, &mut walked, &settled);
+        self.finish_node_output(node_id, settled, walked, subtree_dep_paths)
+    }
 
-        let output = settled.node_output(&mut walked);
+    fn try_resolve_cached_node(
+        &mut self,
+        node_id: &NodeId,
+        entry: &mut NodeEntry,
+        child_parent_refs: &ParentRefs,
+        walk: &NodeWalkContext<'_>,
+    ) -> Option<NodeOutput> {
+        let cached = self
+            .find_hit(child_parent_refs, &entry.pkg.id)
+            .map(PeersCacheItem::to_cached_node_output)?;
+        Some(self.finish_cache_hit(
+            cached,
+            CacheHitContext {
+                node_id,
+                tree_node_depth: entry.depth,
+                parent_chain_names: walk.chain_names,
+                parent_pkg_ids_chain: walk.parent_pkg_ids,
+                preview_undo: entry.preview_undo.take(),
+            },
+        ))
+    }
+
+    fn abort_exceeded_node_walk(
+        &mut self,
+        node_id: &NodeId,
+        pkg_id: &Arc<str>,
+        realize_undo: Option<UndoRealize>,
+    ) -> NodeOutput {
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => self.undo_realize(node_id, realize_undo, None),
+            PeerWalkMode::Final => {}
+        }
+        self.traversal.in_progress.remove(node_id);
+        self.peerless_output(DepPath::from(Arc::clone(pkg_id)))
+    }
+
+    fn finish_node_output(
+        &mut self,
+        node_id: &NodeId,
+        settled: SettledPeers,
+        mut walked: ChildrenWalk,
+        subtree_dep_paths: Option<Arc<SubtreePaths>>,
+    ) -> NodeOutput {
+        let mut output = settled.node_output(&mut walked);
+        output.subtree_dep_paths = subtree_dep_paths;
         match self.traversal.mode {
             PeerWalkMode::Discovery => {
                 self.undo_realize(node_id, walked.realize_undo, Some(&output));
@@ -204,44 +240,45 @@ impl Walker<'_> {
         walk: &NodeWalkContext<'_>,
         walked: &mut ChildrenWalk,
         settled: &SettledPeers,
-    ) {
+    ) -> Option<Arc<SubtreePaths>> {
+        match self.traversal.mode {
+            PeerWalkMode::Final if self.exceeds_final_snapshot_budget(&settled.dep_path) => {
+                self.traversal.snapshot_budget.exceeded = true;
+                self.traversal.in_progress.remove(node_id);
+                return None;
+            }
+            PeerWalkMode::Discovery | PeerWalkMode::Final => {}
+        }
         self.remember_resolved_node(node_id, &settled.dep_path);
-        self.record_walk_result(
+        let subtree_dep_paths = self.record_walk_result(
             node_id,
             &entry.pkg.id,
-            &WalkResult {
-                dep_path: &settled.dep_path,
-                all_resolved_peers: &settled.all_resolved,
-                all_missing_peers: &settled.all_missing,
-                missing_peers_of_children: &settled.missing_from_children,
-                subtree_missing_by_pkg: &settled.subtree_missing_by_pkg,
-                is_pure: settled.is_pure,
-            },
+            &settled.as_walk_result(),
+            &mut walked.outputs.dep_path_subtrees,
         );
         match self.traversal.mode {
-            PeerWalkMode::Final => {
-                self.record_walked_node(WalkedNode {
-                    node_id,
-                    pkg: &entry.pkg,
-                    dep_path: &settled.dep_path,
-                    children: &walked.children_map,
-                    child_dep_paths: std::mem::take(&mut walked.outputs.dep_paths),
-                    ancestry: crate::resolve_peers::finalize::WalkedNodeAncestry {
-                        parent_node_ids: walk.parent_node_ids,
-                        parent_pkg_ids_chain: walk.parent_pkg_ids,
-                        depth: entry.depth,
-                    },
-                    peers: crate::resolve_peers::finalize::WalkedNodePeers {
-                        resolved: &settled.all_resolved,
-                        missing: &settled.all_missing,
-                        own_resolved: &settled.own_resolved,
-                        is_pure: settled.is_pure,
-                    },
-                });
-            }
+            PeerWalkMode::Final => self.record_walked_node(WalkedNode {
+                node_id,
+                pkg: &entry.pkg,
+                dep_path: &settled.dep_path,
+                children: &walked.children_map,
+                child_dep_paths: std::mem::take(&mut walked.outputs.dep_paths),
+                ancestry: crate::resolve_peers::finalize::WalkedNodeAncestry {
+                    parent_node_ids: walk.parent_node_ids,
+                    parent_pkg_ids_chain: walk.parent_pkg_ids,
+                    depth: entry.depth,
+                },
+                peers: crate::resolve_peers::finalize::WalkedNodePeers {
+                    resolved: &settled.all_resolved,
+                    missing: &settled.all_missing,
+                    own_resolved: &settled.own_resolved,
+                    is_pure: settled.is_pure,
+                },
+            }),
             PeerWalkMode::Discovery => {}
         }
         self.traversal.in_progress.remove(node_id);
+        subtree_dep_paths
     }
 
     /// The node's output when a fast path answers it without a walk, marking
@@ -253,14 +290,8 @@ impl Walker<'_> {
         parent_chain_names: &SharedChain<Arc<str>>,
         parent_pkg_ids_chain: &SharedChain<Arc<str>>,
     ) -> Option<NodeOutput> {
-        if let Some((tree_node_depth, dep_path)) = self.context_free_dep_path(node_id) {
-            self.remember_resolved_node(node_id, &dep_path);
-            if let Some(node) = self.output.graph.get_mut(&dep_path)
-                && node.depth > tree_node_depth
-            {
-                node.depth = tree_node_depth;
-            }
-            return Some(self.peerless_output(dep_path));
+        if let Some(output) = self.enter_context_free_node(node_id) {
+            return Some(output);
         }
 
         if self.traversal.in_progress.contains(node_id) {
@@ -298,6 +329,22 @@ impl Walker<'_> {
         ))
     }
 
+    fn enter_context_free_node(&mut self, node_id: &NodeId) -> Option<NodeOutput> {
+        let (tree_node_depth, dep_path) = self.context_free_dep_path(node_id)?;
+        self.remember_resolved_node(node_id, &dep_path);
+        if let Some(node) = self.output.graph.get_mut(&dep_path)
+            && node.depth > tree_node_depth
+        {
+            node.depth = tree_node_depth;
+        }
+        let mut output = self.peerless_output(dep_path);
+        if !self.traversal.snapshot_budget.exceeded && tree_node_depth != -1 {
+            output.subtree_dep_paths = self.traversal.snapshot_budget
+                .replay_cached_subtree_for_mode(self.traversal.mode, &output.dep_path);
+        }
+        Some(output)
+    }
+
     /// The depPath a node takes regardless of its parent context, with the
     /// depth it was reached at.
     ///
@@ -308,7 +355,7 @@ impl Walker<'_> {
     /// the recursion can be skipped entirely.
     pub(super) fn context_free_dep_path(&self, node_id: &NodeId) -> Option<(i32, DepPath)> {
         let tree_node = self.tree.dependencies_tree.get(node_id)?;
-        if tree_node.depth == -1 {
+        if self.traversal.snapshot_budget.exceeded || tree_node.depth == -1 {
             return Some((
                 tree_node.depth,
                 DepPath::from(Arc::<str>::clone(&tree_node.resolved_package_id)),
@@ -341,6 +388,7 @@ impl Walker<'_> {
             auto_install_resolved_peers: HashMap::default(),
             missing_peers: Arc::clone(&self.nodes.empty_missing_peers),
             subtree_missing_by_pkg: None,
+            subtree_dep_paths: None,
         }
     }
 

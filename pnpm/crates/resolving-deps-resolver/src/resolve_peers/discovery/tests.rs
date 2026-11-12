@@ -1,7 +1,10 @@
 //! Unit tests for the peer-hoist discovery engine.
 
+mod snapshot_budget;
+
 use super::{
-    CanonicalCycleGate, PeerDiscoveryCaches, PeerHoistDiscovery, ViewGeneration, discover_peers,
+    CanonicalCycleGate, PeerDiscoveryCaches, PeerDiscoveryResult, PeerHoistDiscovery,
+    ViewGeneration, discovery_provider_sources, walk_discovery_direct,
 };
 use crate::{
     node_id::NodeId,
@@ -9,13 +12,34 @@ use crate::{
     resolve_peers::{
         ResolvePeersOptions,
         test_support::{add_lazy_direct_dep, child_edge, package, tree_node},
-        walker::Walker,
+        walker::{PeerWalkMode, RootWalk, Walker},
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
+
+fn discover_peers(
+    tree: &mut ResolvedTree,
+    parents_direct: &[DirectDep],
+    walk_direct: &[DirectDep],
+    caches: PeerDiscoveryCaches,
+    opts: ResolvePeersOptions,
+) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
+    let current_provider_sources = discovery_provider_sources(parents_direct, &opts);
+    let mut walker = Walker::new(
+        tree,
+        opts,
+        HashMap::default(),
+        current_provider_sources,
+        caches,
+        PeerWalkMode::Discovery,
+    );
+    let root = RootWalk::of(&walker, parents_direct);
+    let result = walk_discovery_direct(&mut walker, walk_direct, &root);
+    (result, walker.into_discovery_state().0)
+}
 
 /// The children graph `c -> a <-> b`: a mutual dependency entered from a
 /// package outside the cycle.

@@ -556,7 +556,7 @@ mod pipeline_runs;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 
 mod resolve;
-use resolve::read_ndjson_frames;
+use resolve::{NdjsonLimits, read_ndjson_frames};
 
 mod ecosystem_cache;
 mod ecosystems;

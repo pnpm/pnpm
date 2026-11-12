@@ -302,6 +302,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
                 overrides_hook: None,
                 pnpmfile_hook: None,
             },
+            max_snapshots: None,
         },
         reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
             lockfile: None,
