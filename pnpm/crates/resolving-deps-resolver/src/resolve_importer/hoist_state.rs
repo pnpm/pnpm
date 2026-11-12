@@ -81,6 +81,37 @@ pub(super) struct ImporterHoistSelection {
 }
 
 impl super::ImporterHoistState {
+    /// With auto-install disabled, lockfile weights may retain this importer's
+    /// peers, but cannot introduce providers absent from its pins and the graph.
+    pub(super) fn required_peer_preferred_versions<'name>(
+        &self,
+        names: impl Iterator<Item = &'name str>,
+    ) -> PreferredVersions {
+        let mut preferred =
+            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names);
+        if self.policy.peers.auto_install_peers
+            || self.ctx
+                .workspace()
+                .wanted_lockfile()
+                .is_none()
+        {
+            return preferred;
+        }
+        let resolved = self.ctx.run_resolved_versions(preferred.keys().map(String::as_str));
+        preferred.retain(|name, versions| {
+            versions.retain(|version, _| {
+                resolved
+                    .get(name)
+                    .is_some_and(|resolved| resolved.contains(version))
+                    || self.selection.locked_versions
+                        .get(name)
+                        .is_some_and(|locked| locked.contains(version))
+            });
+            !versions.is_empty()
+        });
+        preferred
+    }
+
     pub(super) fn assemble(
         importer_id: &str,
         ctx: TreeCtx,

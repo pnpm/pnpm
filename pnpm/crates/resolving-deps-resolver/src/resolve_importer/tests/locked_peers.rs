@@ -814,3 +814,53 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
         );
     }
 }
+
+#[test]
+fn truncated_provider_keys_retain_nested_pins_without_overriding_nearer_pins() {
+    let mut lockfile = peer_context_lockfile(
+        None,
+        [
+            (
+                "consumer@1.0.0(provider@1.0.0)(peer@1.0.0)",
+                snapshot_with_dependencies([
+                    ("provider", plain_dependency("1.0.0(peer@2.0.0)(nested@3.0.0)")),
+                    ("peer", plain_dependency("1.0.0")),
+                ]),
+            ),
+            (
+                "provider@1.0.0(peer@2.0.0)(nested@3.0.0)",
+                snapshot_with_dependencies([
+                    ("peer", plain_dependency("2.0.0")),
+                    ("nested", plain_dependency("3.0.0(provider@1.0.0)")),
+                ]),
+            ),
+            (
+                "nested@3.0.0(provider@1.0.0)",
+                snapshot_with_dependency(
+                    "provider",
+                    plain_dependency("1.0.0(peer@2.0.0)(nested@3.0.0)"),
+                ),
+            ),
+        ],
+    );
+    lockfile.importers.insert(
+        "app".to_string(),
+        serde_json::from_value(serde_json::json!({
+            "dependencies": {
+                "consumer": {
+                    "specifier": "1.0.0",
+                    "version": "1.0.0(provider@1.0.0)(peer@1.0.0)",
+                },
+            },
+        }))
+        .unwrap(),
+    );
+    assert_eq!(
+        importer_locked_peer_versions(Some(&lockfile), "app", |_| true),
+        HashMap::from_iter([
+            ("provider".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("nested".to_string(), HashSet::from_iter(["3.0.0".to_string()])),
+        ]),
+    );
+}

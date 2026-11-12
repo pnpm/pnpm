@@ -2,6 +2,7 @@ use super::{Arc, DependencyGroup, HashMap, HashSet, TreeCtx};
 use crate::resolve_dependency_tree::{DependencySpec, direct_dep_specifier_unchanged};
 use hashed_suffix::hashed_peer_keys;
 use pnpm_lockfile::{PeerBindings, PkgName};
+use std::collections::VecDeque;
 
 mod hashed_suffix;
 
@@ -105,7 +106,8 @@ pub(super) fn all_locked_peer_versions(
 }
 
 /// The peer name/version pairs the wanted lockfile pinned for `key`,
-/// including the peers of every peer provider the suffix names.
+/// including the peers of every peer provider the suffix names. A nearer
+/// binding wins when following a provider cycle reaches the same name again.
 ///
 /// An explicit suffix already spells them out, save for the names an
 /// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
@@ -123,12 +125,16 @@ fn locked_peer_versions_for_key_cached(
 ) -> Vec<(String, String)> {
     let mut versions = Vec::new();
     let mut visited = HashSet::default();
-    let mut pending = vec![(key.clone(), snapshot)];
-    while let Some((key, snapshot)) = pending.pop() {
+    let mut pinned_names = HashSet::default();
+    let mut pending = VecDeque::from([(key.clone(), snapshot)]);
+    while let Some((key, snapshot)) = pending.pop_front() {
         if !visited.insert(key.clone()) {
             continue;
         }
         for (name, peer) in locked_peer_keys(lockfile, &key, snapshot, bound_cache) {
+            if !pinned_names.insert(name.clone()) {
+                continue;
+            }
             versions.push((name, peer.suffix.without_peer().to_string()));
             pending.extend(provider_with_peers(lockfile, peer));
         }
@@ -183,7 +189,32 @@ fn locked_peer_keys(
         .into_iter()
         .map(|(name, _)| name)
         .zip(peers)
+        .map(|(name, peer)| {
+            let provider = snapshot
+                .and_then(|snapshot| snapshot_peer_provider(snapshot, &name, &peer))
+                .unwrap_or(peer);
+            (name, provider)
+        })
         .collect()
+}
+
+/// A cycle can truncate a suffix provider to its name and version. Its
+/// dependency edge still names the snapshot carrying its own peer bindings.
+fn snapshot_peer_provider(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    name: &str,
+    peer: &pnpm_lockfile::PkgNameVerPeer,
+) -> Option<pnpm_lockfile::PkgNameVerPeer> {
+    if !peer.suffix.peer().is_empty() {
+        return None;
+    }
+    let alias: PkgName = name.parse().ok()?;
+    let reference = snapshot.dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&alias))
+        .or_else(|| snapshot.optional_dependencies.as_ref()?.get(&alias))?;
+    let provider = reference.resolve(&alias)?;
+    (provider.without_peer() == peer.without_peer()).then_some(provider)
 }
 
 /// Rename the suffix segments an npm alias provides back to the name

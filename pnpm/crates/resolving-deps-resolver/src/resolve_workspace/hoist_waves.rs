@@ -3,7 +3,7 @@
 
 use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
-    resolve_importer::{ImporterHoistState, ResolveImporterError},
+    resolve_importer::{ImporterHoistState, OptionalPeerCandidates, ResolveImporterError},
     resolve_peers::PeerHoistDiscovery,
 };
 use pnpm_resolving_resolver_base::Resolver;
@@ -80,7 +80,9 @@ where
     Chain: Resolver + ?Sized,
 {
     loop {
-        if !hoist_optional_wave(resolver, states).await? {
+        if !hoist_optional_wave(resolver, states, OptionalPeerCandidates::Resolved).await?
+            && !hoist_optional_wave(resolver, states, OptionalPeerCandidates::Preferred).await?
+        {
             return Ok(());
         }
         settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
@@ -110,18 +112,19 @@ where
 async fn hoist_optional_wave<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
+    candidates: OptionalPeerCandidates,
 ) -> Result<bool, ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
 {
     refresh_root_dep_versions(states);
-    let mut any_hoisted = hoist_root_optional(resolver, states).await?;
+    let mut any_hoisted = hoist_root_optional(resolver, states, candidates).await?;
     if any_hoisted {
         refresh_root_dep_versions(states);
     }
     for state in states.iter_mut() {
         if state.importer_id() != pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY {
-            any_hoisted |= state.hoist_optional_round(resolver).await?;
+            any_hoisted |= state.hoist_optional_round(resolver, candidates).await?;
         }
     }
     Ok(any_hoisted)
@@ -130,6 +133,7 @@ where
 async fn hoist_root_optional<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
+    candidates: OptionalPeerCandidates,
 ) -> Result<bool, ResolveImporterError>
 where
     Chain: Resolver + ?Sized,
@@ -138,7 +142,7 @@ where
         .iter_mut()
         .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY)
     {
-        Some(root) => root.hoist_optional_round(resolver).await,
+        Some(root) => root.hoist_optional_round(resolver, candidates).await,
         None => Ok(false),
     }
 }

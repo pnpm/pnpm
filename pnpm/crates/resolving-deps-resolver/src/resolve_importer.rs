@@ -24,6 +24,7 @@
 //! walker's caches across importers and applies `dedupeInjectedDeps`.
 
 pub(crate) use missing_peers::intersect_ranges;
+pub(crate) use optional_peer_candidates::OptionalPeerCandidates;
 pub use options::{
     ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
@@ -145,7 +146,9 @@ where
     let mut peer_discovery = PeerHoistDiscovery::new();
     loop {
         state.run_required_round(resolver, &mut peer_discovery).await?;
-        if !state.hoist_optional_round(resolver).await? {
+        if !state.hoist_optional_round(resolver, OptionalPeerCandidates::Resolved).await?
+            && !state.hoist_optional_round(resolver, OptionalPeerCandidates::Preferred).await?
+        {
             break;
         }
     }
