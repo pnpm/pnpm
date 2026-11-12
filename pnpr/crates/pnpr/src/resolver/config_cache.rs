@@ -2,35 +2,24 @@ use super::{
     HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, Path, PathBuf, ResolveRequest, StoreDir,
 };
 
-/// Hard cap on how many distinct client configurations the server will
-/// intern. Each interned [`PacquetConfig`] is leaked (the install path
-/// requires a `&'static Config`), so without a cap an authenticated
-/// caller could exhaust memory by varying its registry/policy fields on
-/// every request. `1024` is far above the handful of distinct setups a
-/// real fleet produces (typically one), matching
-/// [`cache::MAX_RESOLUTION_CACHE_ENTRIES`](super::cache::MAX_RESOLUTION_CACHE_ENTRIES).
-pub(super) const MAX_INTERNED_CONFIGS: usize = 1024;
+use std::{sync::Arc, time::Instant};
 
-/// Returned (as a `503`) when [`MAX_INTERNED_CONFIGS`] is reached. The
-/// limit resets on restart and a real client reuses one configuration, so
-/// a legitimate caller never sees it.
-pub(super) const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configurations";
+pub(super) const MAX_CACHED_CONFIGS: usize = 1024;
+pub(super) const CONFIG_KEY_TOO_LARGE_MESSAGE: &str = "registry configuration is too large";
 
-/// Hard cap on the byte size of a single interned config's canonical key,
-/// which carries its attacker-controlled `registry` / `namedRegistries` /
-/// `overrides` content. [`MAX_INTERNED_CONFIGS`] bounds only the *count* of
-/// leaked configs; without this a caller could pad each distinct config with
-/// a giant overrides/package-extensions/registry map and still amplify the per-request
-/// leak (the whole request body is allowed up to the publish-sized limit).
-/// `128 KiB` is far above any real resolver configuration.
+/// Bound the memory retained for each cached request configuration.
 pub(super) const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
+
+pub(super) struct CachedConfig {
+    config: Arc<PacquetConfig>,
+    last_used: Instant,
+}
 
 /// The settings a request resolves under, and the only part of an input
 /// lockfile's `settings` block the interning key carries. Keying on the whole
 /// block would let a caller mint an unbounded number of distinct configs out
 /// of the fields the config never reads (`peersSuffixMaxLength` alone is a
-/// `u64`) and exhaust [`MAX_INTERNED_CONFIGS`], after which no caller gets a
-/// config at all.
+/// `u64`).
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct EffectiveResolverSettings {
@@ -81,28 +70,16 @@ impl EffectiveResolverSettings {
     }
 }
 
-/// Build + leak a `&'static Config` for a request's registry
-/// configuration, interned by its canonical JSON so repeat requests reuse
-/// it. Returns `None` when the config can't be safely interned:
-///
-/// * once `max_interned` distinct configurations have been interned — a
-///   leaked config can never be reclaimed, so refusing to leak more is the
-///   only real bound on the per-request leak (eviction would just let the
-///   same key be re-leaked); or
-/// * when a single config's canonical key exceeds `max_key_bytes`, which
-///   bounds the *size* of each leaked config so a caller can't amplify the
-///   leak with a giant `overrides`, `packageExtensions`, or registry map.
-///
-/// Both caps are generous enough that legitimate clients (which reuse one
-/// small configuration) never hit them.
+/// Reuse a request configuration, evicting the least recently used entry at capacity.
+/// Active requests retain their own reference across eviction.
 pub(super) fn intern_config(
-    configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
+    configs: &Mutex<HashMap<String, CachedConfig>>,
     store_dir: &StoreDir,
     cache_dir: &Path,
     request: &ResolveRequest,
-    max_interned: usize,
+    max_cached: usize,
     max_key_bytes: usize,
-) -> Option<&'static PacquetConfig> {
+) -> Option<Arc<PacquetConfig>> {
     let registry =
         request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
     let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
@@ -116,13 +93,39 @@ pub(super) fn intern_config(
     }
 
     let mut configs = configs.lock().expect("config cache poisoned");
-    if let Some(config) = configs.get(&key) {
-        return Some(config);
+    if let Some(config) = configs.get_mut(&key) {
+        config.last_used = Instant::now();
+        return Some(Arc::clone(&config.config));
     }
-    if configs.len() >= max_interned {
-        return None;
+    if configs.len() >= max_cached
+        && let Some(oldest) = configs
+            .iter()
+            .min_by_key(|(_, entry)| entry.last_used)
+            .map(|(key, _)| key.clone())
+    {
+        configs.remove(&oldest);
     }
 
+    let config =
+        build_config(store_dir, cache_dir, request, registry, overrides, &resolver_settings);
+    let config = Arc::new(config);
+    if max_cached > 0 {
+        configs.insert(
+            key,
+            CachedConfig { config: Arc::clone(&config), last_used: Instant::now() },
+        );
+    }
+    Some(config)
+}
+
+fn build_config(
+    store_dir: &StoreDir,
+    cache_dir: &Path,
+    request: &ResolveRequest,
+    registry: String,
+    overrides: Option<IndexMap<String, String>>,
+    resolver_settings: &EffectiveResolverSettings,
+) -> PacquetConfig {
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
     config.cache_dir = cache_dir.to_path_buf();
@@ -141,15 +144,13 @@ pub(super) fn intern_config(
     config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
     config.add_missing_peer_types = resolver_settings.add_missing_peer_types;
     config.project_scoped_optional_peers = resolver_settings.project_scoped_optional_peers;
-    let config: &'static PacquetConfig = config.leak();
-    configs.insert(key, config);
-    Some(config)
+    config
 }
 
 /// Key on a sorted view of `overrides`: `serde_json` preserves insertion order
 /// and `IndexMap` is insertion-ordered, so the same overrides sent with a
 /// different key order would otherwise hash to distinct cache keys and intern
-/// duplicate leaked configs — defeating dedup and burning the cap faster.
+/// duplicate configurations.
 pub(super) fn config_cache_key(
     request: &ResolveRequest,
     registry: &str,

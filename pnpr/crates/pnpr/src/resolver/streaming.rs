@@ -8,7 +8,7 @@ use super::{
 
 /// What one streamed resolve carries out of the request handling.
 pub(super) struct StreamedResolveInputs {
-    pub(super) config: &'static PacquetConfig,
+    pub(super) config: Arc<PacquetConfig>,
     pub(super) request: ResolveRequest,
     pub(super) request_auth: Arc<AuthHeaders>,
     pub(super) tarball_router: TarballRouter,
@@ -64,7 +64,7 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
     let StreamedResolve { inputs, tx, .. } = &task;
     let StreamedResolveInputs { config, tarball_router, .. } = inputs;
     let resolved = Box::pin(resolve::resolve(
-        task.inputs.config,
+        &task.inputs.config,
         &task.client,
         &task.inputs.request,
         &task.inputs.request_auth,

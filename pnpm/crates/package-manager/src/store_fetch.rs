@@ -30,7 +30,7 @@ pub(crate) enum StoreFetchScope {
 
 pub(crate) struct StoreFetchInputs<'a> {
     pub lockfile: &'a Lockfile,
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub http_client: &'a Arc<ThrottledClient>,
     pub mem_cache: &'a Arc<MemCache>,
     pub auth_override: Option<&'a Arc<AuthHeaders>>,

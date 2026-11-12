@@ -44,7 +44,7 @@ pub(super) struct PartitionSideEffects {
 
 #[derive(Clone, Copy)]
 pub(super) struct PartitionSideEffectsContext<'a> {
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub wanted: WantedEntries<'a>,
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,

@@ -203,7 +203,7 @@ fn seed_placeholder_virtual_store_slot(virtual_store_dir: &std::path::Path) {
 }
 
 /// Run one install against `modules_dir` for the purge regression below: a
-/// fresh leaked config per call (the install path needs `&'static Config`),
+/// a fresh configuration per call,
 /// `included` driven by `dependency_groups`, and `virtual_store_dir_max_length`
 /// surfaced so the test can force a layout drift. `disable_optimistic_repeat_install`
 /// keeps every call on the full path so the purge branch is actually evaluated.

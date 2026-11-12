@@ -38,7 +38,7 @@ pub(crate) struct ImporterVersionSeeds<'a> {
 }
 
 pub(crate) struct ResolverStoreContext<'a> {
-    pub dir: &'static StoreDir,
+    pub dir: &'a StoreDir,
     pub index: Option<&'a SharedReadonlyStoreIndex>,
     pub index_writer: &'a Arc<StoreIndexWriter>,
     pub verified_files_cache: &'a SharedVerifiedFilesCache,

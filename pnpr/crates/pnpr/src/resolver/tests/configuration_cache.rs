@@ -1,7 +1,7 @@
 use super::{
-    HashMap, HashSet, Lockfile, Mutex, PacquetConfig, PathBuf, RegistryDeclaration, ResolutionMode,
-    ResolveRequest, ResolveRequestProject, RouteContext, config, deps, lockfile, registry_config,
-    reject_off_allowlist_fetches, resolution_cache_key,
+    Arc, HashMap, HashSet, Lockfile, Mutex, PacquetConfig, PathBuf, RegistryDeclaration,
+    ResolutionMode, ResolveRequest, ResolveRequestProject, RouteContext, config, deps, lockfile,
+    registry_config, reject_off_allowlist_fetches, resolution_cache_key,
 };
 
 #[test]
@@ -423,7 +423,7 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
             }))
             .expect("resolve request parses")
         };
-    let intern = |configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
+    let intern = |configs: &Mutex<HashMap<String, super::super::config_cache::CachedConfig>>,
                   request: &ResolveRequest| {
         intern_config(configs, &store_dir, &cache_dir, request, 10, usize::MAX)
             .expect("intern config")
@@ -442,10 +442,10 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
     let second = (true, false, true);
     let frozen = intern(&configs, &request(requested(first), Some(second), true));
     let update = intern(&configs, &request(requested(second), Some(first), false));
-    assert_eq!(effective(frozen), first);
-    assert_eq!(effective(update), second);
+    assert_eq!(effective(&frozen), first);
+    assert_eq!(effective(&update), second);
     let update_reusing_frozen = intern(&configs, &request(requested(first), Some(second), false));
-    assert!(std::ptr::eq(frozen, update_reusing_frozen));
+    assert!(std::sync::Arc::ptr_eq(&frozen, &update_reusing_frozen));
 
     for (request_settings, lockfile_settings) in [
         ((Some(false), None, None), (true, true, false)),
@@ -453,11 +453,11 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
         ((None, None, Some(false)), (false, true, true)),
     ] {
         let partial = intern(&configs, &request(request_settings, Some(lockfile_settings), true));
-        assert!(std::ptr::eq(frozen, partial));
+        assert!(std::sync::Arc::ptr_eq(&frozen, &partial));
     }
     let partial_update =
         intern(&configs, &request((None, Some(true), None), Some((false, false, true)), false));
-    assert_eq!(effective(partial_update), (true, true, false));
+    assert_eq!(effective(&partial_update), (true, true, false));
 
     let intern_key = |settings| intern(&configs, &request(requested(settings), None, false));
     let cache_request = ResolveRequest::default();
@@ -467,9 +467,9 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
             for exclude_links_from_lockfile in [false, true] {
                 let settings = (auto_install_peers, dedupe_peers, exclude_links_from_lockfile);
                 let config = intern_key(settings);
-                assert_eq!(effective(config), settings);
+                assert_eq!(effective(&config), settings);
                 let cache_key =
-                    resolution_cache_key(config, &cache_request).expect("resolution cache key");
+                    resolution_cache_key(&config, &cache_request).expect("resolution cache key");
                 assert!(cache_keys.insert(cache_key));
             }
         }
@@ -516,11 +516,6 @@ fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
     assert_eq!(config.exclude_links_from_lockfile, defaults.exclude_links_from_lockfile);
 }
 
-/// Only the three effective fields may reach the interning key. The rest of
-/// the `settings` block doesn't change the config, and keying on it would
-/// let a caller mint a distinct leaked config per value —
-/// `peersSuffixMaxLength` is a `u64` — until `MAX_INTERNED_CONFIGS` is
-/// spent and every caller is refused.
 #[test]
 fn intern_config_ignores_unrelated_lockfile_settings() {
     use super::super::intern_config;
@@ -546,51 +541,43 @@ fn intern_config_ignores_unrelated_lockfile_settings() {
         intern_config(&configs, &store_dir, &cache_dir, request, 1, usize::MAX)
     };
 
-    assert!(intern(&request(1000)).is_some());
+    let first = intern(&request(1000)).unwrap();
+    let second = intern(&request(10)).unwrap();
     assert!(
-        intern(&request(10)).is_some(),
-        "a field the config never reads must not mint a second interned config",
+        Arc::ptr_eq(&first, &second),
+        "unrelated lockfile settings must reuse the configuration",
     );
 }
 
 #[test]
-fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
-    use super::super::intern_config;
-    use pnpm_store_dir::StoreDir;
-    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
-
+fn intern_config_evicts_lru_and_releases_inactive_configurations() {
+    use std::sync::Arc;
     let configs = Mutex::new(HashMap::new());
-    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-intern-test-store"));
-    let cache_dir = PathBuf::from("/tmp/pnpr-intern-test-cache");
-    let max = 2;
-
-    let request = |registry: &str| ResolveRequest {
-        registry: Some(registry.to_string()),
-        ..ResolveRequest::default()
+    let store_dir = pnpm_store_dir::StoreDir::new(PathBuf::from("/tmp/pnpr-config-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-config-cache");
+    let intern = |age| {
+        let request = ResolveRequest { minimum_release_age: Some(age), ..Default::default() };
+        super::super::intern_config(&configs, &store_dir, &cache_dir, &request, 2, usize::MAX)
+            .unwrap()
     };
-    let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), max, usize::MAX)
-    };
-
-    // Distinct registry configurations are interned up to the cap.
-    assert!(intern("https://a.test/").is_some());
-    assert!(intern("https://b.test/").is_some());
-
-    // A new distinct configuration past the cap is refused, not leaked — this
-    // is the bound on how much an authenticated caller can make the server
-    // leak by varying its registry/policy fields.
-    assert!(intern("https://c.test/").is_none());
-    // ...and nothing was interned beyond the cap (the refusal didn't leak).
-    assert_eq!(
-        configs
-            .lock()
-            .expect("config cache poisoned")
-            .len(),
-        max,
-    );
-
-    // An already-interned configuration is still served even at the cap.
-    assert!(intern("https://a.test/").is_some());
+    let first = intern(1);
+    let second = intern(2);
+    let weak_second = Arc::downgrade(&second);
+    drop(second);
+    assert!(Arc::ptr_eq(&first, &intern(1)));
+    let third = intern(3);
+    assert!(weak_second.upgrade().is_none());
+    assert_eq!(configs.lock().unwrap().len(), 2);
+    let weak_first = Arc::downgrade(&first);
+    for age in 4..1030 {
+        assert_eq!(intern(age).minimum_release_age, Some(age));
+        assert!(configs.lock().unwrap().len() <= 2);
+    }
+    assert_eq!(first.minimum_release_age, Some(1));
+    assert_eq!(third.minimum_release_age, Some(3));
+    drop(first);
+    assert!(weak_first.upgrade().is_none());
+    assert_eq!(intern(1).minimum_release_age, Some(1));
 }
 
 #[test]
@@ -613,7 +600,7 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
     // A normal configuration is interned.
     assert!(intern("https://a.test/").is_some());
     // A configuration whose canonical key exceeds the byte cap is refused, so a
-    // caller can't amplify the per-config leak with a giant overrides/registry.
+    // caller can't retain an oversized overrides or registry map.
     let oversized = format!("https://{}.test/", "x".repeat(2048));
     assert!(intern(&oversized).is_none());
 }
@@ -638,7 +625,7 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     let first =
         intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
     let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
-    assert!(std::ptr::eq(first, second));
+    assert!(std::sync::Arc::ptr_eq(&first, &second));
     assert_eq!(
         configs
             .lock()
@@ -709,8 +696,8 @@ fn intern_config_keys_add_missing_peer_types() {
     assert!(!off.add_missing_peer_types);
     let cache_request = ResolveRequest::default();
     assert_ne!(
-        resolution_cache_key(on, &cache_request).expect("resolution cache key"),
-        resolution_cache_key(off, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(&on, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(&off, &cache_request).expect("resolution cache key"),
     );
 }
 
@@ -765,7 +752,7 @@ fn intern_config_keys_project_scoped_optional_peers() {
     assert!(!off.project_scoped_optional_peers);
     let cache_request = ResolveRequest::default();
     assert_ne!(
-        resolution_cache_key(on, &cache_request).expect("resolution cache key"),
-        resolution_cache_key(off, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(&on, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(&off, &cache_request).expect("resolution cache key"),
     );
 }

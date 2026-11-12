@@ -180,7 +180,7 @@ async fn ingest_benchmark_package(
             tar_limits: pnpm_tarball::TarLimits::default(),
         },
         store: pnpm_tarball::ArchiveStoreContext {
-            dir: store_dir,
+            dir: std::borrow::Cow::Borrowed(store_dir),
             index: None,
             index_writer: None,
             verify_integrity: true,

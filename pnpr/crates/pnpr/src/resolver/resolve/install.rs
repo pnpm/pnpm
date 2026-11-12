@@ -27,7 +27,7 @@ fn update_seed_policy(request: &ResolveRequest) -> pnpm_package_manager::UpdateS
 /// Resolve using the caller's credentials and catalogs, streaming observations
 /// when requested. The input lockfile must already have passed policy verification.
 pub(super) struct ResolutionInstall<'a> {
-    pub(super) config: &'static Config,
+    pub(super) config: &'a Config,
     pub(super) client: &'a Arc<ThrottledClient>,
     pub(super) request: &'a ResolveRequest,
     pub(super) auth_headers: &'a Arc<AuthHeaders>,

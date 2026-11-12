@@ -8,7 +8,7 @@ pub(super) fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &
 }
 /// The modules directory a drifted layout has to be rebuilt from.
 pub(super) struct InconsistentModulesDir<'a> {
-    pub(super) config: &'static Config,
+    pub(super) config: &'a Config,
     pub(super) workspace_root: &'a Path,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) node_linker: NodeLinker,
@@ -130,7 +130,7 @@ pub(super) fn recorded_virtual_store_name(
 /// What decides whether direct links excluded by this run have to be pruned.
 pub(super) struct ExcludedGroupPrune<'a> {
     pub(crate) eligibility: crate::install::state_options::PruneEligibility,
-    pub(super) config: &'static Config,
+    pub(super) config: &'a Config,
     pub(super) workspace_root: &'a Path,
     pub(super) included: IncludedDependencies,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,

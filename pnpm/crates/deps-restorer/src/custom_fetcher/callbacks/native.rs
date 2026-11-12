@@ -32,7 +32,7 @@ pub(super) async fn fetch_git_hosted_tarball<Reporter: pnpm_reporter::Reporter>(
     let output = GitHostedTarballFetcher {
         scripts: prepare_script_options(settings),
         store: GitStoreContext {
-            dir: native.download.store.dir,
+            dir: &native.download.store.dir,
             index_writer: native.download.store.index_writer.as_ref(),
             files_index_file: &files_index_file,
         },
@@ -76,7 +76,7 @@ pub(super) async fn fetch_git<Reporter: pnpm_reporter::Reporter>(
             git_bin: None,
         },
         store: GitStoreContext {
-            dir: native.download.store.dir,
+            dir: &native.download.store.dir,
             index_writer: native.download.store.index_writer.as_ref(),
             files_index_file: &files_index_file,
         },

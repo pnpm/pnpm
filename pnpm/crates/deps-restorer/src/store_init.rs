@@ -12,7 +12,8 @@ use pnpm_store_dir::StoreDir;
 ///
 /// Shared by `InstallWithFreshLockfile::run` and `CreateVirtualStore::run`
 /// so the log text and degradation policy stay in sync.
-pub async fn init_store_dir_best_effort(store_dir: &'static StoreDir) {
+pub async fn init_store_dir_best_effort(store_dir: &StoreDir) {
+    let store_dir = store_dir.clone();
     match tokio::task::spawn_blocking(move || store_dir.init()).await {
         Ok(Ok(())) => {}
         Ok(Err(error)) => {

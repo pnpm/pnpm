@@ -68,7 +68,7 @@ fn found_in_store(package_id: String, requester: String) -> ProgressMessage {
 pub(crate) struct TarballDownload {
     pub mem_cache: Arc<MemCache>,
     pub requester: Arc<str>,
-    pub store: pnpm_tarball::ArchiveStoreContext<'static>,
+    pub store: Arc<pnpm_tarball::ArchiveStoreContext<'static>>,
     pub fetching: crate::tarball_prefetch::PrefetchHttpClient,
     pub package: crate::tarball_prefetch::TarballDownloadPackage,
     /// `Some` when the download reports its package status to the install
@@ -125,7 +125,7 @@ async fn run_tarball_download<Reporter: self::Reporter>(
             url: &download.package.url,
             id: &download.package.id,
         },
-        store: download.store,
+        store: download.store.borrowed(),
 
         requester: &download.requester,
 
@@ -163,7 +163,7 @@ pub struct TarballPrefetcher {
     /// tarball (the resolver yields one per dependent edge) collapse to a
     /// single download. Mirrors `PrefetchingResolver::spawned_downloads`.
     spawned_downloads: DashSet<String>,
-    store: pnpm_tarball::ArchiveStoreContext<'static>,
+    store: Arc<pnpm_tarball::ArchiveStoreContext<'static>>,
     fetching: crate::tarball_prefetch::PrefetchHttpClient,
 }
 
@@ -176,7 +176,7 @@ impl TarballPrefetcher {
     /// `verified_files`, the cache of a verification that already ran,
     /// when the caller has one.
     pub async fn new(
-        config: &'static Config,
+        config: &Config,
         http_client: &Arc<ThrottledClient>,
         mem_cache: &Arc<MemCache>,
         auth_override: Option<&Arc<AuthHeaders>>,
@@ -207,15 +207,15 @@ impl TarballPrefetcher {
             writer_task,
             requester: Arc::<str>::from(requester),
             spawned_downloads: DashSet::new(),
-            store: pnpm_tarball::ArchiveStoreContext {
-                dir: store_dir,
+            store: Arc::new(pnpm_tarball::ArchiveStoreContext {
+                dir: std::borrow::Cow::Owned(store_dir.clone()),
                 index: store_index,
                 index_writer: Some(store_index_writer),
                 verified_files_cache: verified_files.unwrap_or_default(),
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 prefetched_cas_paths: None,
-            },
+            }),
             fetching: PrefetchHttpClient::new(config, http_client, auth_override),
         }
     }
@@ -276,7 +276,7 @@ impl TarballPrefetcher {
         TarballDownload {
             mem_cache: Arc::clone(&self.mem_cache),
             requester: Arc::clone(&self.requester),
-            store: self.store.clone(),
+            store: Arc::clone(&self.store),
             fetching: self.fetching.clone(),
             package,
             progress_reported,
@@ -425,7 +425,7 @@ impl TarballPrefetcher {
     /// downgraded to a warning — the install already succeeded and a
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
-        drop(self.store.index_writer);
+        drop(self.store);
         StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }

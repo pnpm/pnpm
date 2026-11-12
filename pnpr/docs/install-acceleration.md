@@ -62,6 +62,10 @@ For frozen restores with an already-fresh lockfile, pnpm can use
 `POST /-/pnpr/v0/verify-lockfile` to get only the server-side trust verdict
 instead of resolving again.
 
+pnpr caches client configurations and evicts the least recently used entries
+when the cache is full. Active requests keep their configuration until they
+finish. A configuration larger than 128 KiB returns `400 Bad Request`.
+
 ## Cargo and Python
 
 Added in: v0.1.0-alpha.11

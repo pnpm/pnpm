@@ -167,7 +167,7 @@ pub struct BuildPhaseGraph<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildPhasePolicy<'a> {
-    pub config: &'static Config,
+    pub config: &'a Config,
     /// `patchedDependencies` already resolved + grouped by the caller, so
     /// the build phase doesn't re-hash the patch files. `None` on the
     /// frozen path, which resolves it inside [`crate::resolve_snapshot_patches`].

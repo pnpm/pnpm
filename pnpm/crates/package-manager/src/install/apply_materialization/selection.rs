@@ -109,7 +109,7 @@ pub(super) fn materialized_current_lockfile(
 pub(super) struct LinkMaterializedProjectsInputs<'a> {
     pub(super) filtered_install: bool,
     pub(super) node_linker: NodeLinker,
-    pub(super) config: &'static Config,
+    pub(super) config: &'a Config,
     pub(super) lockfiles: LinkMaterializedLockfiles<'a>,
     pub(super) workspace_root: &'a Path,
     pub(super) manifest_links: LinkMaterializedManifestLinks<'a>,
@@ -184,10 +184,7 @@ pub(super) async fn write_filtered_package_map(
     .map_err(InstallError::WritePackageMap)?;
     Ok(())
 }
-pub(super) async fn package_map_engine_name(
-    config: &'static Config,
-    current: &Lockfile,
-) -> Option<String> {
+pub(super) async fn package_map_engine_name(config: &Config, current: &Lockfile) -> Option<String> {
     let runtime_major = crate::install_frozen_lockfile::find_runtime_node_major(&current.importers);
     let configured_major = config.node_version
         .as_deref()

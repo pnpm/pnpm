@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ArchiveStoreContext<'a> {
-    pub dir: &'static StoreDir,
+    pub dir: std::borrow::Cow<'a, StoreDir>,
     /// Shared read-only handle to the `SQLite` store index. `None` when the
     /// store does not (yet) have an `index.db`, in which case every cache
     /// lookup short-circuits to a network fetch. Callers open this once per
@@ -59,10 +59,24 @@ pub struct ArchiveStoreContext<'a> {
 }
 
 impl ArchiveStoreContext<'_> {
+    /// Borrow the store directory while sharing its index and verification caches.
+    #[must_use]
+    pub fn borrowed(&self) -> ArchiveStoreContext<'_> {
+        ArchiveStoreContext {
+            dir: std::borrow::Cow::Borrowed(&self.dir),
+            index: self.index.clone(),
+            index_writer: self.index_writer.clone(),
+            verify_integrity: self.verify_integrity,
+            strict_pkg_content_check: self.strict_pkg_content_check,
+            verified_files_cache: Arc::clone(&self.verified_files_cache),
+            prefetched_cas_paths: self.prefetched_cas_paths,
+        }
+    }
+
     /// The part of this context a resolution-time read writes to.
     #[must_use]
-    pub fn resolution_store(&self) -> crate::ResolutionStore {
-        crate::ResolutionStore { dir: self.dir, index_writer: self.index_writer.clone() }
+    pub fn resolution_store(&self) -> crate::ResolutionStore<'_> {
+        crate::ResolutionStore { dir: &self.dir, index_writer: self.index_writer.clone() }
     }
 }
 

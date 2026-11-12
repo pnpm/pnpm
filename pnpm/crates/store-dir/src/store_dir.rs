@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha512, digest};
 use std::{
     path::{self, PathBuf},
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
 };
 
 /// Content hash of a file.
@@ -52,7 +52,7 @@ pub struct StoreDir {
     /// serialised wire shape — `#[serde(from/into)]` round-trips only
     /// through `PathBuf`, so the cache is regenerated empty on every
     /// deserialise.
-    ensured_shards: DashSet<u8>,
+    ensured_shards: Arc<DashSet<u8>>,
 
     /// Memoised `<root>/files` directory. Resolved lazily on the first
     /// CAS path lookup and reused across every subsequent file write
@@ -90,7 +90,7 @@ impl From<PathBuf> for StoreDir {
         } else {
             root.join(STORE_VERSION)
         };
-        StoreDir { root, ensured_shards: DashSet::new(), cached_files_dir: OnceLock::new() }
+        StoreDir { root, ensured_shards: Arc::default(), cached_files_dir: OnceLock::new() }
     }
 }
 

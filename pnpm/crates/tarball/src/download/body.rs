@@ -17,7 +17,7 @@ pub(super) struct BodyVerification {
     pub(super) content_coding: ContentCoding,
     pub(super) verification: ArchiveVerification,
     pub(super) limits: TarLimits,
-    pub(super) store_dir: &'static StoreDir,
+    pub(super) store_dir: StoreDir,
     pub(super) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 }
 
@@ -38,7 +38,7 @@ impl BodyVerification {
                     verification: self.verification,
                     package_url: &package_url,
                     limits: self.limits,
-                    store_dir: self.store_dir,
+                    store_dir: &self.store_dir,
                     ignore_file_pattern: self.ignore_file_pattern.as_deref(),
                 },
             )

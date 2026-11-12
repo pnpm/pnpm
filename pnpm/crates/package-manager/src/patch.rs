@@ -297,7 +297,7 @@ impl WritePackageForPatch<'_> {
             },
             package,
             store: pnpm_tarball::ArchiveStoreContext {
-                dir: &self.config.store_dir,
+                dir: std::borrow::Cow::Borrowed(&self.config.store_dir),
                 index: store_index,
                 index_writer: Some(Arc::clone(store_index_writer)),
                 verify_integrity: self.config.verify_store_integrity,

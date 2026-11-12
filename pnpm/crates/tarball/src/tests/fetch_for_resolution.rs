@@ -42,7 +42,7 @@ fn ingest<'a>(
             id: "@fastify/error@3.3.0",
         },
         store: crate::ArchiveStoreContext {
-            dir: store_path,
+            dir: std::borrow::Cow::Borrowed(store_path),
             index: None,
             index_writer: None,
             verify_integrity: true,

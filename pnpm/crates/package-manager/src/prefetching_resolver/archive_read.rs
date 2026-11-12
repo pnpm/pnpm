@@ -210,7 +210,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 download,
                 &result.resolution,
                 opts,
-                self.ctx.config,
+                &self.ctx.config,
             )
             .await
             .map_err(|error| Box::new(error) as ResolveError)

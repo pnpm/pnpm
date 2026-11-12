@@ -383,7 +383,7 @@ where
 #[derive(Clone, Copy)]
 pub struct InstallInvocation<'a> {
     pub http_client: &'a ThrottledClient,
-    pub config: &'static Config,
+    pub config: &'a Config,
     pub manifest: &'a PackageManifest,
     /// Emit `pnpm:package-manifest initial` from this install run.
     /// Partial mutations that need the pre-mutation manifest snapshot

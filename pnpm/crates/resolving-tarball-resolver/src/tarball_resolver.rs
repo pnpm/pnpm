@@ -342,7 +342,7 @@ impl TarballFetchContext {
     async fn prefetch(&self, cache_key: &str) -> PrefetchResult {
         prefetch_cas_paths(
             self.store.index.clone(),
-            self.store.dir,
+            &self.store.dir,
             vec![cache_key.to_string()],
             PrefetchIntegrityCheck::eager_if(self.store.verify_integrity),
             Arc::clone(&self.store.verified_files_cache),

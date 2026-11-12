@@ -87,7 +87,7 @@ pub struct PlatformLockfile<'a> {
 
 #[derive(Clone, Copy)]
 pub struct ImporterLinkContext<'a> {
-    pub config: &'static Config,
+    pub config: &'a Config,
     /// Install-scoped slot-directory mapping (GVS-aware). Drives the
     /// per-direct-dep symlink target — `node_modules/<dep>` resolves
     /// to `layout.slot_dir(<key>)/node_modules/<dep>`. See

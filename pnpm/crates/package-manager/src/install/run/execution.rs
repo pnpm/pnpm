@@ -291,7 +291,9 @@ impl<'a> RunExecution<'a> {
         }
     }
 
-    fn take_completion_context(&mut self) -> crate::install::state_options::ApplyCompletionContext {
+    fn take_completion_context(
+        &mut self,
+    ) -> crate::install::state_options::ApplyCompletionContext<'a> {
         crate::install::state_options::ApplyCompletionContext {
             prefix: std::mem::take(&mut self.workspace.prefix),
             workspace_manifest_dir: std::mem::take(&mut self.workspace.dirs.workspace_manifest_dir),

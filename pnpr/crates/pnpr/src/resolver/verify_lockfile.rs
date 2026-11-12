@@ -1,9 +1,9 @@
 use super::{
-    Arc, AuthHeaders, Bytes, Footprint, Identity, InMemoryPackageMetaCache, Lockfile, Mutex,
-    ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
-    ResolveRequest, Resolver, Response, StatusCode, TOO_MANY_CONFIGS_MESSAGE, TarballRouter,
-    build_resolution_verifiers, collect_resolution_policy_violations, hash_lockfile, json_error,
-    ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile,
+    Arc, AuthHeaders, Bytes, CONFIG_KEY_TOO_LARGE_MESSAGE, Footprint, Identity,
+    InMemoryPackageMetaCache, Lockfile, Mutex, ObservedDistStats, OsvIndex, PackageMetaCache,
+    PacquetConfig, ResolutionVerifier, ResolveRequest, Resolver, Response, StatusCode,
+    TarballRouter, build_resolution_verifiers, collect_resolution_policy_violations, hash_lockfile,
+    json_error, ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile,
     reject_inline_url_auth, reject_invalid_registries, reject_off_allowlist_fetches,
     verify_done_or_osv_violations, violations_frame,
 };
@@ -39,7 +39,7 @@ pub(crate) async fn handle_verify_lockfile(
     }
 
     let Some(config) = runtime.config_for(&request) else {
-        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
+        return json_error(StatusCode::BAD_REQUEST, CONFIG_KEY_TOO_LARGE_MESSAGE);
     };
     // Verifier packument fetches run under the same route hook, so they
     // select the same pnpr-managed credentials and are recorded in the
@@ -58,7 +58,7 @@ pub(crate) async fn handle_verify_lockfile(
     );
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
-    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
+    match verify_input_lockfile(runtime, &config, &request_auth, &input_lockfile).await {
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
@@ -90,7 +90,7 @@ pub(super) enum VerifyFailure {
 /// failure (e.g. an invalid exclude pattern) returns a ready-made 500.
 pub(super) async fn verify_input_lockfile(
     runtime: &Resolver,
-    config: &'static PacquetConfig,
+    config: &PacquetConfig,
     auth_headers: &Arc<AuthHeaders>,
     lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {

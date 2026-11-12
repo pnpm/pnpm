@@ -302,7 +302,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     package_integrity: &Integrity,
     package_id: &str,
     attempt: u32,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     auth_headers: &AuthHeaders,
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
@@ -359,18 +359,19 @@ pub(crate) struct ZipExtraction {
 impl ZipExtraction {
     pub(crate) async fn run(
         self,
-        store_dir: &'static StoreDir,
+        store_dir: &StoreDir,
     ) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
         let permit =
             post_download_semaphore().acquire().await.expect("post-download semaphore stays open");
-        crate::extraction_task::spawn_extraction(permit, move || self.extract(store_dir))
+        let store_dir = store_dir.clone();
+        crate::extraction_task::spawn_extraction(permit, move || self.extract(&store_dir))
             .await
             .map_err(TarballError::TaskJoin)?
     }
 
     fn extract(
         self,
-        store_dir: &'static StoreDir,
+        store_dir: &StoreDir,
     ) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
         crate::download::verify_tarball_integrity(
             &self.buffer,
@@ -412,7 +413,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     package_integrity: &Integrity,
     package_id: &str,
     requester: &str,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     retry_opts: RetryOpts,
     auth_headers: &AuthHeaders,
     archive_prefix: Option<&str>,
