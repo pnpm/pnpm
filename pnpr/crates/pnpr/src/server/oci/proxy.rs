@@ -63,7 +63,7 @@ impl Request {
         let ttl = if Digest::parse(reference).is_ok() {
             Duration::MAX
         } else {
-            upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl)
+            upstream.packument_ttl().unwrap_or(self.state.inner.config.http.packument_ttl)
         };
         if upstream.caches()
             && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl).await?

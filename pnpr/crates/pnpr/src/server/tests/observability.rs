@@ -142,7 +142,8 @@ async fn a_metrics_token_is_never_resolved_as_a_user_token() {
 async fn a_metrics_token_matches_without_its_surrounding_whitespace() {
     let tmp = TempDir::new().unwrap();
     let padded = format!("{METRICS_TOKEN}\n");
-    let app = app_with_metrics(&tmp, Some(MetricsConfig { token: Some(padded), listen: None }));
+    let app =
+        app_with_metrics(&tmp, Some(MetricsConfig { token: Some(padded.into()), listen: None }));
     let response = app
         .oneshot(scrape("/-/metrics", Some(METRICS_TOKEN)))
         .await

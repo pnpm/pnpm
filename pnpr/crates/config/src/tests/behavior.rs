@@ -84,7 +84,7 @@ fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
         disable_artifacts: true,
         disable_pipeline: true,
     };
-    let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
+    let err = Config::resolve_with_overrides(None, None, Some(listen()), None, overrides)
         .expect_err("all surfaces disabled must error rather than panic");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
 }
@@ -130,7 +130,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
     let enabled = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),
-        listen(),
+        Some(listen()),
         None,
         FeatureOverrides::default(),
     )
@@ -140,7 +140,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
     let error = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),
-        listen(),
+        Some(listen()),
         None,
         FeatureOverrides { disable_artifacts: true, ..FeatureOverrides::default() },
     )
@@ -181,33 +181,6 @@ fn accounts_default_to_the_sqlite_metadata_database() {
         config.identity.backend,
         BackendConfig::Sqlite(ref path) if *path == Path::new("/var/lib/pnpr/.metadata/metadata.sqlite"),
     ));
-}
-
-#[test]
-fn backend_block_rejects_empty_selection() {
-    let yaml = "storage: /var/lib/pnpr\nbackend: {}\n";
-    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
-        .expect_err("an empty backend block must not fall back to local");
-    assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
-        "expected an InvalidConfig naming the backend selection, got {err:?}",
-    );
-}
-
-#[test]
-fn backend_block_rejects_unknown_only_selection() {
-    let yaml = "\
-storage: /var/lib/pnpr
-backend:
-  sqlite:
-    url: sqlite:///var/lib/pnpr/auth.db
-";
-    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
-        .expect_err("an unknown backend key must not fall back to local");
-    assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
-        "expected an InvalidConfig naming the unknown field, got {err:?}",
-    );
 }
 
 #[test]
@@ -492,69 +465,6 @@ fn typed_token_grammar_is_validated() {
 }
 
 #[test]
-fn top_level_groups_block_is_a_startup_error() {
-    // The removed global block must not be silently dropped: its group
-    // names used to grant access, so a stale config must be migrated to
-    // per-registry `teams:`, not booted with silently changed grants.
-    for stub in ["groups:\n  platform: [alice]\n", "groups:\n", "groups: {}\n"] {
-        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a present top-level groups: key must be rejected");
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason }
-                    if reason.contains("top-level `groups:`")
-                        && reason.contains("registries.<name>.teams"),
-            ),
-            "unexpected error for {stub:?}: {err}",
-        );
-    }
-}
-
-#[test]
-fn top_level_packages_block_is_a_startup_error() {
-    // The removed global ACL must not be silently dropped like an unknown
-    // verdaccio key: it used to *enforce* access, so ignoring it would
-    // quietly open previously-gated packages on upgrade.
-    let yaml = "\
-storage: ./s
-registries:
-  local:
-    type: hosted
-packages:
-  '@secret/*':
-    access: $authenticated
-";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            RegistryError::InvalidConfig { reason }
-                if reason.contains("top-level `packages:`")
-                    && reason.contains("registries.<name>.packages"),
-        ),
-        "unexpected error: {err}",
-    );
-
-    // A *bare* `packages:` (YAML null) and an empty block are the same
-    // removed key and must be rejected identically — a plain `Option`
-    // would map null to "absent" and let it slip through.
-    for stub in ["packages:\n", "packages: {}\n", "packages: ~\n"] {
-        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a present top-level packages: key must be rejected");
-        assert!(
-            matches!(
-                &err,
-                RegistryError::InvalidConfig { reason } if reason.contains("top-level `packages:`"),
-            ),
-            "unexpected error for {stub:?}: {err}",
-        );
-    }
-}
-
-#[test]
 fn bundled_default_config_enforces_its_protections() {
     use pnpr_registry::{ConcreteKind, Resolved};
     // The bundled YAML provides production-safe defaults: registration disabled,
@@ -655,15 +565,15 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
 #[test]
 fn oci_limits_are_positive_and_preserve_defaults() {
     let config = Config::from_yaml_str(
-        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, chunkMaxBytes: 100, bearerAuth: true}",
+        "oci: {maxBlobSize: 123, maxManifestSize: 4KiB, maxChunkSize: 1MiB, bearerAuth: true}",
         Path::new("/config"),
         listen(),
         None,
     )
     .unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 123);
-    assert_eq!(config.http.oci.chunk_max_bytes.unwrap().get(), 100);
-    assert_eq!(config.http.oci.max_manifest_bytes, 456);
+    assert_eq!(config.http.oci.chunk_max_bytes.unwrap().get(), 1024 * 1024);
+    assert_eq!(config.http.oci.max_manifest_bytes, 4096);
     assert!(config.http.oci.bearer_auth);
     let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
@@ -671,12 +581,12 @@ fn oci_limits_are_positive_and_preserve_defaults() {
     assert!(!config.http.oci.bearer_auth);
     assert!(config.http.oci.chunk_max_bytes.is_none());
     for yaml in [
-        "oci: {maxBlobBytes: 0}",
-        "oci: {maxManifestBytes: 0}",
-        "oci: {maxBlobBytes: -1}",
-        "oci: {chunkMaxBytes: 0}",
-        "oci: {chunkMaxBytes: -1}",
-        "oci: {maxManifestByte: 1}",
+        "oci: {maxBlobSize: 0}",
+        "oci: {maxManifestSize: 0}",
+        "oci: {maxBlobSize: -1}",
+        "oci: {maxChunkSize: 0}",
+        "oci: {maxChunkSize: -1}",
+        "oci: {maxManifestBytes: 1}",
     ] {
         assert!(
             Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).is_err(),

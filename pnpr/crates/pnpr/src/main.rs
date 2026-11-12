@@ -1,11 +1,11 @@
-use clap::Parser;
+use clap::{ArgMatches, CommandFactory as _, FromArgMatches as _, Parser, parser::ValueSource};
 use pnpm_diagnostics::println;
 use pnpr::{
     Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
     default_cache_dir, logging::log_subscriber, run_command, serve,
 };
 use pnpr_config::{BackendConfig, MetadataBackend, default_metadata_path};
-use std::{io::IsTerminal, net::SocketAddr, path::PathBuf};
+use std::{io::IsTerminal, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
 #[derive(Debug, Parser)]
@@ -30,10 +30,8 @@ struct Args {
 #[derive(Debug, Default, Clone, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
-    /// `-c`). Unless
-    /// `--cache` is also given, the disposable proxy cache is
-    /// re-derived as a subdirectory of this path, and so is a metadata
-    /// database at its default path in the storage directory.
+    /// `-c`). A proxy cache or metadata database at its default path in
+    /// the storage directory moves with it.
     #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
 
@@ -47,12 +45,15 @@ struct StorageArgs {
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
-    let mut args = Args::parse();
+    let matches = Args::command().get_matches();
+    let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
     let auto_path = Config::auto_config_path();
 
     let server_args = match args.command.take() {
         None => args.server,
-        Some(Command::Serve(server)) => args.server.merge(server),
+        Some(Command::Serve(server)) => {
+            args.server.merge(without_env_values(server, matches.subcommand_matches("serve")))
+        }
         Some(cmd) => return run_maintenance(cmd, args, auto_path).await,
     };
 
@@ -71,6 +72,7 @@ async fn main() -> miette::Result<()> {
     init_logging(&config.logs);
     log_config_source(&source);
     warn_experimental_database(&config);
+    warn_derived_public_url(&config);
     serve(config).await.map_err(|err| redacted_report(&err))
 }
 
@@ -79,12 +81,11 @@ async fn run_maintenance(
     mut args: Args,
     auto_path: Option<PathBuf>,
 ) -> miette::Result<()> {
-    let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().unwrap();
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
-        default_listen,
-        None,
+        args.server.listen,
+        args.server.public_url.clone(),
         args.server.features.feature_overrides(),
     )
     .map_err(|err| miette::miette!("{err}"))?;
@@ -103,9 +104,38 @@ async fn run_maintenance(
     run_command(&config, cmd).await
 }
 
+/// `serve` reads the same environment variables as the top level, which
+/// already holds their values. Taken from `serve` as well, they would replace
+/// an explicit top-level flag in [`ServerArgs::merge`].
+fn without_env_values(mut serve: ServerArgs, matches: Option<&ArgMatches>) -> ServerArgs {
+    let from_env = |id: &str| {
+        matches.is_some_and(|matches| matches.value_source(id) == Some(ValueSource::EnvVariable))
+    };
+    if from_env("listen") {
+        serve.listen = None;
+    }
+    if from_env("public_url") {
+        serve.public_url = None;
+    }
+    if from_env("packument_ttl") {
+        serve.packument_ttl = None;
+    }
+    if from_env("osv") {
+        serve.osv_options.osv = None;
+    }
+    if from_env("osv_db") {
+        serve.osv_options.osv_db = None;
+    }
+    serve
+}
+
 fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs) {
     if let Some(storage) = paths.storage.take() {
-        config.storage.cache_dir = default_cache_dir(&storage);
+        // A cache at its default path lives in the storage directory, so it
+        // moves with it. One the config places elsewhere stays there.
+        if config.storage.cache_dir == default_cache_dir(&config.storage.hosted_dir) {
+            config.storage.cache_dir = default_cache_dir(&storage);
+        }
         // A database at the default path lives in the storage directory, so
         // it moves with it, whether or not the config spells the path out.
         // One anywhere else stays where it is.
@@ -154,12 +184,6 @@ fn init_logging(logs: &LogConfig) {
     // writer is pinned to stdout explicitly so the `is_terminal` probe always
     // inspects the stream the subscriber actually writes to.
     log_subscriber(logs, filter, std::io::stdout, std::io::stdout().is_terminal()).init();
-    if !logs.sink_is_supported() {
-        tracing::warn!(
-            sink = %logs.sink,
-            "unsupported `log.type`; only `stdout` is implemented — logging to stdout",
-        );
-    }
 }
 
 fn log_config_source(source: &ConfigSource) {
@@ -171,6 +195,18 @@ fn log_config_source(source: &ConfigSource) {
             tracing::info!(path = %path.display(), "loaded config from default path");
         }
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
+    }
+}
+
+/// A server reachable beyond loopback without a public URL rewrites tarball
+/// URLs to its bind address, which clients usually cannot reach.
+fn warn_derived_public_url(config: &Config) {
+    let listen = config.http.listen;
+    if !listen.ip().is_loopback() && config.http.public_url == format!("http://{listen}") {
+        tracing::warn!(
+            %listen,
+            "publicUrl is not set; tarball URLs point at the bind address. Set `publicUrl` to the URL clients use",
+        );
     }
 }
 

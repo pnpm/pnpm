@@ -1,3 +1,4 @@
+use pnpr_error::RegistryError;
 use serde::Deserialize;
 
 /// A byte size representation parsed from YAML or string input.
@@ -39,6 +40,22 @@ impl<'de> Deserialize<'de> for ByteSize {
         }
         deserializer.deserialize_any(ByteSizeVisitor)
     }
+}
+
+/// The bytes `raw` names, refusing an unparsable or zero size. `field` is the
+/// YAML path the error names.
+pub(crate) fn parse_positive_byte_size(field: &str, raw: &ByteSize) -> Result<u64, RegistryError> {
+    let ByteSize(text) = raw;
+    let bytes = parse_byte_size(text)
+        .ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("{field} {text:?} is not a valid byte size"),
+        })?;
+    if bytes == 0 {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!("{field} must be greater than zero"),
+        });
+    }
+    Ok(bytes)
 }
 
 /// Parse a byte size string with optional SI or binary suffix into bytes.

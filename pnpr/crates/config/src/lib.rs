@@ -18,15 +18,16 @@ pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
+pub use oci::OciConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_error::redact_connection_url;
 pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
+pub use secret::Secret;
 pub use secrets::{
-    CACHE_SECRET_MARKER, MIN_RESOLUTION_SECRET_LEN, cache_secret_fingerprint, derive_subkey,
-    random_secret, resolution_secret,
+    CACHE_SECRET_MARKER, MIN_SECRET_LEN, cache_secret_fingerprint, derive_subkey, random_secret,
 };
 pub use storage_config::{
     CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
@@ -55,7 +56,6 @@ mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
     FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock, RemovedUpstreamsBlock,
     RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
@@ -72,6 +72,9 @@ use logging::build_log_config;
 mod metrics;
 mod null_default;
 
+mod oci;
+use oci::{OciFile, build_oci_config};
+
 mod package_documents;
 use package_documents::{PackageDocumentsFile, build_package_documents_config};
 mod release_records;
@@ -85,6 +88,7 @@ use registry_graph::{
 
 mod s3;
 mod scim;
+mod secret;
 mod secrets;
 mod storage_config;
 mod trusted_proxy_header;
@@ -102,7 +106,7 @@ use object_store::{
     ObjectStore,
     aws::{AmazonS3Builder, AmazonS3ConfigKey},
 };
-use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use pnpm_env_replace::{EnvVar, SystemEnv};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
@@ -169,7 +173,8 @@ pub struct Config {
     pub cache_secret: Arc<[u8]>,
     /// Secret keying OCI token signing.
     pub oci_secret: Arc<[u8]>,
-    /// Whether `secret:` or `secrets:` was explicitly provided in configuration rather than generated randomly.
+    /// Whether `secret:` configures the cache key, rather than a per-process
+    /// random root.
     pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,
@@ -308,28 +313,6 @@ pub enum TarballFormat {
     Tgz,
     /// The gzip-decoded `.tgz`, encoded per request with HTTP content coding.
     Tar,
-}
-
-/// Authentication and byte limits for the OCI distribution surface.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
-pub struct OciConfig {
-    pub bearer_auth: bool,
-    pub max_blob_bytes: u64,
-    /// Optional upload chunk size hint in bytes; omitted by default.
-    pub chunk_max_bytes: Option<std::num::NonZeroU64>,
-    pub max_manifest_bytes: usize,
-}
-
-impl Default for OciConfig {
-    fn default() -> Self {
-        Self {
-            bearer_auth: false,
-            max_blob_bytes: 10 * 1024 * 1024 * 1024,
-            chunk_max_bytes: None,
-            max_manifest_bytes: 4 * 1024 * 1024,
-        }
-    }
 }
 
 /// Exact browser origins allowed to call pnpr across origins.

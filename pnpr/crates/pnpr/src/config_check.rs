@@ -1,14 +1,10 @@
-use miette::IntoDiagnostic as _;
 use pnpr_config::{
     BackendConfig, Config, ConfigSource, FeatureOverrides, HostedStoreConfig, MaxUsers,
     normalize_key_prefix,
 };
 use pnpr_package_name::Ecosystem;
 use pnpr_registry::{Registries, Registry};
-use std::{
-    net::SocketAddr,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct RegistrySummary {
@@ -59,17 +55,11 @@ pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckRep
         return Err(miette::miette!("config file '{display_path}' does not exist"));
     }
 
-    let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().into_diagnostic()?;
     let overrides = FeatureOverrides::default();
     let auto_path = Config::auto_config_path();
-    let (mut config, source) = Config::resolve_with_overrides(
-        config_path,
-        auto_path.as_deref(),
-        default_listen,
-        None,
-        overrides,
-    )
-    .map_err(|err| miette::miette!("{err}"))?;
+    let (mut config, source) =
+        Config::resolve_with_overrides(config_path, auto_path.as_deref(), None, None, overrides)
+            .map_err(|err| miette::miette!("{err}"))?;
 
     check_resolved_config(&mut config, &source)
         .map_err(|error| {

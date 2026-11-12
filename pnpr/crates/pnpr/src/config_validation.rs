@@ -11,8 +11,8 @@ use std::{
 use url::Url;
 
 const SHARED_BACKEND_SECRET_REQUIRED: &str =
-    "`secret` or `secrets.cache` must be configured when using shared storage or database backends";
-pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secrets.cache` must be \
+    "`secret` or `secret.cache` must be configured when using shared storage or database backends";
+pub(crate) const PERSISTENT_CACHE_SECRET_REQUIRED: &str = "`secret` or `secret.cache` must be \
      configured when the cache directory persists across restarts or is shared";
 pub(crate) const MAX_CACHE_SECRET_MARKER_BYTES: usize = 256;
 pub(crate) const PENDING_CACHE_CLAIM: &str = "pending";
@@ -57,6 +57,8 @@ fn validate_startup_config_inner(
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     config.http.ensure_valid_metrics()?;
+    pnpr_route::validate_public_routes(&config.routing.route_policy)
+        .map_err(|reason| RegistryError::InvalidConfig { reason })?;
     if config.http.shutdown_timeout.is_zero() {
         return Err(invalid("shutdownTimeout must be greater than zero"));
     }

@@ -68,9 +68,9 @@ pub struct Upstream {
     /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Per-upstream packument freshness window (verdaccio's `maxage`), or
+    /// Per-upstream packument freshness window (verdaccio's `packument_ttl`), or
     /// `None` to defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
-    maxage: Option<Duration>,
+    packument_ttl: Option<Duration>,
     /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
     cache: bool,
@@ -92,7 +92,7 @@ impl fmt::Debug for Upstream {
             .field("name", &self.name)
             .field("headers", &RedactedHeaders(&self.http.headers))
             .field("timeout", &self.http.timeout)
-            .field("maxage", &self.maxage)
+            .field("packument_ttl", &self.packument_ttl)
             .field("cache", &self.cache)
             .field("breaker", &self.breaker)
             .finish_non_exhaustive()
@@ -150,7 +150,7 @@ pub enum PackumentFetch {
 impl Upstream {
     /// Build an upstream client from its name (the YAML `upstreams:` key) and
     /// resolved [`UpstreamConfig`], baking in the per-upstream
-    /// `timeout`/`maxage`/`cache` knobs and arming the
+    /// `timeout`/`packument_ttl`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
@@ -158,7 +158,7 @@ impl Upstream {
             http: UpstreamHttp::new(config),
             base: config.url.clone(),
             name: name.to_string(),
-            maxage: config.maxage,
+            packument_ttl: config.packument_ttl,
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(
                 config.requests.max_fails,
@@ -186,11 +186,11 @@ impl Upstream {
         self.http.timeout
     }
 
-    /// Per-upstream packument freshness window (`maxage`), or `None` to
+    /// Per-upstream packument freshness window (`packument_ttl`), or `None` to
     /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]
-    pub fn maxage(&self) -> Option<Duration> {
-        self.maxage
+    pub fn packument_ttl(&self) -> Option<Duration> {
+        self.packument_ttl
     }
 
     /// Whether tarballs from this upstream should be written to the local

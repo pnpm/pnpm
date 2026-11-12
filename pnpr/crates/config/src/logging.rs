@@ -3,41 +3,11 @@ use super::{Deserialize, LogEntryFile};
 /// Runtime logging configuration. Mirrors the YAML `log:` object
 /// (Verdaccio 6+ shape). Drives the `tracing-subscriber` init in the
 /// binary: format selects human-readable vs NDJSON, level seeds the
-/// default `EnvFilter`.
-///
-/// Only `type: stdout` is honored — file and syslog sinks are future
-/// work. An unsupported `type:` still parses (so a verdaccio config
-/// can be copied in untouched) but is ignored at runtime, with a
-/// warning logged once the subscriber is up.
-#[derive(Debug, Clone)]
+/// default `EnvFilter`. Records go to stdout.
+#[derive(Debug, Default, Clone)]
 pub struct LogConfig {
     pub format: LogFormat,
     pub level: LogLevel,
-    /// The configured sink (`log.type`). Only [`Self::STDOUT_SINK`]
-    /// is implemented; any other value is recorded here so the binary
-    /// can warn about it at startup.
-    pub sink: String,
-}
-
-impl LogConfig {
-    /// The single sink pnpr actually writes to.
-    pub const STDOUT_SINK: &'static str = "stdout";
-
-    /// Whether the configured sink is one the server implements.
-    #[must_use]
-    pub fn sink_is_supported(&self) -> bool {
-        self.sink == Self::STDOUT_SINK
-    }
-}
-
-impl Default for LogConfig {
-    fn default() -> Self {
-        Self {
-            format: LogFormat::Pretty,
-            level: LogLevel::default(),
-            sink: Self::STDOUT_SINK.to_string(),
-        }
-    }
 }
 
 /// Wire format for log records. `Pretty` is human-readable with
@@ -91,9 +61,5 @@ impl LogLevel {
 /// individual fields fall back to their `Default` impls.
 pub(super) fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
     let Some(entry) = entry else { return LogConfig::default() };
-    LogConfig {
-        format: entry.format.unwrap_or_default(),
-        level: entry.level.unwrap_or_default(),
-        sink: entry.r#type.clone(),
-    }
+    LogConfig { format: entry.format.unwrap_or_default(), level: entry.level.unwrap_or_default() }
 }

@@ -156,14 +156,14 @@ fn rejects_shared_backends_without_configured_secret() {
         allow_http: None,
     });
     let err = validate_startup_config(&mut s3_hosted).unwrap_err().to_string();
-    assert!(err.contains("`secret` or `secrets.cache` must be configured"), "{err}");
+    assert!(err.contains("`secret` or `secret.cache` must be configured"), "{err}");
 
     let mut obj_hosted = base_config();
     obj_hosted.storage.cache_dir = tmp.path().join("cache-obj");
     obj_hosted.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::new(InMemory::new()), prefix: String::new() };
     let err = validate_startup_config(&mut obj_hosted).unwrap_err().to_string();
-    assert!(err.contains("`secret` or `secrets.cache` must be configured"), "{err}");
+    assert!(err.contains("`secret` or `secret.cache` must be configured"), "{err}");
 
     #[cfg(feature = "backend-libsql")]
     {
@@ -172,7 +172,7 @@ fn rejects_shared_backends_without_configured_secret() {
         shared_db.storage.metadata =
             MetadataBackend::Libsql(libsql_settings("libsql://db.example.test"));
         let err = validate_startup_config(&mut shared_db).unwrap_err().to_string();
-        assert!(err.contains("`secret` or `secrets.cache` must be configured"), "{err}");
+        assert!(err.contains("`secret` or `secret.cache` must be configured"), "{err}");
 
         shared_db.has_configured_secret = true;
         shared_db.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);

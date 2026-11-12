@@ -15,7 +15,7 @@ async fn cached_tarball_is_evicted_when_refresh_removes_its_version() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl = Some(Duration::ZERO);
     let app = router(config);
     let response = app
         .clone()
@@ -107,7 +107,7 @@ async fn backfill_runs_in_parallel_without_blocking_responses_and_preserves_pins
     }
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl = Some(Duration::ZERO);
     let app = router(config);
     let response = tokio::time::timeout(
         Duration::from_secs(2),
@@ -191,7 +191,7 @@ async fn backfill_cached_tarball(cached_bytes: &[u8], downloads: usize) {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl = Some(Duration::ZERO);
     let app = router(config.clone());
     let response = app
         .clone()
@@ -274,7 +274,7 @@ async fn an_inflight_download_cannot_restore_an_evicted_blob() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl = Some(Duration::ZERO);
     let app = router(config);
     let response = app
         .clone()
@@ -335,7 +335,7 @@ async fn version_downloads_refresh_metadata_before_serving_cached_bytes() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::ZERO);
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl = Some(Duration::ZERO);
     let app = router(config);
     let response = app
         .clone()

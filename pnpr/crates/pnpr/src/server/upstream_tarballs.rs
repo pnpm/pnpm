@@ -64,7 +64,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
     if let Err(err) = screen_parsed_version(state, name, parsed_version) {
         return err.into_response();
     }
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
+    let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
     let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
     let TarballDist {
         version,

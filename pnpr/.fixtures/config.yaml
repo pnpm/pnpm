@@ -106,6 +106,5 @@ registries:
 defaultRegistry: main
 
 log:
-  type: stdout
   format: pretty
   level: error

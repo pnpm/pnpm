@@ -72,8 +72,9 @@ database:
 secret: ${PNPR_SECRET}
 
 # The Worker below passes the client's address in X-Real-IP.
-trustedProxies: [10.0.0.0/8]
-trustedProxyHeader: x-real-ip
+trustedProxies:
+  networks: [10.0.0.0/8]
+  header: x-real-ip
 
 auth:
   users:
@@ -346,14 +347,14 @@ remains available when every read must check access and freshness at the registr
 **Publishes go through the Worker**, so your plan's request body limit caps
 the size of a package you can publish. It also caps each OCI blob upload
 request. A layer larger than that limit fails with HTTP `413` when the client
-sends it in one `PATCH` or `PUT`, even if it fits `oci.maxBlobBytes`.
+sends it in one `PATCH` or `PUT`, even if it fits `oci.maxBlobSize`.
 
 For clients that honor the proposed `OCI-Chunk-Max-Length` header, configure
 [the upload hint](configuration.md#oci) below your plan's request body limit:
 
 ```yaml title="pnpr.yaml"
 oci:
-  chunkMaxBytes: 50000000
+  maxChunkSize: 50MiB
 ```
 
 This hint cannot force a client to split requests. Docker and Podman uploads
@@ -363,7 +364,7 @@ outside Cloudflare Containers behind your own
 accommodates the largest layer. The Container in this guide is
 [only reachable through its Worker](https://developers.cloudflare.com/containers/concepts/architecture/).
 Adding a custom domain to that Worker does not bypass its limit. Raising
-`oci.maxBlobBytes` alone cannot raise Cloudflare's limit.
+`oci.maxBlobSize` alone cannot raise Cloudflare's limit.
 
 **Container logs are in the dashboard**, under the Worker's logs.
 `wrangler tail` shows only the Worker's own events.

@@ -1,18 +1,15 @@
 use super::{
     Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
-    HostedStoreConfig, Path, PathBuf, RegistryError, RemovedGroupsBlock, RemovedPackagesBlock,
-    RemovedUplinksBlock, RemovedUpstreamsBlock, ResolvedFileRegistries, RoutesFile, SocketAddr,
-    SystemEnv, build_features, build_identity_config, build_log_config, build_osv_config,
-    build_route_policy, config_file_in, env_replace_lossy, http_config::build_http_config,
+    HostedStoreConfig, Path, PathBuf, RegistryError, ResolvedFileRegistries, RoutesFile,
+    SocketAddr, SystemEnv, build_features, build_identity_config, build_log_config,
+    build_osv_config, build_route_policy, config_file_in, http_config::build_http_config,
     resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
-use crate::{config_file::RegistryFile, secrets::validate_secret_env_vars};
+use crate::config_file::RegistryFile;
 
 impl Config {
-    /// Load YAML from `path` and merge it with runtime values
-    /// supplied by the binary. `listen` and `public_url` are not
-    /// represented in verdaccio's YAML and must be provided here;
-    /// `packument_ttl` defaults to [`Self::DEFAULT_PACKUMENT_TTL`].
+    /// Load YAML from `path`. `listen` and `public_url` override the file's
+    /// `listen:` and `publicUrl:` keys.
     ///
     /// `storage` from the YAML is resolved relative to the config
     /// file's parent directory when not absolute — same convention
@@ -22,12 +19,12 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<Self> {
-        Self::from_yaml_with_overrides(path, listen, public_url, FeatureOverrides::default())
+        Self::from_yaml_with_overrides(path, Some(listen), public_url, FeatureOverrides::default())
     }
 
     pub(super) fn from_yaml_with_overrides(
         path: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> std::io::Result<Self> {
@@ -67,7 +64,7 @@ impl Config {
         // disable every surface (a runtime input error).
         Self::from_default_yaml_with_overrides(
             base_dir,
-            listen,
+            Some(listen),
             public_url,
             FeatureOverrides::default(),
         )
@@ -76,7 +73,7 @@ impl Config {
 
     pub(super) fn from_default_yaml_with_overrides(
         base_dir: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
@@ -127,7 +124,7 @@ impl Config {
         Self::resolve_with_overrides(
             explicit,
             default_path,
-            listen,
+            Some(listen),
             public_url,
             FeatureOverrides::default(),
         )
@@ -135,13 +132,14 @@ impl Config {
 
     /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
     /// parse, so a surface disabled on the command line skips its parse-time
-    /// work (e.g. strict upstream token resolution) — not just its routes. The
-    /// binary uses this; tests and embedders that don't override features
-    /// call [`Self::resolve`].
+    /// work (e.g. strict upstream token resolution) — not just its routes.
+    /// `listen` is `None` unless the command line sets it, so the file's
+    /// `listen:` applies. The binary uses this; tests and embedders that don't
+    /// override features call [`Self::resolve`].
     pub fn resolve_with_overrides(
         explicit: Option<&Path>,
         default_path: Option<&Path>,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> std::io::Result<(Self, ConfigSource)> {
@@ -177,7 +175,7 @@ impl Config {
         Self::from_yaml_str_with_overrides(
             raw,
             base_dir,
-            listen,
+            Some(listen),
             public_url,
             FeatureOverrides::default(),
         )
@@ -186,7 +184,7 @@ impl Config {
     pub(super) fn from_yaml_str_with_overrides(
         raw: &str,
         base_dir: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
@@ -204,7 +202,7 @@ impl Config {
     pub(super) fn from_config_file(
         mut file: ConfigFile,
         base_dir: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
@@ -212,14 +210,8 @@ impl Config {
         let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = super::backend_config::build_backend_config(&storage.metadata);
-        reject_removed_blocks(RemovedBlocks {
-            packages: file.packages.as_ref(),
-            groups: file.groups.as_ref(),
-            uplinks: file.uplinks.as_ref(),
-            upstreams: file.upstreams.as_ref(),
-        })?;
         let (routing, features) = build_routing_and_features(&mut file, overrides)?;
-        let secrets = resolve_secrets(file.secret.as_deref(), file.secrets.as_ref())?;
+        let secrets = resolve_secrets(file.secret.as_ref())?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
@@ -263,11 +255,6 @@ fn build_storage_config(
     base_dir: &Path,
     hosts_packages: bool,
 ) -> Result<super::StorageConfig, RegistryError> {
-    if file.backend.is_some() || file.metadata.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "backend and metadata are no longer supported; use database.url for accounts, tokens, and package metadata".to_string(),
-        });
-    }
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
     let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
     let metadata = crate::storage_config::resolve_metadata_backend(
@@ -287,73 +274,7 @@ pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> 
 pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
     raw: &str,
 ) -> Result<ConfigFile, RegistryError> {
-    validate_secret_env_vars::<Sys>(raw)?;
-    let (substituted, unresolved) = env_replace_lossy::<Sys>(raw);
-    if !unresolved.is_empty() {
-        tracing::warn!(?unresolved, "config references unset environment variables");
-    }
-    let parsed: Option<ConfigFile> = serde_saphyr::from_str(&substituted)
-        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
-    let file = match parsed {
-        Some(file) => file,
-        None => serde_saphyr::from_str("{}")
-            .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?,
-    };
-    if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "oci size limits must be greater than zero".to_string(),
-        });
-    }
-    Ok(file)
-}
-
-/// The global ACL and group blocks are gone, not ignorable: they used
-/// to *enforce* and *grant* access, so dropping either like an unknown
-/// verdaccio key would silently change who may reach what on upgrade.
-/// Fail loudly instead, naming the replacement.
-/// The top-level blocks a config may still carry from an older release,
-/// each one [`Some`] only while the config declares it.
-#[derive(Clone, Copy)]
-pub(super) struct RemovedBlocks<'a> {
-    pub(super) packages: Option<&'a RemovedPackagesBlock>,
-    pub(super) groups: Option<&'a RemovedGroupsBlock>,
-    pub(super) uplinks: Option<&'a RemovedUplinksBlock>,
-    pub(super) upstreams: Option<&'a RemovedUpstreamsBlock>,
-}
-
-pub(super) fn reject_removed_blocks(blocks: RemovedBlocks<'_>) -> Result<(), RegistryError> {
-    if blocks.packages.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `packages:` block was removed: declare per-package rules \
-                     on the registry that serves them, as `registries.<name>.packages` \
-                     (pattern keys, `access`/`publish`/`unpublish` values)"
-                .to_string(),
-        });
-    }
-    if blocks.groups.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `groups:` block was removed: declare teams on the \
-                     registry that uses them, as `registries.<name>.teams` (team-name keys, \
-                     member-list values), and reference them from that registry's access \
-                     lists as `team:<name>`"
-                .to_string(),
-        });
-    }
-    if blocks.uplinks.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `uplinks:` block is not supported: declare upstream \
-                     registries under `registries:` with `type: upstream`"
-                .to_string(),
-        });
-    }
-    if blocks.upstreams.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `upstreams:` block was removed: declare upstream \
-                     registries under `registries:` with `type: upstream`"
-                .to_string(),
-        });
-    }
-    Ok(())
+    crate::secret::parse_with_env::<Sys, ConfigFile>(raw)
 }
 
 fn build_routing_and_features(

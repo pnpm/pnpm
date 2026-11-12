@@ -127,7 +127,7 @@ async fn provisioned_subjects_follow_scim_lifecycle_and_reload() {
     let mut config =
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     let token = "scim-secret-0123456789abcdef0123456789";
-    config.identity.auth.scim = Some(ScimConfig { token: token.to_string() });
+    config.identity.auth.scim = Some(ScimConfig { token: token.into() });
     let (state, app) =
         crate::server::state_and_router(config, AuthState::in_memory(), None).unwrap();
     let response = app

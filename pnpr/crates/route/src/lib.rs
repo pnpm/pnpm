@@ -60,7 +60,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
-use pnpr_config::{Config, PublicRoute, UpstreamConfig};
+use pnpr_config::{Config, PublicRoute, RoutePolicy, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRules};
 use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 
@@ -181,10 +181,7 @@ impl RouteContext {
         // built-in public routes, so they are both allowlisted and classified
         // public without any operator config (and ahead of any upstream
         // credential for the same origin — public wins).
-        let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
-            .into_iter()
-            .chain(routing.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
-            .collect();
+        let public_routes = public_route_matchers(&routing.route_policy);
         let aliases = routing.upstreams
             .iter()
             .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
@@ -543,6 +540,32 @@ const NPMJS_ORIGIN: &str = "//registry.npmjs.org/";
 /// registry pnpm's built-in `@jsr` scope route points at.
 const JSR_ORIGIN: &str = "//npm.jsr.io/";
 
+/// The built-in public routes, then the operator-declared ones that
+/// [`validate_public_routes`] accepts.
+fn public_route_matchers(policy: &RoutePolicy) -> Vec<RouteMatcher> {
+    [RouteMatcher::npmjs(), RouteMatcher::jsr()]
+        .into_iter()
+        .chain(
+            policy.public
+                .iter()
+                .filter_map(|route| RouteMatcher::from_public_route(route).ok()),
+        )
+        .collect()
+}
+
+/// Check every operator-declared public route.
+///
+/// # Errors
+///
+/// The reason a `routes.public` entry names an unparsable registry URL or
+/// package glob. [`RouteContext::from_config`] skips such an entry, so startup
+/// refuses the config before it gets there.
+pub fn validate_public_routes(policy: &RoutePolicy) -> Result<(), String> {
+    policy.public
+        .iter()
+        .try_for_each(|route| RouteMatcher::from_public_route(route).map(drop))
+}
+
 impl RouteMatcher {
     /// The built-in public route: the official npm registry, host-level (no
     /// package glob, so scoped and unscoped packages alike are public). An
@@ -563,42 +586,27 @@ impl RouteMatcher {
         Self { origin: Some(JSR_ORIGIN.to_string()), package: None, https_only: true }
     }
 
-    /// Build a matcher from an operator-declared public route, failing
-    /// closed. An *omitted* `registry`/`package` field means "match any" —
-    /// the intended wildcard — but a field that is *present yet unparsable*
-    /// (a typo'd registry URL or glob) drops the whole rule (`None`) rather
-    /// than collapsing to a `None` field that [`Self::matches`] would read as
-    /// match-any. A typo must narrow matching, never widen a scoped public
-    /// route into a match-all that leaks private metadata onto the public
-    /// path.
-    fn from_public_route(route: &PublicRoute) -> Option<Self> {
-        let origin = match route.registry.as_deref() {
-            None => None,
-            Some(registry) => Some(
+    /// Build a matcher from an operator-declared public route. An omitted
+    /// `registry`/`package` field matches any; a present but unparsable one
+    /// is an error, never a match-any.
+    fn from_public_route(route: &PublicRoute) -> Result<Self, String> {
+        let origin = route.registry
+            .as_deref()
+            .map(|registry| {
                 nerf_prefix(registry)
-                    .or_else(|| {
-                        tracing::warn!(
-                            registry,
-                            "ignoring public route with an unparsable registry URL",
-                        );
-                        None
-                    })?,
-            ),
-        };
-        let package = match route.package.as_deref() {
-            None => None,
-            Some(pattern) => Some(
+                    .ok_or_else(|| {
+                        format!("routes.public registry {registry:?} is not a registry URL")
+                    })
+            })
+            .transpose()?;
+        let package = route.package
+            .as_deref()
+            .map(|pattern| {
                 compile_glob(pattern)
-                    .or_else(|| {
-                        tracing::warn!(
-                            pattern,
-                            "ignoring public route with an invalid package glob",
-                        );
-                        None
-                    })?,
-            ),
-        };
-        Some(Self { origin, package, https_only: false })
+                    .ok_or_else(|| format!("routes.public package {pattern:?} is not a valid glob"))
+            })
+            .transpose()?;
+        Ok(Self { origin, package, https_only: false })
     }
 
     /// Whether this route puts `fetch` (nerf-darted, so scheme-less) on the
@@ -624,10 +632,6 @@ impl RouteMatcher {
     }
 }
 
-/// Compile a package glob, returning `None` for an invalid pattern rather
-/// than failing the whole resolve. [`RouteMatcher::from_public_route`] turns
-/// that `None` into a dropped (never-matching) rule, so an operator typo
-/// narrows matching instead of opening a private route up.
 fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
     Glob::new(pattern).ok().map(Glob::into_owned)
 }

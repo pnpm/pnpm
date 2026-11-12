@@ -56,8 +56,11 @@ fn upstream_config_file(
     UpstreamConfigFile {
         url: "https://upstream.test/".to_string(),
         auth,
-        headers,
-        maxage: None,
+        headers: headers
+            .into_iter()
+            .map(|(name, value)| (name, value.into()))
+            .collect(),
+        packument_ttl: None,
         timeout: None,
         max_packument_size: None,
         max_fails: None,

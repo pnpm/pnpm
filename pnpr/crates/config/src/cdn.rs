@@ -6,7 +6,7 @@ use std::fmt;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CloudflareCdnConfig {
     pub zone_id: String,
-    pub api_token: String,
+    pub api_token: crate::Secret,
     /// A tag unique to this registry deployment within the zone.
     pub cache_tag: String,
 }

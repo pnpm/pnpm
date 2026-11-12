@@ -607,7 +607,7 @@ async fn concurrent_same_config_claims_reject_dirty_cache_and_prepare_validates_
             prefix: None,
             endpoint: Some("http://127.0.0.1:9000".to_string()),
             access_key_id: Some("key".to_string()),
-            secret_access_key: Some("secret".to_string()),
+            secret_access_key: Some("secret".to_string().into()),
             allow_http: Some(true),
             force_path_style: Some(true),
         });

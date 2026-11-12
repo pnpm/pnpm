@@ -25,11 +25,11 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | Flag | Description |
 | --- | --- |
 | `-c, --config <path>` | Path to a [YAML config](configuration.md). When omitted, the global `config.yaml` in pnpr's config dir is used if it exists, otherwise the bundled default config. |
-| `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:7677`. |
-| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. A [metadata database](storage.md#sqlite-metadata) at `<storage>/.metadata/metadata.sqlite` and an [OSV database](configuration.md#osv) at `<storage>/.osv/npm/all.zip` move with it; explicit paths stay where they are. |
+| `--listen <addr>` | Address to bind to. Overrides [`listen`](configuration.md#listen-and-publicurl), which defaults to `127.0.0.1:7677`. |
+| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. The cache at `<storage>/.pnpr-cache`, a [metadata database](storage.md#sqlite-metadata) at `<storage>/.metadata/metadata.sqlite`, and an [OSV database](configuration.md#osv) at `<storage>/.osv/npm/all.zip` move with it; explicit paths stay where they are. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
-| `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `maxAge` overrides it for that registry. |
+| `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Overrides [`publicUrl`](configuration.md#listen-and-publicurl), which defaults to `http://<listen>`. |
+| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `packumentTtl` overrides it for that registry. |
 | `--osv [<bool>]` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<storage>/.osv/npm/all.zip`. `--osv false` turns off checks that the config enables. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |

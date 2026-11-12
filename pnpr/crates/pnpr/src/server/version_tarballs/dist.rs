@@ -245,7 +245,7 @@ impl VersionRequest<'_> {
         }
         Ok(Some(CachedPackument {
             namespace: upstream_cache_namespace(self.state, id),
-            ttl: upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl),
+            ttl: upstream.packument_ttl().unwrap_or(self.state.inner.config.http.packument_ttl),
         }))
     }
 

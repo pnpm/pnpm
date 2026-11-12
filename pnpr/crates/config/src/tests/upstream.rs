@@ -8,7 +8,7 @@ use super::{
 fn upstream_bearer_token_becomes_bearer_authorization() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("abc123".to_string()),
+        token: Some("abc123".to_string().into()),
         token_env: None,
     };
     let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -20,7 +20,7 @@ fn upstream_bearer_token_becomes_bearer_authorization() {
 fn upstream_basic_token_becomes_basic_authorization_verbatim() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Basic,
-        token: Some("dXNlcjpwYXNz".to_string()),
+        token: Some("dXNlcjpwYXNz".to_string().into()),
         token_env: None,
     };
     let upstream = resolve_upstream("priv", upstream_config_file(Some(auth), IndexMap::new()))
@@ -56,7 +56,7 @@ fn upstream_token_env_named_reads_that_var() {
 fn upstream_literal_token_beats_token_env() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("literal".to_string()),
+        token: Some("literal".to_string().into()),
         token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
     };
     let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -84,7 +84,7 @@ fn upstream_custom_headers_are_forwarded() {
 fn upstream_custom_authorization_header_overrides_auth_block() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("from-auth".to_string()),
+        token: Some("from-auth".to_string().into()),
         token_env: None,
     };
     let headers =
@@ -110,7 +110,7 @@ fn upstream_auth_without_resolvable_token_is_a_config_error() {
 fn upstream_auth_with_empty_literal_token_is_a_config_error() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some(String::new()),
+        token: Some(String::new().into()),
         token_env: None,
     };
     let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -146,7 +146,7 @@ fn upstream_token_env_false_resolves_no_token_and_is_a_config_error() {
 fn upstream_auth_token_with_control_char_is_a_config_error() {
     let auth = UpstreamAuthFile {
         r#type: UpstreamAuthType::Bearer,
-        token: Some("bad\ntoken".to_string()),
+        token: Some("bad\ntoken".to_string().into()),
         token_env: None,
     };
     let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
@@ -309,9 +309,14 @@ registries:
         disable_artifacts: false,
         disable_pipeline: false,
     };
-    let config =
-        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
-            .expect("a resolver-only tier must not fail on unused upstream credentials");
+    let config = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        Some(listen()),
+        None,
+        overrides,
+    )
+    .expect("a resolver-only tier must not fail on unused upstream credentials");
     assert!(config.routing.upstreams.is_empty(), "credentials must not be resolved or carried");
     assert!(
         config.routing.registries.get("main").is_some(),
@@ -455,9 +460,9 @@ registries:
 #[test]
 fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
     let upstream = resolve_upstream("npmjs", upstream_config_file(None, IndexMap::new())).unwrap();
-    // An unset `maxage` defers to the global packument TTL (`None` here),
+    // An unset `packument_ttl` defers to the global packument TTL (`None` here),
     // while the rest fall back to verdaccio's documented defaults.
-    assert_eq!(upstream.maxage, None);
+    assert_eq!(upstream.packument_ttl, None);
     assert_eq!(upstream.requests.timeout, UpstreamConfig::DEFAULT_TIMEOUT);
     assert_eq!(upstream.requests.max_packument_size, UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
     assert_eq!(upstream.requests.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
@@ -470,14 +475,14 @@ fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
 fn resolve_upstream_config_parses_explicit_knobs() {
     use std::time::Duration;
     let mut file = upstream_config_file(None, IndexMap::new());
-    file.maxage = Some(Interval("10m".to_string()));
+    file.packument_ttl = Some(Interval("10m".to_string()));
     file.timeout = Some(Interval("45s".to_string()));
     file.max_fails = Some(5);
     file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
     file.search = true;
     let upstream = resolve_upstream("npmjs", file).unwrap();
-    assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(upstream.packument_ttl, Some(Duration::from_mins(10)));
     assert_eq!(upstream.requests.timeout, Duration::from_secs(45));
     assert_eq!(upstream.requests.max_fails, 5);
     assert_eq!(upstream.requests.fail_timeout, Duration::from_mins(1));
@@ -488,10 +493,10 @@ fn resolve_upstream_config_parses_explicit_knobs() {
 #[test]
 fn resolve_upstream_config_rejects_an_unparsable_interval() {
     let mut file = upstream_config_file(None, IndexMap::new());
-    file.maxage = Some(Interval("whenever".to_string()));
+    file.packument_ttl = Some(Interval("whenever".to_string()));
     let err = resolve_upstream("npmjs", file).unwrap_err();
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.to_lowercase().contains("maxage")),
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.to_lowercase().contains("packumentttl")),
         "expected an InvalidConfig naming the offending field, got {err:?}",
     );
 }

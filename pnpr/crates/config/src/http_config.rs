@@ -1,22 +1,25 @@
 use super::{
     ByteSize, Config, ConfigFile, HttpConfig, Interval, MetricsConfig, Path, RegistryError,
-    SocketAddr, TrustedProxyHeader, build_cors_config, build_package_documents_config,
-    build_ui_config, cdn, parse_byte_size, parse_interval, parse_trusted_proxies,
+    SocketAddr, build_cors_config, build_oci_config, build_package_documents_config,
+    build_ui_config, cdn, parse_interval, parse_trusted_proxies,
 };
+use crate::byte_size::parse_positive_byte_size;
 
 pub(super) fn build_http_config(
     file: &mut ConfigFile,
     base_dir: &Path,
-    listen: SocketAddr,
+    listen: Option<SocketAddr>,
     public_url: Option<String>,
 ) -> Result<HttpConfig, RegistryError> {
+    let listen = match listen.or(file.listen) {
+        Some(listen) => listen,
+        None => Config::DEFAULT_LISTEN.parse().expect("DEFAULT_LISTEN is a socket address"),
+    };
+    let public_url = public_url.or_else(|| file.public_url.take());
     let cors = build_cors_config(std::mem::take(&mut file.cors))?;
     let ui = build_ui_config(std::mem::take(&mut file.ui), base_dir);
-    let trusted_proxies = parse_trusted_proxies(&file.trusted_proxies)?;
-    let trusted_proxy_header = match file.trusted_proxy_header.as_deref() {
-        Some(raw) => raw.parse::<TrustedProxyHeader>()?,
-        None => TrustedProxyHeader::default(),
-    };
+    let trusted_proxies = parse_trusted_proxies(&file.trusted_proxies.networks)?;
+    let trusted_proxy_header = file.trusted_proxies.header.unwrap_or_default();
     let request_timeout = build_request_timeout(file.request_timeout.as_ref())?;
     let shutdown_timeout = build_shutdown_timeout(file.shutdown_timeout.take())?;
     let packument_ttl = build_packument_ttl(file.packument_ttl.take())?;
@@ -26,7 +29,7 @@ pub(super) fn build_http_config(
         public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
         cors,
         ui,
-        oci: std::mem::take(&mut file.oci),
+        oci: build_oci_config(&file.oci)?,
         packument_ttl,
         max_tarball_bytes,
         trusted_proxies,
@@ -84,22 +87,11 @@ fn build_packument_ttl(raw: Option<Interval>) -> Result<std::time::Duration, Reg
 }
 
 /// The `maxTarballSize:` key as bytes, defaulting to
-/// [`HttpConfig::DEFAULT_MAX_TARBALL_BYTES`]. Zero is refused: it would
-/// turn every upstream tarball away.
+/// [`HttpConfig::DEFAULT_MAX_TARBALL_BYTES`].
 fn build_max_tarball_bytes(raw: Option<ByteSize>) -> Result<u64, RegistryError> {
-    let Some(ByteSize(raw)) = raw else {
-        return Ok(HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
-    };
-    let bytes = parse_byte_size(&raw)
-        .ok_or_else(|| RegistryError::InvalidConfig {
-            reason: format!("maxTarballSize {raw:?} is not a valid byte size"),
-        })?;
-    if bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "maxTarballSize must be greater than zero".to_string(),
-        });
-    }
-    Ok(bytes)
+    raw.map_or(Ok(HttpConfig::DEFAULT_MAX_TARBALL_BYTES), |raw| {
+        parse_positive_byte_size("maxTarballSize", &raw)
+    })
 }
 
 fn build_metrics_config(

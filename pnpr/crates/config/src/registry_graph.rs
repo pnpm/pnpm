@@ -283,7 +283,7 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
         url: file.url,
         auth: file.auth,
         headers: file.headers,
-        maxage: file.maxage,
+        packument_ttl: file.packument_ttl,
         timeout: file.timeout,
         max_packument_size: file.max_packument_size,
         max_fails: file.max_fails,

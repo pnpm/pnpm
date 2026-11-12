@@ -9,7 +9,7 @@ use std::{fmt, net::SocketAddr};
 pub struct MetricsConfig {
     /// The bearer secret a scraper sends.
     #[serde(default)]
-    pub token: Option<String>,
+    pub token: Option<crate::Secret>,
     /// The address of a listener that serves only metrics. When set, the main
     /// listener does not serve them.
     #[serde(default)]

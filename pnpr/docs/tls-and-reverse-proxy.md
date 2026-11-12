@@ -30,14 +30,14 @@ pnpr -c ./pnpr.yaml --public-url https://registry.example.com
 ```
 
 ```yaml title="pnpr.yaml"
-# Reverse proxy IPs or CIDR blocks trusted to forward client IPs
 trustedProxies:
-  - loopback
-  - 10.0.0.0/8
-  - 172.16.0.0/12
-
-# Header to inspect for the client IP (defaults to x-forwarded-for)
-trustedProxyHeader: x-forwarded-for
+  # Reverse proxy IPs or CIDR blocks trusted to forward client IPs
+  networks:
+    - loopback
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+  # Header to inspect for the client IP (defaults to x-forwarded-for)
+  header: x-forwarded-for
 ```
 
 ### Public URL
@@ -46,11 +46,11 @@ trustedProxyHeader: x-forwarded-for
 
 ### trustedProxies
 
-By default, pnpr ignores forwarding headers such as `X-Forwarded-For` and attributes requests to the direct socket peer. When running behind a reverse proxy or a chain of proxies, configure `trustedProxies` with the IP addresses or CIDR blocks of every proxy hop between the client and pnpr.
+By default, pnpr ignores forwarding headers such as `X-Forwarded-For` and attributes requests to the direct socket peer. When running behind a reverse proxy or a chain of proxies, configure `trustedProxies.networks` with the IP addresses or CIDR blocks of every proxy hop between the client and pnpr.
 
-When `trustedProxies` is set with `trustedProxyHeader: x-forwarded-for` (the default), pnpr parses the header from right to left, skipping trusted proxy hops and stopping at the first untrusted IP address. If an intermediate proxy in the forwarding chain is omitted from `trustedProxies`, traversal stops early at that proxy's IP instead of reaching the true originating client IP. When `trustedProxyHeader: x-real-ip` is configured, pnpr reads the single IP address provided in `X-Real-IP` by the immediate trusted proxy.
+When `trustedProxies.networks` is set with `header: x-forwarded-for` (the default), pnpr parses the header from right to left, skipping trusted proxy hops and stopping at the first untrusted IP address. If an intermediate proxy in the forwarding chain is omitted from `trustedProxies.networks`, traversal stops early at that proxy's IP instead of reaching the true originating client IP. When `header: x-real-ip` is configured, pnpr reads the single IP address provided in `X-Real-IP` by the immediate trusted proxy.
 
-The local reverse-proxy recipes (such as Nginx and Caddy) connect over `loopback`. The AWS ALB recipe uses the VPC CIDR block for direct ALB-to-pnpr traffic. If your architecture routes traffic through multiple proxy layers (such as a CDN or edge load balancer followed by an internal ingress controller), include all intermediate proxy networks in `trustedProxies`.
+The local reverse-proxy recipes (such as Nginx and Caddy) connect over `loopback`. The AWS ALB recipe uses the VPC CIDR block for direct ALB-to-pnpr traffic. If your architecture routes traffic through multiple proxy layers (such as a CDN or edge load balancer followed by an internal ingress controller), include all intermediate proxy networks in `trustedProxies.networks`.
 
 The client IP determined by this traversal is used for:
 - [Login rate limiting](configuration.md#security-limits-and-protections)
@@ -59,7 +59,7 @@ The client IP determined by this traversal is used for:
 
 :::warning
 
-Do not set `trustedProxies` to trust all addresses (`0.0.0.0/0`). An overly permissive configuration allows untrusted clients to spoof their IP address by injecting forged `X-Forwarded-For` headers.
+Do not set `trustedProxies.networks` to trust all addresses (`0.0.0.0/0`). An overly permissive configuration allows untrusted clients to spoof their IP address by injecting forged `X-Forwarded-For` headers.
 
 :::
 
@@ -170,7 +170,7 @@ When deploying behind an AWS Application Load Balancer:
 3. Create an HTTPS listener on port 443 with your ACM certificate, forwarding traffic to the Target Group.
 4. Ensure the ALB idle timeout is set high enough for large package uploads (for example, 300 seconds).
 5. Restrict inbound TCP port 7677 on the pnpr targets to the ALB security group. Do not allow other VPC sources to reach this port directly.
-6. In `pnpr.yaml`, add the VPC CIDR block (such as `10.0.0.0/16`) to `trustedProxies`.
+6. In `pnpr.yaml`, add the VPC CIDR block (such as `10.0.0.0/16`) to `trustedProxies.networks`.
 
 ## Process lifecycle and configuration reload
 

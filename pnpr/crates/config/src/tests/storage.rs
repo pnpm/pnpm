@@ -211,7 +211,7 @@ fn s3_settings_debug_redacts_credentials() {
         endpoint: None,
         prefix: None,
         access_key_id: Some("AKIAEXAMPLEKEYID".to_string()),
-        secret_access_key: Some("s3cr3t-do-not-log".to_string()),
+        secret_access_key: Some("s3cr3t-do-not-log".into()),
         force_path_style: None,
         allow_http: None,
     };

@@ -1,3 +1,9 @@
+# The address to bind to, and the URL clients reach the server at. Defaults to
+# 127.0.0.1:7677 and http://<listen>. The --listen and --public-url flags
+# override them.
+#listen: 0.0.0.0:7677
+#publicUrl: https://registry.example.com
+
 # Authoritative storage for hosted packages published to this server.
 storage: ./storage
 
@@ -20,9 +26,10 @@ storage: ./storage
 
 # Reverse-proxy addresses trusted to supply client IP headers.
 #trustedProxies:
-#  - loopback
-#  - 10.0.0.0/8
-#trustedProxyHeader: x-forwarded-for
+#  networks:
+#    - loopback
+#    - 10.0.0.0/8
+#  header: x-forwarded-for
 
 # Prometheus metrics (not served unless this block is present).
 #metrics:
@@ -83,6 +90,5 @@ defaultRegistry: npmjs
 
 # Log settings.
 log:
-  type: stdout
   format: pretty
   level: info

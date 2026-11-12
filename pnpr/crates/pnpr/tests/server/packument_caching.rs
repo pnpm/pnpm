@@ -446,7 +446,7 @@ async fn named_registry_packuments_are_caller_scoped_only_for_restricted_package
 }
 
 #[tokio::test]
-async fn per_upstream_maxage_overrides_global_ttl_in_cache_control() {
+async fn per_upstream_packument_ttl_overrides_global_ttl_in_cache_control() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = foo_packument(&upstream.url());
     let _mock = upstream
@@ -460,7 +460,8 @@ async fn per_upstream_maxage_overrides_global_ttl_in_cache_control() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.http.packument_ttl = Duration::from_mins(1);
-    config.routing.upstreams.get_mut("npmjs").unwrap().maxage = Some(Duration::from_mins(15));
+    config.routing.upstreams.get_mut("npmjs").unwrap().packument_ttl =
+        Some(Duration::from_mins(15));
     let app = router(config);
 
     let response = app

@@ -49,6 +49,20 @@ Relative paths in the config, such as `storage`, `cache`, `osv.path`, and
 `ui.dir`, resolve against the config file's directory. For the bundled config,
 they resolve against the working directory.
 
+## `listen` and `publicUrl`
+
+```yaml title="pnpr.yaml"
+listen: 0.0.0.0:7677
+publicUrl: https://registry.example.com
+```
+
+`listen` is the address pnpr binds to. It defaults to `127.0.0.1:7677`.
+`publicUrl` is the URL clients use to reach pnpr. pnpr rewrites the
+`dist.tarball` URLs in served packuments onto it. It defaults to
+`http://<listen>`, and pnpr logs a warning at startup if `listen` is not a
+loopback address and `publicUrl` is unset. The `--listen` and `--public-url`
+flags override both.
+
 ## `storage` and `cache`
 
 pnpr keeps two kinds of data:
@@ -91,7 +105,7 @@ each of these.
 
 ## `registries` and `defaultRegistry`
 
-The `registries:` map is pnpr's **only routing surface**. Every addressable
+The `registries:` map declares every registry pnpr serves. Every addressable
 registry origin is a named registry, exposed at `https://<pnpr>/~<name>/`. There
 are three kinds:
 
@@ -263,7 +277,7 @@ registries:
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
-| `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
+| `packumentTtl` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
 | `maxPackumentSize` | Maximum upstream npm package metadata response size. Defaults to `64 MiB`. Accepts a positive number of bytes or a size such as `64 MiB`. |
@@ -527,16 +541,16 @@ Bearer challenge it offers:
 ```yaml title="pnpr.yaml"
 oci:
   bearerAuth: false
-  maxBlobBytes: 10737418240   # 10 GiB
-  maxManifestBytes: 4194304   # 4 MiB
+  maxBlobSize: 10GiB
+  maxManifestSize: 4MiB
 ```
 
 The values shown are the defaults. Both limits must be greater than zero. See
 [Container images](container-images.md#authentication) for `bearerAuth`.
 
-`chunkMaxBytes` optionally advertises a positive chunk size in bytes through
+`maxChunkSize` optionally advertises a positive chunk size through
 `OCI-Chunk-Max-Length` on upload start and progress responses. It is a hint,
-not an enforced request limit, and does not change `maxBlobBytes`, which caps
+not an enforced request limit, and does not change `maxBlobSize`, which caps
 the whole blob. The header is an [OCI proposal](https://github.com/opencontainers/distribution-spec/issues/485)
 and requires client support. See [Cloudflare](cloudflare.md) for proxy limits.
 
@@ -554,35 +568,34 @@ cors:
 
 ## `trustedProxies`
 
-A list of reverse proxy IP addresses or CIDR blocks trusted to forward client IP
-addresses in request forwarding headers.
+The reverse proxies trusted to forward client IP addresses in request headers.
 
-When configured, pnpr evaluates the trusted forwarding header only if the direct socket
-peer matches one of the trusted entries. In multi-hop proxy chains, hops are traversed
-from right to left, stopping at the first untrusted IP (the real client).
-The resolved client IP is recorded on the `pnpr::access` log span and enforced for
-CIDR-restricted bearer tokens. When omitted or empty, forwarding headers are ignored
-and the socket peer IP is used directly.
+```yaml title="pnpr.yaml"
+trustedProxies:
+  networks:
+    - loopback
+    - 10.0.0.0/8
+    - 192.168.1.100
+  header: x-forwarded-for
+```
 
-Supports exact IPs, CIDR notation (IPv4 and IPv6), and the `"loopback"` keyword.
+`networks` lists the proxies' IP addresses or CIDR blocks. It supports exact IPs,
+CIDR notation (IPv4 and IPv6), and the `"loopback"` keyword. pnpr evaluates the
+forwarding header only if the direct socket peer matches one of them. In
+multi-hop proxy chains, hops are traversed from right to left, stopping at the
+first untrusted IP (the real client). The resolved client IP is recorded on the
+`pnpr::access` log span and enforced for CIDR-restricted bearer tokens. When
+`networks` is omitted or empty, forwarding headers are ignored and the socket
+peer IP is used directly.
 
-## `trustedProxyHeader`
+`header` is the request header to inspect:
 
-The specific request header to inspect when behind a trusted proxy:
 - `x-forwarded-for` (default): standard comma-separated hops.
 - `forwarded`: RFC 7239 `for=...` parameters.
 - `x-real-ip`: single client IP header.
 
 To prevent client spoofing, pnpr only inspects the configured header and does not
 fall back to other headers.
-
-```yaml title="pnpr.yaml"
-trustedProxies:
-  - loopback
-  - 10.0.0.0/8
-  - 192.168.1.100
-trustedProxyHeader: x-forwarded-for
-```
 
 ## `requestTimeout`
 
@@ -796,40 +809,34 @@ publishing alongside the password backend. See
 `auth.scim` lets an identity provider deprovision accounts. See
 [SCIM deprovisioning](scim.md).
 
-## `secret` and `secrets`
+## `secret`
 
 ```yaml title="pnpr.yaml"
-# Master secret:
+# One secret for every purpose:
 secret: ${PNPR_SECRET}
 
-# Or independently configured subkeys:
-#secrets:
+# Or one secret per purpose, so each rotates alone:
+#secret:
 #  cache: ${PNPR_CACHE_SECRET}
 #  oci: ${PNPR_OCI_SECRET}
 ```
 
-pnpr uses secret keys to isolate private cache namespaces and sign bearer tokens:
+pnpr derives a key for each purpose from its secret:
 
-- **`cache`**: private cache namespaces: private resolution-cache entries and
+- **`cache`**: private cache namespaces. Private resolution-cache entries and
   private per-registry cache directories are keyed with it, so on-disk paths
   reveal neither registry names nor credentials.
 - **`oci`**: bearer token signing key for the OCI registry surface.
 
-When `secret:` is configured, the cache key defaults to the root secret
-(preserving existing on-disk cache directories across upgrades), while the OCI
-bearer token signing key derives a domain-separated subkey from `secret:` via
-SHA-256 (`pnpr OCI token signing v1`).
+Each secret must be at least 16 bytes. Quote a secret that YAML would read as a
+number, such as `secret: "${PNPR_SECRET}"` for an all-digit value. Changing the `cache` secret orphans the
+private cache entries keyed with the old one. `pnpr cache gc` removes them.
 
-To rotate the OCI bearer token signing key without invalidating the resolution
-and upstream caches (or vice versa), configure independent secrets via
-`secrets.cache` and `secrets.oci`. Each explicit secret must be at least 16
-bytes.
-
-When neither `secret` nor `secrets.cache` is configured, pnpr generates a
-random 32-byte secret for a single run on an empty local cache directory. pnpr
-refuses to start without `secret` (or `secrets.cache`) when the cache directory
-already contains data from a previous run, is shared with another process, or
-uses S3, libSQL, PostgreSQL, or MySQL backends.
+When no `cache` secret is configured, pnpr generates a random one for a single
+run on an empty local cache directory. pnpr refuses to start without one when
+the cache directory already contains data from a previous run, is shared with
+another process, or uses S3, libSQL, PostgreSQL, or MySQL backends. Without an
+`oci` secret, OCI bearer tokens last only until pnpr restarts.
 
 ## Registry, resolver, artifact, and pipeline surfaces {#registry-resolver-and-artifact-surfaces}
 
@@ -891,17 +898,17 @@ artifacts:
   `owners` is read even when `enabled` is false, for a server that only stores
   pipeline runs.
 
-  `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
-  owner (an organization, or a cache name), defaulting to 1, and `totalGiB` for
-  all of them together, defaulting to 10. Both must be positive, and `ownerGiB`
-  cannot exceed `totalGiB`. A `pnpm pipeline` task result can hold
+  `quota` bounds what the artifact store keeps: `perOwner` for one
+  owner (an organization, or a cache name), defaulting to `1GiB`, and `total` for
+  all of them together, defaulting to `10GiB`. Both must be positive, and `perOwner`
+  cannot exceed `total`. A `pnpm pipeline` task result can hold
   release binaries, so a server that stores them usually needs more:
 
 ```yaml title="pnpr.yaml"
 artifacts:
   quota:
-    ownerGiB: 50
-    totalGiB: 200
+    perOwner: 50GiB
+    total: 200GiB
 ```
 
 - The **pipeline run surface**: the endpoints that store and serve
@@ -940,9 +947,11 @@ routes:
       package: '@oss/*'
 ```
 
-Each rule may name a `registry` origin, a `package` glob, or both. Rules fail
-closed on a typo: a present-but-unparsable `registry` URL or `package` glob
-drops the whole rule (with a warning) rather than widening it.
+Each rule may name a `registry` origin, a `package` glob, or both. An
+unparsable `registry` URL or `package` glob is a startup error.
+
+The same public routes are the download allowlist of the Cargo and Python
+proxies (see [Ecosystems](ecosystems.md)).
 
 The resolver refuses to connect to loopback, private, and link-local
 addresses, other than the `--public-url` host. To resolve through an upstream
@@ -974,13 +983,11 @@ enabled from the CLI with `--osv` and `--osv-db`.
 
 ```yaml title="pnpr.yaml"
 log:
-  type: stdout
   format: pretty   # or `json`
   level: error     # trace, debug, http, info, warn, or error
 ```
 
-`format` defaults to `pretty` and `level` to `info`. Only `type: stdout` is
-implemented. Any other value logs a warning, and pnpr still writes to stdout.
+pnpr logs to stdout. `format` defaults to `pretty` and `level` to `info`.
 `RUST_LOG` always overrides the configured level. See the
 [CLI reference](cli.md#logging).
 
@@ -991,7 +998,7 @@ Every request emits an access log record under the tracing target `pnpr::access`
 - `request_id`: incoming `x-request-id` header (if valid printable ASCII, <=128 characters) or a generated RFC 4122 UUID v4. Also echoed in the response `x-request-id` header.
 - `method`: HTTP method.
 - `uri`: request path and query string.
-- `client_ip`: client IP resolved according to [`trustedProxies`](#trustedproxies) and [`trustedProxyHeader`](#trustedproxyheader).
+- `client_ip`: client IP resolved according to [`trustedProxies`](#trustedproxies).
 - `user`: authenticated username, or `"-"` when unauthenticated.
 - `user_agent`: `User-Agent` header value, or `"-"` when omitted.
 - `status`: HTTP response status code.
@@ -1106,11 +1113,12 @@ s3:
 `${ENV_VAR:-default}` also when it is empty. An unset or empty variable without
 a default becomes an empty string, and pnpr logs a warning.
 
-Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
-`secrets.cache`, `secrets.oci`, `s3.secretAccessKey`, `auth.scim.token`,
-OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token` and
-`bearerToken`, and upstream `headers` values) fail fast at startup with a fatal configuration error. This prevents accidental fallback to
-empty credentials or per-process secrets when an environment variable is unset.
+An unset variable in a field that holds a credential fails startup, so pnpr
+never runs with an empty credential. These fields are `secret`, `secret.cache`,
+`secret.oci`, `database.url`, `database.authToken`, `s3.secretAccessKey`,
+`auth.scim.token`, OIDC `clientSecret`, `metrics.token`,
+`cloudflareCdn.apiToken`, the `releaseRecords` signing keys, and an upstream
+registry's `auth.token` and `headers` values.
 
 ## cloudflareCdn
 

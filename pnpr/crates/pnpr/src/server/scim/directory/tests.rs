@@ -15,7 +15,7 @@ async fn deactivation_holds_the_binding_lock_until_revocation_finishes() {
     let mut config =
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
-        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
+        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string().into() });
     let (state, _) = crate::server::state_and_router(config, AuthState::in_memory(), None).unwrap();
     let directory = Arc::new(ScimState::default());
     let mut status = ScimStatus {
@@ -61,7 +61,7 @@ async fn superseded_deactivation_preserves_post_reactivation_tokens_and_director
     let mut config =
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
-        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
+        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string().into() });
     let auth = AuthState::in_memory();
     let (state, _) = crate::server::state_and_router(config, auth.clone(), None).unwrap();
 
@@ -238,7 +238,7 @@ async fn directory_reload_skips_writes_for_already_reconciled_accounts() {
     let mut config =
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
-        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
+        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string().into() });
     let store =
         Arc::new(pnpr_auth::SqliteAuth::in_memory(pnpr_config::MaxUsers::Unlimited).unwrap());
     let counting = Arc::new(CountingStatusBackend::new(Arc::clone(&store)));
@@ -311,7 +311,7 @@ async fn failed_post_reconcile_name_lookup_does_not_mark_directory_unreadable() 
     let mut config =
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
-        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string() });
+        Some(ScimConfig { token: "scim-secret-0123456789abcdef0123456789".to_string().into() });
     let store =
         Arc::new(pnpr_auth::SqliteAuth::in_memory(pnpr_config::MaxUsers::Unlimited).unwrap());
     let counting = Arc::new(CountingStatusBackend::new(Arc::clone(&store)));

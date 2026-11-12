@@ -128,7 +128,6 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
     let logs = pnpr_config::LogConfig {
         format: pnpr_config::LogFormat::Json,
         level: pnpr_config::LogLevel::Warn,
-        ..pnpr_config::LogConfig::default()
     };
     let subscriber = crate::logging::log_subscriber(
         &logs,

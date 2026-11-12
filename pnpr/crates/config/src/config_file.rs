@@ -1,8 +1,9 @@
 use super::{
-    AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
-    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile, access::TeamFile,
-    default_storage_string, null_default::deserialize_null_default, oidc,
+    AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
+    Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
+    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, TrustedProxyHeader,
+    UpstreamAuthFile, access::TeamFile, default_storage_string,
+    null_default::deserialize_null_default, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -108,9 +109,9 @@ pub(super) struct UpstreamFile {
     #[serde(default)]
     pub(super) auth: Option<UpstreamAuthFile>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) headers: IndexMap<String, String>,
-    #[serde(default, rename = "maxAge")]
-    pub(super) maxage: Option<Interval>,
+    pub(super) headers: IndexMap<String, crate::Secret>,
+    #[serde(default)]
+    pub(super) packument_ttl: Option<Interval>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
     #[serde(default)]
@@ -195,18 +196,22 @@ pub(super) struct CacheSettingsFile {
     )
 )]
 pub(super) struct ConfigFile {
+    /// The address the server binds to. The `--listen` flag overrides it.
+    #[serde(default)]
+    pub(super) listen: Option<std::net::SocketAddr>,
+    /// The URL clients reach the server at. The `--public-url` flag
+    /// overrides it.
+    #[serde(default)]
+    pub(super) public_url: Option<String>,
     #[serde(default = "default_storage_string")]
     pub(super) storage: String,
     /// Disposable proxy-cache root or settings table. When omitted
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     pub(super) cache: Option<CacheFile>,
-    /// Reverse-proxy addresses trusted to supply client IP headers.
+    /// Reverse proxies trusted to supply the client IP address.
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) trusted_proxies: Vec<String>,
-    /// Header name trusted to supply client IP addresses (`x-forwarded-for`, `forwarded`, `x-real-ip`).
-    #[serde(default)]
-    pub(super) trusted_proxy_header: Option<String>,
+    pub(super) trusted_proxies: TrustedProxiesFile,
     /// Request processing timeout (e.g. `60s`, `1m`).
     #[serde(default)]
     pub(super) request_timeout: Option<Interval>,
@@ -239,7 +244,7 @@ pub(super) struct ConfigFile {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) ui: UiFile,
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) oci: OciConfig,
+    pub(super) oci: OciFile,
     /// Who may scrape Prometheus metrics. Omitted ⇒ pnpr serves none.
     #[serde(default)]
     pub(super) metrics: Option<MetricsConfig>,
@@ -250,10 +255,6 @@ pub(super) struct ConfigFile {
     /// The database for accounts, tokens, and package metadata.
     #[serde(default)]
     pub(super) database: Option<crate::storage_config::DatabaseFile>,
-    #[serde(default)]
-    pub(super) backend: Option<serde::de::IgnoredAny>,
-    #[serde(default)]
-    pub(super) metadata: Option<serde::de::IgnoredAny>,
     /// pnpr-only local OSV database settings.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) osv: OsvFile,
@@ -279,47 +280,30 @@ pub(super) struct ConfigFile {
     /// registry and clients must address a `/~<name>/`.
     #[serde(default)]
     pub(super) default_registry: Option<DefaultRegistryFile>,
-    /// The removed top-level ACL block, kept only to *reject* it loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) packages: Option<RemovedPackagesBlock>,
-    /// The removed top-level `groups:` block, kept only to *reject* it
-    /// loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) groups: Option<RemovedGroupsBlock>,
-    /// The unsupported top-level `uplinks:` block, kept only to *reject* it
-    /// loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) uplinks: Option<RemovedUplinksBlock>,
-    /// The removed top-level `upstreams:` block, kept only to *reject* it
-    /// loudly.
-    #[serde(default, deserialize_with = "detect_removed_block")]
-    pub(super) upstreams: Option<RemovedUpstreamsBlock>,
     /// pnpr-only: which fetch routes the resolution cache treats as
     /// public.
     #[serde(default)]
     pub(super) routes: Option<RoutesFile>,
-    /// Master secret from which purpose-specific subkeys (cache HMAC, OCI token signing)
-    /// are derived when individual secrets are not configured. A random per-process
-    /// secret is generated when absent.
+    /// The roots the cache and OCI keys derive from. A random per-process
+    /// root stands in for an absent one.
     #[serde(default)]
-    pub(super) secret: Option<String>,
-    /// Optional purpose-specific secrets for independent rotation.
-    #[serde(default)]
-    pub(super) secrets: Option<SecretsFile>,
+    pub(super) secret: Option<crate::secrets::SecretFile>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) auth: AuthFile,
     #[serde(default)]
     pub(super) log: Option<LogEntryFile>,
 }
 
-/// Purpose-specific secrets allowing independent rotation of cache and OCI signing keys.
+/// Disk shape of the `trustedProxies:` block.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct SecretsFile {
+pub(super) struct TrustedProxiesFile {
+    /// Addresses and CIDR networks of the proxies.
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub(super) networks: Vec<String>,
+    /// The header the proxies put the client address in.
     #[serde(default)]
-    pub(super) cache: Option<String>,
-    #[serde(default)]
-    pub(super) oci: Option<String>,
+    pub(super) header: Option<TrustedProxyHeader>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -342,51 +326,14 @@ impl Default for UiFile {
     }
 }
 
-/// Marker for a present top-level `packages:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedPackagesBlock;
-
-/// Marker for a present top-level `groups:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedGroupsBlock;
-
-/// Marker for a present top-level `uplinks:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedUplinksBlock;
-
-/// Marker for a present top-level `upstreams:` key, whatever its value.
-#[derive(Debug, Default)]
-pub(super) struct RemovedUpstreamsBlock;
-
-/// `Some` whenever the key is present — including a key with no value
-/// (YAML null), which `Option<IgnoredAny>` would map to `None` and let
-/// slip past the loud rejection. The value itself is consumed and
-/// discarded; only presence matters.
-pub(super) fn detect_removed_block<'de, De, Marker>(
-    deserializer: De,
-) -> Result<Option<Marker>, De::Error>
-where
-    De: serde::Deserializer<'de>,
-    Marker: Default,
-{
-    serde::de::IgnoredAny::deserialize(deserializer)?;
-    Ok(Some(Marker::default()))
-}
-
 /// The YAML `log:` object.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct LogEntryFile {
-    #[serde(default = "default_log_type")]
-    pub(super) r#type: String,
     #[serde(default)]
     pub(super) format: Option<LogFormat>,
     #[serde(default)]
     pub(super) level: Option<LogLevel>,
-}
-
-pub(super) fn default_log_type() -> String {
-    LogConfig::STDOUT_SINK.to_string()
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -491,10 +438,10 @@ pub(super) struct ArtifactsFeatureFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ArtifactQuotaFile {
-    #[serde(rename = "ownerGiB")]
-    pub(super) owner_gib: Option<u64>,
-    #[serde(rename = "totalGiB")]
-    pub(super) total_gib: Option<u64>,
+    #[serde(default)]
+    pub(super) per_owner: Option<ByteSize>,
+    #[serde(default)]
+    pub(super) total: Option<ByteSize>,
 }
 
 #[derive(Debug, Deserialize)]

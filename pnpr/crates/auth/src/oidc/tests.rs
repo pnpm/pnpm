@@ -481,7 +481,7 @@ async fn selects_client_secret_post_from_discovery() {
     let mut config = config(&provider.issuer);
     config.login = Some(OidcLogin {
         scim: false,
-        client_secret: Some("secret".to_string()),
+        client_secret: Some("secret".to_string().into()),
         users: vec![config.workloads.remove(0).identity],
         groups: None,
     });
@@ -737,7 +737,7 @@ fn empty_client_secret_is_rejected() {
     let mut config = config("https://issuer.example");
     config.login = Some(OidcLogin {
         scim: false,
-        client_secret: Some("   ".to_string()),
+        client_secret: Some("   ".to_string().into()),
         users: vec![OidcBinding {
             subject: "user-1".to_string(),
             user_id: "alice".to_string(),
