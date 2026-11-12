@@ -4,4 +4,5 @@ export {
   type ConfigFileChangeType,
   type ConfigReport,
   type PathExtenderPosixReport,
+  quotePowerShell,
 } from './path-extender-posix.js'

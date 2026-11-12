@@ -5,7 +5,9 @@ import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
 
+const actualPathExtender = await import('@pnpm/os.env.path-extender')
 jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
+  ...actualPathExtender,
   addDirToEnvPath: jest.fn(),
 }))
 
@@ -103,6 +105,26 @@ export PNPM_HOME=dir2
 
 To start using pnpm, run:
 source ~/.bashrc
+`)
+})
+
+test('setup tells PowerShell to dot-source the profile', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'created',
+      path: "/home/o'neil/.config/powershell/profile.ps1",
+    },
+    oldSettings: '',
+    newSettings: '$env:PNPM_HOME = dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Created /home/o'neil/.config/powershell/profile.ps1
+
+The following configuration changes were made:
+$env:PNPM_HOME = dir
+
+To start using pnpm, run:
+. '/home/o''neil/.config/powershell/profile.ps1'
 `)
 })
 

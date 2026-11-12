@@ -9,6 +9,7 @@ import {
   addDirToEnvPath,
   type ConfigReport,
   type PathExtenderReport,
+  quotePowerShell,
 } from '@pnpm/os.env.path-extender'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
@@ -327,13 +328,11 @@ async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: strin
 }
 
 function renderWindowsManualSetupOutput (reason: string, pnpmHomeDir: string): string {
-  // PowerShell also treats typographic apostrophes as string delimiters.
-  const quotedHome = pnpmHomeDir.replace(/['\u2018-\u201b]/g, quote => quote + quote)
   return `${reason}
 
 pnpm is installed, but its environment could not be saved in the registry.
 To start using pnpm in this PowerShell session, run:
-$env:PNPM_HOME = '${quotedHome}'
+$env:PNPM_HOME = ${quotePowerShell(pnpmHomeDir)}
 $env:Path = "$env:PNPM_HOME\\bin;$env:Path"
 
 Add these lines to your PowerShell profile to use pnpm in future sessions.`
@@ -366,10 +365,17 @@ ${report.newSettings}`)
     output.push('Setup complete. Open a new terminal to start using pnpm.')
   } else if (report.configFile.changeType !== 'skipped') {
     output.push(`To start using pnpm, run:
-source ${report.configFile.path}
+${renderReloadCommand(report.configFile.path)}
 `)
   }
   return output.join('\n\n')
+}
+
+function renderReloadCommand (configFile: string): string {
+  if (configFile.endsWith('.ps1')) {
+    return `. ${quotePowerShell(configFile)}`
+  }
+  return `source ${configFile}`
 }
 
 function reportConfigChange (configReport: ConfigReport): string {
