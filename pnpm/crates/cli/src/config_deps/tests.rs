@@ -222,7 +222,7 @@ async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path()
                 .iter()
                 .map(|path| path.display().to_string())
                 .collect::<Vec<_>>()
-                .join(&delimiter.to_string())
+                .join(&delimiter.to_string()),
         ),
     );
 
@@ -238,7 +238,7 @@ async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path()
                 .join("node_modules/.pnpm/node_modules")
                 .display()
                 .to_string()
-        )
+        ),
     );
 }
 
