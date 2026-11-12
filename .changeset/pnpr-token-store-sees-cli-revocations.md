@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Changing a password with `pnpr add-user` while the registry runs now revokes the account's existing tokens right away. Before, the running registry kept accepting them until it restarted.
+Changing a password with `pnpr add-user` now revokes the account's tokens on a running registry right away [#18008](https://github.com/pnpm/pnpm/pull/18008).

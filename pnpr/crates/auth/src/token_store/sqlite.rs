@@ -1,5 +1,8 @@
-use super::{Connection, HashMap, Path, RegistryError, Result, TokenKind, TokenRecord};
+use super::{
+    Connection, HashMap, Mutex, RegistryError, Result, TokenInner, TokenKind, TokenRecord,
+};
 use crate::validation::{token_timestamp_from_sql, token_timestamp_to_sql};
+use std::path::Path;
 
 /// The token database connection every write of one store commits through.
 ///
@@ -42,9 +45,67 @@ impl TokenDatabase {
         Ok(Some(tokens))
     }
 
+    /// Whether another connection committed since the last load.
+    pub(crate) fn has_changed(&self) -> Result<bool> {
+        Ok(self.data_version()? != self.loaded_version)
+    }
+
     fn data_version(&self) -> Result<i64> {
         Ok(self.connection.pragma_query_value(None, "data_version", |row| row.get(0))?)
     }
+}
+
+pub(super) fn lock_database(
+    database: &Mutex<Option<TokenDatabase>>,
+) -> std::sync::MutexGuard<'_, Option<TokenDatabase>> {
+    database.lock().expect("TokenStore database mutex poisoned")
+}
+
+pub(super) fn sync_from_database(
+    database: &mut Option<TokenDatabase>,
+    inner: &Mutex<TokenInner>,
+) -> Result<()> {
+    let Some(database) = database else {
+        return Ok(());
+    };
+    if let Some(tokens) = database.load_if_changed()? {
+        *inner.lock().expect("TokenStore mutex poisoned") = TokenInner::from_tokens(tokens);
+    }
+    Ok(())
+}
+
+/// Write a consistent copy of the token database at `source` to `dest`,
+/// including commits still in its write-ahead log. The copy is readable only
+/// by its owner.
+pub fn export_token_database(source: &Path, dest: &Path) -> Result<()> {
+    let tmp = crate::htpasswd::unique_tmp_path(dest);
+    create_private_file(&tmp)?;
+    let exported = vacuum_into(source, &tmp).and_then(|()| Ok(std::fs::rename(&tmp, dest)?));
+    if exported.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    exported
+}
+
+fn vacuum_into(source: &Path, dest: &Path) -> Result<()> {
+    let dest = dest
+        .to_str()
+        .ok_or_else(|| RegistryError::Internal {
+            reason: format!("export path {} is not valid UTF-8", dest.display()),
+        })?;
+    let connection =
+        Connection::open_with_flags(source, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    connection.execute("VACUUM INTO ?1", [dest])?;
+    Ok(())
+}
+
+pub(super) fn create_private_file(path: &Path) -> std::io::Result<()> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(path)?;
+    Ok(())
 }
 
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {

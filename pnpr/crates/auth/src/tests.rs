@@ -420,6 +420,37 @@ async fn tokens_revoked_by_another_process_stop_resolving() {
 }
 
 #[tokio::test]
+async fn token_database_export_includes_commits_in_the_write_ahead_log() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let dest = tmp.path().join("export/tokens.db");
+    std::fs::create_dir(dest.parent().unwrap()).unwrap();
+    let store = TokenStore::open(path.clone()).unwrap();
+    let raw = store.issue("alice").await.unwrap();
+
+    crate::export_token_database(&path, &dest).unwrap();
+
+    let exported = TokenStore::open(dest.clone()).unwrap();
+    assert_eq!(
+        exported
+            .lookup(&raw)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = std::fs::metadata(&dest)
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+}
+
+#[tokio::test]
 async fn tokens_store_own_writes_do_not_reload_from_disk() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");

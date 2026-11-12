@@ -176,8 +176,12 @@ async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
         pnpr_auth::write_atomic(&out.join("users.json"), &bytes).into_diagnostic()?;
     }
     if let Some(tok_path) = config.identity.auth.tokens.file.as_deref().filter(|p| p.exists()) {
-        let bytes = fs::read(tok_path).await.into_diagnostic()?;
-        pnpr_auth::write_atomic(&out.join("tokens.db"), &bytes).into_diagnostic()?;
+        let source = tok_path.to_path_buf();
+        let dest = out.join("tokens.db");
+        tokio::task::spawn_blocking(move || pnpr_auth::export_token_database(&source, &dest))
+            .await
+            .into_diagnostic()?
+            .into_diagnostic()?;
     }
     Ok(())
 }

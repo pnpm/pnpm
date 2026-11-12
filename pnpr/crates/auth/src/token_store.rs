@@ -5,15 +5,17 @@ pub(crate) use format::mint_token;
 pub use format::{PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, has_valid_personal_token_checksum};
 pub(super) use pnpm_crypto_hash::create_hex_hash_bytes as sha256_hex;
 pub use record::{NewToken, TokenKind, TokenRecord};
+pub use sqlite::export_token_database;
 
 mod record;
 
 use super::{
-    Arc, Connection, HashMap, HashSet, Mutex, Path, PathBuf, RegistryError, Result, SystemTime,
+    Arc, Connection, HashMap, HashSet, Mutex, PathBuf, RegistryError, Result, SystemTime,
     TokenBackend, UNIX_EPOCH, async_trait, validation::token_timestamp_to_sql,
 };
 use sqlite::{
-    TokenDatabase, delete_expired_tokens, delete_token, delete_user_tokens, insert_token,
+    TokenDatabase, create_private_file, delete_expired_tokens, delete_token, delete_user_tokens,
+    insert_token, lock_database, sync_from_database,
 };
 
 /// SHA-256-hashed (`token_hash` → `user_id`) map, optionally backed by
@@ -131,15 +133,8 @@ impl TokenStore {
             std::fs::create_dir_all(parent)?;
         }
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt as _;
-            if !path.exists() {
-                let _ = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .mode(0o600)
-                    .open(&path);
-            }
+        if !path.exists() {
+            let _ = create_private_file(&path);
         }
         let (database, tokens) = TokenDatabase::open(&path)?;
         Ok(Self {
@@ -162,11 +157,27 @@ impl TokenStore {
     }
 
     /// The in-memory map, reloaded first if another connection changed the
-    /// database.
-    fn synced_inner(&self) -> Result<std::sync::MutexGuard<'_, TokenInner>> {
-        let mut database = lock_database(&self.database);
-        sync_from_database(&mut database, &self.inner)?;
+    /// database. Only an idle, unchanged database is checked on the calling
+    /// thread, so a lookup never blocks an async worker on a write or a reload.
+    async fn synced_inner(&self) -> Result<std::sync::MutexGuard<'_, TokenInner>> {
+        if self.persist.is_some() && !self.is_idle_and_unchanged()? {
+            let database = Arc::clone(&self.database);
+            let inner = Arc::clone(&self.inner);
+            tokio::task::spawn_blocking(move || {
+                sync_from_database(&mut lock_database(&database), &inner)
+            })
+            .await??;
+        }
         Ok(self.inner.lock().expect("TokenStore mutex poisoned"))
+    }
+
+    fn is_idle_and_unchanged(&self) -> Result<bool> {
+        let Ok(database) = self.database.try_lock() else {
+            return Ok(false);
+        };
+        database
+            .as_ref()
+            .map_or(Ok(true), |database| Ok(!database.has_changed()?))
     }
 }
 
@@ -202,7 +213,7 @@ impl TokenBackend for TokenStore {
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        let inner = self.synced_inner()?;
+        let inner = self.synced_inner().await?;
         let now = unix_millis();
         let Some(record) = inner.tokens.get(&token_hash) else {
             return Ok(None);
@@ -233,12 +244,12 @@ impl TokenBackend for TokenStore {
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let inner = self.synced_inner()?;
+        let inner = self.synced_inner().await?;
         Ok(inner.tokens.get(key).cloned())
     }
 
     async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
-        Ok(self.synced_inner()?.owned_by(user_id))
+        Ok(self.synced_inner().await?.owned_by(user_id))
     }
 
     /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
@@ -300,25 +311,6 @@ impl TokenStore {
     ) -> std::sync::MutexGuard<'_, Option<TokenDatabase>> {
         lock_database(&self.database)
     }
-}
-
-fn lock_database(
-    database: &Mutex<Option<TokenDatabase>>,
-) -> std::sync::MutexGuard<'_, Option<TokenDatabase>> {
-    database.lock().expect("TokenStore database mutex poisoned")
-}
-
-fn sync_from_database(
-    database: &mut Option<TokenDatabase>,
-    inner: &Mutex<TokenInner>,
-) -> Result<()> {
-    let Some(database) = database else {
-        return Ok(());
-    };
-    if let Some(tokens) = database.load_if_changed()? {
-        *inner.lock().expect("TokenStore mutex poisoned") = TokenInner::from_tokens(tokens);
-    }
-    Ok(())
 }
 
 fn store_issued_sync(

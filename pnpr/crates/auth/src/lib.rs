@@ -28,7 +28,7 @@ pub use owned_tokens::OwnedTokens;
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
 pub use token_store::{
     NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord, TokenStore,
-    has_valid_personal_token_checksum, unix_millis,
+    export_token_database, has_valid_personal_token_checksum, unix_millis,
 };
 pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
