@@ -113,7 +113,7 @@ async fn update_config_default_lockfile_dir_rederives_state_after_modules_dir_ch
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(&project).expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, &project).await
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.lockfile_dir, None);
