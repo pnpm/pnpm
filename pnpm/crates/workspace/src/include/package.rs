@@ -1,6 +1,9 @@
 //! The config entry a config dependency declares in its `package.json`.
 
-use super::{INCLUDE_KEY, IncludeError, SettingSlot, parse_mapping, selector::defined_slots};
+use super::{
+    INCLUDE_KEY, IncludeError, SettingSlot, is_yaml_extension, parse_mapping,
+    selector::defined_slots,
+};
 use std::{
     fs,
     io::ErrorKind,
@@ -70,7 +73,7 @@ fn resolve_entry(name: &str, package_dir: &Path, entry: &str) -> Result<PathBuf,
     let is_yaml = relative
         .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| matches!(extension, "yaml" | "yml"));
+        .is_some_and(is_yaml_extension);
     if !is_yaml {
         return Err(invalid("it must be a .yaml or .yml file"));
     }
