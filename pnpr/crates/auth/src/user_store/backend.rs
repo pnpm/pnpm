@@ -1,10 +1,13 @@
 use super::{
     Change, Registration, StoredAccount, UserStore, check_username_skeleton, registered_user_count,
-    stored::{checked_next_revision, find_active_login, move_account_login},
+    stored::{
+        apply_stored_lifecycle, checked_next_revision, find_active_login, move_account_login,
+    },
 };
 use crate::{
-    AccountCredential, AccountStatus, PasswordChange, Result, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, dummy_verify, hash_bcrypt, validation::validate_username,
+    AccountCredential, AccountLifecycle, AccountStatus, AccountStatusOutcome, PasswordChange,
+    Result, UpsertOutcome, UserBackend, UserCreation, UserRemoval, dummy_verify, hash_bcrypt,
+    validation::{status_revision_to_sql, validate_username},
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
@@ -246,57 +249,33 @@ impl UserBackend for UserStore {
             .map(|account| account.status))
     }
 
-    async fn set_account_status(&self, user_id: &str, status: AccountStatus) -> Result<bool> {
-        if status.is_deleted() {
-            return Err(RegistryError::BadRequest {
-                reason: "use delete_user to delete an account".to_string(),
-            });
-        }
+    async fn apply_account_status(
+        &self,
+        user_id: &str,
+        revision: u64,
+        lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        let _ = status_revision_to_sql(revision)?;
         let id = user_id.to_string();
-        self.update(move |users| {
-            let Some(account) = users
-                .values_mut()
-                .find(|account| account.id == id && !account.status.is_deleted())
-            else {
-                return Ok(Change::Keep(false));
-            };
-            let next_revision = checked_next_revision(account.name_revision)?;
-            account.status = status;
-            account.name_revision = next_revision;
-            Ok(Change::Write(true))
-        })
+        let revoke_id = id.clone();
+        let tokens = self.bound_tokens();
+        self.update_with_post_commit(
+            move |users| Ok(apply_stored_lifecycle(users, &id, revision, lifecycle)),
+            move |outcome| {
+                if *outcome == AccountStatusOutcome::Applied
+                    && matches!(lifecycle, AccountLifecycle::Deactivated)
+                    && let Some(tokens) = tokens
+                {
+                    tokens.revoke_all_for_user_blocking(&revoke_id)?;
+                }
+                Ok(())
+            },
+        )
         .await
     }
 
-    async fn set_account_status_if_current(
-        &self,
-        user_id: &str,
-        expected_revision: u64,
-        status: AccountStatus,
-    ) -> Result<crate::AccountStatusUpdate> {
-        if status.is_deleted() {
-            return Err(RegistryError::BadRequest {
-                reason: "use delete_user to delete an account".to_string(),
-            });
-        }
-        let next_revision = checked_next_revision(expected_revision)?;
-        let id = user_id.to_string();
-        self.update(move |users| {
-            let account = users
-                .values_mut()
-                .find(|account| account.id == id && !account.status.is_deleted())
-                .ok_or(RegistryError::NotFound)?;
-            if account.name_revision != expected_revision {
-                return Ok(Change::Keep(crate::AccountStatusUpdate::CurrentChanged));
-            }
-            account.status = status;
-            if matches!(status, AccountStatus::Deactivated) {
-                account.clear_hash();
-            }
-            account.name_revision = next_revision;
-            Ok(Change::Write(crate::AccountStatusUpdate::Updated(next_revision)))
-        })
-        .await
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        self.bound_tokens().is_some()
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {

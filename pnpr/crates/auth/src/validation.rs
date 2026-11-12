@@ -151,3 +151,10 @@ pub(crate) fn name_revision_bounds(expected_revision: u64) -> Result<Option<(i64
         })?;
     Ok(Some((expected, next, next_revision)))
 }
+
+pub(crate) fn status_revision_to_sql(revision: u64) -> Result<i64> {
+    i64::try_from(revision)
+        .map_err(|_| RegistryError::Internal {
+            reason: "account status revision overflowed".to_string(),
+        })
+}

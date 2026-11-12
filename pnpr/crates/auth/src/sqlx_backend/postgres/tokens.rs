@@ -95,6 +95,14 @@ impl PostgresDatabase {
         Ok(())
     }
 
+    pub(super) async fn delete_user_tokens_impl(&self, user_id: &str) -> Result<u64> {
+        let result = sqlx::query("DELETE FROM tokens WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&mut *self.pool.acquire().await?)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
     pub(super) async fn delete_expired_tokens_impl(&self, now: u64) -> Result<u64> {
         let result =
             sqlx::query("DELETE FROM tokens WHERE expires_at IS NOT NULL AND expires_at <= $1")

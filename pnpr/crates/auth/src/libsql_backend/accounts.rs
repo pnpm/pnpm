@@ -1,8 +1,13 @@
 use super::{
-    AccountStatus, LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params,
-    retry_database_conflicts, token_timestamp_to_sql, unix_millis, validate_username,
+    AccountStatus, LibsqlAuth, RegistryError, Result, TransactionBehavior, first_row,
+    is_unique_violation, params, retry_database_conflicts, token_timestamp_to_sql, unix_millis,
+    validate_username,
 };
-use crate::validation::name_revision_bounds;
+use crate::{
+    AccountLifecycle, AccountStatusOutcome,
+    account::should_apply_lifecycle,
+    validation::{name_revision_bounds, status_revision_to_sql},
+};
 
 impl LibsqlAuth {
     pub(super) async fn list_accounts_impl(&self) -> Result<Vec<crate::UserAccount>> {
@@ -134,79 +139,22 @@ impl LibsqlAuth {
         .await
     }
 
-    pub(super) async fn set_account_status_by_id(
+    pub(super) async fn apply_account_status_by_id(
         &self,
         user_id: &str,
-        status: AccountStatus,
-    ) -> Result<bool> {
-        if status.is_deleted() {
-            return Err(RegistryError::BadRequest {
-                reason: "use delete_user to delete an account".to_string(),
-            });
-        }
-        let status_str = status.as_str();
-        let updated = retry_database_conflicts(|| {
+        revision: u64,
+        lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        let sql_revision = status_revision_to_sql(revision)?;
+        let outcome = retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
-                Ok::<_, RegistryError>(
-                    conn.execute(
-                        "UPDATE users
-                         SET status = ?2, name_revision = name_revision + 1
-                         WHERE id = ?1 AND status <> 'deleted'",
-                        params![user_id, status_str],
-                    )
-                    .await?,
-                )
+                execute_lifecycle_transition(&conn, user_id, revision, sql_revision, lifecycle)
+                    .await
             })
         })
         .await?;
-        if updated > 0 {
-            self.sync_replica().await?;
-        }
-        Ok(updated > 0)
-    }
-
-    pub(super) async fn set_account_status_by_id_if_current(
-        &self,
-        user_id: &str,
-        expected_revision: u64,
-        status: AccountStatus,
-    ) -> Result<crate::AccountStatusUpdate> {
-        if status.is_deleted() {
-            return Err(RegistryError::BadRequest {
-                reason: "use delete_user to delete an account".to_string(),
-            });
-        }
-        let Some((expected, next, next_revision)) = name_revision_bounds(expected_revision)? else {
-            self.account_name_by_id(user_id).await?.ok_or(RegistryError::NotFound)?;
-            return Ok(crate::AccountStatusUpdate::CurrentChanged);
-        };
-        let status_str = status.as_str();
-        let sql = if matches!(status, AccountStatus::Deactivated) {
-            "UPDATE users
-             SET status = ?2, credential_kind = 'none', password_hash = NULL, name_revision = ?3
-             WHERE id = ?1 AND name_revision = ?4 AND status <> 'deleted'"
-        } else {
-            "UPDATE users
-             SET status = ?2, name_revision = ?3
-             WHERE id = ?1 AND name_revision = ?4 AND status <> 'deleted'"
-        };
-        let updated = retry_database_conflicts(|| {
-            self.pool.write(|conn| async move {
-                Ok::<_, RegistryError>(
-                    conn.execute(sql, params![user_id, status_str, next, expected]).await?,
-                )
-            })
-        })
-        .await?;
-        if updated > 0 {
-            self.sync_replica().await?;
-            return Ok(crate::AccountStatusUpdate::Updated(next_revision));
-        }
         self.sync_replica().await?;
-        match self.account_name_by_id(user_id).await? {
-            Some(_) => Ok(crate::AccountStatusUpdate::CurrentChanged),
-            None => Err(RegistryError::NotFound),
-        }
+        Ok(outcome)
     }
 
     pub(super) async fn account_login_by_id(
@@ -320,6 +268,70 @@ impl LibsqlAuth {
 enum PrimaryRename {
     Renamed { previous: String },
     CurrentChanged,
+}
+
+async fn execute_lifecycle_transition(
+    conn: &libsql::Connection,
+    user_id: &str,
+    revision: u64,
+    sql_revision: i64,
+    lifecycle: AccountLifecycle,
+) -> Result<AccountStatusOutcome> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
+    let rows = tx.query(
+        "SELECT status, status_revision FROM users WHERE id = ?1 AND status <> 'deleted'",
+        params![user_id],
+    )
+    .await?;
+    let Some((raw_status, raw_rev)) =
+        first_row(rows, |row| Ok((row.get::<String>(0)?, row.get::<i64>(1)?))).await?
+    else {
+        tx.rollback().await?;
+        return Ok(AccountStatusOutcome::Missing);
+    };
+    let actual_status = AccountStatus::parse(&raw_status)
+        .ok_or_else(|| RegistryError::Internal {
+            reason: format!("user {user_id} has an unrecognized status {raw_status:?}"),
+        })?;
+    let actual_rev = u64::try_from(raw_rev).unwrap_or(0);
+    if !should_apply_lifecycle(actual_status, actual_rev, revision, lifecycle) {
+        tx.rollback().await?;
+        return Ok(AccountStatusOutcome::Superseded);
+    }
+    apply_primary_lifecycle(tx, user_id, sql_revision, lifecycle).await
+}
+
+async fn apply_primary_lifecycle(
+    tx: libsql::Transaction,
+    user_id: &str,
+    sql_revision: i64,
+    lifecycle: AccountLifecycle,
+) -> Result<AccountStatusOutcome> {
+    match lifecycle {
+        AccountLifecycle::Active => {
+            tx.execute(
+                "UPDATE users SET status = 'active', status_revision = ?2
+                 WHERE id = ?1 AND status <> 'deleted'",
+                params![user_id, sql_revision],
+            )
+            .await?;
+        }
+        AccountLifecycle::Deactivated => {
+            tx.execute(
+                "UPDATE users
+                 SET status = 'deactivated',
+                     credential_kind = 'none',
+                     password_hash = NULL,
+                     status_revision = ?2
+                 WHERE id = ?1 AND status <> 'deleted'",
+                params![user_id, sql_revision],
+            )
+            .await?;
+            tx.execute("DELETE FROM tokens WHERE user_id = ?1", params![user_id]).await?;
+        }
+    }
+    tx.commit().await?;
+    Ok(AccountStatusOutcome::Applied)
 }
 
 async fn execute_conditional_rename(

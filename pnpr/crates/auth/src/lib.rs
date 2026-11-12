@@ -14,8 +14,9 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use account::{
-    AccountCredential, AccountLogin, AccountStatus, AccountStatusUpdate, CredentialKind,
-    PasswordChange, UpsertOutcome, UserCreation, UserRemoval, UserRename, verify_returning_user,
+    AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
+    CredentialKind, PasswordChange, UpsertOutcome, UserCreation, UserRemoval, UserRename,
+    verify_returning_user,
 };
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
@@ -138,6 +139,24 @@ impl AuthState {
     /// Revoke every token `user_id` holds. Returns how many were revoked.
     pub async fn revoke_all_tokens(&self, user_id: &str) -> Result<usize> {
         self.tokens.revoke_all_for_user(user_id).await
+    }
+
+    /// Apply a generation-ordered lifecycle transition to `user_id`, clearing
+    /// any stored password and revoking bearer tokens when deactivating.
+    pub async fn apply_account_status(
+        &self,
+        user_id: &str,
+        revision: u64,
+        lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        let outcome = self.users.apply_account_status(user_id, revision, lifecycle).await?;
+        if outcome == AccountStatusOutcome::Applied
+            && lifecycle == AccountLifecycle::Deactivated
+            && !self.users.revokes_tokens_in_status_transition()
+        {
+            self.tokens.revoke_all_for_user(user_id).await?;
+        }
+        Ok(outcome)
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
@@ -351,30 +370,24 @@ pub trait UserBackend: Send + Sync {
         Ok(self.account_name(user_id).await?.map(|_| AccountStatus::Active))
     }
 
-    /// Set a non-deleted account's status to [`AccountStatus::Active`] or
-    /// [`AccountStatus::Deactivated`]. Returns `false` if no non-deleted account
-    /// has `user_id`.
-    async fn set_account_status(&self, _user_id: &str, _status: AccountStatus) -> Result<bool> {
+    /// Apply a generation-ordered lifecycle transition to `user_id` when its
+    /// stored `status_revision` has not moved past `revision`, clearing any
+    /// stored password when deactivating.
+    async fn apply_account_status(
+        &self,
+        _user_id: &str,
+        _revision: u64,
+        _lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
         Err(RegistryError::BadRequest {
             reason: "Account status changes are not supported by this account backend".to_string(),
         })
     }
 
-    /// Set `user_id`'s status to [`AccountStatus::Active`] or
-    /// [`AccountStatus::Deactivated`] only while its stored revision equals
-    /// `expected_revision`, advancing the revision on match and clearing any
-    /// stored password when setting [`AccountStatus::Deactivated`]. Returns
-    /// [`RegistryError::NotFound`] if no non-deleted account has `user_id`.
-    async fn set_account_status_if_current(
-        &self,
-        _user_id: &str,
-        _expected_revision: u64,
-        _status: AccountStatus,
-    ) -> Result<AccountStatusUpdate> {
-        Err(RegistryError::BadRequest {
-            reason: "Conditional account status changes are not supported by this account backend"
-                .to_string(),
-        })
+    /// Whether [`Self::apply_account_status`] revokes `user_id`'s bearer tokens
+    /// atomically as part of a deactivation transition.
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        false
     }
 
     /// Resolve a non-deleted account ID to its current login name and rename revision.

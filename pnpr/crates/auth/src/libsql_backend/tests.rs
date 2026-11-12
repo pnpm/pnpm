@@ -893,23 +893,18 @@ async fn conditional_renames_track_revisions_and_roll_back_unsynced_primary_writ
         .unwrap();
     assert_eq!(current, crate::AccountLogin { username: "admin-named".to_string(), revision: 2 });
     backend.set_password(&id, "secret123").await.unwrap();
+    let active_token = backend.issue(&id).await.unwrap();
     assert_eq!(
-        backend
-            .set_account_status_if_current(&id, 0, crate::AccountStatus::Deactivated)
-            .await
-            .unwrap(),
-        crate::AccountStatusUpdate::CurrentChanged,
+        backend.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
     );
-    assert_eq!(
+    assert_eq!(backend.lookup(&active_token).await.unwrap(), None);
+    assert!(
         backend
-            .set_account_status_if_current(
-                &id,
-                current.revision,
-                crate::AccountStatus::Deactivated,
-            )
+            .list_for_user(&id)
             .await
-            .unwrap(),
-        crate::AccountStatusUpdate::Updated(3),
+            .unwrap()
+            .is_empty(),
     );
     assert_eq!(backend.list_users().await.unwrap(), ["admin-named"]);
     assert_eq!(
@@ -921,16 +916,24 @@ async fn conditional_renames_track_revisions_and_roll_back_unsynced_primary_writ
         1,
     );
     assert_eq!(
-        backend.set_account_status_if_current(&id, 3, crate::AccountStatus::Active).await.unwrap(),
-        crate::AccountStatusUpdate::Updated(4),
+        backend.apply_account_status(&id, 1, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Superseded,
+    );
+    assert_eq!(
+        backend.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
     );
     assert_eq!(
         backend.credential("admin-named").await.unwrap(),
         Some(crate::AccountCredential::None),
     );
+    assert_eq!(
+        backend.account_login(&id).await.unwrap(),
+        Some(crate::AccountLogin { username: "admin-named".to_string(), revision: 2 }),
+    );
 
     backend.backend.is_replica = true;
-    assert!(backend.rename_user_if_current(&id, 4, "unsynced").await.is_err());
+    assert!(backend.rename_user_if_current(&id, 2, "unsynced").await.is_err());
     assert_eq!(
         backend
             .account_name(&id)
@@ -938,5 +941,34 @@ async fn conditional_renames_track_revisions_and_roll_back_unsynced_primary_writ
             .unwrap()
             .as_deref(),
         Some("admin-named"),
+    );
+}
+
+#[tokio::test]
+async fn deactivation_commits_token_and_password_cleanup_before_replica_sync_failure() {
+    let mut backend = local_backend(MaxUsers::Unlimited).await;
+    let id = backend.provision_user("replica-user").await.unwrap();
+    backend.set_password(&id, "secret123").await.unwrap();
+    let token = backend.issue(&id).await.unwrap();
+
+    backend.backend.is_replica = true;
+    assert!(
+        backend.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated).await.is_err(),
+    );
+
+    backend.backend.is_replica = false;
+    assert_eq!(backend.account_status(&id).await.unwrap(), Some(crate::AccountStatus::Deactivated));
+    assert_eq!(backend.credential("replica-user").await.unwrap(), None);
+    assert_eq!(backend.lookup(&token).await.unwrap(), None);
+    assert!(
+        backend
+            .list_for_user(&id)
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(
+        backend.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
     );
 }

@@ -1397,7 +1397,10 @@ async fn delete_expired_removes_only_expired_tokens_in_memory_and_sqlite() {
 async fn deactivated_accounts_keep_their_registration_slot_until_deleted() {
     let store = UserStore::in_memory_with_cost(MaxUsers::Limited(1), TEST_COST);
     let (_, id) = store.add_or_login("alice", "secret123").await.unwrap();
-    assert!(store.set_account_status(&id, super::AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(
+        store.apply_account_status(&id, 1, super::AccountLifecycle::Deactivated).await.unwrap(),
+        super::AccountStatusOutcome::Applied,
+    );
     let capped = store.add_or_login("bob", "secret123").await.unwrap_err();
     assert_eq!(capped.status_code(), axum::http::StatusCode::FORBIDDEN);
     assert!(matches!(capped, pnpr_error::RegistryError::TooManyUsers { max: 1 }));

@@ -141,20 +141,14 @@ trait AuthSqlBackend: Send + Sync {
     async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
         Ok(self.account_name(user_id).await?.map(|_| AccountStatus::Active))
     }
-    async fn set_account_status(&self, _user_id: &str, _status: AccountStatus) -> Result<bool> {
-        Err(RegistryError::BadRequest {
-            reason: "Account status changes are not supported by this account backend".to_string(),
-        })
-    }
-    async fn set_account_status_if_current(
+    async fn apply_account_status(
         &self,
         _user_id: &str,
-        _expected_revision: u64,
-        _status: AccountStatus,
-    ) -> Result<crate::AccountStatusUpdate> {
+        _revision: u64,
+        _lifecycle: crate::AccountLifecycle,
+    ) -> Result<crate::AccountStatusOutcome> {
         Err(RegistryError::BadRequest {
-            reason: "Conditional account status changes are not supported by this account backend"
-                .to_string(),
+            reason: "Account status changes are not supported by this account backend".to_string(),
         })
     }
     async fn account_login(&self, _user_id: &str) -> Result<Option<crate::AccountLogin>> {
@@ -221,6 +215,9 @@ trait AuthSqlBackend: Send + Sync {
     }
     async fn list_tokens(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>>;
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
+    async fn delete_user_tokens(&self, _user_id: &str) -> Result<u64> {
+        Ok(0)
+    }
     async fn delete_expired_tokens(&self, _now: u64) -> Result<u64> {
         Ok(0)
     }
@@ -390,27 +387,17 @@ where
         with_auth_timeout(self.timeout, self.db.account_status(user_id)).await
     }
 
-    async fn set_account_status(&self, user_id: &str, status: AccountStatus) -> Result<bool> {
-        if status.is_deleted() {
-            return Err(RegistryError::BadRequest {
-                reason: "use delete_user to delete an account".to_string(),
-            });
-        }
-        self.db.set_account_status(user_id, status).await
-    }
-
-    async fn set_account_status_if_current(
+    async fn apply_account_status(
         &self,
         user_id: &str,
-        expected_revision: u64,
-        status: AccountStatus,
-    ) -> Result<crate::AccountStatusUpdate> {
-        if status.is_deleted() {
-            return Err(RegistryError::BadRequest {
-                reason: "use delete_user to delete an account".to_string(),
-            });
-        }
-        self.db.set_account_status_if_current(user_id, expected_revision, status).await
+        revision: u64,
+        lifecycle: crate::AccountLifecycle,
+    ) -> Result<crate::AccountStatusOutcome> {
+        self.db.apply_account_status(user_id, revision, lifecycle).await
+    }
+
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        true
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {

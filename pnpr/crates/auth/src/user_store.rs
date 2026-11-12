@@ -51,6 +51,7 @@ pub struct UserStore {
     /// Held for the whole of an edit: copying the users, writing the copy,
     /// and making it current. See [`UserStore::update`].
     edit_lock: Arc<Mutex<()>>,
+    tokens: std::sync::OnceLock<std::sync::Weak<crate::TokenStore>>,
 }
 
 /// What an edit passed to [`UserStore::update`] did to its copy of the
@@ -122,6 +123,7 @@ impl UserStore {
             max_users,
             bcrypt_cost,
             edit_lock: Arc::default(),
+            tokens: std::sync::OnceLock::new(),
         })
     }
 
@@ -145,7 +147,16 @@ impl UserStore {
             max_users,
             bcrypt_cost,
             edit_lock: Arc::default(),
+            tokens: std::sync::OnceLock::new(),
         }
+    }
+
+    pub(crate) fn bind_tokens(&self, tokens: &Arc<crate::TokenStore>) {
+        let _ = self.tokens.set(Arc::downgrade(tokens));
+    }
+
+    pub(super) fn bound_tokens(&self) -> Option<Arc<crate::TokenStore>> {
+        self.tokens.get().and_then(std::sync::Weak::upgrade)
     }
 
     #[cfg(test)]
@@ -280,10 +291,15 @@ impl UserStore {
     /// cancelled request cannot release the lock while its write is still
     /// going: edits reach the file in the order they reach memory. A failed
     /// write leaves the users as they were, so a repeated edit tries again.
-    async fn update<Out, Edit>(&self, edit: Edit) -> Result<Out>
+    async fn update_with_post_commit<Out, Edit, Post>(
+        &self,
+        edit: Edit,
+        post_commit: Post,
+    ) -> Result<Out>
     where
         Out: Send + 'static,
         Edit: FnOnce(&mut Users) -> Result<Change<Out>> + Send + 'static,
+        Post: FnOnce(&Out) -> Result<()> + Send + 'static,
     {
         let state = Arc::clone(&self.state);
         let edit_lock = Arc::clone(&self.edit_lock);
@@ -309,9 +325,19 @@ impl UserStore {
                     guard.synced_at = Some(std::time::SystemTime::now());
                 }
             }
+            drop(guard);
+            post_commit(&out)?;
             Ok(out)
         })
         .await?
+    }
+
+    async fn update<Out, Edit>(&self, edit: Edit) -> Result<Out>
+    where
+        Out: Send + 'static,
+        Edit: FnOnce(&mut Users) -> Result<Change<Out>> + Send + 'static,
+    {
+        self.update_with_post_commit(edit, |_| Ok(())).await
     }
 
     async fn login_existing(

@@ -459,7 +459,8 @@ CREATE TABLE IF NOT EXISTS users (
     credential_kind TEXT NOT NULL,
     password_hash TEXT,
     created_at INTEGER NOT NULL,
-    name_revision INTEGER NOT NULL DEFAULT 0
+    name_revision INTEGER NOT NULL DEFAULT 0,
+    status_revision INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 -- Bearer tokens for SQL-backed and local SQLite auth.

@@ -2,7 +2,11 @@ use super::{
     AccountStatus, AuthSqlBackend, MaxUsers, MysqlDatabase, RegistryError, Result, Row, StoredUser,
     claim_user_slot, decode_sql_account_state, is_unique_violation, username_from_row,
 };
-use crate::validation::name_revision_bounds;
+use crate::{
+    AccountLifecycle, AccountStatusOutcome,
+    account::should_apply_lifecycle,
+    validation::{name_revision_bounds, status_revision_to_sql},
+};
 
 impl MysqlDatabase {
     pub(super) async fn stored_user_impl(&self, username: &str) -> Result<Option<StoredUser>> {
@@ -76,56 +80,38 @@ impl MysqlDatabase {
         }
     }
 
-    pub(super) async fn set_account_status_impl(
+    pub(super) async fn apply_account_status_impl(
         &self,
         user_id: &str,
-        status: AccountStatus,
-    ) -> Result<bool> {
-        let updated = sqlx::query(
-            "UPDATE users
-             SET status = ?, name_revision = name_revision + 1
-             WHERE id = ? AND status <> 'deleted'",
+        revision: u64,
+        lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        let sql_revision = status_revision_to_sql(revision)?;
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "SELECT status, status_revision FROM users
+             WHERE id = ? AND status <> 'deleted' FOR UPDATE",
         )
-        .bind(status.as_str())
         .bind(user_id)
-        .execute(&mut *self.pool.acquire().await?)
+        .fetch_optional(&mut *tx)
         .await?;
-        Ok(updated.rows_affected() > 0)
-    }
-
-    pub(super) async fn set_account_status_if_current_impl(
-        &self,
-        user_id: &str,
-        expected_revision: u64,
-        status: AccountStatus,
-    ) -> Result<crate::AccountStatusUpdate> {
-        let Some((expected, next, next_revision)) = name_revision_bounds(expected_revision)? else {
-            self.account_name(user_id).await?.ok_or(RegistryError::NotFound)?;
-            return Ok(crate::AccountStatusUpdate::CurrentChanged);
+        let Some(row) = row else {
+            tx.rollback().await?;
+            return Ok(AccountStatusOutcome::Missing);
         };
-        let sql = if matches!(status, AccountStatus::Deactivated) {
-            "UPDATE users
-             SET status = ?, credential_kind = 'none', password_hash = NULL, name_revision = ?
-             WHERE id = ? AND name_revision = ? AND status <> 'deleted'"
-        } else {
-            "UPDATE users
-             SET status = ?, name_revision = ?
-             WHERE id = ? AND name_revision = ? AND status <> 'deleted'"
-        };
-        let updated = sqlx::query(sql)
-            .bind(status.as_str())
-            .bind(next)
-            .bind(user_id)
-            .bind(expected)
-            .execute(&mut *self.pool.acquire().await?)
-            .await?;
-        if updated.rows_affected() > 0 {
-            return Ok(crate::AccountStatusUpdate::Updated(next_revision));
+        let raw_status: String = row.try_get(0)?;
+        let actual_status = AccountStatus::parse(&raw_status)
+            .ok_or_else(|| RegistryError::Internal {
+                reason: format!("user {user_id} has an unrecognized status {raw_status:?}"),
+            })?;
+        let actual_rev = u64::try_from(row.try_get::<i64, _>(1)?).unwrap_or(0);
+        if !should_apply_lifecycle(actual_status, actual_rev, revision, lifecycle) {
+            tx.rollback().await?;
+            return Ok(AccountStatusOutcome::Superseded);
         }
-        match self.account_name(user_id).await? {
-            Some(_) => Ok(crate::AccountStatusUpdate::CurrentChanged),
-            None => Err(RegistryError::NotFound),
-        }
+        apply_mysql_lifecycle(&mut tx, user_id, sql_revision, lifecycle).await?;
+        tx.commit().await?;
+        Ok(AccountStatusOutcome::Applied)
     }
 
     pub(super) async fn claim_tx_for_insert(
@@ -255,4 +241,40 @@ impl MysqlDatabase {
             Err(err) => Err(err.into()),
         }
     }
+}
+
+async fn apply_mysql_lifecycle(
+    tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+    user_id: &str,
+    sql_revision: i64,
+    lifecycle: AccountLifecycle,
+) -> Result<()> {
+    match lifecycle {
+        AccountLifecycle::Active => {
+            sqlx::query("UPDATE users SET status = 'active', status_revision = ? WHERE id = ?")
+                .bind(sql_revision)
+                .bind(user_id)
+                .execute(&mut **tx)
+                .await?;
+        }
+        AccountLifecycle::Deactivated => {
+            sqlx::query(
+                "UPDATE users
+                 SET status = 'deactivated',
+                     credential_kind = 'none',
+                     password_hash = NULL,
+                     status_revision = ?
+                 WHERE id = ?",
+            )
+            .bind(sql_revision)
+            .bind(user_id)
+            .execute(&mut **tx)
+            .await?;
+            sqlx::query("DELETE FROM tokens WHERE user_id = ?")
+                .bind(user_id)
+                .execute(&mut **tx)
+                .await?;
+        }
+    }
+    Ok(())
 }

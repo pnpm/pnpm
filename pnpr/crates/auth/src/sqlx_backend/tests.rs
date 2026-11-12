@@ -49,9 +49,6 @@ impl AuthSqlBackend for CanonicalBackend {
     async fn account_status(&self, id: &str) -> Result<Option<AccountStatus>> {
         Ok(self.stored_user(id).await?.map(|account| account.status))
     }
-    async fn set_account_status(&self, _id: &str, _status: AccountStatus) -> Result<bool> {
-        Ok(false)
-    }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
     }
@@ -128,9 +125,6 @@ impl AuthSqlBackend for SlowLookupBackend {
     async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
         Ok(None)
     }
-    async fn set_account_status(&self, _id: &str, _status: AccountStatus) -> Result<bool> {
-        Ok(false)
-    }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
     }
@@ -205,9 +199,6 @@ impl AuthSqlBackend for SlowWriteBackend {
     }
     async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
         Ok(None)
-    }
-    async fn set_account_status(&self, _id: &str, _status: AccountStatus) -> Result<bool> {
-        Ok(false)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
@@ -285,9 +276,6 @@ impl AuthSqlBackend for CountingLookupBackend {
     async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
         Ok(None)
     }
-    async fn set_account_status(&self, _id: &str, _status: AccountStatus) -> Result<bool> {
-        Ok(false)
-    }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
     }
@@ -361,9 +349,6 @@ impl AuthSqlBackend for CappedBackend {
     }
     async fn account_status(&self, _id: &str) -> Result<Option<AccountStatus>> {
         Ok(None)
-    }
-    async fn set_account_status(&self, _id: &str, _status: AccountStatus) -> Result<bool> {
-        Ok(false)
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
         unreachable!()
@@ -684,9 +669,15 @@ pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + Token
         1,
     );
     assert_eq!(auth.account_id("renamed").await.unwrap(), Some(id.clone()));
+    auth.set_password(&id, "stored-secret").await.unwrap();
     let token = auth.issue(&id).await.unwrap();
     assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
-    assert!(auth.set_account_status(&id, AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(
+        auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
     assert_eq!(auth.list_users().await.unwrap(), ["renamed"]);
     assert_eq!(
         auth.list_accounts().await
@@ -699,22 +690,38 @@ pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + Token
             .unwrap()
             .is_none(),
     );
+    assert!(
+        auth.list_for_user(&id).await
+            .unwrap()
+            .is_empty(),
+    );
+    let dormant = auth.issue(&id).await.unwrap();
+    assert!(
+        auth.lookup(&dormant).await
+            .unwrap()
+            .is_none(),
+    );
     let deactivated_login = auth
         .account_login(&id)
         .await
         .unwrap()
         .unwrap();
+    assert_eq!(deactivated_login, after_admin_renamed_at_two());
     assert_eq!(
-        auth.set_account_status_if_current(&id, 0, AccountStatus::Active).await.unwrap(),
-        crate::AccountStatusUpdate::CurrentChanged,
+        auth.apply_account_status(&id, 1, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Superseded,
     );
     assert_eq!(
-        auth.set_account_status_if_current(&id, deactivated_login.revision, AccountStatus::Active,)
-            .await
-            .unwrap(),
-        crate::AccountStatusUpdate::Updated(deactivated_login.revision + 1),
+        auth.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
     );
-    assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
+    assert!(auth.add_or_login("renamed", "stored-secret").await.is_err());
+    assert!(
+        auth.lookup(&token).await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(auth.lookup(&dormant).await.unwrap(), Some(id.clone()));
     let (_expired, _) = auth
         .issue_token(&id, crate::NewToken::new().with_expires_at(Some(500)))
         .await
@@ -722,10 +729,14 @@ pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + Token
     assert_eq!(auth.delete_expired(500).await.unwrap(), 1);
     auth.delete_user(&id).await.unwrap();
     assert!(
-        auth.lookup(&token).await
+        auth.lookup(&dormant).await
             .unwrap()
             .is_none(),
     );
+}
+
+fn after_admin_renamed_at_two() -> crate::AccountLogin {
+    crate::AccountLogin { username: "renamed".to_string(), revision: 2 }
 }
 
 pub(super) fn test_database_name(directory: &tempfile::TempDir) -> String {

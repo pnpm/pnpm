@@ -167,13 +167,6 @@ impl UserBackend for CanonicalUserBackend {
     async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         Ok(Some(pnpr_auth::AccountStatus::Active))
     }
-    async fn set_account_status(
-        &self,
-        _id: &str,
-        _status: pnpr_auth::AccountStatus,
-    ) -> pnpr::Result<bool> {
-        Ok(false)
-    }
     async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
         unreachable!()
     }

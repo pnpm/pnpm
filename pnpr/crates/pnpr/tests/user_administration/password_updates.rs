@@ -85,12 +85,16 @@ impl UserBackend for PausedPasswordUpdate {
     async fn account_status(&self, id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         self.users.account_status(id).await
     }
-    async fn set_account_status(
+    async fn apply_account_status(
         &self,
         id: &str,
-        status: pnpr_auth::AccountStatus,
-    ) -> pnpr::Result<bool> {
-        self.users.set_account_status(id, status).await
+        revision: u64,
+        lifecycle: pnpr_auth::AccountLifecycle,
+    ) -> pnpr::Result<pnpr_auth::AccountStatusOutcome> {
+        self.users.apply_account_status(id, revision, lifecycle).await
+    }
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        self.users.revokes_tokens_in_status_transition()
     }
     async fn rename_user(&self, id: &str, name: &str) -> pnpr::Result<()> {
         self.users.rename_user(id, name).await
@@ -270,12 +274,16 @@ impl UserBackend for FailedPostUpdateLookup {
     async fn account_status(&self, id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
         self.users.account_status(id).await
     }
-    async fn set_account_status(
+    async fn apply_account_status(
         &self,
         id: &str,
-        status: pnpr_auth::AccountStatus,
-    ) -> pnpr::Result<bool> {
-        self.users.set_account_status(id, status).await
+        revision: u64,
+        lifecycle: pnpr_auth::AccountLifecycle,
+    ) -> pnpr::Result<pnpr_auth::AccountStatusOutcome> {
+        self.users.apply_account_status(id, revision, lifecycle).await
+    }
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        self.users.revokes_tokens_in_status_transition()
     }
     async fn rename_user(&self, id: &str, name: &str) -> pnpr::Result<()> {
         self.users.rename_user(id, name).await

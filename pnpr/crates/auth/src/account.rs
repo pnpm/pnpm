@@ -249,7 +249,7 @@ pub enum UserRemoval {
     NoSuchUser,
 }
 
-/// A non-deleted account's login name and monotonic account revision.
+/// A non-deleted account's login name and monotonic rename revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountLogin {
     pub username: String,
@@ -265,12 +265,49 @@ pub enum UserRename {
     CurrentChanged,
 }
 
-/// What [`crate::UserBackend::set_account_status_if_current`] did.
+/// Target status of a generation-ordered account lifecycle transition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AccountStatusUpdate {
-    /// The account's status is now at the returned revision; deactivating also
-    /// cleared any stored password.
-    Updated(u64),
-    /// Another writer changed the account's revision first.
-    CurrentChanged,
+pub enum AccountLifecycle {
+    Active,
+    Deactivated,
+}
+
+impl AccountLifecycle {
+    #[must_use]
+    pub const fn as_status(self) -> AccountStatus {
+        match self {
+            Self::Active => AccountStatus::Active,
+            Self::Deactivated => AccountStatus::Deactivated,
+        }
+    }
+}
+
+/// What [`crate::UserBackend::apply_account_status`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountStatusOutcome {
+    /// The transition was applied at the supplied status revision; deactivating
+    /// also cleared any stored password.
+    Applied,
+    /// A newer status revision (or an already applied activation at the same
+    /// revision) superseded this transition.
+    Superseded,
+    /// No non-deleted account has the requested ID.
+    Missing,
+}
+
+#[must_use]
+pub(crate) const fn should_apply_lifecycle(
+    actual_status: AccountStatus,
+    actual_revision: u64,
+    revision: u64,
+    lifecycle: AccountLifecycle,
+) -> bool {
+    match lifecycle {
+        AccountLifecycle::Active => actual_revision < revision,
+        AccountLifecycle::Deactivated => {
+            actual_revision < revision
+                || (actual_revision == revision
+                    && matches!(actual_status, AccountStatus::Deactivated))
+        }
+    }
 }

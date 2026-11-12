@@ -453,7 +453,8 @@ CREATE TABLE IF NOT EXISTS users (
     credential_kind VARCHAR(512) NOT NULL,
     password_hash LONGTEXT,
     created_at BIGINT NOT NULL,
-    name_revision BIGINT NOT NULL DEFAULT 0
+    name_revision BIGINT NOT NULL DEFAULT 0,
+    status_revision BIGINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Bearer tokens for SQL-backed and local SQLite auth.

@@ -35,7 +35,13 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     );
     assert!(users.add_or_login("renamed-member", "new-password").await.is_err());
     assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Active));
-    assert!(users.set_account_status(&original, crate::AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(
+        users
+            .apply_account_status(&original, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
     assert_eq!(
         users.account_status(&original).await.unwrap(),
         Some(crate::AccountStatus::Deactivated),
@@ -61,7 +67,10 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
             .status_code(),
         403,
     );
-    assert!(users.set_account_status(&original, crate::AccountStatus::Active).await.unwrap());
+    assert_eq!(
+        users.apply_account_status(&original, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
     assert_eq!(users.active_account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(
         users
@@ -74,7 +83,10 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::Removed);
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::NoSuchUser);
     assert_eq!(users.account_status(&original).await.unwrap(), Some(crate::AccountStatus::Deleted));
-    assert!(!users.set_account_status(&original, crate::AccountStatus::Active).await.unwrap());
+    assert_eq!(
+        users.apply_account_status(&original, 3, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Missing,
+    );
     assert_eq!(users.account_name(&original).await.unwrap(), None);
     assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::NoSuchUser);
     assert_eq!(
@@ -146,20 +158,39 @@ async fn a_renamed_account_keeps_its_tokens_and_a_reused_name_cannot_reactivate_
     let token = auth.tokens.issue(&id).await.unwrap();
     auth.users.rename_user(&id, "renamed").await.unwrap();
     assert_eq!(auth.tokens.lookup(&token).await.unwrap(), Some(id.clone()));
-    assert!(auth.users.set_account_status(&id, crate::AccountStatus::Deactivated).await.unwrap());
+    assert_eq!(
+        auth.users
+            .apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
     assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
     assert!(
         auth.tokens
-            .lookup_record(&token)
+            .find_by_key(&crate::sha256_hex(token.as_bytes()))
             .await
             .unwrap()
             .is_none(),
     );
-    assert!(auth.users.set_account_status(&id, crate::AccountStatus::Active).await.unwrap());
-    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), Some(id.clone()));
+    let dormant = auth.tokens.issue(&id).await.unwrap();
+    assert_eq!(auth.tokens.lookup(&dormant).await.unwrap(), None);
+    assert!(
+        auth.tokens
+            .lookup_record(&dormant)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        auth.users.apply_account_status(&id, 2, crate::AccountLifecycle::Active).await.unwrap(),
+        crate::AccountStatusOutcome::Applied,
+    );
+    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert_eq!(auth.tokens.lookup(&dormant).await.unwrap(), Some(id.clone()));
     assert_eq!(
         auth.tokens
-            .lookup_record(&token)
+            .lookup_record(&dormant)
             .await
             .unwrap()
             .unwrap()
@@ -169,10 +200,10 @@ async fn a_renamed_account_keeps_its_tokens_and_a_reused_name_cannot_reactivate_
     auth.users.delete_user(&id).await.unwrap();
     let (_, replacement) = auth.users.add_or_login("renamed", "password").await.unwrap();
     assert_ne!(id, replacement);
-    assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);
+    assert_eq!(auth.tokens.lookup(&dormant).await.unwrap(), None);
     assert_eq!(
         auth.tokens
-            .find_by_key(&crate::sha256_hex(token.as_bytes()))
+            .find_by_key(&crate::sha256_hex(dormant.as_bytes()))
             .await
             .unwrap()
             .unwrap()

@@ -13,7 +13,8 @@ use super::{
     UNIX_EPOCH, async_trait, validation::token_timestamp_to_sql,
 };
 use sqlite::{
-    delete_expired_tokens, delete_token, init_tokens_schema, insert_token, load_all_tokens,
+    delete_expired_tokens, delete_token, delete_user_tokens, init_tokens_schema, insert_token,
+    load_all_tokens,
 };
 
 /// SHA-256-hashed (`token_hash` → `user_id`) map, optionally backed by
@@ -89,6 +90,19 @@ impl TokenInner {
         let removed = expired_keys.len();
         for key in &expired_keys {
             self.remove(key);
+        }
+        removed
+    }
+
+    fn remove_for_user(&mut self, user_id: &str) -> usize {
+        let Some(keys) = self.by_owner.remove(user_id) else {
+            return 0;
+        };
+        let mut removed = 0;
+        for key in keys {
+            if self.tokens.remove(&key).is_some() {
+                removed += 1;
+            }
         }
         removed
     }
@@ -270,6 +284,25 @@ impl TokenBackend for TokenStore {
         Ok(Some(record))
     }
 
+    async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
+        let user_id = user_id.to_string();
+        let db_removed = if let Some(path) = self.persist.clone() {
+            let owner = user_id.clone();
+            tokio::task::spawn_blocking(move || -> Result<usize> {
+                let conn = Connection::open(&path)?;
+                delete_user_tokens(&conn, &owner)
+            })
+            .await??
+        } else {
+            0
+        };
+        let mem_removed = {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.remove_for_user(&user_id)
+        };
+        Ok(mem_removed.max(db_removed))
+    }
+
     async fn delete_expired(&self, now: u64) -> Result<usize> {
         let db_removed = if let Some(path) = self.persist.clone() {
             tokio::task::spawn_blocking(move || -> Result<usize> {
@@ -299,6 +332,22 @@ impl TokenBackend for TokenStore {
         })
         .await??;
         Ok(())
+    }
+}
+
+impl TokenStore {
+    pub(crate) fn revoke_all_for_user_blocking(&self, user_id: &str) -> Result<usize> {
+        let db_removed = if let Some(path) = &self.persist {
+            let conn = Connection::open(path)?;
+            delete_user_tokens(&conn, user_id)?
+        } else {
+            0
+        };
+        let mem_removed = {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.remove_for_user(user_id)
+        };
+        Ok(mem_removed.max(db_removed))
     }
 }
 

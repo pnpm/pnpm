@@ -119,34 +119,93 @@ fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, Regi
         .copied())
 }
 
-/// Read SCIM status changes since the last generation and publish them. After
-/// a failed read [`is_deprovisioned`] fails closed until a read succeeds.
+/// Read SCIM status changes since the last generation, reconcile account
+/// statuses in auth, and publish them. After a failed read or reconciliation
+/// [`is_deprovisioned`] fails closed until a reload succeeds.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
     let since = scim.since_generation();
-    match read_with_deadline(state.inner.storage.read_scim_statuses_since(since)).await {
-        Ok(statuses) => {
-            scim.apply_statuses(state, &statuses);
-            true
-        }
+    let statuses = match read_with_deadline(state.inner.storage.read_scim_statuses_since(since))
+        .await
+    {
+        Ok(statuses) => statuses,
         Err(err) => {
             tracing::error!(error = %err, "could not read the SCIM directory; refusing user credentials");
             scim.unreadable.store(true, Ordering::Release);
-            false
+            return false;
         }
+    };
+    if let Err(err) = reconcile_auth_statuses(state, &statuses).await {
+        tracing::error!(error = %err, "could not reconcile SCIM account statuses; refusing user credentials");
+        scim.unreadable.store(true, Ordering::Release);
+        return false;
+    }
+    scim.apply_statuses(state, &statuses);
+    true
+}
+
+async fn reconcile_auth_statuses(
+    state: &AppState,
+    statuses: &[ScimStatus],
+) -> Result<(), RegistryError> {
+    for status in statuses {
+        let lifecycle = lifecycle_for_active(status.active);
+        let outcome = state.inner.identity.auth.apply_account_status(
+            &status.user_id,
+            status.generation,
+            lifecycle,
+        )
+        .await?;
+        if outcome == pnpr_auth::AccountStatusOutcome::Applied
+            && matches!(lifecycle, pnpr_auth::AccountLifecycle::Deactivated)
+        {
+            state.inner.identity.oidc.revoke_user_sessions(&status.user_id);
+        }
+    }
+    Ok(())
+}
+
+pub(super) const fn lifecycle_for_active(active: bool) -> pnpr_auth::AccountLifecycle {
+    if active {
+        pnpr_auth::AccountLifecycle::Active
+    } else {
+        pnpr_auth::AccountLifecycle::Deactivated
     }
 }
 
-async fn sync_scim_state(state: &AppState, user_id: &str, active: bool) {
+pub(super) fn fail_closed_on_unsynced_deactivation(
+    state: &AppState,
+    user_id: &str,
+    generation: u64,
+) {
+    state.inner.identity.oidc.revoke_user_sessions(user_id);
+    if let Some(scim) = &state.inner.identity.managed.scim
+        && scim.since_generation() <= generation
+    {
+        scim.unreadable.store(true, Ordering::Release);
+    }
+}
+
+async fn sync_scim_state(
+    state: &AppState,
+    user_id: &str,
+    generation: u64,
+    applied: Option<pnpr_auth::AccountLifecycle>,
+) {
     let managed = &state.inner.identity.managed;
     let Some(scim) = &managed.scim else {
         return;
     };
-    scim.active_by_id
-        .write()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(user_id.to_string(), active);
-    if !active {
-        state.inner.identity.oidc.revoke_user_sessions(user_id);
+    if let Some(lifecycle) = applied {
+        if scim.since_generation() < generation {
+            let active = matches!(lifecycle, pnpr_auth::AccountLifecycle::Active);
+            scim.active_by_id
+                .write()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(user_id.to_string(), active);
+        }
+        if matches!(lifecycle, pnpr_auth::AccountLifecycle::Deactivated) {
+            state.inner.identity.oidc.revoke_user_sessions(user_id);
+        }
     }
     if !reload_directory(state, scim).await {
         managed.schedule_retry();

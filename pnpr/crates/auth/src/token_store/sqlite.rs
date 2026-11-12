@@ -50,6 +50,12 @@ pub(crate) fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn delete_user_tokens(conn: &Connection, user_id: &str) -> Result<usize> {
+    let removed =
+        conn.execute("DELETE FROM tokens WHERE user_id = ?1", rusqlite::params![user_id])?;
+    Ok(removed)
+}
+
 pub(crate) fn delete_expired_tokens(conn: &Connection, now: u64) -> Result<usize> {
     let removed = conn.execute(
         "DELETE FROM tokens WHERE expires_at IS NOT NULL AND expires_at <= ?1",

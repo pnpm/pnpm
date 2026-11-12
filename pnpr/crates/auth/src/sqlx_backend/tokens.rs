@@ -77,6 +77,11 @@ where
         Ok(Some(record))
     }
 
+    async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
+        let removed = self.db.delete_user_tokens(user_id).await?;
+        Ok(usize::try_from(removed).unwrap_or(usize::MAX))
+    }
+
     async fn delete_expired(&self, now: u64) -> Result<usize> {
         let removed = with_auth_timeout(self.timeout, self.db.delete_expired_tokens(now)).await?;
         Ok(usize::try_from(removed).unwrap_or(usize::MAX))

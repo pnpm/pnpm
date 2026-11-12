@@ -74,17 +74,13 @@ impl AuthSqlBackend for MysqlDatabase {
         self.account_status_impl(user_id).await
     }
 
-    async fn set_account_status(&self, user_id: &str, status: AccountStatus) -> Result<bool> {
-        self.set_account_status_impl(user_id, status).await
-    }
-
-    async fn set_account_status_if_current(
+    async fn apply_account_status(
         &self,
         user_id: &str,
-        expected_revision: u64,
-        status: AccountStatus,
-    ) -> Result<crate::AccountStatusUpdate> {
-        self.set_account_status_if_current_impl(user_id, expected_revision, status).await
+        revision: u64,
+        lifecycle: crate::AccountLifecycle,
+    ) -> Result<crate::AccountStatusOutcome> {
+        self.apply_account_status_impl(user_id, revision, lifecycle).await
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
@@ -190,6 +186,10 @@ impl AuthSqlBackend for MysqlDatabase {
 
     async fn delete_token(&self, token_hash: &str) -> Result<()> {
         self.delete_token_impl(token_hash).await
+    }
+
+    async fn delete_user_tokens(&self, user_id: &str) -> Result<u64> {
+        self.delete_user_tokens_impl(user_id).await
     }
 
     async fn delete_expired_tokens(&self, now: u64) -> Result<u64> {

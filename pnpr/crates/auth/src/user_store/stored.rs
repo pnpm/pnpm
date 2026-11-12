@@ -1,5 +1,10 @@
-use super::{AccountCredential, AccountStatus, CredentialKind, HashMap, HashSet, unix_millis};
-use crate::account::validate_credential_pair;
+use super::{
+    AccountCredential, AccountStatus, Change, CredentialKind, HashMap, HashSet, unix_millis,
+};
+use crate::{
+    AccountLifecycle, AccountStatusOutcome,
+    account::{should_apply_lifecycle, validate_credential_pair},
+};
 
 /// Account records indexed by their current login name.
 pub(super) type Users = HashMap<String, StoredAccount>;
@@ -23,6 +28,8 @@ pub(super) struct StoredAccount {
     pub(super) created_at: u64,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub(super) name_revision: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub(super) status_revision: u64,
 }
 
 impl StoredAccount {
@@ -36,6 +43,7 @@ impl StoredAccount {
             password_hash: Some(password_hash),
             created_at: unix_millis(),
             name_revision: 0,
+            status_revision: 0,
         }
     }
 
@@ -47,6 +55,7 @@ impl StoredAccount {
             password_hash: None,
             created_at: unix_millis(),
             name_revision: 0,
+            status_revision: 0,
         }
     }
 
@@ -150,4 +159,27 @@ pub(super) fn move_account_login(
     account.name_revision = next_revision;
     users.insert(name, account);
     Ok(())
+}
+
+pub(super) fn apply_stored_lifecycle(
+    users: &mut Users,
+    user_id: &str,
+    revision: u64,
+    lifecycle: AccountLifecycle,
+) -> Change<AccountStatusOutcome> {
+    let Some(account) = users
+        .values_mut()
+        .find(|account| account.id == user_id && !account.status.is_deleted())
+    else {
+        return Change::Keep(AccountStatusOutcome::Missing);
+    };
+    if !should_apply_lifecycle(account.status, account.status_revision, revision, lifecycle) {
+        return Change::Keep(AccountStatusOutcome::Superseded);
+    }
+    account.status = lifecycle.as_status();
+    if matches!(lifecycle, AccountLifecycle::Deactivated) {
+        account.clear_hash();
+    }
+    account.status_revision = revision;
+    Change::Write(AccountStatusOutcome::Applied)
 }

@@ -12,13 +12,15 @@ use std::sync::Arc;
 /// not they are revoked. Listing and revocation still see such tokens, so
 /// they can be cleaned up.
 pub struct OwnedTokens {
-    tokens: TokenStore,
+    tokens: Arc<TokenStore>,
     users: Arc<UserStore>,
 }
 
 impl OwnedTokens {
     #[must_use]
     pub fn new(tokens: TokenStore, users: Arc<UserStore>) -> Self {
+        let tokens = Arc::new(tokens);
+        users.bind_tokens(&tokens);
         Self { tokens, users }
     }
 }

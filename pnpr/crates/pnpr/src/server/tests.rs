@@ -913,13 +913,6 @@ impl pnpr_auth::UserBackend for OneToken {
     async fn account_status(&self, id: &str) -> Result<Option<pnpr_auth::AccountStatus>> {
         Ok(self.accounts.contains(id).then_some(pnpr_auth::AccountStatus::Active))
     }
-    async fn set_account_status(
-        &self,
-        _id: &str,
-        _status: pnpr_auth::AccountStatus,
-    ) -> Result<bool> {
-        unreachable!()
-    }
     async fn add_or_login(
         &self,
         _name: &str,
