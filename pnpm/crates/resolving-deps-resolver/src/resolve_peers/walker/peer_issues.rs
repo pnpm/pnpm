@@ -302,6 +302,11 @@ impl Walker<'_> {
             PeerWalkMode::Final => {}
         }
         self.traversal.visited_this_call.insert(node_id.clone());
+        let has_ancestor = self.traversal.in_progress.len()
+            > usize::from(self.traversal.in_progress.contains(node_id));
+        if self.traversal.in_canonical_drain || has_ancestor {
+            self.traversal.visited_in_tree.insert(node_id.clone());
+        }
     }
 
     fn discovery_path_invalidates_cache(

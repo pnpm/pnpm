@@ -809,19 +809,66 @@ fn discovery_refresh_preserves_in_tree_promoted_provider_context_and_budget() {
     let mut opts = ResolvePeersOptions::default();
     opts.scope.hoisted_peer_provider_node_ids.insert(plugin_id.clone());
 
-    // Round 1: `host` initially has only `sib` (not `plugin`), so `host`, `consumer`, AND
-    // root-fallback `plugin` (`plugin_id < host_id`) are all recorded in `scoped.by_direct_dep`
-    // with `importer_refs["pkg-e"] = None`.
+    let mut pkg_f_vec = Vec::new();
+    engine.tree.all_peer_dep_names.insert("pkg-f".to_string());
+    engine.tree.packages.insert("pkg-f@1.0.0".into(), package("pkg-f", "1.0.0", &[], true));
+    engine.tree.packages.insert(
+        "host@1.0.0".into(),
+        package("host", "1.0.0", &[("pkg-e", "^1.0.0"), ("pkg-f", "^1.0.0")], false),
+    );
+    engine.tree.packages.insert(
+        "plugin@1.0.0".into(),
+        package(
+            "plugin",
+            "1.0.0",
+            &[("sib", "^1.0.0"), ("pkg-e", "^1.0.0"), ("pkg-f", "^1.0.0")],
+            true,
+        ),
+    );
+    engine.tree.packages.insert(
+        "consumer@1.0.0".into(),
+        package(
+            "consumer",
+            "1.0.0",
+            &[("plugin", "^1.0.0"), ("pkg-e", "^1.0.0"), ("pkg-f", "^1.0.0")],
+            true,
+        ),
+    );
+    add_lazy_direct_dep(&mut engine.tree.dependencies_tree, &mut pkg_f_vec, "pkg-f", "pkg-f@1.0.0");
+    let pkg_f_dep = pkg_f_vec.pop().unwrap();
+    engine.snapshot_budget.max_snapshots = Some(6);
+
+    // Round 1: `host` initially has only `sib` (`plugin` is pruned), so root-fallback `plugin`
+    // MUST remain tracked in `scoped.by_direct_dep` and `live_paths`.
     let round1 = vec![consumer_dep.clone(), host_dep.clone(), plugin_dep.clone()];
     engine.discover(&workspace, &round1, &round1, opts.clone());
     engine.check_snapshot_limit().expect("round 1 fits budget");
     assert_eq!(engine.caches.node_dep_paths[&plugin_id], DepPath::from("plugin@1.0.0"));
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 4);
+    assert!(engine.snapshot_budget.live_paths.contains(&DepPath::from("plugin@1.0.0")));
 
-    // Round 2: `host` now owns `plugin` alongside `sib`, and `pkg-e` is hoisted (`walk_direct = [pkg-e]`).
+    // Round 2: `pkg-e` is hoisted while `plugin` is STILL pruned (`walk_direct = [pkg-e]`).
+    // Because `plugin` was retained as a root-fallback budget entry, hoisting `pkg-e` refreshes
+    // both `plugin` and `consumer`.
+    let round2 =
+        vec![consumer_dep.clone(), host_dep.clone(), plugin_dep.clone(), pkg_e_dep.clone()];
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &round2, std::slice::from_ref(&pkg_e_dep), opts.clone());
+    engine.check_snapshot_limit().expect("round 2 fits budget");
+    assert_eq!(
+        engine.caches.node_dep_paths[&plugin_id],
+        DepPath::from("plugin@1.0.0(pkg-e@1.0.0)"),
+    );
+    assert!(engine.snapshot_budget.live_paths.contains(&DepPath::from(
+        "consumer@1.0.0(pkg-e@1.0.0)(plugin@1.0.0(pkg-e@1.0.0))",
+    )),);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 5);
+
+    // Round 3: `host` now adopts `plugin` alongside `sib`, and `pkg-f` is hoisted (`walk_direct = [pkg-f]`).
     // `evict_stale_scope_budget` evicts `plugin`, `host`, and `consumer` together into
     // `walk_budget_only_direct_deps` with `plugin_id < host_id`. `own_pending` (`host`, `consumer`)
-    // must run before `provider_pending` (`plugin`), and `visited_this_call` must skip `plugin`
-    // instead of overwriting its in-tree `(sib@1.0.0)` context at root fallback.
+    // runs before `provider_pending` (`plugin`), `visited_in_tree` drops the obsolete root-fallback
+    // entry, and `plugin` retains its in-tree `(sib@1.0.0)` context.
     engine.tree.dependencies_tree.insert(
         host_dep.node_id.clone(),
         tree_node(
@@ -833,14 +880,14 @@ fn discovery_refresh_preserves_in_tree_promoted_provider_context_and_budget() {
             0,
         ),
     );
-    let round2 = vec![consumer_dep, host_dep, plugin_dep, pkg_e_dep.clone()];
+    let round3 = vec![consumer_dep, host_dep, plugin_dep, pkg_e_dep, pkg_f_dep.clone()];
     workspace.tree.bump_revision();
-    engine.discover(&workspace, &round2, std::slice::from_ref(&pkg_e_dep), opts);
-    engine.check_snapshot_limit().expect("round 2 fits tight max_snapshots = 5");
+    engine.discover(&workspace, &round3, std::slice::from_ref(&pkg_f_dep), opts);
+    engine.check_snapshot_limit().expect("round 3 fits tight max_snapshots = 6");
     assert_eq!(
         engine.caches.node_dep_paths[&plugin_id],
-        DepPath::from("plugin@1.0.0(pkg-e@1.0.0)(sib@1.0.0)"),
+        DepPath::from("plugin@1.0.0(pkg-e@1.0.0)(pkg-f@1.0.0)(sib@1.0.0)"),
         "promoted provider must keep its in-tree sibling peer context after budget refresh",
     );
-    assert_eq!(engine.snapshot_budget.live_paths.len(), 5);
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 6);
 }

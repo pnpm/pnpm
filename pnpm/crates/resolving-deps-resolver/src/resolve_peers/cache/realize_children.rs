@@ -95,6 +95,7 @@ impl Walker<'_> {
             }
         }
         self.traversal.visited_this_call.remove(node_id);
+        self.traversal.visited_in_tree.remove(node_id);
     }
 
     pub(in super::super) fn previously_resolved_children(

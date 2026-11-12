@@ -126,6 +126,9 @@ pub(super) struct PeerWalkTraversal {
     /// persistent [`PeerDiscoveryCaches`], so the pruned-provider
     /// fallback keeps its per-call meaning.
     pub(super) visited_this_call: HashSet<NodeId>,
+    /// Subset of [`Self::visited_this_call`] resolved inside an ancestor or
+    /// canonical subtree rather than at root fallback.
+    pub(super) visited_in_tree: HashSet<NodeId>,
     /// Canonical back-edge targets realized but not yet walked; the
     /// walk drivers drain this after their direct-dep loops.
     pub(super) pending_canonical_nodes: Vec<NodeId>,
@@ -221,6 +224,7 @@ impl<'tree> Walker<'tree> {
                 in_progress: HashSet::default(),
                 mode,
                 visited_this_call: HashSet::default(),
+                visited_in_tree: HashSet::default(),
                 pending_canonical_nodes: Vec::new(),
                 in_canonical_drain: false,
                 snapshot_budget: SnapshotBudget::default(),

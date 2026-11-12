@@ -48,7 +48,7 @@ impl Walker<'_> {
         let in_tree_providers: Vec<NodeId> = self.opts.scope
             .hoisted_peer_provider_node_ids
             .iter()
-            .filter(|id| self.traversal.visited_this_call.contains(*id))
+            .filter(|id| self.traversal.visited_in_tree.contains(*id))
             .cloned()
             .collect();
         for node_id in &in_tree_providers {
@@ -142,7 +142,7 @@ impl Walker<'_> {
     ) {
         let node_id = &entry.direct_dep.node_id;
         if self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id)
-            && self.traversal.visited_this_call.contains(node_id)
+            && self.traversal.visited_in_tree.contains(node_id)
         {
             return;
         }
