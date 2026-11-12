@@ -33,3 +33,14 @@ fn complete_provider_set_is_checked_before_omissions_exhaust_the_budget() {
         assert!(recovered.contains(&name.parse().unwrap()));
     }
 }
+
+#[test]
+fn large_peer_sets_do_not_use_the_call_stack() {
+    let candidates: Vec<_> = (0..10_000)
+        .map(|index| vec![format!("provider-{index}@1.0.0").parse().unwrap()])
+        .collect();
+    let mut search = CombinationSearch::new(PeerGroups::Full, "unmatched");
+    search.remaining = 2;
+    assert_eq!(search.find(&candidates), None);
+    assert_eq!(search.remaining, 0);
+}

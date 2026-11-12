@@ -283,6 +283,9 @@ impl<'hash> CombinationSearch<'hash> {
         let mut chosen = Vec::with_capacity(candidates.len());
         // Prefer complete provider sets before spending the budget on omissions.
         for omitted in 0..=candidates.len() {
+            if self.remaining == 0 {
+                break;
+            }
             if let Some(matched) = self.with_omissions(candidates, &mut chosen, omitted) {
                 return Some(matched);
             }
@@ -296,21 +299,25 @@ impl<'hash> CombinationSearch<'hash> {
         chosen: &mut Vec<&'a PkgNameVerPeer>,
         omitted: usize,
     ) -> Option<HashSet<PkgNameVerPeer>> {
-        if self.remaining == 0 || omitted > candidates.len() {
-            return None;
-        }
-        let Some((targets, rest)) = candidates.split_first() else {
-            return self.match_chosen(chosen);
-        };
-        for target in targets.iter().take(self.remaining) {
-            chosen.push(target);
-            let matched = self.with_omissions(rest, chosen, omitted);
-            chosen.pop();
-            if matched.is_some() {
-                return matched;
+        let mut frames = vec![SearchFrame { next_target: 0, omitted, chosen_len: 0 }];
+        while self.remaining > 0 && !frames.is_empty() {
+            let depth = frames.len() - 1;
+            let frame = frames.last_mut().unwrap();
+            chosen.truncate(frame.chosen_len);
+            if frame.omitted > candidates.len() - depth {
+                frames.pop();
+            } else if depth == candidates.len() {
+                frames.pop();
+                if let Some(matched) = self.match_chosen(chosen) {
+                    return Some(matched);
+                }
+            } else if let Some(next) = frame.next(&candidates[depth], chosen) {
+                frames.push(next);
+            } else {
+                frames.pop();
             }
         }
-        if omitted == 0 { None } else { self.with_omissions(rest, chosen, omitted - 1) }
+        None
     }
 
     fn match_chosen(&mut self, chosen: &[&PkgNameVerPeer]) -> Option<HashSet<PkgNameVerPeer>> {
@@ -322,6 +329,31 @@ impl<'hash> CombinationSearch<'hash> {
                     .map(|target| self.mode.provider(target).into_owned())
                     .collect()
             })
+    }
+}
+
+struct SearchFrame {
+    next_target: usize,
+    omitted: usize,
+    chosen_len: usize,
+}
+
+impl SearchFrame {
+    fn next<'a>(
+        &mut self,
+        targets: &'a [PkgNameVerPeer],
+        chosen: &mut Vec<&'a PkgNameVerPeer>,
+    ) -> Option<Self> {
+        let omitted = if let Some(target) = targets.get(self.next_target) {
+            chosen.push(target);
+            self.omitted
+        } else if self.next_target == targets.len() && self.omitted > 0 {
+            self.omitted - 1
+        } else {
+            return None;
+        };
+        self.next_target += 1;
+        Some(Self { next_target: 0, omitted, chosen_len: chosen.len() })
     }
 }
 
