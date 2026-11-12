@@ -1,4 +1,4 @@
-use super::{Command, GroupWatchdog, registered};
+use super::{super::WatchdogProcess, Command, GroupWatchdog, registered};
 use std::{io::Read, process::Stdio};
 
 #[test]
@@ -49,12 +49,12 @@ fn recording_watchdog() -> GroupWatchdog {
         .spawn()
         .expect("spawn recorder");
     let lifeline = process.stdin.take().unwrap();
-    GroupWatchdog { process: std::sync::Mutex::new(process), lifeline }
+    GroupWatchdog { process: std::sync::Mutex::new(WatchdogProcess::new(process)), lifeline }
 }
 
 fn recorded(watchdog: GroupWatchdog) -> String {
     let GroupWatchdog { process, lifeline } = watchdog;
-    let mut process = process.into_inner().unwrap();
+    let mut process = process.into_inner().unwrap().child;
     drop(lifeline);
     let mut output = String::new();
     process.stdout

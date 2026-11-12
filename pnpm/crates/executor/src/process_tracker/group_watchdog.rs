@@ -25,6 +25,8 @@ use std::{
 };
 
 use crate::process::Command;
+#[cfg(target_os = "linux")]
+use {super::signal::linux, std::os::fd::OwnedFd};
 
 /// What the watchdog runs. A line `+<pgid>` on standard input starts a
 /// watch over a group and `-<pgid>` ends one; end of input kills every
@@ -177,15 +179,13 @@ impl GroupWatch {
     /// Start a watchdog over every group in [`Self::leaders`], replacing
     /// one that died.
     fn start_watchdog(&mut self) -> io::Result<bool> {
-        if let Some(mut replaced) = self.watchdog.take()
-            && replaced.is_running()
-        {
+        if let Some(mut replaced) = self.watchdog.take() {
             // pnpm still holds its pipe, so a watchdog that is only refusing
             // writes would never see end of input and could not be reaped.
-            let process =
-                replaced.process.get_mut().expect("watchdog process lock is not poisoned");
-            let _ = process.kill();
-            let _ = process.wait();
+            replaced.process
+                .get_mut()
+                .expect("watchdog process lock is not poisoned")
+                .stop();
         }
         let Some(watchdog) = GroupWatchdog::spawn()? else {
             self.shell_missing = true;
@@ -202,7 +202,7 @@ impl GroupWatch {
 /// A `sh` that kills the process groups pnpm names to it if pnpm dies
 /// before it has finished with them.
 struct GroupWatchdog {
-    process: Mutex<Child>,
+    process: Mutex<WatchdogProcess>,
     /// The pipe the watchdog reads. Its end of input is what tells the
     /// watchdog that pnpm is gone.
     lifeline: ChildStdin,
@@ -233,20 +233,14 @@ impl GroupWatchdog {
             Err(error) => return Err(error),
         };
         let lifeline = process.stdin.take().expect("the watchdog's stdin is piped");
-        Ok(Some(Self { process: Mutex::new(process), lifeline }))
+        Ok(Some(Self { process: Mutex::new(WatchdogProcess::new(process)), lifeline }))
     }
 
-    /// Whether the watchdog has not exited. One reaped elsewhere, such as
-    /// under an inherited ignored `SIGCHLD`, counts as exited: its pid may
-    /// name another process by now, so it must not be signalled.
     fn is_running(&self) -> bool {
-        matches!(
-            self.process
-                .lock()
-                .expect("watchdog process lock is not poisoned")
-                .try_wait(),
-            Ok(None),
-        )
+        self.process
+            .lock()
+            .expect("watchdog process lock is not poisoned")
+            .is_running()
     }
 
     fn watch(&self, leader: u32) -> io::Result<()> {
@@ -260,6 +254,58 @@ impl GroupWatchdog {
     /// Write `line` at once: the pipe is unbuffered.
     fn send(&self, line: &str) -> io::Result<()> {
         (&self.lifeline).write_all(line.as_bytes())
+    }
+}
+
+/// The watchdog's `sh`. Under an inherited ignored `SIGCHLD` the kernel
+/// reaps it when it exits, and its pid may name another process by the time
+/// pnpm checks or signals it. On Linux a pidfd, opened while pnpm's pipe
+/// keeps the `sh` from exiting, addresses only the `sh`. Without pidfds the
+/// pid addresses it, and a `sh` reaped elsewhere is never signalled.
+struct WatchdogProcess {
+    child: Child,
+    #[cfg(target_os = "linux")]
+    pidfd: Option<OwnedFd>,
+}
+
+impl WatchdogProcess {
+    fn new(child: Child) -> Self {
+        Self {
+            #[cfg(target_os = "linux")]
+            pidfd: Self::open_pidfd(&child),
+            child,
+        }
+    }
+
+    /// A pidfd the kernel can both signal and wait on, or `None`.
+    #[cfg(target_os = "linux")]
+    fn open_pidfd(child: &Child) -> Option<OwnedFd> {
+        let pidfd = linux::open(i32::try_from(child.id()).ok()?).ok()?;
+        linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT)?;
+        Some(pidfd)
+    }
+
+    /// Whether the `sh` has not exited, reaping it if it has.
+    fn is_running(&mut self) -> bool {
+        #[cfg(target_os = "linux")]
+        if let Some(pidfd) = &self.pidfd {
+            return linux::exited(pidfd, libc::WNOHANG) == Some(false);
+        }
+        matches!(self.child.try_wait(), Ok(None))
+    }
+
+    /// Kill the `sh` unless it has exited, and reap it.
+    fn stop(&mut self) {
+        #[cfg(target_os = "linux")]
+        if let Some(pidfd) = &self.pidfd {
+            linux::signal(pidfd, libc::SIGKILL);
+            linux::exited(pidfd, 0);
+            return;
+        }
+        if self.is_running() {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
     }
 }
 
