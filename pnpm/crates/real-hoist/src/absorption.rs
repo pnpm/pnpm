@@ -33,11 +33,8 @@ pub(super) enum AbsorbDecision {
     /// Root's name slot is taken by a different locator — a version
     /// conflict. The child stays under its current parent.
     Conflict,
-    /// Hoisting, or dedup-removing in favour of the root's copy,
-    /// would shadow a peer dependency one of the candidate's
-    /// ancestors satisfies with a different ident than what the root
-    /// provides. The child stays under its parent so the ancestor's
-    /// peer resolution still finds the intended version. Mirrors
+    /// Hoisting or dedup-removing would change a resolved peer provider.
+    /// The child stays under its parent to preserve the binding. Mirrors
     /// upstream's `getNodeHoistInfo` peer checks at
     /// [hoist.ts:414][peer-shadow-root] and
     /// [hoist.ts:454-479][peer-path], which upstream runs before its
@@ -224,27 +221,9 @@ pub(super) fn apply_decision(
     }
 }
 
-/// Return `true` when hoisting `candidate` onto the root would
-/// shadow a peer dependency one of its ancestors already
-/// satisfies with a different ident.
-///
-/// Implements two of the three peer guards upstream's
-/// `getNodeHoistInfo` runs:
-///
-/// * **Root-shadow** — the candidate's own name appears in
-///   `root.peer_names`. The root expects to *receive* this name as
-///   a peer from its own parent, so promoting the candidate into
-///   the root's name slot would change peer resolution for
-///   anything that sees the root.
-/// * **Ancestor-path mismatch** — for each peer name `P` in
-///   `candidate.peer_names`, walk the candidate's ancestors from
-///   deepest (immediate parent) toward the root. The first
-///   ancestor that has a direct dep named `P` (and doesn't itself
-///   peer-pass `P` through) is the one whose ident the candidate
-///   resolves at runtime. If the root provides a *different*
-///   ident for `P` (or none at all), promoting the candidate
-///   would silently re-resolve its peer to the wrong package, so
-///   we leave it nested.
+/// Refuse a hoist or dedup that changes a resolved peer provider, or fills
+/// a name the root receives as a peer. Snapshot edges take precedence
+/// over ancestor lookup, including edges already hoisted out of a node.
 fn would_shadow_peer(
     candidate: &HoisterResult,
     ancestor_path: &[Rc<HoisterResult>],
@@ -260,21 +239,33 @@ fn would_shadow_peer(
         return true;
     }
 
+    let root_candidate = root_index.get(&candidate.name);
     candidate.peer_names
         .iter()
         .any(|peer_name| {
-            // No ancestor (excluding root) providing the peer means the candidate
-            // either resolves it at root or leaves it unsatisfied. Either case is
-            // "no shadow".
-            let Some(provider) = nearest_peer_provider(peer_name, ancestor_path) else {
+            let Some(provider) = resolved_peer_provider(candidate, peer_name)
+                .or_else(|| nearest_peer_provider(peer_name, ancestor_path))
+            else {
                 return false;
             };
-            // Compare the provider's locator (identity is too strict — decoupled
-            // copies of one package are distinct allocations) against root's
-            // current slot for the same name. Root carrying this exact provider
-            // means promoting the candidate doesn't change resolution; a
-            // different ident, or no entry at all, means hoisting would shadow.
-            !root_index.get(peer_name).is_some_and(|at_root| same_locator(&at_root.0, &provider))
+            let target_provider = root_candidate
+                .and_then(|target| resolved_peer_provider(&target.0, peer_name))
+                .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)));
+            !target_provider.is_some_and(|target| same_locator(&target, &provider))
+        })
+}
+
+fn resolved_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
+    node.dependencies
+        .borrow()
+        .iter()
+        .find(|dependency| dependency.0.name == peer_name)
+        .map(|dependency| Rc::clone(&dependency.0))
+        .or_else(|| {
+            node.hoisted_dependencies
+                .borrow()
+                .get(peer_name)
+                .map(Rc::clone)
         })
 }
 

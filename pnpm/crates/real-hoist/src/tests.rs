@@ -181,3 +181,5 @@ mod lockfile;
 mod dependencies;
 
 mod behavior;
+
+mod peer_bindings;
