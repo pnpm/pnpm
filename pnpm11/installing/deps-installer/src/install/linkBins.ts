@@ -56,7 +56,7 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
     })
     await linkAllBins(newPkgs, resolution.dependenciesGraph, {
       builtPackageDirs,
-      extraNodePaths: ctx.extraNodePaths,
+      extraNodePaths: opts.enableGlobalVirtualStore ? [] : ctx.extraNodePaths,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: warnAboutBins.bind(null, opts.lockfileDir),
