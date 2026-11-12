@@ -33,7 +33,8 @@ pub(super) fn stream_resolve_response(
         package_version_guard,
         tarball_router: inputs.tarball_router.clone(),
     });
-    tokio::spawn(stream_resolution(StreamedResolve {
+    let disconnected = tx.clone();
+    let task = StreamedResolve {
         client: Arc::clone(&runtime.client),
         observer,
         osv_index: runtime.osv_index.clone(),
@@ -42,7 +43,13 @@ pub(super) fn stream_resolve_response(
         cache_secret: Arc::clone(&runtime.cache.secret),
         inputs,
         tx,
-    }));
+    };
+    tokio::spawn(async move {
+        tokio::select! {
+            () = disconnected.closed() => {},
+            () = stream_resolution(task) => {},
+        }
+    });
     ndjson_stream_response(rx)
 }
 
