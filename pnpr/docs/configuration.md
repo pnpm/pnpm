@@ -114,7 +114,7 @@ A router closes the dependency-confusion class of attacks for every client that
 resolves through it. Each registry checks only its own claims, so a request
 addressed to an upstream's own `/~<name>/` URL gets any name that upstream
 claims, including a name in a scope a hosted registry claims. Point clients at
-the router or the ecosystem's base URL, not at an upstream.
+a router, not at an upstream.
 
 `defaultRegistry` names the registry that an ecosystem's base URL, such as
 `https://<pnpr>/npm/`, aliases. This is usually a router. When omitted, the base serves
