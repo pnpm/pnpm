@@ -176,7 +176,7 @@ async fn export_single_blob(
 async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
     if let Some(users_path) = config.identity.auth.users.file.as_deref().filter(|p| p.exists()) {
         let bytes = fs::read(users_path).await.into_diagnostic()?;
-        pnpr_auth::write_atomic(&out.join("users.json"), &bytes).into_diagnostic()?;
+        pnpr_auth::write_private_atomic(&out.join("users.json"), &bytes).into_diagnostic()?;
     }
     if let Some(tok_path) = config.identity.auth.tokens.file.as_deref().filter(|p| p.exists()) {
         let source = tok_path.to_path_buf();

@@ -109,6 +109,23 @@ pub fn lock_htpasswd(path: &Path) -> Result<std::fs::File> {
 }
 
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    write_atomic_with(path, bytes, NewFileMode::KeepExisting)
+}
+
+/// [`write_atomic`] that leaves the file readable only by its owner, whatever
+/// mode a file it replaces had.
+pub fn write_private_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    write_atomic_with(path, bytes, NewFileMode::OwnerOnly)
+}
+
+#[derive(Clone, Copy)]
+enum NewFileMode {
+    /// The mode of the file being replaced, or owner-only for a new file.
+    KeepExisting,
+    OwnerOnly,
+}
+
+fn write_atomic_with(path: &Path, bytes: &[u8], new_file_mode: NewFileMode) -> Result<()> {
     use std::io::Write as _;
 
     if let Some(parent) = path.parent()
@@ -121,8 +138,10 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         #[cfg(unix)]
         let mut file = {
             use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
-            let mode = match std::fs::symlink_metadata(path) {
-                Ok(meta) if !meta.file_type().is_symlink() => meta.permissions().mode(),
+            let mode = match (new_file_mode, std::fs::symlink_metadata(path)) {
+                (NewFileMode::KeepExisting, Ok(meta)) if !meta.file_type().is_symlink() => {
+                    meta.permissions().mode()
+                }
                 _ => 0o600,
             };
             std::fs::OpenOptions::new()
@@ -131,6 +150,9 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
                 .mode(mode)
                 .open(&tmp)?
         };
+        // Windows files have no Unix mode to set.
+        #[cfg(not(unix))]
+        let _ = new_file_mode;
         #[cfg(not(unix))]
         let mut file = std::fs::OpenOptions::new()
             .write(true)

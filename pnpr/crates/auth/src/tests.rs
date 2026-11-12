@@ -425,6 +425,12 @@ async fn token_database_export_includes_commits_in_the_write_ahead_log() {
     let path = tmp.path().join("tokens.db");
     let dest = tmp.path().join("export/tokens.db");
     std::fs::create_dir(dest.parent().unwrap()).unwrap();
+    std::fs::write(&dest, b"an earlier export").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o644)).unwrap();
+    }
     let store = TokenStore::open(path.clone()).unwrap();
     let raw = store.issue("alice").await.unwrap();
 

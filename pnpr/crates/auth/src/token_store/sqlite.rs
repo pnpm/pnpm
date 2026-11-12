@@ -81,7 +81,7 @@ pub fn export_token_database(source: &Path, dest: &Path) -> Result<()> {
     let connection =
         Connection::open_with_flags(source, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     let snapshot = connection.serialize(rusqlite::MAIN_DB)?;
-    crate::write_atomic(dest, &snapshot)?;
+    crate::write_private_atomic(dest, &snapshot)?;
     Ok(())
 }
 

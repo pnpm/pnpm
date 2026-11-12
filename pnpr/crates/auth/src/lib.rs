@@ -20,7 +20,7 @@ pub use account::{
 };
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
-    verify_bcrypt, write_atomic,
+    verify_bcrypt, write_atomic, write_private_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
