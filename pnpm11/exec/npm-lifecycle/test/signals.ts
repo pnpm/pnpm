@@ -32,11 +32,23 @@ testOnPosix.each([
   { count: 1, mode: 'default' },
   { count: 3, mode: 'default' },
   { count: 1, mode: 'relative' },
+  { count: 1, mode: 'relative-path' },
   { count: 1, mode: 'extended' },
 ])('$count $mode scripts and their descendants are watched before the spawn returns', async ({ count, mode }) => {
   const directory = temporaryDirectory()
   if (mode === 'relative') fs.symlinkSync('/bin/sh', path.join(directory, 'script-shell'))
-  const runner = spawn(process.execPath, [startupScript, directory, String(count), mode], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] })
+  if (mode === 'relative-path') {
+    fs.mkdirSync(path.join(directory, 'runner', 'bin'), { recursive: true })
+    fs.symlinkSync('/bin/sh', path.join(directory, 'runner', 'bin', 'sh'))
+  }
+  const runner = spawn(process.execPath, [startupScript, directory, String(count), mode], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'inherit'],
+    ...(mode === 'relative-path' ? {
+      cwd: path.join(directory, 'runner'),
+      env: { ...process.env, PATH: `bin${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}` },
+    } : {}),
+  })
   let leaders: number[] = []
   try {
     const started = await withDeadline(new Promise<number[]>((resolve) => {

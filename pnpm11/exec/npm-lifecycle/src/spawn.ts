@@ -112,7 +112,7 @@ function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw
     'trap - PIPE',
     'exec "$@"',
   ].join('\n')
-  const raw = spawnProcess(shell, ['-c', registration, shell, cmd, ...args], {
+  const raw = spawnProcess(path.resolve(shell), ['-c', registration, shell, cmd, ...args], {
     ...options,
     stdio: [...stdio, watch.lifeline, 'pipe'],
   })

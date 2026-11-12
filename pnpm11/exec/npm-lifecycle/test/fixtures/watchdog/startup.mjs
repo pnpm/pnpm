@@ -16,7 +16,7 @@ if (mode === 'script') {
   const originalSpawn = childProcess.spawn
   childProcess.spawn = (command, args, options) => {
     const child = originalSpawn(command, args, options)
-    if (args.some((arg) => arg.includes('startup.mjs') && arg.includes('script'))) {
+    if (child.pid != null && args.some((arg) => arg.includes('startup.mjs') && arg.includes('script'))) {
       leaders.push(child.pid)
       if (leaders.length === count) {
         fs.writeSync(1, `${JSON.stringify(leaders)}\n`)
