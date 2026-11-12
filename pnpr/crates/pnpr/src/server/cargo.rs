@@ -37,14 +37,16 @@ use super::{
         load_upstream_document, mount_bases, registry_endpoint, registry_requires_auth,
         serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
-    hosted_search_names, json_response, not_found, private_no_cache,
+    hosted_search_names, json_response, not_found,
+    package_owners::MAX_OWNER_BODY_BYTES,
+    private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source, resolve_write_target_for,
 };
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{Path, RawQuery, State},
+    extract::{DefaultBodyLimit, Path, RawQuery, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, put},
@@ -80,7 +82,10 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/owners"),
-                get(get_owners).put(put_owners).delete(delete_owners),
+                get(get_owners)
+                    .put(put_owners)
+                    .delete(delete_owners)
+                    .layer(DefaultBodyLimit::max(MAX_OWNER_BODY_BYTES)),
             )
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),

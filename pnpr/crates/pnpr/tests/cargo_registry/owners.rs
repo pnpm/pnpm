@@ -176,3 +176,95 @@ async fn cargo_owner_changes_need_a_signed_in_caller() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{method}");
     }
 }
+
+#[tokio::test]
+async fn a_listed_account_id_removes_that_owner_even_when_it_is_also_a_login() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    issue_token(&auth, "bob").await;
+    let bob_id = auth.users
+        .account_id("bob")
+        .await
+        .unwrap()
+        .unwrap();
+    // An active account whose login is bob's account ID.
+    issue_token(&auth, &bob_id).await;
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    let owners = "/cargo/api/v1/crates/demo/owners";
+    assert_eq!(publish(&app, &alice, "0.1.0").await, StatusCode::OK);
+    let (status, _) = owner_request(&app, "PUT", owners, &alice, &["bob", &bob_id]).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = owner_request(&app, "DELETE", owners, &alice, &[&bob_id]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(logins(&app, owners, &alice).await, ["alice", bob_id.as_str()]);
+}
+
+#[tokio::test]
+async fn a_removed_owner_can_no_longer_yank() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    let owners = "/cargo/api/v1/crates/demo/owners";
+    assert_eq!(publish(&app, &alice, "0.1.0").await, StatusCode::OK);
+    owner_request(&app, "PUT", owners, &alice, &["bob"]).await;
+    let yank = |token: &str| {
+        Request::delete("/cargo/api/v1/crates/demo/0.1.0/yank")
+            .header(header::AUTHORIZATION, token)
+            .body(Body::empty())
+            .unwrap()
+    };
+    let status = app
+        .clone()
+        .oneshot(yank(&bob))
+        .await
+        .unwrap()
+        .status();
+    assert_eq!(status, StatusCode::OK);
+    owner_request(&app, "DELETE", owners, &alice, &["bob"]).await;
+    let status = app
+        .clone()
+        .oneshot(yank(&bob))
+        .await
+        .unwrap()
+        .status();
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn cargo_owner_limits_how_many_users_one_request_names() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    let owners = "/cargo/api/v1/crates/demo/owners";
+    assert_eq!(publish(&app, &alice, "0.1.0").await, StatusCode::OK);
+    let names: Vec<String> = (0..101)
+        .map(|index| format!("user-{index}"))
+        .collect();
+    let names: Vec<&str> = names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let (status, body) = owner_request(&app, "DELETE", owners, &alice, &names).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(
+        body["errors"][0]["detail"]
+            .as_str()
+            .unwrap()
+            .contains("at most 100"),
+        "{body}",
+    );
+}

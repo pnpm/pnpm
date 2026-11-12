@@ -14,7 +14,7 @@ use super::{
 };
 use axum::{
     body::Bytes,
-    extract::{Path, State},
+    extract::{DefaultBodyLimit, Path, State},
     response::{IntoResponse, Response},
     routing::{MethodRouter, get},
 };
@@ -26,11 +26,20 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-/// The owner requests of a surface whose errors are pnpr's own JSON. The
-/// route captures the package name as `name`.
+/// The owner requests of the Python and OCI surfaces, which answer errors as
+/// the rest of pnpr's own API does. The route captures the package name as
+/// `name`.
 pub(super) fn owner_routes<Document: HostedDocument + Send + 'static>() -> MethodRouter<AppState> {
-    get(list::<Document>).put(add::<Document>).delete(remove::<Document>)
+    get(list::<Document>)
+        .put(add::<Document>)
+        .delete(remove::<Document>)
+        .layer(DefaultBodyLimit::max(MAX_OWNER_BODY_BYTES))
 }
+
+/// The largest owner request body a surface accepts.
+pub(super) const MAX_OWNER_BODY_BYTES: usize = 64 * 1024;
+/// The most owners one request may name.
+const MAX_OWNER_LOGINS: usize = 100;
 
 async fn list<Document: HostedDocument>(
     State(state): State<AppState>,
@@ -134,23 +143,27 @@ pub(super) async fn change_owners<Document: HostedDocument>(
     let logins = parse_logins(&request.body)?;
     let target =
         resolve_write_target_for(state, identity, request.registry, Document::ECOSYSTEM, &key)?;
-    let ids = account_ids(state, &logins, change).await?;
+    let storage = state.inner.storage.for_hosted(&target.namespace, Document::ECOSYSTEM);
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
-    let outcome = state.inner.storage
-        .for_hosted(&target.namespace, Document::ECOSYSTEM)
-        .update_hosted_document_with_retry(
-            &key,
-            DOCUMENT_WRITE_RETRIES,
-            identity.user_id(),
-            |bytes| {
-                let Some(bytes) = bytes else { return Ok(None) };
-                let mut document = parse_current::<Document>(&key, bytes)?;
-                authorize_owner_change(state, identity, &key, document.owners())?;
-                apply_change(&key, document.owners_mut(), &ids, change)?;
-                Ok(Some(document.to_bytes()))
-            },
-        )
-        .await?;
+    // Turn away a caller who may not change the owners before looking up the
+    // accounts the request names. The check inside the retry decides.
+    let current = storage.read_hosted_document(&key).await?.ok_or(RegistryError::NotFound)?;
+    let current = parse_current::<Document>(&key, &current)?;
+    authorize_owner_change(state, identity, &key, current.owners())?;
+    let requested = account_ids(state, &logins, change).await?;
+    let outcome = storage.update_hosted_document_with_retry(
+        &key,
+        DOCUMENT_WRITE_RETRIES,
+        identity.user_id(),
+        |bytes| {
+            let Some(bytes) = bytes else { return Ok(None) };
+            let mut document = parse_current::<Document>(&key, bytes)?;
+            authorize_owner_change(state, identity, &key, document.owners())?;
+            apply_change(&key, document.owners_mut(), &requested, change)?;
+            Ok(Some(document.to_bytes()))
+        },
+    )
+    .await?;
     if outcome == DocumentUpdate::NotFound {
         return Err(RegistryError::NotFound);
     }
@@ -170,35 +183,45 @@ fn parse_logins(body: &[u8]) -> Result<Vec<String>, RegistryError> {
         .map_err(|err| RegistryError::BadRequest {
             reason: format!(r#"expected {{"users": [<login>, ...]}}: {err}"#),
         })?;
-    if request.users.is_empty() {
+    let mut users = request.users;
+    if users.is_empty() {
         return Err(RegistryError::BadRequest { reason: "users must not be empty".to_string() });
     }
-    Ok(request.users)
+    if users.len() > MAX_OWNER_LOGINS {
+        return Err(RegistryError::BadRequest {
+            reason: format!("users must name at most {MAX_OWNER_LOGINS} accounts"),
+        });
+    }
+    let mut seen = std::collections::HashSet::new();
+    users.retain(|user| seen.insert(user.clone()));
+    Ok(users)
 }
 
-/// The account IDs `logins` name. An owner to add must be an active account;
-/// an owner to remove may also be named by its account ID, which is how an
+/// An owner a request names: the login it sent, and the active account
+/// that login names, if any.
+struct RequestedOwner {
+    login: String,
+    account: Option<String>,
+}
+
+/// The accounts `logins` name. An owner to add must be an active account.
+/// An owner to remove may also be named by its account ID, which is how an
 /// owner whose account was deleted is listed.
 async fn account_ids(
     state: &AppState,
     logins: &[String],
     change: OwnerChange,
-) -> Result<Vec<String>, RegistryError> {
+) -> Result<Vec<RequestedOwner>, RegistryError> {
     let users = &state.inner.identity.auth.users;
-    let mut ids = Vec::with_capacity(logins.len());
+    let mut requested = Vec::with_capacity(logins.len());
     for login in logins {
-        let id = match (users.active_account_id(login).await?, change) {
-            (Some(id), _) => id,
-            (None, OwnerChange::Remove) => login.clone(),
-            (None, OwnerChange::Add) => {
-                return Err(RegistryError::BadRequest {
-                    reason: format!("unknown user {login:?}"),
-                });
-            }
-        };
-        ids.push(id);
+        let account = users.active_account_id(login).await?;
+        if account.is_none() && matches!(change, OwnerChange::Add) {
+            return Err(RegistryError::BadRequest { reason: format!("unknown user {login:?}") });
+        }
+        requested.push(RequestedOwner { login: login.clone(), account });
     }
-    Ok(ids)
+    Ok(requested)
 }
 
 fn parse_current<Document: HostedDocument>(
@@ -248,18 +271,14 @@ fn authorize_owner_change(
 fn apply_change(
     key: &CanonicalPackageName,
     owners: &mut Vec<String>,
-    ids: &[String],
+    requested: &[RequestedOwner],
     change: OwnerChange,
 ) -> Result<(), RegistryError> {
-    match change {
-        OwnerChange::Add => {
-            for id in ids {
-                if !owners.contains(id) {
-                    owners.push(id.clone());
-                }
-            }
+    for owner in requested {
+        match change {
+            OwnerChange::Add => add_owner(owners, owner),
+            OwnerChange::Remove => remove_owner(owners, owner),
         }
-        OwnerChange::Remove => owners.retain(|owner| !ids.contains(owner)),
     }
     if owners.is_empty() {
         return Err(RegistryError::BadRequest {
@@ -267,6 +286,22 @@ fn apply_change(
         });
     }
     Ok(())
+}
+
+fn add_owner(owners: &mut Vec<String>, owner: &RequestedOwner) {
+    if let Some(account) = &owner.account
+        && !owners.contains(account)
+    {
+        owners.push(account.clone());
+    }
+}
+
+/// A login that is itself a listed owner's account ID removes that owner,
+/// even when an active account has that ID as its login.
+fn remove_owner(owners: &mut Vec<String>, owner: &RequestedOwner) {
+    let id =
+        if owners.contains(&owner.login) { Some(&owner.login) } else { owner.account.as_ref() };
+    owners.retain(|existing| Some(existing) != id);
 }
 
 fn change_message(key: &CanonicalPackageName, change: OwnerChange, logins: &[String]) -> String {

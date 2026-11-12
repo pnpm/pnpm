@@ -1,11 +1,12 @@
 use super::{
-    super::documents::HostedTarget, Action, AppState, AuthedCaller, Bytes, CanonicalPackageName,
-    CrateDocument, DOCUMENT_WRITE_RETRIES, DocumentUpdate, ECOSYSTEM, HashMap, Identity,
-    IndexEntry, Path, PublishMetadata, PublishTarget, RegistryError, RegistrySource, Response,
-    StagedPublish, State, StatusCode, TargetRegistry, authorize_package, bad_request,
-    bounded_description, crate_filename, error_response, json_response, not_found, ok_json,
-    parse_publish_body, publish_ok_json, resolve_publish_target_for, resolve_write_target_for,
-    sha256_hex, stage_hosted_artifact, store_hosted_artifact, validate_crate_archive,
+    super::{Ownership, authorize_with_ownership, documents::HostedTarget},
+    Action, AppState, AuthedCaller, Bytes, CanonicalPackageName, CrateDocument,
+    DOCUMENT_WRITE_RETRIES, DocumentUpdate, ECOSYSTEM, HashMap, Identity, IndexEntry, Path,
+    PublishMetadata, PublishTarget, RegistryError, RegistrySource, Response, StagedPublish, State,
+    StatusCode, TargetRegistry, authorize_package, bad_request, bounded_description,
+    crate_filename, error_response, json_response, not_found, ok_json, parse_publish_body,
+    publish_ok_json, resolve_publish_target_for, resolve_write_target_for, sha256_hex,
+    stage_hosted_artifact, store_hosted_artifact, validate_crate_archive,
 };
 
 /// `PUT api/v1/crates/new` — `cargo publish`.
@@ -249,22 +250,22 @@ pub(super) async fn set_yanked(
     };
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let hosted = RegistrySource::Hosted(target.source);
-    if let Err(err) = authorize_package(
-        state,
-        identity,
-        &hosted,
-        key.as_str(),
-        Action::Publish,
-        Some(&target.namespace),
-    )
-    .await
-    {
-        return error_response(err);
-    }
+    // Checked against each document the retry reads, so an owner removed by a
+    // concurrent write cannot yank afterwards.
+    let authorize = |owners: &[String]| {
+        let ownership = Ownership::Owners(owners);
+        authorize_with_ownership(
+            state,
+            identity,
+            &hosted,
+            (key.as_str(), &ownership),
+            Action::Publish,
+        )
+    };
     let outcome = state.inner.storage
         .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
-            update_crate_yank_status(existing, &key, version, yanked)
+            update_crate_yank_status(existing, &key, (version, yanked), &authorize)
         })
         .await;
     match outcome {
@@ -277,8 +278,8 @@ pub(super) async fn set_yanked(
 fn update_crate_yank_status(
     existing: Option<&[u8]>,
     key: &CanonicalPackageName,
-    version: &str,
-    yanked: bool,
+    (version, yanked): (&str, bool),
+    authorize: &impl Fn(&[String]) -> Result<(), RegistryError>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let Some(bytes) = existing else { return Ok(None) };
     let mut document = CrateDocument::parse(bytes)?;
@@ -289,6 +290,7 @@ fn update_crate_yank_status(
             supported_version: pnpr_cargo::CRATE_DOCUMENT_FORMAT_VERSION,
         });
     }
+    authorize(&document.owners)?;
     let Some(entry) = document.version_mut(version) else { return Ok(None) };
     entry.yanked = yanked;
     Ok(Some(document.to_bytes()))
