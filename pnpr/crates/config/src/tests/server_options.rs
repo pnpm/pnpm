@@ -412,6 +412,32 @@ fn request_timeout_defaults_and_overrides() {
 }
 
 #[test]
+fn shutdown_timeout_defaults_and_overrides() {
+    let base_config =
+        Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(base_config.http.shutdown_timeout, crate::HttpConfig::DEFAULT_SHUTDOWN_TIMEOUT);
+
+    let custom_yaml = "storage: ./s\nshutdownTimeout: 15s\n";
+    let custom_config =
+        Config::from_yaml_str(custom_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(custom_config.http.shutdown_timeout, std::time::Duration::from_secs(15));
+
+    let zero_yaml = "storage: ./s\nshutdownTimeout: 0\n";
+    let zero_err = Config::from_yaml_str(zero_yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(zero_err, RegistryError::InvalidConfig { ref reason } if reason.contains("shutdownTimeout")),
+        "expected InvalidConfig naming shutdownTimeout, got {zero_err:?}",
+    );
+
+    let invalid_yaml = "storage: ./s\nshutdownTimeout: invalid_val\n";
+    let err = Config::from_yaml_str(invalid_yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("shutdownTimeout")),
+        "expected InvalidConfig with shutdownTimeout, got {err:?}",
+    );
+}
+
+#[test]
 fn packument_ttl_rejects_an_invalid_interval() {
     let yaml = "storage: ./s\npackumentTtl: forever\n";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();

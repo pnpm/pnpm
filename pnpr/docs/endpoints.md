@@ -42,8 +42,8 @@ produce an "Authentication required" explanation.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/ping` | Health check. Returns `{}` on success, or 503 if storage or auth is unavailable. |
-| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks storage and auth backends, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure. |
+| `GET` | `/-/ping` | Lightweight reachability check (`npm ping` / `pnpm ping`). Returns `{}`. |
+| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks that the server is not shutting down and that storage and auth backends are reachable, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure (`{"status": "shutting_down"}` during graceful shutdown). |
 | `GET` | `/-/live` | Container / Kubernetes liveness probe. Returns `{"status": "ok"}` when the server process is alive and handling requests. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
 | `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |

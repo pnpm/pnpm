@@ -497,7 +497,7 @@ async fn readiness_probe_fails_when_storage_is_inaccessible() {
     assert_eq!(ready_body["storage"], "unavailable");
     assert_eq!(ready_body["auth"], "ok");
 
-    // /-/ping also returns 503 Service Unavailable when readiness fails
+    // /-/ping stays cheap and returns 200 OK without running storage readiness checks
     let ping = app
         .oneshot(
             Request::get("/-/ping")
@@ -506,7 +506,9 @@ async fn readiness_probe_fails_when_storage_is_inaccessible() {
         )
         .await
         .unwrap();
-    assert_eq!(ping.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(ping.status(), StatusCode::OK);
+    let ping_body: Value = serde_json::from_slice(&body_bytes(ping.into_body()).await).unwrap();
+    assert_eq!(ping_body, json!({}));
 }
 
 #[tokio::test]
@@ -544,7 +546,7 @@ async fn readiness_probe_fails_when_auth_is_inaccessible() {
     assert_eq!(ready_body["storage"], "ok");
     assert_eq!(ready_body["auth"], "unavailable");
 
-    // /-/ping also returns 503 Service Unavailable when auth readiness fails
+    // /-/ping stays cheap and returns 200 OK without running auth readiness checks
     let ping = app
         .oneshot(
             Request::get("/-/ping")
@@ -553,7 +555,9 @@ async fn readiness_probe_fails_when_auth_is_inaccessible() {
         )
         .await
         .unwrap();
-    assert_eq!(ping.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(ping.status(), StatusCode::OK);
+    let ping_body: Value = serde_json::from_slice(&body_bytes(ping.into_body()).await).unwrap();
+    assert_eq!(ping_body, json!({}));
 }
 
 #[cfg(unix)]

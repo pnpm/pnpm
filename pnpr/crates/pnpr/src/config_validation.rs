@@ -57,6 +57,9 @@ fn validate_startup_config_inner(
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     config.http.ensure_valid_metrics()?;
+    if config.http.shutdown_timeout.is_zero() {
+        return Err(invalid("shutdownTimeout must be greater than zero"));
+    }
     validate_metadata_backend(&config.storage.metadata)?;
     validate_identity_backend(&config.identity.backend)?;
     validate_cache_paths(config)?;

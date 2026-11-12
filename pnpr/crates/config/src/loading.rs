@@ -2,8 +2,8 @@ use super::{
     Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
     HostedStoreConfig, Path, PathBuf, RegistryError, RemovedGroupsBlock, RemovedPackagesBlock,
     RemovedUplinksBlock, RemovedUpstreamsBlock, ResolvedFileRegistries, RoutesFile, SocketAddr,
-    SystemEnv, build_cors_config, build_features, build_identity_config, build_log_config,
-    build_osv_config, build_route_policy, build_ui_config, config_file_in, env_replace_lossy,
+    SystemEnv, build_features, build_identity_config, build_log_config, build_osv_config,
+    build_route_policy, config_file_in, env_replace_lossy, http_config::build_http_config,
     resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
 use crate::{config_file::RegistryFile, secrets::validate_secret_env_vars};
@@ -249,94 +249,6 @@ fn build_routing_config(
         hosted: resolved.hosted,
         tar_registries: resolved.tar_registries,
     })
-}
-
-fn build_http_config(
-    file: &mut ConfigFile,
-    base_dir: &Path,
-    listen: SocketAddr,
-    public_url: Option<String>,
-) -> Result<super::HttpConfig, RegistryError> {
-    let cors = build_cors_config(std::mem::take(&mut file.cors))?;
-    let ui = build_ui_config(std::mem::take(&mut file.ui), base_dir);
-    let trusted_proxies = super::parse_trusted_proxies(&file.trusted_proxies)?;
-    let trusted_proxy_header = match file.trusted_proxy_header.as_deref() {
-        Some(raw) => raw.parse::<super::TrustedProxyHeader>()?,
-        None => super::TrustedProxyHeader::default(),
-    };
-    let request_timeout = match file.request_timeout.as_ref() {
-        Some(interval) => {
-            let duration =
-                super::parse_interval(&interval.0)
-                    .ok_or_else(|| RegistryError::InvalidConfig {
-                        reason: format!(
-                            "http.requestTimeout {:?} is not a valid interval",
-                            interval.0,
-                        ),
-                    })?;
-            (!duration.is_zero()).then_some(duration)
-        }
-        None => Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
-    };
-    let packument_ttl = build_packument_ttl(file.packument_ttl.take())?;
-    let max_tarball_bytes = build_max_tarball_bytes(file.max_tarball_size.take())?;
-    Ok(super::HttpConfig {
-        listen,
-        public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
-        cors,
-        ui,
-        oci: std::mem::take(&mut file.oci),
-        packument_ttl,
-        max_tarball_bytes,
-        trusted_proxies,
-        trusted_proxy_header,
-        request_timeout,
-        metrics: build_metrics_config(file, listen)?,
-        package_documents: super::build_package_documents_config(file.package_documents.take())?,
-        cloudflare_cdn: super::cdn::build(file.cloudflare_cdn.take())?,
-    })
-}
-
-/// The `packumentTtl:` key as a duration, defaulting to
-/// [`Config::DEFAULT_PACKUMENT_TTL`].
-fn build_packument_ttl(raw: Option<super::Interval>) -> Result<std::time::Duration, RegistryError> {
-    let Some(super::Interval(raw)) = raw else {
-        return Ok(Config::DEFAULT_PACKUMENT_TTL);
-    };
-    super::parse_interval(&raw)
-        .ok_or_else(|| RegistryError::InvalidConfig {
-            reason: format!("packumentTtl {raw:?} is not a valid interval"),
-        })
-}
-
-/// The `maxTarballSize:` key as bytes, defaulting to
-/// [`super::HttpConfig::DEFAULT_MAX_TARBALL_BYTES`]. Zero is refused: it would
-/// turn every upstream tarball away.
-fn build_max_tarball_bytes(raw: Option<super::ByteSize>) -> Result<u64, RegistryError> {
-    let Some(super::ByteSize(raw)) = raw else {
-        return Ok(super::HttpConfig::DEFAULT_MAX_TARBALL_BYTES);
-    };
-    let bytes = super::parse_byte_size(&raw)
-        .ok_or_else(|| RegistryError::InvalidConfig {
-            reason: format!("maxTarballSize {raw:?} is not a valid byte size"),
-        })?;
-    if bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "maxTarballSize must be greater than zero".to_string(),
-        });
-    }
-    Ok(bytes)
-}
-
-fn build_metrics_config(
-    file: &mut ConfigFile,
-    listen: SocketAddr,
-) -> Result<Option<super::MetricsConfig>, RegistryError> {
-    let metrics = file.metrics.take();
-    if let Some(metrics) = &metrics {
-        metrics.validate(listen)?;
-    }
-    Ok(metrics)
 }
 
 /// Whether the config declares a registry with package metadata of its own.

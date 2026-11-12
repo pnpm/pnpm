@@ -39,28 +39,41 @@ pub(crate) async fn shutdown_signal() {
     }
 }
 
-pub(crate) async fn check_server_readiness(state: &AppState) -> Result<(), RegistryError> {
-    state.inner.storage.check_readiness().await?;
-    state.inner.identity.auth.check_readiness().await?;
-    Ok(())
+pub(crate) async fn serve_ping() -> Response {
+    (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }
 
-pub(crate) async fn serve_ping(State(state): State<AppState>) -> Response {
-    match check_server_readiness(&state).await {
-        Ok(()) => (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response(),
-        Err(err) => {
-            tracing::warn!(error = %err.log_message(), "ping readiness check failed");
-            (StatusCode::SERVICE_UNAVAILABLE, err.public_message()).into_response()
-        }
-    }
+fn shutting_down_response() -> Response {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        axum::Json(serde_json::json!({
+            "status": "shutting_down",
+        })),
+    )
+        .into_response()
 }
 
 pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
+    if state.is_shutting_down() {
+        return shutting_down_response();
+    }
+
     let storage_status = state.inner.storage.check_readiness().await;
     let auth_status = state.inner.identity.auth.check_readiness().await;
 
+    if state.is_shutting_down() {
+        return shutting_down_response();
+    }
+
+    readiness_response(&storage_status, &auth_status)
+}
+
+fn readiness_response(
+    storage_status: &Result<(), RegistryError>,
+    auth_status: &Result<(), RegistryError>,
+) -> Response {
     if storage_status.is_ok() && auth_status.is_ok() {
-        (
+        return (
             StatusCode::OK,
             axum::Json(serde_json::json!({
                 "status": "ok",
@@ -68,31 +81,32 @@ pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
                 "auth": "ok",
             })),
         )
-            .into_response()
-    } else {
-        let storage_msg = storage_status
-            .as_ref()
-            .err()
-            .map(RegistryError::log_message)
-            .unwrap_or_else(|| "ok".to_string());
-        let auth_msg = auth_status
-            .as_ref()
-            .err()
-            .map(RegistryError::log_message)
-            .unwrap_or_else(|| "ok".to_string());
-        tracing::warn!(storage = %storage_msg, auth = %auth_msg, "readiness probe failed");
-        let storage_status_val = if storage_status.is_ok() { "ok" } else { "unavailable" };
-        let auth_status_val = if auth_status.is_ok() { "ok" } else { "unavailable" };
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            axum::Json(serde_json::json!({
-                "status": "unhealthy",
-                "storage": storage_status_val,
-                "auth": auth_status_val,
-            })),
-        )
-            .into_response()
+            .into_response();
     }
+
+    let storage_msg = probe_log_message(storage_status);
+    let auth_msg = probe_log_message(auth_status);
+    tracing::warn!(storage = %storage_msg, auth = %auth_msg, "readiness probe failed");
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        axum::Json(serde_json::json!({
+            "status": "unhealthy",
+            "storage": probe_status_label(storage_status),
+            "auth": probe_status_label(auth_status),
+        })),
+    )
+        .into_response()
+}
+
+fn probe_log_message(status: &Result<(), RegistryError>) -> String {
+    status
+        .as_ref()
+        .err()
+        .map_or_else(|| "ok".to_string(), RegistryError::log_message)
+}
+
+fn probe_status_label(status: &Result<(), RegistryError>) -> &'static str {
+    if status.is_ok() { "ok" } else { "unavailable" }
 }
 
 pub(crate) async fn serve_live() -> Response {

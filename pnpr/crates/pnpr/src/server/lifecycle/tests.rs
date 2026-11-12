@@ -124,16 +124,21 @@ registries:
 
 #[tokio::test(start_paused = true)]
 async fn shutdown_deadline_starts_when_shutdown_is_requested() {
+    let drain_timeout = Duration::from_secs(12);
     let (send_shutdown, shutdown) = tokio::sync::oneshot::channel::<()>();
-    let serving = tokio::spawn(super::drain_until_deadline(std::future::pending(), async {
-        shutdown.await.unwrap();
-    }));
+    let serving = tokio::spawn(super::drain_until_deadline(
+        std::future::pending(),
+        async {
+            shutdown.await.unwrap();
+        },
+        drain_timeout,
+    ));
     tokio::time::advance(Duration::from_secs(120)).await;
     assert!(!serving.is_finished());
     send_shutdown.send(()).unwrap();
     tokio::task::yield_now().await;
     tokio::time::advance(
-        super::SHUTDOWN_DRAIN_TIMEOUT
+        drain_timeout
             .checked_sub(Duration::from_secs(1))
             .unwrap(),
     )
@@ -152,10 +157,120 @@ async fn shutdown_drain_returns_when_requests_finish() {
             Ok(())
         },
         std::future::ready(()),
+        pnpr_config::HttpConfig::DEFAULT_SHUTDOWN_TIMEOUT,
     )
     .await
     .unwrap();
     assert_eq!(start.elapsed(), Duration::from_secs(1));
+}
+
+#[tokio::test]
+async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout() {
+    use axum::{body::Body, http::Request, http::StatusCode};
+    use tower::ServiceExt as _;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = s3_config(&tmp);
+    config.http.shutdown_timeout = Duration::from_millis(80);
+    let auth = load_startup_auth(&config).await.unwrap();
+    let (state, app) = super::state_and_router(config, auth, None).unwrap();
+    let probe_app = app.clone();
+
+    let (inflight_started_tx, mut inflight_started_rx) = tokio::sync::watch::channel(false);
+    let (_hold_tx, hold_rx) = tokio::sync::watch::channel(false);
+    let inflight_started_tx = std::sync::Arc::new(inflight_started_tx);
+    let wrapped = app.route(
+        "/-/test-slow",
+        axum::routing::get(move || {
+            let inflight_started_tx = std::sync::Arc::clone(&inflight_started_tx);
+            let mut hold_rx = hold_rx.clone();
+            async move {
+                let _ = inflight_started_tx.send(true);
+                let _ = hold_rx.changed().await;
+                StatusCode::OK
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let mut serve_task = tokio::spawn(super::serve_until_shutdown_with(
+        state.clone(),
+        listener,
+        wrapped,
+        None,
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let ready_before = probe_app
+        .clone()
+        .oneshot(
+            Request::get("/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready_before.status(), StatusCode::OK);
+
+    let _slow_client = tokio::spawn(async move {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"GET /-/test-slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut buf = Vec::new();
+        let _ = stream.read_to_end(&mut buf).await;
+    });
+    inflight_started_rx.changed().await.unwrap();
+
+    shutdown_tx.send(()).unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    while !state.is_shutting_down() {
+        assert!(tokio::time::Instant::now() < deadline, "shutdown state did not flip");
+        tokio::task::yield_now().await;
+    }
+    assert!(!serve_task.is_finished(), "server must still be draining in-flight request");
+
+    for path in ["/-/ready", "/~local/-/ready"] {
+        let ready_during = probe_app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ready_during.status(), StatusCode::SERVICE_UNAVAILABLE, "{path}");
+        let body_bytes = axum::body::to_bytes(ready_during.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["status"], "shutting_down", "{path}");
+    }
+
+    for path in ["/-/live", "/-/ping"] {
+        let probe = probe_app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(probe.status(), StatusCode::OK, "{path}");
+    }
+
+    tokio::time::timeout(Duration::from_secs(2), &mut serve_task).await
+        .expect("server must stop once configured shutdown_timeout expires")
+        .unwrap()
+        .unwrap();
 }
 
 #[tokio::test(start_paused = true)]

@@ -210,6 +210,9 @@ pub(super) struct ConfigFile {
     /// Request processing timeout (e.g. `60s`, `1m`).
     #[serde(default)]
     pub(super) request_timeout: Option<Interval>,
+    /// Graceful shutdown drain timeout (e.g. `25s`, `1m`).
+    #[serde(default)]
+    pub(super) shutdown_timeout: Option<Interval>,
     /// Duration before a cached packument is considered stale and refetched.
     #[serde(default)]
     pub(super) packument_ttl: Option<Interval>,
