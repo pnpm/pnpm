@@ -16,7 +16,7 @@ pub(crate) struct UpdateClassification {
     pub(crate) vulnerabilities: HashMap<String, Vec<(u64, Range)>>,
     pub(crate) unfixable: HashMap<String, Vec<u64>>,
     /// Advisory ids whose `vulnerable_versions` failed to parse. The registry
-    /// is untrusted, so a malformed range must not silently drop the advisory
+    /// is untrusted, so a malformed range must not silently drop the advisory.
     /// Count it as remaining instead of treating it as a clean exit.
     pub(crate) unparsable: Vec<u64>,
 }
@@ -137,9 +137,9 @@ fn persist_age_excludes(
     Ok(added)
 }
 
-/// Every still-installed package name, regardless of how its lockfile
-/// key is shaped, plus the subset whose key parses as semver, the only
-/// ones a vulnerable range can be checked against.
+/// Collect every still-installed package name, regardless of how its
+/// lockfile key is shaped, and the subset whose keys parse as semver.
+/// Vulnerable ranges can only be checked against the latter.
 fn installed_packages(updated: &Lockfile) -> InstalledPackages {
     let mut installed = InstalledPackages { names: HashSet::new(), versions: HashMap::new() };
     for key in updated.snapshots

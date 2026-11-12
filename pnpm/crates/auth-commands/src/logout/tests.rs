@@ -28,7 +28,7 @@ fn refused_local_addr() -> String {
 }
 
 /// A throwaway HTTP client. Every test fakes [`RevokeToken`], so the
-/// client is never used to send, it only satisfies [`logout`]'s
+/// client is never used to send; it only satisfies [`logout`]'s
 /// signature.
 fn unused_client() -> ThrottledClient {
     ThrottledClient::new_for_installs()
