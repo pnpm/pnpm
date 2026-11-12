@@ -85,7 +85,8 @@ impl<'a> MaterializationInputs<'a, '_> {
                 unbuilt_builds: prior_unbuilt_builds,
                 previously_skipped,
                 prune: self.modules.prune,
-                relink_every_slot_bin: self.modules.relink_every_slot_bin,
+                relink_every_slot_bin: self.modules.relink_every_slot_bin
+                    || self.install.context.config.enable_global_virtual_store,
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,

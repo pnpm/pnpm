@@ -264,6 +264,60 @@ fn own_bin_is_not_on_path_before_preinstall_creates_it() {
 }
 
 #[test]
+fn global_virtual_store_build_shims_do_not_capture_the_project_path() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/own-bin-created-by-preinstall": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    append_workspace_yaml_key(&workspace, "enableGlobalVirtualStore", true);
+    allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", true)]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir = store_dir.join("v11/links/@pnpm.e2e/own-bin-created-by-preinstall/1.0.0");
+    let hashes: Vec<_> = fs::read_dir(&version_dir)
+        .expect("read GVS hash directories")
+        .map(|entry| entry.expect("read GVS hash directory").path())
+        .collect();
+    assert_eq!(hashes.len(), 1, "the package has one shared GVS slot");
+    let shim_dir =
+        hashes[0].join("node_modules/@pnpm.e2e/own-bin-created-by-preinstall/node_modules/.bin");
+    let shim = fs::read_dir(&shim_dir)
+        .expect("read built package bin shims")
+        .map(|entry| entry.expect("read bin shim").path())
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| {
+                    name.to_string_lossy().starts_with("own-bin-created-by-preinstall")
+                })
+        })
+        .expect("built package bin shim exists");
+    let content = fs::read_to_string(shim).expect("read built package bin shim");
+    let project_hoisted_modules = workspace.join("node_modules/.pnpm/node_modules");
+    assert!(
+        !content.contains(&project_hoisted_modules.to_string_lossy().to_string()),
+        "a shared built bin shim must not contain the project hoisted modules path: {content:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn own_bin_is_not_on_path_before_preinstall_creates_it_with_hoisted_linker() {
     install_own_bin_created_by_preinstall(Some("hoisted"), "1.0.0", &[ROOT_BIN]);
 }

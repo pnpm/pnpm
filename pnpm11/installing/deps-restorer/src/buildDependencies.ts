@@ -85,7 +85,7 @@ async function relinkBuiltVirtualStoreBins (
   if (affectedNodes.length === 0) return
   await linkAllBins(depGraph.graph, {
     depNodes: affectedNodes,
-    extraNodePaths: opts.extraNodePaths,
+    extraNodePaths: opts.enableGlobalVirtualStore ? [] : opts.extraNodePaths,
     forceForPackages: builtPackageDirs,
     optional: opts.include.optionalDependencies,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -149,7 +149,7 @@ async function runBuildModules (
     allowBuild: depGraph.allowBuild,
     childConcurrency: opts.childConcurrency,
     extraBinPaths,
-    extraNodePaths: opts.extraNodePaths,
+    extraNodePaths: opts.enableGlobalVirtualStore ? [] : opts.extraNodePaths,
     extraEnv,
     depsStateCache: ctx.depsStateCache,
     ignoreScripts: !buildsDependenciesDuringInstall(opts),

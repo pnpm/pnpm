@@ -232,12 +232,25 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
                 .starts_with("hello-world-js-bin")
         })
         .expect("the dependency bin shim exists");
-    let content = fs::read_to_string(shim.path()).expect("read dependency bin shim");
+    let shim_path = shim.path();
+    let content = fs::read_to_string(&shim_path).expect("read dependency bin shim");
     let project_hoisted_modules_path =
         Path::new("node_modules/.pnpm/node_modules").display().to_string();
     assert!(
         !content.contains(&project_hoisted_modules_path),
         "a shared bin shim must not contain the project hoisted modules path: {content:?}",
+    );
+
+    let stale_content = format!("{content}\n{project_hoisted_modules_path}\n");
+    fs::write(&shim_path, stale_content).expect("restore a shim written by an earlier install");
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let repaired = fs::read_to_string(shim_path).expect("read repaired dependency bin shim");
+    assert!(
+        !repaired.contains(&project_hoisted_modules_path),
+        "a warm shared slot must have its stale project path removed: {repaired:?}",
     );
 
     drop((root, mock_instance));

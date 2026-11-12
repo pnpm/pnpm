@@ -19,8 +19,8 @@ import { getHoistedWorkspacePackages, workspaceHoistPointsToProject } from './wo
 
 export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<LinkedDependencies> {
   const { opts } = ctx
-  const skipGvsInternalLinking = opts.enableGlobalVirtualStore === true && depGraph.added === 0
-  if (!skipGvsInternalLinking) {
+  const skipGvsPackageImport = opts.enableGlobalVirtualStore === true && depGraph.added === 0
+  if (!skipGvsPackageImport) {
     await importAndLinkPackages(ctx, depGraph)
   }
   stageLogger.debug({
@@ -28,7 +28,7 @@ export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: Headle
     stage: 'importing_done',
   })
   const newHoistedDependencies = shouldHoistDependencies(ctx) ? await hoistDependencies(ctx, depGraph) : {}
-  if (!ctx.skipPostImportLinking && !skipGvsInternalLinking) {
+  if (!ctx.skipPostImportLinking) {
     await linkAllBins(depGraph.graph, {
       extraNodePaths: opts.enableGlobalVirtualStore ? [] : opts.extraNodePaths,
       optional: opts.include.optionalDependencies,
