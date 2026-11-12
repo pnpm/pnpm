@@ -139,6 +139,10 @@ pub struct TokensConfig {
     pub max_lifetime: Option<Duration>,
 }
 
+impl TokensConfig {
+    pub const MIN_MAX_LIFETIME: Duration = Duration::from_mins(1);
+}
+
 /// Three-state cap on `auth.users.max_users`:
 ///
 /// * absent → registration disabled. Self-registration is opt-in:
@@ -241,16 +245,17 @@ pub(super) fn build_auth_config(
     })
 }
 
-/// The `auth.tokens.maxLifetime` key. Zero is refused: no token could be
-/// issued.
+/// The `auth.tokens.maxLifetime` key. A lifetime under
+/// [`TokensConfig::MIN_MAX_LIFETIME`] is refused: a token could expire while
+/// the login that issues it is still verifying the password.
 fn build_max_token_lifetime(raw: Option<&Interval>) -> Result<Option<Duration>, RegistryError> {
     let Some(Interval(raw)) = raw else {
         return Ok(None);
     };
     match parse_interval(raw) {
-        Some(lifetime) if !lifetime.is_zero() => Ok(Some(lifetime)),
+        Some(lifetime) if lifetime >= TokensConfig::MIN_MAX_LIFETIME => Ok(Some(lifetime)),
         _ => Err(RegistryError::InvalidConfig {
-            reason: format!("auth.tokens.maxLifetime {raw:?} is not a positive interval"),
+            reason: format!("auth.tokens.maxLifetime {raw:?} is not an interval of at least 1m"),
         }),
     }
 }

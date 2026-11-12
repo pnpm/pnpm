@@ -108,7 +108,9 @@ fn auth_tokens_max_lifetime_is_an_interval() {
         config.identity.auth.tokens.max_lifetime,
         Some(std::time::Duration::from_hours(90 * 24)),
     );
-    for invalid in ["0", "0d", "soon"] {
+    let config = config_with("1m").unwrap();
+    assert_eq!(config.identity.auth.tokens.max_lifetime, Some(std::time::Duration::from_mins(1)));
+    for invalid in ["0", "0d", "0.0004s", "59s", "soon"] {
         let error = config_with(invalid)
             .map(|_| ())
             .unwrap_err();
