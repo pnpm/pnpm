@@ -394,7 +394,7 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     let mut path_locators = HashSet::from([node_locator(&root)]);
     hoist_to(&root, opts, &mut path_locators, true);
     #[cfg(test)]
-    tests::assert_resolves_as_declared(tree, &root);
+    tests::resolution::assert_resolves_as_declared(tree, &root);
     // Returning an owned `HoisterResult` (rather than
     // `Rc<HoisterResult>`) keeps the wrapper's post-hoist
     // `external_dependencies` filter from mutating the shared graph.

@@ -120,6 +120,6 @@ fn result_locator(node: &HoisterResult) -> String {
         references
             .iter()
             .next()
-            .map_or("", String::as_str)
+            .map_or("", String::as_str),
     )
 }

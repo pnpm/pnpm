@@ -1,5 +1,5 @@
 //! Random peer-dependency graphs shaped like pnpm lockfiles, hoisted
-//! under [`assert_resolves_as_declared`](super::assert_resolves_as_declared).
+//! under [`assert_resolves_as_declared`](super::resolution::assert_resolves_as_declared).
 
 use super::{HoistOpts, HoisterTree, Rc, nm_hoist, tree_node, tree_root};
 use std::{
@@ -39,25 +39,33 @@ fn registry(rng: &mut Rng) -> Registry {
     let mut peer = HashMap::new();
     for name in 0..NAMES.len() {
         for version in 1..=VERSIONS {
-            let later = name + 1..NAMES.len();
-            let mut deps: Vec<(usize, u8)> = Vec::new();
-            for dep in later.clone() {
-                if rng.below(3) == 0 {
-                    deps.push((dep, rng.version()));
-                }
-            }
-            if !later.is_empty() && rng.below(2) == 0 {
-                let peer_name = name + 1 + usize::try_from(rng.below(later.len() as u64)).unwrap();
-                deps.retain(|(dep, _)| *dep != peer_name);
+            let (deps, peer_name) = manifest(rng, name);
+            dependencies.insert((name, version), deps);
+            if let Some(peer_name) = peer_name {
                 peer.insert((name, version), peer_name);
             }
-            // A peer points at a later name, so building the later names
-            // first lets a sibling's peer resolve to it.
-            deps.reverse();
-            dependencies.insert((name, version), deps);
         }
     }
     Registry { dependencies, peer }
+}
+
+/// Random dependencies and peer of one version of `NAMES[name]`.
+fn manifest(rng: &mut Rng, name: usize) -> (Vec<(usize, u8)>, Option<usize>) {
+    let later = name + 1..NAMES.len();
+    let mut deps: Vec<(usize, u8)> = Vec::new();
+    for dep in later.clone() {
+        if rng.below(3) == 0 {
+            deps.push((dep, rng.version()));
+        }
+    }
+    let peer_name = (!later.is_empty() && rng.below(2) == 0).then(|| {
+        name + 1 + usize::try_from(rng.below(later.len() as u64)).unwrap()
+    });
+    deps.retain(|(dep, _)| Some(*dep) != peer_name);
+    // A peer points at a later name, so building the later names first
+    // lets a sibling's peer resolve to it.
+    deps.reverse();
+    (deps, peer_name)
 }
 
 /// The peers a node resolves from outside its own dependencies, by name.

@@ -1,3 +1,5 @@
+pub(super) mod resolution;
+
 use super::{
     HoistError, HoistOpts, HoisterDependencyKind, HoisterResult, HoisterTree, RcByPtr,
     build_hoist_ident_map, hoist, is_preferred_ident, nm_hoist, percent_encode_path,
@@ -184,7 +186,4 @@ mod behavior;
 
 mod peer_bindings;
 
-mod resolution;
-
 mod generated;
-pub(crate) use resolution::assert_resolves_as_declared;
