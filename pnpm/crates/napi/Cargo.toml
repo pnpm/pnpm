@@ -29,13 +29,13 @@ pnpm-lockfile = { workspace = true }
 pnpm-modules-yaml = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-pack = { workspace = true }
-pnpm-package-manager = { workspace = true }
+pnpm-package-manager = { workspace = true, features = ["runtime-provisioning", "shell-emulator"] }
 pnpm-resolving-deps-resolver = { workspace = true }
 node-semver = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
-pnpm-resolving-default-resolver = { workspace = true }
-pnpm-resolving-git-resolver = { workspace = true }
+pnpm-resolving-default-resolver = { workspace = true, features = ["runtime-provisioning", "shell-emulator"] }
+pnpm-resolving-git-resolver = { workspace = true, features = ["shell-emulator"] }
 pnpm-resolving-local-resolver = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }

@@ -1,5 +1,5 @@
 use super::{
-    BuildInputs, ConcurrentVerification, FetchInputs, HostDetectionInputs, HostPlan,
+    BuildInputs, ConcurrentVerification, FetchInputs, FrozenInputs, HostDetectionInputs, HostPlan,
     InstallFrozenLockfile, InstallFrozenLockfileError, LinkInputs, MaterializationPlan,
     SkipSetPlan, build_extra_env,
     build_phase::{BuildPhaseInputs, run_build_phase},
@@ -197,6 +197,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 installability_host.as_ref(),
                 seed_skipped,
             )?;
+            ensure_runtime_provisioning(&inputs, &skipped)?;
             let host_node =
                 installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
             Ok(SkipSetPlan { skipped, engine_name, host_node })
@@ -354,6 +355,21 @@ fn compute_frozen_skip_set<Reporter: self::Reporter>(
         },
     )
     .map_err(InstallFrozenLockfileError::Installability)
+}
+
+fn ensure_runtime_provisioning(
+    inputs: &FrozenInputs<'_>,
+    skipped: &SkippedSnapshots,
+) -> Result<(), InstallFrozenLockfileError> {
+    if inputs.platform.runtime_provisioning {
+        return Ok(());
+    }
+    if let Some(alias) =
+        crate::runtime_dependency_alias(inputs.lockfiles.wanted, inputs.included(), skipped)
+    {
+        return Err(InstallFrozenLockfileError::RuntimeProvisioningUnavailable { alias });
+    }
+    Ok(())
 }
 
 fn report_host_detection_wait(phase_start: std::time::Instant, needs_installability_check: bool) {

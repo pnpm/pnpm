@@ -43,7 +43,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-pnpm-resolving-default-resolver = { workspace = true }
+pnpm-resolving-default-resolver = { workspace = true, features = ["runtime-provisioning", "shell-emulator"] }
 pnpm-resolving-local-resolver = { workspace = true }
 
 futures-util = { workspace = true }

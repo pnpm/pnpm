@@ -10,6 +10,22 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["runtime-provisioning", "shell-emulator"]
+runtime-provisioning = [
+  "dep:pnpm-engine-pm-yarn-resolver",
+  "dep:pnpm-engine-runtime-bun-resolver",
+  "dep:pnpm-engine-runtime-deno-resolver",
+  "dep:pnpm-engine-runtime-node-resolver",
+  "pnpm-resolving-default-resolver/runtime-provisioning",
+]
+shell-emulator = [
+  "pnpm-executor/shell-emulator",
+  "pnpm-deps-restorer/shell-emulator",
+  "pnpm-git-fetcher/shell-emulator",
+  "pnpm-resolving-default-resolver/shell-emulator",
+]
+
 [dependencies]
 pnpm-package-name = { workspace = true }
 pnpm-matcher = { workspace = true }
@@ -25,10 +41,10 @@ pnpm-deps-restorer = { workspace = true }
 pnpm-tool-protocol = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
-pnpm-engine-pm-yarn-resolver = { workspace = true }
-pnpm-engine-runtime-bun-resolver = { workspace = true }
-pnpm-engine-runtime-deno-resolver = { workspace = true }
-pnpm-engine-runtime-node-resolver = { workspace = true }
+pnpm-engine-pm-yarn-resolver = { workspace = true, optional = true }
+pnpm-engine-runtime-bun-resolver = { workspace = true, optional = true }
+pnpm-engine-runtime-deno-resolver = { workspace = true, optional = true }
+pnpm-engine-runtime-node-resolver = { workspace = true, optional = true }
 pnpm-executor = { workspace = true }
 pnpm-process = { path = "../process" }
 pnpm-fs = { workspace = true }

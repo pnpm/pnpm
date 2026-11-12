@@ -11,12 +11,16 @@
 
 pub mod standalone;
 
+pub use unavailable_tool::{RuntimeProvisioningUnavailableError, UnavailableToolResolver};
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+
+mod unavailable_tool;
 
 /// Composed chain that wraps an ordered list of per-protocol
 /// resolvers.

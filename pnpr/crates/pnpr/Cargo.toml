@@ -27,7 +27,8 @@ name = "suite"
 path = "tests/suite.rs"
 
 [features]
-default = ["backend-libsql", "backend-mysql", "backend-postgres"]
+default = ["backend-libsql", "backend-mysql", "backend-postgres", "runtime-provisioning"]
+runtime-provisioning = ["pnpm-package-manager/runtime-provisioning"]
 backend-libsql = [
   "dep:pnpr-libsql",
   "dep:libsql",

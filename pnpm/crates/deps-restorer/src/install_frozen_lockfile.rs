@@ -84,6 +84,13 @@ pub struct InstallFrozenLockfile<'a> {
 /// Error type of [`InstallFrozenLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallFrozenLockfileError {
+    #[display("Runtime provisioning is not enabled in this build for {alias}")]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_PROVISIONING_UNAVAILABLE))]
+    RuntimeProvisioningUnavailable {
+        #[error(not(source))]
+        alias: String,
+    },
+
     #[diagnostic(transparent)]
     LockfileVerification(#[error(source)] VerifyError),
 
@@ -382,9 +389,9 @@ impl<'a> InstallFrozenLockfile<'a> {
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens
         // `index.db` (no WAL / SHM sidecar under the read-only root).
-        let (store_index_writer, writer_task) = spawn_store_index_writer(ctx.config);
-
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
+
+        let (store_index_writer, writer_task) = spawn_store_index_writer(ctx.config);
 
         let fetched = self.fetch::<Reporter>(
             &ctx,

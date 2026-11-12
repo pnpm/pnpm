@@ -70,6 +70,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             lockfiles: self.frozen_lockfiles(scope, lockfile),
             platform: pnpm_deps_restorer::FrozenPlatformOptions {
                 supported_architectures: self.execution.supported_architectures,
+                runtime_provisioning: cfg!(feature = "runtime-provisioning"),
                 skip_runtimes: self.install.execution.skip_runtimes,
                 node_linker: self.install.execution.node_linker,
             },
@@ -117,9 +118,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );
-        let supported_lockfile_major =
-            matches!(scope.lockfile().lockfile_version.major, 9 | 12 | 13);
-        debug_assert!(supported_lockfile_major);
+        assert_supported_lockfile_major(scope.lockfile());
 
         let frozen_verification_override = settle_frozen_verification::<Reporter>(
             self.workspace.requested_importer_ids,
@@ -149,6 +148,12 @@ impl<'a> MaterializationInputs<'a, '_> {
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }
+}
+
+fn assert_supported_lockfile_major(lockfile: &Lockfile) {
+    let major = lockfile.lockfile_version.major;
+    let supported = matches!(major, 9 | 12 | 13);
+    debug_assert!(supported);
 }
 
 impl<'a> MaterializationWorkspace<'a> {

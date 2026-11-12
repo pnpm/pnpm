@@ -15,6 +15,10 @@ pub(super) fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> In
         InstallFrozenLockfileError::LockfileVerification(verify_error) => {
             InstallError::LockfileVerification(verify_error)
         }
+        #[cfg(not(feature = "runtime-provisioning"))]
+        InstallFrozenLockfileError::RuntimeProvisioningUnavailable { alias } => {
+            InstallError::RuntimeProvisioningUnavailable { alias }
+        }
         other => InstallError::FrozenLockfile(other),
     }
 }
@@ -213,6 +217,14 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
+
+    #[cfg(not(feature = "runtime-provisioning"))]
+    #[display("Runtime provisioning is not enabled in this build for {alias}")]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_PROVISIONING_UNAVAILABLE))]
+    RuntimeProvisioningUnavailable {
+        #[error(not(source))]
+        alias: String,
+    },
 
     #[diagnostic(transparent)]
     LocalTarballIntegrity(#[error(source)] pnpm_tarball::TarballError),

@@ -10,6 +10,10 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["shell-emulator"]
+shell-emulator = ["pnpm-executor/shell-emulator", "pnpm-git-fetcher/shell-emulator"]
+
 [dependencies]
 pnpm-package-name = { workspace = true }
 pnpm-catalogs-protocol-parser = { workspace = true }

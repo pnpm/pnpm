@@ -6,7 +6,7 @@ use std::{
 #[cfg(unix)]
 use std::{path::Path, ptr, time::Duration};
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 use tokio::sync::watch;
 
 use crate::process::{Child, Command};
@@ -58,7 +58,7 @@ enum RunningExecution {
     /// keeps its id from being reused.
     #[cfg(unix)]
     Group { leader: u32 },
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
     Emulated(watch::Sender<bool>),
 }
 
@@ -86,7 +86,7 @@ impl RunningExecution {
             }
             #[cfg(unix)]
             Self::Group { leader } => signal::signal_group(*leader, stop),
-            #[cfg(not(target_family = "wasm"))]
+            #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
             Self::Emulated(sender) => {
                 let _ = sender.send(true);
             }
@@ -103,7 +103,7 @@ impl RunningExecution {
             }
             #[cfg(unix)]
             Self::Group { leader } => format!("group {leader}"),
-            #[cfg(not(target_family = "wasm"))]
+            #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
             Self::Emulated(_) => "emulated".to_owned(),
         }
     }
@@ -169,7 +169,7 @@ impl ProcessTracker {
         self.state.lock().expect("process tracker lock is not poisoned").cancelled
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
     pub(crate) fn track_emulated(&self) -> EmulatedCancellation<'_> {
         let (sender, receiver) = watch::channel(false);
         let registration = self.register(RunningExecution::Emulated(sender));
@@ -351,13 +351,13 @@ fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
     !empty && table.is_none_or(|table| process_table::has_running_member(table, leader))
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 pub(crate) struct EmulatedCancellation<'tracker> {
     receiver: watch::Receiver<bool>,
     _registration: Registration<'tracker>,
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 impl EmulatedCancellation<'_> {
     pub(crate) fn to_receiver(&self) -> watch::Receiver<bool> {
         self.receiver.clone()
