@@ -426,7 +426,7 @@ pub fn default_lockfile_dir_keeps_workspace_relative_path_settings() {
         with_default_lockfile_dir.virtual_store_dir(),
         without_lockfile_dir.virtual_store_dir(),
     );
-    assert_eq!(with_default_lockfile_dir.install_state_dir, without_lockfile_dir.install_state_dir,);
+    assert!(with_default_lockfile_dir.install_state_dir == without_lockfile_dir.install_state_dir);
 }
 
 #[cfg_attr(not(windows), ignore = "requires Windows path semantics")]
