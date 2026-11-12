@@ -38,6 +38,7 @@ impl StoreIndex {
 }
 
 fn open_anchored_files_index(store_root: &OpenDir) -> Result<StoreIndex, StoreIndexError> {
+    ensure_no_symlinked_shards(store_root, &[INDEX_DIR, ALIAS_DIR])?;
     let (anchor, anchored_root) = reopen_anchored(store_root)?;
     Ok(StoreIndex {
         backend: Backend::Files(FilesIndex::anchored(
@@ -45,6 +46,33 @@ fn open_anchored_files_index(store_root: &OpenDir) -> Result<StoreIndex, StoreIn
             Arc::new(anchor),
         )),
     })
+}
+
+fn ensure_no_symlinked_shards(
+    store_root: &OpenDir,
+    subdirs: &[&str],
+) -> Result<(), StoreIndexError> {
+    for subdir in subdirs {
+        let Some(dir) = store_root
+            .open_child_dir(OsStr::new(subdir))
+            .map_err(|source| read_err(store_root, source))?
+        else {
+            continue;
+        };
+        let entries = dir.entry_names().map_err(|source| read_err(&dir, source))?;
+        for entry in entries {
+            if dir.has_symlink_child(&entry).map_err(|source| read_err(&dir, source))? {
+                return Err(StoreIndexError::ReadEntry {
+                    path: dir.path().join(entry),
+                    source: io::Error::new(
+                        ErrorKind::InvalidInput,
+                        "refusing symlinked store index entry",
+                    ),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 fn open_anchored_sqlite_index(store_root: &OpenDir) -> Result<Option<StoreIndex>, StoreIndexError> {

@@ -2,7 +2,7 @@
 
 use super::{create_file_with_age, test_config};
 #[cfg(unix)]
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
 use pnpr::cache_maintenance::{CacheGcEffect, CacheGcOptions, CacheGcScope, collect_cache};
 use rusqlite::Connection;
 #[cfg(unix)]
@@ -304,4 +304,204 @@ async fn verdict_expiry_below_vacuum_threshold_matches_dry_run_and_apply_near_ma
     assert_eq!(dry_report, apply_report);
     assert_eq!(apply_report.files_evicted, 1);
     assert!(!active_file.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn symlinked_files_index_shard_is_rejected_and_lru_continues_past_skipped_cas() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    // SAFETY: `geteuid` takes no arguments and is always safe to call.
+    let euid = unsafe { libc::geteuid() };
+    assert_ne!(euid, 0, "run this test as an unprivileged user");
+
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    std::fs::write(&marker, pnpr_config::cache_secret_fingerprint(&config.cache_secret)).unwrap();
+
+    // Part 1: `files`-format StoreIndex with a symlinked shard must never delete outside entries.
+    let outside = TempDir::new().unwrap();
+    let ext_store = StoreDir::new(outside.path().join("ext-files-store"));
+    std::fs::create_dir_all(ext_store.root()).unwrap();
+    StoreIndex::apply_format(ext_store.root(), StoreIndexFormat::Files).unwrap();
+    let ext_index = StoreIndex::open_in(&ext_store).unwrap();
+    let mut files = HashMap::new();
+    files.insert(
+        "index.js".to_string(),
+        CafsFileInfo {
+            digest: "ef0123456789".to_string(),
+            mode: 0o644,
+            size: 12,
+            checked_at: None,
+        },
+    );
+    let pkg_key = "sha512-files\tfiles-pkg@1.0.0";
+    ext_index
+        .set(
+            pkg_key,
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: None,
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: files.clone(),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+                tar_integrity: None,
+            },
+        )
+        .unwrap();
+    drop(ext_index);
+
+    let local_store = StoreDir::new(cache_dir.join("resolver-store"));
+    std::fs::create_dir_all(local_store.root().join("index")).unwrap();
+    let cas_file = local_store.root().join("files/ef/0123456789");
+    create_file_with_age(&cas_file, &[0x41; 4000], Duration::from_hours(48));
+    for entry in std::fs::read_dir(ext_store.root().join("index")).unwrap() {
+        let entry = entry.unwrap();
+        std::os::unix::fs::symlink(
+            entry.path(),
+            local_store
+                .root()
+                .join("index")
+                .join(entry.file_name()),
+        )
+        .unwrap();
+    }
+
+    // Also add a newer non-CAS candidate so if CAS eviction fails under `max_size`,
+    // `enforce_max_size` must continue past the retained CAS file and evict `fallback_file`!
+    let fallback_file = cache_dir.join("resolver-cache/v11/metadata-full/fallback.json");
+    create_file_with_age(&fallback_file, &[0x42; 3000], Duration::from_mins(10));
+
+    let limit = std::fs::metadata(&marker).unwrap().len() + 4500;
+    let report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: Some(limit),
+            max_age: None,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert!(cas_file.exists(), "CAS file must be retained when files-index shard is a symlink");
+    assert!(
+        !fallback_file.exists(),
+        "enforce_max_size must continue evicting subsequent non-CAS entries after CAS skip",
+    );
+    assert_eq!(report.files_evicted, 1);
+    let reopened_ext = StoreIndex::open_in(&ext_store).unwrap();
+    assert!(
+        reopened_ext
+            .get(pkg_key)
+            .unwrap()
+            .is_some(),
+        "external files-format StoreIndex entry must remain untouched",
+    );
+
+    // Ensure permissions remain writable for TempDir cleanup.
+    let _ = std::fs::Permissions::from_mode(0o755);
+}
+
+#[tokio::test]
+async fn uncheckpointed_live_wal_pages_still_trim_verdict_rows_to_max_size() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    std::fs::write(&marker, pnpr_config::cache_secret_fingerprint(&config.cache_secret)).unwrap();
+
+    let verdict_db = cache_dir.join("resolver-cache/lockfile-verdicts.sqlite");
+    let verdict_wal = cache_dir.join("resolver-cache/lockfile-verdicts.sqlite-wal");
+    std::fs::create_dir_all(verdict_db.parent().unwrap()).unwrap();
+
+    // Keep an idle connection open so SQLite leaves live pages in `-wal` instead of checkpointing on close.
+    let mut holder = Connection::open(&verdict_db).unwrap();
+    holder
+        .execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA wal_autocheckpoint = 0;
+             CREATE TABLE lockfile_verdicts (
+                 hash TEXT PRIMARY KEY,
+                 policy TEXT NOT NULL,
+                 verified_at_ms INTEGER NOT NULL
+             );
+             PRAGMA wal_checkpoint(TRUNCATE);",
+        )
+        .unwrap();
+
+    let now_ms = i64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap();
+    let payload = format!(r#"{{"p":"{}"}}"#, "w".repeat(900));
+    let tx = holder.transaction().unwrap();
+    for idx in 0..60_i64 {
+        tx.execute(
+            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+            rusqlite::params![format!("wal-live-{idx:02}"), &payload, now_ms - idx],
+        )
+        .unwrap();
+    }
+    tx.commit().unwrap();
+
+    let wal_len = std::fs::metadata(&verdict_wal).unwrap().len();
+    assert!(wal_len > 48 * 1024, "expected live pages in -wal, got {wal_len} bytes");
+    let db_len = std::fs::metadata(&verdict_db).unwrap().len();
+    let shm_len = std::fs::metadata(cache_dir.join("resolver-cache/lockfile-verdicts.sqlite-shm"))
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    let marker_len = std::fs::metadata(&marker).unwrap().len();
+    let total_before = marker_len + db_len + wal_len + shm_len;
+    let limit = total_before - wal_len / 2;
+    assert!(total_before - limit < wal_len);
+
+    let dry_report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::DryRun,
+            max_size: Some(limit),
+            max_age: None,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(dry_report.bytes_reclaimed >= total_before - limit);
+
+    let apply_report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: Some(limit),
+            max_age: None,
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(apply_report.bytes_reclaimed > 0);
+
+    let remaining_rows: i64 = holder
+        .query_row("SELECT COUNT(*) FROM lockfile_verdicts", [], |row| row.get(0))
+        .unwrap();
+    assert!(remaining_rows < 60, "expected verdict rows to be trimmed, got {remaining_rows}");
+    let live_total = marker_len
+        + std::fs::metadata(&verdict_db).unwrap().len()
+        + std::fs::metadata(&verdict_wal).map(|meta| meta.len()).unwrap_or(0)
+        + std::fs::metadata(cache_dir.join("resolver-cache/lockfile-verdicts.sqlite-shm"))
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+    assert!(live_total <= limit, "live_total ({live_total}) must be <= limit ({limit})");
+    drop(holder);
 }

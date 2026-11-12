@@ -1,3 +1,6 @@
+mod cache_claim;
+
+use self::cache_claim::claim_ephemeral_cache_dir;
 use std::future::IntoFuture;
 
 use axum::Router;
@@ -26,6 +29,7 @@ pub(super) fn load_active_osv_index(
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
+    crate::config_validation::validate_cache_paths(config)?;
     let storage = Storage::from_config(&config.storage)?;
     if !config.routing.hosted.is_empty() {
         storage.ensure_hosted_layout().await?;
@@ -140,69 +144,6 @@ async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()
 fn report_staged_archive_sweep(swept: usize) {
     if swept > 0 {
         tracing::info!(swept, "reclaimed expired staged release archives");
-    }
-}
-
-enum EphemeralMarkerState {
-    Created,
-    MatchedExisting,
-}
-
-async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
-    if config.has_configured_secret {
-        return Ok(());
-    }
-    let cache_dir = &config.storage.cache_dir;
-    tokio::fs::create_dir_all(cache_dir).await?;
-    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
-    let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
-    match write_ephemeral_cache_marker(&marker, &fingerprint).await? {
-        EphemeralMarkerState::MatchedExisting => Ok(()),
-        EphemeralMarkerState::Created => {
-            if let Err(err) = ensure_only_ephemeral_entries(cache_dir).await {
-                let _ = tokio::fs::remove_file(&marker).await;
-                return Err(err);
-            }
-            Ok(())
-        }
-    }
-}
-
-async fn ensure_only_ephemeral_entries(cache_dir: &std::path::Path) -> pnpr_error::Result<()> {
-    use crate::config_validation::{CacheDirCheck, is_ignorable_cache_entry};
-
-    let mut entries = tokio::fs::read_dir(cache_dir).await?;
-    while let Some(entry) = entries.next_entry().await? {
-        if !is_ignorable_cache_entry(&entry.file_name(), CacheDirCheck::ClaimedWithMarker) {
-            return Err(persistent_cache_secret_error());
-        }
-    }
-    Ok(())
-}
-
-async fn write_ephemeral_cache_marker(
-    marker: &std::path::Path,
-    fingerprint: &str,
-) -> pnpr_error::Result<EphemeralMarkerState> {
-    match pnpr_storage::write_atomic_new(marker, fingerprint.as_bytes()).await {
-        Ok(()) => Ok(EphemeralMarkerState::Created),
-        Err(pnpr_error::RegistryError::Io(err))
-            if err.kind() == std::io::ErrorKind::AlreadyExists =>
-        {
-            let stored = tokio::fs::read_to_string(marker).await.unwrap_or_default();
-            if stored.trim() == fingerprint {
-                Ok(EphemeralMarkerState::MatchedExisting)
-            } else {
-                Err(persistent_cache_secret_error())
-            }
-        }
-        Err(err) => Err(err),
-    }
-}
-
-fn persistent_cache_secret_error() -> pnpr_error::RegistryError {
-    pnpr_error::RegistryError::InvalidConfig {
-        reason: crate::config_validation::PERSISTENT_CACHE_SECRET_REQUIRED.to_string(),
     }
 }
 

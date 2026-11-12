@@ -19,8 +19,12 @@ const CACHE_OVERLAPS_HOSTED_STORAGE: &str =
     "cache path must not equal or contain the storage directory";
 const CACHE_CONTAINS_METADATA_DB: &str =
     "database.url SQLite path must not live inside the disposable cache directory";
+const CACHE_CONTAINS_REPLICA_DB: &str =
+    "libSQL replicaPath must not live inside the disposable cache directory";
 const CACHE_CONTAINS_AUTH_FILE: &str =
     "auth file path must not live inside the disposable cache directory";
+const CACHE_CONTAINS_OSV_DB: &str =
+    "osv.path must not live inside or contain the disposable cache directory";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CacheDirCheck {
@@ -50,19 +54,58 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     if norm_hosted.starts_with(&norm_cache) {
         return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
     }
-    if let MetadataBackend::Sqlite(db_path) = &config.storage.metadata
-        && !db_path.as_os_str().is_empty()
-        && normalize_config_path(db_path)?.starts_with(&norm_cache)
-    {
-        return Err(invalid(CACHE_CONTAINS_METADATA_DB));
+    validate_metadata_cache_overlap(&config.storage.metadata, &norm_cache)?;
+    if let BackendConfig::Libsql(settings) = &config.identity.backend {
+        reject_path_inside_cache(
+            settings.replica_path.as_deref(),
+            &norm_cache,
+            CACHE_CONTAINS_REPLICA_DB,
+        )?;
     }
-    for auth_file in
-        [&config.identity.auth.users.file, &config.identity.auth.tokens.file].into_iter().flatten()
+    for auth_file in [&config.identity.auth.users.file, &config.identity.auth.tokens.file] {
+        reject_path_inside_cache(auth_file.as_deref(), &norm_cache, CACHE_CONTAINS_AUTH_FILE)?;
+    }
+    validate_osv_cache_overlap(config.osv.path.as_deref(), &norm_cache)?;
+    Ok(())
+}
+
+fn validate_metadata_cache_overlap(metadata: &MetadataBackend, norm_cache: &Path) -> Result<()> {
+    match metadata {
+        MetadataBackend::Sqlite(db_path) => reject_path_inside_cache(
+            Some(db_path.as_path()),
+            norm_cache,
+            CACHE_CONTAINS_METADATA_DB,
+        ),
+        MetadataBackend::Libsql(settings) => reject_path_inside_cache(
+            settings.replica_path.as_deref(),
+            norm_cache,
+            CACHE_CONTAINS_REPLICA_DB,
+        ),
+        MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => Ok(()),
+    }
+}
+
+fn reject_path_inside_cache(
+    candidate: Option<&Path>,
+    norm_cache: &Path,
+    reason: &str,
+) -> Result<()> {
+    if let Some(path) = candidate
+        && !path.as_os_str().is_empty()
+        && normalize_config_path(path)?.starts_with(norm_cache)
     {
-        if !auth_file.as_os_str().is_empty()
-            && normalize_config_path(auth_file)?.starts_with(&norm_cache)
-        {
-            return Err(invalid(CACHE_CONTAINS_AUTH_FILE));
+        return Err(invalid(reason));
+    }
+    Ok(())
+}
+
+fn validate_osv_cache_overlap(osv_path: Option<&Path>, norm_cache: &Path) -> Result<()> {
+    if let Some(path) = osv_path
+        && !path.as_os_str().is_empty()
+    {
+        let norm_osv = normalize_config_path(path)?;
+        if norm_osv.starts_with(norm_cache) || norm_cache.starts_with(&norm_osv) {
+            return Err(invalid(CACHE_CONTAINS_OSV_DB));
         }
     }
     Ok(())
@@ -76,8 +119,12 @@ pub(crate) fn is_ignorable_cache_entry(name: &OsStr, check: CacheDirCheck) -> bo
     if name == "lost+found" {
         return true;
     }
-    matches!(check, CacheDirCheck::ClaimedWithMarker)
-        && (name == CACHE_SECRET_MARKER || is_cache_secret_temp(name))
+    match check {
+        CacheDirCheck::Unmarked => false,
+        CacheDirCheck::ClaimedWithMarker => {
+            name == CACHE_SECRET_MARKER || is_cache_secret_temp(name)
+        }
+    }
 }
 
 fn is_cache_secret_temp(name: &OsStr) -> bool {

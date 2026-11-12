@@ -87,6 +87,36 @@ pub(super) fn is_symlink_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<b
     Ok(lstat_at(parent, name)?.is_some_and(|stat| (stat.st_mode & libc::S_IFMT) == libc::S_IFLNK))
 }
 
+pub(super) fn read_file_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<Vec<u8>>> {
+    // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
+    let descriptor = unsafe {
+        libc::openat(
+            parent.as_raw_fd(),
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
+        )
+    };
+    if descriptor < 0 {
+        let error = io::Error::last_os_error();
+        return if is_non_regular_open_error(&error) { Ok(None) } else { Err(error) };
+    }
+    // SAFETY: the descriptor was just opened and nothing else owns it.
+    let mut file = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
+    if !file.metadata()?.file_type().is_file() {
+        return Ok(None);
+    }
+    // SAFETY: `file` is a valid open descriptor; clearing `O_NONBLOCK` restores normal file reads.
+    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFL, 0) };
+    let mut bytes = Vec::new();
+    io::Read::read_to_end(&mut file, &mut bytes)?;
+    Ok(Some(bytes))
+}
+
+fn is_non_regular_open_error(error: &io::Error) -> bool {
+    matches!(error.kind(), ErrorKind::NotFound | ErrorKind::IsADirectory)
+        || matches!(error.raw_os_error(), Some(libc::ELOOP | libc::EMLINK | libc::EISDIR))
+}
+
 fn lstat_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<libc::stat>> {
     let mut stat = MaybeUninit::<libc::stat>::uninit();
     // SAFETY: `name` is NUL-terminated, `parent` stays open, and `stat` is writable.

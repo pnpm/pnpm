@@ -84,8 +84,9 @@ fn prune_orphaned_namespaces_sync(
     };
     prune_orphan_prefix(&root_dir, "~upstreams", active, effect, &mut outcome);
     prune_orphan_prefix(&root_dir, "~public", active, effect, &mut outcome);
-    if matches!(private_scopes, PrivateScopePolicy::Prune) {
-        prune_private_resolver_scopes(&root_dir, effect, &mut outcome);
+    match private_scopes {
+        PrivateScopePolicy::Prune => prune_private_resolver_scopes(&root_dir, effect, &mut outcome),
+        PrivateScopePolicy::Keep => {}
     }
     Ok(outcome)
 }
@@ -229,8 +230,9 @@ fn prune_open_dir_children(
         }
     };
     for name in entries {
-        if matches!(filter, ScopeFilter::PrivateOnly) && name == "public" {
-            continue;
+        match filter {
+            ScopeFilter::PrivateOnly if name == "public" => continue,
+            ScopeFilter::PrivateOnly | ScopeFilter::All => {}
         }
         if let Err(err) = remove_orphan_child(parent, &name, effect, outcome) {
             outcome.private_scopes_clean = false;

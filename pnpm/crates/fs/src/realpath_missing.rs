@@ -4,6 +4,8 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+const MAX_SYMLINK_HOPS: usize = 40;
+
 /// Resolve existing symlinked components left-to-right before applying `..`,
 /// keeping any non-existent tail components normalized lexically.
 pub fn resolve_path_with_symlinks(path: &Path) -> io::Result<PathBuf> {
@@ -12,8 +14,9 @@ pub fn resolve_path_with_symlinks(path: &Path) -> io::Result<PathBuf> {
     }
     let (mut acc, components) = seed_absolute_anchor(path)?;
     let mut in_missing_tail = false;
+    let mut hops = 0;
     for component in components {
-        apply_path_component(component, &mut acc, &mut in_missing_tail);
+        apply_path_component(component, &mut acc, &mut in_missing_tail, &mut hops)?;
     }
     Ok(acc)
 }
@@ -46,39 +49,115 @@ fn seed_prefix_anchor<'a>(
     Ok((std::path::absolute(anchor)?, components))
 }
 
-fn apply_path_component(component: Component<'_>, acc: &mut PathBuf, in_missing_tail: &mut bool) {
+fn apply_path_component(
+    component: Component<'_>,
+    acc: &mut PathBuf,
+    in_missing_tail: &mut bool,
+    hops: &mut usize,
+) -> io::Result<()> {
     match component {
         Component::Prefix(_) | Component::RootDir => acc.push(component.as_os_str()),
         Component::CurDir => {}
-        Component::Normal(part) => push_normal_component(part, acc, in_missing_tail),
-        Component::ParentDir => pop_parent_component(acc, in_missing_tail),
+        Component::Normal(part) => push_normal_component(part, acc, in_missing_tail, hops)?,
+        Component::ParentDir => pop_parent_component(acc, in_missing_tail)?,
     }
+    Ok(())
 }
 
-fn push_normal_component(part: &OsStr, acc: &mut PathBuf, in_missing_tail: &mut bool) {
+fn push_normal_component(
+    part: &OsStr,
+    acc: &mut PathBuf,
+    in_missing_tail: &mut bool,
+    hops: &mut usize,
+) -> io::Result<()> {
     acc.push(part);
     if *in_missing_tail {
-        return;
+        return Ok(());
     }
     match dunce::canonicalize(&*acc) {
         Ok(canon) => *acc = canon,
+        Err(err) if err.kind() == io::ErrorKind::NotADirectory => *in_missing_tail = true,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            handle_missing_or_dangling(acc, in_missing_tail, hops)?;
+        }
+        Err(err) => return Err(err),
+    }
+    Ok(())
+}
+
+fn handle_missing_or_dangling(
+    acc: &mut PathBuf,
+    in_missing_tail: &mut bool,
+    hops: &mut usize,
+) -> io::Result<()> {
+    let meta = match fs::symlink_metadata(&*acc) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            *in_missing_tail = true;
+            return Ok(());
+        }
+        Err(err) => return Err(err),
+    };
+    if !meta.file_type().is_symlink() {
+        *in_missing_tail = true;
+        return Ok(());
+    }
+    *hops += 1;
+    if *hops > MAX_SYMLINK_HOPS {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "too many levels of symbolic links",
+        ));
+    }
+    let target = fs::read_link(&*acc)?;
+    expand_symlink_target(&target, acc, in_missing_tail, hops)
+}
+
+fn expand_symlink_target(
+    target: &Path,
+    acc: &mut PathBuf,
+    in_missing_tail: &mut bool,
+    hops: &mut usize,
+) -> io::Result<()> {
+    acc.pop();
+    *in_missing_tail = false;
+    let components = if target.is_absolute()
+        || matches!(target.components().next(), Some(Component::Prefix(_) | Component::RootDir))
+    {
+        let (seeded, rest) = seed_absolute_anchor(target)?;
+        *acc = seeded;
+        rest
+    } else {
+        target.components()
+    };
+    for component in components {
+        apply_path_component(component, acc, in_missing_tail, hops)?;
+    }
+    Ok(())
+}
+
+fn pop_parent_component(acc: &mut PathBuf, in_missing_tail: &mut bool) -> io::Result<()> {
+    if !*in_missing_tail {
+        *acc = canonicalize_or_missing(&*acc, in_missing_tail)?;
+    }
+    acc.pop();
+    if *in_missing_tail {
+        *in_missing_tail = false;
+        *acc = canonicalize_or_missing(&*acc, in_missing_tail)?;
+    }
+    Ok(())
+}
+
+fn canonicalize_or_missing(path: &Path, in_missing_tail: &mut bool) -> io::Result<PathBuf> {
+    match dunce::canonicalize(path) {
+        Ok(canon) => Ok(canon),
         Err(err)
             if matches!(err.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
         {
             *in_missing_tail = true;
+            Ok(path.to_path_buf())
         }
-        Err(_) => {}
-    }
-}
-
-fn pop_parent_component(acc: &mut PathBuf, in_missing_tail: &mut bool) {
-    if !*in_missing_tail && let Ok(canon) = dunce::canonicalize(&*acc) {
-        *acc = canon;
-    }
-    acc.pop();
-    if *in_missing_tail && let Ok(canon) = dunce::canonicalize(&*acc) {
-        *acc = canon;
-        *in_missing_tail = false;
+        Err(err) => Err(err),
     }
 }
 

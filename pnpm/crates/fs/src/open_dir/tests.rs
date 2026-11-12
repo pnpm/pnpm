@@ -335,3 +335,84 @@ fn has_symlink_child_and_try_reopen_distinguish_links_and_real_entries() {
     let reopened = dir.try_reopen().unwrap();
     assert_eq!(reopened.canonical_path().unwrap(), dir.canonical_path().unwrap());
 }
+
+#[test]
+fn read_child_file_reads_regular_files_and_ignores_links_and_dirs() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::write(root.path().join("real/payload"), b"hello-open-dir").unwrap();
+    symlink_dir(&root.path().join("real/metadata"), &root.path().join("real/dir-link")).unwrap();
+    #[cfg(unix)]
+    {
+        fs::write(root.path().join("outside"), b"secret").unwrap();
+        std::os::unix::fs::symlink(root.path().join("outside"), root.path().join("real/file-link"))
+            .unwrap();
+    }
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    assert_eq!(
+        dir.read_child_file("payload".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"hello-open-dir"[..]),
+    );
+    assert!(
+        dir.read_child_file("dir-link".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    #[cfg(unix)]
+    assert!(
+        dir.read_child_file("file-link".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        dir.read_child_file("metadata".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        dir.read_child_file("missing".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_retargeted_ancestor_junction_stays_bound_to_opened_root() {
+    let root = tempdir().unwrap();
+    fs::create_dir_all(root.path().join("real_a/cache/sub")).unwrap();
+    fs::write(root.path().join("real_a/cache/keep.txt"), b"from-a").unwrap();
+    fs::create_dir_all(root.path().join("real_b/cache/sub")).unwrap();
+    fs::write(root.path().join("real_b/cache/keep.txt"), b"from-b").unwrap();
+
+    let junction_path = root.path().join("links");
+    junction::create(root.path().join("real_a"), &junction_path).unwrap();
+
+    let dir = OpenDir::open(&junction_path.join("cache")).unwrap();
+
+    fs::remove_dir(&junction_path).unwrap();
+    junction::create(root.path().join("real_b"), &junction_path).unwrap();
+
+    assert_eq!(dir.canonical_path().unwrap(), None);
+    assert_eq!(
+        dir.read_child_file("keep.txt".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"from-a"[..]),
+    );
+    assert!(dir.remove_child_dir("sub".as_ref()).unwrap());
+    assert!(dir.remove_child_file("keep.txt".as_ref()).unwrap());
+    assert!(
+        root.path()
+            .join("real_b/cache/keep.txt")
+            .exists(),
+    );
+    assert!(
+        root.path()
+            .join("real_b/cache/sub")
+            .exists(),
+    );
+}

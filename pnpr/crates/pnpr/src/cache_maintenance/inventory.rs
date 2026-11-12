@@ -3,9 +3,15 @@ use pnpm_fs::{ChildFileStat, OpenDir};
 use pnpm_store_dir::STORE_VERSION;
 use std::{
     cmp::Reverse,
+    collections::HashMap,
     ffi::{OsStr, OsString},
     io::{self, ErrorKind},
 };
+
+pub(super) struct CachedFileRemoval {
+    pub(super) path: PathBuf,
+    pub(super) max_effective_time: Option<SystemTime>,
+}
 
 pub(super) struct CacheInventory {
     pub(super) files: Vec<CachedFile>,
@@ -167,40 +173,53 @@ fn inspect_tree_entry(
     Ok(())
 }
 
-pub(super) async fn remove_cached_file(
+pub(super) async fn remove_cached_files(
     cache_dir: &Path,
-    path: &Path,
-    max_effective_time: Option<SystemTime>,
-) -> bool {
+    targets: Vec<CachedFileRemoval>,
+) -> Vec<bool> {
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    let count = targets.len();
     let root = cache_dir.to_path_buf();
-    let target = path.to_path_buf();
-    tokio::task::spawn_blocking(move || {
-        remove_cached_file_sync(&root, &target, max_effective_time).unwrap_or(false)
-    })
-    .await
-    .unwrap_or(false)
+    tokio::task::spawn_blocking(move || remove_cached_files_sync(&root, &targets))
+        .await
+        .unwrap_or_else(|_| vec![false; count])
 }
 
-fn remove_cached_file_sync(
+fn remove_cached_files_sync(cache_dir: &Path, targets: &[CachedFileRemoval]) -> Vec<bool> {
+    let Ok(root) = OpenDir::open(cache_dir) else {
+        return vec![false; targets.len()];
+    };
+    let mut parent_cache: HashMap<PathBuf, Option<OpenDir>> = HashMap::new();
+    targets
+        .iter()
+        .map(|item| {
+            remove_single_cached_file(cache_dir, &root, &mut parent_cache, item).unwrap_or(false)
+        })
+        .collect()
+}
+
+fn remove_single_cached_file(
     cache_dir: &Path,
-    path: &Path,
-    max_effective_time: Option<SystemTime>,
+    root: &OpenDir,
+    parent_cache: &mut HashMap<PathBuf, Option<OpenDir>>,
+    item: &CachedFileRemoval,
 ) -> io::Result<bool> {
-    let Ok(rel) = path.strip_prefix(cache_dir) else {
+    let Ok(rel) = item.path.strip_prefix(cache_dir) else {
         return Ok(false);
     };
     let (Some(parent_rel), Some(leaf)) = (rel.parent(), rel.file_name()) else {
         return Ok(false);
     };
-    let root = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(err) => return Err(err),
-    };
-    let Some(parent) = root.open_descendant_dir(parent_rel)? else {
+    if !parent_cache.contains_key(parent_rel) {
+        let opened = root.open_descendant_dir(parent_rel)?;
+        parent_cache.insert(parent_rel.to_path_buf(), opened);
+    }
+    let Some(parent) = parent_cache.get(parent_rel).and_then(Option::as_ref) else {
         return Ok(false);
     };
-    if let Some(limit_time) = max_effective_time {
+    if let Some(limit_time) = item.max_effective_time {
         let Some(stat) = parent.child_file_stat(leaf)? else {
             return Ok(false);
         };

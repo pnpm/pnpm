@@ -292,3 +292,38 @@ fn rejects_symlinked_cache_paths_including_dot_dot_segments() {
     let err = validate_startup_config(&mut dotdot).unwrap_err().to_string();
     assert!(err.contains("cache path must not equal or contain"), "{err}");
 }
+
+#[test]
+fn rejects_libsql_replica_and_osv_paths_inside_cache() {
+    let tmp = tempfile::tempdir().unwrap();
+    let storage = tmp.path().join("storage");
+    let cache = tmp.path().join("cache");
+
+    let mut base = base_config();
+    base.has_configured_secret = true;
+    base.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
+    base.storage.hosted_dir = storage.clone();
+    base.storage.cache_dir = cache.clone();
+    base.storage.metadata = MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage));
+
+    let mut meta_replica = base.clone();
+    let mut libsql = libsql_settings("libsql://db.example.test");
+    libsql.replica_path = Some(cache.join("meta-replica.db"));
+    libsql.sync_interval_secs = Some(5);
+    meta_replica.storage.metadata = MetadataBackend::Libsql(libsql);
+    let err = super::validate_cache_paths(&meta_replica).unwrap_err().to_string();
+    assert!(err.contains("libSQL replicaPath must not live inside"), "{err}");
+
+    let mut auth_replica = base.clone();
+    let mut auth_libsql = libsql_settings("libsql://auth.example.test");
+    auth_libsql.replica_path = Some(cache.join("auth-replica.db"));
+    auth_libsql.sync_interval_secs = Some(5);
+    auth_replica.identity.backend = BackendConfig::Libsql(auth_libsql);
+    let err = super::validate_cache_paths(&auth_replica).unwrap_err().to_string();
+    assert!(err.contains("libSQL replicaPath must not live inside"), "{err}");
+
+    let mut osv_in_cache = base;
+    osv_in_cache.osv.path = Some(cache.join("osv/all.zip"));
+    let err = validate_startup_config(&mut osv_in_cache).unwrap_err().to_string();
+    assert!(err.contains("osv.path must not live inside or contain"), "{err}");
+}

@@ -1,18 +1,17 @@
+mod conn;
+
+use self::conn::{
+    AnchoredVerdictDb, SQLITE_PAGE_BYTES, compact_sqlite, freelist_bytes, open_sqlite,
+    open_sqlite_readonly, open_verdict_dir, pragma_u64, should_vacuum, should_vacuum_counts,
+    verdict_db_and_wal_bytes, verdict_family_bytes, verdict_wal_bytes,
+};
 use super::{
     CacheGcEffect, Duration, Path, PathBuf, SystemTime, store_index::store_index_family_bytes,
 };
-use pnpm_fs::OpenDir;
 use rusqlite::{Connection, OpenFlags};
-use std::{ffi::OsStr, time::UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
-const SQLITE_BUSY_WAIT: Duration = Duration::from_secs(5);
 const EMPTY_VERDICT_DB_BYTES: u64 = 12 * 1024;
-const SQLITE_PAGE_BYTES: u64 = 4096;
-const VERDICT_DIR: &str = "resolver-cache";
-const VERDICT_DB: &str = "lockfile-verdicts.sqlite";
-const VERDICT_WAL: &str = "lockfile-verdicts.sqlite-wal";
-const VERDICT_FAMILY: [&str; 4] =
-    [VERDICT_DB, VERDICT_WAL, "lockfile-verdicts.sqlite-shm", "lockfile-verdicts.sqlite-journal"];
 
 pub(super) struct VerdictExpiry {
     pub(super) reclaimed_bytes: u64,
@@ -20,61 +19,11 @@ pub(super) struct VerdictExpiry {
     pub(super) cutoff_ms: i64,
 }
 
-struct AnchoredVerdictDb {
-    dir: OpenDir,
-    db_path: PathBuf,
-}
-
-fn open_verdict_dir(cache_dir: &Path) -> Option<AnchoredVerdictDb> {
-    let root = OpenDir::open(cache_dir).ok()?;
-    if root
-        .has_symlink_child(OsStr::new(VERDICT_DIR))
-        .ok()?
-    {
-        return None;
-    }
-    let dir = root
-        .open_child_dir(OsStr::new(VERDICT_DIR))
-        .ok()??;
-    if VERDICT_FAMILY
-        .iter()
-        .any(|name| {
-            dir.has_symlink_child(OsStr::new(name))
-                .unwrap_or(true)
-        })
-    {
-        return None;
-    }
-    dir.child_file_stat(OsStr::new(VERDICT_DB))
-        .ok()??;
-    let anchored_dir = dir.canonical_path().ok()??;
-    Some(AnchoredVerdictDb { dir, db_path: anchored_dir.join(VERDICT_DB) })
-}
-
-fn verdict_family_bytes(dir: &OpenDir) -> u64 {
-    VERDICT_FAMILY
-        .iter()
-        .filter_map(|name| {
-            dir.child_file_stat(OsStr::new(name))
-                .ok()
-                .flatten()
-        })
-        .map(|stat| stat.len)
-        .sum()
-}
-
-fn verdict_wal_bytes(dir: &OpenDir) -> u64 {
-    dir.child_file_stat(OsStr::new(VERDICT_WAL))
-        .ok()
-        .flatten()
-        .map_or(0, |stat| stat.len)
-}
-
 pub(super) async fn resolver_sqlite_bytes(cache_dir: &Path) -> u64 {
     let root = cache_dir.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let verdict =
-            open_verdict_dir(&root).map_or(0, |verdict| verdict_family_bytes(&verdict.dir));
+            open_verdict_dir(&root).map(|verdict| verdict_family_bytes(&verdict.dir)).unwrap_or(0);
         verdict + store_index_family_bytes(&root)
     })
     .await
@@ -109,7 +58,39 @@ fn expire_verdict_rows_sync(
     VerdictExpiry { reclaimed_bytes, deferred_free_bytes, cutoff_ms }
 }
 
+struct VerdictPageMetrics {
+    page_size: u64,
+    page_count: u64,
+    freelist: u64,
+    ckpt_savings: u64,
+    max_reclaimable: u64,
+    live_reclaimable: u64,
+}
+
+fn read_page_metrics(
+    conn: &Connection,
+    db_and_wal: u64,
+    extra_free_bytes: u64,
+) -> VerdictPageMetrics {
+    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
+    let page_count = pragma_u64(conn, "page_count");
+    let freelist = pragma_u64(conn, "freelist_count");
+    let post_ckpt_db_bytes = page_count.saturating_mul(page_size);
+    let free_bytes = freelist.saturating_mul(page_size).saturating_add(extra_free_bytes);
+    VerdictPageMetrics {
+        page_size,
+        page_count,
+        freelist,
+        ckpt_savings: db_and_wal.saturating_sub(post_ckpt_db_bytes),
+        max_reclaimable: db_and_wal.saturating_sub(EMPTY_VERDICT_DB_BYTES),
+        live_reclaimable: post_ckpt_db_bytes
+            .saturating_sub(EMPTY_VERDICT_DB_BYTES)
+            .saturating_sub(free_bytes),
+    }
+}
+
 fn estimate_expired_verdict_bytes(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -> (u64, u64) {
+    let db_and_wal = verdict_db_and_wal_bytes(&verdict.dir);
     let wal_bytes = verdict_wal_bytes(&verdict.dir);
     let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
         return (0, 0);
@@ -118,20 +99,15 @@ fn estimate_expired_verdict_bytes(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -
     if expired_weight == 0 || total_weight == 0 {
         return (0, 0);
     }
-    let page_size = pragma_u64(&conn, "page_size").max(SQLITE_PAGE_BYTES);
-    let freelist = pragma_u64(&conn, "freelist_count");
-    let max_reclaimable = verdict_family_bytes(&verdict.dir).saturating_sub(EMPTY_VERDICT_DB_BYTES);
-    let live_reclaimable = max_reclaimable
-        .saturating_sub(freelist.saturating_mul(page_size))
-        .saturating_sub(wal_bytes);
-    let est_new_pages =
-        proportional_bytes(live_reclaimable, expired_weight, total_weight) / page_size;
-    let post_freelist = freelist.saturating_add(est_new_pages);
-    let post_bytes = post_freelist.saturating_mul(page_size);
-    if should_vacuum_counts(post_freelist, pragma_u64(&conn, "page_count")) {
-        (post_bytes.saturating_add(wal_bytes).min(max_reclaimable), 0)
+    let metrics = read_page_metrics(&conn, db_and_wal, 0);
+    let est_new_pages = proportional_bytes(metrics.live_reclaimable, expired_weight, total_weight)
+        / metrics.page_size;
+    let post_freelist = metrics.freelist.saturating_add(est_new_pages);
+    if should_vacuum_counts(post_freelist, metrics.page_count) {
+        let post_bytes = post_freelist.saturating_mul(metrics.page_size);
+        (post_bytes.saturating_add(metrics.ckpt_savings).min(metrics.max_reclaimable), 0)
     } else {
-        (0, est_new_pages.saturating_mul(page_size))
+        (metrics.ckpt_savings, est_new_pages.saturating_mul(metrics.page_size))
     }
 }
 
@@ -165,8 +141,7 @@ fn delete_expired_verdict_rows(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -> u
     if should_vacuum(&conn) {
         compact_sqlite(&conn);
     } else {
-        let _ = conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
-        return 0;
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
     }
     drop(conn);
     before.saturating_sub(verdict_family_bytes(&verdict.dir))
@@ -200,30 +175,32 @@ fn trim_verdict_db_sync(cache_dir: &Path, params: &VerdictTrimParams) -> u64 {
 }
 
 fn estimate_oldest_verdict_bytes(verdict: &AnchoredVerdictDb, params: &VerdictTrimParams) -> u64 {
-    let before = verdict_family_bytes(&verdict.dir);
+    let db_and_wal = verdict_db_and_wal_bytes(&verdict.dir);
     let wal_bytes = verdict_wal_bytes(&verdict.dir);
-    let max_reclaimable = before.saturating_sub(EMPTY_VERDICT_DB_BYTES);
     let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
         return 0;
     };
-    let page_size = pragma_u64(&conn, "page_size").max(SQLITE_PAGE_BYTES);
-    let free_bytes = freelist_bytes(&conn).saturating_add(params.deferred_free_bytes);
-    let non_row_savings = free_bytes.saturating_add(wal_bytes);
-    if max_reclaimable == 0 {
-        return wal_bytes.min(before);
+    let metrics = read_page_metrics(&conn, db_and_wal, params.deferred_free_bytes);
+    if metrics.max_reclaimable == 0 {
+        return metrics.ckpt_savings;
     }
+    let free_bytes = metrics.freelist
+        .saturating_mul(metrics.page_size)
+        .saturating_add(params.deferred_free_bytes);
+    let non_row_savings = metrics.ckpt_savings.saturating_add(free_bytes);
     let needed_from_rows = params.excess_bytes.saturating_sub(non_row_savings);
-    let live_reclaimable = max_reclaimable.saturating_sub(non_row_savings);
     if needed_from_rows == 0 {
-        return non_row_savings.min(max_reclaimable);
-    }
-    if needed_from_rows >= live_reclaimable {
-        return max_reclaimable;
+        return non_row_savings.min(metrics.max_reclaimable);
     }
     let floor = params.min_verified_at_ms.unwrap_or(i64::MIN);
-    let row_bytes =
-        estimate_trimmed_row_bytes(&conn, live_reclaimable, needed_from_rows, floor, page_size);
-    non_row_savings.saturating_add(row_bytes).min(max_reclaimable)
+    let row_bytes = estimate_trimmed_row_bytes(
+        &conn,
+        metrics.live_reclaimable,
+        needed_from_rows,
+        floor,
+        metrics.page_size,
+    );
+    non_row_savings.saturating_add(row_bytes).min(metrics.max_reclaimable)
 }
 
 fn estimate_trimmed_row_bytes(
@@ -246,23 +223,32 @@ fn estimate_trimmed_row_bytes(
 
 fn delete_oldest_verdict_rows(verdict: &AnchoredVerdictDb, excess_bytes: u64) -> u64 {
     let before = verdict_family_bytes(&verdict.dir);
-    let wal_bytes = verdict_wal_bytes(&verdict.dir);
+    let target_bytes = before.saturating_sub(excess_bytes);
     let Ok(conn) = open_sqlite(&verdict.db_path, OpenFlags::SQLITE_OPEN_READ_WRITE) else {
         return 0;
     };
-    let free_bytes = freelist_bytes(&conn);
-    let non_row_savings = free_bytes.saturating_add(wal_bytes);
-    let needed_from_rows = excess_bytes.saturating_sub(non_row_savings);
-    let live_reclaimable =
-        before.saturating_sub(EMPTY_VERDICT_DB_BYTES).saturating_sub(non_row_savings);
-    let deleted = execute_verdict_trim(&conn, live_reclaimable, needed_from_rows);
-    if deleted > 0 || free_bytes > 0 {
-        compact_sqlite(&conn);
-    } else if wal_bytes > 0 {
+    if verdict_wal_bytes(&verdict.dir) > 0 {
         let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    }
+    let current = verdict_family_bytes(&verdict.dir);
+    if current > target_bytes {
+        trim_and_compact_verdict_rows(&conn, current - target_bytes);
     }
     drop(conn);
     before.saturating_sub(verdict_family_bytes(&verdict.dir))
+}
+
+fn trim_and_compact_verdict_rows(conn: &Connection, remaining_excess: u64) {
+    let free_bytes = freelist_bytes(conn);
+    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
+    let db_bytes = pragma_u64(conn, "page_count").saturating_mul(page_size);
+    let needed_from_rows = remaining_excess.saturating_sub(free_bytes);
+    let live_reclaimable =
+        db_bytes.saturating_sub(EMPTY_VERDICT_DB_BYTES).saturating_sub(free_bytes);
+    let deleted = execute_verdict_trim(conn, live_reclaimable, needed_from_rows);
+    if deleted > 0 || free_bytes > 0 {
+        compact_sqlite(conn);
+    }
 }
 
 fn execute_verdict_trim(conn: &Connection, live_reclaimable: u64, needed_from_rows: u64) -> usize {
@@ -333,59 +319,6 @@ fn proportional_bytes(total_bytes: u64, part_weight: u64, total_weight: u64) -> 
     }
     u64::try_from((u128::from(total_bytes) * u128::from(part_weight)) / u128::from(total_weight))
         .unwrap_or(u64::MAX)
-}
-
-fn open_sqlite(db_path: &Path, flags: OpenFlags) -> rusqlite::Result<Connection> {
-    let conn = Connection::open_with_flags(db_path, flags | OpenFlags::SQLITE_OPEN_NOFOLLOW)?;
-    conn.busy_timeout(SQLITE_BUSY_WAIT)?;
-    Ok(conn)
-}
-
-fn open_sqlite_readonly(db_path: &Path, wal_bytes: u64) -> rusqlite::Result<Connection> {
-    if wal_bytes == 0
-        && let Some(uri) = immutable_sqlite_uri(db_path)
-        && let Ok(conn) = Connection::open_with_flags(
-            uri,
-            OpenFlags::SQLITE_OPEN_READ_ONLY
-                | OpenFlags::SQLITE_OPEN_URI
-                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
-        )
-    {
-        return Ok(conn);
-    }
-    open_sqlite(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-}
-
-fn immutable_sqlite_uri(db_path: &Path) -> Option<String> {
-    let absolute = std::path::absolute(db_path).ok()?;
-    let mut url = url::Url::from_file_path(&absolute).ok()?;
-    url.query_pairs_mut().append_pair("immutable", "1");
-    Some(url.into())
-}
-
-fn should_vacuum(conn: &Connection) -> bool {
-    should_vacuum_counts(pragma_u64(conn, "freelist_count"), pragma_u64(conn, "page_count"))
-}
-
-fn should_vacuum_counts(freelist: u64, pages: u64) -> bool {
-    freelist >= 16 && freelist.saturating_mul(4) >= pages
-}
-
-fn freelist_bytes(conn: &Connection) -> u64 {
-    let freelist = pragma_u64(conn, "freelist_count");
-    let page_size = pragma_u64(conn, "page_size").max(SQLITE_PAGE_BYTES);
-    freelist.saturating_mul(page_size)
-}
-
-fn pragma_u64(conn: &Connection, name: &str) -> u64 {
-    conn.pragma_query_value(None, name, |row| row.get::<_, i64>(0))
-        .ok()
-        .and_then(|val| u64::try_from(val).ok())
-        .unwrap_or(0)
-}
-
-fn compact_sqlite(conn: &Connection) {
-    let _ = conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
 }
 
 fn now_ms() -> i64 {

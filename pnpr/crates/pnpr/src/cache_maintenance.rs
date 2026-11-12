@@ -146,8 +146,12 @@ async fn sync_configured_cache_marker(
     effect: CacheGcEffect,
     dir_policy: MarkerDirPolicy,
 ) -> Result<()> {
-    if !config.has_configured_secret || !matches!(effect, CacheGcEffect::Apply) {
+    if !config.has_configured_secret {
         return Ok(());
+    }
+    match effect {
+        CacheGcEffect::DryRun => return Ok(()),
+        CacheGcEffect::Apply => {}
     }
     let cache_dir = &config.storage.cache_dir;
     match dir_policy {
@@ -204,8 +208,9 @@ async fn collect_cache_inner(
         sync_configured_cache_marker(config, options.effect, marker_dir_policy).await?;
     }
     let mut report = outcome.report;
-    if matches!(options.scope, CacheGcScope::OrphansOnly) {
-        return Ok(report);
+    match options.scope {
+        CacheGcScope::OrphansOnly => return Ok(report),
+        CacheGcScope::Full => {}
     }
     let staging =
         sweep_staging_cache(cache_dir, archive_staging_max_age(config), options.effect).await;

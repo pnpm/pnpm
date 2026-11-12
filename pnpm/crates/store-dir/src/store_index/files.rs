@@ -18,6 +18,10 @@ use std::{
     sync::Arc,
 };
 
+mod anchored_ops;
+
+use anchored_ops::AnchoredFilesRoot;
+
 /// Directory under the store root that holds a per-package-file index. Its
 /// presence is what selects this backend: every process opening the store
 /// sees the same layout, whatever its own configuration says.
@@ -39,7 +43,7 @@ const KEY_LEN_SIZE: usize = size_of::<u32>();
 #[derive(Clone)]
 pub(super) struct FilesIndex {
     dir: PathBuf,
-    anchor: Option<Arc<pnpm_fs::OpenDir>>,
+    anchor: Option<AnchoredFilesRoot>,
 }
 
 impl FilesIndex {
@@ -51,8 +55,8 @@ impl FilesIndex {
             .then_some(FilesIndex { dir, anchor: None })
     }
 
-    pub(super) fn anchored(dir: PathBuf, anchor: Arc<pnpm_fs::OpenDir>) -> FilesIndex {
-        FilesIndex { dir, anchor: Some(anchor) }
+    pub(super) fn anchored(dir: PathBuf, store_root: Arc<pnpm_fs::OpenDir>) -> FilesIndex {
+        FilesIndex { dir, anchor: Some(AnchoredFilesRoot { store_root, subdir: INDEX_DIR }) }
     }
 
     /// Switch the store at `store_root` to this backend.
@@ -65,22 +69,36 @@ impl FilesIndex {
     /// The aliases of this index's rows, kept in a sibling directory so a
     /// scan of the rows never reads one.
     pub(super) fn aliases(&self) -> FilesIndex {
-        FilesIndex { dir: self.dir.with_file_name(ALIAS_DIR), anchor: self.anchor.clone() }
+        FilesIndex {
+            dir: self.dir.with_file_name(ALIAS_DIR),
+            anchor: self.anchor
+                .as_ref()
+                .map(|anchored| AnchoredFilesRoot {
+                    store_root: Arc::clone(&anchored.store_root),
+                    subdir: ALIAS_DIR,
+                }),
+        }
     }
 
     /// The file of `key`, sharded by the first byte of the key's SHA-256 like
     /// the content-addressed files are.
     fn entry_path(&self, key: &str) -> PathBuf {
-        let hex = format!("{:x}", Sha256::digest(key.as_bytes()));
+        let hex = key_hex(key);
         self.dir.join(&hex[..2]).join(&hex[2..])
+    }
+
+    fn read_key_bytes(&self, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        match &self.anchor {
+            Some(anchored) => anchored_ops::read_entry(anchored, &key_hex(key)),
+            None => read_entry_file(&self.entry_path(key)),
+        }
     }
 
     /// The value stored under `key`. An entry that fails to decode, or that
     /// belongs to another key, reads as missing, like an undecodable
     /// `SQLite` row.
     pub(super) fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
-        let path = self.entry_path(key);
-        let Some(bytes) = read_entry_file(&path)? else { return Ok(None) };
+        let Some(bytes) = self.read_key_bytes(key)? else { return Ok(None) };
         Ok(decode_entry(&bytes)
             .filter(|(entry_key, _)| *entry_key == key)
             .map(|(_, value)| value.to_vec()))
@@ -132,7 +150,7 @@ impl FilesIndex {
 
     /// Whether [`Self::get`] finds an entry for `key`.
     pub(super) fn contains(&self, key: &str) -> Result<bool, StoreIndexError> {
-        let Some(bytes) = read_entry_file(&self.entry_path(key))? else { return Ok(false) };
+        let Some(bytes) = self.read_key_bytes(key)? else { return Ok(false) };
         Ok(decode_entry(&bytes).is_some_and(|(entry_key, _)| entry_key == key))
     }
 
@@ -155,6 +173,9 @@ impl FilesIndex {
         &self,
         matches: impl Fn(&str) -> bool + Sync,
     ) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
+        if let Some(anchored) = &self.anchor {
+            return anchored_ops::collect_matching(anchored, matches);
+        }
         let mut found: Vec<(String, Vec<u8>)> = self
             .entry_paths()?
             .par_iter()
@@ -209,6 +230,9 @@ impl FilesIndex {
     }
 
     pub(super) fn remove(&self, key: &str) -> Result<(), StoreIndexError> {
+        if let Some(anchored) = &self.anchor {
+            return anchored_ops::remove_entry(anchored, &key_hex(key));
+        }
         let path = self.entry_path(key);
         match fs::symlink_metadata(&path) {
             Ok(meta) if !meta.file_type().is_file() => return Ok(()),
@@ -233,6 +257,9 @@ impl FilesIndex {
     where
         VisitError: From<StoreIndexError>,
     {
+        if let Some(anchored) = &self.anchor {
+            return anchored_ops::for_each_decoded(anchored, visit);
+        }
         for path in self.entry_paths()? {
             let Some(bytes) = read_entry_file(&path)? else { continue };
             if let Some((key, value)) = decode_entry(&bytes) {
@@ -255,6 +282,10 @@ impl FilesIndex {
         }
         Ok(paths)
     }
+}
+
+fn key_hex(key: &str) -> String {
+    format!("{:x}", Sha256::digest(key.as_bytes()))
 }
 
 fn is_regular_entry_file(path: &Path) -> bool {

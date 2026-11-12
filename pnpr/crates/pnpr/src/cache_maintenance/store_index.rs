@@ -24,16 +24,7 @@ pub(super) fn store_index_family_bytes(cache_dir: &Path) -> u64 {
     {
         return 0;
     }
-    STORE_INDEX_FAMILY
-        .iter()
-        .filter_map(|name| {
-            store_root
-                .child_file_stat(OsStr::new(name))
-                .ok()
-                .flatten()
-        })
-        .map(|stat| stat.len)
-        .sum()
+    sqlite_bytes_in(&store_root)
 }
 
 pub(super) async fn prune_store_index_digests(

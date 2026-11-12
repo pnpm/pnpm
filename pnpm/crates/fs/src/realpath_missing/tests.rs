@@ -82,3 +82,20 @@ fn resolve_path_with_symlinks_expands_link_before_parent_dot_dot() {
     );
     assert!(resolve_path_with_symlinks(std::path::Path::new("")).is_err());
 }
+
+#[cfg(unix)]
+#[test]
+fn resolve_path_with_symlinks_expands_dangling_links_and_rejects_loops() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp.path()).unwrap();
+    std::os::unix::fs::symlink(root.join("cache"), root.join("db-link")).unwrap();
+
+    assert_eq!(
+        resolve_path_with_symlinks(&root.join("db-link/metadata.sqlite")).unwrap(),
+        root.join("cache/metadata.sqlite"),
+    );
+
+    std::os::unix::fs::symlink(root.join("loop-b"), root.join("loop-a")).unwrap();
+    std::os::unix::fs::symlink(root.join("loop-a"), root.join("loop-b")).unwrap();
+    assert!(resolve_path_with_symlinks(&root.join("loop-a/child")).is_err());
+}

@@ -169,11 +169,12 @@ async fn verdict_db_trim_does_not_wipe_all_rows_under_concurrent_wal_reader_and_
         .unwrap();
     assert_eq!(initial_count, 40);
 
+    let shm_len = std::fs::metadata(&shm_path).unwrap().len();
     let _apply = collect_cache(
         &config,
         &CacheGcOptions {
             effect: CacheGcEffect::Apply,
-            max_size: Some(db_len - 1024),
+            max_size: Some(db_len + shm_len - 1024),
             max_age: None,
             scope: CacheGcScope::Full,
         },

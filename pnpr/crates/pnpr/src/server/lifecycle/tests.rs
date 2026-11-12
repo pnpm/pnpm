@@ -442,3 +442,35 @@ async fn concurrent_same_config_ephemeral_claims_both_succeed() {
     res_a.unwrap();
     res_b.unwrap();
 }
+
+#[tokio::test]
+async fn concurrent_same_config_claims_reject_dirty_cache_and_prepare_validates_paths() {
+    let tmp = TempDir::new().unwrap();
+    let dirty_cache = tmp.path().join("dirty-ephemeral-cache");
+    std::fs::create_dir_all(dirty_cache.join("~upstreams/stale")).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let mut cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    cfg.storage.cache_dir = dirty_cache.clone();
+
+    let claim_a = super::claim_ephemeral_cache_dir(&cfg);
+    let claim_b = super::claim_ephemeral_cache_dir(&cfg);
+    let (res_a, res_b) = tokio::join!(claim_a, claim_b);
+    assert!(res_a.is_err(), "first claimant must reject pre-existing cache entries");
+    assert!(res_b.is_err(), "second claimant must not accept a pending marker on dirty cache");
+    assert!(!dirty_cache.join(pnpr_config::CACHE_SECRET_MARKER).exists());
+
+    let shared_dir = tmp.path().join("shared-dir");
+    let hosted_entry = shared_dir.join("~hosted-entry/file.txt");
+    std::fs::create_dir_all(hosted_entry.parent().unwrap()).unwrap();
+    std::fs::write(&hosted_entry, b"precious").unwrap();
+
+    let mut invalid_cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    invalid_cfg.has_configured_secret = true;
+    invalid_cfg.storage.hosted_dir = shared_dir.clone();
+    invalid_cfg.storage.cache_dir = shared_dir;
+    assert!(super::prepare_storage(&invalid_cfg).await.is_err());
+    assert!(
+        hosted_entry.exists(),
+        "prepare_storage must validate cache paths before resetting cache layout",
+    );
+}

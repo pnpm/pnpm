@@ -104,17 +104,10 @@ impl OpenDir {
     pub fn entry_names(&self) -> io::Result<Vec<OsString>> {
         #[cfg(unix)]
         return unix::entry_names(self.handle.as_fd());
-        #[cfg(not(unix))]
-        {
-            let entries = match fs::read_dir(&self.path) {
-                Ok(entries) => entries,
-                Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-                Err(error) => return Err(error),
-            };
-            entries
-                .map(|entry| entry.map(|entry| entry.file_name()))
-                .collect()
-        }
+        #[cfg(windows)]
+        return read_dir_entry_names(self.pinned.path());
+        #[cfg(not(any(unix, windows)))]
+        return read_dir_entry_names(&self.path);
     }
 
     /// The path the directory was opened at.
@@ -140,7 +133,15 @@ impl OpenDir {
         Ok(same.then_some(canonical))
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    pub fn canonical_path(&self) -> io::Result<Option<PathBuf>> {
+        let Some(canonical) = canonicalize(&self.path)? else {
+            return Ok(None);
+        };
+        Ok((canonical == self.pinned.path() && canonical.is_dir()).then_some(canonical))
+    }
+
+    #[cfg(not(any(unix, windows)))]
     pub fn canonical_path(&self) -> io::Result<Option<PathBuf>> {
         Ok(canonicalize(&self.path)?.filter(|canonical| canonical.is_dir()))
     }
@@ -226,7 +227,7 @@ impl OpenDir {
 
     #[cfg(windows)]
     pub fn child_file_stat(&self, name: &OsStr) -> io::Result<Option<ChildFileStat>> {
-        windows::stat_child_file(&self.path, name)
+        windows::stat_child_file(self.pinned.path(), name)
     }
 
     #[cfg(not(any(unix, windows)))]
@@ -244,6 +245,31 @@ impl OpenDir {
         Ok(Some(ChildFileStat { len: metadata.len(), modified, accessed }))
     }
 
+    /// Read the regular file `name` directly inside this directory without
+    /// following symbolic links. Returns `None` for directories, symbolic
+    /// links, special files, and missing entries.
+    #[cfg(unix)]
+    pub fn read_child_file(&self, name: &OsStr) -> io::Result<Option<Vec<u8>>> {
+        unix::read_file_at(self.handle.as_fd(), &c_name(name)?)
+    }
+
+    #[cfg(windows)]
+    pub fn read_child_file(&self, name: &OsStr) -> io::Result<Option<Vec<u8>>> {
+        windows::read_child_file(&self.pinned, name)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    pub fn read_child_file(&self, name: &OsStr) -> io::Result<Option<Vec<u8>>> {
+        if self.child_file_stat(name)?.is_none() {
+            return Ok(None);
+        }
+        match fs::read(self.path.join(name)) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Whether `name` directly inside this directory is a symbolic link or
     /// reparse point.
     #[cfg(unix)]
@@ -253,7 +279,7 @@ impl OpenDir {
 
     #[cfg(windows)]
     pub fn has_symlink_child(&self, name: &OsStr) -> io::Result<bool> {
-        windows::is_reparse_child(&self.path, name)
+        windows::is_reparse_child(self.pinned.path(), name)
     }
 
     #[cfg(not(any(unix, windows)))]
@@ -273,7 +299,12 @@ impl OpenDir {
         unix::unlink_file_at(self.handle.as_fd(), &c_name(name)?)
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    pub fn remove_child_file(&self, name: &OsStr) -> io::Result<bool> {
+        windows::remove_child_file(&self.pinned, name)
+    }
+
+    #[cfg(not(any(unix, windows)))]
     pub fn remove_child_file(&self, name: &OsStr) -> io::Result<bool> {
         if self.child_file_stat(name)?.is_none() {
             return Ok(false);
@@ -295,18 +326,7 @@ impl OpenDir {
 
     #[cfg(windows)]
     pub fn remove_empty_child_dir(&self, name: &OsStr) -> io::Result<bool> {
-        if !windows::is_real_child_dir(&self.path, name)? {
-            return Ok(false);
-        }
-        match fs::remove_dir(self.path.join(name)) {
-            Ok(()) => Ok(true),
-            Err(error)
-                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
-            {
-                Ok(false)
-            }
-            Err(error) => Err(error),
-        }
+        windows::remove_empty_child_dir(&self.pinned, name)
     }
 
     #[cfg(not(any(unix, windows)))]
@@ -325,6 +345,18 @@ impl OpenDir {
             Err(error) => Err(error),
         }
     }
+}
+
+#[cfg(not(unix))]
+fn read_dir_entry_names(path: &Path) -> io::Result<Vec<OsString>> {
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    entries
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect()
 }
 
 /// The canonical form of `path`, or `None` when nothing is there.
