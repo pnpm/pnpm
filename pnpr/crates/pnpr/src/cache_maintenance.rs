@@ -129,31 +129,96 @@ enum MarkerDirPolicy {
     ExistingOnly,
 }
 
-async fn should_prune_private_resolver_scopes(
-    cache_dir: &Path,
-    config: &Config,
-) -> PrivateScopePolicy {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CacheMarkerStatus {
+    Matches,
+    MismatchOrMissing,
+    CacheDirMissing,
+    ReadFailed,
+}
+
+async fn inspect_cache_secret_marker(cache_dir: &Path, config: &Config) -> CacheMarkerStatus {
     let fingerprint = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
     let root = cache_dir.to_path_buf();
-    let matches = tokio::task::spawn_blocking(move || {
-        let dir = pnpm_fs::OpenDir::open(&root).ok()?;
-        let marker = std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER);
-        if dir.has_symlink_child(marker).ok()? {
-            return None;
+    let warn_root = cache_dir.to_path_buf();
+    match tokio::task::spawn_blocking(move || inspect_cache_secret_marker_sync(&root, &fingerprint))
+        .await
+    {
+        Ok(status) => status,
+        Err(err) => {
+            tracing::warn!(
+                path = %warn_root.display(),
+                error = %err,
+                "cache secret marker check panicked; keeping private scopes",
+            );
+            CacheMarkerStatus::ReadFailed
         }
-        let bytes = dir
-            .read_child_file_bounded(
-                marker,
-                crate::config_validation::MAX_CACHE_SECRET_MARKER_BYTES,
-            )
-            .ok()??;
-        Some(std::str::from_utf8(&bytes).ok()?.trim() == fingerprint)
-    })
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or(false);
-    if matches { PrivateScopePolicy::Keep } else { PrivateScopePolicy::Prune }
+    }
+}
+
+fn inspect_cache_secret_marker_sync(cache_dir: &Path, fingerprint: &str) -> CacheMarkerStatus {
+    let dir = match pnpm_fs::OpenDir::open(cache_dir) {
+        Ok(dir) => dir,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return CacheMarkerStatus::CacheDirMissing;
+        }
+        Err(err) => {
+            log_marker_read_failure(cache_dir, &err);
+            return CacheMarkerStatus::ReadFailed;
+        }
+    };
+    let marker = std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER);
+    match dir.has_symlink_child(marker) {
+        Ok(true) => return CacheMarkerStatus::MismatchOrMissing,
+        Ok(false) => {}
+        Err(err) => {
+            log_marker_read_failure(cache_dir, &err);
+            return CacheMarkerStatus::ReadFailed;
+        }
+    }
+    let max_bytes = crate::config_validation::MAX_CACHE_SECRET_MARKER_BYTES;
+    match dir.read_child_file_bounded(marker, max_bytes) {
+        Ok(Some(bytes)) => {
+            if std::str::from_utf8(&bytes).is_ok_and(|raw| raw.trim() == fingerprint) {
+                CacheMarkerStatus::Matches
+            } else {
+                CacheMarkerStatus::MismatchOrMissing
+            }
+        }
+        Ok(None) => CacheMarkerStatus::MismatchOrMissing,
+        Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+            CacheMarkerStatus::MismatchOrMissing
+        }
+        Err(err) => {
+            log_marker_read_failure(cache_dir, &err);
+            CacheMarkerStatus::ReadFailed
+        }
+    }
+}
+
+fn log_marker_read_failure(cache_dir: &Path, err: &std::io::Error) {
+    tracing::warn!(
+        path = %cache_dir.display(),
+        error = %err,
+        "failed to read cache secret marker; keeping private scopes",
+    );
+}
+
+fn private_scope_policy_for_marker(status: CacheMarkerStatus) -> PrivateScopePolicy {
+    match status {
+        CacheMarkerStatus::MismatchOrMissing => PrivateScopePolicy::Prune,
+        CacheMarkerStatus::Matches
+        | CacheMarkerStatus::CacheDirMissing
+        | CacheMarkerStatus::ReadFailed => PrivateScopePolicy::Keep,
+    }
+}
+
+fn should_write_configured_marker(status: CacheMarkerStatus, clean: bool) -> bool {
+    clean
+        && match status {
+            CacheMarkerStatus::MismatchOrMissing | CacheMarkerStatus::CacheDirMissing => true,
+            CacheMarkerStatus::Matches | CacheMarkerStatus::ReadFailed => false,
+        }
 }
 
 async fn sync_configured_cache_marker(
@@ -194,14 +259,15 @@ async fn sync_configured_cache_marker(
 pub(crate) async fn sync_cache_secret_on_startup(config: &Config) -> Result<()> {
     crate::config_validation::validate_cache_paths(config)?;
     let cache_dir = &config.storage.cache_dir;
-    let clean = match should_prune_private_resolver_scopes(cache_dir, config).await {
+    let marker_status = inspect_cache_secret_marker(cache_dir, config).await;
+    let clean = match private_scope_policy_for_marker(marker_status) {
         PrivateScopePolicy::Prune => {
             let active = active_cache_namespaces(config);
             prune_private_resolver_scopes_only(cache_dir, &active, CacheGcEffect::Apply).await?
         }
         PrivateScopePolicy::Keep => true,
     };
-    if clean {
+    if should_write_configured_marker(marker_status, clean) {
         sync_configured_cache_marker(
             config,
             CacheGcEffect::Apply,
@@ -225,10 +291,11 @@ async fn collect_cache_inner(
     crate::config_validation::validate_cache_paths(config)?;
     let cache_dir = &config.storage.cache_dir;
     let active = active_cache_namespaces(config);
-    let private_scopes = should_prune_private_resolver_scopes(cache_dir, config).await;
+    let marker_status = inspect_cache_secret_marker(cache_dir, config).await;
+    let private_scopes = private_scope_policy_for_marker(marker_status);
     let outcome =
         prune_orphaned_namespaces(cache_dir, &active, private_scopes, options.effect).await?;
-    if outcome.private_scopes_clean {
+    if should_write_configured_marker(marker_status, outcome.private_scopes_clean) {
         sync_configured_cache_marker(config, options.effect, marker_dir_policy).await?;
     }
     let mut report = outcome.report;

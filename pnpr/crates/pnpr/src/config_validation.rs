@@ -138,14 +138,12 @@ fn normalize_config_path(path: &Path) -> Result<PathBuf> {
 }
 
 pub(crate) fn is_ignorable_cache_entry(name: &OsStr, check: CacheDirCheck) -> bool {
-    if name == "lost+found" {
+    if name == "lost+found" || is_cache_secret_temp(name) {
         return true;
     }
     match check {
         CacheDirCheck::Unmarked => false,
-        CacheDirCheck::ClaimedWithMarker => {
-            name == CACHE_SECRET_MARKER || is_cache_secret_temp(name)
-        }
+        CacheDirCheck::ClaimedWithMarker => name == CACHE_SECRET_MARKER,
     }
 }
 

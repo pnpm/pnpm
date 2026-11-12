@@ -9,7 +9,7 @@ use super::{
         VerdictExpiry, VerdictTrimParams, expire_verdict_rows, resolver_sqlite_bytes,
         trim_verdict_db_to_fit,
     },
-    store_index::prune_store_index_digests,
+    store_index::evict_cas_entries,
 };
 use pnpm_fs::OpenDir;
 use std::sync::Arc;
@@ -241,45 +241,12 @@ async fn apply_pending_cas_removals(
     state: &mut EvictionState,
     policy: SkippedCasPolicy,
 ) -> u64 {
-    let digests: HashSet<String> = pending
-        .iter()
-        .map(|(_, digest)| digest.clone())
-        .collect();
-    match prune_store_index_digests(&state.root, digests).await {
-        Ok(reclaimed) => state.report.bytes_reclaimed += reclaimed,
-        Err(err) => {
-            tracing::warn!(error = %err, "pruning resolver store index failed; retaining CAS files");
-            return retain_all_pending_cas(pending, state, policy);
-        }
-    }
-    let targets: Vec<CachedFileRemoval> = pending
-        .iter()
-        .map(|(file, _)| CachedFileRemoval {
-            path: file.path.clone(),
-            max_effective_time: Some(file.effective_time),
-        })
-        .collect();
-    let outcomes = remove_cached_files(&state.root, cache_dir, targets).await;
-    let mut skipped_bytes = 0u64;
-    for ((file, _), removed) in pending.into_iter().zip(outcomes) {
-        if removed {
-            state.report.files_evicted += 1;
-            state.report.bytes_reclaimed += file.size;
-        } else {
-            skipped_bytes += retain_cas_entry(file, state, policy);
-        }
-    }
-    skipped_bytes
-}
-
-fn retain_all_pending_cas(
-    pending: Vec<(CachedFile, String)>,
-    state: &mut EvictionState,
-    policy: SkippedCasPolicy,
-) -> u64 {
-    pending
+    let outcome = evict_cas_entries(&state.root, cache_dir, pending).await;
+    state.report.files_evicted += outcome.files_evicted;
+    state.report.bytes_reclaimed += outcome.bytes_reclaimed;
+    outcome.skipped
         .into_iter()
-        .map(|(file, _)| retain_cas_entry(file, state, policy))
+        .map(|file| retain_cas_entry(file, state, policy))
         .sum()
 }
 

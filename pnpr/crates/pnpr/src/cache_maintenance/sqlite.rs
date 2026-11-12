@@ -2,7 +2,7 @@ mod conn;
 
 use self::conn::{
     AnchoredVerdictDb, SQLITE_PAGE_BYTES, compact_sqlite, freelist_bytes, open_sqlite,
-    open_sqlite_readonly, open_verdict_dir, page_size_bytes, pragma_u64, should_vacuum,
+    open_verdict_dir, open_verdict_readonly, page_size_bytes, pragma_u64, should_vacuum,
     should_vacuum_counts, verdict_db_and_wal_bytes, verdict_family_bytes,
     verdict_family_bytes_in_cache, verdict_wal_bytes,
 };
@@ -93,8 +93,7 @@ fn read_page_metrics(
 
 fn estimate_expired_verdict_bytes(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -> (u64, u64) {
     let db_and_wal = verdict_db_and_wal_bytes(&verdict.dir);
-    let wal_bytes = verdict_wal_bytes(&verdict.dir);
-    let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
+    let Ok(conn) = open_verdict_readonly(verdict) else {
         return (0, 0);
     };
     let metrics = read_page_metrics(&conn, db_and_wal, 0);
@@ -182,8 +181,7 @@ fn trim_verdict_db_sync(cache_root: &OpenDir, params: &VerdictTrimParams) -> u64
 
 fn estimate_oldest_verdict_bytes(verdict: &AnchoredVerdictDb, params: &VerdictTrimParams) -> u64 {
     let db_and_wal = verdict_db_and_wal_bytes(&verdict.dir);
-    let wal_bytes = verdict_wal_bytes(&verdict.dir);
-    let Ok(conn) = open_sqlite_readonly(&verdict.db_path, wal_bytes) else {
+    let Ok(conn) = open_verdict_readonly(verdict) else {
         return 0;
     };
     let metrics = read_page_metrics(&conn, db_and_wal, params.deferred_free_bytes);

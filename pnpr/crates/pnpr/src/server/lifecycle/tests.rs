@@ -509,14 +509,29 @@ async fn serving_startup_defers_pending_claim_while_rejecting_dirty_or_oversized
     );
     crate::config_validation::validate_serving_startup_config(&mut cfg).unwrap();
 
-    let marker_writer = marker.clone();
     let fingerprint = pnpr_config::cache_secret_fingerprint(&cfg.cache_secret);
-    let finalize = tokio::spawn(async move {
-        tokio::task::yield_now().await;
-        std::fs::write(&marker_writer, fingerprint).unwrap();
-    });
-    super::claim_ephemeral_cache_dir(&cfg).await.unwrap();
-    finalize.await.unwrap();
+    let claim_cfg = cfg.clone();
+    let claim_task =
+        tokio::spawn(async move { super::claim_ephemeral_cache_dir(&claim_cfg).await });
+    tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    assert!(!claim_task.is_finished(), "claimant must wait while marker is still pending");
+    pnpm_fs::OpenDir::open(&cache_dir)
+        .unwrap()
+        .write_child_file(
+            std::ffi::OsStr::new(pnpr_config::CACHE_SECRET_MARKER),
+            fingerprint.as_bytes(),
+        )
+        .unwrap();
+    claim_task.await.unwrap().unwrap();
+
+    let orphan_tmp_cache = tmp.path().join("unmarked-orphan-tmp-cache");
+    std::fs::create_dir_all(&orphan_tmp_cache).unwrap();
+    std::fs::write(orphan_tmp_cache.join(".cache-secret.tmp.42.0.0123456789abcdef"), b"pending")
+        .unwrap();
+    let mut orphan_cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    orphan_cfg.storage.cache_dir = orphan_tmp_cache;
+    crate::config_validation::validate_startup_config(&mut orphan_cfg).unwrap();
+    super::claim_ephemeral_cache_dir(&orphan_cfg).await.unwrap();
 
     let dirty_pending_cache = tmp.path().join("dirty-pending-cache");
     std::fs::create_dir_all(dirty_pending_cache.join("~upstreams/npm")).unwrap();

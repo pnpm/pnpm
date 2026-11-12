@@ -666,3 +666,95 @@ async fn eviction_preserves_files_index_dir_and_skips_unreadable_subdirs() {
         "empty resolver-store/<version>/index must stay intact so FilesIndex backend is preserved",
     );
 }
+
+fn backdate_shard_files(index_dir: &std::path::Path, age: Duration) {
+    let past = SystemTime::now() - age;
+    let times = std::fs::FileTimes::new().set_accessed(past).set_modified(past);
+    for shard in std::fs::read_dir(index_dir).unwrap() {
+        let shard_path = shard.unwrap().path();
+        if !shard_path.is_dir() {
+            continue;
+        }
+        backdate_files_in_dir(&shard_path, times);
+    }
+}
+
+fn backdate_files_in_dir(dir: &std::path::Path, times: std::fs::FileTimes) {
+    for row in std::fs::read_dir(dir).unwrap() {
+        let row_path = row.unwrap().path();
+        if !row_path.is_file() {
+            continue;
+        }
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(row_path)
+            .unwrap()
+            .set_times(times)
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn files_index_rows_stay_paired_with_cas() {
+    use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
+    use std::collections::HashMap;
+
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let store = StoreDir::new(cache_dir.join("resolver-store").join(pnpm_store_dir::STORE_VERSION));
+    std::fs::create_dir_all(store.root()).unwrap();
+    StoreIndex::apply_format(store.root(), StoreIndexFormat::Files).unwrap();
+    let cas_file = store.root().join("files/cd/0123456789");
+    create_file_with_age(&cas_file, b"export default 42;\n", Duration::from_secs(0));
+    let mut files = HashMap::new();
+    files.insert(
+        "index.js".to_string(),
+        CafsFileInfo {
+            digest: "cd0123456789".to_string(),
+            mode: 0o644,
+            size: 19,
+            checked_at: None,
+        },
+    );
+    let pkg_key = "sha512-files\tfiles-pkg@1.0.0";
+    let index = StoreIndex::open_in(&store).unwrap();
+    index
+        .set(
+            pkg_key,
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: None,
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files,
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+                tar_integrity: None,
+            },
+        )
+        .unwrap();
+    drop(index);
+
+    backdate_shard_files(&store.root().join("index"), Duration::from_hours(48));
+    let ttl_report = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: None,
+            max_age: Some(Duration::from_hours(1)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(ttl_report.files_evicted, 0);
+    assert!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .get(pkg_key)
+            .unwrap()
+            .is_some(),
+    );
+}

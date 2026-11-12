@@ -482,3 +482,43 @@ async fn failed_private_scope_cleanup_preserves_old_secret_marker_for_retry() {
         pnpr_config::cache_secret_fingerprint(&new_config.cache_secret),
     );
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn unreadable_marker_keeps_private_resolver_scopes() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    let expected_fp = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
+    std::fs::write(&marker, &expected_fp).unwrap();
+    let private_file = cache_dir.join("resolver-cache/v12/metadata-private/live-scope/pkg.json");
+    std::fs::create_dir_all(private_file.parent().unwrap()).unwrap();
+    std::fs::write(&private_file, b"{}").unwrap();
+
+    std::fs::set_permissions(&marker, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let can_still_read = std::fs::read(&marker).is_ok();
+    let _ = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: None,
+            max_age: None,
+            scope: CacheGcScope::OrphansOnly,
+        },
+    )
+    .await
+    .unwrap();
+    std::fs::set_permissions(&marker, std::fs::Permissions::from_mode(0o644)).unwrap();
+    if can_still_read {
+        return;
+    }
+    assert!(
+        private_file.exists(),
+        "transient marker read error must not wipe live private resolver scopes",
+    );
+    assert_eq!(std::fs::read_to_string(&marker).unwrap().trim(), expected_fp);
+}

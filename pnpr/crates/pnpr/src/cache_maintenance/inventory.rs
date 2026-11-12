@@ -1,4 +1,7 @@
-pub(super) use self::cleanup::{CachedFileRemoval, prune_empty_cache_dirs, remove_cached_files};
+pub(super) use self::cleanup::{
+    CachedFileRemoval, check_unmodified_cached_files_sync, prune_empty_cache_dirs,
+    remove_cached_files, remove_cached_files_sync,
+};
 
 mod cleanup;
 use super::{CachedFile, HashSet, Path, PathBuf, Result, SystemTime, stat_effective_time};
@@ -262,6 +265,9 @@ pub(super) fn is_managed_sqlite_file(cache_dir: &Path, path: &Path) -> bool {
     match parts.as_slice() {
         ["resolver-cache", file] => is_sqlite_family(file, "lockfile-verdicts.sqlite"),
         ["resolver-store", STORE_VERSION, file] => is_sqlite_family(file, "index.db"),
+        ["resolver-store", STORE_VERSION, "index" | "index-aliases", _, file] => {
+            !file.starts_with(".tmp")
+        }
         _ => false,
     }
 }

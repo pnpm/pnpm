@@ -8,8 +8,9 @@ pub(super) const SQLITE_PAGE_BYTES: u64 = 4096;
 const VERDICT_DIR: &str = "resolver-cache";
 const VERDICT_DB: &str = "lockfile-verdicts.sqlite";
 const VERDICT_WAL: &str = "lockfile-verdicts.sqlite-wal";
+const VERDICT_SHM: &str = "lockfile-verdicts.sqlite-shm";
 const VERDICT_FAMILY: [&str; 4] =
-    [VERDICT_DB, VERDICT_WAL, "lockfile-verdicts.sqlite-shm", "lockfile-verdicts.sqlite-journal"];
+    [VERDICT_DB, VERDICT_WAL, VERDICT_SHM, "lockfile-verdicts.sqlite-journal"];
 
 pub(super) struct AnchoredVerdictDb {
     pub(super) dir: OpenDir,
@@ -88,26 +89,21 @@ pub(super) fn open_sqlite(db_path: &Path, flags: OpenFlags) -> rusqlite::Result<
     Ok(conn)
 }
 
-pub(super) fn open_sqlite_readonly(db_path: &Path, wal_bytes: u64) -> rusqlite::Result<Connection> {
+pub(super) fn open_verdict_readonly(verdict: &AnchoredVerdictDb) -> rusqlite::Result<Connection> {
+    let wal_bytes = verdict_wal_bytes(&verdict.dir);
+    let has_shm = verdict.dir
+        .child_file_stat(OsStr::new(VERDICT_SHM))
+        .ok()
+        .flatten()
+        .is_some();
     if wal_bytes == 0
-        && let Some(uri) = immutable_sqlite_uri(db_path)
-        && let Ok(conn) = Connection::open_with_flags(
-            uri,
-            OpenFlags::SQLITE_OPEN_READ_ONLY
-                | OpenFlags::SQLITE_OPEN_URI
-                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
-        )
+        && !has_shm
+        && let Ok(conn) = open_sqlite(&verdict.db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
     {
+        conn.pragma_update(None, "query_only", true)?;
         return Ok(conn);
     }
-    open_sqlite(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-}
-
-fn immutable_sqlite_uri(db_path: &Path) -> Option<String> {
-    let absolute = std::path::absolute(db_path).ok()?;
-    let mut url = url::Url::from_file_path(&absolute).ok()?;
-    url.query_pairs_mut().append_pair("immutable", "1");
-    Some(url.into())
+    open_sqlite(&verdict.db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
 }
 
 pub(super) fn should_vacuum(conn: &Connection) -> bool {

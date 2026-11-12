@@ -39,10 +39,27 @@ pub(in crate::cache_maintenance) async fn remove_cached_files(
     .unwrap_or_else(|_| vec![false; count])
 }
 
-fn remove_cached_files_sync(
+pub(in crate::cache_maintenance) fn check_unmodified_cached_files_sync(
     root: &OpenDir,
     cache_dir: &Path,
     targets: &[CachedFileRemoval],
+) -> Vec<bool> {
+    map_parent_grouped_targets(root, cache_dir, targets, is_unmodified_regular_child)
+}
+
+pub(in crate::cache_maintenance) fn remove_cached_files_sync(
+    root: &OpenDir,
+    cache_dir: &Path,
+    targets: &[CachedFileRemoval],
+) -> Vec<bool> {
+    map_parent_grouped_targets(root, cache_dir, targets, unlink_if_unmodified)
+}
+
+fn map_parent_grouped_targets(
+    root: &OpenDir,
+    cache_dir: &Path,
+    targets: &[CachedFileRemoval],
+    mut apply: impl FnMut(&OpenDir, &OsStr, Option<SystemTime>) -> bool,
 ) -> Vec<bool> {
     let mut results = vec![false; targets.len()];
     let mut grouped = collect_parent_grouped_removals(cache_dir, targets);
@@ -58,7 +75,7 @@ fn remove_cached_files_sync(
             current_parent = Some((item.parent_rel, opened));
         }
         if let Some((_, Some(parent))) = &current_parent {
-            results[item.index] = unlink_if_unmodified(parent, item.leaf, item.limit_time);
+            results[item.index] = apply(parent, item.leaf, item.limit_time);
         }
     }
     results
@@ -97,18 +114,24 @@ fn open_parent_dir_logged(root: &OpenDir, parent_rel: &Path) -> Option<OpenDir> 
     }
 }
 
+fn is_unmodified_regular_child(
+    parent: &OpenDir,
+    leaf: &OsStr,
+    limit_time: Option<SystemTime>,
+) -> bool {
+    let Some(stat) = parent
+        .child_file_stat(leaf)
+        .ok()
+        .flatten()
+    else {
+        return false;
+    };
+    limit_time.is_none_or(|limit| stat.modified.max(stat.accessed) <= limit)
+}
+
 fn unlink_if_unmodified(parent: &OpenDir, leaf: &OsStr, limit_time: Option<SystemTime>) -> bool {
-    if let Some(limit) = limit_time {
-        let Some(stat) = parent
-            .child_file_stat(leaf)
-            .ok()
-            .flatten()
-        else {
-            return false;
-        };
-        if stat.modified.max(stat.accessed) > limit {
-            return false;
-        }
+    if limit_time.is_some() && !is_unmodified_regular_child(parent, leaf, limit_time) {
+        return false;
     }
     match parent.remove_child_file(leaf) {
         Ok(removed) => removed,
@@ -197,7 +220,7 @@ fn is_protected_cache_dir(cache_dir: &Path, dir: &Path) -> bool {
         parts.as_slice(),
         ["resolver-cache" | "resolver-store"]
             | ["resolver-store", STORE_VERSION]
-            | ["resolver-store", STORE_VERSION, "files" | "index"]
-            | ["resolver-store", STORE_VERSION, "files" | "index", _],
+            | ["resolver-store", STORE_VERSION, "files" | "index" | "index-aliases"]
+            | ["resolver-store", STORE_VERSION, "files" | "index" | "index-aliases", _],
     )
 }
