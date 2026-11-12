@@ -14,8 +14,8 @@ use super::{
     TokenBackend, UNIX_EPOCH, async_trait, validation::token_timestamp_to_sql,
 };
 use sqlite::{
-    TokenDatabase, create_private_file, delete_expired_tokens, delete_token, delete_user_tokens,
-    insert_token, lock_database, sync_from_database,
+    TokenDatabase, delete_expired_tokens, delete_token, delete_user_tokens, insert_token,
+    lock_database, sync_from_database,
 };
 
 /// SHA-256-hashed (`token_hash` → `user_id`) map, optionally backed by
@@ -134,7 +134,7 @@ impl TokenStore {
         }
         #[cfg(unix)]
         if !path.exists() {
-            let _ = create_private_file(&path);
+            let _ = sqlite::create_private_file(&path);
         }
         let (database, tokens) = TokenDatabase::open(&path)?;
         Ok(Self {
@@ -175,9 +175,10 @@ impl TokenStore {
         let Ok(database) = self.database.try_lock() else {
             return Ok(false);
         };
-        database
-            .as_ref()
-            .map_or(Ok(true), |database| Ok(!database.has_changed()?))
+        match database.as_ref() {
+            Some(database) => Ok(!database.has_changed()?),
+            None => Ok(true),
+        }
     }
 }
 

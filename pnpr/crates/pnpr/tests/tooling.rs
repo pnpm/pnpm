@@ -178,6 +178,31 @@ async fn test_export_storage() {
 }
 
 #[tokio::test]
+async fn export_with_auth_copies_tokens_but_never_over_the_live_database() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_test_config(dir.path());
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let tokens_path = config.identity.auth.tokens.file.clone().unwrap();
+    let store = pnpr_auth::TokenStore::open(tokens_path.clone()).unwrap();
+    let raw = pnpr_auth::TokenBackend::issue(&store, "alice").await.unwrap();
+
+    let export_out = dir.path().join("exported");
+    export_storage(&config, &export_out, true).await.unwrap();
+    let exported = pnpr_auth::TokenStore::open(export_out.join("tokens.db")).unwrap();
+    assert_eq!(
+        pnpr_auth::TokenBackend::lookup(&exported, &raw).await.unwrap().as_deref(),
+        Some("alice"),
+    );
+
+    let err = export_storage(&config, tokens_path.parent().unwrap(), true).await.unwrap_err();
+    assert!(err.to_string().contains("would replace the token database"), "{err}");
+    assert_eq!(
+        pnpr_auth::TokenBackend::lookup(&store, &raw).await.unwrap().as_deref(),
+        Some("alice"),
+    );
+}
+
+#[tokio::test]
 async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());

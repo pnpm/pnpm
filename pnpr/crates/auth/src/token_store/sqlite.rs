@@ -78,33 +78,21 @@ pub(super) fn sync_from_database(
 /// including commits still in its write-ahead log. The copy is readable only
 /// by its owner.
 pub fn export_token_database(source: &Path, dest: &Path) -> Result<()> {
-    let tmp = crate::htpasswd::unique_tmp_path(dest);
-    create_private_file(&tmp)?;
-    let exported = vacuum_into(source, &tmp).and_then(|()| Ok(std::fs::rename(&tmp, dest)?));
-    if exported.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    exported
-}
-
-fn vacuum_into(source: &Path, dest: &Path) -> Result<()> {
-    let dest = dest
-        .to_str()
-        .ok_or_else(|| RegistryError::Internal {
-            reason: format!("export path {} is not valid UTF-8", dest.display()),
-        })?;
     let connection =
         Connection::open_with_flags(source, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
-    connection.execute("VACUUM INTO ?1", [dest])?;
+    let snapshot = connection.serialize(rusqlite::MAIN_DB)?;
+    crate::write_atomic(dest, &snapshot)?;
     Ok(())
 }
 
+#[cfg(unix)]
 pub(super) fn create_private_file(path: &Path) -> std::io::Result<()> {
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    options.open(path)?;
+    use std::os::unix::fs::OpenOptionsExt as _;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
     Ok(())
 }
 

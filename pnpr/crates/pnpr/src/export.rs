@@ -22,6 +22,9 @@ pub async fn export_storage(
     include_auth: bool,
 ) -> miette::Result<ExportReport> {
     fs::create_dir_all(out).await.into_diagnostic()?;
+    if include_auth {
+        refuse_live_token_database(config, out)?;
+    }
 
     let storage = open_hosted_storage(config).await?;
 
@@ -184,6 +187,30 @@ async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
             .into_diagnostic()?;
     }
     Ok(())
+}
+
+fn refuse_live_token_database(config: &Config, out: &Path) -> miette::Result<()> {
+    let Some(tokens) = config.identity.auth.tokens.file.as_deref() else {
+        return Ok(());
+    };
+    if !is_same_file(tokens, &out.join("tokens.db")) {
+        return Ok(());
+    }
+    let tokens = tokens.display();
+    Err(miette::miette!(
+        "the export would replace the token database {tokens}; choose another output directory",
+    ))
+}
+
+fn is_same_file(existing: &Path, candidate: &Path) -> bool {
+    let (Ok(existing), Some(name), Some(Ok(parent))) = (
+        std::fs::canonicalize(existing),
+        candidate.file_name(),
+        candidate.parent().map(std::fs::canonicalize),
+    ) else {
+        return false;
+    };
+    existing == parent.join(name)
 }
 
 fn safe_filename(name: &str) -> Option<&str> {
