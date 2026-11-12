@@ -4,14 +4,16 @@
 
 use super::context;
 use crate::{
-    parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names},
     peer_provider::peer_shadowed_dependency_names,
     resolve_dependency_tree::WorkspaceTreeCtx,
-    resolved_tree::ResolvedPackage,
+    resolved_tree::{PeerDep, PeerSet, ResolvedPackage},
 };
 use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::cell::{OnceCell, RefCell};
+use std::{
+    cell::{OnceCell, RefCell},
+    collections::BTreeMap,
+};
 
 /// The package's real name and installed version.
 pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, String) {
@@ -33,16 +35,8 @@ impl CandidatePeer {
         manifest: &serde_json::Value,
         auto_install_peers: bool,
     ) -> Vec<CandidatePeer> {
-        let fallback = fallback_children(Some(manifest), auto_install_peers);
-        declared_peer_dependencies(manifest)
-            .into_iter()
-            .map(|(name, peer)| CandidatePeer {
-                has_fallback_child: fallback.contains(name.as_str()),
-                name,
-                range: peer.version,
-                optional: peer.optional,
-            })
-            .collect()
+        let peers = candidate_peer_set(manifest, auto_install_peers);
+        candidate_peers(peers.declared(), Some(&peers))
     }
 }
 
@@ -158,28 +152,39 @@ fn lockfile_peers(metadata: &pnpm_lockfile::PackageMetadata) -> Vec<CandidatePee
 }
 
 fn peers_of(package: &ResolvedPackage, auto_install_peers: bool) -> Vec<CandidatePeer> {
-    let fallback =
-        fallback_children(package.result().package.manifest.as_deref(), auto_install_peers);
-    package.peer_set
-        .declared()
-        .iter()
-        .map(|(peer_name, peer)| CandidatePeer {
-            name: peer_name.clone(),
-            range: peer.version.clone(),
-            has_fallback_child: fallback.contains(peer_name.as_str()),
-            optional: peer.optional,
-        })
-        .collect()
+    if package.peer_set.declared().is_empty() {
+        return Vec::new();
+    }
+    let peers = package
+        .result()
+        .package
+        .manifest
+        .as_deref()
+        .map(|manifest| candidate_peer_set(manifest, auto_install_peers));
+    candidate_peers(package.peer_set.declared(), peers.as_ref())
 }
 
-fn fallback_children(
-    manifest: Option<&serde_json::Value>,
-    auto_install_peers: bool,
-) -> HashSet<&str> {
-    let Some(manifest) = manifest else { return HashSet::default() };
+fn candidate_peer_set(manifest: &serde_json::Value, auto_install_peers: bool) -> PeerSet {
     let shadowed: HashSet<_> =
         peer_shadowed_dependency_names(Some(manifest), |_| false, auto_install_peers).collect();
-    own_dependency_names(manifest, |name| shadowed.contains(name)).collect()
+    PeerSet::from_manifest(manifest, |name| shadowed.contains(name))
+}
+
+fn candidate_peers(
+    declared: &BTreeMap<String, PeerDep>,
+    classification: Option<&PeerSet>,
+) -> Vec<CandidatePeer> {
+    declared
+        .iter()
+        .map(|(name, peer)| CandidatePeer {
+            name: name.clone(),
+            range: peer.version.clone(),
+            optional: peer.optional,
+            has_fallback_child: classification.is_some_and(|peers| {
+                peers.declared().contains_key(name) && !peers.taken().contains_key(name)
+            }),
+        })
+        .collect()
 }
 
 /// Picks the `(name, version)` pairs to hoist for the missing peers each
@@ -265,3 +270,6 @@ fn peers_accept_versions<'a>(
                 })
         })
 }
+
+#[cfg(test)]
+mod tests;
