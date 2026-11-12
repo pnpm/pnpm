@@ -354,22 +354,21 @@ async fn run_add_user_command(
     let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .map_err(|err| miette::miette!("could not connect to auth backend: {err}"))?;
-    match auth
+    let id = match auth
         .put_user(&username, &password)
         .await
         .map_err(|err| miette::miette!("{err}"))?
     {
-        Some(pnpr_auth::UserPut::Created) => println!("User '{username}' created successfully."),
-        Some(pnpr_auth::UserPut::PasswordChanged { .. }) => {
+        Some(pnpr_auth::UserPut::Created { user_id }) => {
+            println!("User '{username}' created successfully.");
+            user_id
+        }
+        Some(pnpr_auth::UserPut::PasswordChanged { user_id }) => {
             println!("Password for user '{username}' updated successfully.");
+            user_id
         }
         None => return Err(miette::miette!("failed to create or update user '{username}'")),
-    }
-    let id = auth.users
-        .account_id(&username)
-        .await
-        .map_err(|err| miette::miette!("{err}"))?
-        .ok_or_else(|| miette::miette!("account disappeared after update"))?;
+    };
     println!("Account ID: {id}");
     Ok(())
 }

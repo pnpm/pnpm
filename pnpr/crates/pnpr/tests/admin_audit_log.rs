@@ -179,14 +179,13 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
-    let path = crate::tokens::admin_path(app, method, path, token).await;
     let path = if let Some(name) = path.strip_prefix("/-/pnpr/v0/scim/v2/Users/") {
         match crate::tokens::account_id(app, name, token).await {
             Some(id) => format!("/-/pnpr/v0/scim/v2/Users/{id}"),
-            None => path,
+            None => path.to_string(),
         }
     } else {
-        path
+        path.to_string()
     };
 
     let mut request = Request::builder()
@@ -286,49 +285,41 @@ async fn audit_log_user_admin_and_registration() {
     let root = login(&app, "root", "secret123").await;
 
     // 1. user.create
-    let (status, _) = send(
+    let (status, created) = send(
         &app,
-        "PUT",
-        "/-/pnpr/v0/admin/users/aud_u1",
+        "POST",
+        "/-/pnpr/v0/admin/users",
         Some(&root),
-        Some(json!({ "password": "password1" })),
+        Some(json!({ "name": "aud_u1", "password": "password1" })),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
+    let user_id = created["id"].as_str().unwrap();
+    let user_path = format!("/-/pnpr/v0/admin/users/{user_id}");
     let ev = find_event(&logs, "user.create", "user", "aud_u1");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
-    assert_request_span(&ev, "PUT");
+    assert_eq!(ev.fields.get("user_id").map(String::as_str), Some(user_id));
+    assert_request_span(&ev, "POST");
 
     // 2. user.password_update
-    let (status, _) = send(
-        &app,
-        "PUT",
-        "/-/pnpr/v0/admin/users/aud_u1",
-        Some(&root),
-        Some(json!({ "password": "password2" })),
-    )
-    .await;
+    let (status, _) =
+        send(&app, "PUT", &user_path, Some(&root), Some(json!({ "password": "password2" }))).await;
     assert_eq!(status, StatusCode::OK);
     let ev = find_event(&logs, "user.password_update", "user", "aud_u1");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
+    assert_eq!(ev.fields.get("user_id").map(String::as_str), Some(user_id));
     assert_request_span(&ev, "PUT");
 
     // Log in to issue a token for aud_u1
     let _ = login(&app, "aud_u1", "password2").await;
     let (status, tokens) =
-        send(&app, "GET", "/-/pnpr/v0/admin/users/aud_u1/tokens", Some(&root), None).await;
+        send(&app, "GET", &format!("{user_path}/tokens"), Some(&root), None).await;
     assert_eq!(status, StatusCode::OK);
     let token_key = tokens["objects"][0]["key"].as_str().unwrap();
 
     // 3. user.token_revoke
-    let (status, _) = send(
-        &app,
-        "DELETE",
-        &format!("/-/pnpr/v0/admin/users/aud_u1/tokens/{token_key}"),
-        Some(&root),
-        None,
-    )
-    .await;
+    let (status, _) =
+        send(&app, "DELETE", &format!("{user_path}/tokens/{token_key}"), Some(&root), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let ev = find_event(&logs, "user.token_revoke", "user", "aud_u1");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
@@ -336,18 +327,34 @@ async fn audit_log_user_admin_and_registration() {
     assert_request_span(&ev, "DELETE");
 
     // 4. user.delete
-    let (status, _) =
-        send(&app, "DELETE", "/-/pnpr/v0/admin/users/aud_u1", Some(&root), None).await;
+    let (status, _) = send(&app, "DELETE", &user_path, Some(&root), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let ev = find_event(&logs, "user.delete", "user", "aud_u1");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
     assert_request_span(&ev, "DELETE");
 
-    // 5. user.register
-    let _reg_token = login(&app, "aud_reg_user", "reg-password").await;
+    // 5. user.register and self-service user.password_update
+    let reg_token = login(&app, "aud_reg_user", "reg-password").await;
+    let reg_id = crate::tokens::account_id(&app, "aud_reg_user", Some(&root))
+        .await
+        .unwrap();
     let ev = find_event(&logs, "user.register", "user", "aud_reg_user");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_reg_user"));
     assert_request_span(&ev, "PUT");
+
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/-/npm/v1/user",
+        Some(&reg_token),
+        Some(json!({ "password": { "old": "reg-password", "new": "reg-password-2" } })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let ev = find_event(&logs, "user.password_update", "user", "aud_reg_user");
+    assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_reg_user"));
+    assert_eq!(ev.fields.get("user_id").map(String::as_str), Some(reg_id.as_str()));
+    assert_request_span(&ev, "POST");
 }
 
 #[tokio::test]
@@ -798,14 +805,15 @@ async fn renaming_an_account_audits_its_stable_id_and_new_name() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path())).await;
     let root = login(&app, "root", "secret123").await;
-    let (_, created) = send(
+    let (status, created) = send(
         &app,
-        "PUT",
-        "/-/pnpr/v0/admin/users/aud_before",
+        "POST",
+        "/-/pnpr/v0/admin/users",
         Some(&root),
-        Some(json!({"password": "secret123"})),
+        Some(json!({"name": "aud_before", "password": "secret123"})),
     )
     .await;
+    assert_eq!(status, StatusCode::CREATED);
     let id = created["id"].as_str().unwrap();
     let path = format!("/-/pnpr/v0/admin/users/{id}");
     let (status, _) =

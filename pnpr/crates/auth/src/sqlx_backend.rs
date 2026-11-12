@@ -285,7 +285,7 @@ where
         crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, MaxUsers::Unlimited).await? {
-            InsertUser::Created(_) => Ok(UserCreation::Created),
+            InsertUser::Created(id) => Ok(UserCreation::Created(id)),
             // An uncapped insert cannot reach the cap.
             InsertUser::Existing(_) | InsertUser::CapReached => Ok(UserCreation::NameTaken),
             InsertUser::Confusable => Err(crate::validation::confusable_username()),

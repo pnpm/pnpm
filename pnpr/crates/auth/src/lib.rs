@@ -102,7 +102,7 @@ pub struct UserAccount {
 /// The outcome of [`AuthState::put_user`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UserPut {
-    Created,
+    Created { user_id: String },
     PasswordChanged { user_id: String },
 }
 
@@ -137,7 +137,7 @@ impl AuthState {
     /// password. `None` means a concurrent writer removed the account.
     pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
         match self.users.create_user(username, password).await? {
-            UserCreation::Created => Ok(Some(UserPut::Created)),
+            UserCreation::Created(user_id) => Ok(Some(UserPut::Created { user_id })),
             UserCreation::NameTaken => {
                 let Some(id) = self.users.account_id(username).await? else {
                     return Ok(None);
@@ -522,10 +522,10 @@ pub enum UpsertOutcome {
 }
 
 /// What [`UserBackend::create_user`] did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UserCreation {
-    /// The name was free; the account is stored.
-    Created,
+    /// The name was free; the account is stored under this immutable ID.
+    Created(String),
     /// The name was taken, so the account it names is untouched.
     NameTaken,
 }
