@@ -30,4 +30,6 @@ pub struct LinkBinsOptions {
     /// hoisted linker. Bin targets inside it get their executable bits the
     /// way targets under `node_modules` do.
     pub installed_modules_dir: Option<PathBuf>,
+    pub read_only: bool,
+    pub store_frozen: bool,
 }

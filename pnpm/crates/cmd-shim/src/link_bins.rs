@@ -95,6 +95,10 @@ pub enum LinkBinsError {
         error: io::Error,
     },
 
+    #[display("Cannot update shared bin shim at {path:?} because frozenStore is enabled")]
+    #[diagnostic(code(ERR_PNPM_FROZEN_STORE_WRITE))]
+    FrozenStoreWrite { path: PathBuf },
+
     #[display("Failed to chmod {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_CHMOD))]
     Chmod {

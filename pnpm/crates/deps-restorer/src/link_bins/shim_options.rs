@@ -19,6 +19,8 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
         installed_modules_dir: (config.modules_dir_name() != "node_modules").then(|| {
             config.modules_dir.clone()
         }),
+        read_only: false,
+        store_frozen: config.frozen_store,
     }
 }
 

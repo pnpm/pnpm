@@ -104,15 +104,16 @@ where
     // PowerShell keeps preferring it over the `.cmd` sibling. Delete
     // it up front, above the short-circuits below — they all return
     // without touching the Windows siblings.
-    if !spec.windows.powershell {
-        remove_stale_bin(&with_extension_appended(spec.shim_path, "ps1"))?;
-    }
+    let stale_powershell = stale_powershell_path::<Sys>(&spec)?;
 
     let existing_shim = match read_or_create_shim::<Sys>(&spec, cache)? {
         ExistingShim::Written => return Ok(()),
         ExistingShim::Present(existing) => Some(existing),
         ExistingShim::Absent => None,
     };
+    if spec.options.read_only && existing_shim.is_none() {
+        return Err(LinkBinsError::FrozenStoreWrite { path: spec.shim_path.to_path_buf() });
+    }
 
     // pnpm's warm-install short-circuit: an existing symlink that
     // already resolves to a directly executable target can
@@ -123,6 +124,9 @@ where
     if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
         && prepare_direct_target::<Sys>(&spec, cache)?
     {
+        if let Some(path) = stale_powershell {
+            return Err(LinkBinsError::FrozenStoreWrite { path });
+        }
         return Ok(());
     }
 
@@ -169,9 +173,16 @@ where
     let windows_shims = windows_shim_bodies::<Sys>(&spec, runtime.as_ref());
 
     let current = existing_shim_is_current(existing_shim.as_deref(), &sh_body, &spec)
-        && windows_shims_match::<Sys>(windows_shims.as_ref());
+        && windows_shims_match::<Sys>(windows_shims.as_ref())
+        && stale_powershell.is_none();
     if !current {
+        if spec.options.read_only {
+            return Err(LinkBinsError::FrozenStoreWrite { path: spec.shim_path.to_path_buf() });
+        }
         replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
+    }
+    if spec.options.read_only {
+        return Ok(());
     }
 
     chmod_tolerating_removal(spec.shim_path, Sys::ensure_executable)?;
@@ -219,6 +230,15 @@ fn read_or_create_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
+    if spec.options.read_only {
+        return match Sys::read_to_string(spec.shim_path) {
+            Ok(existing) => Ok(ExistingShim::Present(existing)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(ExistingShim::Absent),
+            Err(error) => {
+                Err(LinkBinsError::ProbeShimSource { path: spec.shim_path.to_path_buf(), error })
+            }
+        };
+    }
     if spec.paths.bin_dir == DirCreation::Created
         && fresh_write_applies(spec)
         && write_shim_fresh::<Sys>(spec, cache)?
@@ -233,6 +253,24 @@ where
         && fresh_write_applies(spec)
         && write_shim_fresh::<Sys>(spec, cache)?;
     Ok(if fresh { ExistingShim::Written } else { ExistingShim::Absent })
+}
+
+fn stale_powershell_path<Sys: FsReadToString>(
+    spec: &ShimSpec<'_>,
+) -> Result<Option<PathBuf>, LinkBinsError> {
+    if spec.windows.powershell {
+        return Ok(None);
+    }
+    let path = with_extension_appended(spec.shim_path, "ps1");
+    if !spec.options.read_only {
+        remove_stale_bin(&path)?;
+        return Ok(None);
+    }
+    match Sys::read_to_string(&path) {
+        Ok(_) => Ok(Some(path)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LinkBinsError::ProbeShimSource { path, error }),
+    }
 }
 
 /// Whether the shim is one [`write_shim_fresh`] can produce. The node
