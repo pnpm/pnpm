@@ -58,6 +58,9 @@ jobs:
           clean: false
           persist-credentials: false
 
+      - name: Install pull request crates
+        run: pnpm install --frozen-lockfile --filter pacquet --filter @pnpm/esm-loader
+
       - name: Test reduced shell emulator
         run: cargo test --locked -p pnpm-executor --no-default-features reports_when_shell_emulation_is_not_compiled_in
 
