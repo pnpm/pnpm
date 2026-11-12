@@ -442,6 +442,7 @@ fn config_accepts_camel_case_fields() {
 storage: ./storage
 packumentTtl: 42s
 requestTimeout: 55s
+shutdownTimeout: 20s
 trustedProxies: [127.0.0.1]
 trustedProxyHeader: x-real-ip
 cors:
@@ -475,6 +476,7 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.http.packument_ttl, std::time::Duration::from_secs(42));
     assert_eq!(config.http.request_timeout, Some(std::time::Duration::from_secs(55)));
+    assert_eq!(config.http.shutdown_timeout, std::time::Duration::from_secs(20));
     assert_eq!(config.http.trusted_proxies.len(), 1);
     assert_eq!(config.http.trusted_proxy_header, crate::TrustedProxyHeader::XRealIp);
     assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Limited(10));
