@@ -97,7 +97,6 @@ impl Walker<'_> {
             self.collect_cyclic_target_peers(
                 node_id,
                 &target_id,
-                context,
                 occurrences_by_pkg,
                 &mut additions,
             );
@@ -113,7 +112,6 @@ impl Walker<'_> {
         &self,
         node_id: &NodeId,
         target_id: &NodeId,
-        context: FinalPeerContext<'_>,
         occurrences_by_pkg: &HashMap<Arc<str>, Vec<NodeId>>,
         additions: &mut Vec<(String, NodeId)>,
     ) {
@@ -131,7 +129,6 @@ impl Walker<'_> {
         for (alias, peer_node_id) in target_peers.iter() {
             let peer_owner = self.cache_owner_node_id(peer_node_id);
             if !peers.contains_key(alias)
-                && !Self::is_cyclic_peer(target_id, alias, peer_owner, context)
                 && !additions
                     .iter()
                     .any(|(added, _)| added == alias)

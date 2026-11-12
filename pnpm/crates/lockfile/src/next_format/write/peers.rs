@@ -21,21 +21,25 @@ use candidates::ProviderCandidates;
 /// The transitive peers of `key` whose providers its peer groups name, and the
 /// names left for [`ProviderFinder`].
 ///
-/// The groups name providers under their package names. A hashed key names
-/// none, and an aliased peer is under another name. A peer bound below from
-/// anywhere in the graph, rather than from the scope above, is not in the
-/// key, and is missing as far as the key goes.
+/// Recorded bindings recover the provider names behind a hashed key. Aliased
+/// peers whose install names differ from their provider names use [`ProviderFinder`].
 #[expect(clippy::type_complexity, reason = "a private pair of lists")]
 pub(super) fn transitive_named_in_key<'a>(
     key: &PackageKey,
     entry: &'a SnapshotEntry,
 ) -> Result<(Vec<(PkgName, SnapshotDepRef)>, Vec<(PkgName, &'a str)>), NextFormatError> {
-    let providers: Option<Vec<PkgNameVerPeer>> = provider_segments(&key.suffix)
-        .map(|segments| {
-            segments
-                .iter()
-                .filter_map(|segment| segment.parse::<PkgNameVerPeer>().ok())
-                .collect()
+    let providers = entry.recorded_peer_bindings
+        .as_ref()
+        .and_then(|bindings| bindings.peer_keys_for(key))
+        .map(<[_]>::to_vec)
+        .or_else(|| {
+            provider_segments(&key.suffix)
+                .map(|segments| {
+                    segments
+                        .iter()
+                        .filter_map(|segment| segment.parse::<PkgNameVerPeer>().ok())
+                        .collect()
+                })
         });
     let mut named = Vec::new();
     let mut unnamed = Vec::new();
