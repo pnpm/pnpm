@@ -234,12 +234,9 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
         .expect("the dependency bin shim exists");
     let shim_path = shim.path();
     let content = fs::read_to_string(&shim_path).expect("read dependency bin shim");
-    let project_hoisted_modules_path =
-        Path::new("node_modules/.pnpm/node_modules").display().to_string();
-    assert!(
-        !content.contains(&project_hoisted_modules_path),
-        "a shared bin shim must not contain the project hoisted modules path: {content:?}",
-    );
+    let project_hoisted_modules_path = workspace.join("node_modules/.pnpm/node_modules");
+    let project_hoisted_modules_path = project_hoisted_modules_path.display().to_string();
+    assert_shim_excludes_project_path(&content, &project_hoisted_modules_path);
 
     let stale_content = format!("{content}\nexport NODE_PATH='{project_hoisted_modules_path}'\n");
     fs::write(&shim_path, stale_content).expect("restore a shim written by an earlier install");
@@ -248,12 +245,16 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
         .assert()
         .success();
     let repaired = fs::read_to_string(shim_path).expect("read repaired dependency bin shim");
-    assert!(
-        !repaired.contains(&project_hoisted_modules_path),
-        "a warm shared slot must have its stale project path removed: {repaired:?}",
-    );
+    assert_shim_excludes_project_path(&repaired, &project_hoisted_modules_path);
 
     drop((root, mock_instance));
+}
+
+fn assert_shim_excludes_project_path(shim: &str, project_path: &str) {
+    assert!(
+        !shim.contains(project_path),
+        "a shared bin shim must not contain the project hoisted modules path: {shim:?}",
+    );
 }
 
 /// TS: `reinstall from warm global virtual store after deleting
