@@ -21,7 +21,8 @@ pub(super) enum TokenAccess {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TokenExpiry {
-    Never,
+    /// The request sets no expiry, so the token takes the default lifetime.
+    Unset,
     AfterMillis(u64),
     AtTimestamp(u64),
 }
@@ -29,7 +30,7 @@ pub(super) enum TokenExpiry {
 impl TokenExpiry {
     pub(super) fn resolve(self, now: u64) -> Result<Option<u64>, RegistryError> {
         match self {
-            Self::Never => Ok(None),
+            Self::Unset => Ok(None),
             Self::AfterMillis(millis) => now
                 .checked_add(millis)
                 .filter(|&ts| ts <= MAX_TOKEN_TIMESTAMP_MILLIS)
@@ -62,6 +63,7 @@ pub(super) struct ValidatedTokenRequest {
     cidr_whitelist: Vec<String>,
     name: Option<String>,
     expiry: TokenExpiry,
+    default_expiry: Option<u64>,
     latest_expiry: Option<u64>,
     kind: Option<pnpr_auth::TokenKind>,
 }
@@ -83,16 +85,26 @@ impl ValidatedTokenRequest {
                 check_cidr_whitelist_within(&self.cidr_whitelist, &limits.cidr_whitelist)?;
             }
         }
-        self.latest_expiry = limits.expires_at;
-        Ok(self)
+        Ok(self.expiring_by(limits.expires_at))
+    }
+
+    /// Make the token expire no later than `latest`, a Unix-millisecond
+    /// timestamp. `None` sets no limit.
+    pub(super) fn expiring_by(mut self, latest: Option<u64>) -> Self {
+        self.latest_expiry = earliest(self.latest_expiry, latest);
+        self
+    }
+
+    /// Make the token expire at `default`, a Unix-millisecond timestamp, when
+    /// the request sets no expiry.
+    pub(super) fn expiring_by_default(mut self, default: u64) -> Self {
+        self.default_expiry = Some(default);
+        self
     }
 
     pub(super) fn into_new_token(self, now: u64) -> Result<pnpr_auth::NewToken, RegistryError> {
-        let requested_expiry = self.expiry.resolve(now)?;
-        let expires_at = match (requested_expiry, self.latest_expiry) {
-            (Some(requested), Some(latest)) => Some(requested.min(latest)),
-            (requested, latest) => requested.or(latest),
-        };
+        let requested_expiry = self.expiry.resolve(now)?.or(self.default_expiry);
+        let expires_at = earliest(requested_expiry, self.latest_expiry);
         let readonly = match self.access {
             TokenAccess::ReadOnly => true,
             TokenAccess::ReadWrite => false,
@@ -104,6 +116,20 @@ impl ValidatedTokenRequest {
             .with_expires_at(expires_at)
             .with_kind(self.kind))
     }
+}
+
+/// The earlier of two optional expiry timestamps, `None` meaning never.
+fn earliest(first: Option<u64>, second: Option<u64>) -> Option<u64> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(first.min(second)),
+        (first, second) => first.or(second),
+    }
+}
+
+/// When a token issued at `now` with `lifetime` expires.
+pub(super) fn expiry_after(lifetime: std::time::Duration, now: u64) -> u64 {
+    let lifetime = u64::try_from(lifetime.as_millis()).unwrap_or(u64::MAX);
+    now.saturating_add(lifetime).min(MAX_TOKEN_TIMESTAMP_MILLIS)
 }
 
 #[derive(Default, Deserialize)]
@@ -155,6 +181,7 @@ pub(super) fn parse_and_validate_token_request(
         cidr_whitelist,
         name: payload.name,
         expiry,
+        default_expiry: None,
         latest_expiry: None,
         kind,
     })
@@ -274,7 +301,7 @@ fn parse_token_expiry(
         }),
         (None, Some(seconds)) => expiry_from_seconds(seconds),
         (Some(val), None) => parse_expires_value(val),
-        (None, None) => Ok(TokenExpiry::Never),
+        (None, None) => Ok(TokenExpiry::Unset),
     }
 }
 
@@ -291,7 +318,7 @@ fn parse_expires_value(val: &Value) -> Result<TokenExpiry, RegistryError> {
             expiry_from_days(days)
         }
         Value::String(raw) => parse_expires_string(raw),
-        Value::Null => Ok(TokenExpiry::Never),
+        Value::Null => Ok(TokenExpiry::Unset),
         _ => Err(RegistryError::BadRequest { reason: "invalid expires value".to_string() }),
     }
 }

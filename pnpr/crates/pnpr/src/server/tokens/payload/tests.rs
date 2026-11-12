@@ -25,12 +25,12 @@ fn assert_bad_request(value: &Value) -> String {
 fn empty_body_and_empty_object_default_to_read_write_without_expiry() {
     let from_empty = parse_and_validate_token_request(b"", FIXED_NOW).unwrap();
     assert_eq!(from_empty.access, TokenAccess::ReadWrite);
-    assert_eq!(from_empty.expiry, TokenExpiry::Never);
+    assert_eq!(from_empty.expiry, TokenExpiry::Unset);
     assert!(from_empty.password().is_none());
 
     let from_obj = parse_json(&json!({})).unwrap();
     assert_eq!(from_obj.access, TokenAccess::ReadWrite);
-    assert_eq!(from_obj.expiry, TokenExpiry::Never);
+    assert_eq!(from_obj.expiry, TokenExpiry::Unset);
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn rejects_granular_package_scope_org_and_unknown_fields() {
     }))
     .unwrap();
     assert_eq!(null_optionals.access, TokenAccess::ReadWrite);
-    assert_eq!(null_optionals.expiry, TokenExpiry::Never);
+    assert_eq!(null_optionals.expiry, TokenExpiry::Unset);
     assert_eq!(null_optionals.kind, None);
 }
 

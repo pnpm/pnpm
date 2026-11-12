@@ -55,7 +55,9 @@ async fn a_password_reset_rejects_a_login_that_was_already_issuing_a_token() {
     let auth = Arc::new(AuthState { users, tokens: Arc::clone(&tokens) as Arc<dyn TokenBackend> });
     let login = {
         let auth = Arc::clone(&auth);
-        tokio::spawn(async move { auth.password_login("example-user", "old-password").await })
+        tokio::spawn(async move {
+            auth.password_login("example-user", "old-password", NewToken::new()).await
+        })
     };
     tokens.started.notified().await;
     auth.change_password(&id, "new-password").await.unwrap();
@@ -77,7 +79,10 @@ async fn password_login_accepts_new_and_existing_accounts() {
         users: Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 4)),
         tokens: Arc::new(TokenStore::in_memory()),
     };
-    let (outcome, id, token) = auth.password_login("example-user", "test-password").await.unwrap();
+    let (outcome, id, token) = auth
+        .password_login("example-user", "test-password", NewToken::new())
+        .await
+        .unwrap();
     assert_eq!(outcome, UpsertOutcome::Created);
     assert_eq!(
         auth.tokens
@@ -87,8 +92,10 @@ async fn password_login_accepts_new_and_existing_accounts() {
             .as_deref(),
         Some(id.as_str()),
     );
-    let (outcome, login_id, token) =
-        auth.password_login("example-user", "test-password").await.unwrap();
+    let (outcome, login_id, token) = auth
+        .password_login("example-user", "test-password", NewToken::new())
+        .await
+        .unwrap();
     assert_eq!(outcome, UpsertOutcome::LoggedIn);
     assert_eq!(id, login_id);
     assert_eq!(
@@ -114,7 +121,10 @@ async fn password_login_accepts_a_credential_upgraded_during_verification() {
         users: Arc::clone(&users) as Arc<dyn crate::UserBackend>,
         tokens: Arc::new(TokenStore::in_memory()),
     };
-    let (outcome, id, token) = auth.password_login("example-user", "test-password").await.unwrap();
+    let (outcome, id, token) = auth
+        .password_login("example-user", "test-password", NewToken::new())
+        .await
+        .unwrap();
     assert_eq!(outcome, UpsertOutcome::LoggedIn);
     assert_eq!(
         auth.tokens
@@ -199,7 +209,9 @@ async fn deactivation_during_login_or_token_creation_revokes_issued_token() {
 
     let login = {
         let auth = Arc::clone(&auth);
-        tokio::spawn(async move { auth.password_login("example-user", "old-password").await })
+        tokio::spawn(async move {
+            auth.password_login("example-user", "old-password", NewToken::new()).await
+        })
     };
     tokens.started.notified().await;
     auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)

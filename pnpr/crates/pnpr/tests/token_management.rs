@@ -8,7 +8,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
+use pnpr::{AuthState, Config, MaxUsers, TokensConfig, router, router_with_auth};
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -653,4 +653,84 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     let (status, body) = create(json!({ "expires_in": 60 })).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()) < caller_expires);
+}
+
+const DAY_SECS: i64 = 86_400;
+
+async fn assert_token_lifetimes(
+    tokens: TokensConfig,
+    login_lifetime: i64,
+    created: &[(Value, i64)],
+) {
+    let tmp = TempDir::new().unwrap();
+    let mut config = static_config(tmp.path().to_path_buf());
+    config.identity.auth.tokens = tokens;
+    let app = router(config);
+    let assert_expires_after = |body: &Value, issued: (i64, i64), lifetime: i64| {
+        let expires = rfc3339_unix_seconds(body["expires"].as_str().unwrap());
+        assert!(
+            (issued.0 + lifetime..=issued.1 + lifetime).contains(&expires),
+            "expected {lifetime}s after {issued:?}, got {expires}",
+        );
+    };
+
+    let before = chrono::Utc::now().timestamp();
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+    let login_issued = (before, chrono::Utc::now().timestamp());
+    let listed = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &login_token))
+        .await
+        .unwrap();
+    assert_expires_after(
+        &body_json(listed.into_body()).await["objects"][0],
+        login_issued,
+        login_lifetime,
+    );
+
+    for (requested, lifetime) in created {
+        let mut payload = requested.clone();
+        payload["password"] = json!("secret123");
+        let before = chrono::Utc::now().timestamp();
+        let response = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        let issued = (before, chrono::Utc::now().timestamp());
+        assert_eq!(response.status(), StatusCode::OK, "{requested}");
+        assert_expires_after(&body_json(response.into_body()).await, issued, *lifetime);
+    }
+}
+
+#[tokio::test]
+async fn tokens_without_a_requested_expiry_take_the_default_lifetime() {
+    assert_token_lifetimes(
+        TokensConfig::default(),
+        90 * DAY_SECS,
+        &[
+            (json!({}), 90 * DAY_SECS),
+            (json!({ "expires": null }), 90 * DAY_SECS),
+            (json!({ "expires": 365 }), 365 * DAY_SECS),
+            (json!({ "expires": 1 }), DAY_SECS),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn max_lifetime_caps_login_and_created_tokens() {
+    assert_token_lifetimes(
+        TokensConfig {
+            max_lifetime: Some(std::time::Duration::from_hours(7 * 24)),
+            ..TokensConfig::default()
+        },
+        7 * DAY_SECS,
+        &[
+            (json!({}), 7 * DAY_SECS),
+            (json!({ "expires": 30 }), 7 * DAY_SECS),
+            (json!({ "expires": 1 }), DAY_SECS),
+        ],
+    )
+    .await;
 }

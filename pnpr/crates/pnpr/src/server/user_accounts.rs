@@ -212,14 +212,16 @@ async fn log_in(
     {
         return Err(deprovisioned(name));
     }
-    let (outcome, id, token) = match state.inner.identity.auth.password_login(name, password).await
-    {
-        Err(RegistryError::TooManyUsers { .. }) => {
-            pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
-            return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
-        }
-        result => result?,
-    };
+    let expires_at = super::tokens::unrequested_token_expiry(state, pnpr_auth::unix_millis());
+    let new_token = pnpr_auth::NewToken::new().with_expires_at(Some(expires_at));
+    let (outcome, id, token) =
+        match state.inner.identity.auth.password_login(name, password, new_token).await {
+            Err(RegistryError::TooManyUsers { .. }) => {
+                pnpr_auth::dummy_verify(password, pnpr_auth::DEFAULT_BCRYPT_COST).await;
+                return Err(RegistryError::Unauthenticated { resource: format!("user {name:?}") });
+            }
+            result => result?,
+        };
     if super::scim::is_deprovisioned(state, &id)? {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(deprovisioned(name));
