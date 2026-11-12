@@ -1034,7 +1034,7 @@ Events about another account name it with `user` and `user_id`. The operation-sp
   - `scim.user_patch`: updating SCIM user status (`actor`, `user`, `user_id`, `active`).
   - `scim.user_delete`: deprovisioning a SCIM user (`actor`, `user`, `user_id`).
 - **Publishing, unpublishing, and package mutations**:
-  - `package.publish`: committing a publish, once per package (`actor`, `package`, `ecosystem`, `versions`, `namespace`). `versions` lists the versions the publish adds, comma-separated. A retried request that pnpr answers from its recorded outcome is not audited again.
+  - `package.publish`: committing a publish, once per package (`actor`, `package`, `ecosystem`, `releases`, `namespace`). `releases` lists what the publish adds, comma-separated: npm and Cargo versions, Python distribution filenames, or OCI manifest digests. A retried request that pnpr answers from its recorded outcome is not audited again.
   - `package.unpublish`: unpublishing an entire package (`actor`, `package`, `registry`).
   - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`, `version`, `registry`).
   - `package.update_packument`: modifying packument metadata directly (`actor`, `package`, `registry`).

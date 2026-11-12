@@ -199,21 +199,17 @@ struct PublishAudit {
     publisher: Identity,
     ecosystem: pnpr_package_name::Ecosystem,
     name: String,
-    /// The versions the publish introduces, comma-separated.
-    versions: String,
+    /// What the publish introduces, comma-separated.
+    releases: String,
 }
 
 impl PublishAudit {
     fn of(stage: &StagedPublish) -> Self {
-        let versions: Vec<&str> = stage.verification.records
-            .keys()
-            .map(String::as_str)
-            .collect();
         PublishAudit {
             publisher: stage.publisher.clone(),
             ecosystem: stage.ecosystem,
             name: stage.name.as_str().to_string(),
-            versions: versions.join(","),
+            releases: stage.verification.releases.join(","),
         }
     }
 
@@ -224,7 +220,7 @@ impl PublishAudit {
             "package.publish",
             package = %self.name,
             ecosystem = %self.ecosystem,
-            versions = %self.versions,
+            releases = %self.releases,
             namespace = %namespace,
             "package published",
         );

@@ -45,6 +45,10 @@ pub(super) trait HostedDocument: Sized {
     /// missing is added.
     fn merge(&mut self, addition: Self) -> bool;
 
+    /// What this document records publishes of, each named as the
+    /// `package.publish` audit record names it.
+    fn releases(&self) -> Vec<String>;
+
     /// The account IDs that may publish to this package.
     fn owners(&self) -> &[String];
     fn owners_mut(&mut self) -> &mut Vec<String>;
@@ -76,6 +80,13 @@ impl HostedDocument for CrateDocument {
 
     fn to_bytes(&self) -> Vec<u8> {
         CrateDocument::to_bytes(self)
+    }
+
+    fn releases(&self) -> Vec<String> {
+        self.versions
+            .iter()
+            .map(|entry| entry.vers.clone())
+            .collect()
     }
 
     fn owners(&self) -> &[String] {
@@ -126,6 +137,13 @@ impl HostedDocument for ProjectDocument {
         ProjectDocument::to_bytes(self)
     }
 
+    fn releases(&self) -> Vec<String> {
+        self.files
+            .iter()
+            .map(|file| file.filename.clone())
+            .collect()
+    }
+
     fn owners(&self) -> &[String] {
         &self.owners
     }
@@ -164,6 +182,13 @@ impl HostedDocument for ImageDocument {
 
     fn to_bytes(&self) -> Vec<u8> {
         ImageDocument::to_bytes(self)
+    }
+
+    fn releases(&self) -> Vec<String> {
+        self.manifests()
+            .iter()
+            .map(|entry| entry.digest.to_string())
+            .collect()
     }
 
     fn owners(&self) -> &[String] {
@@ -335,7 +360,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     };
     claim_ownership(state, target, key, &mut document, record)?;
     refuse(&document)?;
-    document.merge(addition);
+    let releases = merge_releases(&mut document, addition);
 
     let slot = write_hosted_blob(&storage, key, artifact.filename, artifact.bytes).await?;
     Ok(StagedPublish {
@@ -352,8 +377,25 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         slots: vec![slot],
         namespace: Some(target.namespace.to_string()),
         publisher: target.publisher.clone(),
-        verification: Verification::default(),
+        verification: Verification { releases, ..Verification::default() },
     })
+}
+
+/// Merge `addition` into `document` and return the releases it added.
+fn merge_releases<Document: HostedDocument>(
+    document: &mut Document,
+    addition: Document,
+) -> Vec<String> {
+    let before: std::collections::BTreeSet<String> = document
+        .releases()
+        .into_iter()
+        .collect();
+    document.merge(addition);
+    document
+        .releases()
+        .into_iter()
+        .filter(|release| !before.contains(release))
+        .collect()
 }
 
 /// Whether a package being published records its owners yet.

@@ -216,6 +216,9 @@ pub(in super::super) struct Verification {
     /// The release record of each version the document introduces, which
     /// the metadata store accepts with it.
     pub(in super::super) records: pnpr_storage::metadata::ReleaseRecords,
+    /// What the publish introduces, as the `package.publish` audit record
+    /// names it.
+    pub(in super::super) releases: Vec<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
