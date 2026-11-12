@@ -10,7 +10,7 @@ use super::{
     AppState, AuthedCaller, RegistrySource, TargetRegistry,
     documents::{HostedDocument, read_hosted_document},
     ecosystem::addressed_registry,
-    private_no_cache, resolve_ecosystem_source, resolve_write_target_for,
+    private_no_cache, require_caller, resolve_ecosystem_source, resolve_write_target_for,
 };
 use axum::{
     body::Bytes,
@@ -130,6 +130,7 @@ pub(super) async fn change_owners<Document: HostedDocument>(
     change: OwnerChange,
 ) -> Result<Value, RegistryError> {
     let key = parse_name::<Document>(request.name)?;
+    require_caller(identity, &format!("the owners of {:?}", key.as_str()))?;
     let logins = parse_logins(&request.body)?;
     let target =
         resolve_write_target_for(state, identity, request.registry, Document::ECOSYSTEM, &key)?;
@@ -237,7 +238,7 @@ fn authorize_owner_change(
     Err(RegistryError::Forbidden {
         user: identity
             .username()
-            .unwrap_or("anonymous")
+            .unwrap_or_default()
             .to_string(),
         action: "change the owners of",
         resource: format!("{:?}", key.as_str()),

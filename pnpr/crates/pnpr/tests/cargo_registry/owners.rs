@@ -150,3 +150,29 @@ async fn cargo_owner_of_an_unpublished_crate_is_not_found() {
         assert!(body["errors"][0]["detail"].is_string(), "{method} {body}");
     }
 }
+
+#[tokio::test]
+async fn cargo_owner_changes_need_a_signed_in_caller() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let alice = issue_token(&auth, "alice").await;
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    assert_eq!(publish(&app, &alice, "0.1.0").await, StatusCode::OK);
+    for method in ["PUT", "DELETE"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri("/cargo/api/v1/crates/demo/owners")
+                    .body(Body::from(r#"{"users":["alice"]}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{method}");
+    }
+}
