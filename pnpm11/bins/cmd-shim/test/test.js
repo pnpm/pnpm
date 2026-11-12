@@ -374,6 +374,45 @@ describe('shebang with -S', () => {
   })
 })
 
+describe('large bin target', () => {
+  const src = path.resolve(fixtures, 'src.large')
+  const to = path.resolve(fixtures, 'large.shim')
+  /** @type {number} */
+  let bytesReadFromSrc = 0
+  const countingFs = {
+    ...fs,
+    promises: {
+      ...fs.promises,
+      async readFile (file, ...rest) {
+        const content = await fs.promises.readFile(file, ...rest)
+        if (file === src) bytesReadFromSrc += Buffer.byteLength(content)
+        return content
+      },
+      async open (file, ...rest) {
+        const handle = await fs.promises.open(file, ...rest)
+        if (file !== src) return handle
+        const read = handle.read.bind(handle)
+        handle.read = async (...args) => {
+          const result = await read(...args)
+          bytesReadFromSrc += result.bytesRead
+          return result
+        }
+        return handle
+      },
+    },
+  }
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.writeFile(src, `#!/usr/bin/env node\n${'x'.repeat(4 * 1024 * 1024)}`)
+    return cmdShim(src, to, { createCmdFile: false, fs: countingFs })
+  })
+
+  test('reads only the start of the target to find the shebang', async () => {
+    assert.match(fs.readFileSync(to, 'utf8'), /"\$basedir\/node"/)
+    assert.ok(bytesReadFromSrc <= 1024, `read ${bytesReadFromSrc} bytes of the bin target`)
+  })
+})
+
 describe('batch script', () => {
   const src = path.resolve(fixtures, 'src.bat')
   const to = path.resolve(fixtures, 'bat.shim')

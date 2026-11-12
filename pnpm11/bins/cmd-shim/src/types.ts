@@ -87,7 +87,7 @@ export type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFA
   requireSource?: boolean
 }
 
-export type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 'readFile' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
+export type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 'open' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
 
 export type ShimGenerator = (src: string, to: string, opts: InternalOptions) => string
 

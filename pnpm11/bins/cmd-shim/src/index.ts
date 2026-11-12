@@ -39,6 +39,8 @@ export type { GetShShimDirOptions, Options, ShimDirFs }
 // eslint-disable-next-line regexp/no-super-linear-backtracking -- only matched against the first line of a script, after the `#!` anchor
 const shebangExpr = /^#!\s*(?:\/usr\/bin\/env(?:\s+-S)?\s*)?([^ \t]+)(.*)$/
 
+const SHEBANG_READ_LIMIT_BYTES = 512
+
 const extensionToProgramMap = new Map([
   ['.js', 'node'],
   ['.cjs', 'node'],
@@ -51,7 +53,7 @@ const extensionToProgramMap = new Map([
 
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = { ...DEFAULT_OPTIONS, ...opts } as InternalOptions
-  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, realpath: fs.promises.realpath } as unknown as FsPromises)
+  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, open: fs.promises.open, realpath: fs.promises.realpath } as unknown as FsPromises)
   return opts_
 }
 
@@ -282,7 +284,7 @@ function writeShimPost (target: string, opts: InternalOptions) {
 async function searchScriptRuntime (target: string, opts: InternalOptions): Promise<RuntimeInfo> {
   let data: string
   try {
-    data = await opts.fs_.readFile(target, 'utf8') as string
+    data = await readFileHead(target, opts)
   } catch (err) {
     if (!isMissingPathError(err)) throw err
     if (isWindows && path.extname(target) === '' && await exists(`${target}${getExeExtension()}`, opts)) {
@@ -303,6 +305,21 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
   return {
     program: shebang[1],
     additionalArgs: shebang[2],
+  }
+}
+
+/**
+ * Reads only the start of `file`, which is enough to hold its shebang line.
+ * Bin targets can be native executables of hundreds of megabytes.
+ */
+async function readFileHead (file: string, opts: InternalOptions): Promise<string> {
+  const handle = await opts.fs_.open(file, 'r')
+  try {
+    const buffer = Buffer.alloc(SHEBANG_READ_LIMIT_BYTES)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    return buffer.toString('utf8', 0, bytesRead)
+  } finally {
+    await handle.close()
   }
 }
 
