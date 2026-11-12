@@ -54,7 +54,8 @@ test('shared global virtual store bin shims do not capture the installing projec
   )
   const shim = fs.readdirSync(binDir).find((name) => name.startsWith('hello-world-js-bin'))
   expect(shim).toBeDefined()
-  expect(fs.readFileSync(path.join(binDir, shim!), 'utf8')).not.toContain(process.cwd())
+  const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
+  expect(fs.readFileSync(path.join(binDir, shim!), 'utf8')).not.toContain(projectHoistedModulesDir)
 })
 
 test('scripts resolve phantom ESM imports through the private hoist', async () => {

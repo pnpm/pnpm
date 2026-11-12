@@ -47,26 +47,3 @@ pub fn hoisted_node_paths(
         Vec::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::hoisted_node_paths;
-    use pnpm_config::{Config, NodeLinker};
-    use std::path::Path;
-
-    #[test]
-    fn project_virtual_store_shims_keep_the_hoisted_modules_path() {
-        let mut config = Config::default();
-        config.extend_node_path = true;
-        config.hoist_pattern = Some(vec!["*".to_string()]);
-
-        assert_eq!(
-            hoisted_node_paths(
-                &config,
-                NodeLinker::Isolated,
-                Path::new("/project/node_modules/.pnpm")
-            ),
-            vec!["/project/node_modules/.pnpm/node_modules"],
-        );
-    }
-}

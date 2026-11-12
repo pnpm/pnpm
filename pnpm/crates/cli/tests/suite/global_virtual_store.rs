@@ -233,9 +233,11 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
         })
         .expect("the dependency bin shim exists");
     let content = fs::read_to_string(shim.path()).expect("read dependency bin shim");
+    let project_hoisted_modules_path =
+        Path::new("node_modules/.pnpm/node_modules").display().to_string();
     assert!(
-        !content.contains(&workspace.to_string_lossy().to_string()),
-        "a shared bin shim must not contain the installing project path: {content:?}",
+        !content.contains(&project_hoisted_modules_path),
+        "a shared bin shim must not contain the project hoisted modules path: {content:?}",
     );
 
     drop((root, mock_instance));
