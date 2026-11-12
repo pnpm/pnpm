@@ -51,7 +51,7 @@ impl CandidatePeer {
 pub(crate) struct CandidatePeers<'workspace> {
     workspace: &'workspace WorkspaceTreeCtx,
     auto_install_peers: bool,
-    detached: RefCell<HashMap<String, Vec<CandidatePeer>>>,
+    by_id: RefCell<HashMap<String, Vec<CandidatePeer>>>,
     by_name_version: OnceCell<HashMap<String, Vec<CandidatePeer>>>,
 }
 
@@ -60,7 +60,7 @@ impl<'workspace> CandidatePeers<'workspace> {
         CandidatePeers {
             workspace,
             auto_install_peers,
-            detached: RefCell::default(),
+            by_id: RefCell::default(),
             by_name_version: OnceCell::new(),
         }
     }
@@ -68,19 +68,20 @@ impl<'workspace> CandidatePeers<'workspace> {
     /// Records the peers of `pkg_id`, a `name@version` resolved without
     /// being added to the tree.
     pub(crate) fn insert_detached(&self, pkg_id: String, peers: Vec<CandidatePeer>) {
-        self.detached.borrow_mut().insert(pkg_id, peers);
+        self.by_id.borrow_mut().insert(pkg_id, peers);
     }
 
     /// The peers `name@version` declares, or `None` when nothing describes
     /// it.
     pub(crate) fn get(&self, name: &str, version: &str) -> Option<Vec<CandidatePeer>> {
         let pkg_id = format!("{name}@{version}");
-        if let Some(peers) = self.detached.borrow().get(&pkg_id) {
+        if let Some(peers) = self.by_id.borrow().get(&pkg_id) {
             return Some(peers.clone());
         }
         if let Some(peers) = self.workspace.inspect_package(&pkg_id, |package| {
             peers_of(package, self.auto_install_peers)
         }) {
+            self.by_id.borrow_mut().insert(pkg_id, peers.clone());
             return Some(peers);
         }
         self.by_name_version()
@@ -91,7 +92,7 @@ impl<'workspace> CandidatePeers<'workspace> {
     /// Whether [`Self::get`] knows the peers of `name@version`.
     pub(crate) fn contains(&self, name: &str, version: &str) -> bool {
         let pkg_id = format!("{name}@{version}");
-        self.detached.borrow().contains_key(&pkg_id)
+        self.by_id.borrow().contains_key(&pkg_id)
             || self.workspace
                 .inspect_package(&pkg_id, |_| ())
                 .is_some()
