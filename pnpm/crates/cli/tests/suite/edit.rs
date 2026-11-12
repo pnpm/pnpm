@@ -44,7 +44,7 @@ fn edit_dependency_successfully() {
         workspace.join("package.json"),
         serde_json::json!({
             "dependencies": {
-                "is-positive": "1.0.0",
+                "positive-alias": "npm:is-positive@1.0.0",
             },
         })
         .to_string(),
@@ -56,20 +56,88 @@ fn edit_dependency_successfully() {
         .assert()
         .success();
 
-    let pkg_dir = workspace.join("node_modules/is-positive");
+    let pkg_dir = workspace.join("node_modules/positive-alias");
     let index_js = pkg_dir.join("index.js");
     assert!(index_js.exists());
 
     let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"modified\";');""#;
 
     let mut cmd = pacquet(&workspace);
-    cmd.env("EDITOR", dummy_editor);
-    cmd.with_args(["edit", "is-positive"])
+    cmd.env("PNPM_CONFIG_EDITOR", dummy_editor);
+    cmd.env("EDITOR", "non_existent_editor_command_xyz");
+    cmd.with_args(["edit", "positive-alias"])
         .assert()
         .success();
 
     let content = fs::read_to_string(&index_js).unwrap();
     assert!(content.contains("modified"));
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_nested_dependency_successfully() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {"express": "4.18.2"}}).to_string(),
+    )
+    .expect("write package.json");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet(&workspace)
+        .with_args(["edit", "express/safe-buffer", "--editor", "node -e \"process.exit(0)\""])
+        .assert()
+        .success();
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_rejects_packages_in_the_global_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    crate::_utils::enable_gvs_in_workspace_yaml(
+        &workspace,
+        "globalVirtualStoreDir: ../global-links\n",
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {"is-positive": "1.0.0"}}).to_string(),
+    )
+    .expect("write package.json");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let package_dir = fs::canonicalize(workspace.join("node_modules/is-positive"))
+        .expect("resolve installed package directory");
+    let global_virtual_store_dir = fs::canonicalize(workspace.join("../global-links"))
+        .expect("resolve global virtual store directory");
+    assert!(
+        package_dir.starts_with(&global_virtual_store_dir),
+        "package: {package_dir:?}, global virtual store: {global_virtual_store_dir:?}",
+    );
+
+    let output = pacquet(&workspace)
+        .with_args(["edit", "is-positive", "--editor", "node -e \"process.exit(0)\""])
+        .output()
+        .expect("run pacquet edit");
+
+    assert!(!output.status.success(), "edit must reject a shared package");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        crate::_utils::flatten_report(&stderr)
+            .contains("sharedbyprojectsusingtheglobalvirtualstore"),
+        "{stderr}",
+    );
 
     drop(npmrc_info);
     drop(root);

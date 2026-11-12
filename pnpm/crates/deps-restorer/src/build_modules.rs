@@ -167,14 +167,11 @@ pub enum BuildModulesError {
 /// rebuild did not touch.
 #[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
-    /// Allow-build keys (the package name for registry deps, the full
-    /// pkgId for git/tarball artifacts — see
-    /// [`allow_build_key_from_ignored_build`]) to force past the
-    /// side-effects `is_built` gate. `None` forces every build-needing
-    /// package (`pnpm rebuild` with no arguments); `Some(keys)` forces
-    /// only the matching ones (`pnpm rebuild <pkg>...`). A package matches
-    /// when either its name or its allow-build key is in the set, so a
-    /// `pnpm rebuild <name>` and an `approve-builds` key both select it.
+    /// Package names, exact dependency paths, and allow-build keys to force
+    /// past the side-effects `is_built` gate. `None` forces every
+    /// build-needing package (`pnpm rebuild` with no arguments); `Some(keys)`
+    /// forces only the matching ones (`pnpm rebuild <pkg>...`). A package
+    /// matches its name, dependency path, or allow-build key.
     pub selected_names: Option<HashSet<String>>,
 
     /// Importer ids whose own deferred install scripts this rebuild
@@ -233,7 +230,12 @@ impl RebuildOptions {
     #[must_use]
     pub fn settles_dependency(&self, dep_path: &str) -> bool {
         let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
-        self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
+        self.is_selected(&name)
+            || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
+            || self.is_selected(dep_path)
+            || dep_path
+                .split_once('(')
+                .is_some_and(|(base, _)| self.is_selected(base))
     }
 
     /// Whether the snapshot installed under `key` is in the rebuild

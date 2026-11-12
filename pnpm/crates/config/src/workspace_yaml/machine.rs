@@ -36,6 +36,8 @@ pub struct MachineSettings {
     pub state_dir: Option<String>,
     /// Which scope `pnpm login` claims for the machine.
     pub scope: Option<String>,
+    /// Text editor invoked by `pnpm edit`.
+    pub editor: Option<String>,
     /// A relative value resolves against the directory pnpm runs in, which is
     /// where pnpm itself resolves it. See
     /// [`Config::global_dir`](crate::settings::Config::global_dir).
@@ -100,6 +102,7 @@ impl MachineSettings {
     /// Expand `${VAR}` in the string settings.
     pub fn substitute_env<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
+        substitute_optional_string::<Sys>(&mut self.editor);
         substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.global_dir);
         substitute_optional_string::<Sys>(&mut self.global_bin_dir);
@@ -127,6 +130,7 @@ impl MachineSettings {
             ci,
             state_dir: _,
             scope,
+            editor,
             global_dir,
             global_bin_dir,
             macos_backup,
@@ -136,6 +140,7 @@ impl MachineSettings {
         } = self;
         overlay(&mut config.ci, ci);
         overlay_some(&mut config.scope, scope);
+        overlay_some(&mut config.editor, editor);
         if let Some(dir) = global_dir {
             config.global_dir = Some(resolve(base_dir, &dir));
         }

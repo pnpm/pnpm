@@ -134,6 +134,7 @@ impl MachineSettings {
         // Unlike its `string_field!` neighbors, `scope` keeps an empty value;
         // see [`read_env_allow_empty`] for why.
         string_field_allow_empty!(settings, reader, scope, "SCOPE");
+        string_field!(settings, reader, editor, "EDITOR");
         string_field!(settings, reader, global_dir, "GLOBAL_DIR");
         string_field!(settings, reader, global_bin_dir, "GLOBAL_BIN_DIR");
         json_field!(settings, reader, global_shims, "GLOBAL_SHIMS");

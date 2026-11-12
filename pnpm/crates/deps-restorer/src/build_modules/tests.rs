@@ -18,6 +18,8 @@ mod patches_and_approvals;
 
 mod build_policy;
 
+mod rebuild_selection;
+
 #[cfg(unix)]
 mod gvs_markers;
 

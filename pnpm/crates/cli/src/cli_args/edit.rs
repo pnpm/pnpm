@@ -30,6 +30,18 @@ impl EditArgs {
             .wrap_err("Failed to canonicalize modules directory")?;
         let real_pkg_path =
             resolve_package_dir(&modules_dir, &parts, state.config.virtual_store_dir())?;
+        if state.config.enable_global_virtual_store {
+            let global_virtual_store_dir = dunce::canonicalize(state.config.virtual_store_dir())
+                .into_diagnostic()
+                .wrap_err("Failed to canonicalize the global virtual store directory")?;
+            if real_pkg_path.starts_with(&global_virtual_store_dir) {
+                return Err(miette!(
+                    "Cannot edit '{}' because it is shared by projects using the global virtual store",
+                    real_pkg_path.display(),
+                ));
+            }
+        }
+        let rebuild_selection = package_rebuild_selection(&real_pkg_path)?;
 
         de_hardlink_dir(&real_pkg_path)
             .into_diagnostic()
@@ -53,9 +65,7 @@ impl EditArgs {
             return Err(miette!("Editor command exited with failure status"));
         }
 
-        if let Some(pkg_to_rebuild) = parts.last() {
-            rebuild_package::<ReporterType>(&state, pkg_to_rebuild).await?;
-        }
+        rebuild_package::<ReporterType>(&state, &rebuild_selection).await?;
 
         Ok(())
     }
@@ -72,10 +82,10 @@ impl EditArgs {
 
 async fn rebuild_package<ReporterType: Reporter + 'static>(
     state: &State,
-    package_name: &str,
+    package_names: &[String],
 ) -> miette::Result<()> {
     let selection = super::rebuild::RebuildSelection {
-        names: Some(vec![package_name.to_string()]),
+        names: Some(package_names.to_vec()),
         projects: Vec::new(),
     };
     super::rebuild::run_rebuild::<ReporterType>(state, selection, None).await
@@ -91,7 +101,15 @@ fn resolve_package_dir(
         let candidate = if i == 0 {
             current_dir.join(part)
         } else {
-            current_dir.join("node_modules").join(part)
+            current_dir
+                .parent()
+                .filter(|parent| {
+                    parent
+                        .file_name()
+                        .is_some_and(|name| name == "node_modules")
+                })
+                .unwrap_or(&current_dir)
+                .join(part)
         };
         if !candidate.exists() {
             let dir = current_dir.display();
@@ -158,6 +176,7 @@ fn find_safe_program_path(
 fn split_shell_args(input: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut current = String::new();
+    let mut has_current_arg = false;
     let mut in_double_quote = false;
     let mut in_single_quote = false;
     let mut chars = input.chars().peekable();
@@ -169,10 +188,11 @@ fn split_shell_args(input: &str) -> Vec<String> {
             &mut in_double_quote,
             &mut in_single_quote,
             &mut current,
+            &mut has_current_arg,
             &mut args,
         );
     }
-    finish_shell_arg(&mut current, &mut args);
+    finish_shell_arg(&mut current, &mut has_current_arg, &mut args);
     args
 }
 
@@ -182,24 +202,30 @@ fn process_shell_char(
     in_double_quote: &mut bool,
     in_single_quote: &mut bool,
     current: &mut String,
+    has_current_arg: &mut bool,
     args: &mut Vec<String>,
 ) {
     if character == '\\' && !*in_single_quote {
+        *has_current_arg = true;
         push_shell_escape(character, chars, current);
     } else if character == '"' && !*in_single_quote {
         *in_double_quote = !*in_double_quote;
+        *has_current_arg = true;
     } else if character == '\'' && !*in_double_quote {
         *in_single_quote = !*in_single_quote;
+        *has_current_arg = true;
     } else if character.is_whitespace() && !*in_double_quote && !*in_single_quote {
-        finish_shell_arg(current, args);
+        finish_shell_arg(current, has_current_arg, args);
     } else {
         current.push(character);
+        *has_current_arg = true;
     }
 }
 
-fn finish_shell_arg(current: &mut String, args: &mut Vec<String>) {
-    if !current.is_empty() {
+fn finish_shell_arg(current: &mut String, has_current_arg: &mut bool, args: &mut Vec<String>) {
+    if *has_current_arg {
         args.push(std::mem::take(current));
+        *has_current_arg = false;
     }
 }
 
@@ -267,19 +293,32 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
     if !is_file_hardlinked(metadata) {
         return Ok(());
     }
-    let parent_dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = pnpm_fs::private_named_tempfile_in(parent_dir)?;
-    {
-        let mut src = fs::File::open(path)?;
-        std::io::copy(&mut src, &mut tmp)?;
-    }
-    tmp.as_file().sync_all()?;
+    pnpm_fs::copy_file_atomic(path, path)?;
+    let mut permissions = metadata.permissions();
     #[cfg(unix)]
-    tmp.as_file()
-        .set_permissions(fs::Permissions::from_mode(metadata.permissions().mode() | 0o200))?;
-    std::fs::remove_file(path)?;
-    tmp.persist(path).map_err(|err| err.error)?;
-    Ok(())
+    permissions.set_mode(permissions.mode() | 0o200);
+    #[cfg(not(unix))]
+    permissions.set_readonly(false);
+    fs::set_permissions(path, permissions)
+}
+
+fn package_rebuild_selection(package_dir: &Path) -> miette::Result<Vec<String>> {
+    let manifest_path = package_dir.join("package.json");
+    let manifest = fs::read(&manifest_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read package manifest at '{}'", manifest_path.display()))?;
+    let manifest: serde_json::Value = serde_json::from_slice(&manifest)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse package manifest at '{}'", manifest_path.display()))?;
+    let name = manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| miette!("Package manifest at '{}' has no name", manifest_path.display()))?;
+    if let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) {
+        return Ok(vec![format!("{name}@{version}")]);
+    }
+    Ok(vec![name])
 }
 
 fn is_file_hardlinked(metadata: &fs::Metadata) -> bool {

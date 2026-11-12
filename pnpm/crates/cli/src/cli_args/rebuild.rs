@@ -138,7 +138,7 @@ impl RebuildArgs {
 /// What a `pacquet rebuild` invocation was asked to rebuild.
 #[derive(Debug, Default)]
 pub(crate) struct RebuildSelection {
-    /// Allow-build keys of the dependencies to rebuild, or `None` for
+    /// Package names or exact dependency paths to rebuild, or `None` for
     /// every build-needing package.
     pub(crate) names: Option<Vec<String>>,
     /// [`RebuildOptions::pending_projects`]; only `--pending` populates it.

@@ -13,6 +13,8 @@ pnpm edit @scope/package --editor "code --wait"
 
 Edits apply to the installed files in your project. pnpm breaks their hard links before opening the editor to protect other projects that share the store. Use [`pnpm patch`](patch.md) to create a patch that survives reinstalls.
 
+Packages in the global virtual store cannot be edited because other projects share their files.
+
 ## --editor <editor>
 
 Choose the editor command. You can include arguments, such as `code --wait`.
