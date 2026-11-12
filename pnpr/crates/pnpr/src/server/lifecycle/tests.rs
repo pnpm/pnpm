@@ -235,6 +235,17 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
         tokio::task::yield_now().await;
     }
     assert!(!serve_task.is_finished(), "server must still be draining in-flight request");
+    assert_shutting_down_routes(&probe_app).await;
+
+    tokio::time::timeout(Duration::from_secs(2), &mut serve_task).await
+        .expect("server must stop once configured shutdown_timeout expires")
+        .unwrap()
+        .unwrap();
+}
+
+async fn assert_shutting_down_routes(probe_app: &axum::Router) {
+    use axum::{body::Body, http::Request, http::StatusCode};
+    use tower::ServiceExt as _;
 
     for path in ["/-/ready", "/~local/-/ready"] {
         let ready_during = probe_app
@@ -266,11 +277,6 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
             .unwrap();
         assert_eq!(probe.status(), StatusCode::OK, "{path}");
     }
-
-    tokio::time::timeout(Duration::from_secs(2), &mut serve_task).await
-        .expect("server must stop once configured shutdown_timeout expires")
-        .unwrap()
-        .unwrap();
 }
 
 #[tokio::test(start_paused = true)]

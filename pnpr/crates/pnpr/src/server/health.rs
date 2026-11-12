@@ -102,7 +102,8 @@ fn probe_log_message(status: &Result<(), RegistryError>) -> String {
     status
         .as_ref()
         .err()
-        .map_or_else(|| "ok".to_string(), RegistryError::log_message)
+        .map(RegistryError::log_message)
+        .unwrap_or_else(|| "ok".to_string())
 }
 
 fn probe_status_label(status: &Result<(), RegistryError>) -> &'static str {
