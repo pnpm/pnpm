@@ -78,7 +78,11 @@ fn update_shell(
         }
         Some("fish") => setup_fish_shell(pnpm_home_dir, opts),
         Some("nu") => setup_nu_shell(pnpm_home_dir, opts),
-        Some("pwsh") => pwsh::setup_pwsh_shell(pnpm_home_dir, opts),
+        Some("pwsh") => {
+            let profile =
+                pwsh::profile_path(std::env::var_os("XDG_CONFIG_HOME"), pnpm_config::home_dir())?;
+            pwsh::setup_pwsh_shell(profile, pnpm_home_dir, opts)
+        }
         Some(other) => Err(PathExtenderError::UnsupportedShell { shell: other.to_string() }),
         None => Err(PathExtenderError::UnknownShell),
     }

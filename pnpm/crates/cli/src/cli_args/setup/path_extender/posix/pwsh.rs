@@ -3,15 +3,19 @@
 
 use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigReport, PathExtenderError, PathExtenderReport,
-    home_dir, update_shell_config, wrap_section,
+    update_shell_config, wrap_section,
 };
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 
+/// Write the block to `config_file`, the path [`profile_path`] resolves.
 pub(super) fn setup_pwsh_shell(
+    config_file: PathBuf,
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
-    let config_file = xdg_config_home()?.join("powershell/profile.ps1");
     let new_settings = render_pwsh_settings(&dir.to_string_lossy(), opts);
     let content = wrap_section(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, &[], opts)?;
@@ -59,11 +63,15 @@ pub(in crate::cli_args::setup) fn pwsh_quote(value: &str) -> String {
     quoted
 }
 
-/// The directory PowerShell reads its profile from: `$XDG_CONFIG_HOME`, else
-/// `~/.config`.
-fn xdg_config_home() -> Result<PathBuf, PathExtenderError> {
-    match std::env::var_os("XDG_CONFIG_HOME").filter(|dir| !dir.is_empty()) {
-        Some(dir) => Ok(PathBuf::from(dir)),
-        None => Ok(home_dir()?.join(".config")),
-    }
+/// The profile pwsh loads for every host: `profile.ps1` under
+/// `$XDG_CONFIG_HOME/powershell`, else under `~/.config/powershell`.
+pub(super) fn profile_path(
+    xdg_config_home: Option<OsString>,
+    home_dir: Option<PathBuf>,
+) -> Result<PathBuf, PathExtenderError> {
+    let config_home = match xdg_config_home.filter(|dir| !dir.is_empty()) {
+        Some(dir) => PathBuf::from(dir),
+        None => home_dir.ok_or(PathExtenderError::NoHomeDir)?.join(".config"),
+    };
+    Ok(config_home.join("powershell/profile.ps1"))
 }

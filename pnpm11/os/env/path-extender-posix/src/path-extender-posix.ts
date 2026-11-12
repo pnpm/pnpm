@@ -260,7 +260,7 @@ function renderPwshSettings (dir: string, opts: AddDirToPosixEnvPathOpts): strin
  * PowerShell treats it as a literal with no expansion. PowerShell also treats
  * typographic apostrophes as string delimiters.
  */
-function quotePowerShell (value: string): string {
+export function quotePowerShell (value: string): string {
   return `'${value.replace(/['\u2018-\u201b]/g, (quote) => quote + quote)}'`
 }
 

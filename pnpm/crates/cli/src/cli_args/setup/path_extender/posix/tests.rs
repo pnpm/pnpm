@@ -6,12 +6,16 @@
 
 use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError, PathGuard,
-    add_dir_to_posix_env_path, find_section, fish_quote, pwsh::render_pwsh_settings,
+    add_dir_to_posix_env_path, find_section, fish_quote,
+    pwsh::{profile_path, render_pwsh_settings, setup_pwsh_shell},
     render_fish_section, render_fish_settings, render_nu_settings, render_posix_section,
     render_posix_settings, replace_section, sh_quote, update_shell_config, v11_quote, wrap_section,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const HOME: &str = "/home/user/.pnpm";
 
@@ -229,6 +233,51 @@ fn pwsh_settings_appending_to_the_end_of_path() {
         r"if (($env:PATH -split ':')[-1] -cne '/home/o''neil/$(Write-Error injected)') {
   $env:PATH = $env:PATH + ':' + '/home/o''neil/$(Write-Error injected)'
 }",
+    );
+}
+
+#[test]
+fn pwsh_profile_is_under_xdg_config_home_when_set() {
+    let profile = profile_path(Some("/xdg".into()), Some(PathBuf::from("/home/user")));
+    assert_eq!(profile.unwrap(), Path::new("/xdg/powershell/profile.ps1"));
+}
+
+#[test]
+fn pwsh_profile_is_under_dot_config_when_xdg_config_home_is_unset_or_empty() {
+    for xdg_config_home in [None, Some("".into())] {
+        let profile = profile_path(xdg_config_home, Some(PathBuf::from("/home/user")));
+        assert_eq!(profile.unwrap(), Path::new("/home/user/.config/powershell/profile.ps1"));
+    }
+}
+
+#[test]
+fn pwsh_profile_needs_a_home_dir_without_xdg_config_home() {
+    let err = profile_path(None, None).expect_err("no home dir to put the profile under");
+    assert!(matches!(err, PathExtenderError::NoHomeDir));
+}
+
+#[test]
+fn setup_pwsh_shell_creates_the_profile_and_then_skips_it() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let profile = dir
+        .path()
+        .join("powershell")
+        .join("profile.ps1");
+    let mut opts = opts(false);
+    opts.proxy_var_sub_dir = Some("bin");
+
+    let report = setup_pwsh_shell(profile.clone(), Path::new(HOME), &opts).expect("setup pwsh");
+    assert_eq!(
+        report.config_file.map(|config| config.change_type),
+        Some(ConfigFileChangeType::Created),
+    );
+    let written = fs::read_to_string(&profile).expect("read profile");
+    assert_eq!(written, format!("{}\n", wrap_section("pnpm", &render_pwsh_settings(HOME, &opts))));
+
+    let report = setup_pwsh_shell(profile, Path::new(HOME), &opts).expect("setup pwsh again");
+    assert_eq!(
+        report.config_file.map(|config| config.change_type),
+        Some(ConfigFileChangeType::Skipped),
     );
 }
 

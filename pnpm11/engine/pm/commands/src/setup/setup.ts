@@ -9,6 +9,7 @@ import {
   addDirToEnvPath,
   type ConfigReport,
   type PathExtenderReport,
+  quotePowerShell,
 } from '@pnpm/os.env.path-extender'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
@@ -375,11 +376,6 @@ function renderReloadCommand (configFile: string): string {
     return `. ${quotePowerShell(configFile)}`
   }
   return `source ${configFile}`
-}
-
-function quotePowerShell (value: string): string {
-  // PowerShell also treats typographic apostrophes as string delimiters.
-  return `'${value.replace(/['\u2018-\u201b]/g, (quote) => quote + quote)}'`
 }
 
 function reportConfigChange (configReport: ConfigReport): string {
