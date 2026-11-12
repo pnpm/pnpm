@@ -1,8 +1,9 @@
 use super::{
-    HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, SnapshotDepRef, SnapshotEntry, assert_eq,
-    child_of, dep_key, empty_lockfile, hoist, nm_hoist, pkg_metadata_with_peer, pkg_name,
-    resolved_dep, tree_node, tree_root, ver_peer,
+    BTreeSet, HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, SnapshotDepRef, SnapshotEntry,
+    assert_eq, child_of, dep_key, empty_lockfile, hoist, nm_hoist, pkg_metadata_with_peer,
+    pkg_name, resolved_dep, tree_node, tree_root, ver_peer,
 };
+use std::collections::BTreeMap;
 
 #[test]
 fn identical_peer_bindings_dedupe_despite_a_conflicting_ancestor() {
@@ -90,4 +91,34 @@ fn different_recorded_peer_bindings_stay_separate_when_ancestors_agree() {
         child_of(&nested_client, "schema").references.borrow().contains("schema@1.0.0"),
         "the nested client's binding must not be replaced by its ancestor's schema@2.0.0",
     );
+}
+
+#[test]
+fn a_nested_peer_provider_moves_with_its_package_into_a_free_root_slot() {
+    let border_on_client = HoistOpts {
+        hoisting_limits: BTreeMap::from([(
+            ".@".to_string(),
+            BTreeSet::from(["client".to_string()]),
+        )]),
+        ..HoistOpts::default()
+    };
+    for (root_schema, opts) in [(true, HoistOpts::default()), (false, border_on_client)] {
+        let schema2 = tree_node("schema", "schema@2.0.0", &[], vec![]);
+        let client = tree_node("client", "client@1.0.0(schema@2.0.0)", &["schema"], vec![schema2]);
+        let host_a = tree_node("host-a", "host-a@1.0.0", &[], vec![Rc::clone(&client)]);
+        let host_b = tree_node("host-b", "host-b@1.0.0", &[], vec![client]);
+        let mut root_deps = vec![host_a, host_b];
+        if root_schema {
+            root_deps.push(tree_node("schema", "schema@1.0.0", &[], vec![]));
+        }
+        let root = tree_root(root_deps);
+
+        let result = nm_hoist(&root, &opts);
+        dbg!(&result);
+        for host in ["host-a", "host-b"] {
+            assert!(child_of(&result, host).dependencies.borrow().is_empty());
+        }
+        let client = child_of(&result, "client");
+        assert!(child_of(&client, "schema").references.borrow().contains("schema@2.0.0"));
+    }
 }

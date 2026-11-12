@@ -243,30 +243,47 @@ fn would_shadow_peer(
     candidate.peer_names
         .iter()
         .any(|peer_name| {
+            let parent_provider = nearest_peer_provider(peer_name, path_below_root(ancestor_path));
             let Some(provider) = resolved_peer_provider(candidate, peer_name)
                 .or_else(|| nearest_peer_provider(peer_name, ancestor_path))
             else {
                 return false;
             };
-            let target_provider = root_candidate
-                .and_then(|target| resolved_peer_provider(&target.0, peer_name))
-                .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)));
+            let target_provider = match root_candidate {
+                Some(target) => resolved_peer_provider(&target.0, peer_name),
+                // A hoist carries the nested provider along. With an ancestor
+                // supplying the peer, the candidate stays near it, as upstream does.
+                None if parent_provider.is_none() => nested_peer_provider(candidate, peer_name),
+                None => None,
+            }
+            .or_else(|| root_index.get(peer_name).map(|target| Rc::clone(&target.0)));
             !target_provider.is_some_and(|target| same_locator(&target, &provider))
         })
 }
 
+/// `ancestor_path` without its first entry, the hoisting root.
+fn path_below_root(ancestor_path: &[Rc<HoisterResult>]) -> &[Rc<HoisterResult>] {
+    ancestor_path
+        .get(1..)
+        .unwrap_or_default()
+}
+
 fn resolved_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
-    node.dependencies
-        .borrow()
-        .iter()
-        .find(|dependency| dependency.0.name == peer_name)
-        .map(|dependency| Rc::clone(&dependency.0))
+    nested_peer_provider(node, peer_name)
         .or_else(|| {
             node.hoisted_dependencies
                 .borrow()
                 .get(peer_name)
                 .map(Rc::clone)
         })
+}
+
+fn nested_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<HoisterResult>> {
+    node.dependencies
+        .borrow()
+        .iter()
+        .find(|dependency| dependency.0.name == peer_name)
+        .map(|dependency| Rc::clone(&dependency.0))
 }
 
 /// The deepest ancestor in `ancestor_path` that carries `peer_name` as a
