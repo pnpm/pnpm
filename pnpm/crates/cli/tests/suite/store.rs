@@ -719,8 +719,14 @@ fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
 struct DownloadedFoo<'a> {
     /// Replaces the registry's tarball. The lockfile entry is pinned to it.
     tarball: Option<Vec<u8>>,
-    /// An `allowBuilds` entry, as `(key, allowed)`.
-    allow_build: Option<(&'a str, bool)>,
+    allow_build: Option<AllowBuild<'a>>,
+}
+
+/// An `allowBuilds` entry of the project.
+#[derive(Clone, Copy)]
+struct AllowBuild<'a> {
+    key: &'a str,
+    allowed: bool,
 }
 
 /// A lockfile entry whose id is the tarball's URL, which the tarball itself
@@ -749,7 +755,7 @@ fn install_offline_from_a_downloaded_tarball_url_entry(
         serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": served } }).to_string(),
     )
     .expect("write package.json");
-    if let Some((key, allowed)) = downloaded_foo.allow_build {
+    if let Some(AllowBuild { key, allowed }) = downloaded_foo.allow_build {
         _utils::append_workspace_yaml_key(
             &workspace,
             "allowBuilds",
@@ -822,7 +828,7 @@ fn store_add_of_a_downloaded_tarball_serves_a_git_hosted_lockfile_entry() {
 
 /// `store add` leaves a git-hosted package as its source, and the install
 /// prepares it under the project's build policy.
-fn assert_offline_install_prepares_a_downloaded_git_hosted_package(allow_build: (&str, bool)) {
+fn assert_offline_install_prepares_a_downloaded_git_hosted_package(allow_build: AllowBuild<'_>) {
     let manifest = serde_json::json!({
         "name": "@pnpm.e2e/foo",
         "version": "100.0.0",
@@ -841,20 +847,23 @@ fn assert_offline_install_prepares_a_downloaded_git_hosted_package(allow_build: 
     );
     let package = workspace.join("node_modules/@pnpm.e2e/foo");
     assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), "module.exports = 42");
-    assert_eq!(package.join("prepare.txt").exists(), allow_build.1);
+    assert_eq!(package.join("prepare.txt").exists(), allow_build.allowed);
 }
 
 #[test]
 fn store_add_of_a_downloaded_git_hosted_package_is_prepared_when_its_build_is_allowed() {
-    assert_offline_install_prepares_a_downloaded_git_hosted_package((
-        &format!("@pnpm.e2e/foo@{GIT_HOSTED_FOO}"),
-        true,
-    ));
+    assert_offline_install_prepares_a_downloaded_git_hosted_package(AllowBuild {
+        key: &format!("@pnpm.e2e/foo@{GIT_HOSTED_FOO}"),
+        allowed: true,
+    });
 }
 
 #[test]
 fn store_add_of_a_downloaded_git_hosted_package_stays_unprepared_when_its_build_is_denied() {
-    assert_offline_install_prepares_a_downloaded_git_hosted_package(("@pnpm.e2e/foo", false));
+    assert_offline_install_prepares_a_downloaded_git_hosted_package(AllowBuild {
+        key: "@pnpm.e2e/foo",
+        allowed: false,
+    });
 }
 
 /// <https://github.com/pnpm/pnpm/issues/17875>
