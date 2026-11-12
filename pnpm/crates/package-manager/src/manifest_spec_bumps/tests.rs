@@ -120,7 +120,7 @@ fn a_declaration_without_a_range_is_left_alone() {
     assert_eq!(bump("npm:is-positive", "is-positive@3.1.0"), None);
 }
 
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_node_runtime_range_moves_under_its_prefix() {
     let bump_node = |declared, version| bump_under("node", declared, version);
@@ -134,7 +134,7 @@ fn a_node_runtime_declaration_that_already_names_the_version_is_left_alone() {
     assert_eq!(bump_under("node", "runtime:26.8.2", "runtime:26.8.2"), None);
 }
 
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_node_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
     let bump_node = |declared, version| bump_under("node", declared, version);
@@ -148,7 +148,7 @@ fn a_node_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
     );
 }
 
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_node_runtime_tag_is_pinned_to_the_pick() {
     assert_eq!(
@@ -162,7 +162,7 @@ fn a_node_runtime_declaration_with_an_unknown_channel_is_left_alone() {
     assert_eq!(bump_under("node", "runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
 }
 
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_deno_or_bun_runtime_declaration_moves_its_range_and_leaves_tags_alone() {
     for alias in ["deno", "bun"] {
@@ -231,7 +231,7 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
 
 /// `devEngines.runtime` reaches the update as a `runtime:` dependency under
 /// `devDependencies`.
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_runtime_bump_moves_the_lockfile_entry_and_reports_the_new_range() {
     let mut lockfile = lockfile(

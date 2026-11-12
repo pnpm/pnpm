@@ -90,3 +90,17 @@ fn ignores_direct_runtime_dependencies_skipped_for_installability() {
 
     assert_eq!(crate::runtime_dependency_alias(&lockfile, included(false), &skipped), None);
 }
+
+#[test]
+fn reports_transitive_runtimes_left_by_direct_runtime_skips() {
+    let lockfile = lockfile(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      library:\n        specifier: 1.0.0\n        version: 1.0.0\n      node:\n        specifier: runtime:22.0.0\n        version: runtime:22.0.0\npackages:\n  library@1.0.0:\n    resolution: {integrity: sha512-aaa}\n  node@runtime:22.0.0:\n    resolution: {integrity: sha512-bbb}\n  deno@runtime:2.0.0:\n    resolution: {integrity: sha512-ccc}\nsnapshots:\n  library@1.0.0:\n    dependencies:\n      deno: runtime:2.0.0\n  node@runtime:22.0.0: {}\n  deno@runtime:2.0.0: {}\n",
+    );
+    let mut skipped = SkippedSnapshots::new();
+    skipped.add_optional_excluded("node@runtime:22.0.0".parse().expect("parse package key"));
+
+    assert_eq!(
+        crate::runtime_dependency_alias(&lockfile, included(false), &skipped),
+        Some("deno".to_string()),
+    );
+}

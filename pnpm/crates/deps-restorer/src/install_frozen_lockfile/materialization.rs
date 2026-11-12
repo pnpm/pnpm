@@ -361,7 +361,7 @@ fn ensure_runtime_provisioning(
     inputs: &FrozenInputs<'_>,
     skipped: &SkippedSnapshots,
 ) -> Result<(), InstallFrozenLockfileError> {
-    if inputs.platform.runtime_provisioning || inputs.platform.skip_runtimes {
+    if inputs.platform.runtime_provisioning {
         return Ok(());
     }
     if let Some(alias) =

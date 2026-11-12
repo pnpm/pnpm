@@ -20,11 +20,39 @@ use text_block_macros::text_block;
 /// from the cold-batch dispatcher. Variant selection happens
 /// before any network fetch, so the bogus URL on the variant is
 /// never read — the test stays hermetic.
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[tokio::test]
 async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let dirs = InstallDirs::new();
+    let err = install_unmatchable_runtime_variant(&dirs).await;
 
+    let rendered = format!("{err:?}");
+    eprintln!("ERROR DEBUG:\n{rendered}");
+    assert!(
+        rendered.contains("NoMatchingPlatformVariant"),
+        "expected NoMatchingPlatformVariant in the error chain, got: {rendered}",
+    );
+    let displayed = err.to_string();
+    assert!(!displayed.is_empty(), "Display impl should produce a non-empty user-facing message");
+
+    drop(dirs.dir);
+}
+
+#[cfg(not(feature = "runtime-provisioning"))]
+#[tokio::test]
+async fn frozen_lockfile_install_reports_unavailable_runtime_provisioning() {
+    let dirs = InstallDirs::new();
+    let err = install_unmatchable_runtime_variant(&dirs).await;
+
+    assert!(
+        matches!(&err, InstallError::RuntimeProvisioningUnavailable { alias } if alias == "node"),
+        "expected RuntimeProvisioningUnavailable, got: {err:?}",
+    );
+
+    drop(dirs.dir);
+}
+
+async fn install_unmatchable_runtime_variant(dirs: &InstallDirs) -> InstallError {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("node", "runtime:22.0.0", DependencyGroup::Prod).unwrap();
@@ -68,7 +96,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     })
     .expect("parse variant-mismatch fixture lockfile");
 
-    let err = Install {
+    Install {
         lockfile_policy: crate::InstallLockfilePolicy {
             frozen: true,
             prefer_frozen: None,
@@ -119,18 +147,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     }
     .run::<SilentReporter>()
     .await
-    .expect_err("variant-mismatch lockfile must surface a typed error");
-
-    let rendered = format!("{err:?}");
-    eprintln!("ERROR DEBUG:\n{rendered}");
-    assert!(
-        rendered.contains("NoMatchingPlatformVariant"),
-        "expected NoMatchingPlatformVariant in the error chain, got: {rendered}",
-    );
-    let displayed = err.to_string();
-    assert!(!displayed.is_empty(), "Display impl should produce a non-empty user-facing message");
-
-    drop(dirs.dir);
+    .expect_err("variant-mismatch lockfile must surface a typed error")
 }
 /// Same lockfile + manifest shape as
 /// [`frozen_lockfile_install_errors_when_no_variant_matches_host`],

@@ -175,7 +175,7 @@ fn a_requested_version_is_recorded_under_the_declared_operator() {
     assert_eq!(requested_version_rewrite("dep", "next", "^100.0.0", RangeSpecStyle::Major), "next");
 }
 
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_requested_version_on_a_node_runtime_declaration_uses_the_runtime_rule() {
     use pnpm_registry::RangeSpecStyle;
@@ -223,7 +223,7 @@ fn a_requested_version_on_a_node_runtime_declaration_uses_the_runtime_rule() {
 /// npm resolver's `calc_specifier`, so an exact version keeps the `^` or `~`
 /// operator `previous` already pins while a range or dist-tag is recorded as
 /// asked.
-#[cfg(feature = "runtime-provisioning")]
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
 #[test]
 fn a_requested_version_on_a_deno_or_bun_runtime_declaration_preserves_range_operator() {
     use pnpm_registry::RangeSpecStyle;

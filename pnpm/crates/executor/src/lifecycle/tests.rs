@@ -593,7 +593,7 @@ fn malformed_package_yaml_reports_the_selected_manifest() {
 /// the child-process pumps, so it needs its own proof that a script's
 /// stdout, stderr, and non-zero exit still reach the reporter. Runs
 /// everywhere: the emulated shell is the same on every platform.
-#[cfg(feature = "shell-emulator")]
+#[cfg_attr(not(feature = "shell-emulator"), ignore = "requires shell emulation")]
 #[test]
 fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
