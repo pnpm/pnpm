@@ -15,8 +15,9 @@ tokio::task_local! {
 ///
 /// A replica that cannot confirm it follows the stored graph answers `503`,
 /// except on the endpoints that consult no registry: the health probes, which
-/// report it themselves, the account endpoints, and the registry admin API,
-/// which is how an admin repairs the graph.
+/// report it themselves, the account and sign-in endpoints, and the registry
+/// admin API, which is how an admin repairs the graph. A session identity
+/// built without a graph holds no team membership.
 pub(in super::super) async fn with_pinned_routing(
     state: &AppState,
     path: &str,
@@ -31,8 +32,26 @@ pub(in super::super) async fn with_pinned_routing(
     PINNED.scope(state.inner.current_routing(), serve).await
 }
 
-fn serves_without_graph(path: &str) -> bool {
-    if is_registry_admin_path(path) || path.starts_with("/-/pnpr/v0/admin/users") {
+/// `work` with this task's pinned snapshot pinned on whatever task runs it, so
+/// work a request spawns keeps reading the request's graph.
+pub(crate) fn carry_pinned_routing<Work: Future>(work: Work) -> impl Future<Output = Work::Output> {
+    let pinned = PINNED.try_with(Arc::clone).ok();
+    async move {
+        match pinned {
+            Some(snapshot) => PINNED.scope(snapshot, work).await,
+            None => work.await,
+        }
+    }
+}
+
+/// Whether a request for `path` is served while the replica cannot serve its
+/// graph. See [`with_pinned_routing`].
+pub(in super::super) fn serves_without_graph(path: &str) -> bool {
+    if is_registry_admin_path(path)
+        || path.starts_with("/-/pnpr/v0/admin/users")
+        || path == "/-/pnpr/v0/sign-in"
+        || path.starts_with("/-/oidc/")
+    {
         return true;
     }
     let tail = path

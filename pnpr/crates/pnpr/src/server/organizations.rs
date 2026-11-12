@@ -232,7 +232,8 @@ pub(super) fn readable_team_registry<'a>(
 ) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
     let (name, hosted) = team_registry(state, routing, identity, registry, scope)?;
     super::require_caller(identity, "team listing")?;
-    if state.inner.config.identity.is_admin(identity) {
+    let auth = &state.inner.config.identity;
+    if auth.is_admin(identity) || auth.is_registry_admin(identity) {
         return Ok((name, hosted));
     }
     if !identity.belongs_to_directory(&hosted.teams) {

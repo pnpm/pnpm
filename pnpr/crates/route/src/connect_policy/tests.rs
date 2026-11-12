@@ -66,3 +66,21 @@ fn allows_fetch_checks_an_ip_literal_host_against_the_connect_policy() {
     assert!(context.allows_fetch("http://[::1]:4873/foo"));
     assert!(!context.allows_fetch("http://169.254.169.254/latest/meta-data/"));
 }
+
+#[test]
+fn the_own_host_is_fetchable_only_at_the_public_url_origin() {
+    for host in ["127.0.0.1", "localhost"] {
+        let routes = [format!("http://{host}:6379/"), format!("https://{host}:4873/")];
+        let routes: Vec<&str> = routes
+            .iter()
+            .map(String::as_str)
+            .collect();
+        let context =
+            RouteContext::from_config(&config(&format!("http://{host}:4873"), &routes, &[]));
+        assert!(context.allows_fetch(&format!("http://{host}:4873/~local/foo")), "{host}");
+        for route in routes {
+            assert!(context.allows_registry(route), "{route} is on the allowlist");
+            assert!(!context.allows_fetch(&format!("{route}foo")), "fetched {route}");
+        }
+    }
+}

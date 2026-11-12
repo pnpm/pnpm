@@ -6,7 +6,10 @@ use super::{
 use pnpr_config::Management;
 use std::{
     future::Future,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use tokio::{sync::OwnedMutexGuard, time::Instant};
@@ -39,13 +42,22 @@ pub(super) struct ManagedState {
     /// Held by a reload and by every edit, so a reload that read the store
     /// before an edit cannot publish its older copy after it.
     pub(super) reload: Arc<tokio::sync::Mutex<()>>,
+    /// How many reloads have finished, so a request that waited for one does
+    /// not start another.
+    completed_reloads: AtomicU64,
 }
 
 impl ManagedState {
     pub(super) fn new(config: &Config) -> Self {
         let graph = (config.registries_managed_by == Management::Api).then(GraphState::new);
         let scim = config.identity.auth.scim.as_ref().map(|_| ScimState::default());
-        Self { graph, scim, due_at: Mutex::new(None), reload: Arc::default() }
+        Self {
+            graph,
+            scim,
+            due_at: Mutex::new(None),
+            reload: Arc::default(),
+            completed_reloads: AtomicU64::new(0),
+        }
     }
 
     fn is_empty(&self) -> bool {
@@ -75,7 +87,7 @@ impl ManagedState {
 /// holds up the request, so no request is authorized against state this
 /// replica has not read. Later reloads run in the background while requests
 /// keep the current state.
-pub(super) async fn refresh_managed_state(state: &AppState) {
+pub(super) async fn refresh_managed_state(state: &AppState, patience: Patience) {
     let managed = &state.inner.identity.managed;
     if managed.is_empty() {
         return;
@@ -83,12 +95,10 @@ pub(super) async fn refresh_managed_state(state: &AppState) {
     match managed.due_at() {
         Some(due_at) if Instant::now() < due_at => {}
         // Past the stale limit the request could not be served from the
-        // current state, so it waits for the reload as the first one does.
+        // current state, so it reloads before going on, as the first one
+        // does.
         Some(_) if managed.graph_is_stale() => {
-            let guard = Arc::clone(&managed.reload).lock_owned().await;
-            if managed.graph_is_stale() {
-                reload_managed_state(state.clone(), guard).await;
-            }
+            reload_stale_graph(state, patience).await;
         }
         Some(_) => {
             if let Ok(guard) = Arc::clone(&managed.reload).try_lock_owned() {
@@ -102,6 +112,37 @@ pub(super) async fn refresh_managed_state(state: &AppState) {
             }
         }
     }
+}
+
+/// How long a request waits for a reload or an edit holding the reload lock
+/// when the registry graph is stale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Patience {
+    /// Up to [`READ_DEADLINE`]; the request then answers with the stale state.
+    Bounded,
+    /// Not at all: the probes and the endpoints that repair the graph must
+    /// answer while an edit holds the lock.
+    None,
+}
+
+/// Reload a stale graph, unless a reload finished while this request waited
+/// for the lock: its outcome stands until the next retry is due, so many
+/// requests on a stale graph cause one read, not one each.
+async fn reload_stale_graph(state: &AppState, patience: Patience) {
+    let managed = &state.inner.identity.managed;
+    let completed = managed.completed_reloads.load(Ordering::Acquire);
+    let lock = Arc::clone(&managed.reload);
+    let guard = match patience {
+        Patience::Bounded => {
+            tokio::time::timeout(READ_DEADLINE, lock.lock_owned()).await.ok()
+        }
+        Patience::None => lock.try_lock_owned().ok(),
+    };
+    let Some(guard) = guard else { return };
+    if managed.completed_reloads.load(Ordering::Acquire) != completed || !managed.graph_is_stale() {
+        return;
+    }
+    reload_managed_state(state.clone(), guard).await;
 }
 
 /// Reload the registry graph alongside the SCIM directory.
@@ -122,6 +163,7 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     let (registries_read, scim_read) = tokio::join!(registries, directory);
     let all_read = registries_read && scim_read;
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
+    managed.completed_reloads.fetch_add(1, Ordering::Release);
 }
 
 /// Bound refresh reads without cancelling writes whose commit outcome could be unknown.

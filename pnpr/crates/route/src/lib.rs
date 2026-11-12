@@ -45,6 +45,8 @@ mod alias_admission;
 mod connect_policy;
 use connect_policy::ConnectPolicy;
 
+mod stored_upstream;
+
 mod footprint;
 
 use std::{
@@ -411,27 +413,12 @@ impl RouteContext {
     }
 
     /// Whether the resolver may fetch `url`: its registry is on the
-    /// allowlist ([`Self::allows_registry`]) and, when its host is an IP
-    /// literal, [`Self::allows_address`] admits it.
+    /// allowlist ([`Self::allows_registry`]), when its host is an IP literal
+    /// [`Self::allows_address`] admits it, and when its host is this server's
+    /// own, it is at `public_url`'s origin.
     #[must_use]
     pub fn allows_fetch(&self, url: &str) -> bool {
-        self.allows_registry(url) && self.connect_policy.allows_literal_host(url)
-    }
-
-    /// Whether a client built from an upstream URL that the admin API wrote
-    /// may connect to `address`: [`Self::allows_address`] without the
-    /// exemption for this server's own host, since that URL is not this
-    /// server's to vouch for.
-    #[must_use]
-    pub fn allows_stored_upstream_address(&self, address: IpAddr) -> bool {
-        self.connect_policy.allows_listed_address(address)
-    }
-
-    /// `false` when `url`'s host is an IP literal
-    /// [`Self::allows_stored_upstream_address`] refuses.
-    #[must_use]
-    pub fn allows_stored_upstream_literal_host(&self, url: &str) -> bool {
-        self.connect_policy.allows_listed_literal_host(url)
+        self.allows_registry(url) && self.connect_policy.allows_fetched_host(url)
     }
 
     /// Whether the resolver may open a connection to `address`, resolved for

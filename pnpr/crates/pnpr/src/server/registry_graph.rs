@@ -5,7 +5,8 @@
 
 pub(super) use admin::{if_match, is_registry_admin_path, registry_admin_routes, versioned};
 pub(crate) use edit::{GraphEdit, edit_graph};
-pub(super) use pin::with_pinned_routing;
+pub(crate) use pin::carry_pinned_routing;
+pub(super) use pin::{serves_without_graph, with_pinned_routing};
 pub(crate) use reload::{GraphState, reload_graph};
 pub(crate) use snapshot::{RoutingSnapshot, UpstreamGuardContext, build_snapshot};
 pub(crate) use stored::{

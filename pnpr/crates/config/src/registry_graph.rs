@@ -218,12 +218,23 @@ pub(super) fn build_hosted_entry(
     Ok((HostedConfig { namespace, rules, teams }, ecosystem, patterns))
 }
 
+/// An environment in which every variable is set to a stand-in, for checking
+/// an upstream's settings without reading its credential.
+struct UnreadCredentials;
+
+impl EnvVar for UnreadCredentials {
+    fn var(_name: &str) -> Option<String> {
+        Some("unread".to_string())
+    }
+}
+
 /// The resolved serving config, ecosystem and claimed patterns of one
 /// `upstream:` registry. The rules are built before the `resolve_upstreams`
 /// fork so the graph carries the claimed patterns on every tier, and so a
 /// `publish`/`unpublish` value — a write rule on a registry no write can land
 /// on — fails startup on every tier too. A resolver-only tier gets no serving
-/// config back.
+/// config back, but its settings are checked all the same, with each
+/// credential left unread.
 pub(super) fn build_upstream_entry<Sys: EnvVar>(
     name: &str,
     upstream: UpstreamFile,
@@ -246,6 +257,7 @@ pub(super) fn build_upstream_entry<Sys: EnvVar>(
     }
     let patterns = rules.patterns();
     if !resolve_upstreams {
+        resolve_upstream_registry::<UnreadCredentials>(name, upstream, &teams)?;
         return Ok((None, ecosystem, patterns));
     }
     let mut resolved = resolve_upstream_registry::<Sys>(name, upstream, &teams)?;

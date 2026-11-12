@@ -129,8 +129,13 @@ pub(super) async fn authenticate(
     if let Err(error) = check_request_schema(&state, request.uri().path()).await {
         return error.into_response();
     }
-    super::managed_state::refresh_managed_state(&state).await;
     let path = request.uri().path().to_owned();
+    let patience = if super::registry_graph::serves_without_graph(&path) {
+        super::managed_state::Patience::None
+    } else {
+        super::managed_state::Patience::Bounded
+    };
+    super::managed_state::refresh_managed_state(&state, patience).await;
     let authenticated = authenticate_caller(state.clone(), header, request, next);
     super::registry_graph::with_pinned_routing(&state, &path, authenticated).await
 }

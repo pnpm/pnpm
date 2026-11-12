@@ -53,11 +53,9 @@ pub(super) async fn grant_team_access(
     let result = async {
         let registry = managed_team(state, identity, &target, team, "grant access to")?;
         let grant: Grant = parse_json_body(body)?;
-        let id = super::team_mutations::team_id(state, &registry, team)?;
-        let token = format!("team:{id}");
-        let defaults = list_defaults(state, &registry)?;
         edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            edit_team_lists(document, &registry, &defaults, &grant.package, |lists| {
+            let token = team_token(document, &registry, team)?;
+            edit_team_lists(document, &registry, &grant.package, |lists| {
                 grant_lists(lists, &token, grant.permissions);
             })
         })
@@ -93,11 +91,9 @@ pub(super) async fn revoke_team_access(
     let result = async {
         let registry = managed_team(state, identity, &target, team, "revoke access from")?;
         let revoke: Revoke = parse_json_body(body)?;
-        let id = super::team_mutations::team_id(state, &registry, team)?;
-        let token = format!("team:{id}");
-        let defaults = list_defaults(state, &registry)?;
         edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
-            edit_team_lists(document, &registry, &defaults, &revoke.package, |lists| {
+            let token = team_token(document, &registry, team)?;
+            edit_team_lists(document, &registry, &revoke.package, |lists| {
                 for list in lists {
                     remove(list, &token);
                 }
@@ -193,35 +189,27 @@ fn holds_team(hosted: &HostedConfig, team: &str) -> bool {
         .any(|record| record.name == team)
 }
 
-/// The registry-level `access`, `publish`, and `unpublish` lists an omitted
-/// list of `registry` falls back to.
-fn list_defaults(state: &AppState, registry: &str) -> Result<[Vec<String>; 3], RegistryError> {
-    let routing = state.routing();
-    let hosted = routing.hosted.get(registry).ok_or(RegistryError::NotFound)?;
-    let table: std::sync::Arc<RuleTable> = hosted.rules.snapshot();
-    Ok([
-        table.default_access().token_strings(),
-        table.default_publish().token_strings(),
-        table.default_unpublish().token_strings(),
-    ])
-}
-
 /// Apply `edit` to the `access`, `publish`, and `unpublish` lists that apply
 /// to `package`'s own pattern now, and store each list the edit changed.
-/// Lists it left alone keep falling back to the registry defaults.
+/// Lists it left alone keep falling back to the registry defaults. The lists an
+/// omitted one falls back to come from `document`, the one being edited, so a
+/// retry against a newer document uses its defaults.
 fn edit_team_lists(
     document: &mut RegistryGraphDocument,
     registry: &str,
-    defaults: &[Vec<String>; 3],
     package: &str,
     edit: impl FnOnce(&mut [Vec<String>; 3]),
 ) -> Result<(), RegistryError> {
     let mut lists = document.rule_lists(registry).ok_or(RegistryError::NotFound)?;
     let key = own_key(&lists, package)?;
-    let access_default = lists.access
-        .clone()
-        .unwrap_or_else(|| defaults[0].clone());
-    let defaults = [access_default, defaults[1].clone(), defaults[2].clone()];
+    let built_in = RuleTable::new(Vec::new(), None);
+    let defaults = [
+        lists.access
+            .clone()
+            .unwrap_or_else(|| built_in.default_access().token_strings()),
+        built_in.default_publish().token_strings(),
+        built_in.default_unpublish().token_strings(),
+    ];
     let entry = lists.packages.get_mut(&key).ok_or(RegistryError::NotFound)?;
     let fields = [&mut entry.access, &mut entry.publish, &mut entry.unpublish];
     let before: [Vec<String>; 3] = std::array::from_fn(|index| {
@@ -241,6 +229,16 @@ fn edit_team_lists(
         }
     }
     document.set_rule_lists(registry, lists)
+}
+
+/// The access token of the team named `team` in `document`.
+fn team_token(
+    document: &RegistryGraphDocument,
+    registry: &str,
+    team: &str,
+) -> Result<String, RegistryError> {
+    let id = document.team_id(registry, team).ok_or(RegistryError::NotFound)?;
+    Ok(format!("team:{id}"))
 }
 
 /// The `packages:` key that names `package` exactly. A pattern covering other

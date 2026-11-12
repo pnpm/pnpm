@@ -102,17 +102,17 @@ async fn put_rules(
         if state.inner.config.registries_managed_by == Management::Config {
             return Err(RegistryError::RulesConfigManaged);
         }
-        let (registry, ecosystem) = {
+        let registry = {
             let routing = state.routing();
-            let (registry, _) = hosted_registry(&routing, &path)?;
-            let ecosystem = routing.registries.ecosystem(registry).unwrap_or_default();
-            (registry.to_string(), ecosystem)
+            hosted_registry(&routing, &path)?.0.to_string()
         };
         let expected = if_match(&headers)?;
         let changes: RuleChanges = parse_json_body(&body)?;
         let request =
             GraphEdit::latest(crate::audit::Actor::of(&identity)).expecting(expected.as_deref());
         let outcome = edit_graph(&state, request, |document| {
+            let ecosystem =
+                document.hosted_storage(&registry).ok_or(RegistryError::NotFound)?.ecosystem;
             apply_rule_changes(document, &registry, ecosystem, &changes)
         })
         .await?;

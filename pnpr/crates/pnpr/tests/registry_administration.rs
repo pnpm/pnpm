@@ -356,6 +356,18 @@ async fn admins_read_and_only_registry_admins_change_the_structure() {
 }
 
 #[tokio::test]
+async fn registry_admins_read_teams() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    for path in ["/npm/-/org/acme/team", "/npm/~local/-/org/acme/team"] {
+        let (status, teams, _) = replica.send("GET", path, Some(&replica.root), None).await;
+        assert_eq!((status, teams), (StatusCode::OK, json!([])), "{path}");
+        let (status, _, _) = replica.send("GET", path, Some(&replica.bob), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
+    }
+}
+
+#[tokio::test]
 async fn the_api_refuses_registries_the_config_file_declares() {
     let dir = TempDir::new().unwrap();
     let replica = Replica::new(load_file_config(dir.path())).await;
@@ -732,6 +744,8 @@ async fn a_registry_admin_repairs_a_graph_the_replica_cannot_serve() {
     let (status, error, _) = replica.send("GET", "/npm/example", Some(&replica.bob), None).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(error["code"], "ERR_PNPR_REGISTRIES_UNAVAILABLE");
+    let (status, _, _) = replica.send("GET", "/-/pnpr/v0/sign-in", None, None).await;
+    assert_eq!(status, StatusCode::OK);
     let (status, restored) = replica.as_root("POST", &format!("{REVISIONS}/1/restore"), None).await;
     assert_eq!(status, StatusCode::OK, "{restored}");
     let (status, _, _) = replica.send("GET", "/npm/example", Some(&replica.bob), None).await;
@@ -763,6 +777,15 @@ async fn an_exported_graph_imports_as_no_change() {
     assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(1));
     pnpr::run_command(&config, import(&changed, false)).await.unwrap();
     assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(2));
+
+    let bad_setting = dir.path().join("bad-setting.yaml");
+    std::fs::write(
+        &bad_setting,
+        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n    timeout: nonsense\n",
+    )
+    .unwrap();
+    assert!(pnpr::run_command(&config, import(&bad_setting, true)).await.is_err());
+    assert!(pnpr::run_command(&config, import(&bad_setting, false)).await.is_err());
 
     let invalid = dir.path().join("invalid.yaml");
     std::fs::write(
@@ -831,4 +854,64 @@ fn walk(dir: &Path) -> Vec<String> {
         }
     }
     found
+}
+
+#[tokio::test]
+async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
+    let dir = TempDir::new().unwrap();
+    let mut config = load_config(dir.path()).await;
+    drop(crate::tokens::seeded_auth(&config, ACCOUNTS));
+    let accounts = config.storage.hosted_dir.join("test-accounts.sqlite");
+    config.identity.backend = pnpr_config::BackendConfig::Sqlite(accounts);
+    let storage = Storage::from_config(&config.storage).unwrap();
+    let unreadable =
+        NewRegistryGraph { document: "{", actor_id: "-", restored_from: None, vacated: &[] };
+    storage
+        .write_registry_graph(Some(1), unreadable)
+        .await
+        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(pnpr::serve_listener(config, listener));
+    let client = reqwest::Client::new();
+    for _ in 0..500 {
+        assert!(!server.is_finished(), "the server stopped: {:?}", server.await);
+        if client
+            .get(format!("{base}/-/ping"))
+            .send()
+            .await
+            .is_ok()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let login = json!({ "name": "root", "password": "secret123" });
+    let response = client
+        .put(format!("{base}/-/user/org.couchdb.user:root"))
+        .json(&login)
+        .send()
+        .await
+        .unwrap();
+    let token = response.json::<Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let get_example = || {
+        client
+            .get(format!("{base}/npm/example"))
+            .bearer_auth(&token)
+            .send()
+    };
+    assert_eq!(get_example().await.unwrap().status(), StatusCode::SERVICE_UNAVAILABLE);
+    let restore = client
+        .post(format!("{base}{REVISIONS}/1/restore"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(restore.status(), StatusCode::OK);
+    assert_eq!(get_example().await.unwrap().status(), StatusCode::NOT_FOUND);
+    server.abort();
 }

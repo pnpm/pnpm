@@ -603,7 +603,9 @@ The registries stored with
 state is 10 seconds old. That request starts a background reload and can still
 use the existing state, so a change can take effect later than 10 seconds after
 it is made. The first request after startup waits for the initial reload.
-A change applies at once on the replica that made it.
+A request that arrives after the registries have gone 60 seconds without a
+reload also waits for one, at most five seconds. A change applies at once on the
+replica that made it.
 
 Each record read has a five-second deadline. The registries and the SCIM
 directory reload independently:
@@ -613,16 +615,17 @@ directory reload independently:
   60 seconds, or has never loaded them, it answers requests with `503` and the
   error code `ERR_PNPR_REGISTRIES_UNAVAILABLE`, and
   [`/-/ready`](endpoints.md#always-available) fails. The health probes, the
-  account endpoints, and the
+  account and sign-in endpoints, and the
   [registry admin endpoints](endpoints.md#registry-admin-endpoints) keep
-  answering, so an admin can restore a revision that loads.
+  answering, so an admin can restore a revision that loads. A replica whose
+  stored registries cannot be loaded at startup still starts.
 - If the SCIM directory cannot be read, the replica refuses user credentials.
 
 A successful read restores the stored state. After any failed read, pnpr
 retries on a request arriving at least one second after the reload finishes.
 Reloads share a lock with management writes. These read deadlines do not
-cancel writes or limit the time spent waiting for a management write to
-release the lock.
+cancel writes. A request that finds the registries 60 seconds old waits at most
+five seconds for a management write to release the lock, then answers `503`.
 
 ## `oci`
 
@@ -1053,7 +1056,7 @@ With [`registriesManagedBy: api`](#registries-in-the-database), `routes.public`
 is stored with the registries instead of in this file.
 
 The resolver refuses to connect to loopback, private, and link-local
-addresses, other than the `--public-url` host. To resolve through an upstream
+addresses, other than the `--public-url` origin. To resolve through an upstream
 on an internal network, list its addresses in `allowedPrivateNetworks`, as IPs
 or CIDR blocks:
 

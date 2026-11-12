@@ -354,8 +354,15 @@ pub async fn evict_configured_cache(config: &Config) -> Result<CacheReport> {
 }
 
 /// Spawns a background task running cache eviction periodically if configured.
+/// Each pass protects the upstream caches of the registry graph that
+/// `current_routing` returns then, since the graph a server serves can change.
+/// A pass is skipped while it returns `None`: without the graph, every
+/// upstream cache would look orphaned.
 #[must_use]
-pub fn spawn_periodic_cache_eviction(config: &Config) -> PeriodicCacheEviction {
+pub fn spawn_periodic_cache_eviction(
+    config: &Config,
+    current_routing: impl Fn() -> Option<pnpr_config::RoutingConfig> + Send + 'static,
+) -> PeriodicCacheEviction {
     if (!config.features.registry.enabled && !config.features.resolver.enabled)
         || (config.storage.cache.max_size.is_none()
             && config.storage.cache.max_age.is_none())
@@ -368,7 +375,13 @@ pub fn spawn_periodic_cache_eviction(config: &Config) -> PeriodicCacheEviction {
         interval.tick().await;
         loop {
             interval.tick().await;
-            if let Err(err) = evict_configured_cache(&background_config).await {
+            let Some(routing) = current_routing() else {
+                tracing::warn!("skipping cache eviction while the registry graph is unavailable");
+                continue;
+            };
+            let mut pass = background_config.clone();
+            pass.routing = routing;
+            if let Err(err) = evict_configured_cache(&pass).await {
                 tracing::warn!(error = %err, "periodic cache eviction failed");
             }
         }

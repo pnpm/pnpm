@@ -196,6 +196,21 @@ fn a_stored_document_resolves_its_credentials_when_built() {
 }
 
 #[test]
+fn a_tier_that_reads_no_credential_still_checks_every_upstream_setting() {
+    let listed = env(&["CUSTOM_TOKEN"]);
+    let validate_only = RoutingOptions { resolve_upstreams: false, ..stored_options(&listed) };
+    for setting in
+        ["timeout: nonsense", "packumentTtl: soon", "failTimeout: x", "maxPackumentSize: big"]
+    {
+        let document = upstream_document(&format!(
+            "    auth: {{ type: bearer, token: '${{CUSTOM_TOKEN}}' }}\n    {setting}\n",
+        ));
+        RoutingConfig::from_document_with_env::<FakeEnv>(&document, &validate_only)
+            .expect_err(setting);
+    }
+}
+
+#[test]
 fn api_mode_serves_an_empty_graph_from_the_file() {
     let config = api_config("routes:\n  allowedPrivateNetworks: [10.0.0.0/8]\n").unwrap();
     assert_eq!(config.registries_managed_by, Management::Api);

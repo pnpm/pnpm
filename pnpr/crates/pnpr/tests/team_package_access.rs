@@ -32,6 +32,7 @@ registries:
       '@acme/app':
         access: [root]
         publish: [root]
+      '@acme/lib': {}
       '@acme/*': {}
   fixed:
     type: hosted
@@ -223,4 +224,24 @@ async fn grants_need_registries_the_database_stores() {
     let (status, error) = send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(error["code"], "ERR_PNPR_RULES_CONFIG_MANAGED");
+}
+
+#[tokio::test]
+async fn a_grant_falls_back_to_the_stored_default_not_the_served_one() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let app = app_router(config.clone()).await;
+    let root = add_user(&app, "root").await;
+    let documents = "/-/pnpr/v0/admin/registries";
+    let (_, mut document) = send(&app, "GET", documents, Some(&root), None).await;
+    document["registries"]["local"]["access"] = json!(["$authenticated"]);
+    crate::managed_registries::store_graph(&config, &document).await;
+
+    let grant = json!({ "package": "@acme/lib", "permissions": "read-only" });
+    assert_eq!(send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await.0, StatusCode::CREATED);
+    let (_, document) = send(&app, "GET", documents, Some(&root), None).await;
+    assert_eq!(
+        document["registries"]["local"]["packages"]["@acme/lib"]["access"],
+        json!(["$authenticated", "team:devs"]),
+    );
 }

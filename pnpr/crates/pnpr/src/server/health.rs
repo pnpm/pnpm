@@ -69,7 +69,7 @@ pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
 /// config file declares the registries.
 async fn registries_readiness(state: &AppState) -> Option<Result<(), RegistryError>> {
     let graph = state.inner.identity.managed.graph.as_ref()?;
-    super::managed_state::refresh_managed_state(state).await;
+    super::managed_state::refresh_managed_state(state, super::managed_state::Patience::None).await;
     Some(if graph.is_available() { Ok(()) } else { Err(RegistryError::RegistriesUnavailable) })
 }
 

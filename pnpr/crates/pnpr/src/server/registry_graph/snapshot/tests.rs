@@ -26,10 +26,6 @@ async fn fetch_example(state: &AppState) -> bool {
         .is_ok()
 }
 
-/// A failing upstream opens its circuit breaker after the default two
-/// failures. A rebuild that leaves the upstream unchanged keeps that state, so
-/// the third fetch never reaches the upstream; a changed upstream gets a fresh
-/// client that does.
 #[tokio::test]
 async fn a_rebuild_keeps_the_client_of_an_unchanged_upstream() {
     let mut server = mockito::Server::new_async().await;
