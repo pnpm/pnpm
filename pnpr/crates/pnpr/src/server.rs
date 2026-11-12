@@ -271,6 +271,14 @@ impl AppState {
     fn max_tarball_bytes(&self) -> u64 {
         self.inner.config.http.max_tarball_bytes
     }
+
+    pub(crate) fn mark_shutting_down(&self) {
+        self.inner.shutting_down.store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    pub(crate) fn is_shutting_down(&self) -> bool {
+        self.inner.shutting_down.load(std::sync::atomic::Ordering::Acquire)
+    }
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient

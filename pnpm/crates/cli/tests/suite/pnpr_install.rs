@@ -780,5 +780,6 @@ fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> 
         policies["trustPolicy"] = Value::Null;
     }
     frame["appliedPolicies"] = policies;
+    frame["lockfileFormat"] = json!("pnpm-lock/9.0");
     format!("{frame}\n").into_bytes()
 }

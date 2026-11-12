@@ -63,6 +63,7 @@ mod gc;
 use gc::{GcFile, build_gc_config};
 
 mod hosted;
+mod http_config;
 mod ip_network;
 mod loading;
 mod logging;
@@ -241,6 +242,10 @@ pub struct HttpConfig {
     /// this duration to process, it is aborted and returns 504 Gateway Timeout.
     /// `None` or 0 disables request timeouts.
     pub request_timeout: Option<Duration>,
+    /// Maximum duration to wait for in-flight requests to drain after a
+    /// shutdown signal (`SIGINT` or `SIGTERM`) before exiting. Defaults to
+    /// [`Self::DEFAULT_SHUTDOWN_TIMEOUT`].
+    pub shutdown_timeout: Duration,
     /// Who may scrape Prometheus metrics. `None` serves none.
     pub metrics: Option<MetricsConfig>,
     /// How pnpr's own package document is served.
@@ -250,6 +255,9 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
+    /// 25 seconds, leaving headroom inside Kubernetes' default 30-second
+    /// `terminationGracePeriodSeconds` so `SIGKILL` does not land mid-drain.
+    pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(25);
     /// 100 MiB, the size npm itself caps a published package at.
     pub const DEFAULT_MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 

@@ -193,6 +193,7 @@ fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
         trusted_proxies: Vec::new(),
         trusted_proxy_header: TrustedProxyHeader::default(),
         request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
+        shutdown_timeout: pnpr_config::HttpConfig::DEFAULT_SHUTDOWN_TIMEOUT,
         metrics: None,
         package_documents: pnpr_config::PackageDocumentsConfig::default(),
     }

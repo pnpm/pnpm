@@ -380,3 +380,29 @@ fn snapshot_bindings_preserve_recorded_peer_contexts() {
     assert!(bare.binds_snapshot(&key("provider@1.0.0(nested@2.0.0)")));
     assert!(!bare.binds_snapshot(&key("provider@2.0.0(nested@2.0.0)")));
 }
+
+#[test]
+fn recorded_bindings_only_describe_the_key_that_created_them() {
+    let peers = [pnpm_deps_path::PeerId::DepPath("provider@1.0.0(nested@2.0.0)".into())];
+    let suffix = super::PeerBindings::suffix_of(&peers, 3);
+    for patch in ["", "(patch_hash=abc123)"] {
+        let original: crate::PkgNameVerPeer =
+            format!("consumer@1.0.0{patch}{suffix}").parse().unwrap();
+        let renamed: crate::PkgNameVerPeer =
+            format!("consumer@2.0.0{patch}{suffix}").parse().unwrap();
+        let entry = crate::SnapshotEntry {
+            recorded_peer_bindings: super::RecordedPeerBindings::for_key(&original, &peers),
+            ..Default::default()
+        };
+        let snapshots = [(original.clone(), entry.clone()), (renamed.clone(), entry)].into();
+        let entries = crate::LockfileEntries { snapshots: Some(&snapshots), packages: None };
+        let providers = super::BoundProviders::of_snapshot(entries, &original);
+        assert_eq!(
+            providers
+                .provider_keys(&"provider@1.0.0".parse().unwrap())
+                .unwrap(),
+            &["provider@1.0.0(nested@2.0.0)".parse().unwrap()].into(),
+        );
+        assert!(super::BoundProviders::of_snapshot(entries, &renamed).is_hashed());
+    }
+}

@@ -28,6 +28,7 @@ pub(crate) struct AppInner {
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
     pub(crate) metrics: Arc<ServerMetrics>,
+    pub(super) shutting_down: std::sync::atomic::AtomicBool,
 }
 
 type PackumentSingleflight = Singleflight<
@@ -120,6 +121,7 @@ impl AppInner {
             },
             identity,
             metrics: Arc::new(ServerMetrics::new()),
+            shutting_down: std::sync::atomic::AtomicBool::new(false),
         })
     }
 }

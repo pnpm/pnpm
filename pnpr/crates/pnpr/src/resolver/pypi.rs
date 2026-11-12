@@ -51,7 +51,7 @@ use pnpr_route::{Footprint, url_has_inline_credentials};
 use crate::server::StripedLocks;
 
 use super::{
-    Resolver, json_error, json_error_with_code, package_route::PackageRoute,
+    Resolver, json_error, json_error_with_code, package_route::PackageRoute, parse_request,
     protocol::PypiResolveRequest, request_validation::forbidden_off_allowlist,
 };
 
@@ -96,9 +96,9 @@ pub(super) async fn handle_resolve(
     identity: pnpr_policy::Identity,
     body: &[u8],
 ) -> Response {
-    let request: PypiResolveRequest = match serde_json::from_slice(body) {
+    let request: PypiResolveRequest = match parse_request(body) {
         Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+        Err(response) => return response,
     };
     let index = match index_url(&request.index) {
         Ok(index) => index,

@@ -8,7 +8,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{PackageExtension, RegistryDeclaration};
 use pnpm_network::AuthHeadersByScope;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::IgnoredAny};
 
 pub type DepMap = BTreeMap<String, String>;
 
@@ -27,6 +27,7 @@ pub struct EcosystemProbe {
 }
 
 /// Body of `POST /-/pnpr/v0/resolve` with `"ecosystem": "cargo"`.
+/// Refuses unknown fields, like [`ResolveRequest`].
 ///
 /// Cargo resolution reads one input only the client has — its workspace
 /// manifests — so the request carries them as a `cargo metadata`
@@ -35,8 +36,11 @@ pub struct EcosystemProbe {
 /// sends the document reduced to the dependency graph, but a full
 /// `cargo metadata` output resolves the same way.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CargoResolveRequest {
+    /// Read by [`EcosystemProbe`] before this type.
+    #[serde(rename = "ecosystem", default)]
+    pub _ecosystem: IgnoredAny,
     /// `cargo metadata --no-deps --format-version 1` output for the
     /// workspace being resolved.
     pub metadata: String,
@@ -52,10 +56,14 @@ pub struct CargoResolveRequest {
 /// A Python resolution is for one interpreter: the same requirements
 /// resolve differently against a different marker environment or a
 /// different set of wheel tags, so the client's own travel with the
-/// request and the lockfile that comes back records them.
+/// request and the lockfile that comes back records them. Refuses unknown
+/// fields, like [`ResolveRequest`].
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PypiResolveRequest {
+    /// Read by [`EcosystemProbe`] before this type.
+    #[serde(rename = "ecosystem", default)]
+    pub _ecosystem: IgnoredAny,
     /// PEP 508 requirement strings, as the project's manifest spells them.
     pub requirements: Vec<String>,
     /// The interpreter the environment is for.
@@ -69,14 +77,14 @@ pub struct PypiResolveRequest {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProjectPublishConfig {
     pub directory: Option<String>,
     pub link_directory: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResolveRequestProject {
     /// The importer's directory relative to the lockfile dir, in POSIX
     /// form (`.` for the root, `packages/foo` for a workspace member).
@@ -108,11 +116,13 @@ fn root_dir() -> String {
 /// resolution configuration so the server resolves against the same
 /// registries the client would, and the policy fields carry the
 /// client's verification policy so the server verifies the input
-/// `lockfile` under it before resolving. Unknown fields (`node_version`,
-/// `os`, `arch`) are accepted and ignored so older/newer clients still
-/// parse.
+/// `lockfile` under it before resolving.
+///
+/// Unknown fields are refused with [`UNSUPPORTED_REQUEST_FIELD_CODE`]: a
+/// field this server does not know may be a setting that changes what the
+/// client would resolve, and dropping it would return a different lockfile.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -121,6 +131,9 @@ fn root_dir() -> String {
     )
 )]
 pub struct ResolveRequest {
+    /// Read by [`EcosystemProbe`] before this type.
+    #[serde(rename = "ecosystem", default)]
+    pub _ecosystem: IgnoredAny,
     #[serde(default)]
     pub dependencies: Option<DepMap>,
     #[serde(default)]
@@ -255,10 +268,51 @@ pub struct ResolveRequest {
     /// check.
     #[serde(default)]
     pub trust_policy_ignore_after: Option<u64>,
-    /// Lockfile formats the client accepts (e.g. `["9.0"]`). The server
-    /// renders the highest compatible format it supports.
+    /// The [`LockfileFormat`]s the client reads, by their wire names. The
+    /// request is refused when none is one the server renders. Absent means
+    /// [`LockfileFormat::PnpmLockV9`].
     #[serde(default)]
     pub accepted_lockfile_formats: Option<Vec<String>>,
+    /// Sent by the pnpm v11 client. Resolution does not read them: the
+    /// lockfile records the packages for every platform and the client's
+    /// install picks its own.
+    #[serde(rename = "nodeVersion", default)]
+    pub _node_version: IgnoredAny,
+    #[serde(rename = "os", default)]
+    pub _os: IgnoredAny,
+    #[serde(rename = "arch", default)]
+    pub _arch: IgnoredAny,
+}
+
+/// Error code of a request that names a field the server does not know.
+pub const UNSUPPORTED_REQUEST_FIELD_CODE: &str = "ERR_PNPR_UNSUPPORTED_REQUEST_FIELD";
+
+/// Error code of a request whose `acceptedLockfileFormats` names no format
+/// the server renders.
+pub const INCOMPATIBLE_LOCKFILE_FORMAT_CODE: &str = "ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT";
+
+/// The shape of a `done` frame's `lockfile`, named by the frame's
+/// `lockfileFormat`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockfileFormat {
+    /// A `pnpm-lock.yaml` document with `lockfileVersion: '9.0'`, as JSON.
+    PnpmLockV9,
+    /// A `Cargo.lock` document, as a TOML string.
+    CargoLock,
+    /// A `pylock.toml` document, as JSON.
+    Pylock,
+}
+
+impl LockfileFormat {
+    /// The format's name in `acceptedLockfileFormats` and `lockfileFormat`.
+    #[must_use]
+    pub const fn wire_name(self) -> &'static str {
+        match self {
+            LockfileFormat::PnpmLockV9 => "pnpm-lock/9.0",
+            LockfileFormat::CargoLock => "cargo-lock",
+            LockfileFormat::Pylock => "pylock",
+        }
+    }
 }
 
 /// The policies the server applied to a resolution, echoed in the `done`

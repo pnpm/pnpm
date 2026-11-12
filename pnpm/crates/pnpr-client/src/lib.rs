@@ -562,5 +562,6 @@ mod ecosystem_cache;
 mod ecosystems;
 mod error;
 use error::check_status;
+mod lockfile_format;
 
 use ecosystems::{WireViolation, build_verify_error};

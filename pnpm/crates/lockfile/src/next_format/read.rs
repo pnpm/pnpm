@@ -24,6 +24,8 @@ mod keys;
 mod scope;
 mod unbound;
 
+use keys::RestoredKey;
+
 use super::{
     NextImporter, NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext, RestoredSections,
 };
@@ -54,7 +56,7 @@ pub fn restore_sections(sections: &NextSections, context: RestoreContext<'_>) ->
 /// the peer-suffixed sections are built from.
 pub(super) struct Rebuilt<'a> {
     graph: Graph<'a>,
-    keys: Vec<PkgNameVerPeer>,
+    keys: Vec<RestoredKey>,
 }
 
 impl<'a> Rebuilt<'a> {
@@ -78,7 +80,7 @@ impl<'a> Rebuilt<'a> {
         index: usize,
     ) -> Option<&PkgNameVerPeer> {
         self.sid(package, index)
-            .map(|sid| &self.keys[sid])
+            .map(|sid| &self.keys[sid].key)
     }
 
     /// The peer-suffixed key of the child linked as `alias` by that snapshot:
@@ -92,13 +94,13 @@ impl<'a> Rebuilt<'a> {
         let sid = self.sid(package, index)?;
         let child = child_named(&self.graph.children[sid], alias)
             .or_else(|| self.graph.provider_named(sid, alias))?;
-        Some(&self.keys[child])
+        Some(&self.keys[child].key)
     }
 
     /// The peer-suffixed key of the child linked as `alias` by an importer.
     pub(super) fn importer_child_key(&self, id: &str, alias: &PkgName) -> Option<&PkgNameVerPeer> {
         let children = self.graph.importer_children.get(id)?;
-        child_named(children, alias).map(|child| &self.keys[child])
+        child_named(children, alias).map(|child| &self.keys[child].key)
     }
 
     /// The peer-suffixed sections.

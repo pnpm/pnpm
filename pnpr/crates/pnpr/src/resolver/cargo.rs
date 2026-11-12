@@ -48,6 +48,7 @@ use locked_entry::LockedEntry;
 use super::{
     Resolver, json_error,
     package_route::PackageRoute,
+    parse_request,
     protocol::CargoResolveRequest,
     report_message,
     request_validation::forbidden_off_allowlist,
@@ -96,9 +97,9 @@ pub(super) async fn handle_resolve(
     identity: Identity,
     body: &[u8],
 ) -> Response {
-    let request: CargoResolveRequest = match serde_json::from_slice(body) {
+    let request: CargoResolveRequest = match parse_request(body) {
         Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+        Err(response) => return response,
     };
     let registry = request.registry
         .as_deref()

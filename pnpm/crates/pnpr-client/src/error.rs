@@ -88,3 +88,22 @@ const ERROR_BODY_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_s
 /// Cap on the body read back from a failed request, which is quoted into
 /// the error message.
 const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
+
+/// Error code of a request naming a field the server does not know.
+pub const UNSUPPORTED_REQUEST_FIELD_CODE: &str = "ERR_PNPR_UNSUPPORTED_REQUEST_FIELD";
+
+/// Error code of a request accepting no lockfile format the server renders.
+pub const INCOMPATIBLE_LOCKFILE_FORMAT_CODE: &str = "ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT";
+
+impl PnprClientError {
+    /// Whether the server refused the request because it cannot honor a
+    /// setting or the lockfile format this client sent. Resolving locally
+    /// produces the lockfile the server would not.
+    #[must_use]
+    pub fn is_unsupported_request(&self) -> bool {
+        let PnprClientError::Server { code: Some(code), .. } = self else {
+            return false;
+        };
+        [UNSUPPORTED_REQUEST_FIELD_CODE, INCOMPATIBLE_LOCKFILE_FORMAT_CODE].contains(&code.as_str())
+    }
+}

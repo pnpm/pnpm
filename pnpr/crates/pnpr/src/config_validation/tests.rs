@@ -129,6 +129,15 @@ fn rejects_zero_pool_limits_and_timeouts() {
             .to_string()
             .contains("timeout"),
     );
+
+    let mut zero_shutdown = base_config();
+    zero_shutdown.http.shutdown_timeout = Duration::ZERO;
+    assert!(
+        validate_startup_config(&mut zero_shutdown)
+            .unwrap_err()
+            .to_string()
+            .contains("shutdownTimeout"),
+    );
 }
 
 #[test]

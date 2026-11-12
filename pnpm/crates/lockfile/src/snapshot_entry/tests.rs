@@ -34,3 +34,21 @@ fn optional_defaults_false_and_omits_when_false() {
         "the `optional` key must not be serialized when false:\n{out}",
     );
 }
+
+#[test]
+fn recorded_bindings_are_not_serialized_or_compared() {
+    let peers = [pnpm_deps_path::PeerId::DepPath("provider@1.0.0".into())];
+    let suffix = crate::PeerBindings::suffix_of(&peers, 3);
+    let key = format!("consumer@1.0.0{suffix}").parse().unwrap();
+    let entry = SnapshotEntry {
+        recorded_peer_bindings: crate::RecordedPeerBindings::for_key(&key, &peers),
+        dependencies: Some([("provider".parse().unwrap(), "1.0.0".parse().unwrap())].into()),
+        ..Default::default()
+    };
+    assert!(entry.recorded_peer_bindings.is_some());
+    let serialized = serde_json::to_value(&entry).unwrap();
+    assert_eq!(serialized, serde_json::json!({"dependencies": {"provider": "1.0.0"}}));
+    let restored: SnapshotEntry = serde_json::from_value(serialized).unwrap();
+    assert!(restored.recorded_peer_bindings.is_none());
+    assert_eq!(entry, restored);
+}

@@ -19,6 +19,8 @@ use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
 use pnpr_osv::{OsvIndex, format_advisory_ids};
+
+use super::protocol::LockfileFormat;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
@@ -229,6 +231,7 @@ pub(super) fn done_frame(
     let frame = serde_json::json!({
         "type": "done",
         "appliedPolicies": applied_policies,
+        "lockfileFormat": LockfileFormat::PnpmLockV9.wire_name(),
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
@@ -239,7 +242,11 @@ pub(super) fn done_frame(
 /// the client writes verbatim. Cargo's lockfile is a TOML document rather
 /// than a structure the server rewrites, so it rides the frame as text.
 pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
-    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    let frame = serde_json::json!({
+        "type": "done",
+        "lockfileFormat": LockfileFormat::CargoLock.wire_name(),
+        "lockfile": lockfile,
+    });
     ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
 }
 
@@ -250,9 +257,23 @@ pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<
     let Ok(lockfile) = serde_json::to_value(lockfile) else {
         return error_frame("failed to serialize lockfile");
     };
-    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    let frame = serde_json::json!({
+        "type": "done",
+        "lockfileFormat": LockfileFormat::Pylock.wire_name(),
+        "lockfile": lockfile,
+    });
     ndjson_line(&frame).unwrap_or_else(|_| error_frame("failed to serialize lockfile"))
 }
+
+/// Non-terminal `progress` frame. A streamed resolve sends one every
+/// [`KEEPALIVE_INTERVAL`] while it runs, so a proxy with an idle timeout does
+/// not cut a long resolution. Clients ignore it.
+pub(super) fn progress_frame() -> Vec<u8> {
+    b"{\"type\":\"progress\"}\n".to_vec()
+}
+
+/// Below the common 30 and 60 second proxy idle timeouts.
+pub(super) const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Terminal `error` frame for a resolution that aborted mid-stream,
 /// after one or more `package` frames may already have been sent (so the

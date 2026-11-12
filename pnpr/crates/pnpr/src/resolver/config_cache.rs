@@ -110,14 +110,8 @@ pub(super) fn intern_config(
     max_cached: usize,
     max_key_bytes: usize,
 ) -> Option<Arc<PacquetConfig>> {
-    let registry =
-        request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
-    let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
-    let overrides: Option<IndexMap<String, String>> = request.overrides
-        .as_ref()
-        .and_then(|value| serde_json::from_value(value.clone()).ok());
-    let resolver_settings = EffectiveResolverSettings::for_request(request);
-    let key = config_cache_key(request, &registry, overrides.as_ref(), &resolver_settings);
+    let inputs = ConfigKeyInputs::for_request(request);
+    let key = key_value(CONFIG_KEY, request, &inputs).to_string();
     if key.len() > max_key_bytes {
         return None;
     }
@@ -136,8 +130,7 @@ pub(super) fn intern_config(
         configs.remove(&oldest);
     }
 
-    let config =
-        build_config(store_dir, cache_dir, request, registry, overrides, &resolver_settings);
+    let config = build_config(store_dir, cache_dir, request, inputs);
     let config = Arc::new(config);
     if max_cached > 0 {
         configs.insert(
@@ -152,10 +145,13 @@ fn build_config(
     store_dir: &StoreDir,
     cache_dir: &Path,
     request: &ResolveRequest,
-    registry: String,
-    overrides: Option<IndexMap<String, String>>,
-    resolver_settings: &EffectiveResolverSettings,
+    inputs: ConfigKeyInputs,
 ) -> PacquetConfig {
+    let ConfigKeyInputs {
+        registry,
+        overrides,
+        resolver_settings,
+    } = inputs;
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
     config.cache_dir = cache_dir.to_path_buf();
@@ -177,41 +173,123 @@ fn build_config(
     config
 }
 
+/// The registry, overrides, and resolver settings a request resolves under,
+/// normalized the way [`intern_config`] keys them.
+pub(super) struct ConfigKeyInputs {
+    pub(super) registry: String,
+    pub(super) overrides: Option<IndexMap<String, String>>,
+    pub(super) resolver_settings: EffectiveResolverSettings,
+}
+
+impl ConfigKeyInputs {
+    pub(super) fn for_request(request: &ResolveRequest) -> Self {
+        let registry =
+            request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
+        let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
+        let overrides = request.overrides
+            .as_ref()
+            .and_then(|value| serde_json::from_value(value.clone()).ok());
+        ConfigKeyInputs {
+            registry,
+            overrides,
+            resolver_settings: EffectiveResolverSettings::for_request(request),
+        }
+    }
+}
+
+/// One part of a cache key: the request fields it covers, by their wire
+/// names, and the value it contributes.
+pub(super) struct KeyPart {
+    pub(super) fields: &'static [&'static str],
+    pub(super) value: fn(&ResolveRequest, &ConfigKeyInputs) -> serde_json::Value,
+}
+
+/// The parts of [`intern_config`]'s key. The resolution cache key carries
+/// them too. A test checks that every request field is in a key or listed as
+/// one neither key needs.
+pub(super) const CONFIG_KEY: &[KeyPart] = &[
+    KeyPart { fields: &["registry"], value: |_, inputs| serde_json::json!(inputs.registry) },
+    KeyPart { fields: &["overrides"], value: |_, inputs| sorted_overrides(inputs) },
+    KeyPart {
+        fields: &[
+            "autoInstallPeers",
+            "dedupePeers",
+            "excludeLinksFromLockfile",
+            "addMissingPeerTypes",
+            "projectScopedOptionalPeers",
+        ],
+        value: |_, inputs| serde_json::json!(inputs.resolver_settings),
+    },
+    KeyPart { fields: &["registries"], value: |request, _| serde_json::json!(request.registries) },
+    KeyPart {
+        fields: &["patchedDependencies"],
+        value: |request, _| serde_json::json!(request.patched_dependencies),
+    },
+    KeyPart {
+        fields: &["packageExtensions"],
+        value: |request, _| serde_json::json!(request.package_extensions),
+    },
+    KeyPart {
+        fields: &["allowUnusedPatches"],
+        value: |request, _| serde_json::json!(request.allow_unused_patches),
+    },
+    KeyPart {
+        fields: &["resolutionMode"],
+        value: |request, _| serde_json::json!(request.resolution_mode),
+    },
+    KeyPart {
+        fields: &["minimumReleaseAge"],
+        value: |request, _| serde_json::json!(request.minimum_release_age),
+    },
+    KeyPart {
+        fields: &["minimumReleaseAgeExclude"],
+        value: |request, _| serde_json::json!(request.minimum_release_age_exclude),
+    },
+    KeyPart {
+        fields: &["minimumReleaseAgeIgnoreMissingTime"],
+        value: |request, _| serde_json::json!(request.minimum_release_age_ignore_missing_time),
+    },
+    KeyPart {
+        fields: &["trustPolicy"],
+        value: |request, _| serde_json::json!(request.trust_policy),
+    },
+    KeyPart {
+        fields: &["trustPolicyExclude"],
+        value: |request, _| serde_json::json!(request.trust_policy_exclude),
+    },
+    KeyPart {
+        fields: &["trustPolicyIgnoreAfter"],
+        value: |request, _| serde_json::json!(request.trust_policy_ignore_after),
+    },
+];
+
+/// The values of `parts` for `request`, keyed by the fields each covers.
+pub(super) fn key_value(
+    parts: &[KeyPart],
+    request: &ResolveRequest,
+    inputs: &ConfigKeyInputs,
+) -> serde_json::Value {
+    parts
+        .iter()
+        .map(|part| (part.fields.join(","), (part.value)(request, inputs)))
+        .collect::<serde_json::Map<_, _>>()
+        .into()
+}
+
 /// Key on a sorted view of `overrides`: `serde_json` preserves insertion order
 /// and `IndexMap` is insertion-ordered, so the same overrides sent with a
-/// different key order would otherwise hash to distinct cache keys and intern
-/// duplicate configurations.
-pub(super) fn config_cache_key(
-    request: &ResolveRequest,
-    registry: &str,
-    overrides: Option<&IndexMap<String, String>>,
-    resolver_settings: &EffectiveResolverSettings,
-) -> String {
-    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> =
-        overrides.map(|overrides| {
+/// different key order would otherwise intern duplicate configurations.
+fn sorted_overrides(inputs: &ConfigKeyInputs) -> serde_json::Value {
+    let overrides: Option<std::collections::BTreeMap<&str, &str>> = inputs
+        .overrides
+        .as_ref()
+        .map(|overrides| {
             overrides
                 .iter()
-                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .map(|(selector, spec)| (selector.as_str(), spec.as_str()))
                 .collect()
         });
-
-    serde_json::json!({
-        "registry": registry,
-        "resolverSettings": resolver_settings,
-        "registries": &request.registries,
-        "overrides": overrides_key,
-        "patchedDependencies": &request.patched_dependencies,
-        "packageExtensions": &request.package_extensions,
-        "allowUnusedPatches": request.allow_unused_patches,
-        "resolutionMode": request.resolution_mode,
-        "minimumReleaseAge": request.minimum_release_age,
-        "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
-        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
-        "trustPolicy": request.trust_policy,
-        "trustPolicyExclude": request.trust_policy_exclude,
-        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
-    })
-    .to_string()
+    serde_json::json!(overrides)
 }
 
 /// Apply the same declaration inversion as the client config reader.

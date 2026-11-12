@@ -1229,7 +1229,8 @@ snapshots:
       provider: link:packages/provider
 ",
     ));
-    written_and_read(&lockfile);
+    let (_, restored) = written_and_read(&lockfile);
+    written_and_read(&restored);
 }
 
 #[test]
@@ -1459,4 +1460,63 @@ snapshots:
 ",
     ));
     written_and_read(&lockfile);
+}
+
+#[test]
+fn recorded_peers_do_not_require_hashed_subset_recovery() {
+    for bound_count in 0..=14 {
+        let lockfile = lockfile_with_recorded_peers(bound_count);
+        let key = lockfile.snapshots
+            .as_ref()
+            .unwrap()
+            .keys()
+            .find(|key| key.name.to_string() == "consumer")
+            .unwrap();
+        assert_eq!(crate::BoundProviders::from_key(key).is_hashed(), bound_count != 0);
+        let bindings = crate::BoundProviders::of_snapshot((&lockfile).into(), key);
+        assert!(!bindings.is_hashed());
+        for index in 0..14 {
+            let provider = format!("provider-{index:02}@1.0.0").parse().unwrap();
+            assert_eq!(bindings.binds(&provider), index < bound_count);
+        }
+        written_and_read(&lockfile);
+    }
+}
+
+fn lockfile_with_recorded_peers(bound_count: usize) -> Lockfile {
+    let mut peers = serde_json::Map::new();
+    let mut dependencies = serde_json::Map::new();
+    let mut packages = serde_json::Map::new();
+    let mut root_dependencies =
+        serde_json::Map::from_iter([("consumer".to_string(), serde_json::json!("1.0.0"))]);
+    for index in 0..14 {
+        let name = format!("provider-{index:02}");
+        packages.insert(
+            format!("{name}@1.0.0"),
+            serde_json::json!({
+                "resolution": {"tarball": format!("https://example.org/{name}.tgz")},
+            }),
+        );
+        if index < bound_count {
+            root_dependencies.insert(name.clone(), serde_json::json!("1.0.0"));
+            peers.insert(name, serde_json::json!({"specifier": "*", "version": "1.0.0"}));
+        } else {
+            peers.insert(name.clone(), serde_json::json!("*"));
+            dependencies.insert(name, serde_json::json!("1.0.0"));
+        }
+    }
+    packages.insert(
+        "consumer@1.0.0".to_string(),
+        serde_json::json!({
+            "resolution": {"tarball": "https://example.org/consumer.tgz"},
+            "peerDependencies": peers, "dependencies": dependencies,
+        }),
+    );
+    let document = serde_json::json!({
+        "lockfileVersion": "13.0",
+        "settings": {"autoInstallPeers": false, "excludeLinksFromLockfile": false, "peersSuffixMaxLength": 3},
+        "projects": {".": {"dependencies": root_dependencies}},
+        "packages": packages,
+    });
+    parse(&document.to_string())
 }

@@ -221,11 +221,11 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // immediately above the error saying it is not.
     let (state, app) = state_and_router(config, auth, osv_index)?;
     let inner = Arc::clone(&state.inner);
-    let metrics = bind_metrics_listener(state).await?;
+    let metrics = bind_metrics_listener(state.clone()).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
     let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
     tracing::info!(listen = %listener.local_addr()?, "pnpr listening");
-    serve_until_shutdown(listener, app, metrics).await
+    serve_until_shutdown(state, listener, app, metrics).await
 }
 
 /// The listener `metrics.listen` names, with the router it serves.
@@ -248,11 +248,27 @@ async fn bind_metrics_listener(state: AppState) -> pnpr_error::Result<Option<Met
 }
 
 async fn serve_until_shutdown(
+    state: AppState,
     listener: tokio::net::TcpListener,
     app: Router,
     metrics: Option<MetricsListener>,
 ) -> pnpr_error::Result<()> {
-    let shutdown = shutdown_signal().shared();
+    serve_until_shutdown_with(state, listener, app, metrics, shutdown_signal()).await
+}
+
+async fn serve_until_shutdown_with(
+    state: AppState,
+    listener: tokio::net::TcpListener,
+    app: Router,
+    metrics: Option<MetricsListener>,
+    signal: impl std::future::Future<Output = ()> + Send + 'static,
+) -> pnpr_error::Result<()> {
+    let drain_timeout = state.inner.config.http.shutdown_timeout;
+    let shutdown = async move {
+        signal.await;
+        state.mark_shutting_down();
+    }
+    .shared();
     let main = axum::serve(
         NodelayTcpListener(listener),
         app.into_make_service_with_connect_info::<PeerAddr>(),
@@ -272,24 +288,26 @@ async fn serve_until_shutdown(
         }
         Ok(())
     };
-    drain_until_deadline(serving, deadline_signal).await
+    drain_until_deadline(serving, deadline_signal, drain_timeout).await
 }
-
-const SHUTDOWN_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 async fn drain_until_deadline(
     serving: impl std::future::Future<Output = pnpr_error::Result<()>>,
     shutdown: impl std::future::Future<Output = ()>,
+    drain_timeout: std::time::Duration,
 ) -> pnpr_error::Result<()> {
     tokio::pin!(serving);
     tokio::select! {
         result = &mut serving => return result,
         () = shutdown => {}
     }
-    if let Ok(result) = tokio::time::timeout(SHUTDOWN_DRAIN_TIMEOUT, serving).await {
+    if let Ok(result) = tokio::time::timeout(drain_timeout, serving).await {
         result
     } else {
-        tracing::warn!("Shutdown drain exceeded 30 seconds; stopping the server");
+        tracing::warn!(
+            timeout = ?drain_timeout,
+            "Shutdown drain exceeded timeout; stopping the server",
+        );
         Ok(())
     }
 }
@@ -339,10 +357,10 @@ pub async fn serve_listener_with(
     let auth = load_startup_auth(&config).await?;
     let (state, app) = state_and_router(config, auth, osv_index)?;
     let inner = Arc::clone(&state.inner);
-    let metrics = bind_metrics_listener(state).await?;
+    let metrics = bind_metrics_listener(state.clone()).await?;
     let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
     tracing::info!(%listen, "pnpr listening");
-    serve_until_shutdown(listener, wrap(app), metrics).await
+    serve_until_shutdown(state, listener, wrap(app), metrics).await
 }
 
 #[cfg(test)]

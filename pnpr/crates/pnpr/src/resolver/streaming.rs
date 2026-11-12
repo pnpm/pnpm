@@ -1,9 +1,9 @@
 use super::{
-    ActiveConfig, Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile,
-    Mutex, OsvIndex, PackageVersionGuard, ResolveRequest, Resolver, Response, StoreCandidate,
-    StreamObserver, TarballRouter, ThrottledClient, done_frame, error_frame_with_code,
-    ndjson_stream_response, osv_violations_for_lockfile, resolve, store_resolution_candidate,
-    violations_frame,
+    ActiveConfig, Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap,
+    KEEPALIVE_INTERVAL, Lockfile, Mutex, OsvIndex, PackageVersionGuard, ResolveRequest, Resolver,
+    Response, StoreCandidate, StreamObserver, TarballRouter, ThrottledClient, done_frame,
+    error_frame_with_code, ndjson_stream_response, osv_violations_for_lockfile, progress_frame,
+    resolve, store_resolution_candidate, violations_frame,
 };
 
 /// What one streamed resolve carries out of the request handling.
@@ -34,6 +34,7 @@ pub(super) fn stream_resolve_response(
         tarball_router: inputs.tarball_router.clone(),
     });
     let disconnected = tx.clone();
+    let keepalive = tx.clone();
     let task = StreamedResolve {
         client: Arc::clone(&runtime.client),
         observer,
@@ -48,9 +49,25 @@ pub(super) fn stream_resolve_response(
         tokio::select! {
             () = disconnected.closed() => {},
             () = stream_resolution(task) => {},
+            () = send_keepalives(&keepalive, KEEPALIVE_INTERVAL) => {},
         }
     });
     ndjson_stream_response(rx)
+}
+
+/// Send a `progress` frame every `interval` until the client hangs up. Never
+/// returns otherwise: the resolve task drops it when the resolution ends.
+pub(super) async fn send_keepalives(
+    tx: &tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+    interval: Duration,
+) {
+    let mut ticks = tokio::time::interval_at(tokio::time::Instant::now() + interval, interval);
+    loop {
+        ticks.tick().await;
+        if tx.send(progress_frame()).is_err() {
+            return;
+        }
+    }
 }
 
 /// Everything the detached resolve task carries away from the request.

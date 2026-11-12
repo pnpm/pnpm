@@ -593,6 +593,18 @@ Can be specified as an integer number of seconds (e.g. `30`) or with a duration 
 requestTimeout: 60s
 ```
 
+## `shutdownTimeout`
+
+How long pnpr waits for in-flight requests to finish after receiving `SIGINT` or `SIGTERM` before exiting.
+
+Defaults to `25s`, leaving headroom inside Kubernetes' default 30-second `terminationGracePeriodSeconds` so `SIGKILL` does not land mid-drain. Must be greater than zero.
+
+Can be specified as an integer number of seconds (e.g. `25`) or with a duration suffix (e.g. `25s`, `1m`).
+
+```yaml title="pnpr.yaml"
+shutdownTimeout: 25s
+```
+
 ## `packumentTtl`
 
 How long cached upstream packuments remain fresh before pnpr revalidates them against the upstream registry.

@@ -305,6 +305,98 @@ fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types()
     drop((root, mock_instance));
 }
 
+fn refusing_pnpr_server() -> (mockito::ServerGuard, mockito::Mock) {
+    let mut server = mockito::Server::new();
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_status(400)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "error": "pnpr does not support the request field `projects`",
+                "code": "ERR_PNPR_UNSUPPORTED_REQUEST_FIELD",
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create();
+    (server, resolve)
+}
+
+fn assert_resolved_locally(output: &std::process::Output, workspace: &Path) {
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(output.status.success(), "{combined}");
+    assert!(combined.contains("Resolving dependencies locally"), "{combined}");
+    assert!(workspace.join("node_modules/.pnpm/@foo+no-deps@1.0.0").exists());
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.contains("'@foo/no-deps@1.0.0'"), "{lockfile}");
+}
+
+#[test]
+fn install_resolves_locally_when_pnpr_refuses_the_request() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let (server, resolve_mock) = refusing_pnpr_server();
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+
+    let output = pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &server.url()])
+        .output()
+        .expect("run pnpm install");
+
+    assert_resolved_locally(&output, &workspace);
+    resolve_mock.assert();
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_patches_resolves_locally_when_pnpr_refuses_the_request() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    let (server, resolve_mock) = refusing_pnpr_server();
+
+    let output = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["update", "--patches", "--pnpr-server", &server.url()])
+        .output()
+        .expect("run pnpm update");
+
+    assert_resolved_locally(&output, &workspace);
+    resolve_mock.assert();
+    drop((root, mock_instance));
+}
+
 /// A pnpr-resolved lockfile is rewritten wholesale from the server's
 /// answer, so `time:` has to survive the round trip the same way a
 /// locally resolved install preserves it.

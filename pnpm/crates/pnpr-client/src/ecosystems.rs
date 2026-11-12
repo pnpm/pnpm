@@ -1,7 +1,8 @@
 use super::{
     CargoResolveOptions, Deserialize, PnprClient, PnprClientError, PypiResolveOptions,
-    RenderedViolation, VerifyError, VerifyLockfileOptions, read_ndjson_frames,
-    response_body_bounded,
+    RenderedViolation, VerifyError, VerifyLockfileOptions,
+    lockfile_format::{CARGO_LOCK, PYLOCK, expect_sole_lockfile_format},
+    read_ndjson_frames, response_body_bounded,
 };
 
 fn parse_pypi_frame(line: &[u8]) -> Result<PypiFrame, PnprClientError> {
@@ -36,6 +37,8 @@ const MAX_TERMINAL_RESPONSE_SIZE: usize = 32 * 1024 * 1024;
 enum CargoFrame {
     Done {
         lockfile: String,
+        #[serde(rename = "lockfileFormat", default)]
+        lockfile_format: Option<String>,
     },
     Error {
         message: String,
@@ -52,7 +55,11 @@ enum CargoFrame {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum PypiFrame {
     /// Boxed: the lockfile dwarfs the other variant.
-    Done { lockfile: Box<pnpm_python_resolver::Lockfile> },
+    Done {
+        lockfile: Box<pnpm_python_resolver::Lockfile>,
+        #[serde(rename = "lockfileFormat", default)]
+        lockfile_format: Option<String>,
+    },
     Error {
         message: String,
         #[serde(default)]
@@ -147,7 +154,10 @@ impl PnprClient {
         });
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_pypi_frame(&frame)? {
-            PypiFrame::Done { lockfile } => Ok(*lockfile),
+            PypiFrame::Done { lockfile, lockfile_format } => {
+                expect_sole_lockfile_format(lockfile_format.as_deref(), PYLOCK)?;
+                Ok(*lockfile)
+            }
             PypiFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
             PypiFrame::Ignored => Err(PnprClientError::Protocol(
                 "unexpected non-terminal frame in pypi resolve response".to_string(),
@@ -170,7 +180,10 @@ impl PnprClient {
         });
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_cargo_frame(&frame)? {
-            CargoFrame::Done { lockfile } => Ok(lockfile),
+            CargoFrame::Done { lockfile, lockfile_format } => {
+                expect_sole_lockfile_format(lockfile_format.as_deref(), CARGO_LOCK)?;
+                Ok(lockfile)
+            }
             CargoFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
             CargoFrame::Ignored => Err(PnprClientError::Protocol(
                 "unexpected non-terminal frame in cargo resolve response".to_string(),
