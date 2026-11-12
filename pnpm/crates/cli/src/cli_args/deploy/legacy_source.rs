@@ -94,6 +94,7 @@ impl LegacyDeploySource {
             deploy_dir,
             lockfile_dir: source_dir,
             deployed_project_root: &selected.project.root_dir,
+            references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
         };
         self.rebase_packages(&ctx, selected)?;
         let mut importers = HashMap::new();

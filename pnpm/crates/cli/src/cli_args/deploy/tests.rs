@@ -95,6 +95,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
         deploy_dir: &deploy_dir,
         lockfile_dir: &lockfile_dir,
         deployed_project_root: &deployed_project_root,
+        references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
     };
 
     let converted = convert_package_metadata(&metadata, &ctx).expect("convert metadata");
@@ -119,6 +120,7 @@ fn convert_package_key_preserves_local_tarball_name() {
         deploy_dir: &deploy_dir,
         lockfile_dir: &lockfile_dir,
         deployed_project_root: &deployed_project_root,
+        references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
     };
     let key: PackageKey =
         "tar-pkg@file:vendor/tar-pkg-1.0.0.tgz".parse().expect("parse package key");

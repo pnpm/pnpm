@@ -12,6 +12,7 @@ fn relative_file_keys_decode_spaces_in_the_source_path() {
         deploy_dir: &deploy,
         lockfile_dir: root.path(),
         deployed_project_root: &source,
+        references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
     };
     let name = "fixture".parse().unwrap();
     let key = create_file_url_key(&source, "", &projects, Some(&name)).unwrap();

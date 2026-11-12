@@ -62,6 +62,9 @@ This also works with per-project lockfiles and `--legacy`. Use `--trust-lockfile
 if deployment should skip supply-chain policy checks on the locked dependencies.
 New or changed dependencies may still require registry metadata.
 
+Deployment preserves the recorded peer bindings of injected workspace packages,
+including when using [`lockfile.format: v13`](../settings/store.md#lockfileformat).
+
 ## Options
 
 `pnpm deploy` accepts the options of [`pnpm install`](./install.md) for the install it runs into the target directory.
