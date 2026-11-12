@@ -249,7 +249,7 @@ impl PackumentIntegrityResolver<'_> {
     async fn persist_packument(&self, doc: Value) -> Result<Vec<u8>, RegistryError> {
         let bytes =
             self.state.inner.packuments.workers.run(move || serde_json::to_vec(&doc)).await??;
-        self.state.inner.storage.write_upstream_document(self.namespace, self.name, &bytes).await?;
+        self.state.inner.storage.update_upstream_document(self.namespace, self.name, &bytes).await?;
         Ok(bytes)
     }
 }

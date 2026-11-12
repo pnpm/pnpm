@@ -187,6 +187,7 @@ pub(super) async fn cache_upstream_packument(
 
 async fn purge_cached_package(state: &AppState, namespace: &str, name: &CanonicalPackageName) {
     let _guard = lock_upstream_package(state, namespace, name).await;
+    invalidate_upstream_package(state, namespace, name);
     if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
         tracing::warn!(
             ?err,
@@ -204,8 +205,28 @@ pub(super) async fn lock_upstream_package<'a>(
     namespace: &str,
     name: &CanonicalPackageName,
 ) -> tokio::sync::MutexGuard<'a, ()> {
-    let lock_key = format!("upstream:{namespace}:{}", name.as_str());
+    let lock_key = upstream_package_key(namespace, name);
     state.inner.locks.packages.lock(&lock_key).await
+}
+
+pub(super) fn upstream_package_generation(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) -> u64 {
+    state.inner.locks.packages.generation(&upstream_package_key(namespace, name))
+}
+
+pub(super) fn invalidate_upstream_package(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) {
+    state.inner.locks.packages.advance_generation(&upstream_package_key(namespace, name));
+}
+
+fn upstream_package_key(namespace: &str, name: &CanonicalPackageName) -> String {
+    format!("upstream:{namespace}:{}", name.as_str())
 }
 
 /// Serve a stale cache entry only when an upstream fetch failed transiently.

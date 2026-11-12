@@ -13,6 +13,7 @@ fn tgz() -> Arc<VersionTgz> {
         version_route: None,
         dist: serde_json::from_str("{}").unwrap(),
         integrity_key: None,
+        manifest_generation: None,
     })
 }
 

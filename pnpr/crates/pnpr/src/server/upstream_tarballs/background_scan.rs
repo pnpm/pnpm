@@ -145,6 +145,7 @@ impl PromotedTarballScan {
         state: AppState,
         blob: pnpr_storage::SealedBlob,
         cached_path: PathBuf,
+        manifest_generation: Option<u64>,
     ) -> std::io::Result<()> {
         let _guard = crate::server::upstream_packuments::lock_upstream_package(
             &state,
@@ -152,10 +153,36 @@ impl PromotedTarballScan {
             &self.name,
         )
         .await;
+        if self.binding_is_current(&state, manifest_generation).await? {
+            blob.promote().await?;
+            self.spawn(cached_path);
+        } else {
+            blob.abandon().await;
+        }
+        Ok(())
+    }
+
+    async fn binding_is_current(
+        &self,
+        state: &AppState,
+        manifest_generation: Option<u64>,
+    ) -> std::io::Result<bool> {
         let bytes = self.storage
             .read_upstream_document_any(&self.namespace, &self.name)
             .await
             .map_err(std::io::Error::other)?;
+        if bytes.is_none()
+            && manifest_generation.is_some_and(|generation| {
+                generation
+                    == crate::server::upstream_packuments::upstream_package_generation(
+                        state,
+                        &self.namespace,
+                        &self.name,
+                    )
+            })
+        {
+            return Ok(true);
+        }
         let name = self.name.clone();
         let filename = self.filename.clone();
         let current = state.inner.packuments.workers
@@ -166,13 +193,7 @@ impl PromotedTarballScan {
             })
             .await
             .map_err(std::io::Error::other)?;
-        if current.is_some_and(|current| current.integrity == self.tgz_integrity) {
-            blob.promote().await?;
-            self.spawn(cached_path);
-        } else {
-            blob.abandon().await;
-        }
-        Ok(())
+        Ok(current.is_some_and(|current| current.integrity == self.tgz_integrity))
     }
 
     pub(super) fn spawn(self, cached_path: PathBuf) {

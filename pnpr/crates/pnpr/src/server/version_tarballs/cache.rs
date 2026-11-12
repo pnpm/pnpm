@@ -14,6 +14,7 @@ pub(super) struct VersionTgz {
     pub(super) version_route: Option<String>,
     pub(super) dist: DistBlock,
     pub(super) integrity_key: Option<String>,
+    pub(super) manifest_generation: Option<u64>,
 }
 
 pub(super) fn version_tgz(
@@ -66,7 +67,13 @@ fn dist_tgz(name: &CanonicalPackageName, dist: DistBlock) -> Option<VersionTgz> 
     if let Some(shasum) = &dist.shasum {
         fields.insert("shasum".to_string(), Value::String(shasum.clone()));
     }
-    Some(VersionTgz { filename, version_route, integrity_key: tgz_integrity_key(&fields), dist })
+    Some(VersionTgz {
+        filename,
+        version_route,
+        integrity_key: tgz_integrity_key(&fields),
+        dist,
+        manifest_generation: None,
+    })
 }
 
 /// Versions kept before the cache drops some.

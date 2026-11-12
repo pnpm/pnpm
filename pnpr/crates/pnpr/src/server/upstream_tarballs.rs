@@ -85,6 +85,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
         version_route: version_route.as_deref(),
         integrity: &integrity,
         unpacked_size,
+        manifest_generation: None,
     };
     if upstream.caches()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
@@ -229,6 +230,7 @@ pub(super) struct UpstreamTarball<'a> {
     pub(super) version_route: Option<&'a str>,
     pub(super) integrity: &'a Integrity,
     pub(super) unpacked_size: Option<u64>,
+    pub(super) manifest_generation: Option<u64>,
 }
 
 /// Fetch the tarball from the upstream and stream it to the client, teeing it
@@ -245,6 +247,7 @@ pub(super) async fn fetch_upstream_tarball(
         version_route,
         integrity: _,
         unpacked_size: _,
+        manifest_generation: _,
     } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
@@ -285,6 +288,7 @@ fn stream_and_record_upstream_tarball(
     // chunked and the client reads to EOF (then re-verifies the integrity).
     let cached_path = write.final_path().to_path_buf();
     let scan = PromotedTarballScan::new(state, tarball);
+    let manifest_generation = tarball.manifest_generation;
     let state = state.clone();
     let max_bytes = state.max_tarball_bytes();
     let streamed = streaming::stream_verified_with_promotion(
@@ -292,7 +296,7 @@ fn stream_and_record_upstream_tarball(
         write,
         tarball.integrity,
         max_bytes,
-        move |blob| scan.promote_if_current(state, blob, cached_path),
+        move |blob| scan.promote_if_current(state, blob, cached_path, manifest_generation),
     );
     match streamed {
         Ok(body) => tarball_response(body, None),

@@ -6,10 +6,7 @@ use super::{
 };
 use crate::server::{authorize, read_source_packument, recover_stale_upstream_packument};
 use pnpr_storage::DocumentStamp;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant, SystemTime},
-};
+use std::{sync::Arc, time::Instant};
 
 /// The largest upstream version manifest the route reads.
 const MAX_VERSION_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
@@ -30,6 +27,14 @@ impl VersionRequest<'_> {
         let cache = &self.state.inner.proxy.version_tgzs;
         if let Some(cached) = &cached
             && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp, cached.ttl)
+            && tgz.manifest_generation.is_none_or(|generation| {
+                generation
+                    == crate::server::upstream_packuments::upstream_package_generation(
+                        self.state,
+                        &cached.namespace,
+                        name,
+                    )
+            })
         {
             return Ok(Some(tgz));
         }
@@ -147,9 +152,17 @@ impl VersionRequest<'_> {
         cached: Option<&CachedPackument>,
     ) -> Option<(VersionTgz, Option<DistOrigin>)> {
         let upstream = authorized_upstream(self.state, self.identity, id).ok()?;
+        let generation = cached.map(|cached| {
+            crate::server::upstream_packuments::upstream_package_generation(
+                self.state,
+                &cached.namespace,
+                name,
+            )
+        });
         let fetched = Instant::now();
         let err = match self.fetch_version_manifest(upstream, name).await {
-            ManifestRead::Dist(tgz) => {
+            ManifestRead::Dist(mut tgz) => {
+                tgz.manifest_generation = generation;
                 return Some((tgz, Some(DistOrigin::VersionManifest(fetched))));
             }
             ManifestRead::Unreachable(err) => err,
@@ -224,11 +237,8 @@ impl VersionRequest<'_> {
         cached: &CachedPackument,
         name: &CanonicalPackageName,
     ) -> Result<Option<DocumentStamp>, RegistryError> {
-        let stamp =
-            self.state.inner.storage.upstream_document_stamp(&cached.namespace, name).await?;
-        Ok(stamp.filter(|stamp| {
-            SystemTime::now().duration_since(stamp.modified).unwrap_or(Duration::ZERO) <= cached.ttl
-        }))
+        self.state.inner.storage.fresh_upstream_document_stamp(&cached.namespace, name, cached.ttl)
+            .await
     }
 }
 

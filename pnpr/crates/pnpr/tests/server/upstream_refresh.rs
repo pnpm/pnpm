@@ -496,3 +496,89 @@ async fn the_first_packument_evicts_orphaned_blobs() {
     metadata.assert_async().await;
     archive.assert_async().await;
 }
+
+#[tokio::test]
+async fn removing_a_package_rejects_an_inflight_manifest_download() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"manifest archive";
+    let manifest = upstream
+        .mock("GET", "/foo/1.0.0")
+        .with_status(200)
+        .with_body(
+            json!({"name":"foo","version":"1.0.0","dist":{
+                "tarball":format!("{}/foo/-/foo-1.0.0.tgz",upstream.url()),
+                "integrity":super::sha512_integrity(bytes)
+            }})
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let removed = upstream
+        .mock("GET", "/foo")
+        .with_status(404)
+        .expect(2)
+        .create_async()
+        .await;
+    let (started, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    let (release, ready) = std::sync::mpsc::channel();
+    let ready = std::sync::Mutex::new(ready);
+    let archive = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_chunked_body(move |writer| {
+            writer.write_all(bytes)?;
+            writer.flush()?;
+            started.send(()).unwrap();
+            ready
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(10))
+                .unwrap();
+            Ok(())
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/foo@1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let download = tokio::spawn(body_bytes(response.into_body()));
+    tokio::time::timeout(Duration::from_secs(10), observed.recv()).await.unwrap().unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    release.send(()).unwrap();
+    assert_eq!(download.await.unwrap(), bytes);
+    assert!(!public_cache_blob(tmp.path(), "foo", "foo-1.0.0.tgz").exists());
+    manifest.assert_async().await;
+    archive.assert_async().await;
+    manifest.remove_async().await;
+    archive.remove_async().await;
+    let response = app
+        .oneshot(
+            Request::get("/npm/foo@1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    removed.assert_async().await;
+}

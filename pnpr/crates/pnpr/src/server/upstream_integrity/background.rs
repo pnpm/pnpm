@@ -4,6 +4,7 @@ use std::{collections::HashMap, sync::Mutex};
 use tokio::sync::{Semaphore, watch};
 
 const MAX_ACTIVE_PACKUMENTS: usize = 8;
+const MAX_OUTSTANDING_PACKUMENTS: usize = 256;
 
 type JobKey = (String, String);
 
@@ -60,7 +61,9 @@ pub(in crate::server) fn schedule(
     upstream: &Upstream,
     name: &CanonicalPackageName,
 ) {
-    start(state, namespace, upstream, name, Trigger::Refresh);
+    if let Err(err) = start(state, namespace, upstream, name, Trigger::Refresh) {
+        tracing::warn!(%err, package = %name.as_str(), "integrity backfill queue is full");
+    }
 }
 
 fn start(
@@ -69,13 +72,13 @@ fn start(
     upstream: &Upstream,
     name: &CanonicalPackageName,
     trigger: Trigger,
-) {
+) -> Result<(), super::RegistryError> {
     let key = (namespace.to_string(), name.as_str().to_string());
     {
         let mut jobs = state.inner.proxy.integrity_backfill.jobs.lock().unwrap();
         if let Some(job) = jobs.get_mut(&key) {
             job.changed |= matches!(trigger, Trigger::Refresh);
-            return;
+            return Ok(());
         }
         if let Trigger::Resume(stamp) = trigger
             && state.inner.proxy.integrity_backfill.attempted
@@ -84,7 +87,12 @@ fn start(
                 .get(&key)
                 == Some(&stamp)
         {
-            return;
+            return Ok(());
+        }
+        if jobs.len() >= MAX_OUTSTANDING_PACKUMENTS {
+            return Err(super::RegistryError::TooManyRequests {
+                reason: format!("integrity backfill queue is full for {}", name.as_str()),
+            });
         }
         jobs.insert(key.clone(), PendingJob { changed: false, completion: watch::channel(()).0 });
     }
@@ -92,6 +100,7 @@ fn start(
     let upstream = upstream.clone();
     let name = name.clone();
     tokio::spawn(job.run(upstream, name));
+    Ok(())
 }
 
 pub(in crate::server) async fn wait_for_pin(
@@ -121,7 +130,7 @@ pub(in crate::server) async fn wait_for_pin(
     if !eligible_for_pin(state, namespace, name, filename).await? {
         return Ok(());
     }
-    start(state, namespace, upstream, name, Trigger::Resume(stamp));
+    start(state, namespace, upstream, name, Trigger::Resume(stamp))?;
     if tokio::time::timeout(upstream.timeout(), wait(state, namespace, name))
         .await
         .is_err()

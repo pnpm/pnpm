@@ -343,3 +343,59 @@ async fn waiting_applies_the_cap_after_vulnerability_screening() {
     assert!(pinned["versions"][&last]["dist"]["integrity"].as_str().is_some());
     archive.assert_async().await;
 }
+
+#[tokio::test]
+async fn a_full_queue_rejects_pin_waits_and_allows_a_later_retry() {
+    let mut server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let app = state(tmp.path(), &server.url());
+    let upstream = &app.inner.proxy.upstreams["mirror"];
+    let held = app.inner.proxy.integrity_backfill.slots
+        .acquire_many(MAX_ACTIVE_PACKUMENTS as u32)
+        .await
+        .unwrap();
+    let mut packages = Vec::new();
+    for index in 0..super::MAX_OUTSTANDING_PACKUMENTS {
+        let name =
+            CanonicalPackageName::parse(&format!("example-{index}"), Ecosystem::Npm).unwrap();
+        schedule(&app, "test", upstream, &name);
+        packages.push(name);
+    }
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let filename = "example-1.0.0.tgz";
+    let doc = json!({"versions":{"1.0.0":{"dist":{"tarball":format!("{}/example/-/{filename}",server.url())}}}});
+    app.inner.storage
+        .write_upstream_document("test", &name, &serde_json::to_vec(&doc).unwrap())
+        .await
+        .unwrap();
+    schedule(&app, "test", upstream, &name);
+    assert_eq!(
+        app.inner.proxy.integrity_backfill.jobs
+            .lock()
+            .unwrap()
+            .len(),
+        super::MAX_OUTSTANDING_PACKUMENTS,
+    );
+    let err = super::wait_for_pin(&app, "test", upstream, &name, filename).await.unwrap_err();
+    assert!(matches!(err, super::super::RegistryError::TooManyRequests { .. }));
+    drop(held);
+    for name in packages {
+        wait(&app, "test", &name).await;
+    }
+    let archive = server
+        .mock("GET", "/example/-/example-1.0.0.tgz")
+        .with_status(200)
+        .with_body("archive")
+        .expect(1)
+        .create_async()
+        .await;
+    super::wait_for_pin(&app, "test", upstream, &name, filename).await.unwrap();
+    let bytes = app.inner.storage
+        .read_upstream_document_any("test", &name)
+        .await
+        .unwrap()
+        .unwrap();
+    let pinned: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(pinned["versions"]["1.0.0"]["dist"]["integrity"].as_str().is_some());
+    archive.assert_async().await;
+}

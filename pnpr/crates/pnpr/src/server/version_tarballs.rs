@@ -267,6 +267,7 @@ impl VersionRequest<'_> {
             version_route: tgz.version_route.as_deref(),
             integrity: &integrity,
             unpacked_size: tgz.dist.unpacked_size,
+            manifest_generation: tgz.manifest_generation,
         };
         let (response, origin) =
             serve_bound_upstream_tarball(self.state, upstream, tarball, self.version).await;

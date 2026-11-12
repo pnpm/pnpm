@@ -256,14 +256,20 @@ async fn a_cold_version_request_reads_only_its_version_manifest() {
         .expect(0)
         .create_async()
         .await;
-    upstream
+    let archive = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_body(&tgz)
+        .expect(1)
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
     let app = tar_registry_app(&url, tmp.path());
 
+    for _ in 0..2 {
+        let response = get(&app, "/npm/~npmjs/foo@1.0.0").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, tgz);
+    }
     for _ in 0..2 {
         let response = get(&app, "/npm/~zstd/foo@1.0.0").await;
         assert_eq!(response.status(), StatusCode::OK);
@@ -271,6 +277,7 @@ async fn a_cold_version_request_reads_only_its_version_manifest() {
     }
     manifest_mock.assert_async().await;
     packument_mock.assert_async().await;
+    archive.assert_async().await;
 }
 
 /// An upstream answers a dist-tag at the version manifest URL. The route

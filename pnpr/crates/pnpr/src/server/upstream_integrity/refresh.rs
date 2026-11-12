@@ -34,6 +34,7 @@ pub(in crate::server) async fn refresh_cached_packument(
     let Reconciliation { packument, eviction } =
         state.inner.packuments.workers.run(move || reconcile(previous.as_deref(), bytes, &package))
             .await??;
+    crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
     // Evict before publishing the new document so a failed deletion cannot be forgotten.
     match eviction {
         BlobEviction::Package => {
