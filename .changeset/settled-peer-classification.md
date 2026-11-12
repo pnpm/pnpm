@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Reduced duplicate peer dependency processing during installs.
+Refactored peer dependency processing during installs.
