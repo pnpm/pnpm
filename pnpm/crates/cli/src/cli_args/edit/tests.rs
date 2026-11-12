@@ -1,5 +1,5 @@
 use super::{
-    de_hardlink_dir, package_rebuild_selection, parse_package_path, resolve_package_dir,
+    de_hardlink_dir, find_installed_snapshot_key, parse_package_path, resolve_package_dir,
     split_shell_args,
 };
 use std::{fs, path::Path};
@@ -79,18 +79,21 @@ fn test_de_hardlink_dir() {
 }
 
 #[test]
-fn rebuild_selection_uses_registry_version_and_source_package_name() {
-    let tmp = tempdir().unwrap();
-    let registry_package = tmp.path().join("foo@1.2.3/node_modules/foo");
-    let source_package = tmp.path().join("foo@git+https___example.com_repo/node_modules/foo");
-    fs::create_dir_all(&registry_package).unwrap();
-    fs::create_dir_all(&source_package).unwrap();
-    for package_dir in [&registry_package, &source_package] {
-        fs::write(package_dir.join("package.json"), r#"{"name":"foo","version":"1.2.3"}"#).unwrap();
-    }
+fn rebuild_selection_matches_the_exact_scoped_peer_snapshot() {
+    let peer_key = "@scope/foo@1.2.3(bar@2.0.0)".parse::<pnpm_lockfile::PackageKey>().unwrap();
+    let unrelated_key = "@scope/foo@1.2.3(baz@3.0.0)".parse::<pnpm_lockfile::PackageKey>().unwrap();
+    let slot = peer_key.to_virtual_store_name(120);
+    let keys = [&unrelated_key, &peer_key];
 
-    assert_eq!(package_rebuild_selection(&registry_package, 120).unwrap(), ["foo@1.2.3"]);
-    assert_eq!(package_rebuild_selection(&source_package, 120).unwrap(), ["foo"]);
+    let selected = find_installed_snapshot_key(
+        Some(std::ffi::OsStr::new(&slot)),
+        "@scope/foo",
+        120,
+        keys.into_iter(),
+    )
+    .unwrap();
+
+    assert_eq!(selected, &peer_key);
 }
 
 #[cfg(unix)]

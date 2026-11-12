@@ -80,9 +80,12 @@ fn resolve_edit_target(state: &State, parts: &[String]) -> miette::Result<(PathB
             ));
         }
     }
+    let lockfile = state.lockfile.get().map_err(miette::Report::new)?;
     let rebuild_selection = package_rebuild_selection(
         &package_dir,
+        state.config.virtual_store_dir(),
         state.config.virtual_store_dir_max_length as usize,
+        lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
     )?;
     Ok((package_dir, rebuild_selection))
 }
@@ -314,7 +317,11 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
 
 fn package_rebuild_selection(
     package_dir: &Path,
+    virtual_store_dir: &Path,
     virtual_store_dir_max_length: usize,
+    snapshots: Option<
+        &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>,
+    >,
 ) -> miette::Result<Vec<String>> {
     let manifest_path = package_dir.join("package.json");
     let manifest = fs::read(&manifest_path)
@@ -331,23 +338,34 @@ fn package_rebuild_selection(
             let path = manifest_path.display();
             miette!("Package manifest at '{path}' has no name")
         })?;
-    if let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) {
-        let registry_key = format!("{name}@{version}");
-        let registry_slot = registry_key
-            .parse::<pnpm_lockfile::PkgNameVerPeer>()
-            .ok()
-            .map(|key| key.to_virtual_store_name(virtual_store_dir_max_length));
-        if package_dir
-            .ancestors()
-            .nth(2)
-            .and_then(Path::file_name)
-            .zip(registry_slot.as_deref())
-            .is_some_and(|(slot, registry_slot)| slot == registry_slot)
-        {
-            return Ok(vec![registry_key]);
-        }
+    let slot = package_dir
+        .strip_prefix(virtual_store_dir)
+        .ok()
+        .and_then(|relative| relative.components().next())
+        .map(std::path::Component::as_os_str);
+    if let Some(key) = find_installed_snapshot_key(
+        slot,
+        &name,
+        virtual_store_dir_max_length,
+        snapshots.into_iter().flat_map(std::collections::HashMap::keys),
+    ) {
+        return Ok(vec![key.to_string()]);
     }
     Ok(vec![name])
+}
+
+fn find_installed_snapshot_key<'a>(
+    slot: Option<&std::ffi::OsStr>,
+    name: &str,
+    max_length: usize,
+    mut keys: impl Iterator<Item = &'a pnpm_lockfile::PackageKey>,
+) -> Option<&'a pnpm_lockfile::PackageKey> {
+    keys.find(|key| {
+        key.name.to_string() == name
+            && slot.is_some_and(|slot| {
+                key.to_virtual_store_name(max_length).as_str() == slot.to_string_lossy()
+            })
+    })
 }
 
 fn is_file_hardlinked(metadata: &fs::Metadata) -> bool {
