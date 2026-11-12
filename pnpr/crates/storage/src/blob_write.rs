@@ -55,7 +55,9 @@ impl Drop for TempFileGuard {
     }
 }
 
-pub(crate) fn is_active_temp(path: &Path) -> bool {
+/// Whether `path` is registered by an active [`TempFileGuard`] in this process.
+#[must_use]
+pub fn is_active_temp(path: &Path) -> bool {
     ACTIVE_TEMPS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

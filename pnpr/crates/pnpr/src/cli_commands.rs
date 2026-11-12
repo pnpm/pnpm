@@ -29,7 +29,7 @@ pub enum Command {
         #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
     },
-    /// Reclaim cached upstream tarballs and packuments.
+    /// Reclaim cached upstream and resolver files, and prune orphaned namespaces.
     CacheGc {
         /// Report reclaimable entries without deleting them.
         #[arg(long)]
@@ -280,6 +280,7 @@ async fn run_cache_gc(
     max_age_secs: Option<u64>,
     scope: CacheGcScope,
 ) -> miette::Result<()> {
+    crate::config_validation::validate_cache_secret(config).map_err(|err| redacted_report(&err))?;
     let max_size = if let Some(raw) = max_size.as_deref() {
         Some(pnpr_config::parse_byte_size(raw).ok_or_else(|| {
             miette::miette!(

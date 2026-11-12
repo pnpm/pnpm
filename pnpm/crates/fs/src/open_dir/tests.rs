@@ -249,3 +249,357 @@ fn open_child_dir_ignores_a_link_substituted_after_the_open() {
     );
     assert_eq!(names(&root.path().join("moved/v12")), Vec::<String>::new());
 }
+
+#[test]
+fn child_file_stat_and_remove_child_file_act_only_on_regular_files() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::write(root.path().join("real/payload"), b"hello").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    let stat = dir
+        .child_file_stat("payload".as_ref())
+        .unwrap()
+        .expect("regular file stat");
+    assert_eq!(stat.len, 5);
+    assert!(
+        dir.child_file_stat("metadata".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        dir.child_file_stat("missing".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+
+    assert!(!dir.remove_child_file("metadata".as_ref()).unwrap());
+    assert!(dir.remove_child_file("payload".as_ref()).unwrap());
+    assert!(!dir.remove_child_file("payload".as_ref()).unwrap());
+    assert!(
+        !root
+            .path()
+            .join("real/payload")
+            .exists(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn open_descendant_and_remove_child_file_reject_substituted_symlink() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::create_dir_all(root.path().join("elsewhere/sub")).unwrap();
+    fs::write(root.path().join("elsewhere/sub/victim"), b"keep").unwrap();
+    fs::create_dir_all(root.path().join("real/sub")).unwrap();
+    fs::write(root.path().join("real/sub/target"), b"gone").unwrap();
+
+    let base = OpenDir::open(root.path()).unwrap();
+    substitute_real(root.path());
+
+    assert!(
+        base.open_descendant_dir(Path::new("real/sub"))
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        root.path()
+            .join("elsewhere/sub/victim")
+            .exists(),
+    );
+
+    let moved_sub = base
+        .open_descendant_dir(Path::new("moved/sub"))
+        .unwrap()
+        .expect("real descendant opens");
+    assert!(moved_sub.remove_child_file("target".as_ref()).unwrap());
+    assert!(
+        base.open_descendant_dir(Path::new("moved"))
+            .unwrap()
+            .unwrap()
+            .remove_empty_child_dir("sub".as_ref())
+            .unwrap(),
+    );
+}
+
+#[test]
+fn has_symlink_child_and_try_reopen_distinguish_links_and_real_entries() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(root.path()).unwrap();
+
+    assert!(dir.has_symlink_child("link".as_ref()).unwrap());
+    assert!(!dir.has_symlink_child("real".as_ref()).unwrap());
+    assert!(!dir.has_symlink_child("missing".as_ref()).unwrap());
+
+    let reopened = dir.try_reopen().unwrap();
+    assert_eq!(reopened.canonical_path().unwrap(), dir.canonical_path().unwrap());
+}
+
+#[test]
+fn read_child_file_reads_regular_files_and_ignores_links_and_dirs() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::write(root.path().join("real/payload"), b"hello-open-dir").unwrap();
+    symlink_dir(&root.path().join("real/metadata"), &root.path().join("real/dir-link")).unwrap();
+    #[cfg(unix)]
+    {
+        fs::write(root.path().join("outside"), b"secret").unwrap();
+        std::os::unix::fs::symlink(root.path().join("outside"), root.path().join("real/file-link"))
+            .unwrap();
+        let _sock = std::os::unix::net::UnixListener::bind(root.path().join("real/sock")).unwrap();
+    }
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    assert_eq!(
+        dir.read_child_file("payload".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"hello-open-dir"[..]),
+    );
+    assert!(
+        dir.read_child_file("dir-link".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    #[cfg(unix)]
+    {
+        assert!(
+            dir.read_child_file("file-link".as_ref())
+                .unwrap()
+                .is_none(),
+        );
+        assert!(
+            dir.read_child_file("sock".as_ref())
+                .unwrap()
+                .is_none(),
+        );
+    }
+    assert!(
+        dir.read_child_file("metadata".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        dir.read_child_file("missing".as_ref())
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[test]
+fn child_methods_reject_non_single_component_names() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::write(root.path().join("outside.txt"), b"keep").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    for bad in ["", ".", "..", "../outside.txt", "metadata/registry", "metadata/", "/outside.txt"] {
+        assert_eq!(
+            dir.open_child_dir(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.remove_child_dir(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.child_file_stat(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.read_child_file(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.has_symlink_child(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.remove_child_file(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.remove_empty_child_dir(bad.as_ref())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.create_child_file_new(bad.as_ref(), b"x")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(
+            dir.write_child_file(bad.as_ref(), b"x")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+    }
+    assert_eq!(fs::read(root.path().join("outside.txt")).unwrap(), b"keep");
+}
+
+#[test]
+fn create_and_write_child_file_stay_anchored_and_refuse_symlinks() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    dir.create_child_file_new(".marker".as_ref(), b"v1").unwrap();
+    assert_eq!(
+        dir.create_child_file_new(".marker".as_ref(), b"v2")
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::AlreadyExists,
+    );
+    assert_eq!(
+        dir.read_child_file(".marker".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"v1"[..]),
+    );
+
+    dir.write_child_file(".marker".as_ref(), b"v2").unwrap();
+    assert_eq!(
+        dir.read_child_file(".marker".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"v2"[..]),
+    );
+
+    #[cfg(unix)]
+    {
+        fs::write(root.path().join("victim"), b"untouched").unwrap();
+        std::os::unix::fs::symlink(root.path().join("victim"), root.path().join("real/sym"))
+            .unwrap();
+        assert_eq!(
+            dir.create_child_file_new("sym".as_ref(), b"bad")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::AlreadyExists,
+        );
+        assert_eq!(
+            dir.write_child_file("sym".as_ref(), b"bad")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput,
+        );
+        assert_eq!(fs::read(root.path().join("victim")).unwrap(), b"untouched");
+
+        fs::create_dir_all(root.path().join("elsewhere")).unwrap();
+        fs::write(root.path().join("elsewhere/.marker"), b"other").unwrap();
+        substitute_real(root.path());
+        dir.write_child_file(".marker".as_ref(), b"anchored").unwrap();
+        assert_eq!(fs::read(root.path().join("moved/.marker")).unwrap(), b"anchored");
+        assert_eq!(fs::read(root.path().join("elsewhere/.marker")).unwrap(), b"other");
+    }
+}
+
+#[test]
+fn read_child_file_bounded_enforces_size_cap_and_pinned_helper_cleans_up_temps() {
+    let root = tempdir().unwrap();
+    fs::write(root.path().join("small"), b"abcd").unwrap();
+    fs::write(root.path().join("large"), vec![b'x'; 512]).unwrap();
+    let dir = OpenDir::open(root.path()).unwrap();
+
+    assert_eq!(dir.read_child_file_bounded("missing".as_ref(), 4).unwrap(), None);
+    assert_eq!(
+        dir.read_child_file_bounded("small".as_ref(), 4)
+            .unwrap()
+            .as_deref(),
+        Some(&b"abcd"[..]),
+    );
+    assert_eq!(
+        dir.read_child_file_bounded("small".as_ref(), 3)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData,
+    );
+    assert_eq!(
+        dir.read_child_file_bounded("large".as_ref(), 64)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData,
+    );
+
+    let pinned = root.path().join("pinned");
+    fs::create_dir_all(&pinned).unwrap();
+    super::write_child_file_in_pinned_dir(
+        &pinned,
+        ".marker".as_ref(),
+        b"first",
+        super::ChildWrite::CreateNew,
+        || Ok(false),
+    )
+    .unwrap();
+    assert_eq!(
+        super::write_child_file_in_pinned_dir(
+            &pinned,
+            ".marker".as_ref(),
+            b"second",
+            super::ChildWrite::Replace,
+            || Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+        )
+        .unwrap_err()
+        .kind(),
+        io::ErrorKind::PermissionDenied,
+    );
+    let entries: Vec<_> = fs::read_dir(&pinned)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(entries, vec![std::ffi::OsString::from(".marker")]);
+    assert_eq!(fs::read(pinned.join(".marker")).unwrap(), b"first");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_retargeted_ancestor_junction_stays_bound_to_opened_root() {
+    let root = tempdir().unwrap();
+    fs::create_dir_all(root.path().join("real_a/cache/sub")).unwrap();
+    fs::write(root.path().join("real_a/cache/keep.txt"), b"from-a").unwrap();
+    fs::create_dir_all(root.path().join("real_b/cache/sub")).unwrap();
+    fs::write(root.path().join("real_b/cache/keep.txt"), b"from-b").unwrap();
+
+    let junction_path = root.path().join("links");
+    junction::create(root.path().join("real_a"), &junction_path).unwrap();
+
+    let dir = OpenDir::open(&junction_path.join("cache")).unwrap();
+
+    fs::remove_dir(&junction_path).unwrap();
+    junction::create(root.path().join("real_b"), &junction_path).unwrap();
+
+    assert_eq!(dir.canonical_path().unwrap(), None);
+    assert_eq!(
+        dir.read_child_file("keep.txt".as_ref())
+            .unwrap()
+            .as_deref(),
+        Some(&b"from-a"[..]),
+    );
+    assert!(dir.remove_child_dir("sub".as_ref()).unwrap());
+    assert!(dir.remove_child_file("keep.txt".as_ref()).unwrap());
+    assert!(
+        root.path()
+            .join("real_b/cache/keep.txt")
+            .exists(),
+    );
+    assert!(
+        root.path()
+            .join("real_b/cache/sub")
+            .exists(),
+    );
+}

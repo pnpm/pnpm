@@ -13,6 +13,7 @@ one of them. Save this as `pnpr.yaml`:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+secret: ${PNPR_SECRET}
 
 auth:
   users:
@@ -53,14 +54,20 @@ dependency confusion.
 
 ## Start the server
 
+Generate a secret once, store it securely, and reuse the same `PNPR_SECRET`
+value across restarts:
+
 ```sh
+export PNPR_SECRET="$(openssl rand -hex 32)"
 pnpr -c ./pnpr.yaml
 ```
 
-It listens on `127.0.0.1:7677`. Running plain `pnpr` with no config works
-too. The bundled config proxies npmjs and provides a local hosted registry at
-`/npm/~local/`, whose packages need a login. It allows no self-registration,
-so create accounts with [`pnpr add-user`](cli.md#add-user).
+It listens on `127.0.0.1:7677`. Running plain `pnpr` with no config works for a
+single ephemeral run too, using a random cache secret until `.pnpr-cache` is
+removed or `secret` is configured in `pnpr.yaml`. The bundled config proxies
+npmjs and provides a local hosted registry at `/npm/~local/`, whose packages
+need a login. It allows no self-registration, so create accounts with
+[`pnpr add-user`](cli.md#add-user).
 
 ## Point a client at it
 

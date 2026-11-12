@@ -1,4 +1,4 @@
-use super::{realpath_missing, symlinked_dir_real_path};
+use super::{realpath_missing, resolve_path_with_symlinks, symlinked_dir_real_path};
 use std::fs;
 
 #[test]
@@ -66,4 +66,36 @@ fn symlinked_dir_real_path_resolves_a_dir_outside_the_base_through_any_symlink()
         Some(real.join("vendor")),
     );
     assert_eq!(symlinked_dir_real_path(&project, &root.join("real/deep/vendor")), None);
+}
+
+#[test]
+fn resolve_path_with_symlinks_expands_link_before_parent_dot_dot() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp.path()).unwrap();
+    let deep = root.join("else/deep");
+    fs::create_dir_all(&deep).unwrap();
+    crate::symlink_dir(&deep, &root.join("link")).unwrap();
+
+    assert_eq!(
+        resolve_path_with_symlinks(&root.join("link/../hosted")).unwrap(),
+        root.join("else/hosted"),
+    );
+    assert!(resolve_path_with_symlinks(std::path::Path::new("")).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn resolve_path_with_symlinks_expands_dangling_links_and_rejects_loops() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp.path()).unwrap();
+    std::os::unix::fs::symlink(root.join("cache"), root.join("db-link")).unwrap();
+
+    assert_eq!(
+        resolve_path_with_symlinks(&root.join("db-link/metadata.sqlite")).unwrap(),
+        root.join("cache/metadata.sqlite"),
+    );
+
+    std::os::unix::fs::symlink(root.join("loop-b"), root.join("loop-a")).unwrap();
+    std::os::unix::fs::symlink(root.join("loop-a"), root.join("loop-b")).unwrap();
+    assert!(resolve_path_with_symlinks(&root.join("loop-a/child")).is_err());
 }

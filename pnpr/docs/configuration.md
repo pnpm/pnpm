@@ -13,6 +13,7 @@ to the public npm registry:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+secret: ${PNPR_SECRET}
 
 auth:
   users:
@@ -39,9 +40,11 @@ defaultRegistry: main
 ```
 
 Pass it with `-c`, and create the first account with
-[`pnpr add-user`](cli.md#add-user):
+[`pnpr add-user`](cli.md#add-user). Generate `PNPR_SECRET` once, store it
+securely, and supply the same value on every restart:
 
 ```sh
+export PNPR_SECRET="$(openssl rand -hex 32)"
 pnpr -c ./pnpr.yaml add-user alice
 pnpr -c ./pnpr.yaml
 ```
@@ -78,11 +81,12 @@ storage: ./storage
 #  maxAge: 30d       # TTL deletion of cached entries older than this
 ```
 
-When `maxSize` or `maxAge` is configured, pnpr evicts stale entries on startup
-and runs periodic eviction in the background. On startup, pnpr also prunes
-orphaned private upstream namespaces left behind by previous process runs using
-ephemeral per-process secrets. Use [`pnpr cache-gc`](cli.md#cache-gc) for
-on-demand or offline reclamation.
+`maxSize` and `maxAge` cover the whole cache directory, including upstream
+mirrors, tar variants, the resolver store, the resolver cache, and the
+lockfile-verdict database. When either is configured, pnpr evicts stale entries
+on startup and runs periodic eviction in the background. On startup, pnpr also
+prunes orphaned upstream namespaces from removed registries or rotated secrets.
+Use [`pnpr cache-gc`](cli.md#cache-gc) for on-demand or offline reclamation.
 
 The hosted store can instead live in an S3-compatible object store. See
 [Storage backends](storage.md). With the filesystem hosted store, package
@@ -795,10 +799,11 @@ and upstream caches (or vice versa), configure independent secrets via
 `secrets.cache` and `secrets.oci`. Each explicit secret must be at least 16
 bytes.
 
-When neither `secret` nor `secrets` is configured, a random 32-byte secret is
-generated per process. Private cache entries and issued OCI bearer tokens only
-survive for that process's lifetime. Set an explicit secret in multi-replica
-or production deployments.
+When neither `secret` nor `secrets.cache` is configured, pnpr generates a
+random 32-byte secret for a single run on an empty local cache directory. pnpr
+refuses to start without `secret` (or `secrets.cache`) when the cache directory
+already contains data from a previous run, is shared with another process, or
+uses S3, libSQL, PostgreSQL, or MySQL backends.
 
 ## Registry, resolver, artifact, and pipeline surfaces {#registry-resolver-and-artifact-surfaces}
 
@@ -936,7 +941,7 @@ osv:
 ```
 
 `path` may point to an OSV npm database zip or an extracted JSON directory. When
-omitted, pnpr looks for `<cache>/osv/npm/all.zip`. The same feature can be
+omitted, pnpr looks for `<storage>/.osv/npm/all.zip`. The same feature can be
 enabled from the CLI with `--osv` and `--osv-db`.
 
 ## `log`

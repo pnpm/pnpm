@@ -342,3 +342,35 @@ fn oversized_advisory_id_is_truncated() {
     assert!(ids[0].len() < 300, "id not truncated: {} bytes", ids[0].len());
     assert!(ids[0].ends_with('…'), "truncated id should end with ellipsis");
 }
+
+#[test]
+fn default_path_loads_from_storage_hidden_osv_directory() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let storage = dir.path().join("storage");
+    let cache = dir.path().join("cache");
+    let default_zip = storage.join(".osv/npm/all.zip");
+    fs::create_dir_all(default_zip.parent().expect("parent")).expect("mkdir .osv/npm");
+    let mut writer = zip::ZipWriter::new(fs::File::create(&default_zip).expect("create zip"));
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("GHSA-default.json", options).expect("start file");
+    writer
+        .write_all(
+            br#"{"id":"GHSA-default","affected":[{"package":{"ecosystem":"npm","name":"default-pkg"},"versions":["1.0.0"]}]}"#,
+        )
+        .expect("write entry");
+    writer.finish().expect("finish zip");
+
+    let listen = "127.0.0.1:4873".parse().expect("listen addr");
+    let mut config = crate::Config::proxy(listen, storage);
+    config.storage.cache_dir = cache.clone();
+    config.osv.enabled = true;
+    config.osv.path = None;
+
+    let index =
+        super::load_osv_index(&config).expect("load default osv index").expect("osv enabled");
+    assert_eq!(index.vulnerability_ids("default-pkg", "1.0.0"), vec!["GHSA-default"]);
+    assert!(!cache.join("osv").exists(), "default OSV path must not live inside cache_dir");
+}
