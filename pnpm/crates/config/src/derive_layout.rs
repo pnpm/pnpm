@@ -46,7 +46,7 @@ impl Config {
             && cfg!(any(unix, target_os = "wasi"))
             && self.prefer_symlinked_executables == Some(true)
         {
-            self.remove_previous_prefer_symlinked_node_path(previous_node_path_dirs);
+            remove_node_paths(&mut self.extra_env, previous_node_path_dirs);
             let hidden_modules_dir =
                 pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
             append_node_path(&mut self.extra_env, &hidden_modules_dir);
@@ -75,49 +75,12 @@ impl Config {
     }
 
     fn remove_previous_global_virtual_store_node_path(&mut self, previous_dirs: [&Path; 2]) {
-        if !(self.enable_global_virtual_store
+        if self.enable_global_virtual_store
             && self.extend_node_path
-            && self.node_linker == NodeLinker::Isolated)
+            && self.node_linker == NodeLinker::Isolated
         {
-            return;
+            remove_node_paths(&mut self.extra_env, previous_dirs);
         }
-        let Some(node_path) = self.extra_env.get("NODE_PATH").cloned() else { return };
-        let delimiter = if cfg!(windows) { ';' } else { ':' };
-        let previous_paths =
-            previous_dirs.map(|dir| pnpm_fs::lexical_normalize(dir).display().to_string());
-        let node_paths = node_path
-            .split(delimiter)
-            .filter(|path| {
-                !previous_paths
-                    .iter()
-                    .any(|previous| previous == path)
-            })
-            .collect::<Vec<_>>();
-        set_extra_env_value(
-            &mut self.extra_env,
-            "NODE_PATH",
-            (!node_paths.is_empty()).then(|| node_paths.join(&delimiter.to_string())),
-        );
-    }
-
-    fn remove_previous_prefer_symlinked_node_path(&mut self, previous_dirs: [&Path; 2]) {
-        let Some(node_path) = self.extra_env.get("NODE_PATH").cloned() else { return };
-        let delimiter = if cfg!(windows) { ';' } else { ':' };
-        let previous_paths =
-            previous_dirs.map(|dir| pnpm_fs::lexical_normalize(dir).display().to_string());
-        let node_paths = node_path
-            .split(delimiter)
-            .filter(|path| {
-                !previous_paths
-                    .iter()
-                    .any(|previous| *path == previous)
-            })
-            .collect::<Vec<_>>();
-        set_extra_env_value(
-            &mut self.extra_env,
-            "NODE_PATH",
-            (!node_paths.is_empty()).then(|| node_paths.join(&delimiter.to_string())),
-        );
     }
 
     /// The directory layout and environment every spawned process sees,
@@ -351,6 +314,21 @@ fn append_node_path(extra_env: &mut HashMap<String, String>, dir: &Path) {
         paths.push(dir);
     }
     extra_env.insert("NODE_PATH".to_string(), paths.join(&delimiter.to_string()));
+}
+
+fn remove_node_paths(extra_env: &mut HashMap<String, String>, dirs: [&Path; 2]) {
+    let Some(node_path) = extra_env.get("NODE_PATH").cloned() else { return };
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let removed = dirs.map(|dir| pnpm_fs::lexical_normalize(dir).display().to_string());
+    let node_paths = node_path
+        .split(delimiter)
+        .filter(|path| !removed.iter().any(|dir| dir == path))
+        .collect::<Vec<_>>();
+    set_extra_env_value(
+        extra_env,
+        "NODE_PATH",
+        (!node_paths.is_empty()).then(|| node_paths.join(&delimiter.to_string())),
+    );
 }
 
 fn set_extra_env_value(extra_env: &mut HashMap<String, String>, key: &str, value: Option<String>) {

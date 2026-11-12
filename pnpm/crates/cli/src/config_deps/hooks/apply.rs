@@ -122,14 +122,7 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         config.lockfile_dir = None;
     }
     config.pin_lockfile_dir(&lockfile_dir, &project_dir);
-    restore_default_lockfile_dir_paths(
-        config,
-        &paths_before_hook,
-        modules_dir,
-        paths_before_hook.configured_virtual_store_dir.as_ref(),
-        paths_before_hook.virtual_store_dir_changed,
-        install_state_dir,
-    );
+    restore_default_lockfile_dir_paths(config, &paths_before_hook, modules_dir, install_state_dir);
     config.refresh_node_path_after_lockfile_dir_change::<Host>(
         [&paths_before_hook.node_path_dirs[0], &paths_before_hook.node_path_dirs[1]],
         paths_before_hook.hook_node_path,
@@ -141,13 +134,15 @@ fn restore_default_lockfile_dir_paths(
     config: &mut Config,
     paths_before_hook: &LockfileDirPathsBeforeHook,
     modules_dir: PathBuf,
-    configured_virtual_store_dir: Option<&PathBuf>,
-    virtual_store_dir_changed: bool,
     install_state_dir: PathBuf,
 ) {
     if config.lockfile_dir.is_some() {
         return;
     }
+    let configured_virtual_store_dir = paths_before_hook
+        .configured_virtual_store_dir
+        .as_ref();
+    let virtual_store_dir_changed = paths_before_hook.virtual_store_dir_changed;
     config.modules_dir = modules_dir;
     if !virtual_store_dir_changed {
         config.configured_virtual_store_dir = configured_virtual_store_dir.cloned();
