@@ -16,6 +16,31 @@ pub(super) fn read_entry(
     anchored: &AnchoredFilesRoot,
     hex: &str,
 ) -> Result<Option<Vec<u8>>, StoreIndexError> {
+    let Some((shard_dir, entry)) = open_shard_entry_for_read(anchored, hex)? else {
+        return Ok(None);
+    };
+    shard_dir
+        .read_child_file(OsStr::new(entry))
+        .map_err(|source| StoreIndexError::ReadEntry { path: shard_dir.path().join(entry), source })
+}
+
+pub(super) fn entry_len(anchored: &AnchoredFilesRoot, hex: &str) -> Result<u64, StoreIndexError> {
+    let Some((shard_dir, entry)) = open_shard_entry_for_read(anchored, hex)? else {
+        return Ok(0);
+    };
+    match shard_dir.child_file_stat(OsStr::new(entry)) {
+        Ok(Some(stat)) => Ok(stat.len),
+        Ok(None) => Ok(0),
+        Err(source) => {
+            Err(StoreIndexError::ReadEntry { path: shard_dir.path().join(entry), source })
+        }
+    }
+}
+
+fn open_shard_entry_for_read<'a>(
+    anchored: &AnchoredFilesRoot,
+    hex: &'a str,
+) -> Result<Option<(OpenDir, &'a str)>, StoreIndexError> {
     let Some(index_dir) = open_index_subdir_for_read(anchored)? else {
         return Ok(None);
     };
@@ -29,9 +54,7 @@ pub(super) fn read_entry(
         return Ok(None);
     };
     ensure_no_read_symlink(&shard_dir, entry)?;
-    shard_dir
-        .read_child_file(OsStr::new(entry))
-        .map_err(|source| StoreIndexError::ReadEntry { path: shard_dir.path().join(entry), source })
+    Ok(Some((shard_dir, entry)))
 }
 
 pub(super) fn remove_entry(anchored: &AnchoredFilesRoot, hex: &str) -> Result<(), StoreIndexError> {

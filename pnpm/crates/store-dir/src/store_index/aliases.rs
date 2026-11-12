@@ -95,6 +95,26 @@ impl StoreIndex {
         tx.commit()
             .map_err(|source| StoreIndexError::Write { source })
     }
+
+    /// On-disk byte total of the `Files`-backend rows in `keys` and any alias
+    /// files targeting them. Returns `Ok(0)` for an `SQLite`-backed index.
+    pub fn files_bytes_for_keys(&self, keys: &[String]) -> Result<u64, StoreIndexError> {
+        let Backend::Files(files) = &self.backend else {
+            return Ok(0);
+        };
+        if keys.is_empty() {
+            return Ok(0);
+        }
+        let unique: HashSet<&str> = keys
+            .iter()
+            .map(String::as_str)
+            .collect();
+        let mut total = 0u64;
+        for key in unique {
+            total = total.saturating_add(files.entry_len(key)?);
+        }
+        Ok(total.saturating_add(files_aliases_bytes(files, keys)?))
+    }
 }
 
 fn sqlite_alias_targets(
@@ -174,6 +194,26 @@ pub(super) fn delete_files_aliases(
         }
         Ok(())
     })
+}
+
+fn files_aliases_bytes(files: &FilesIndex, keys: &[String]) -> Result<u64, StoreIndexError> {
+    let targets: HashSet<&[u8]> = keys
+        .iter()
+        .map(String::as_bytes)
+        .collect();
+    let aliases = files.aliases();
+    let mut matched_aliases = HashSet::new();
+    aliases.for_each(|key, target| {
+        if targets.contains(target.as_slice()) {
+            matched_aliases.insert(key);
+        }
+        Ok::<(), StoreIndexError>(())
+    })?;
+    let mut total = 0u64;
+    for alias_key in matched_aliases {
+        total = total.saturating_add(aliases.entry_len(&alias_key)?);
+    }
+    Ok(total)
 }
 
 #[cfg(test)]

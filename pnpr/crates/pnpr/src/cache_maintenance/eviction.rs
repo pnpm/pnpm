@@ -9,7 +9,7 @@ use super::{
         VerdictExpiry, VerdictTrimParams, expire_verdict_rows, resolver_sqlite_bytes,
         trim_verdict_db_to_fit,
     },
-    store_index::evict_cas_entries,
+    store_index::process_cas_entries,
 };
 use pnpm_fs::OpenDir;
 use std::sync::Arc;
@@ -38,6 +38,13 @@ pub(super) struct DryRunAdjustments {
     pub(super) swept_staging_bytes: u64,
 }
 
+#[derive(Default)]
+struct MetadataAccounting {
+    verdict_expiry: Option<VerdictExpiry>,
+    dry_pruned_keys: HashSet<String>,
+    dry_reclaimed_index_bytes: u64,
+}
+
 struct EvictionState {
     root: Arc<OpenDir>,
     effect: CacheGcEffect,
@@ -46,7 +53,7 @@ struct EvictionState {
     non_evictable_bytes: u64,
     pending_files: Vec<PendingFile>,
     pending_cas: Vec<(CachedFile, String)>,
-    verdict_expiry: Option<VerdictExpiry>,
+    metadata: MetadataAccounting,
 }
 
 pub(super) async fn evict_and_prune_cache(
@@ -133,18 +140,18 @@ async fn evict_inventoried_cache(
         non_evictable_bytes: inv.non_evictable_bytes,
         pending_files: Vec::new(),
         pending_cas: Vec::new(),
-        verdict_expiry: None,
+        metadata: MetadataAccounting::default(),
     };
     if let Some(ttl) = max_age {
         let expiry = expire_verdict_rows(&state.root, ttl, effect).await;
         state.report.bytes_reclaimed += expiry.reclaimed_bytes;
-        state.verdict_expiry = Some(expiry);
+        state.metadata.verdict_expiry = Some(expiry);
     }
     for file in inv.files {
         classify_file_for_ttl(cache_dir, file, max_age, &mut state);
     }
     flush_pending_files(cache_dir, &mut state).await;
-    flush_pending_cas(cache_dir, &mut state, SkippedCasPolicy::RetainForSizeCheck).await;
+    flush_pending_cas(cache_dir, &mut state, SkippedCasPolicy::RetainForSizeCheck).await?;
     if let Some(limit) = max_size {
         enforce_max_size(cache_dir, limit, &mut state).await?;
     }
@@ -217,37 +224,29 @@ async fn flush_pending_cas(
     cache_dir: &Path,
     state: &mut EvictionState,
     policy: SkippedCasPolicy,
-) -> u64 {
+) -> Result<u64> {
     let pending = std::mem::take(&mut state.pending_cas);
     if pending.is_empty() {
-        return 0;
+        return Ok(0);
     }
-    match state.effect {
-        CacheGcEffect::DryRun => {
-            state.report.files_evicted += pending.len();
-            state.report.bytes_reclaimed += pending
-                .iter()
-                .map(|(file, _)| file.size)
-                .sum::<u64>();
-            0
-        }
-        CacheGcEffect::Apply => apply_pending_cas_removals(cache_dir, pending, state, policy).await,
-    }
-}
-
-async fn apply_pending_cas_removals(
-    cache_dir: &Path,
-    pending: Vec<(CachedFile, String)>,
-    state: &mut EvictionState,
-    policy: SkippedCasPolicy,
-) -> u64 {
-    let outcome = evict_cas_entries(&state.root, cache_dir, pending).await;
+    let outcome = process_cas_entries(
+        &state.root,
+        cache_dir,
+        pending,
+        state.effect,
+        &state.metadata.dry_pruned_keys,
+    )
+    .await?;
     state.report.files_evicted += outcome.files_evicted;
     state.report.bytes_reclaimed += outcome.bytes_reclaimed;
-    outcome.skipped
+    state.metadata.dry_reclaimed_index_bytes = state.metadata
+        .dry_reclaimed_index_bytes
+        .saturating_add(outcome.dry_index_bytes);
+    state.metadata.dry_pruned_keys.extend(outcome.dry_pruned_keys);
+    Ok(outcome.skipped
         .into_iter()
         .map(|file| retain_cas_entry(file, state, policy))
-        .sum()
+        .sum())
 }
 
 fn retain_cas_entry(file: CachedFile, state: &mut EvictionState, policy: SkippedCasPolicy) -> u64 {
@@ -259,19 +258,28 @@ fn retain_cas_entry(file: CachedFile, state: &mut EvictionState, policy: Skipped
     size
 }
 
-async fn flush_size_removals(cache_dir: &Path, state: &mut EvictionState) -> u64 {
+async fn flush_size_removals(cache_dir: &Path, state: &mut EvictionState) -> Result<u64> {
     let skipped_files = flush_pending_files(cache_dir, state).await;
-    let skipped_cas = flush_pending_cas(cache_dir, state, SkippedCasPolicy::CountTowardsSize).await;
-    skipped_files.saturating_add(skipped_cas)
+    let skipped_cas =
+        flush_pending_cas(cache_dir, state, SkippedCasPolicy::CountTowardsSize).await?;
+    Ok(skipped_files.saturating_add(skipped_cas))
+}
+
+fn dry_sqlite_reclaimed(state: &EvictionState) -> u64 {
+    match state.effect {
+        CacheGcEffect::DryRun => state.metadata.verdict_expiry
+            .as_ref()
+            .map(|exp| exp.reclaimed_bytes)
+            .unwrap_or(0)
+            .saturating_add(state.metadata.dry_reclaimed_index_bytes),
+        CacheGcEffect::Apply => 0,
+    }
 }
 
 async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionState) -> Result<()> {
-    let dry_expired = match (state.effect, &state.verdict_expiry) {
-        (CacheGcEffect::DryRun, Some(exp)) => exp.reclaimed_bytes,
-        _ => 0,
-    };
+    let initial_dry = dry_sqlite_reclaimed(state);
     let sqlite_bytes = match measure_initial_sqlite_bytes(cache_dir, state).await? {
-        Some(bytes) => bytes.saturating_sub(dry_expired),
+        Some(bytes) => bytes.saturating_sub(initial_dry),
         None => return Ok(()),
     };
     let retained_bytes: u64 = state.retained
@@ -286,16 +294,17 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
     let candidates = std::mem::take(&mut state.retained);
     for entry in candidates {
         if total_size <= limit {
-            total_size = total_size.saturating_add(flush_size_removals(cache_dir, state).await);
+            total_size = total_size.saturating_add(flush_size_removals(cache_dir, state).await?);
             if total_size <= limit {
                 break;
             }
         }
         total_size = queue_lru_entry(cache_dir, entry, total_size, state);
     }
-    total_size = total_size.saturating_add(flush_size_removals(cache_dir, state).await);
+    total_size = total_size.saturating_add(flush_size_removals(cache_dir, state).await?);
+    let post_dry = dry_sqlite_reclaimed(state);
     let updated_sqlite =
-        remeasure_sqlite_after_flush(cache_dir, &state.root, dry_expired, sqlite_bytes).await;
+        remeasure_sqlite_after_flush(cache_dir, &state.root, post_dry, sqlite_bytes).await;
     let remaining_total = total_size.saturating_sub(sqlite_bytes).saturating_add(updated_sqlite);
     if remaining_total > limit {
         trim_excess_verdict_db(remaining_total - limit, state).await;
@@ -304,7 +313,8 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
 }
 
 async fn trim_excess_verdict_db(excess_bytes: u64, state: &mut EvictionState) {
-    let (min_verified_at_ms, deferred_free_bytes) = state.verdict_expiry
+    let (min_verified_at_ms, deferred_free_bytes) = state.metadata
+        .verdict_expiry
         .as_ref()
         .map(|exp| (Some(exp.cutoff_ms), exp.deferred_free_bytes))
         .unwrap_or((None, 0));

@@ -1,5 +1,5 @@
 use super::{
-    CachedFile, HashSet, Path,
+    CacheGcEffect, CachedFile, HashSet, Path,
     inventory::{CachedFileRemoval, check_unmodified_cached_files_sync, remove_cached_files_sync},
 };
 use pnpm_fs::OpenDir;
@@ -20,7 +20,19 @@ const FILES_INDEX_DIRS: [&str; 2] = ["index", "index-aliases"];
 pub(super) struct CasBatchOutcome {
     pub(super) files_evicted: usize,
     pub(super) bytes_reclaimed: u64,
+    pub(super) dry_index_bytes: u64,
+    pub(super) dry_pruned_keys: Vec<String>,
     pub(super) skipped: Vec<CachedFile>,
+}
+
+fn empty_cas_outcome(skipped: Vec<CachedFile>) -> CasBatchOutcome {
+    CasBatchOutcome {
+        files_evicted: 0,
+        bytes_reclaimed: 0,
+        dry_index_bytes: 0,
+        dry_pruned_keys: Vec::new(),
+        skipped,
+    }
 }
 
 pub(super) fn store_index_family_bytes(cache_root: &OpenDir) -> io::Result<u64> {
@@ -33,16 +45,25 @@ pub(super) fn store_index_family_bytes(cache_root: &OpenDir) -> io::Result<u64> 
     store_index_bytes_in(&store_dir)
 }
 
-pub(super) async fn evict_cas_entries(
+pub(super) async fn process_cas_entries(
     cache_root: &Arc<OpenDir>,
     cache_dir: &Path,
     pending: Vec<(CachedFile, String)>,
-) -> CasBatchOutcome {
+    effect: CacheGcEffect,
+    already_pruned_keys: &HashSet<String>,
+) -> super::Result<CasBatchOutcome> {
     let root = Arc::clone(cache_root);
     let root_path = cache_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || evict_cas_entries_sync(&root, &root_path, pending))
-        .await
-        .unwrap_or(CasBatchOutcome { files_evicted: 0, bytes_reclaimed: 0, skipped: Vec::new() })
+    let seen_keys = match effect {
+        CacheGcEffect::DryRun => already_pruned_keys.clone(),
+        CacheGcEffect::Apply => HashSet::new(),
+    };
+    tokio::task::spawn_blocking(move || match effect {
+        CacheGcEffect::Apply => evict_cas_entries_sync(&root, &root_path, pending),
+        CacheGcEffect::DryRun => preview_cas_entries_sync(&root, &root_path, pending, &seen_keys),
+    })
+    .await
+    .map_err(|err| io::Error::other(err.to_string()).into())
 }
 
 fn evict_cas_entries_sync(
@@ -52,7 +73,7 @@ fn evict_cas_entries_sync(
 ) -> CasBatchOutcome {
     let (ready, mut skipped) = partition_unmodified_cas(cache_root, cache_dir, pending);
     if ready.is_empty() {
-        return CasBatchOutcome { files_evicted: 0, bytes_reclaimed: 0, skipped };
+        return empty_cas_outcome(skipped);
     }
     let digests: HashSet<String> = ready
         .iter()
@@ -63,10 +84,47 @@ fn evict_cas_entries_sync(
         Err(err) => {
             tracing::warn!(error = %err, "pruning resolver store index failed; retaining CAS files");
             skipped.extend(ready.into_iter().map(|(file, _)| file));
-            return CasBatchOutcome { files_evicted: 0, bytes_reclaimed: 0, skipped };
+            return empty_cas_outcome(skipped);
         }
     };
     unlink_pruned_cas_files(cache_root, cache_dir, ready, index_reclaimed, skipped)
+}
+
+fn preview_cas_entries_sync(
+    cache_root: &OpenDir,
+    cache_dir: &Path,
+    pending: Vec<(CachedFile, String)>,
+    seen_keys: &HashSet<String>,
+) -> CasBatchOutcome {
+    let (ready, mut skipped) = partition_unmodified_cas(cache_root, cache_dir, pending);
+    if ready.is_empty() {
+        return empty_cas_outcome(skipped);
+    }
+    let digests: HashSet<String> = ready
+        .iter()
+        .map(|(_, digest)| digest.clone())
+        .collect();
+    let (dry_index_bytes, dry_pruned_keys) = match preview_files_index_prune_sync(
+        cache_root, &digests, seen_keys,
+    ) {
+        Ok(preview) => preview,
+        Err(err) => {
+            tracing::warn!(error = %err, "previewing resolver store index failed; retaining CAS files");
+            skipped.extend(ready.into_iter().map(|(file, _)| file));
+            return empty_cas_outcome(skipped);
+        }
+    };
+    let cas_bytes: u64 = ready
+        .iter()
+        .map(|(file, _)| file.size)
+        .sum();
+    CasBatchOutcome {
+        files_evicted: ready.len(),
+        bytes_reclaimed: cas_bytes.saturating_add(dry_index_bytes),
+        dry_index_bytes,
+        dry_pruned_keys,
+        skipped,
+    }
 }
 
 fn partition_unmodified_cas(
@@ -107,7 +165,13 @@ fn unlink_pruned_cas_files(
             skipped.push(file);
         }
     }
-    CasBatchOutcome { files_evicted, bytes_reclaimed, skipped }
+    CasBatchOutcome {
+        files_evicted,
+        bytes_reclaimed,
+        dry_index_bytes: 0,
+        dry_pruned_keys: Vec::new(),
+        skipped,
+    }
 }
 
 fn cas_removal_targets(items: &[(CachedFile, String)]) -> Vec<CachedFileRemoval> {
@@ -132,10 +196,39 @@ fn prune_store_index_sync(
     else {
         return Ok(0);
     };
+    let keys = collect_referencing_keys(&index, removed_digests, &HashSet::new())?;
+    index.delete_many(&keys).map_err(io::Error::other)?;
+    drop(index);
+    Ok(before.saturating_sub(store_index_bytes_in(&store_root)?))
+}
+
+fn preview_files_index_prune_sync(
+    cache_root: &OpenDir,
+    removed_digests: &HashSet<String>,
+    seen_keys: &HashSet<String>,
+) -> io::Result<(u64, Vec<String>)> {
+    let Some(store_root) = open_store_dir(cache_root)? else {
+        return Ok((0, Vec::new()));
+    };
+    let Some(index) = StoreIndex::open_existing_files_at(&store_root).map_err(io::Error::other)?
+    else {
+        return Ok((0, Vec::new()));
+    };
+    let keys = collect_referencing_keys(&index, removed_digests, seen_keys)?;
+    let bytes = index.files_bytes_for_keys(&keys).map_err(io::Error::other)?;
+    Ok((bytes, keys))
+}
+
+fn collect_referencing_keys(
+    index: &StoreIndex,
+    removed_digests: &HashSet<String>,
+    seen_keys: &HashSet<String>,
+) -> io::Result<Vec<String>> {
     let mut keys = Vec::new();
     index
         .for_each_raw(|key, data| {
-            if let Ok(pkg) = decode_package_files_index(&data)
+            if !seen_keys.contains(&key)
+                && let Ok(pkg) = decode_package_files_index(&data)
                 && package_references_removed_digest(&pkg, removed_digests)
             {
                 keys.push(key);
@@ -143,9 +236,7 @@ fn prune_store_index_sync(
             Ok::<(), StoreIndexError>(())
         })
         .map_err(io::Error::other)?;
-    index.delete_many(&keys).map_err(io::Error::other)?;
-    drop(index);
-    Ok(before.saturating_sub(store_index_bytes_in(&store_root)?))
+    Ok(keys)
 }
 
 fn open_store_dir(cache_root: &OpenDir) -> io::Result<Option<OpenDir>> {

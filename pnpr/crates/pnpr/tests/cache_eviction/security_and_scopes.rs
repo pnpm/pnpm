@@ -493,8 +493,8 @@ async fn unreadable_marker_keeps_private_resolver_scopes() {
     let cache_dir = &config.storage.cache_dir;
     std::fs::create_dir_all(cache_dir).unwrap();
     let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
-    let expected_fp = pnpr_config::cache_secret_fingerprint(&config.cache_secret);
-    std::fs::write(&marker, &expected_fp).unwrap();
+    let prior_fp = pnpr_config::cache_secret_fingerprint(b"prior-secret-32-bytes-long-00001");
+    std::fs::write(&marker, &prior_fp).unwrap();
     let private_file = cache_dir.join("resolver-cache/v12/metadata-private/live-scope/pkg.json");
     std::fs::create_dir_all(private_file.parent().unwrap()).unwrap();
     std::fs::write(&private_file, b"{}").unwrap();
@@ -513,12 +513,114 @@ async fn unreadable_marker_keeps_private_resolver_scopes() {
     .await
     .unwrap();
     std::fs::set_permissions(&marker, std::fs::Permissions::from_mode(0o644)).unwrap();
-    if can_still_read {
-        return;
-    }
+    assert!(
+        !can_still_read,
+        "chmod 0000 on .cache-secret did not prevent reads (privileged user); ReadFailed branch was not exercised",
+    );
     assert!(
         private_file.exists(),
         "transient marker read error must not wipe live private resolver scopes",
     );
-    assert_eq!(std::fs::read_to_string(&marker).unwrap().trim(), expected_fp);
+    assert_eq!(std::fs::read_to_string(&marker).unwrap().trim(), prior_fp);
+}
+
+fn make_single_file_pkg(digest: &str, size: u64) -> PackageFilesIndex {
+    let mut files = HashMap::new();
+    files.insert(
+        "index.js".to_string(),
+        CafsFileInfo { digest: digest.to_string(), mode: 0o644, size, checked_at: None },
+    );
+    PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+        remote_side_effects_quarantine: None,
+        tar_integrity: None,
+    }
+}
+
+#[tokio::test]
+async fn files_index_dry_run_matches_apply_near_max_size() {
+    use pnpm_store_dir::StoreIndexFormat;
+
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    std::fs::write(&marker, pnpr_config::cache_secret_fingerprint(&config.cache_secret)).unwrap();
+
+    let store = StoreDir::new(cache_dir.join("resolver-store").join(pnpm_store_dir::STORE_VERSION));
+    std::fs::create_dir_all(store.root()).unwrap();
+    StoreIndex::apply_format(store.root(), StoreIndexFormat::Files).unwrap();
+
+    let old_cas = store.root().join("files/aa/1111111111");
+    let fresh_cas = store.root().join("files/bb/2222222222");
+    create_file_with_age(&old_cas, &[b'a'; 64], Duration::from_hours(48));
+    create_file_with_age(&fresh_cas, &[b'b'; 64], Duration::from_secs(0));
+
+    let old_key = "sha512-old\told-pkg@1.0.0";
+    let fresh_key = "sha512-fresh\tfresh-pkg@1.0.0";
+    let mut index = StoreIndex::open_in(&store).unwrap();
+    index
+        .set(old_key, &make_single_file_pkg("aa1111111111", 64))
+        .unwrap();
+    index
+        .set(fresh_key, &make_single_file_pkg("bb2222222222", 64))
+        .unwrap();
+    index
+        .set_aliases(&[("sha512-tar-old\told-pkg@1.0.0".to_string(), old_key.to_string())])
+        .unwrap();
+    let old_index_bytes = index
+        .files_bytes_for_keys(&[old_key.to_string()])
+        .unwrap();
+    let fresh_index_bytes = index
+        .files_bytes_for_keys(&[fresh_key.to_string()])
+        .unwrap();
+    drop(index);
+    assert!(old_index_bytes > 80);
+
+    let marker_len = std::fs::metadata(&marker).unwrap().len();
+    // Tight cap: fits marker + fresh_cas + fresh_index_bytes, but would overflow if DryRun forgot
+    // to subtract old_index_bytes freed during TTL eviction.
+    let tight_limit = marker_len + 64 + fresh_index_bytes + 16;
+    assert!(tight_limit < marker_len + 64 + fresh_index_bytes + old_index_bytes);
+
+    let dry = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::DryRun,
+            max_size: Some(tight_limit),
+            max_age: Some(Duration::from_hours(1)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+    let apply = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: Some(tight_limit),
+            max_age: Some(Duration::from_hours(1)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(apply.files_evicted, 1);
+    assert_eq!(apply.bytes_reclaimed, 64 + old_index_bytes);
+    assert_eq!(dry, apply, "dry-run must select the same files and bytes as apply");
+    assert!(fresh_cas.exists());
+    assert!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .get(fresh_key)
+            .unwrap()
+            .is_some(),
+    );
 }

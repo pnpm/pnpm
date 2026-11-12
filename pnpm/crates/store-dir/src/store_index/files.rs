@@ -94,6 +94,19 @@ impl FilesIndex {
         }
     }
 
+    pub(super) fn entry_len(&self, key: &str) -> Result<u64, StoreIndexError> {
+        if let Some(anchored) = &self.anchor {
+            return anchored_ops::entry_len(anchored, &key_hex(key));
+        }
+        let path = self.entry_path(key);
+        match fs::symlink_metadata(&path) {
+            Ok(meta) if meta.file_type().is_file() => Ok(meta.len()),
+            Ok(_) => Ok(0),
+            Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(0),
+            Err(source) => Err(StoreIndexError::ReadEntry { path, source }),
+        }
+    }
+
     /// The value stored under `key`. An entry that fails to decode, or that
     /// belongs to another key, reads as missing, like an undecodable
     /// `SQLite` row.

@@ -18,13 +18,10 @@ use std::{
 const SQLITE_SIDECARS: [&str; 4] = ["index.db", "index.db-wal", "index.db-shm", "index.db-journal"];
 
 impl StoreIndex {
-    /// Open an existing store index anchored to `store_root` without creating
-    /// directories or database files and without following symlinks.
-    ///
-    /// Returns `Ok(None)` when neither `index/` nor `index.db` exists yet, and
-    /// `Err` if any index directory, database file, or SQLite sidecar is a
-    /// symbolic link or cannot be anchored.
-    pub fn open_existing_at(store_root: &OpenDir) -> Result<Option<Self>, StoreIndexError> {
+    /// Open an existing per-file store index (`index/`) anchored to `store_root`
+    /// without opening or creating any `SQLite` database and without following
+    /// symlinks.
+    pub fn open_existing_files_at(store_root: &OpenDir) -> Result<Option<Self>, StoreIndexError> {
         ensure_no_symlinks(store_root, &[INDEX_DIR, ALIAS_DIR])?;
         if store_root
             .open_child_dir(OsStr::new(INDEX_DIR))
@@ -32,6 +29,20 @@ impl StoreIndex {
             .is_some()
         {
             return open_anchored_files_index(store_root).map(Some);
+        }
+        ensure_no_symlinks(store_root, &SQLITE_SIDECARS)?;
+        Ok(None)
+    }
+
+    /// Open an existing store index anchored to `store_root` without creating
+    /// directories or database files and without following symlinks.
+    ///
+    /// Returns `Ok(None)` when neither `index/` nor `index.db` exists yet, and
+    /// `Err` if any index directory, database file, or SQLite sidecar is a
+    /// symbolic link or cannot be anchored.
+    pub fn open_existing_at(store_root: &OpenDir) -> Result<Option<Self>, StoreIndexError> {
+        if let Some(files_index) = Self::open_existing_files_at(store_root)? {
+            return Ok(Some(files_index));
         }
         open_anchored_sqlite_index(store_root)
     }
