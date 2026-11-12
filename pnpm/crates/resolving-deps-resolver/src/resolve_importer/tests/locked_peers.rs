@@ -847,3 +847,44 @@ fn recorded_hashed_pins_match_explicit_pins() {
         assert_eq!(versions(3), explicit);
     }
 }
+
+#[test]
+fn retained_transitive_peer_pins_keep_descendant_aliases() {
+    use pnpm_deps_path::PeerId;
+    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+
+    let peers = [PeerId::DepPath("provider@1.0.0".into())];
+    let suffix = PeerBindings::suffix_of(&peers, 3);
+    let key = format!("parent@1.0.0{suffix}");
+    let recorded = RecordedPeerBindings::for_dep_path(&key.clone().into(), &peers);
+    assert!(recorded.is_some());
+    for bindings in [None, recorded] {
+        let mut parent =
+            snapshot_with_dependency("child", plain_dependency("1.0.0(provider@1.0.0)"));
+        parent.transitive_peer_dependencies = Some(vec!["peer".to_string()]);
+        parent.recorded_peer_bindings = bindings;
+        let mut lockfile = peer_context_lockfile(
+            Some(("child@1.0.0", peer_declaring_metadata(["peer"]))),
+            [
+                (key.as_str(), parent),
+                (
+                    "child@1.0.0(provider@1.0.0)",
+                    snapshot_with_dependency("peer", alias_dependency("provider@1.0.0")),
+                ),
+            ],
+        );
+        lockfile.importers.insert(
+            "app".to_string(),
+            serde_json::from_value(serde_json::json!({
+                "dependencies": {
+                    "parent": { "specifier": "1.0.0", "version": format!("1.0.0{suffix}") },
+                },
+            }))
+            .unwrap(),
+        );
+        assert_eq!(
+            importer_locked_peer_versions(Some(&lockfile), "app", |_| true),
+            HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+        );
+    }
+}

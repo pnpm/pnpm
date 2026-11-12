@@ -196,6 +196,8 @@ fn locked_peer_keys(
         .as_ref()
         .and_then(|packages| packages.get(&key.without_peer()));
     let recorded = snapshot
+        // Transitive aliases are recorded on descendants, not this snapshot's edges.
+        .filter(|snapshot| snapshot.transitive_peer_dependencies.as_ref().is_none_or(Vec::is_empty))
         .and_then(|snapshot| snapshot.recorded_peer_bindings.as_ref())
         .and_then(|bindings| bindings.peer_keys_for(key));
     let peers = match recorded {
