@@ -58,8 +58,8 @@ impl SqliteAuth {
     }
 
     /// A private in-memory copy of the accounts in the database at `path`,
-    /// empty when there is none. A preview runs on it, so it neither creates
-    /// nor migrates the database.
+    /// empty when there is none. A preview runs on it, so it neither creates,
+    /// migrates, nor writes the database.
     pub fn preview_of(path: &Path, max_users: MaxUsers) -> Result<Self> {
         let auth = Self::in_memory(max_users)?;
         if !path.exists() {
@@ -154,7 +154,11 @@ impl SqliteAuth {
 const ACCOUNT_COLUMNS: &str = "id, username, username_skeleton_hash, status, credential_kind, password_hash, created_at, name_revision, status_revision";
 
 fn read_account_rows(path: &Path) -> Result<Vec<Vec<rusqlite::types::Value>>> {
-    let source = open_unchanged(path)?;
+    // A read-only connection still takes SQLite's locks, so it reads a
+    // consistent snapshot while a server writes. It may leave the `-wal` and
+    // `-shm` files SQLite keeps beside the database.
+    let source =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     let mut statement = source.prepare(&format!("SELECT {ACCOUNT_COLUMNS} FROM users"))?;
     let rows = statement
         .query_map([], |row| {
@@ -164,38 +168,6 @@ fn read_account_rows(path: &Path) -> Result<Vec<Vec<rusqlite::types::Value>>> {
         })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
-}
-
-/// Open `path` for reading without creating files beside it. Without a
-/// `-wal` file every commit is in the database file, which `SQLite` then
-/// reads as immutable instead of creating its `-wal` and `-shm` files. With
-/// one, those files exist already and hold commits a reader must see.
-fn open_unchanged(path: &Path) -> Result<rusqlite::Connection> {
-    use rusqlite::OpenFlags;
-    let mut wal = path.as_os_str().to_os_string();
-    wal.push("-wal");
-    if Path::new(&wal).exists() {
-        return Ok(rusqlite::Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?);
-    }
-    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
-    let uri = immutable_uri(&std::path::absolute(path)?);
-    Ok(rusqlite::Connection::open_with_flags(uri, flags)?)
-}
-
-/// A `file:` URI that opens the absolute `path` as an immutable database.
-fn immutable_uri(path: &Path) -> String {
-    let path = path.to_string_lossy().replace('\\', "/");
-    let mut uri = String::from(if path.starts_with('/') { "file://" } else { "file:///" });
-    for character in path.chars() {
-        match character {
-            '%' => uri.push_str("%25"),
-            '?' => uri.push_str("%3F"),
-            '#' => uri.push_str("%23"),
-            other => uri.push(other),
-        }
-    }
-    uri.push_str("?immutable=1");
-    uri
 }
 
 fn to_param(value: &rusqlite::types::Value) -> Result<Param<'_>> {
