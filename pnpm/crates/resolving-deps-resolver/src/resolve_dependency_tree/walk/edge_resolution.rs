@@ -5,15 +5,14 @@ use super::{
     PkgNameVerPeer, ResolveDependencyTreeError, ResolveOptions, ResolvedPackage,
     ResolvedPackageInput, Resolver, SeededPackage, TreeCtx, UpdateBehavior, Value,
     WantedDependency, WantedKey, async_recursion, build_pkg_id_with_patch_hash,
-    catalogs_for_children, current_pkg_from_lockfile, dependencies_named_as_peers,
-    emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
-    failed_edge::SkippedOptionalReport, is_exotic_resolved_via, is_update_target,
-    keeps_locked_runtime, keeps_locked_version, lock_recoverable, node_alias,
+    current_pkg_from_lockfile, dependencies_named_as_peers, emit_deprecation_if_needed,
+    ensure_same_registry_revision, failed_edge::SkippedOptionalReport, is_exotic_resolved_via,
+    is_update_target, keeps_locked_runtime, keeps_locked_version, lock_recoverable, node_alias,
     node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
     package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
     pin_locked_version, pin_patched_revision, project_relative_cache_scope,
-    register_peer_dep_names, register_shadowable_dep_names, resolve_wanted_cached,
-    resolves_children_through_catalogs, seed_reused_node, try_reuse_node,
+    register_shadowable_dep_names, resolve_wanted_cached, resolves_children_through_catalogs,
+    seed_reused_node, try_reuse_node,
 };
 
 #[async_recursion]
@@ -303,10 +302,7 @@ pub(super) struct ResolvedEdge {
     pub(super) current_is_optional: bool,
 }
 
-/// Build (or look up) the `ResolvedPackage` envelope. Child traversal is
-/// claimed first, and a later deterministically-better occurrence
-/// replaces the shared `children_by_id` entry — plus, since the two are
-/// two halves of one manifest reading, the envelope's peer dependencies.
+/// Register the resolved package and defer its peer split to children ownership settlement.
 pub(super) fn seed_pending(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
@@ -324,8 +320,6 @@ pub(super) fn seed_pending(
     let seeded = SeededPackage {
         id: &resolved.id,
         result: &result,
-        peer_shadowed: &peer_shadowed,
-        resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
         current_is_optional: resolved.current_is_optional,
         kind: identity.kind,
     };
@@ -400,10 +394,8 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> boo
 /// first visitor populates it; later visitors AND-fold the `optional` flag
 /// so a single non-optional path flips it back to `false`.
 ///
-/// The envelope's peer split follows the occurrence that owns the package's
-/// children, which this level's settlement decides — see
-/// [`fn@super::level_walk::install_owner_peer_dependencies`]. Seeding only has to fill a package
-/// nothing has resolved yet.
+/// Peers are classified only by
+/// [`fn@super::level_walk::install_owner_peer_dependencies`] after children ownership settles.
 pub(super) fn register_seeded_package(
     ctx: &TreeCtx,
     seeded: SeededPackage<'_>,
@@ -411,8 +403,6 @@ pub(super) fn register_seeded_package(
     let SeededPackage {
         id,
         result,
-        peer_shadowed,
-        resolves_children_through_catalogs,
         current_is_optional,
         kind,
     } = seeded;
@@ -426,19 +416,6 @@ pub(super) fn register_seeded_package(
         existing.set_result(Arc::clone(result));
         return Ok(PackageRegistration::Existing(Arc::clone(&existing.id)));
     }
-    // A workspace-link node carries no peer dependencies: peer matching is the
-    // linked importer's responsibility, not the parent's.
-    let peer_set = match kind {
-        NodeKind::Link => PeerSet::default(),
-        NodeKind::Leaf | NodeKind::Branch => extract_peer_dependencies(
-            result,
-            peer_shadowed,
-            catalogs_for_children(ctx, resolves_children_through_catalogs),
-            ctx.catalogs_dir.as_deref(),
-            &ctx.importer.lockfile_dir,
-        )?,
-    };
-    register_peer_dep_names(ctx, peer_set.taken());
     ctx.workspace.record_package_write(id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -446,7 +423,7 @@ pub(super) fn register_seeded_package(
         ResolvedPackage::new(ResolvedPackageInput {
             id: Arc::<str>::clone(&shared_id),
             result: Arc::clone(result),
-            peer_set,
+            peer_set: PeerSet::default(),
             optional: current_is_optional,
             is_leaf: kind.is_leaf(),
         }),

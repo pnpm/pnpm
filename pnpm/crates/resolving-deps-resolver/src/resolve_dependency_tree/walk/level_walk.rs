@@ -65,11 +65,7 @@ pub(super) fn assign_level_owners<'seed>(
     Ok(())
 }
 
-/// Split the package's envelope into children and peers the way its
-/// children owner reads its manifest. Which of a package's
-/// dependencies its own `peerDependencies` shadow follows from the
-/// scope the occurrence resolved in, so a package first seeded by one
-/// occurrence and owned by another has to be re-split.
+/// Classify the package's peers using its children owner's scope.
 pub(super) fn install_owner_peer_dependencies(
     ctx: &TreeCtx,
     pending: &PendingNode,

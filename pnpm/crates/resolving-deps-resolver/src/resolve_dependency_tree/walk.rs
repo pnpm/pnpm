@@ -238,8 +238,6 @@ pub(super) struct PendingNodeAncestry {
 struct SeededPackage<'a> {
     id: &'a str,
     result: &'a Arc<pnpm_resolving_resolver_base::ResolveResult>,
-    peer_shadowed: &'a HashSet<String>,
-    resolves_children_through_catalogs: bool,
     current_is_optional: bool,
     kind: NodeKind,
 }
