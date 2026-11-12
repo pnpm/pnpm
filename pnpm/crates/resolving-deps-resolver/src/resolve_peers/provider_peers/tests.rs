@@ -17,19 +17,33 @@ fn candidate_fallbacks_follow_manifest_peer_classification() {
     });
     for auto_install_peers in [false, true] {
         let peers = CandidatePeer::from_manifest(&manifest, auto_install_peers);
-        let classified: Vec<_> = peers
-            .iter()
-            .map(|peer| {
-                (peer.name.as_str(), peer.range.as_str(), peer.optional, peer.has_fallback_child)
-            })
-            .collect();
         assert_eq!(
-            classified,
+            peers,
             [
-                ("external", "^1", false, false),
-                ("metadata", "*", true, true),
-                ("optional", "^1", true, true),
-                ("required", "^1", false, !auto_install_peers),
+                CandidatePeer {
+                    name: "external".into(),
+                    range: "^1".into(),
+                    optional: false,
+                    has_fallback_child: false,
+                },
+                CandidatePeer {
+                    name: "metadata".into(),
+                    range: "*".into(),
+                    optional: true,
+                    has_fallback_child: true,
+                },
+                CandidatePeer {
+                    name: "optional".into(),
+                    range: "^1".into(),
+                    optional: true,
+                    has_fallback_child: true,
+                },
+                CandidatePeer {
+                    name: "required".into(),
+                    range: "^1".into(),
+                    optional: false,
+                    has_fallback_child: !auto_install_peers,
+                },
             ],
         );
         let missing = missing_peers(&peers, &|_| None);

@@ -21,7 +21,7 @@ pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, S
 }
 
 /// One peer a package declares.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CandidatePeer {
     pub(crate) name: String,
     pub(crate) range: String,
