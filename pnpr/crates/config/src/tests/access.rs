@@ -98,6 +98,27 @@ auth:
 }
 
 #[test]
+fn auth_tokens_max_lifetime_is_an_interval() {
+    let config_with = |max_lifetime: &str| {
+        let yaml = format!("storage: ./s\nauth:\n  tokens:\n    maxLifetime: {max_lifetime}\n");
+        Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+    };
+    let config = config_with("90d").unwrap();
+    assert_eq!(
+        config.identity.auth.tokens.max_lifetime,
+        Some(std::time::Duration::from_hours(90 * 24)),
+    );
+    for invalid in ["0", "0d", "soon"] {
+        let error = config_with(invalid)
+            .map(|_| ())
+            .unwrap_err();
+        assert!(error.to_string().contains("auth.tokens.maxLifetime"), "{invalid}: {error}");
+    }
+    let config = Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.identity.auth.tokens.max_lifetime, None);
+}
+
+#[test]
 fn registry_level_access_is_the_default_for_omitted_fields() {
     let yaml = "\
 storage: ./s

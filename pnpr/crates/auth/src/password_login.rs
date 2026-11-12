@@ -75,12 +75,14 @@ impl AuthState {
         outcome
     }
 
-    /// Verify or register an account and issue a token. A password changed or
-    /// account deactivated during token issuance invalidates the new token.
+    /// Verify or register an account and issue `token` to it. A password
+    /// changed or account deactivated during token issuance invalidates the
+    /// new token.
     pub async fn password_login(
         &self,
         username: &str,
         password: &str,
+        token: NewToken,
     ) -> Result<(UpsertOutcome, String, String)> {
         let mut snapshot = self.capture_login_snapshot(username).await?;
         let (outcome, id) = self.users.add_or_login(username, password).await?;
@@ -90,7 +92,7 @@ impl AuthState {
                 UpsertOutcome::LoggedIn => self.active_account_revision(&id).await?,
             };
         }
-        let token = self.tokens.issue(&id).await?;
+        let (token, _) = self.tokens.issue_token(&id, token).await?;
         if let Err(error) = self.check_login_after_issue(&id, username, password, snapshot).await {
             self.tokens.revoke_by_raw(&token).await?;
             return Err(error);

@@ -83,16 +83,19 @@ impl ValidatedTokenRequest {
                 check_cidr_whitelist_within(&self.cidr_whitelist, &limits.cidr_whitelist)?;
             }
         }
-        self.latest_expiry = limits.expires_at;
-        Ok(self)
+        Ok(self.expiring_by(limits.expires_at))
+    }
+
+    /// Make the token expire no later than `latest`, a Unix-millisecond
+    /// timestamp. `None` sets no limit.
+    pub(super) fn expiring_by(mut self, latest: Option<u64>) -> Self {
+        self.latest_expiry = earliest(self.latest_expiry, latest);
+        self
     }
 
     pub(super) fn into_new_token(self, now: u64) -> Result<pnpr_auth::NewToken, RegistryError> {
         let requested_expiry = self.expiry.resolve(now)?;
-        let expires_at = match (requested_expiry, self.latest_expiry) {
-            (Some(requested), Some(latest)) => Some(requested.min(latest)),
-            (requested, latest) => requested.or(latest),
-        };
+        let expires_at = earliest(requested_expiry, self.latest_expiry);
         let readonly = match self.access {
             TokenAccess::ReadOnly => true,
             TokenAccess::ReadWrite => false,
@@ -104,6 +107,24 @@ impl ValidatedTokenRequest {
             .with_expires_at(expires_at)
             .with_kind(self.kind))
     }
+}
+
+/// The earlier of two optional expiry timestamps, `None` meaning never.
+fn earliest(first: Option<u64>, second: Option<u64>) -> Option<u64> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(first.min(second)),
+        (first, second) => first.or(second),
+    }
+}
+
+/// When a token issued at `now` expires at the latest, under the configured
+/// maximum token lifetime. `None` when there is no maximum.
+pub(super) fn max_lifetime_expiry(
+    max_lifetime: Option<std::time::Duration>,
+    now: u64,
+) -> Option<u64> {
+    let lifetime = u64::try_from(max_lifetime?.as_millis()).unwrap_or(u64::MAX);
+    Some(now.saturating_add(lifetime).min(MAX_TOKEN_TIMESTAMP_MILLIS))
 }
 
 #[derive(Default, Deserialize)]

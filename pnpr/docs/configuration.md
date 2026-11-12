@@ -734,6 +734,18 @@ auth:
     file: ./tokens.db
 ```
 
+`auth.tokens.maxLifetime` limits how long a token from `npm login`, `pnpm login`,
+or `npm token create` stays valid, for example `90d`. A token created with a
+later expiry, or with none, expires after the maximum instead. Units are `s`,
+`m`, `h`, `d`, and `w`. Without it, tokens do not expire unless their creator
+sets an expiry.
+
+```yaml title="pnpr.yaml"
+auth:
+  tokens:
+    maxLifetime: 90d
+```
+
 Omitted `maxUsers` means registration disabled, not unlimited registration.
 Existing users can still log in. When `auth.tokens.file` is omitted and
 `auth.users.file` is set, the token database defaults to `tokens.db` next to

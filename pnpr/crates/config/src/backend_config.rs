@@ -134,6 +134,9 @@ pub struct UsersConfig {
 #[derive(Debug, Default, Clone)]
 pub struct TokensConfig {
     pub file: Option<PathBuf>,
+    /// The longest a bearer token issued by a login or `POST /-/npm/v1/tokens`
+    /// stays valid. `None` lets a token never expire.
+    pub max_lifetime: Option<Duration>,
 }
 
 /// Three-state cap on `auth.users.max_users`:
@@ -210,25 +213,45 @@ pub(super) fn build_identity_config(
     }
     Ok(IdentityConfig {
         admins: build_admins(&file.admins)?,
-        auth: build_auth_config(file, base_dir),
+        auth: build_auth_config(file, base_dir)?,
         backend,
     })
 }
 
-pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
+pub(super) fn build_auth_config(
+    file: &AuthFile,
+    base_dir: &Path,
+) -> Result<AuthConfig, RegistryError> {
     let users_file = file.users.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
     let tokens_file = file.tokens.file
         .as_deref()
         .map(|raw| resolve_relative(raw, base_dir))
         .or_else(|| users_file.as_deref().map(default_tokens_path_sibling_of));
-    AuthConfig {
+    Ok(AuthConfig {
         oidc: file.oidc.clone(),
         users: UsersConfig {
             file: users_file,
             max_users: file.users.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
-        tokens: TokensConfig { file: tokens_file },
+        tokens: TokensConfig {
+            file: tokens_file,
+            max_lifetime: build_max_token_lifetime(file.tokens.max_lifetime.as_ref())?,
+        },
         scim: file.scim.clone(),
+    })
+}
+
+/// The `auth.tokens.maxLifetime` key. Zero is refused: no token could be
+/// issued.
+fn build_max_token_lifetime(raw: Option<&Interval>) -> Result<Option<Duration>, RegistryError> {
+    let Some(Interval(raw)) = raw else {
+        return Ok(None);
+    };
+    match parse_interval(raw) {
+        Some(lifetime) if !lifetime.is_zero() => Ok(Some(lifetime)),
+        _ => Err(RegistryError::InvalidConfig {
+            reason: format!("auth.tokens.maxLifetime {raw:?} is not a positive interval"),
+        }),
     }
 }
 

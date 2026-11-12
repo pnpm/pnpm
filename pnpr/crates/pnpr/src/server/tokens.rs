@@ -108,7 +108,9 @@ async fn create_verified_token(
 ) -> Result<Response, RegistryError> {
     let username = caller.identity.username().expect("authenticated caller");
     let user_id = caller.identity.user_id().expect("authenticated caller");
-    let mut request = payload::parse_and_validate_token_request(body, pnpr_auth::unix_millis())?;
+    let now = pnpr_auth::unix_millis();
+    let mut request = payload::parse_and_validate_token_request(body, now)?
+        .expiring_by(latest_token_expiry(state, now));
     let expected_revision = state.inner.identity.auth
         .active_account_revision(user_id)
         .await?
@@ -128,6 +130,12 @@ async fn create_verified_token(
     )
     .await?;
     Ok(json_response(StatusCode::OK, &create_token_response(&raw, &record)))
+}
+
+/// When a token issued at `now` expires at the latest under
+/// `auth.tokens.maxLifetime`. `None` when no maximum is configured.
+pub(super) fn latest_token_expiry(state: &AppState, now: u64) -> Option<u64> {
+    payload::max_lifetime_expiry(state.inner.config.identity.auth.tokens.max_lifetime, now)
 }
 
 /// The limits of the browser session or token that `credential` carries.

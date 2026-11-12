@@ -443,6 +443,8 @@ pub(super) struct UsersFile {
 pub(super) struct TokensFile {
     #[serde(default)]
     pub(super) file: Option<String>,
+    #[serde(default)]
+    pub(super) max_lifetime: Option<Interval>,
 }
 
 #[derive(Debug, Default, Deserialize)]

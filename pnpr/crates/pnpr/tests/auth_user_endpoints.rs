@@ -39,7 +39,7 @@ fn persistent_config(storage: PathBuf, users: PathBuf, tokens_db: PathBuf) -> Co
     config.identity.auth = AuthConfig {
         oidc: Vec::new(),
         users: UsersConfig { file: Some(users), max_users: MaxUsers::Unlimited },
-        tokens: TokensConfig { file: Some(tokens_db) },
+        tokens: TokensConfig { file: Some(tokens_db), max_lifetime: None },
         scim: None,
     };
     config

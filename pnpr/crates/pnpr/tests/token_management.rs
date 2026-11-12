@@ -654,3 +654,41 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(rfc3339_unix_seconds(body["expires"].as_str().unwrap()) < caller_expires);
 }
+
+#[tokio::test]
+async fn max_lifetime_caps_login_and_created_tokens() {
+    const WEEK_SECS: i64 = 7 * 86_400;
+    let tmp = TempDir::new().unwrap();
+    let mut config = static_config(tmp.path().to_path_buf());
+    config.identity.auth.tokens.max_lifetime = Some(std::time::Duration::from_hours(7 * 24));
+    let app = router(config);
+    let now = chrono::Utc::now().timestamp();
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+    let assert_lasts = |body: &Value, secs: i64| {
+        let lifetime = rfc3339_unix_seconds(body["expires"].as_str().unwrap()) - now;
+        assert!((secs - 2..=secs + 2).contains(&lifetime), "expected ~{secs}s, got {lifetime}s");
+    };
+
+    let listed = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &login_token))
+        .await
+        .unwrap();
+    assert_lasts(&body_json(listed.into_body()).await["objects"][0], WEEK_SECS);
+
+    for (requested, lifetime) in [
+        (json!({}), WEEK_SECS),
+        (json!({ "expires": 30 }), WEEK_SECS),
+        (json!({ "expires": 1 }), 86_400),
+    ] {
+        let mut payload = requested.clone();
+        payload["password"] = json!("secret123");
+        let response = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{requested}");
+        assert_lasts(&body_json(response.into_body()).await, lifetime);
+    }
+}
