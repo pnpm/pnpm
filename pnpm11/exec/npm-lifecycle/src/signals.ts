@@ -7,6 +7,7 @@ import type { Writable } from 'node:stream'
 /** A child pnpm relays its signals to. */
 export interface SignalTarget {
   pid?: number
+  watchdog?: ProcessGroupWatchdog
   kill: (signal?: NodeJS.Signals | number) => boolean
 }
 
@@ -94,7 +95,7 @@ export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): S
     child,
     opts,
     group,
-    watchdog: opts.ownProcessGroup && child.pid != null ? watchProcessGroup(child.pid) : undefined,
+    watchdog: opts.ownProcessGroup && child.pid != null ? child.watchdog ?? watchProcessGroup(child.pid) : undefined,
     interruptedBy: null,
     relayed: false,
     settled: false,
@@ -367,6 +368,18 @@ export interface ProcessGroupWatchdog {
 const watchedLeaders: number[] = []
 let watchdogLifeline: Writable | undefined
 
+/** The child writes its registration before exec and closes its copy of the lifeline. */
+export function prepareProcessGroupWatchdog (): { lifeline: Writable, watch: (leader: number) => ProcessGroupWatchdog } {
+  if (watchdogLifeline == null) startWatchdog()
+  return {
+    lifeline: watchdogLifeline!,
+    watch: (leader) => {
+      watchedLeaders.push(leader)
+      return createProcessGroupWatch(leader)
+    },
+  }
+}
+
 /**
  * Stand watch over the process group led by `leader`.
  *
@@ -375,8 +388,8 @@ let watchdogLifeline: Writable | undefined
  * webServer stops the command it started, ends pnpm and leaves the script
  * running, holding the caller's pipes open
  * (https://github.com/pnpm/pnpm/issues/15555). The signal cannot be relayed,
- * so a sh in a group of its own reads a pipe only pnpm writes to, on which
- * pnpm names each group it watches and each group it is done with, and kills
+ * so a sh in a group of its own reads a pipe on which children register
+ * before exec and pnpm releases their groups, and kills
  * the groups still named when the pipe ends. One watchdog serves every group
  * of a pnpm process. Without a sh to run there is no watchdog, and the groups
  * are on their own.
@@ -388,6 +401,10 @@ export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
   } else {
     watchdogLifeline.write(`+${leader}\n`)
   }
+  return createProcessGroupWatch(leader)
+}
+
+function createProcessGroupWatch (leader: number): ProcessGroupWatchdog {
   let released = false
   return {
     release: () => {

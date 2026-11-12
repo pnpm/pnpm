@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -11,6 +12,38 @@ import { relaySignals, reserveSignalRelay, waitForProcessGroup, watchProcessGrou
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 const testOnPosix = process.platform === 'win32' ? test.skip : test
 const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
+const startupScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'startup.mjs')
+
+testOnPosix.each([
+  { count: 1, mode: 'default' },
+  { count: 3, mode: 'default' },
+  { count: 1, mode: 'relative' },
+  { count: 1, mode: 'extended' },
+])('$count $mode scripts and their descendants are watched before the spawn returns', async ({ count, mode }) => {
+  const directory = temporaryDirectory()
+  if (mode === 'relative') fs.symlinkSync('/bin/sh', path.join(directory, 'script-shell'))
+  const runner = spawn(process.execPath, [startupScript, directory, String(count), mode], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] })
+  let leaders: number[] = []
+  try {
+    const started = await withDeadline(new Promise<number[]>((resolve) => {
+      runner.stdout.once('data', (data: Buffer) => resolve(JSON.parse(data.toString())))
+    }), 5_000)
+    if (started === 'timed out') throw new Error('The lifecycle spawn did not report its process groups')
+    leaders = started
+    const markers = Array.from({ length: count }, (_, index) => path.join(directory, `started-${index}.json`))
+    const deadline = Date.now() + 5_000
+    while (!markers.every((marker) => fs.existsSync(marker)) && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 20)) // eslint-disable-line no-await-in-loop -- wait for the spawned script's marker
+    }
+    const descendants: number[] = markers.flatMap((marker) => JSON.parse(fs.readFileSync(marker, 'utf8')))
+    killProcessGroup(runner.pid!)
+    expect(await Promise.all([...leaders, ...descendants].map(async (pid) => endsWithin(pid, 5_000)))).toStrictEqual(Array(count * 3).fill(true))
+  } finally {
+    killProcessGroup(runner.pid!)
+    for (const leader of leaders) killProcessGroup(leader)
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
 
 test('a signal is raised once after concurrent relays settle', async () => {
   const child = { kill: () => true }
@@ -153,15 +186,16 @@ testOnPosix('a released watchdog leaves the group alone', async () => {
   }
 })
 
-testOnPosix('one watchdog watches every process group', () => {
+testOnPosix('one watchdog watches every process group', async () => {
   const leaders = [spawnGroupLeader(), spawnGroupLeader(), spawnGroupLeader()]
+  const runner = spawn(process.execPath, [watchScript, ...leaders.map(({ pid }) => String(pid))], { stdio: ['ignore', 'pipe', 'inherit'] })
   try {
-    const watches = leaders.map((leader) => watchProcessGroup(leader.pid!))
-    const watchdogs = listWatchdogs(process.pid)
-    for (const watch of watches) watch.release()
+    await once(runner.stdout, 'data')
+    const watchdogs = listWatchdogs(runner.pid!)
     expect(watchdogs).toHaveLength(1)
   } finally {
     for (const leader of leaders) killProcessGroup(leader.pid!)
+    runner.kill('SIGKILL')
   }
 })
 
@@ -197,9 +231,15 @@ testOnPosix('a killed watchdog is replaced and takes over every group still watc
     expect(await waitForReplacement(runner.pid!, killed, 10_000)).toBe(true)
     runner.kill('SIGKILL')
     expect(await Promise.all(leaders.map(async (leader) => endsWithin(leader.pid!, 10_000)))).toStrictEqual([true, true])
+    await Promise.all(leaders.map(async (leader) => {
+      if (leader.exitCode == null && leader.signalCode == null) await once(leader, 'exit')
+    }))
   } finally {
     runner.kill('SIGKILL')
-    for (const leader of [released, ...leaders]) killProcessGroup(leader.pid!)
+    killProcessGroup(released.pid!)
+    for (const leader of leaders) {
+      if (leader.exitCode == null && leader.signalCode == null) killProcessGroup(leader.pid!)
+    }
   }
 })
 

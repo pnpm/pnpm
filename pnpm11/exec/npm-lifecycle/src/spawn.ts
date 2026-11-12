@@ -1,6 +1,12 @@
 import { type ChildProcess, spawn as spawnProcess, type SpawnOptions, type StdioOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import path from 'node:path'
 import type { Readable, Writable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
+
+import which from 'which'
+
+import { prepareProcessGroupWatchdog, type ProcessGroupWatchdog } from './signals.js'
 
 /**
  * How long a script's piped output is still read once the script has exited.
@@ -29,6 +35,7 @@ export interface LifecycleChildProcess extends EventEmitter {
   stdout: Readable | null
   stderr: Readable | null
   pid?: number
+  watchdog?: ProcessGroupWatchdog
   kill: (signal?: NodeJS.Signals | number) => boolean
 }
 
@@ -50,7 +57,7 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
     stopped = true
     stopRunning(log)
   }
-  const raw = spawnProcess(cmd, args, spawnOptions)
+  const { raw, watchdog } = spawnScript(cmd, args, spawnOptions)
   const cooked = new EventEmitter() as LifecycleChildProcess
 
   raw.once('exit', () => {
@@ -76,9 +83,44 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
   cooked.stdout = raw.stdout
   cooked.stderr = raw.stderr
   cooked.pid = raw.pid
+  cooked.watchdog = watchdog
   cooked.kill = (signal) => raw.kill(signal)
 
   return cooked
+}
+
+function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw: ChildProcess, watchdog?: ProcessGroupWatchdog } {
+  const shell = options.detached && process.platform !== 'win32' ? which.sync('sh', { nothrow: true }) : null
+  if (shell == null || !scriptExists(cmd, options)) {
+    return { raw: spawnProcess(cmd, args, options) }
+  }
+  const stdio = scriptStdio(options.stdio)
+  // POSIX shells only guarantee single-digit descriptors.
+  if (stdio.length > 9) return { raw: spawnProcess(cmd, args, options) }
+  const watch = prepareProcessGroupWatchdog()
+  const descriptor = stdio.length
+  const registration = `printf '+%s\\n' "$$" >&${descriptor} || exit $?; exec ${descriptor}>&-; exec "$@"`
+  const raw = spawnProcess(shell, ['-c', registration, shell, cmd, ...args], {
+    ...options,
+    stdio: [...stdio, watch.lifeline],
+  })
+  return { raw, watchdog: raw.pid == null ? undefined : watch.watch(raw.pid) }
+}
+
+function scriptExists (cmd: string, options: SpawnOptions): boolean {
+  const cwd = typeof options.cwd === 'string' ? options.cwd : options.cwd == null ? process.cwd() : fileURLToPath(options.cwd)
+  const executable = cmd.includes('/') ? path.resolve(cwd, cmd) : cmd
+  const searchPath = (options.env == null ? process.env.PATH : options.env.PATH) ?? '/usr/bin:/bin'
+  return which.sync(executable, {
+    path: searchPath.split(path.delimiter).map((entry) => path.resolve(cwd, entry)).join(path.delimiter),
+    nothrow: true,
+  }) != null
+}
+
+function scriptStdio (stdio: StdioOptions | undefined): Exclude<StdioOptions, string> {
+  if (Array.isArray(stdio)) return [...stdio, ...Array.from({ length: Math.max(0, 3 - stdio.length) }, () => 'pipe' as const)]
+  if (stdio === 'inherit') return [0, 1, 2]
+  return [stdio ?? 'pipe', stdio ?? 'pipe', stdio ?? 'pipe']
 }
 
 function stopReadingOutputAfterDrain (raw: ChildProcess): void {
