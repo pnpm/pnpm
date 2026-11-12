@@ -47,8 +47,6 @@ fn every_case_of_the_shared_table() {
     }
 }
 
-/// An explicit lockfile directory equal to the project default must keep a
-/// frozen CLI install on the same metadata path as an unset lockfileDir.
 #[test]
 fn explicit_default_lockfile_dir_does_not_add_frozen_metadata_requests() {
     let unset = frozen_install_metadata_requests(LockfileDirCase::Unset);

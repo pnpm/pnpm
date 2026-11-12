@@ -631,7 +631,7 @@ fn a_negated_flag_clears_a_configured_value() {
 }
 
 #[test]
-fn lockfile_dir_flag_equal_to_default_keeps_dedicated_lockfiles() {
+fn lockfile_dir_flag_shares_one_lockfile_across_dedicated_projects() {
     let workspace = Path::new("/workspace");
     let mut config = Config {
         dir: workspace.to_path_buf(),
@@ -645,6 +645,6 @@ fn lockfile_dir_flag_equal_to_default_keeps_dedicated_lockfiles() {
     apply_cli_layers(&mut config, &invocation, &ConfigOverrides::default(), workspace)
         .expect("apply cli layers");
 
-    assert_eq!(config.lockfile_dir, None);
-    assert!(!config.shares_one_lockfile());
+    assert_eq!(config.lockfile_dir.as_deref(), Some(workspace));
+    assert!(config.shares_one_lockfile());
 }

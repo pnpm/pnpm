@@ -269,6 +269,63 @@ async fn update_config_lockfile_dir_refreshes_derived_node_path() {
     );
 }
 
+#[tokio::test]
+async fn clearing_lockfile_dir_and_virtual_store_dir_restores_the_default_install_state_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: custom\nvirtualStoreDir: cache\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; config.virtualStoreDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, None);
+    assert_eq!(config.install_state_dir, workspace.join("node_modules/.pnpm"));
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
+#[tokio::test]
+async fn update_config_default_lockfile_dir_refreshes_node_path_after_the_global_virtual_store() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = '.'; config.virtualStoreDir = 'shared-links'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is configured");
+    assert!(!node_path.contains("shared-links"), "NODE_PATH was {node_path}");
+    let install_state_node_path = workspace
+        .join("node_modules/.pnpm/node_modules")
+        .display()
+        .to_string();
+    assert!(node_path.contains(&install_state_node_path), "NODE_PATH was {node_path}");
+}
+
 #[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
 #[tokio::test]
 async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path() {

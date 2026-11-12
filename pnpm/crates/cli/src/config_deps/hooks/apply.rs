@@ -18,7 +18,30 @@ struct LockfileDirPathsBeforeHook {
     hook_node_options: Option<Option<String>>,
     hook_modules_dir: Option<PathBuf>,
     modules_dir_changed: bool,
-    virtual_store_dir_changed: bool,
+    hook_virtual_store_dir: HookVirtualStoreDir,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HookVirtualStoreDir {
+    Unchanged,
+    Cleared,
+    Set,
+}
+
+struct NodePathRefresh {
+    previous_dirs: [PathBuf; 2],
+    hook_node_path: Option<Option<String>>,
+    hook_node_options: Option<Option<String>>,
+}
+
+impl NodePathRefresh {
+    fn apply_to(self, config: &mut Config) {
+        config.refresh_node_path_after_lockfile_dir_change::<Host>(
+            [&self.previous_dirs[0], &self.previous_dirs[1]],
+            self.hook_node_path,
+            self.hook_node_options,
+        );
+    }
 }
 
 /// `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
@@ -99,35 +122,42 @@ pub(super) fn apply_hook_delta(
     config.apply_cli_registries();
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
-    if let Some(paths_before_hook) = lockfile_dir_paths_before_hook {
-        apply_lockfile_dir_change(config, paths_before_hook);
-    }
+    let node_path_refresh = lockfile_dir_paths_before_hook.map(|paths_before_hook| {
+        apply_lockfile_dir_change(config, paths_before_hook)
+    });
     apply_state_dir_change(config, &delta);
     apply_project_selector_changes(config, &delta, base_dir)?;
     if delta.get("shamefullyHoist").is_some() || config.cli_settings.contains("shamefullyHoist") {
         config.apply_shamefully_hoist_derivation();
     }
     apply_hook_store_dir_change(config, &delta, base_dir)?;
+    if let Some(node_path_refresh) = node_path_refresh {
+        node_path_refresh.apply_to(config);
+    }
     Ok(())
 }
 
-fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDirPathsBeforeHook) {
+/// Re-anchor the paths that follow the lockfile directory. `NODE_PATH` is
+/// refreshed by the returned value once the store paths are settled.
+fn apply_lockfile_dir_change(
+    config: &mut Config,
+    paths_before_hook: LockfileDirPathsBeforeHook,
+) -> NodePathRefresh {
     let project_dir = config.dir.clone();
-    let lockfile_dir = config.lockfile_dir
-        .clone()
-        .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
     let modules_dir = config.modules_dir.clone();
     let install_state_dir = config.install_state_dir.clone();
-    if paths_before_hook.lockfile_dir.is_none() {
-        config.lockfile_dir = None;
+    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
+        if paths_before_hook.lockfile_dir.is_none() {
+            config.lockfile_dir = None;
+        }
+        config.pin_lockfile_dir(&lockfile_dir, &project_dir);
     }
-    config.pin_lockfile_dir(&lockfile_dir, &project_dir);
     restore_default_lockfile_dir_paths(config, &paths_before_hook, modules_dir, install_state_dir);
-    config.refresh_node_path_after_lockfile_dir_change::<Host>(
-        [&paths_before_hook.node_path_dirs[0], &paths_before_hook.node_path_dirs[1]],
-        paths_before_hook.hook_node_path,
-        paths_before_hook.hook_node_options,
-    );
+    NodePathRefresh {
+        previous_dirs: paths_before_hook.node_path_dirs,
+        hook_node_path: paths_before_hook.hook_node_path,
+        hook_node_options: paths_before_hook.hook_node_options,
+    }
 }
 
 fn restore_default_lockfile_dir_paths(
@@ -142,14 +172,19 @@ fn restore_default_lockfile_dir_paths(
     let configured_virtual_store_dir = paths_before_hook
         .configured_virtual_store_dir
         .as_ref();
-    let virtual_store_dir_changed = paths_before_hook.virtual_store_dir_changed;
     config.modules_dir = modules_dir;
-    if !virtual_store_dir_changed {
-        config.configured_virtual_store_dir = configured_virtual_store_dir.cloned();
+    match paths_before_hook.hook_virtual_store_dir {
+        HookVirtualStoreDir::Unchanged => {
+            config.configured_virtual_store_dir = configured_virtual_store_dir.cloned();
+        }
+        HookVirtualStoreDir::Cleared => config.configured_virtual_store_dir = None,
+        HookVirtualStoreDir::Set => {}
     }
     config.install_state_dir = install_state_dir;
-    let hook_virtual_store_dir =
-        virtual_store_dir_changed.then(|| config.configured_virtual_store_dir.clone()).flatten();
+    let hook_virtual_store_dir = (paths_before_hook.hook_virtual_store_dir
+        == HookVirtualStoreDir::Set)
+        .then(|| config.configured_virtual_store_dir.clone())
+        .flatten();
     if paths_before_hook.lockfile_dir.is_some() {
         restore_default_lockfile_dir(config, configured_virtual_store_dir, hook_virtual_store_dir);
     }
@@ -230,7 +265,11 @@ fn lockfile_dir_paths_before_hook(
                 .and_then(Value::as_str)
                 .map(|modules_dir| pnpm_fs::lexical_normalize(&base_dir.join(modules_dir))),
             modules_dir_changed: delta.get("modulesDir").is_some(),
-            virtual_store_dir_changed: delta.get("virtualStoreDir").is_some(),
+            hook_virtual_store_dir: match delta.get("virtualStoreDir") {
+                None => HookVirtualStoreDir::Unchanged,
+                Some(Value::Null) => HookVirtualStoreDir::Cleared,
+                Some(_) => HookVirtualStoreDir::Set,
+            },
         })
 }
 

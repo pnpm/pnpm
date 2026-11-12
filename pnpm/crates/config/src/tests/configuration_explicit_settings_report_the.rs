@@ -367,40 +367,39 @@ pub fn lockfile_dir_env_var_overrides_yaml() {
 
 #[test]
 pub fn lockfile_dir_equal_to_project_dir_keeps_the_default_lockfile_layout() {
-    for (yaml, shares_one_lockfile) in
-        [("lockfileDir: .\n", true), ("lockfileDir: .\nsharedWorkspaceLockfile: false\n", false)]
-    {
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
-            .expect("write to pnpm-workspace.yaml");
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "lockfileDir: .\n")
+        .expect("write to pnpm-workspace.yaml");
 
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
-        assert_eq!(config.lockfile_dir, None, "yaml: {yaml}");
-        assert!(config.explicit_settings.contains_key("lockfileDir"), "yaml: {yaml}");
-        assert_eq!(config.shares_one_lockfile(), shares_one_lockfile, "yaml: {yaml}");
-        assert_eq!(config.lockfile_dir_for(tmp.path()), tmp.path(), "yaml: {yaml}");
-    }
+    assert_eq!(config.lockfile_dir, None);
+    assert!(config.explicit_settings.contains_key("lockfileDir"));
+    assert!(config.shares_one_lockfile());
+    assert_eq!(config.lockfile_dir_for(tmp.path()), tmp.path());
 }
 
 #[test]
-pub fn lockfile_dir_equal_to_a_dedicated_project_keeps_its_default_paths() {
+pub fn lockfile_dir_stays_pinned_when_projects_keep_their_own_lockfiles() {
     let tmp = tempdir().unwrap();
     let workspace = tmp.path().join("workspace");
     let project = workspace.join("packages/app");
     fs::create_dir_all(&project).expect("create project directory");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: packages/app\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    for (lockfile_dir, pinned) in [(".", &workspace), ("packages/app", &project)] {
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!(
+                "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: {lockfile_dir}\n",
+            ),
+        )
+        .expect("write to pnpm-workspace.yaml");
+        for invoked_from in [&workspace, &project] {
+            let config = Config::new().current::<HostNoHome>(invoked_from).expect("loads");
 
-    let config = Config::new().current::<HostNoHome>(&project).expect("loads");
-
-    assert_eq!(config.lockfile_dir, None);
-    assert_eq!(config.modules_dir, workspace.join("node_modules"));
-    assert_eq!(config.install_state_dir, workspace.join("node_modules/.pnpm"));
-    assert!(!config.shares_one_lockfile());
+            assert_eq!(config.lockfile_dir.as_ref(), Some(pinned), "lockfileDir: {lockfile_dir}");
+            assert!(config.shares_one_lockfile(), "lockfileDir: {lockfile_dir}");
+        }
+    }
 }
 
 #[test]
@@ -410,12 +409,13 @@ pub fn default_lockfile_dir_keeps_workspace_relative_path_settings() {
     let project = workspace.join("packages/app");
     fs::create_dir_all(&project).expect("create project directory");
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
-    let settings = "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nmodulesDir: custom_modules\nvirtualStoreDir: cache\n";
+    let settings =
+        "packages:\n  - packages/*\nmodulesDir: custom_modules\nvirtualStoreDir: cache\n";
     fs::write(&workspace_yaml, settings).expect("write workspace settings");
     let without_lockfile_dir =
         Config::new().current::<HostNoHome>(&project).expect("loads without lockfileDir");
 
-    fs::write(&workspace_yaml, format!("{settings}lockfileDir: packages/app\n"))
+    fs::write(&workspace_yaml, format!("{settings}lockfileDir: .\n"))
         .expect("write default lockfileDir");
     let with_default_lockfile_dir =
         Config::new().current::<HostNoHome>(&project).expect("loads default lockfileDir");
@@ -431,29 +431,26 @@ pub fn default_lockfile_dir_keeps_workspace_relative_path_settings() {
 
 #[cfg_attr(not(windows), ignore = "requires Windows path semantics")]
 #[test]
-pub fn case_equivalent_lockfile_dir_keeps_dedicated_project_layout() {
+pub fn case_equivalent_lockfile_dir_keeps_the_default_layout() {
     let tmp = tempdir().unwrap();
     let workspace = tmp.path().join("CaseRoot");
     let project = workspace.join("packages/app");
     fs::create_dir_all(&project).expect("create project directory");
-    let lockfile_dir = project
-        .parent()
-        .expect("project has a parent")
-        .join("APP")
+    let lockfile_dir = tmp
+        .path()
+        .join("CASEROOT")
         .to_string_lossy()
         .replace('\\', "/");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        format!(
-            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: {lockfile_dir}\n",
-        ),
+        format!("packages:\n  - packages/*\nlockfileDir: {lockfile_dir}\n"),
     )
     .expect("write to pnpm-workspace.yaml");
 
     let config = Config::new().current::<HostNoHome>(&project).expect("loads");
 
     assert_eq!(config.lockfile_dir, None);
-    assert!(!config.shares_one_lockfile());
+    assert_eq!(config.modules_dir, workspace.join("node_modules"));
 }
 
 #[test]
@@ -517,26 +514,6 @@ pub fn clearing_a_lockfile_pin_keeps_global_store_separate_from_project_state() 
 }
 
 #[test]
-pub fn clearing_a_lockfile_pin_restores_dedicated_project_paths() {
-    let tmp = tempdir().unwrap();
-    let workspace = tmp.path().join("workspace");
-    let project = workspace.join("packages/app");
-    fs::create_dir_all(&project).expect("create project directory");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: custom\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-
-    let mut config = Config::new().current::<HostNoHome>(&project).expect("loads");
-    config.pin_lockfile_dir(&project, &project);
-
-    assert_eq!(config.lockfile_dir, None);
-    assert_eq!(config.modules_dir, workspace.join("node_modules"));
-    assert_eq!(config.install_state_dir, workspace.join("node_modules/.pnpm"));
-}
-
-#[test]
 pub fn clearing_a_lockfile_pin_preserves_env_virtual_store_anchor() {
     struct HostWithVirtualStoreEnv;
     impl EnvVar for HostWithVirtualStoreEnv {
@@ -561,15 +538,11 @@ pub fn clearing_a_lockfile_pin_preserves_env_virtual_store_anchor() {
     host_current_dir!(HostWithVirtualStoreEnv);
 
     let tmp = tempdir().unwrap();
-    let project = tmp.path().join("packages/app");
+    let project = tmp.path().join("app");
     fs::create_dir_all(&project).expect("create project directory");
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: custom\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
 
     let mut config = Config::new().current::<HostWithVirtualStoreEnv>(&project).expect("loads");
+    config.pin_lockfile_dir(&project.join("custom"), &project);
     config.pin_lockfile_dir(&project, &project);
 
     assert_eq!(config.lockfile_dir, None);

@@ -42,11 +42,7 @@ impl Config {
             let raw_path = Path::new(&raw);
             let was_lockfile_relative = pnpm_fs::lexical_normalize(&configured)
                 == pnpm_fs::lexical_normalize(&previous_lockfile_dir.join(raw_path));
-            let dir = if was_lockfile_relative {
-                self.default_lockfile_dir_for(project_dir).join(raw_path)
-            } else {
-                configured
-            };
+            let dir = if was_lockfile_relative { paths_dir.join(raw_path) } else { configured };
             self.set_virtual_store_dir(dir);
         }
     }

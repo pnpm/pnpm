@@ -13,7 +13,13 @@ impl Config {
         }
     }
 
+    /// Whether pinning `dir` leaves the layout as it is without a pin.
+    /// A pin inside a workspace that keeps per-project lockfiles is never
+    /// default: it makes the workspace share one lockfile.
     pub(crate) fn lockfile_dir_is_default(&self, dir: &Path, project_dir: &Path) -> bool {
+        if self.workspace_dir.is_some() && !self.shared_workspace_lockfile {
+            return false;
+        }
         let dir = pnpm_fs::lexical_normalize(dir);
         let default = pnpm_fs::lexical_normalize(self.default_lockfile_dir_for(project_dir));
         if dir == default {
