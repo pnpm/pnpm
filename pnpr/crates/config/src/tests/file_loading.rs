@@ -126,7 +126,7 @@ fn removed_keys_are_unknown_fields() {
         assert!(
             err.to_string()
                 .contains(&format!("unknown field `{key}`")),
-            "{err}"
+            "{err}",
         );
     }
 }

@@ -6,7 +6,7 @@ pub fn parse_cli_interval(raw: &str) -> std::result::Result<Duration, String> {
         .ok_or_else(|| format!("invalid interval {raw:?}; expected e.g. 30s, 5m, 1h, 1d"))
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Default, Clone, Args)]
 pub struct ServerArgs {
     /// Address to bind to. Overrides the config's `listen`, which
     /// defaults to 127.0.0.1:7677.
@@ -29,18 +29,6 @@ pub struct ServerArgs {
 
     #[command(flatten)]
     pub features: FeatureArgs,
-}
-
-impl Default for ServerArgs {
-    fn default() -> Self {
-        Self {
-            listen: None,
-            public_url: None,
-            packument_ttl: None,
-            osv_options: OsvArgs::default(),
-            features: FeatureArgs::default(),
-        }
-    }
 }
 
 impl ServerArgs {
