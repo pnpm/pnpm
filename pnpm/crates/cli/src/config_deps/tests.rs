@@ -292,7 +292,11 @@ async fn update_config_lockfile_dir_preserves_hook_node_options() {
     run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.extra_env.get("NODE_OPTIONS").map(String::as_str), Some("--require /custom"));
+    let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is configured");
+    assert!(node_options.contains("--require /custom"));
+    assert!(node_options.contains(
+        pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag()
+    ));
 }
 
 /// Deleting the setting leaves it unset, so CI regains the frozen-lockfile

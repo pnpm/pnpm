@@ -58,6 +58,12 @@ impl Config {
             set_extra_env_value(&mut self.extra_env, "NODE_PATH", node_path);
         }
         if let Some(node_options) = hook_node_options {
+            let node_options = node_options.map(|node_options| {
+                esm_node_path_loader::keep_esm_node_path_loader_option(
+                    &node_options,
+                    self.extra_env.get("NODE_OPTIONS").map(String::as_str),
+                )
+            });
             set_extra_env_value(&mut self.extra_env, "NODE_OPTIONS", node_options);
         }
     }
