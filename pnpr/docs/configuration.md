@@ -1039,6 +1039,7 @@ Events about another account name it with `user` and `user_id`. The operation-sp
   - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`, `version`, `registry`).
   - `package.update_packument`: modifying packument metadata directly (`actor`, `package`, `registry`).
   - `package.update_maintainers`: changing a package's maintainers (`actor`, `package`, `registry`).
+  - `package.add_owners` and `package.remove_owners`: changing a package's owners (`actor`, `package`, `registry`, `owners`). `owners` lists the logins added or removed, comma-separated.
   - `package.dist_tag_set`: assigning a dist-tag (`actor`, `package`, `tag`, `version`, `registry`).
   - `package.dist_tag_remove`: deleting a dist-tag (`actor`, `package`, `tag`, `registry`).
   - `package.note_set` and `package.note_delete`: changing a version note (`actor`, `package`, `version`, `registry`).
