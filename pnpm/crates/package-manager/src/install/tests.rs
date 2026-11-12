@@ -202,11 +202,7 @@ fn seed_placeholder_virtual_store_slot(virtual_store_dir: &std::path::Path) {
     std::fs::create_dir_all(&slot).expect("create placeholder virtual-store slot");
 }
 
-/// Run one install against `modules_dir` for the purge regression below: a
-/// a fresh configuration per call,
-/// `included` driven by `dependency_groups`, and `virtual_store_dir_max_length`
-/// surfaced so the test can force a layout drift. `disable_optimistic_repeat_install`
-/// keeps every call on the full path so the purge branch is actually evaluated.
+/// Bypass repeat installs to exercise the purge check on each run.
 async fn run_purge_regression_install(
     dirs: &InstallDirs,
     registry: &str,
