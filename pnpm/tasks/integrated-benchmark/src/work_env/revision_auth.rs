@@ -40,8 +40,18 @@ pub(super) fn seed_auth(source: &str, home: &Path) -> Value {
             .trim()
             .split_once(':')
             .expect("benchmark credential");
-        let accounts =
-            json!({PNPR_BENCHMARK_USERNAME: {"id": "benchmark-account", "password_hash": hash}});
+        let account = if config["auth"].get("tokens").is_some() {
+            json!({
+                "id": "benchmark-account",
+                "status": "active",
+                "credential_kind": "bcrypt",
+                "password_hash": hash,
+                "created_at": 0,
+            })
+        } else {
+            json!({"id": "benchmark-account", "password_hash": hash})
+        };
+        let accounts = json!({PNPR_BENCHMARK_USERNAME: account});
         fs::write(&path, accounts.to_string()).expect("seed revision JSON account");
         json!({"users": {"file": path, "maxUsers": -1}})
     } else {

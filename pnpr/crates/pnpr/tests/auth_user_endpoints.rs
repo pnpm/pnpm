@@ -127,8 +127,13 @@ impl UserBackend for CanonicalUserBackend {
         Ok(vec!["Alice".to_string()])
     }
 
-    async fn password_hash(&self, username: &str) -> pnpr::Result<Option<String>> {
-        Ok(username.eq_ignore_ascii_case("alice").then(|| "hash".to_string()))
+    async fn credential(
+        &self,
+        username: &str,
+    ) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
+        Ok(username
+            .eq_ignore_ascii_case("alice")
+            .then(|| pnpr_auth::AccountCredential::PasswordHash("hash".to_string())))
     }
 
     async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<UserCreation> {
@@ -150,8 +155,17 @@ impl UserBackend for CanonicalUserBackend {
     async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
         Ok(Some("Alice".to_string()))
     }
+    async fn active_account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
     async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
         Ok(Some("Alice".to_string()))
+    }
+    async fn active_account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
+        Ok(Some(pnpr_auth::AccountStatus::Active))
     }
     async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
         unreachable!()

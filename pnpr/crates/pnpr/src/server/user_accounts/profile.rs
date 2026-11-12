@@ -52,11 +52,11 @@ async fn update_password(
     let username = require_caller(identity, "password change")?;
     let update: ProfileUpdate = serde_json::from_value(parse_json_body(body)?)
         .map_err(|error| RegistryError::BadRequest { reason: error.to_string() })?;
-    let verified_hash =
+    let verified_credential =
         verify_caller_password(state, client_ip, &username, Some(&update.password.old)).await?;
-    if verified_hash == pnpr_auth::NO_PASSWORD_HASH {
+    let pnpr_auth::AccountCredential::PasswordHash(verified_hash) = verified_credential else {
         return Err(RegistryError::Unauthenticated { resource: "a password account".to_string() });
-    }
+    };
     let user_id = identity.user_id().expect("authenticated caller");
     let auth = &state.inner.identity.auth;
     let changed =

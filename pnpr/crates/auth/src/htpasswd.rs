@@ -1,4 +1,4 @@
-use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome};
+use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result};
 use crate::validation::validate_username;
 
 // ---------------------------------------------------------------
@@ -192,32 +192,4 @@ pub async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
         Err(err) => Err(RegistryError::from(err)),
     })
     .await?
-}
-
-/// Verify `password` against an existing user's `stored` hash,
-/// mapping the result to the login outcome a returning user expects:
-/// `LoggedIn` on a match, `Unauthenticated` otherwise.
-pub async fn verify_returning_user(
-    username: &str,
-    password: &str,
-    stored: String,
-    bcrypt_cost: u32,
-) -> Result<(UpsertOutcome, String)> {
-    let valid = if stored == super::NO_PASSWORD_HASH || stored == super::DELETED_USER_HASH {
-        dummy_verify(password, bcrypt_cost).await;
-        false
-    } else if is_sha_hash(&stored) {
-        let ok = verify_sha1(password, &stored);
-        if !ok {
-            dummy_verify(password, bcrypt_cost).await;
-        }
-        ok
-    } else {
-        verify_bcrypt(password.to_string(), stored).await?
-    };
-    if valid {
-        Ok((UpsertOutcome::LoggedIn, username.to_string()))
-    } else {
-        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-    }
 }

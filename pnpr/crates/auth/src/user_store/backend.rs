@@ -1,10 +1,13 @@
 use super::{
-    Change, Registration, StoredAccount, UserStore, Users, active_user_count,
-    check_username_skeleton,
+    Change, Registration, StoredAccount, UserStore, check_username_skeleton, registered_user_count,
+    stored::{
+        apply_stored_lifecycle, checked_next_revision, find_active_login, move_account_login,
+    },
 };
 use crate::{
-    PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation, UserRemoval, dummy_verify,
-    hash_bcrypt, validation::validate_username,
+    AccountCredential, AccountLifecycle, AccountStatus, AccountStatusOutcome, PasswordChange,
+    Result, UpsertOutcome, UserBackend, UserCreation, UserRemoval, dummy_verify, hash_bcrypt,
+    validation::{status_revision_to_sql, validate_username},
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
@@ -27,12 +30,12 @@ impl UserBackend for UserStore {
         crate::validation::validate_password(password)?;
         self.sync_from_disk_if_path()?;
 
-        let existing_hash = self
+        let existing = self
             .snapshot()
             .users
             .get(username)
             .cloned();
-        if let Some(stored) = existing_hash {
+        if let Some(stored) = existing {
             return self.login_existing(username, password, stored).await;
         }
 
@@ -53,12 +56,12 @@ impl UserBackend for UserStore {
             // Re-check under the lock because another registration may
             // have filled the store while we were hashing.
             if let MaxUsers::Limited(max) = max_users
-                && active_user_count(users) >= max
+                && registered_user_count(users) >= max
             {
                 return Err(RegistryError::TooManyUsers { max });
             }
             check_username_skeleton(users, &name, None)?;
-            let account = StoredAccount::new(hash);
+            let account = StoredAccount::new_with_hash(hash);
             let id = account.id.clone();
             users.insert(name, account);
             Ok(Change::Write(Registration::Created(id)))
@@ -75,7 +78,7 @@ impl UserBackend for UserStore {
             .snapshot()
             .users
             .iter()
-            .filter(|(_, hash)| hash.password_hash.as_str() != crate::DELETED_USER_HASH)
+            .filter(|(_, account)| !account.status.is_deleted())
             .map(|(name, _)| name.clone())
             .collect();
         names.sort();
@@ -86,9 +89,13 @@ impl UserBackend for UserStore {
         self.sync_from_disk_if_path()?;
         let mut accounts: Vec<_> = self
             .snapshot()
-            .names_by_id
+            .users
             .iter()
-            .map(|(id, username)| crate::UserAccount { id: id.clone(), username: username.clone() })
+            .filter(|(_, account)| !account.status.is_deleted())
+            .map(|(username, account)| crate::UserAccount {
+                id: account.id.clone(),
+                username: username.clone(),
+            })
             .collect();
         accounts.sort_by(|left, right| left.username.cmp(&right.username));
         Ok(accounts)
@@ -110,14 +117,14 @@ impl UserBackend for UserStore {
             .collect())
     }
 
-    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+    async fn credential(&self, username: &str) -> Result<Option<AccountCredential>> {
         self.sync_from_disk_if_path()?;
         Ok(self
             .snapshot()
             .users
             .get(username)
-            .filter(|account| account.password_hash != crate::DELETED_USER_HASH)
-            .map(|account| account.password_hash.clone()))
+            .filter(|account| account.status.is_active())
+            .map(StoredAccount::credential))
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
@@ -130,7 +137,7 @@ impl UserBackend for UserStore {
                 return Ok(Change::Keep(UserCreation::NameTaken));
             }
             check_username_skeleton(users, &name, None)?;
-            let account = StoredAccount::new(hash);
+            let account = StoredAccount::new_with_hash(hash);
             let id = account.id.clone();
             users.insert(name, account);
             Ok(Change::Write(UserCreation::Created(id)))
@@ -141,7 +148,7 @@ impl UserBackend for UserStore {
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
         crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        self.replace_password_hash(user_id, hash).await
+        self.replace_password_hash(user_id, Some(hash)).await
     }
 
     async fn set_password_if_current(
@@ -160,17 +167,19 @@ impl UserBackend for UserStore {
             else {
                 return Ok(Change::Keep(false));
             };
-            if stored.password_hash != expected || expected == crate::DELETED_USER_HASH {
+            if !stored.status.is_active()
+                || stored.password_hash.as_deref() != Some(expected.as_str())
+            {
                 return Ok(Change::Keep(false));
             }
-            stored.password_hash = hash;
+            stored.set_hash(hash);
             Ok(Change::Write(true))
         })
         .await
     }
 
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
-        self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH.to_string()).await
+        self.replace_password_hash(user_id, None).await
     }
 
     async fn provision_user(&self, username: &str) -> Result<String> {
@@ -183,7 +192,7 @@ impl UserBackend for UserStore {
                 });
             }
             check_username_skeleton(users, &name, None)?;
-            let account = StoredAccount::new(crate::NO_PASSWORD_HASH.to_string());
+            let account = StoredAccount::new_passwordless();
             let id = account.id.clone();
             users.insert(name, account);
             Ok(Change::Write(id))
@@ -197,7 +206,17 @@ impl UserBackend for UserStore {
             .snapshot()
             .users
             .get(username)
-            .filter(|account| account.password_hash != crate::DELETED_USER_HASH)
+            .filter(|account| !account.status.is_deleted())
+            .map(|account| account.id.clone()))
+    }
+
+    async fn active_account_id(&self, username: &str) -> Result<Option<String>> {
+        self.sync_from_disk_if_path()?;
+        Ok(self
+            .snapshot()
+            .users
+            .get(username)
+            .filter(|account| account.status.is_active())
             .map(|account| account.id.clone()))
     }
 
@@ -208,6 +227,82 @@ impl UserBackend for UserStore {
             .names_by_id
             .get(user_id)
             .cloned())
+    }
+
+    async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.sync_from_disk_if_path()?;
+        let state = self.snapshot();
+        if !state.active_ids.contains(user_id) {
+            return Ok(None);
+        }
+        Ok(state.names_by_id.get(user_id).cloned())
+    }
+
+    async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
+        self.sync_from_disk_if_path()?;
+        let state = self.snapshot();
+        if let Some(username) = state.names_by_id.get(user_id) {
+            return Ok(state.users.get(username).map(|account| account.status));
+        }
+        Ok(state.users
+            .get(&format!("deleted:{user_id}"))
+            .map(|account| account.status))
+    }
+
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.sync_from_disk_if_path()?;
+        let state = self.snapshot();
+        let mut revisions = std::collections::HashMap::with_capacity(user_ids.len());
+        for id in user_ids {
+            let account = state.names_by_id
+                .get(id)
+                .and_then(|username| state.users.get(username))
+                .or_else(|| state.users.get(&format!("deleted:{id}")));
+            if let Some(account) = account {
+                revisions.insert(
+                    id.clone(),
+                    crate::AccountStatusRevision {
+                        status: account.status,
+                        revision: account.status_revision,
+                        pending_token_revocation: account.pending_token_revocation,
+                    },
+                );
+            }
+        }
+        Ok(revisions)
+    }
+
+    async fn apply_account_status(
+        &self,
+        user_id: &str,
+        revision: u64,
+        lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        let _ = status_revision_to_sql(revision)?;
+        let id = user_id.to_string();
+        let revoke_id = id.clone();
+        let stores = self.bound_tokens();
+        let post_stores = stores.clone();
+        self.update_with_post_commit(
+            move |users| apply_stored_lifecycle(users, &id, revision, lifecycle, &stores),
+            move |outcome, users| {
+                super::stored::complete_lifecycle_revocation(
+                    users,
+                    &revoke_id,
+                    *outcome,
+                    lifecycle,
+                    &post_stores,
+                )
+            },
+        )
+        .await
+    }
+
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        !self.bound_tokens().is_empty()
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
@@ -260,15 +355,15 @@ impl UserBackend for UserStore {
         self.update(move |users| {
             let name = users
                 .iter()
-                .find(|(_, account)| {
-                    account.id == id && account.password_hash != crate::DELETED_USER_HASH
-                })
+                .find(|(_, account)| account.id == id && !account.status.is_deleted())
                 .map(|(name, _)| name.clone());
             let Some(name) = name else {
                 return Ok(Change::Keep(UserRemoval::NoSuchUser));
             };
             let mut account = users.remove(&name).ok_or(RegistryError::NotFound)?;
-            account.password_hash = crate::DELETED_USER_HASH.to_string();
+            account.status = AccountStatus::Deleted;
+            account.clear_hash();
+            account.pending_token_revocation = false;
             users.insert(format!("deleted:{}", account.id), account);
             Ok(Change::Write(UserRemoval::Removed))
         })
@@ -290,15 +385,22 @@ impl UserBackend for UserStore {
 }
 
 impl UserStore {
-    async fn replace_password_hash(&self, user_id: &str, hash: String) -> Result<PasswordChange> {
+    async fn replace_password_hash(
+        &self,
+        user_id: &str,
+        hash: Option<String>,
+    ) -> Result<PasswordChange> {
         let id = user_id.to_string();
         self.update(move |users| {
             match users
                 .values_mut()
                 .find(|account| account.id == id)
             {
-                Some(stored) if stored.password_hash.as_str() != crate::DELETED_USER_HASH => {
-                    stored.password_hash = hash;
+                Some(stored) if !stored.status.is_deleted() => {
+                    match hash {
+                        Some(hash) => stored.set_hash(hash),
+                        None => stored.clear_hash(),
+                    }
                     Ok(Change::Write(PasswordChange::Changed))
                 }
                 _ => Ok(Change::Keep(PasswordChange::NoSuchUser)),
@@ -306,44 +408,4 @@ impl UserStore {
         })
         .await
     }
-}
-
-fn checked_next_revision(revision: u64) -> Result<u64> {
-    revision
-        .checked_add(1)
-        .ok_or_else(|| RegistryError::Internal {
-            reason: "account name revision overflowed".to_string(),
-        })
-}
-
-fn find_active_login(users: &Users, user_id: &str) -> Result<(String, u64)> {
-    users
-        .iter()
-        .find(|(_, account)| {
-            account.id == user_id && account.password_hash != crate::DELETED_USER_HASH
-        })
-        .map(|(login, account)| (login.clone(), account.name_revision))
-        .ok_or(RegistryError::NotFound)
-}
-
-fn move_account_login(
-    users: &mut Users,
-    user_id: &str,
-    old: &str,
-    name: String,
-    next_revision: u64,
-) -> Result<()> {
-    if old == name {
-        let account = users.get_mut(old).ok_or(RegistryError::NotFound)?;
-        account.name_revision = next_revision;
-        return Ok(());
-    }
-    if users.contains_key(&name) {
-        return Err(RegistryError::AdminConflict { reason: format!("username {name:?} is taken") });
-    }
-    check_username_skeleton(users, &name, Some(user_id))?;
-    let mut account = users.remove(old).ok_or(RegistryError::NotFound)?;
-    account.name_revision = next_revision;
-    users.insert(name, account);
-    Ok(())
 }

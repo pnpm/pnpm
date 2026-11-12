@@ -1,16 +1,14 @@
 //! The accounts a SCIM client provisioned, kept as rows in `scim_users` so
 //! every replica refuses the same deprovisioned account IDs.
 
-use super::{
-    super::{
-        AppState, RegistryError,
-        managed_state::{WRITE_ATTEMPTS, read_with_deadline},
-    },
-    resources::apply_patch,
-};
-use pnpr_storage::metadata::{
-    NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser,
-};
+pub(super) use writes::{create_user, delete_user, patch_user, replace_user};
+
+#[cfg(test)]
+mod tests;
+mod writes;
+
+use super::super::{AppState, RegistryError, managed_state::read_with_deadline};
+use pnpr_storage::metadata::ScimStatus;
 use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -121,256 +119,155 @@ fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, Regi
         .copied())
 }
 
-/// Read SCIM status changes since the last generation and publish them. After
-/// a failed read [`is_deprovisioned`] fails closed until a read succeeds.
+/// Read SCIM status changes since the last generation, reconcile account
+/// statuses in auth, and publish them. After a failed read or reconciliation
+/// [`is_deprovisioned`] fails closed until a reload succeeds.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
     let since = scim.since_generation();
-    match read_with_deadline(state.inner.storage.read_scim_statuses_since(since)).await {
-        Ok(statuses) => {
-            scim.apply_statuses(state, &statuses);
-            true
-        }
+    let statuses = match read_with_deadline(state.inner.storage.read_scim_statuses_since(since))
+        .await
+    {
+        Ok(statuses) => statuses,
         Err(err) => {
             tracing::error!(error = %err, "could not read the SCIM directory; refusing user credentials");
             scim.unreadable.store(true, Ordering::Release);
-            false
+            return false;
+        }
+    };
+    if let Err(err) = reconcile_auth_statuses(state, &statuses).await {
+        tracing::error!(error = %err, "could not reconcile SCIM account statuses; refusing user credentials");
+        scim.unreadable.store(true, Ordering::Release);
+        return false;
+    }
+    scim.apply_statuses(state, &statuses);
+    true
+}
+
+async fn reconcile_auth_statuses(
+    state: &AppState,
+    statuses: &[ScimStatus],
+) -> Result<(), RegistryError> {
+    if statuses.is_empty() {
+        return Ok(());
+    }
+    let ids: Vec<String> = statuses
+        .iter()
+        .map(|status| status.user_id.clone())
+        .collect();
+    let auth = &state.inner.identity.auth;
+    let known = auth.users.status_revisions(&ids).await?;
+    for status in statuses {
+        let lifecycle = lifecycle_for_active(status.active);
+        if !needs_external_token_revocation(auth, &status.user_id, lifecycle).await?
+            && known
+                .get(&status.user_id)
+                .is_some_and(|current| is_status_reconciled(*current, status.generation, lifecycle))
+        {
+            continue;
+        }
+        let outcome =
+            auth.apply_account_status(&status.user_id, status.generation, lifecycle).await?;
+        match (outcome, lifecycle) {
+            (
+                pnpr_auth::AccountStatusOutcome::Applied,
+                pnpr_auth::AccountLifecycle::Deactivated,
+            ) => {
+                state.inner.identity.oidc.revoke_user_sessions(&status.user_id);
+            }
+            (pnpr_auth::AccountStatusOutcome::Applied, pnpr_auth::AccountLifecycle::Active)
+            | (
+                pnpr_auth::AccountStatusOutcome::Superseded
+                | pnpr_auth::AccountStatusOutcome::Missing,
+                pnpr_auth::AccountLifecycle::Active | pnpr_auth::AccountLifecycle::Deactivated,
+            ) => {}
+        }
+    }
+    Ok(())
+}
+
+async fn needs_external_token_revocation(
+    auth: &pnpr_auth::AuthState,
+    user_id: &str,
+    lifecycle: pnpr_auth::AccountLifecycle,
+) -> Result<bool, RegistryError> {
+    match lifecycle {
+        pnpr_auth::AccountLifecycle::Active => Ok(false),
+        pnpr_auth::AccountLifecycle::Deactivated => {
+            if auth.users.revokes_tokens_in_status_transition() {
+                return Ok(false);
+            }
+            Ok(!auth.tokens.list_for_user(user_id).await?.is_empty())
         }
     }
 }
 
-async fn sync_scim_state(state: &AppState, user_id: &str, active: bool) {
+fn is_status_reconciled(
+    current: pnpr_auth::AccountStatusRevision,
+    generation: u64,
+    lifecycle: pnpr_auth::AccountLifecycle,
+) -> bool {
+    if current.pending_token_revocation {
+        return false;
+    }
+    match current.status {
+        pnpr_auth::AccountStatus::Deleted => true,
+        pnpr_auth::AccountStatus::Active | pnpr_auth::AccountStatus::Deactivated => {
+            current.revision > generation
+                || (current.revision == generation && current.status == lifecycle.as_status())
+        }
+    }
+}
+
+pub(super) const fn lifecycle_for_active(active: bool) -> pnpr_auth::AccountLifecycle {
+    if active {
+        pnpr_auth::AccountLifecycle::Active
+    } else {
+        pnpr_auth::AccountLifecycle::Deactivated
+    }
+}
+
+pub(super) fn fail_closed_on_unsynced_deactivation(
+    state: &AppState,
+    user_id: &str,
+    generation: u64,
+) {
+    state.inner.identity.oidc.revoke_user_sessions(user_id);
+    if let Some(scim) = &state.inner.identity.managed.scim
+        && scim.since_generation() <= generation
+    {
+        scim.unreadable.store(true, Ordering::Release);
+    }
+}
+
+async fn sync_scim_state(
+    state: &AppState,
+    user_id: &str,
+    generation: u64,
+    applied: Option<pnpr_auth::AccountLifecycle>,
+) {
     let managed = &state.inner.identity.managed;
     let Some(scim) = &managed.scim else {
         return;
     };
-    scim.active_by_id
-        .write()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(user_id.to_string(), active);
-    if !active {
-        state.inner.identity.oidc.revoke_user_sessions(user_id);
+    if let Some(lifecycle) = applied {
+        if scim.since_generation() < generation {
+            let is_active = match lifecycle {
+                pnpr_auth::AccountLifecycle::Active => true,
+                pnpr_auth::AccountLifecycle::Deactivated => false,
+            };
+            scim.active_by_id
+                .write()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(user_id.to_string(), is_active);
+        }
+        match lifecycle {
+            pnpr_auth::AccountLifecycle::Active => {}
+            pnpr_auth::AccountLifecycle::Deactivated => {
+                state.inner.identity.oidc.revoke_user_sessions(user_id);
+            }
+        }
     }
     if !reload_directory(state, scim).await {
         managed.schedule_retry();
     }
 }
-
-pub(super) async fn insert_user(
-    state: &AppState,
-    user_id: &str,
-    user: &ScimUser,
-) -> Result<StoredScimUser, RegistryError> {
-    let managed = &state.inner.identity.managed;
-    let _reload = managed.reload.lock().await;
-    let new_user = NewScimUser {
-        user_id: user_id.to_string(),
-        active: user.active,
-        attributes: user.attributes.clone(),
-    };
-    let stored = state.inner.storage
-        .insert_scim_user(new_user)
-        .await?
-        .ok_or_else(|| RegistryError::AdminConflict {
-            reason: "the SCIM user already exists".to_string(),
-        })?;
-    sync_scim_state(state, &stored.user_id, stored.active).await;
-    Ok(stored)
-}
-
-pub(super) async fn replace_user(
-    state: &AppState,
-    user_id: &str,
-    user: &ScimUser,
-) -> Result<(), RegistryError> {
-    let managed = &state.inner.identity.managed;
-    let _reload = managed.reload.lock().await;
-    for _ in 0..WRITE_ATTEMPTS {
-        let (stored, login) = load_scim_account(state, user_id).await?;
-        let Some(claimed) =
-            apply_conditional_rename(state, user_id, &login, Some(&user.username)).await?
-        else {
-            continue;
-        };
-        let new_user = NewScimUser {
-            user_id: user_id.to_string(),
-            active: user.active,
-            attributes: user.attributes.clone(),
-        };
-        if commit_user_write(state, user_id, stored.generation, new_user, claimed.as_ref())
-            .await?
-            .is_some()
-        {
-            return Ok(());
-        }
-    }
-    Err(RegistryError::AdminConflict {
-        reason: "the SCIM user kept changing; retry the request".to_string(),
-    })
-}
-
-pub(super) async fn patch_user(
-    state: &AppState,
-    user_id: &str,
-    patch: &Value,
-) -> Result<ScimUser, RegistryError> {
-    let managed = &state.inner.identity.managed;
-    let _reload = managed.reload.lock().await;
-    for _ in 0..WRITE_ATTEMPTS {
-        let (stored, login) = load_scim_account(state, user_id).await?;
-        let mut candidate = ScimUser {
-            username: String::new(),
-            active: stored.active,
-            attributes: stored.attributes,
-        };
-        apply_patch(&mut candidate, patch)?;
-        let requested_rename =
-            (!candidate.username.is_empty()).then_some(candidate.username.as_str());
-        let Some(claimed) =
-            apply_conditional_rename(state, user_id, &login, requested_rename).await?
-        else {
-            continue;
-        };
-        let write = NewScimUser {
-            user_id: user_id.to_string(),
-            active: candidate.active,
-            attributes: candidate.attributes.clone(),
-        };
-        if commit_user_write(state, user_id, stored.generation, write, claimed.as_ref())
-            .await?
-            .is_some()
-        {
-            if candidate.username.is_empty() {
-                candidate.username = state.inner.identity.auth.users
-                    .account_name(user_id)
-                    .await?
-                    .unwrap_or(login.username);
-            }
-            return Ok(candidate);
-        }
-    }
-    Err(RegistryError::AdminConflict {
-        reason: "the SCIM user kept changing; retry the request".to_string(),
-    })
-}
-
-struct ClaimedRename {
-    previous: String,
-    applied: String,
-    revision: u64,
-}
-
-async fn load_scim_account(
-    state: &AppState,
-    user_id: &str,
-) -> Result<(StoredScimUser, pnpr_auth::AccountLogin), RegistryError> {
-    let stored =
-        state.inner.storage.read_scim_user(user_id).await?.ok_or(RegistryError::NotFound)?;
-    let login = state.inner.identity.auth.users
-        .account_login(user_id)
-        .await?
-        .ok_or(RegistryError::NotFound)?;
-    Ok((stored, login))
-}
-
-async fn apply_conditional_rename(
-    state: &AppState,
-    user_id: &str,
-    login: &pnpr_auth::AccountLogin,
-    requested: Option<&str>,
-) -> Result<Option<Option<ClaimedRename>>, RegistryError> {
-    let Some(target) = requested else {
-        return Ok(Some(None));
-    };
-    match state.inner.identity.auth.users.rename_user_if_current(user_id, login.revision, target)
-        .await?
-    {
-        pnpr_auth::UserRename::Renamed(revision) => Ok(Some(Some(ClaimedRename {
-            previous: login.username.clone(),
-            applied: target.to_string(),
-            revision,
-        }))),
-        pnpr_auth::UserRename::CurrentChanged => Ok(None),
-    }
-}
-
-async fn commit_user_write(
-    state: &AppState,
-    user_id: &str,
-    expected_generation: u64,
-    write: NewScimUser,
-    claimed: Option<&ClaimedRename>,
-) -> Result<Option<StoredScimUser>, RegistryError> {
-    match state.inner.storage.replace_scim_user(Some(expected_generation), write).await {
-        Ok(ScimUserWrite::Written(saved)) => {
-            sync_scim_state(state, &saved.user_id, saved.active).await;
-            Ok(Some(saved))
-        }
-        Ok(ScimUserWrite::Conflict) => {
-            rollback_rename(state, user_id, claimed).await;
-            Ok(None)
-        }
-        Ok(ScimUserWrite::NotFound) => {
-            rollback_rename(state, user_id, claimed).await;
-            Err(RegistryError::NotFound)
-        }
-        Err(err) => {
-            rollback_rename(state, user_id, claimed).await;
-            Err(err)
-        }
-    }
-}
-
-async fn rollback_rename(state: &AppState, user_id: &str, claimed: Option<&ClaimedRename>) {
-    if let Some(claimed) = claimed
-        && claimed.previous != claimed.applied
-        && let Err(err) = state.inner.identity.auth.users.rename_user_if_current(
-            user_id,
-            claimed.revision,
-            &claimed.previous,
-        )
-        .await
-    {
-        tracing::warn!(error = %err, user_id, "could not roll back SCIM username after aborted write");
-    }
-}
-
-pub(super) async fn remove_user(state: &AppState, user_id: &str) -> Result<(), RegistryError> {
-    let managed = &state.inner.identity.managed;
-    let _reload = managed.reload.lock().await;
-    match state.inner.storage.remove_scim_user(user_id).await? {
-        ScimUserRemoval::Removed(status) => {
-            sync_scim_state(state, &status.user_id, false).await;
-            Ok(())
-        }
-        ScimUserRemoval::NotFound => Err(RegistryError::NotFound),
-    }
-}
-
-/// Run [`deprovision`] again for a user the directory holds as inactive,
-/// before a write can make it active. A cleanup that failed when the user was
-/// made inactive must not leave its credentials working once it is active.
-pub(super) async fn clean_up_before_reactivating(
-    state: &AppState,
-    user_id: &str,
-) -> Result<(), RegistryError> {
-    if state.inner.storage.read_scim_user(user_id).await?.is_some_and(|user| !user.active) {
-        deprovision(state, user_id).await?;
-    }
-    Ok(())
-}
-
-/// Take away everything the account ID could sign in or authenticate with: its
-/// stored tokens, its password, and its browser sessions on this
-/// replica. Other replicas refuse its sessions once they reload the
-/// directory. Safe to repeat.
-pub(super) async fn deprovision(state: &AppState, user_id: &str) -> Result<(), RegistryError> {
-    let auth = &state.inner.identity.auth;
-    auth.revoke_all_tokens(user_id).await?;
-    auth.users.clear_password(user_id).await?;
-    auth.revoke_all_tokens(user_id).await?;
-    state.inner.identity.oidc.revoke_user_sessions(user_id);
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests;

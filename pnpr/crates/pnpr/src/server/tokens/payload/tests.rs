@@ -120,6 +120,7 @@ fn rejects_granular_package_scope_org_and_unknown_fields() {
     let null_optionals = parse_json(&json!({
         "name": null,
         "cidr_whitelist": null,
+        "kind": null,
         "packages": null,
         "scopes": null,
         "orgs": null,
@@ -130,6 +131,21 @@ fn rejects_granular_package_scope_org_and_unknown_fields() {
     .unwrap();
     assert_eq!(null_optionals.access, TokenAccess::ReadWrite);
     assert_eq!(null_optionals.expiry, TokenExpiry::Never);
+    assert_eq!(null_optionals.kind, None);
+}
+
+#[test]
+fn accepts_classic_and_granular_kinds_and_rejects_unknown_kinds() {
+    let classic = parse_json(&json!({ "kind": "classic" })).unwrap();
+    assert_eq!(classic.kind, Some(pnpr_auth::TokenKind::Classic));
+
+    let granular = parse_json(&json!({ "kind": "granular" })).unwrap();
+    assert_eq!(granular.kind, Some(pnpr_auth::TokenKind::Granular));
+
+    for invalid in ["custom", "", "CLASSIC", "Granular"] {
+        let reason = assert_bad_request(&json!({ "kind": invalid }));
+        assert!(reason.contains("classic") && reason.contains("granular"), "{reason}");
+    }
 }
 
 #[test]

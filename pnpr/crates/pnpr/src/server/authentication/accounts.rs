@@ -12,7 +12,7 @@ pub(super) async fn active_account_name(
     user_id: &str,
 ) -> Result<String, RegistryError> {
     let username = state.inner.identity.auth.users
-        .account_name(user_id)
+        .active_account_name(user_id)
         .await?
         .ok_or_else(|| RegistryError::Unauthenticated {
             resource: "an inactive account".to_string(),

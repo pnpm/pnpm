@@ -449,8 +449,12 @@ CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(512) NOT NULL PRIMARY KEY,
     username VARCHAR(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
     username_skeleton_hash VARCHAR(512) UNIQUE,
-    bcrypt_hash LONGTEXT NOT NULL,
-    name_revision BIGINT NOT NULL DEFAULT 0
+    status VARCHAR(512) NOT NULL,
+    credential_kind VARCHAR(512) NOT NULL,
+    password_hash LONGTEXT,
+    created_at BIGINT NOT NULL,
+    name_revision BIGINT NOT NULL DEFAULT 0,
+    status_revision BIGINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Bearer tokens for SQL-backed and local SQLite auth.
@@ -463,10 +467,10 @@ CREATE TABLE IF NOT EXISTS tokens (
     cidr_whitelist VARCHAR(4096) NOT NULL DEFAULT '[]',
     name VARCHAR(512),
     expires_at BIGINT,
-    scopes LONGTEXT,
     kind VARCHAR(512)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX tokens_user_id ON tokens (user_id);
+CREATE INDEX tokens_expires_at ON tokens (expires_at);
 
 -- Monotonic and reconciled counters for SQL-backed auth.
 CREATE TABLE IF NOT EXISTS auth_counters (

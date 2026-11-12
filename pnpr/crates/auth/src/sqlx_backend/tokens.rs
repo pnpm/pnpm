@@ -1,6 +1,6 @@
 use super::{
     super::{NewToken, TokenBackend, TokenRecord, sha256_hex, token_store::mint_token},
-    AuthSqlBackend, Ordering, Result, SqlAuth, unix_millis, with_auth_timeout,
+    AuthSqlBackend, Result, SqlAuth, unix_millis, with_auth_timeout,
 };
 use async_trait::async_trait;
 
@@ -14,8 +14,7 @@ where
         user_id: &str,
         new_token: NewToken,
     ) -> Result<(String, TokenRecord)> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, user_id);
+        let raw = mint_token();
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_millis();
         let record = TokenRecord {
@@ -27,7 +26,6 @@ where
             cidr_whitelist: new_token.cidr_whitelist,
             name: new_token.name,
             expires_at: new_token.expires_at,
-            scopes: new_token.scopes,
             kind: new_token.kind,
         };
         self.db.insert_token(&token_hash, &record).await?;
@@ -77,6 +75,16 @@ where
         };
         self.db.delete_token(key).await?;
         Ok(Some(record))
+    }
+
+    async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
+        let removed = self.db.delete_user_tokens(user_id).await?;
+        Ok(usize::try_from(removed).unwrap_or(usize::MAX))
+    }
+
+    async fn delete_expired(&self, now: u64) -> Result<usize> {
+        let removed = with_auth_timeout(self.timeout, self.db.delete_expired_tokens(now)).await?;
+        Ok(usize::try_from(removed).unwrap_or(usize::MAX))
     }
 
     async fn check_readiness(&self) -> Result<()> {

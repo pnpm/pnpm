@@ -1,6 +1,6 @@
 use super::{
-    LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params,
-    retry_database_conflicts, validate_username,
+    AccountStatus, LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params,
+    retry_database_conflicts, token_timestamp_to_sql, unix_millis, validate_username,
 };
 use crate::validation::name_revision_bounds;
 
@@ -8,7 +8,7 @@ impl LibsqlAuth {
     pub(super) async fn list_accounts_impl(&self) -> Result<Vec<crate::UserAccount>> {
         self.pool.read(|conn| async move {
             let rows = conn.query(
-                "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+                "SELECT id, username FROM users WHERE status <> 'deleted' ORDER BY username",
                 (),
             )
             .await?;
@@ -25,7 +25,7 @@ impl LibsqlAuth {
         let ids = ids.as_str();
         self.pool.read(|conn| async move {
             let rows = conn.query(
-                "SELECT id, username FROM users WHERE id IN (SELECT value FROM json_each(?1)) AND bcrypt_hash <> '!'",
+                "SELECT id, username FROM users WHERE id IN (SELECT value FROM json_each(?1)) AND status <> 'deleted'",
                 params![ids],
             ).await?;
             collect_accounts(rows).await
@@ -36,12 +36,19 @@ impl LibsqlAuth {
         validate_username(username)?;
         let id = crate::new_principal_id();
         let id_ref = id.as_str();
+        let created_at = token_timestamp_to_sql(unix_millis());
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 let inserted = tx.execute(
-                    "INSERT INTO users (id, username, bcrypt_hash, username_skeleton_hash) VALUES (?1, ?2, '*', ?3)",
-                    params![id_ref, username, crate::validation::username_skeleton_hash(username)],
+                    "INSERT INTO users (id, username, username_skeleton_hash, status, credential_kind, password_hash, created_at)
+                     VALUES (?1, ?2, ?3, 'active', 'none', NULL, ?4)",
+                    params![
+                        id_ref,
+                        username,
+                        crate::validation::username_skeleton_hash(username),
+                        created_at,
+                    ],
                 )
                 .await;
                 match inserted {
@@ -70,20 +77,59 @@ impl LibsqlAuth {
 
     pub(super) async fn account_id_by_name(&self, username: &str) -> Result<Option<String>> {
         Ok(self
-            .stored_hash(username)
+            .stored_account(username)
             .await?
-            .filter(|(hash, _)| hash != crate::DELETED_USER_HASH)
-            .map(|(_, id)| id))
+            .filter(|account| !account.status.is_deleted())
+            .map(|account| account.id))
+    }
+
+    pub(super) async fn active_account_id_by_name(&self, username: &str) -> Result<Option<String>> {
+        Ok(self
+            .stored_account(username)
+            .await?
+            .filter(|account| account.status.is_active())
+            .map(|account| account.id))
     }
 
     pub(super) async fn account_name_by_id(&self, user_id: &str) -> Result<Option<String>> {
         self.pool.read(|conn| async move {
             let rows = conn.query(
-                "SELECT username FROM users WHERE id = ?1 AND bcrypt_hash <> '!'",
+                "SELECT username FROM users WHERE id = ?1 AND status <> 'deleted'",
                 params![user_id],
             )
             .await?;
             first_row(rows, |row| Ok(row.get::<String>(0)?)).await
+        })
+        .await
+    }
+
+    pub(super) async fn active_account_name_by_id(&self, user_id: &str) -> Result<Option<String>> {
+        self.pool.read(|conn| async move {
+            let rows = conn.query(
+                "SELECT username FROM users WHERE id = ?1 AND status = 'active'",
+                params![user_id],
+            )
+            .await?;
+            first_row(rows, |row| Ok(row.get::<String>(0)?)).await
+        })
+        .await
+    }
+
+    pub(super) async fn account_status_by_id(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<AccountStatus>> {
+        self.pool.read(|conn| async move {
+            let rows =
+                conn.query("SELECT status FROM users WHERE id = ?1", params![user_id]).await?;
+            let Some(raw) = first_row(rows, |row| Ok(row.get::<String>(0)?)).await? else {
+                return Ok(None);
+            };
+            let status = AccountStatus::parse(&raw)
+                .ok_or_else(|| RegistryError::Internal {
+                    reason: format!("user {user_id} has an unrecognized status {raw:?}"),
+                })?;
+            Ok(Some(status))
         })
         .await
     }
@@ -94,7 +140,7 @@ impl LibsqlAuth {
     ) -> Result<Option<crate::AccountLogin>> {
         self.pool.read(|conn| async move {
             let rows = conn.query(
-                "SELECT username, name_revision FROM users WHERE id = ?1 AND bcrypt_hash <> '!'",
+                "SELECT username, name_revision FROM users WHERE id = ?1 AND status <> 'deleted'",
                 params![user_id],
             )
             .await?;
@@ -116,7 +162,7 @@ impl LibsqlAuth {
                 match tx.execute(
                     "UPDATE users
                      SET username = ?2, username_skeleton_hash = ?3, name_revision = name_revision + 1
-                     WHERE id = ?1 AND bcrypt_hash <> '!'",
+                     WHERE id = ?1 AND status <> 'deleted'",
                     params![user_id, username, crate::validation::username_skeleton_hash(username)],
                 )
                 .await
@@ -210,7 +256,7 @@ async fn execute_conditional_rename(
 ) -> Result<PrimaryRename> {
     let tx = conn.transaction().await?;
     let rows = tx.query(
-        "SELECT username, name_revision FROM users WHERE id = ?1 AND bcrypt_hash <> '!'",
+        "SELECT username, name_revision FROM users WHERE id = ?1 AND status <> 'deleted'",
         params![user_id],
     )
     .await?;
@@ -238,7 +284,7 @@ async fn apply_primary_rename(
     let skeleton = crate::validation::username_skeleton_hash(username);
     match tx.execute(
         "UPDATE users SET username = ?2, username_skeleton_hash = ?3, name_revision = ?4
-         WHERE id = ?1 AND name_revision = ?5 AND bcrypt_hash <> '!'",
+         WHERE id = ?1 AND name_revision = ?5 AND status <> 'deleted'",
         params![user_id, username, skeleton, next, expected],
     )
     .await

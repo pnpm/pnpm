@@ -1,7 +1,5 @@
-use super::{Connection, HashMap, RegistryError, Result, TokenRecord};
-use crate::validation::{
-    token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
-};
+use super::{Connection, HashMap, RegistryError, Result, TokenKind, TokenRecord};
+use crate::validation::{token_timestamp_from_sql, token_timestamp_to_sql};
 
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
     pnpr_sql::sqlite::ensure_schema(conn, "SQLite auth database")
@@ -14,9 +12,9 @@ fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
         .map_err(|err| RegistryError::Internal {
             reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
         })?;
-    let scopes_json: Option<String> = row.get(8)?;
-    let scopes = token_scopes_from_sql(scopes_json.as_deref(), &hash)?;
     let expires_at: Option<i64> = row.get(7)?;
+    let raw_kind: Option<String> = row.get(8)?;
+    let kind = TokenKind::from_sql(raw_kind.as_deref(), &hash)?;
     Ok((
         hash,
         TokenRecord {
@@ -28,15 +26,14 @@ fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
             cidr_whitelist,
             name: row.get(6)?,
             expires_at: expires_at.map(token_timestamp_from_sql),
-            scopes,
-            kind: row.get(9)?,
+            kind,
         },
     ))
 }
 
 pub(crate) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
+        "SELECT token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, kind
          FROM tokens",
     )?;
     let mut rows = stmt.query([])?;
@@ -53,6 +50,20 @@ pub(crate) fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn delete_user_tokens(conn: &Connection, user_id: &str) -> Result<usize> {
+    let removed =
+        conn.execute("DELETE FROM tokens WHERE user_id = ?1", rusqlite::params![user_id])?;
+    Ok(removed)
+}
+
+pub(crate) fn delete_expired_tokens(conn: &Connection, now: u64) -> Result<usize> {
+    let removed = conn.execute(
+        "DELETE FROM tokens WHERE expires_at IS NOT NULL AND expires_at <= ?1",
+        rusqlite::params![token_timestamp_to_sql(now)],
+    )?;
+    Ok(removed)
+}
+
 pub(crate) fn insert_token(
     conn: &Connection,
     token_hash: &str,
@@ -60,10 +71,9 @@ pub(crate) fn insert_token(
 ) -> Result<()> {
     let cidr_json = serde_json::to_string(&record.cidr_whitelist)
         .expect("Vec<String> always serializes to JSON");
-    let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
     conn.execute(
-        "INSERT INTO tokens (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO tokens (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, kind)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         rusqlite::params![
             token_hash,
             record.user_id,
@@ -73,8 +83,7 @@ pub(crate) fn insert_token(
             cidr_json,
             record.name.as_deref(),
             record.expires_at.map(token_timestamp_to_sql),
-            scopes_json.as_deref(),
-            record.kind.as_deref(),
+            record.kind.map(TokenKind::as_str),
         ],
     )?;
     Ok(())

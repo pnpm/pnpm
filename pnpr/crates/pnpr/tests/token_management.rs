@@ -124,7 +124,12 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_json(res.into_body()).await;
-    assert_eq!(body["token"].as_str().unwrap().len(), 32);
+    let raw_token = body["token"].as_str().unwrap();
+    assert_eq!(raw_token.len(), pnpr_auth::PERSONAL_TOKEN_LEN);
+    assert!(raw_token.starts_with(pnpr_auth::PERSONAL_TOKEN_PREFIX));
+    assert!(pnpr_auth::has_valid_personal_token_checksum(raw_token));
+    assert!(body.get("scopes").is_none());
+    assert!(body.get("kind").is_none());
     assert_eq!(
         body["user"].as_str(),
         crate::tokens::account_id(&app, "alice", Some(&login_token)).await.as_deref(),
@@ -155,6 +160,7 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
         .find(|token| token["name"] == "ci-token")
         .expect("found created token");
     assert_eq!(found["readonly"], true);
+    assert!(found.get("kind").is_none());
     assert_eq!(found["token"].as_str().unwrap(), &body["key"].as_str().unwrap()[..6]);
 }
 
@@ -164,19 +170,22 @@ async fn create_token_with_kind() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
 
-    let payload = json!({
-        "password": "secret123",
-        "kind": "granular"
-    });
+    for kind in ["classic", "granular"] {
+        let payload = json!({
+            "password": "secret123",
+            "kind": kind,
+        });
 
-    let res = app
-        .clone()
-        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let body = body_json(res.into_body()).await;
-    assert_eq!(body["kind"], "granular");
+        let res = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = body_json(res.into_body()).await;
+        assert_eq!(body["kind"], kind);
+        assert!(body.get("scopes").is_none());
+    }
 
     let list_res = app
         .clone()
@@ -186,6 +195,17 @@ async fn create_token_with_kind() {
     assert_eq!(list_res.status(), StatusCode::OK);
     let list_body = body_json(list_res.into_body()).await;
     let tokens = list_body["objects"].as_array().expect("array of tokens");
+    assert!(
+        tokens
+            .iter()
+            .all(|token| token.get("scopes").is_none()),
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|token| token["kind"] == "classic"),
+        "expected classic token in listing",
+    );
     assert!(
         tokens
             .iter()
@@ -351,22 +371,24 @@ async fn create_token_rejects_unsupported_granular_restrictions_without_minting(
 }
 
 #[tokio::test]
-async fn create_token_rejects_overlong_kind() {
+async fn create_token_rejects_unknown_kind() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
 
-    let payload = json!({
-        "password": "secret123",
-        "kind": "a".repeat(65),
-    });
+    for invalid in ["custom".to_string(), String::new(), "CLASSIC".to_string(), "a".repeat(65)] {
+        let payload = json!({
+            "password": "secret123",
+            "kind": invalid,
+        });
 
-    let res = app
-        .clone()
-        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let res = app
+            .clone()
+            .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "kind {invalid:?}");
+    }
 }
 
 #[tokio::test]

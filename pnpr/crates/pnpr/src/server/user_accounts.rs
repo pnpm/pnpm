@@ -96,7 +96,7 @@ pub(crate) async fn get_user(
 }
 
 async fn active_account_id(state: &AppState, name: &str) -> Result<Option<String>, RegistryError> {
-    let Some(id) = state.inner.identity.auth.users.account_id(name).await? else {
+    let Some(id) = state.inner.identity.auth.users.active_account_id(name).await? else {
         return Ok(None);
     };
     Ok((!super::scim::is_deprovisioned(state, &id)?).then_some(id))
@@ -224,7 +224,7 @@ async fn log_in(
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(deprovisioned(name));
     }
-    let Some(current_name) = users.account_name(&id).await? else {
+    let Some(current_name) = users.active_account_name(&id).await? else {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
         return Err(RegistryError::Unauthenticated { resource: format!("account {id:?}") });
     };

@@ -172,6 +172,10 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     let token = token.unwrap();
     let path = format!("{USERS}/{id}");
     assert_eq!(scim(&app, "PATCH", &path, Some(deactivate())).await.0, StatusCode::OK);
+    assert_eq!(
+        auth.users.account_status(id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Deactivated),
+    );
     assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
     assert_eq!(
@@ -184,15 +188,15 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     );
     let (_, reactivated) = scim(&app, "PUT", &path, Some(new_user("alice"))).await;
     assert_eq!(reactivated["id"], id);
+    assert_eq!(
+        auth.users.account_status(id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Active),
+    );
     assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(
-        auth.users
-            .password_hash("alice")
-            .await
-            .unwrap()
-            .as_deref(),
-        Some(pnpr_auth::NO_PASSWORD_HASH),
+        auth.users.credential("alice").await.unwrap(),
+        Some(pnpr_auth::AccountCredential::None),
     );
     let signed_in = auth.tokens.issue(id).await.unwrap();
     let (status, created_token) =
@@ -498,5 +502,252 @@ async fn failed_scim_rollback_never_undoes_a_newer_claimed_login_name() {
             .unwrap()
             .as_deref(),
         Some("carol"),
+    );
+}
+
+#[tokio::test]
+async fn concurrent_scim_activation_and_deactivation_stay_ordered_across_replicas() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret123").await.unwrap();
+    let root_id = auth.users
+        .account_id("root")
+        .await
+        .unwrap()
+        .unwrap();
+    let root_token = auth.tokens.issue(&root_id).await.unwrap();
+
+    let mut config_a = load_config(dir.path());
+    config_a.identity.admins.insert(root_id);
+    let config_b = config_a.clone();
+
+    let replica_a = router_with_auth(config_a, auth.clone());
+    let replica_b = router_with_auth(config_b, auth.clone());
+
+    let (_, alice) = scim(&replica_a, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+    let user_path = format!("{USERS}/{alice_id}");
+
+    // Exercise concurrent cross-replica toggles in both orders and assert
+    // scim_users.active and users.status never diverge afterward.
+    for round in 0..8 {
+        let mut active_doc = new_user("alice");
+        active_doc["displayName"] = json!(format!("round-{round}-active"));
+        let mut inactive_doc = new_user("alice");
+        inactive_doc["active"] = json!(false);
+        inactive_doc["displayName"] = json!(format!("round-{round}-inactive"));
+
+        let (doc_a, doc_b) =
+            if round % 2 == 0 { (inactive_doc, active_doc) } else { (active_doc, inactive_doc) };
+        let write_a = scim(&replica_a, "PUT", &user_path, Some(doc_a));
+        let write_b = scim(&replica_b, "PUT", &user_path, Some(doc_b));
+        let (res_a, res_b) = tokio::join!(write_a, write_b);
+        assert!(res_a.0 == StatusCode::OK || res_a.0 == StatusCode::CONFLICT, "{res_a:?}");
+        assert!(res_b.0 == StatusCode::OK || res_b.0 == StatusCode::CONFLICT, "{res_b:?}");
+
+        let (get_status, current) = scim(&replica_a, "GET", &user_path, None).await;
+        assert_eq!(get_status, StatusCode::OK);
+        let expected_status = if current["active"] == true {
+            pnpr_auth::AccountStatus::Active
+        } else {
+            pnpr_auth::AccountStatus::Deactivated
+        };
+        assert_eq!(auth.users.account_status(alice_id).await.unwrap(), Some(expected_status));
+    }
+
+    // Stale generation from a paused deactivation must not clobber a newer
+    // reactivation or its post-reactivation credentials.
+    assert_eq!(scim(&replica_a, "PATCH", &user_path, Some(deactivate())).await.0, StatusCode::OK);
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let stale_gen = storage
+        .read_scim_user(alice_id)
+        .await
+        .unwrap()
+        .unwrap()
+        .generation;
+
+    // Deactivated SCIM accounts remain visible in the admin user listing.
+    let (admin_status, admin_list) =
+        send(&replica_a, "GET", "/-/pnpr/v0/admin/users", Some(&root_token), None).await;
+    assert_eq!(admin_status, StatusCode::OK);
+    assert!(
+        admin_list["users"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["id"] == alice_id && entry["name"] == "alice"),
+    );
+
+    assert_eq!(
+        scim(&replica_b, "PUT", &user_path, Some(new_user("alice"))).await.0,
+        StatusCode::OK,
+    );
+    auth.users.set_password(alice_id, "secret123").await.unwrap();
+    let fresh_token = auth.tokens.issue(alice_id).await.unwrap();
+    assert_eq!(
+        auth.apply_account_status(alice_id, stale_gen, pnpr_auth::AccountLifecycle::Deactivated)
+            .await
+            .unwrap(),
+        pnpr_auth::AccountStatusOutcome::Superseded,
+    );
+    assert_eq!(
+        auth.users.account_status(alice_id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Active),
+    );
+    assert_eq!(whoami(&replica_b, &fresh_token).await, StatusCode::OK);
+    assert_eq!(log_in(&replica_b, "alice").await.0, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn status_transitions_do_not_block_rollback_of_aborted_scim_rename() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path());
+    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = config.storage
+        .metadata
+        .clone()
+    else {
+        unreachable!();
+    };
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(config, auth.clone());
+
+    let (_, alice) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+    let user_path = format!("{USERS}/{alice_id}");
+
+    // Claim a conditional rename, run intervening status-only SCIM patches, and
+    // verify name_revision stayed untouched so the rename rollback still succeeds.
+    let initial = auth.users
+        .account_login(alice_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let pnpr_auth::UserRename::Renamed(claimed_rev) = auth.users
+        .rename_user_if_current(alice_id, initial.revision, "alice-claimed")
+        .await
+        .unwrap()
+    else {
+        unreachable!();
+    };
+    assert_eq!(scim(&app, "PATCH", &user_path, Some(deactivate())).await.0, StatusCode::OK);
+    let reactivate = json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [{ "op": "replace", "path": "active", "value": true }],
+    });
+    assert_eq!(scim(&app, "PATCH", &user_path, Some(reactivate)).await.0, StatusCode::OK);
+    let restored = auth.users.rename_user_if_current(alice_id, claimed_rev, "alice").await.unwrap();
+    assert!(matches!(restored, pnpr_auth::UserRename::Renamed(_)));
+
+    // Also verify end-to-end PATCH rename rollback after those SCIM status toggles.
+    let conn = rusqlite::Connection::open(&sqlite_path).unwrap();
+    conn.execute_batch(
+        "CREATE TRIGGER fail_scim_rename BEFORE UPDATE ON scim_users
+         BEGIN SELECT RAISE(ABORT, 'simulated failure'); END;",
+    )
+    .unwrap();
+    drop(conn);
+    let rename_patch = json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [{ "op": "replace", "path": "userName", "value": "alice-renamed" }],
+    });
+    assert_eq!(
+        scim(&app, "PATCH", &user_path, Some(rename_patch)).await.0,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    );
+    assert_eq!(
+        auth.users
+            .account_name(alice_id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+}
+
+#[tokio::test]
+async fn directory_reload_reconciles_uncommitted_account_status_transitions() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+
+    let (_, alice) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+    auth.users.set_password(alice_id, "secret123").await.unwrap();
+    let token = auth.tokens.issue(alice_id).await.unwrap();
+
+    // Simulate a SCIM deactivation committing to `scim_users` before `users.status`
+    // could be updated or tokens/passwords cleaned up.
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let current = storage
+        .read_scim_user(alice_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let pnpr_storage::metadata::ScimUserWrite::Written(deactivated) = storage
+        .replace_scim_user(
+            Some(current.generation),
+            pnpr_storage::metadata::NewScimUser {
+                user_id: alice_id.to_string(),
+                active: false,
+                attributes: current.attributes.clone(),
+            },
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("expected scim deactivation write");
+    };
+    assert_eq!(
+        auth.users.account_status(alice_id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Active),
+    );
+
+    let replica_one = router_with_auth(load_config(dir.path()), auth.clone());
+    assert_eq!(whoami(&replica_one, &token).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        auth.users.account_status(alice_id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Deactivated),
+    );
+    assert_eq!(log_in(&replica_one, "alice").await.0, StatusCode::FORBIDDEN);
+
+    // Simulate a SCIM reactivation committing to `scim_users` without yet updating `users.status`.
+    let reactivated = storage
+        .replace_scim_user(
+            Some(deactivated.generation),
+            pnpr_storage::metadata::NewScimUser {
+                user_id: alice_id.to_string(),
+                active: true,
+                attributes: current.attributes,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(matches!(reactivated, pnpr_storage::metadata::ScimUserWrite::Written(_)));
+    let replica_two = router_with_auth(load_config(dir.path()), auth.clone());
+    assert_eq!(scim(&replica_two, "GET", USERS, None).await.0, StatusCode::OK);
+    assert_eq!(
+        auth.users.account_status(alice_id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Active),
+    );
+    assert_eq!(whoami(&replica_two, &token).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(log_in(&replica_two, "alice").await.0, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn activating_an_admin_deleted_scim_user_returns_not_found() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+
+    let (_, alice) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let alice_id = alice["id"].as_str().unwrap();
+    auth.users.delete_user(alice_id).await.unwrap();
+
+    let (status, _) =
+        scim(&app, "PUT", &format!("{USERS}/{alice_id}"), Some(new_user("alice"))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        auth.users.account_status(alice_id).await.unwrap(),
+        Some(pnpr_auth::AccountStatus::Deleted),
     );
 }

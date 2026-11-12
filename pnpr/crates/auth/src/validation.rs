@@ -88,28 +88,6 @@ pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
     i64::try_from(timestamp).unwrap_or(i64::MAX)
 }
 
-pub(crate) fn token_scopes_from_sql(
-    scopes_json: Option<&str>,
-    token_hash: &str,
-) -> Result<Option<Vec<String>>> {
-    match scopes_json {
-        Some(raw) => {
-            let scopes = serde_json::from_str(raw)
-                .map_err(|err| RegistryError::Internal {
-                    reason: format!("token {token_hash} has an unreadable scopes list: {err}"),
-                })?;
-            Ok(Some(scopes))
-        }
-        None => Ok(None),
-    }
-}
-
-pub(crate) fn token_scopes_to_sql(scopes: Option<&[String]>) -> Option<String> {
-    scopes.map(|scopes_list| {
-        serde_json::to_string(scopes_list).expect("Vec<String> always serializes to JSON")
-    })
-}
-
 fn fold_case(text: &str) -> String {
     let mut folded = String::with_capacity(text.len());
     for character in text.chars() {
@@ -172,4 +150,11 @@ pub(crate) fn name_revision_bounds(expected_revision: u64) -> Result<Option<(i64
             reason: "account name revision overflowed".to_string(),
         })?;
     Ok(Some((expected, next, next_revision)))
+}
+
+pub(crate) fn status_revision_to_sql(revision: u64) -> Result<i64> {
+    i64::try_from(revision)
+        .map_err(|_| RegistryError::Internal {
+            reason: "account status revision overflowed".to_string(),
+        })
 }

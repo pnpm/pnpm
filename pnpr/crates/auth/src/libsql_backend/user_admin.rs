@@ -1,6 +1,7 @@
 use super::{
-    DEFAULT_BCRYPT_COST, LibsqlAuth, PasswordChange, Result, UserCreation, UserRemoval,
-    hash_bcrypt, is_unique_violation, params, retry_database_conflicts, validate_username,
+    CredentialKind, DEFAULT_BCRYPT_COST, LibsqlAuth, PasswordChange, Result, UserCreation,
+    UserRemoval, hash_bcrypt, is_unique_violation, params, retry_database_conflicts,
+    token_timestamp_to_sql, unix_millis, validate_username,
 };
 use pnpr_error::RegistryError;
 
@@ -14,7 +15,7 @@ impl LibsqlAuth {
     pub(super) async fn list_usernames(&self) -> Result<Vec<String>> {
         self.pool.read(|conn| async move {
             let mut rows = conn.query(
-                "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+                "SELECT username FROM users WHERE status <> 'deleted' ORDER BY username",
                 (),
             )
             .await?;
@@ -36,28 +37,13 @@ impl LibsqlAuth {
         crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let hash = hash.as_str();
+        let kind = CredentialKind::for_optional_hash(Some(hash)).as_str();
         let id = crate::new_principal_id();
-        let id_ref = id.as_str();
+        let id = id.as_str();
+        let created_at = token_timestamp_to_sql(unix_millis());
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
-                let tx = conn.transaction().await?;
-                let inserted = tx.execute(
-                    "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
-                    params![username, hash, id_ref, crate::validation::username_skeleton_hash(username)],
-                )
-                .await;
-                match inserted {
-                    Ok(_) => {
-                        tx.execute(COUNT_ONE_MORE, ()).await?;
-                        tx.commit().await?;
-                        Ok(UserCreation::Created(id_ref.to_string()))
-                    }
-                    Err(err) if is_unique_violation(&err) => {
-                        tx.rollback().await?;
-                        Ok(UserCreation::NameTaken)
-                    }
-                    Err(err) => Err(RegistryError::from(err)),
-                }
+                insert_admin_user_in_tx(&conn, id, username, kind, hash, created_at).await
             })
         })
         .await
@@ -70,20 +56,27 @@ impl LibsqlAuth {
     ) -> Result<PasswordChange> {
         crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        self.replace_password_hash(user_id, &hash).await
+        self.replace_password_hash(user_id, Some(&hash)).await
     }
 
     pub(super) async fn replace_password_hash(
         &self,
         user_id: &str,
-        hash: &str,
+        hash: Option<&str>,
     ) -> Result<PasswordChange> {
+        let kind = match hash {
+            Some(hash) => CredentialKind::from_hash(hash)
+                .expect("replace_password_hash requires a supported hash")
+                .as_str(),
+            None => CredentialKind::None.as_str(),
+        };
         let updated = retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 Ok::<_, RegistryError>(
                     conn.execute(
-                        "UPDATE users SET bcrypt_hash = ?2 WHERE id = ?1 AND bcrypt_hash <> '!'",
-                        params![user_id, hash],
+                        "UPDATE users SET credential_kind = ?2, password_hash = ?3
+                         WHERE id = ?1 AND status <> 'deleted'",
+                        params![user_id, kind, hash],
                     )
                     .await?,
                 )
@@ -104,14 +97,22 @@ impl LibsqlAuth {
         expected_hash: &str,
         hash: &str,
     ) -> Result<bool> {
+        let kind = CredentialKind::from_hash(hash)
+            .expect("replace_password_hash_if_current requires a supported hash")
+            .as_str();
         let updated = retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
-                Ok::<_, RegistryError>(conn.execute(
-                    "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3 AND bcrypt_hash <> '!'",
-                    params![hash, user_id, expected_hash],
-                ).await?)
+                Ok::<_, RegistryError>(
+                    conn.execute(
+                        "UPDATE users SET credential_kind = ?1, password_hash = ?2
+                         WHERE id = ?3 AND password_hash = ?4 AND status = 'active'",
+                        params![kind, hash, user_id, expected_hash],
+                    )
+                    .await?,
+                )
             })
-        }).await?;
+        })
+        .await?;
         if updated > 0 {
             self.sync_after_password_change(user_id).await?;
         }
@@ -134,12 +135,54 @@ impl LibsqlAuth {
     }
 }
 
+async fn insert_admin_user_in_tx(
+    conn: &libsql::Connection,
+    id: &str,
+    username: &str,
+    kind: &str,
+    hash: &str,
+    created_at: i64,
+) -> Result<UserCreation> {
+    let tx = conn.transaction().await?;
+    let inserted = tx.execute(
+        "INSERT INTO users (id, username, username_skeleton_hash, status, credential_kind, password_hash, created_at)
+         VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6)",
+        params![
+            id,
+            username,
+            crate::validation::username_skeleton_hash(username),
+            kind,
+            hash,
+            created_at,
+        ],
+    )
+    .await;
+    match inserted {
+        Ok(_) => {
+            tx.execute(COUNT_ONE_MORE, ()).await?;
+            tx.commit().await?;
+            Ok(UserCreation::Created(id.to_string()))
+        }
+        Err(err) if is_unique_violation(&err) => {
+            tx.rollback().await?;
+            Ok(UserCreation::NameTaken)
+        }
+        Err(err) => Err(RegistryError::from(err)),
+    }
+}
+
 async fn remove_user_in_transaction(
     conn: &libsql::Connection,
     user_id: &str,
 ) -> Result<UserRemoval> {
     let tx = conn.transaction().await?;
-    let statement = "UPDATE users SET username = 'deleted:' || id, username_skeleton_hash = NULL, bcrypt_hash = '!' WHERE id = ?1 AND bcrypt_hash <> '!'";
+    let statement = "UPDATE users
+                     SET username = 'deleted:' || id,
+                         username_skeleton_hash = NULL,
+                         status = 'deleted',
+                         credential_kind = 'none',
+                         password_hash = NULL
+                     WHERE id = ?1 AND status <> 'deleted'";
     let removed = tx.execute(statement, params![user_id]).await?;
     if removed > 0 {
         tx.execute(COUNT_ONE_LESS, ()).await?;

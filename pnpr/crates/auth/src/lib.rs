@@ -13,18 +13,27 @@
 pub mod oidc;
 pub(crate) mod validation;
 
+pub use account::{
+    AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
+    AccountStatusRevision, CredentialKind, PasswordChange, UpsertOutcome, UserCreation,
+    UserRemoval, UserRename, verify_returning_user,
+};
 pub use htpasswd::{
     dummy_verify, is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line,
-    verify_bcrypt, verify_returning_user, write_atomic,
+    verify_bcrypt, write_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
 pub use owned_tokens::OwnedTokens;
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
-pub use token_store::{NewToken, TokenRecord, TokenStore, unix_millis};
+pub use token_store::{
+    NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord, TokenStore,
+    has_valid_personal_token_checksum, unix_millis,
+};
 pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
+mod account;
 mod htpasswd;
 mod password_login;
 use htpasswd::hash_bcrypt;
@@ -43,7 +52,6 @@ use libsql_backend::LibsqlAuth;
 use pnpr_config::{AuthConfig, BackendConfig, MaxUsers};
 use pnpr_error::{RegistryError, Result};
 use rusqlite::Connection;
-use sha2::{Digest, Sha256};
 #[cfg(feature = "backend-mysql")]
 use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
@@ -133,65 +141,29 @@ impl AuthState {
         self.tokens.revoke_all_for_user(user_id).await
     }
 
-    /// Create an account with `username`, or change the existing account
-    /// password. `None` means a concurrent writer removed the account.
-    pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
-        match self.users.create_user(username, password).await? {
-            UserCreation::Created(user_id) => Ok(Some(UserPut::Created { user_id })),
-            UserCreation::NameTaken => {
-                let Some(id) = self.users.account_id(username).await? else {
-                    return Ok(None);
-                };
-                match self.change_password(&id, password).await? {
-                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged { user_id: id })),
-                    // Another caller removed the user between the two calls.
-                    PasswordChange::NoSuchUser => Ok(None),
-                }
-            }
-        }
-    }
-
-    /// Replace a password and revoke every bearer token for the account.
-    pub async fn change_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
-        let outcome = self.users.set_password(user_id, password).await;
-        self.revoke_after_password_change(user_id, outcome, |change| {
-            matches!(change, PasswordChange::Changed)
-        })
-        .await
-    }
-
-    /// Change a verified password without overwriting a concurrent reset.
-    pub async fn change_password_if_current(
+    /// Apply a generation-ordered lifecycle transition to `user_id`, clearing
+    /// any stored password and revoking bearer tokens when deactivating.
+    pub async fn apply_account_status(
         &self,
         user_id: &str,
-        password: &str,
-        expected_hash: &str,
-    ) -> Result<bool> {
-        let outcome = self.users.set_password_if_current(user_id, password, expected_hash).await;
-        self.revoke_after_password_change(user_id, outcome, |changed| *changed).await
-    }
-
-    async fn revoke_after_password_change<Outcome: Send>(
-        &self,
-        user_id: &str,
-        outcome: Result<Outcome>,
-        changed: impl FnOnce(&Outcome) -> bool + Send,
-    ) -> Result<Outcome> {
-        let committed = match &outcome {
-            Ok(outcome) => changed(outcome),
-            Err(error) => error.committed_password_user().is_some(),
-        };
-        if committed && let Err(source) = self.revoke_all_tokens(user_id).await {
-            if let Err(original) = &outcome {
-                tracing::error!(error = %source.log_message(), "Revoking tokens after a committed password change failed");
-                tracing::error!(error = %original.log_message(), "The password change also failed to refresh its replica");
+        revision: u64,
+        lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        let outcome = self.users.apply_account_status(user_id, revision, lifecycle).await?;
+        match (outcome, lifecycle) {
+            (AccountStatusOutcome::Applied, AccountLifecycle::Deactivated)
+                if !self.users.revokes_tokens_in_status_transition() =>
+            {
+                self.tokens.revoke_all_for_user(user_id).await?;
             }
-            return Err(RegistryError::PasswordChangeCommitted {
-                user_id: user_id.to_string(),
-                source: Box::new(source),
-            });
+            (
+                AccountStatusOutcome::Applied
+                | AccountStatusOutcome::Superseded
+                | AccountStatusOutcome::Missing,
+                AccountLifecycle::Active | AccountLifecycle::Deactivated,
+            ) => {}
         }
-        outcome
+        Ok(outcome)
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.
@@ -318,10 +290,10 @@ pub trait UserBackend: Send + Sync {
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
 
-    /// Active account login names, sorted.
+    /// Non-deleted account login names, sorted.
     async fn list_users(&self) -> Result<Vec<String>>;
 
-    /// Active account IDs and login names, sorted by login name.
+    /// Non-deleted account IDs and login names, sorted by login name.
     async fn list_accounts(&self) -> Result<Vec<UserAccount>> {
         let mut accounts = Vec::new();
         for username in self.list_users().await? {
@@ -332,7 +304,7 @@ pub trait UserBackend: Send + Sync {
         Ok(accounts)
     }
 
-    /// Active accounts matching the requested immutable IDs. Missing IDs are omitted.
+    /// Non-deleted accounts matching the requested immutable IDs. Missing or deleted IDs are omitted.
     async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<UserAccount>> {
         let mut accounts = Vec::new();
         for id in user_ids {
@@ -343,9 +315,9 @@ pub trait UserBackend: Send + Sync {
         Ok(accounts)
     }
 
-    /// The credential hash of an active login name. Passwordless accounts
-    /// contain [`NO_PASSWORD_HASH`]; missing or deleted accounts return `None`.
-    async fn password_hash(&self, username: &str) -> Result<Option<String>>;
+    /// The password credential of an active login name. Missing, deactivated,
+    /// or deleted accounts return `None`.
+    async fn credential(&self, username: &str) -> Result<Option<AccountCredential>>;
 
     /// Create `username` on an administrator's behalf. Not bound by the
     /// self-registration cap.
@@ -378,13 +350,68 @@ pub trait UserBackend: Send + Sync {
     /// Provision a passwordless account. A taken login name is a conflict.
     async fn provision_user(&self, username: &str) -> Result<String>;
 
-    /// Resolve an active login name to its immutable account ID.
+    /// Resolve a non-deleted login name to its immutable account ID.
     async fn account_id(&self, username: &str) -> Result<Option<String>>;
 
-    /// Resolve an active account ID to its current login name.
+    /// Resolve an active login name (`status = active`) to its immutable account ID.
+    async fn active_account_id(&self, username: &str) -> Result<Option<String>> {
+        let Some(id) = self.account_id(username).await? else {
+            return Ok(None);
+        };
+        Ok((self.account_status(&id).await? == Some(AccountStatus::Active)).then_some(id))
+    }
+
+    /// Resolve a non-deleted account ID to its current login name.
     async fn account_name(&self, user_id: &str) -> Result<Option<String>>;
 
-    /// Resolve an active account ID to its current login name and rename revision.
+    /// Resolve an active account ID (`status = active`) to its current login name.
+    async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
+        if self.account_status(user_id).await? != Some(AccountStatus::Active) {
+            return Ok(None);
+        }
+        self.account_name(user_id).await
+    }
+
+    /// Lifecycle status of the account identified by `user_id`, or `None` if unknown.
+    async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
+        Ok(self.account_name(user_id).await?.map(|_| AccountStatus::Active))
+    }
+
+    /// Lifecycle status and status revision for each known account in `user_ids`.
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<HashMap<String, AccountStatusRevision>> {
+        let mut revisions = HashMap::new();
+        for id in user_ids {
+            if let Some(status) = self.account_status(id).await? {
+                revisions.insert(id.clone(), AccountStatusRevision::reconciled(status, 0));
+            }
+        }
+        Ok(revisions)
+    }
+
+    /// Apply a generation-ordered lifecycle transition to `user_id` when its
+    /// stored `status_revision` has not moved past `revision`, clearing any
+    /// stored password when deactivating.
+    async fn apply_account_status(
+        &self,
+        _user_id: &str,
+        _revision: u64,
+        _lifecycle: AccountLifecycle,
+    ) -> Result<AccountStatusOutcome> {
+        Err(RegistryError::BadRequest {
+            reason: "Account status changes are not supported by this account backend".to_string(),
+        })
+    }
+
+    /// Whether [`Self::apply_account_status`] revokes `user_id`'s bearer tokens
+    /// atomically as part of a deactivation transition.
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        false
+    }
+
+    /// Resolve a non-deleted account ID to its current login name and rename revision.
     async fn account_login(&self, _user_id: &str) -> Result<Option<AccountLogin>> {
         Err(RegistryError::BadRequest {
             reason: "Conditional account renames are not supported by this account backend"
@@ -502,6 +529,11 @@ pub trait TokenBackend: Send + Sync {
         }
         Ok(revoked)
     }
+
+    /// Delete every token whose `expires_at` is at or before `now` (Unix milliseconds).
+    async fn delete_expired(&self, _now: u64) -> Result<usize> {
+        Ok(0)
+    }
 }
 
 /// Bcrypt cost factor used for new password hashes. Cost 10 is what
@@ -512,71 +544,13 @@ pub trait TokenBackend: Send + Sync {
 /// feel sluggish.
 pub const DEFAULT_BCRYPT_COST: u32 = 10;
 
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UpsertOutcome {
-    /// The user didn't exist; we created the account.
-    Created,
-    /// The user existed and the password matched.
-    LoggedIn,
-}
-
-/// What [`UserBackend::create_user`] did.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UserCreation {
-    /// The name was free; the account is stored under this immutable ID.
-    Created(String),
-    /// The name was taken, so the account it names is untouched.
-    NameTaken,
-}
-
-/// What [`UserBackend::set_password`] did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PasswordChange {
-    /// The account's password is the new one.
-    Changed,
-    /// There is no such account, so no password was stored.
-    NoSuchUser,
-}
-
-/// The outcome of removing an account.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UserRemoval {
-    /// The account is gone.
-    Removed,
-    /// There was no such account.
-    NoSuchUser,
-}
-
-/// An active account's login name and monotonic rename revision.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccountLogin {
-    pub username: String,
-    pub revision: u64,
-}
-
-/// What [`UserBackend::rename_user_if_current`] did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UserRename {
-    /// The account's login name is now at the returned revision.
-    Renamed(u64),
-    /// Another writer changed the account's login revision first.
-    CurrentChanged,
-}
-
 #[cfg(test)]
 mod retirement_tests;
 #[cfg(test)]
 mod tests;
-
-/// A deleted account credential that cannot authenticate.
-pub const DELETED_USER_HASH: &str = "!";
 
 /// Generate an opaque identity independently of any reusable name.
 #[must_use]
 pub fn new_principal_id() -> String {
     sha256_hex(&fresh_secret())
 }
-
-/// An account whose credentials are managed by an identity provider.
-pub const NO_PASSWORD_HASH: &str = "*";

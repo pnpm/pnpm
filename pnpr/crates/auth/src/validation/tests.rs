@@ -296,8 +296,20 @@ fn opening_accounts_file_rejects_confusable_active_accounts() {
     let path = directory.path().join("accounts.json");
     let hash = bcrypt::hash("password", 4).unwrap();
     let conflicting = serde_json::json!({
-        "cltest": { "id": "u_01", "password_hash": hash },
-        "CLTEST": { "id": "u_02", "password_hash": hash },
+        "cltest": {
+            "id": "u_01",
+            "status": "active",
+            "credential_kind": "bcrypt",
+            "password_hash": hash,
+            "created_at": 1000,
+        },
+        "CLTEST": {
+            "id": "u_02",
+            "status": "active",
+            "credential_kind": "bcrypt",
+            "password_hash": hash,
+            "created_at": 1000,
+        },
     });
     std::fs::write(&path, conflicting.to_string()).unwrap();
     let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
@@ -310,7 +322,13 @@ fn opening_accounts_file_rejects_confusable_active_accounts() {
     );
 
     let invalid_script = serde_json::json!({
-        "cl\u{0442}est": { "id": "u_01", "password_hash": hash },
+        "cl\u{0442}est": {
+            "id": "u_01",
+            "status": "active",
+            "credential_kind": "bcrypt",
+            "password_hash": hash,
+            "created_at": 1000,
+        },
     });
     std::fs::write(&path, invalid_script.to_string()).unwrap();
     let error = crate::UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, 4)
@@ -318,8 +336,19 @@ fn opening_accounts_file_rejects_confusable_active_accounts() {
     assert!(error.to_string().contains("invalid username \"cl\u{0442}est\""), "{error}");
 
     let with_deleted = serde_json::json!({
-        "cltest": { "id": "u_01", "password_hash": hash },
-        "deleted:u_02": { "id": "u_02", "password_hash": crate::DELETED_USER_HASH },
+        "cltest": {
+            "id": "u_01",
+            "status": "active",
+            "credential_kind": "bcrypt",
+            "password_hash": hash,
+            "created_at": 1000,
+        },
+        "deleted:u_02": {
+            "id": "u_02",
+            "status": "deleted",
+            "credential_kind": "none",
+            "created_at": 1000,
+        },
     });
     std::fs::write(&path, with_deleted.to_string()).unwrap();
     let reopened =

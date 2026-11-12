@@ -1,6 +1,7 @@
 use super::{
-    super::{PasswordChange, TokenRecord, UserRemoval},
-    AuthSqlBackend, InsertUser, RequestPool, SqlAuth, StoredUser, sql_max_users, with_auth_timeout,
+    super::{AccountStatus, CredentialKind, PasswordChange, TokenRecord, UserRemoval},
+    AuthSqlBackend, InsertUser, RequestPool, SqlAuth, StoredUser, decode_sql_account_state,
+    sql_max_users, token_timestamp_to_sql, unix_millis, with_auth_timeout,
 };
 use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
@@ -58,29 +59,35 @@ impl SqlAuth<MysqlDatabase> {
 #[async_trait]
 impl AuthSqlBackend for MysqlDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
-        let row = sqlx::query("SELECT username, bcrypt_hash, id FROM users WHERE username = ?")
-            .bind(username)
-            .fetch_optional(&mut *self.pool.acquire().await?)
-            .await?;
-        row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-            Ok(StoredUser {
-                username: username_from_row(&row, 0)?,
-                bcrypt_hash: row.try_get(1)?,
-                id: row.try_get(2)?,
-            })
-        })
-        .transpose()
-        .map_err(RegistryError::from)
+        self.stored_user_impl(username).await
     }
 
     async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
-        sqlx::query("SELECT username FROM users WHERE id = ? AND bcrypt_hash <> '!'")
-            .bind(user_id)
-            .fetch_optional(&mut *self.pool.acquire().await?)
-            .await?
-            .map(|row| username_from_row(&row, 0))
-            .transpose()
-            .map_err(RegistryError::from)
+        self.account_name_impl(user_id).await
+    }
+
+    async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.active_account_name_impl(user_id).await
+    }
+
+    async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
+        self.account_status_impl(user_id).await
+    }
+
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.status_revisions_impl(user_ids).await
+    }
+
+    async fn apply_account_status(
+        &self,
+        user_id: &str,
+        revision: u64,
+        lifecycle: crate::AccountLifecycle,
+    ) -> Result<crate::AccountStatusOutcome> {
+        self.apply_account_status_impl(user_id, revision, lifecycle).await
     }
 
     async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
@@ -101,19 +108,7 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
-        let rows = sqlx::query(
-            "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
-        )
-        .fetch_all(&mut *self.pool.acquire().await?)
-        .await?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(crate::UserAccount {
-                    id: row.try_get(0)?,
-                    username: username_from_row(&row, 1)?,
-                })
-            })
-            .collect()
+        self.list_accounts_impl().await
     }
 
     async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
@@ -139,30 +134,25 @@ impl AuthSqlBackend for MysqlDatabase {
     async fn insert_user(
         &self,
         username: &str,
-        bcrypt_hash: &str,
+        password_hash: Option<&str>,
         max_users: MaxUsers,
     ) -> Result<InsertUser> {
-        let mut can_retry_after_reconcile = matches!(max_users, MaxUsers::Limited(_));
-        let mut tx = loop {
-            let mut tx = self.pool.begin().await?;
-            if claim_user_slot(&mut tx, max_users).await? {
-                break tx;
-            }
-            tx.rollback().await?;
-            if !std::mem::take(&mut can_retry_after_reconcile)
-                || !self.reconcile_user_counter_overcount_impl().await?
-            {
-                return self.existing_or_cap_reached(username).await;
-            }
+        let kind = CredentialKind::for_optional_hash(password_hash).as_str();
+        let Some(mut tx) = self.claim_tx_for_insert(max_users).await? else {
+            return self.existing_or_cap_reached(username).await;
         };
         let id = crate::new_principal_id();
+        let created_at = token_timestamp_to_sql(unix_millis());
         let inserted = sqlx::query(
-            "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (id, username, username_skeleton_hash, status, credential_kind, password_hash, created_at)
+             VALUES (?, ?, ?, 'active', ?, ?, ?)",
         )
-        .bind(username)
-        .bind(bcrypt_hash)
         .bind(&id)
+        .bind(username)
         .bind(crate::validation::username_skeleton_hash(username))
+        .bind(kind)
+        .bind(password_hash)
+        .bind(created_at)
         .execute(&mut *tx)
         .await;
         match inserted {
@@ -205,8 +195,16 @@ impl AuthSqlBackend for MysqlDatabase {
         self.delete_token_impl(token_hash).await
     }
 
+    async fn delete_user_tokens(&self, user_id: &str) -> Result<u64> {
+        self.delete_user_tokens_impl(user_id).await
+    }
+
+    async fn delete_expired_tokens(&self, now: u64) -> Result<u64> {
+        self.delete_expired_tokens_impl(now).await
+    }
+
     async fn list_usernames(&self) -> Result<Vec<String>> {
-        sqlx::query("SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username")
+        sqlx::query("SELECT username FROM users WHERE status <> 'deleted' ORDER BY username")
             .fetch_all(&mut *self.pool.acquire().await?)
             .await?
             .iter()
@@ -217,14 +215,23 @@ impl AuthSqlBackend for MysqlDatabase {
     async fn update_password_hash(
         &self,
         user_id: &str,
-        bcrypt_hash: &str,
+        password_hash: Option<&str>,
     ) -> Result<PasswordChange> {
-        let updated =
-            sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE id = ? AND bcrypt_hash <> '!'")
-                .bind(bcrypt_hash)
-                .bind(user_id)
-                .execute(&mut *self.pool.acquire().await?)
-                .await?;
+        let kind = match password_hash {
+            Some(hash) => CredentialKind::from_hash(hash)
+                .expect("update_password_hash requires a supported hash")
+                .as_str(),
+            None => CredentialKind::None.as_str(),
+        };
+        let updated = sqlx::query(
+            "UPDATE users SET credential_kind = ?, password_hash = ?
+             WHERE id = ? AND status <> 'deleted'",
+        )
+        .bind(kind)
+        .bind(password_hash)
+        .bind(user_id)
+        .execute(&mut *self.pool.acquire().await?)
+        .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
         } else {
@@ -238,13 +245,19 @@ impl AuthSqlBackend for MysqlDatabase {
         old_hash: &str,
         new_hash: &str,
     ) -> Result<bool> {
-        let updated =
-            sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE id = ? AND bcrypt_hash = ?")
-                .bind(new_hash)
-                .bind(user_id)
-                .bind(old_hash)
-                .execute(&mut *self.pool.acquire().await?)
-                .await?;
+        let kind = CredentialKind::from_hash(new_hash)
+            .expect("update_user_hash_if_current requires a supported hash")
+            .as_str();
+        let updated = sqlx::query(
+            "UPDATE users SET credential_kind = ?, password_hash = ?
+             WHERE id = ? AND password_hash = ? AND status = 'active'",
+        )
+        .bind(kind)
+        .bind(new_hash)
+        .bind(user_id)
+        .bind(old_hash)
+        .execute(&mut *self.pool.acquire().await?)
+        .await?;
         Ok(updated.rows_affected() > 0)
     }
 
@@ -264,7 +277,13 @@ impl AuthSqlBackend for MysqlDatabase {
 impl MysqlDatabase {
     async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
-        let statement = "UPDATE users SET username = CONCAT('deleted:', id), username_skeleton_hash = NULL, bcrypt_hash = '!' WHERE id = ? AND bcrypt_hash <> '!'";
+        let statement = "UPDATE users
+                         SET username = CONCAT('deleted:', id),
+                             username_skeleton_hash = NULL,
+                             status = 'deleted',
+                             credential_kind = 'none',
+                             password_hash = NULL
+                         WHERE id = ? AND status <> 'deleted'";
         let removed = sqlx::query(statement)
             .bind(user_id)
             .execute(&mut *tx)
@@ -302,7 +321,7 @@ impl MysqlDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE status <> 'deleted'")
             .fetch_one(&mut *self.pool.acquire().await?)
             .await?;
         Ok(count.max(0))
@@ -342,7 +361,7 @@ impl MysqlDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE status <> 'deleted'")
             .fetch_one(&mut *tx)
             .await?;
         if counter <= count {
