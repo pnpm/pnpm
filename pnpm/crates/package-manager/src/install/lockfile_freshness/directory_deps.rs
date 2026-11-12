@@ -7,6 +7,7 @@ pub(crate) use nested::{
     nested_directory_packages,
 };
 pub(super) use package::overridden_unhooked_manifest;
+pub(crate) use recorded_peer_children::RecordedPeerChildren;
 pub(crate) use spec::spec_target_and_range;
 
 mod children;

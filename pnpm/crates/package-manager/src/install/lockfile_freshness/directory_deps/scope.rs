@@ -1,4 +1,3 @@
-use super::recorded_peer_children::RecordedPeerChildren;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::HashSet;
 
@@ -11,7 +10,6 @@ pub(super) struct Visited {
     /// Every peer the lockfile records for a package, which bounds the part
     /// of a scope the descendants of a package can take.
     recorded_peers: HashSet<String>,
-    pub(super) peer_children: RecordedPeerChildren,
 }
 
 impl Visited {
@@ -22,11 +20,7 @@ impl Visited {
             .filter_map(|metadata| metadata.peer_dependencies.as_ref())
             .flat_map(|peers| peers.keys().cloned())
             .collect();
-        Visited {
-            checked: HashSet::new(),
-            recorded_peers,
-            peer_children: RecordedPeerChildren::default(),
-        }
+        Visited { checked: HashSet::new(), recorded_peers }
     }
 
     /// Records the snapshot in `scope`. `false` when it was already checked

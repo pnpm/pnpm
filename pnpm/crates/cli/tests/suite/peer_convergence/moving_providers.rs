@@ -49,6 +49,7 @@ fn check_provider_pin(bundle: Option<&OsStr>, format: &str, suffix_length: usize
     assert_updated_consumer_provider(&changed);
     install();
     let reinstalled = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&changed, &reinstalled);
     assert_eq!(changed, reinstalled, "{bundle:?}, {format}, {suffix_length}");
 }
 
@@ -216,6 +217,7 @@ fn check_removed_provider(bundle: Option<&OsStr>, format: &str) {
     let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     install_lockfile(&fixture, bundle);
     let reinstalled = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&changed, &reinstalled);
     assert_eq!(changed, reinstalled, "{bundle:?}, {format}");
 }
 
@@ -278,6 +280,7 @@ fn check_nested_removal(bundle: Option<&OsStr>, format: &str) {
         let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
         install_lockfile(&fixture, bundle);
         let reinstalled = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+        dbg!(&changed, &reinstalled);
         assert_eq!(changed, reinstalled, "{bundle:?}, {format}, {dependencies}");
     }
 }
@@ -328,7 +331,9 @@ fn check_added_provider(bundle: Option<&OsStr>, format: &str) {
     let first = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     install_lockfile(&fixture, bundle);
     let repeated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&first, &repeated);
     assert_eq!(first, repeated, "first change: {bundle:?}, {format}");
+    assert_optional_candidate_child(&first);
     fixture.write_root_manifest(
         "root",
         ManifestDeps {
@@ -340,5 +345,25 @@ fn check_added_provider(bundle: Option<&OsStr>, format: &str) {
     let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     install_lockfile(&fixture, bundle);
     let reinstalled = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&changed, &reinstalled);
     assert_eq!(changed, reinstalled, "{bundle:?}, {format}");
+}
+
+fn assert_optional_candidate_child(lockfile: &Lockfile) {
+    let consumer_name = "optional-consumer".parse().unwrap();
+    let candidate_name = "optional-candidate".parse().unwrap();
+    let provider_name = "added-provider".parse().unwrap();
+    let consumer = lockfile.importers["."].dependencies.as_ref().unwrap()[&consumer_name]
+        .version
+        .resolved_key(&consumer_name)
+        .unwrap();
+    let snapshots = lockfile.snapshots.as_ref().unwrap();
+    let candidate = snapshots[&consumer].optional_dependencies.as_ref().unwrap()[&candidate_name]
+        .resolve(&candidate_name)
+        .unwrap();
+    assert_eq!(candidate.without_peer().to_string(), "optional-candidate@2.0.0");
+    let provider = snapshots[&candidate].dependencies.as_ref().unwrap()[&provider_name]
+        .resolve(&provider_name)
+        .unwrap();
+    assert_eq!(provider.without_peer().to_string(), "added-provider@2.0.0");
 }

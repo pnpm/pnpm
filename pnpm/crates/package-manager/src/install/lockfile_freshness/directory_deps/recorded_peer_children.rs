@@ -2,9 +2,9 @@ use pnpm_lockfile::{BoundProviders, Lockfile, PackageKey, PkgName, SnapshotEntry
 use std::collections::{HashMap, HashSet};
 
 /// Aliases supplied as peers by a reachable occurrence of a recorded directory.
-#[derive(Default, Clone)]
-pub(super) struct RecordedPeerChildren {
-    aliases: std::cell::OnceCell<Option<HashMap<PackageKey, HashSet<PkgName>>>>,
+#[derive(Default)]
+pub(crate) struct RecordedPeerChildren {
+    aliases: std::sync::OnceLock<Option<HashMap<PackageKey, HashSet<PkgName>>>>,
 }
 
 impl RecordedPeerChildren {

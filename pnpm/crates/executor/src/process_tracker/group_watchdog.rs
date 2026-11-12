@@ -58,16 +58,24 @@ static WATCH: RwLock<GroupWatch> = RwLock::new(GroupWatch::new());
 
 /// Register the child's group before its executable can run.
 pub(super) fn spawn(command: &mut Command) -> io::Result<ChildWatch> {
+    let mut restarted = false;
     loop {
         let watch = lock();
         if watch.shell_missing || watch.watchdog.as_ref().is_some_and(GroupWatchdog::is_running) {
             return watch.spawn(command);
+        }
+        if restarted {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "process-group watchdog exited during startup",
+            ));
         }
         drop(watch);
         WATCH
             .write()
             .expect("group watch lock is not poisoned")
             .start()?;
+        restarted = true;
     }
 }
 

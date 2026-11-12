@@ -216,9 +216,6 @@ fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
 ) -> Option<HashSet<PkgNameVerPeer>> {
-    if !within_combination_limit(candidates) {
-        return None;
-    }
     for mode in [PeerGroups::Full, PeerGroups::Bare] {
         if let Some(matched) = CombinationSearch::new(mode, hash_hex).find(candidates) {
             return Some(matched);
@@ -237,13 +234,6 @@ fn match_candidates(
         return None;
     }
     CombinationSearch::new(PeerGroups::Full, hash_hex).find(&mixed)
-}
-
-fn within_combination_limit(candidates: &[Vec<PkgNameVerPeer>]) -> bool {
-    candidates
-        .iter()
-        .try_fold(1_usize, |count, targets| count.checked_mul(targets.len() + 1))
-        .is_some_and(|count| count <= MAX_COMBINATIONS)
 }
 
 fn mixed_cycle_cut_candidates(candidates: &[Vec<PkgNameVerPeer>]) -> Vec<Vec<PkgNameVerPeer>> {

@@ -452,6 +452,43 @@ fn changed_required_provider_on_a_dependency_cycle_is_stable() {
 }
 
 #[test]
+fn many_required_catalog_peers_are_frozen_fresh() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = PackageVersion { dependencies: vec![], peers: vec![] };
+    let mut packages = vec![vec![leaf.clone(), leaf]; 14];
+    packages[0][0] = PackageVersion {
+        dependencies: vec![Edge { target: 1, major: 2 }],
+        peers: (1..14)
+            .map(|target| Peer {
+                target,
+                range: PeerRange::Major(1),
+                optional: false,
+                also_dependency: false,
+            })
+            .collect(),
+    };
+    let workspace = Workspace {
+        packages,
+        importers: vec![
+            (1..14)
+                .map(|target| Edge { target, major: 1 })
+                .collect(),
+            vec![],
+        ],
+    };
+    let settings = Settings {
+        peers_suffix_max_length: 20,
+        auto_install_peers: false,
+        catalogs: true,
+        injected: true,
+        format: pnpm_lockfile::LockfileFormat::V13,
+    };
+    let fresh = resolve_with(&workspace, &in_order(&workspace), settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    fixture::Fixture::new(&workspace, settings).frozen_check(&lockfile, settings).unwrap();
+}
+
+#[test]
 fn missing_required_catalog_peer_child_is_outdated() {
     use model::{PackageVersion, Peer, PeerRange, Settings, Workspace};
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
