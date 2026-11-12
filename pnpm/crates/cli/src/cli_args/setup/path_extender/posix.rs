@@ -5,6 +5,8 @@
 //! shell is rendered, and a `# <section>` ... `# <section> end` block is
 //! created in / appended to / replaced in the rc file.
 
+pub(in crate::cli_args::setup) use pwsh::pwsh_quote;
+
 use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
     PathExtenderReport,
@@ -40,6 +42,7 @@ pub(in crate::cli_args::setup) fn render_shell_settings(
         "bash" | "zsh" | "ksh" | "dash" | "sh" => Some(render_posix_settings(&dir, opts)),
         "fish" => Some(render_fish_settings(&dir, opts)),
         "nu" => Some(render_nu_settings(&dir, opts)),
+        "pwsh" => Some(pwsh::render_pwsh_settings(&dir, opts)),
         _ => None,
     }
 }
@@ -75,6 +78,7 @@ fn update_shell(
         }
         Some("fish") => setup_fish_shell(pnpm_home_dir, opts),
         Some("nu") => setup_nu_shell(pnpm_home_dir, opts),
+        Some("pwsh") => pwsh::setup_pwsh_shell(pnpm_home_dir, opts),
         Some(other) => Err(PathExtenderError::UnsupportedShell { shell: other.to_string() }),
         None => Err(PathExtenderError::UnknownShell),
     }
@@ -455,6 +459,8 @@ fn zdotdir_or_home() -> Result<PathBuf, PathExtenderError> {
         None => home_dir(),
     }
 }
+
+mod pwsh;
 
 #[cfg(test)]
 mod tests;

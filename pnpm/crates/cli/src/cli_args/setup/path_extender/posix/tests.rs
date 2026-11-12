@@ -6,9 +6,9 @@
 
 use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError, PathGuard,
-    add_dir_to_posix_env_path, find_section, fish_quote, render_fish_section, render_fish_settings,
-    render_nu_settings, render_posix_section, render_posix_settings, replace_section, sh_quote,
-    update_shell_config, v11_quote, wrap_section,
+    add_dir_to_posix_env_path, find_section, fish_quote, pwsh::render_pwsh_settings,
+    render_fish_section, render_fish_settings, render_nu_settings, render_posix_section,
+    render_posix_settings, replace_section, sh_quote, update_shell_config, v11_quote, wrap_section,
 };
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -201,6 +201,34 @@ fn nu_settings_appending_to_the_end_of_path() {
     assert_eq!(
         settings,
         r#"$env.PATH = ($env.PATH | split row (char esep) | append "/home/user/.pnpm" )"#,
+    );
+}
+
+#[test]
+fn pwsh_settings_with_proxy_var_sub_dir() {
+    let mut opts = opts(false);
+    opts.proxy_var_sub_dir = Some("bin");
+    let settings = render_pwsh_settings(HOME, &opts);
+    assert_eq!(
+        settings,
+        r#"$env:PNPM_HOME = '/home/user/.pnpm'
+if (($env:PATH -split ':')[0] -cne "$env:PNPM_HOME/bin") {
+  $env:PATH = "$env:PNPM_HOME/bin" + ':' + $env:PATH
+}"#,
+    );
+}
+
+#[test]
+fn pwsh_settings_appending_to_the_end_of_path() {
+    let mut opts = opts(false);
+    opts.proxy_var_name = None;
+    opts.position = AddingPosition::End;
+    let settings = render_pwsh_settings("/home/o'neil/$(Write-Error injected)", &opts);
+    assert_eq!(
+        settings,
+        r"if (($env:PATH -split ':')[-1] -cne '/home/o''neil/$(Write-Error injected)') {
+  $env:PATH = $env:PATH + ':' + '/home/o''neil/$(Write-Error injected)'
+}",
     );
 }
 

@@ -106,6 +106,26 @@ source ~/.bashrc
 `)
 })
 
+test('setup tells PowerShell to dot-source the profile', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'created',
+      path: "/home/o'neil/.config/powershell/profile.ps1",
+    },
+    oldSettings: '',
+    newSettings: '$env:PNPM_HOME = dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Created /home/o'neil/.config/powershell/profile.ps1
+
+The following configuration changes were made:
+$env:PNPM_HOME = dir
+
+To start using pnpm, run:
+. '/home/o''neil/.config/powershell/profile.ps1'
+`)
+})
+
 test('setup makes changes on Windows', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'export PNPM_HOME=dir1',
