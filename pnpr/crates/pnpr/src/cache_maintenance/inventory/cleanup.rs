@@ -4,7 +4,8 @@ use super::{
 use std::{
     cmp::Reverse,
     ffi::{OsStr, OsString},
-    io::{self, ErrorKind},
+    io,
+    sync::Arc,
     vec::IntoIter,
 };
 
@@ -21,6 +22,7 @@ struct GroupedRemoval<'a> {
 }
 
 pub(in crate::cache_maintenance) async fn remove_cached_files(
+    cache_root: &Arc<OpenDir>,
     cache_dir: &Path,
     targets: Vec<CachedFileRemoval>,
 ) -> Vec<bool> {
@@ -28,21 +30,21 @@ pub(in crate::cache_maintenance) async fn remove_cached_files(
         return Vec::new();
     }
     let count = targets.len();
-    let root = cache_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || remove_cached_files_sync(&root, &targets))
-        .await
-        .unwrap_or_else(|_| vec![false; count])
+    let root_handle = Arc::clone(cache_root);
+    let root_path = cache_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        remove_cached_files_sync(&root_handle, &root_path, &targets)
+    })
+    .await
+    .unwrap_or_else(|_| vec![false; count])
 }
 
-fn remove_cached_files_sync(cache_dir: &Path, targets: &[CachedFileRemoval]) -> Vec<bool> {
+fn remove_cached_files_sync(
+    root: &OpenDir,
+    cache_dir: &Path,
+    targets: &[CachedFileRemoval],
+) -> Vec<bool> {
     let mut results = vec![false; targets.len()];
-    let root = match OpenDir::open(cache_dir) {
-        Ok(root) => root,
-        Err(err) => {
-            tracing::warn!(error = %err, "cache file removal failed to open cache root");
-            return results;
-        }
-    };
     let mut grouped = collect_parent_grouped_removals(cache_dir, targets);
     grouped.sort_by(|left, right| left.parent_rel.cmp(right.parent_rel));
     let mut current_parent: Option<(&Path, Option<OpenDir>)> = None;
@@ -52,7 +54,7 @@ fn remove_cached_files_sync(cache_dir: &Path, targets: &[CachedFileRemoval]) -> 
             .is_none_or(|(cached, _)| *cached != item.parent_rel)
         {
             drop(current_parent.take());
-            let opened = open_parent_dir_logged(&root, item.parent_rel);
+            let opened = open_parent_dir_logged(root, item.parent_rel);
             current_parent = Some((item.parent_rel, opened));
         }
         if let Some((_, Some(parent))) = &current_parent {
@@ -117,25 +119,27 @@ fn unlink_if_unmodified(parent: &OpenDir, leaf: &OsStr, limit_time: Option<Syste
     }
 }
 
-pub(in crate::cache_maintenance) async fn prune_empty_cache_dirs(cache_dir: &Path) -> Result<()> {
-    let root = cache_dir.to_path_buf();
-    tokio::task::spawn_blocking(move || prune_empty_cache_dirs_sync(&root))
+pub(in crate::cache_maintenance) async fn prune_empty_cache_dirs(
+    cache_root: &Arc<OpenDir>,
+    cache_dir: &Path,
+) -> Result<()> {
+    let root_handle = Arc::clone(cache_root);
+    let root_path = cache_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || prune_empty_cache_dirs_sync(&root_handle, &root_path))
         .await
         .map_err(|err| io::Error::other(err.to_string()))?
 }
 
-fn prune_empty_cache_dirs_sync(cache_dir: &Path) -> Result<()> {
-    let root = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(err.into()),
-    };
+fn prune_empty_cache_dirs_sync(root: &OpenDir, cache_dir: &Path) -> Result<()> {
     let mut dirs: Vec<(PathBuf, OsString)> = Vec::new();
     for name in root.entry_names()? {
-        if matches!(root_dir_policy(&name), DirPolicy::Evictable)
-            && let Some(child) = root.open_child_dir(&name)?
-        {
-            collect_prunable_subdirs(cache_dir, child, Path::new(""), name, &mut dirs)?;
+        match root_dir_policy(&name) {
+            DirPolicy::Evictable => {
+                if let Ok(Some(child)) = root.open_child_dir(&name) {
+                    collect_prunable_subdirs(cache_dir, child, Path::new(""), name, &mut dirs);
+                }
+            }
+            DirPolicy::CountOnly | DirPolicy::Skip => {}
         }
     }
     dirs.sort_by_key(|(parent_rel, leaf)| Reverse((parent_rel.as_os_str().len(), leaf.len())));
@@ -153,30 +157,32 @@ fn collect_prunable_subdirs(
     root_parent_rel: &Path,
     root_leaf: OsString,
     out: &mut Vec<(PathBuf, OsString)>,
-) -> io::Result<()> {
+) {
+    let Ok(entries) = root.entry_names() else {
+        return;
+    };
     let root_rel = root_parent_rel.join(&root_leaf);
     if !is_protected_cache_dir(cache_dir, &cache_dir.join(&root_rel)) {
         out.push((root_parent_rel.to_path_buf(), root_leaf));
     }
-    let root_entries = root.entry_names()?.into_iter();
     let mut stack: Vec<(OpenDir, IntoIter<OsString>, PathBuf)> =
-        vec![(root, root_entries, root_rel)];
+        vec![(root, entries.into_iter(), root_rel)];
     while let Some((dir, iter, rel)) = stack.last_mut() {
         let Some(child_name) = iter.next() else {
             stack.pop();
             continue;
         };
-        if let Some(subdir) = dir.open_child_dir(&child_name)? {
+        if let Ok(Some(subdir)) = dir.open_child_dir(&child_name)
+            && let Ok(child_entries) = subdir.entry_names()
+        {
             let parent_rel = rel.clone();
             let child_rel = parent_rel.join(&child_name);
             if !is_protected_cache_dir(cache_dir, &cache_dir.join(&child_rel)) {
                 out.push((parent_rel, child_name));
             }
-            let child_entries = subdir.entry_names()?.into_iter();
-            stack.push((subdir, child_entries, child_rel));
+            stack.push((subdir, child_entries.into_iter(), child_rel));
         }
     }
-    Ok(())
 }
 
 fn is_protected_cache_dir(cache_dir: &Path, dir: &Path) -> bool {
@@ -191,7 +197,7 @@ fn is_protected_cache_dir(cache_dir: &Path, dir: &Path) -> bool {
         parts.as_slice(),
         ["resolver-cache" | "resolver-store"]
             | ["resolver-store", STORE_VERSION]
-            | ["resolver-store", STORE_VERSION, "files"]
-            | ["resolver-store", STORE_VERSION, "files", _],
+            | ["resolver-store", STORE_VERSION, "files" | "index"]
+            | ["resolver-store", STORE_VERSION, "files" | "index", _],
     )
 }

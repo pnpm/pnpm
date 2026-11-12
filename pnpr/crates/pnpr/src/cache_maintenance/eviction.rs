@@ -1,8 +1,8 @@
 use super::{
     CacheGcEffect, CacheReport, CachedFile, Duration, HashSet, Path, PathBuf, Result, SystemTime,
     inventory::{
-        CachedFileRemoval, cas_digest_of_store_file, inventory_cache_dir, is_cache_tmp_file,
-        prune_empty_cache_dirs, remove_cached_files,
+        CacheInventory, CachedFileRemoval, cas_digest_of_store_file, inventory_cache_dir,
+        is_cache_tmp_file, prune_empty_cache_dirs, remove_cached_files,
     },
     is_abandoned_tmp_age,
     sqlite::{
@@ -11,6 +11,8 @@ use super::{
     },
     store_index::prune_store_index_digests,
 };
+use pnpm_fs::OpenDir;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SkippedCasPolicy {
@@ -37,10 +39,10 @@ pub(super) struct DryRunAdjustments {
 }
 
 struct EvictionState {
+    root: Arc<OpenDir>,
     effect: CacheGcEffect,
     report: CacheReport,
     retained: Vec<CachedFile>,
-    retained_bytes: u64,
     non_evictable_bytes: u64,
     pending_files: Vec<PendingFile>,
     pending_cas: Vec<(CachedFile, String)>,
@@ -54,9 +56,22 @@ pub(super) async fn evict_and_prune_cache(
     effect: CacheGcEffect,
     adjustments: &DryRunAdjustments,
 ) -> Result<CacheReport> {
-    let ev = evict_cache(cache_dir, max_age, max_size, effect, adjustments).await?;
+    let Some(mut inv) = inventory_cache_dir(cache_dir, &adjustments.pruned_dirs).await? else {
+        return Ok(CacheReport::default());
+    };
     match effect {
-        CacheGcEffect::Apply if ev.files_evicted > 0 => prune_empty_cache_dirs(cache_dir).await?,
+        CacheGcEffect::DryRun => {
+            inv.non_evictable_bytes =
+                inv.non_evictable_bytes.saturating_sub(adjustments.swept_staging_bytes);
+        }
+        CacheGcEffect::Apply => {}
+    }
+    let root = Arc::clone(&inv.root);
+    let ev = evict_inventoried_cache(cache_dir, inv, max_age, max_size, effect).await?;
+    match effect {
+        CacheGcEffect::Apply if ev.files_evicted > 0 => {
+            prune_empty_cache_dirs(&root, cache_dir).await?;
+        }
         CacheGcEffect::Apply | CacheGcEffect::DryRun => {}
     }
     Ok(ev)
@@ -70,23 +85,25 @@ fn classify_file_for_ttl(
 ) {
     if is_cache_tmp_file(cache_dir, &file.path) {
         queue_tmp_file_if_abandoned(file, state);
-        return;
+    } else if max_age.is_some_and(|ttl| file.age >= ttl) {
+        queue_evictable_file(cache_dir, file, RemovalFallback::RetainEvictable, state);
+    } else {
+        state.retained.push(file);
     }
-    if max_age.is_some_and(|ttl| file.age >= ttl) {
-        if let Some(digest) = cas_digest_of_store_file(cache_dir, &file.path) {
-            state.pending_cas.push((file, digest));
-        } else {
-            let max_effective_time = Some(file.effective_time);
-            state.pending_files.push(PendingFile {
-                file,
-                max_effective_time,
-                fallback: RemovalFallback::RetainEvictable,
-            });
-        }
-        return;
+}
+
+fn queue_evictable_file(
+    cache_dir: &Path,
+    file: CachedFile,
+    fallback: RemovalFallback,
+    state: &mut EvictionState,
+) {
+    if let Some(digest) = cas_digest_of_store_file(cache_dir, &file.path) {
+        state.pending_cas.push((file, digest));
+    } else {
+        let max_effective_time = Some(file.effective_time);
+        state.pending_files.push(PendingFile { file, max_effective_time, fallback });
     }
-    state.retained_bytes += file.size;
-    state.retained.push(file);
 }
 
 fn queue_tmp_file_if_abandoned(file: CachedFile, state: &mut EvictionState) {
@@ -101,30 +118,25 @@ fn queue_tmp_file_if_abandoned(file: CachedFile, state: &mut EvictionState) {
     }
 }
 
-async fn evict_cache(
+async fn evict_inventoried_cache(
     cache_dir: &Path,
+    inv: CacheInventory,
     max_age: Option<Duration>,
     max_size: Option<u64>,
     effect: CacheGcEffect,
-    adjustments: &DryRunAdjustments,
 ) -> Result<CacheReport> {
-    let inv = inventory_cache_dir(cache_dir, &adjustments.pruned_dirs).await?;
-    let dry_swept = match effect {
-        CacheGcEffect::DryRun => adjustments.swept_staging_bytes,
-        CacheGcEffect::Apply => 0,
-    };
     let mut state = EvictionState {
+        root: inv.root,
         effect,
         report: CacheReport::default(),
         retained: Vec::new(),
-        retained_bytes: 0,
-        non_evictable_bytes: inv.non_evictable_bytes.saturating_sub(dry_swept),
+        non_evictable_bytes: inv.non_evictable_bytes,
         pending_files: Vec::new(),
         pending_cas: Vec::new(),
         verdict_expiry: None,
     };
     if let Some(ttl) = max_age {
-        let expiry = expire_verdict_rows(cache_dir, ttl, effect).await;
+        let expiry = expire_verdict_rows(&state.root, ttl, effect).await;
         state.report.bytes_reclaimed += expiry.reclaimed_bytes;
         state.verdict_expiry = Some(expiry);
     }
@@ -169,7 +181,7 @@ async fn apply_pending_file_removals(
             max_effective_time: item.max_effective_time,
         })
         .collect();
-    let outcomes = remove_cached_files(cache_dir, targets).await;
+    let outcomes = remove_cached_files(&state.root, cache_dir, targets).await;
     let mut skipped_bytes = 0u64;
     for (item, removed) in pending.into_iter().zip(outcomes) {
         if removed {
@@ -190,7 +202,6 @@ fn record_skipped_file(
 ) -> u64 {
     match fallback {
         RemovalFallback::RetainEvictable => {
-            state.retained_bytes += file.size;
             state.retained.push(file);
             0
         }
@@ -234,7 +245,7 @@ async fn apply_pending_cas_removals(
         .iter()
         .map(|(_, digest)| digest.clone())
         .collect();
-    match prune_store_index_digests(cache_dir, digests).await {
+    match prune_store_index_digests(&state.root, digests).await {
         Ok(reclaimed) => state.report.bytes_reclaimed += reclaimed,
         Err(err) => {
             tracing::warn!(error = %err, "pruning resolver store index failed; retaining CAS files");
@@ -248,7 +259,7 @@ async fn apply_pending_cas_removals(
             max_effective_time: Some(file.effective_time),
         })
         .collect();
-    let outcomes = remove_cached_files(cache_dir, targets).await;
+    let outcomes = remove_cached_files(&state.root, cache_dir, targets).await;
     let mut skipped_bytes = 0u64;
     for ((file, _), removed) in pending.into_iter().zip(outcomes) {
         if removed {
@@ -275,10 +286,7 @@ fn retain_all_pending_cas(
 fn retain_cas_entry(file: CachedFile, state: &mut EvictionState, policy: SkippedCasPolicy) -> u64 {
     let size = file.size;
     match policy {
-        SkippedCasPolicy::RetainForSizeCheck => {
-            state.retained_bytes += size;
-            state.retained.push(file);
-        }
+        SkippedCasPolicy::RetainForSizeCheck => state.retained.push(file),
         SkippedCasPolicy::CountTowardsSize => {}
     }
     size
@@ -295,8 +303,15 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
         (CacheGcEffect::DryRun, Some(exp)) => exp.reclaimed_bytes,
         _ => 0,
     };
-    let sqlite_bytes = resolver_sqlite_bytes(cache_dir).await?.saturating_sub(dry_expired);
-    let mut total_size = state.non_evictable_bytes + sqlite_bytes + state.retained_bytes;
+    let sqlite_bytes = match measure_initial_sqlite_bytes(cache_dir, state).await? {
+        Some(bytes) => bytes.saturating_sub(dry_expired),
+        None => return Ok(()),
+    };
+    let retained_bytes: u64 = state.retained
+        .iter()
+        .map(|entry| entry.size)
+        .sum();
+    let mut total_size = state.non_evictable_bytes + sqlite_bytes + retained_bytes;
     if total_size <= limit {
         return Ok(());
     }
@@ -312,21 +327,64 @@ async fn enforce_max_size(cache_dir: &Path, limit: u64, state: &mut EvictionStat
         total_size = queue_lru_entry(cache_dir, entry, total_size, state);
     }
     total_size = total_size.saturating_add(flush_size_removals(cache_dir, state).await);
-    let updated_sqlite = resolver_sqlite_bytes(cache_dir).await?.saturating_sub(dry_expired);
+    let updated_sqlite =
+        remeasure_sqlite_after_flush(cache_dir, &state.root, dry_expired, sqlite_bytes).await;
     let remaining_total = total_size.saturating_sub(sqlite_bytes).saturating_add(updated_sqlite);
     if remaining_total > limit {
-        let params = VerdictTrimParams {
-            excess_bytes: remaining_total - limit,
-            min_verified_at_ms: state.verdict_expiry.as_ref().map(|exp| exp.cutoff_ms),
-            deferred_free_bytes: state.verdict_expiry
-                .as_ref()
-                .map(|exp| exp.deferred_free_bytes)
-                .unwrap_or(0),
-            effect: state.effect,
-        };
-        state.report.bytes_reclaimed += trim_verdict_db_to_fit(cache_dir, params).await;
+        trim_excess_verdict_db(remaining_total - limit, state).await;
     }
     Ok(())
+}
+
+async fn trim_excess_verdict_db(excess_bytes: u64, state: &mut EvictionState) {
+    let (min_verified_at_ms, deferred_free_bytes) = state.verdict_expiry
+        .as_ref()
+        .map(|exp| (Some(exp.cutoff_ms), exp.deferred_free_bytes))
+        .unwrap_or((None, 0));
+    let params = VerdictTrimParams {
+        excess_bytes,
+        min_verified_at_ms,
+        deferred_free_bytes,
+        effect: state.effect,
+    };
+    state.report.bytes_reclaimed += trim_verdict_db_to_fit(&state.root, params).await;
+}
+
+async fn measure_initial_sqlite_bytes(
+    cache_dir: &Path,
+    state: &EvictionState,
+) -> Result<Option<u64>> {
+    match (resolver_sqlite_bytes(&state.root).await, state.effect) {
+        (Ok(bytes), CacheGcEffect::Apply | CacheGcEffect::DryRun) => Ok(Some(bytes)),
+        (Err(err), CacheGcEffect::Apply)
+            if state.report.files_evicted > 0 || state.report.bytes_reclaimed > 0 =>
+        {
+            tracing::warn!(
+                path = %cache_dir.display(), error = %err,
+                "failed to measure SQLite cache footprint after TTL expiry; skipping maxSize pass",
+            );
+            Ok(None)
+        }
+        (Err(err), CacheGcEffect::Apply | CacheGcEffect::DryRun) => Err(err.into()),
+    }
+}
+
+async fn remeasure_sqlite_after_flush(
+    cache_dir: &Path,
+    root: &Arc<OpenDir>,
+    dry_expired: u64,
+    fallback_bytes: u64,
+) -> u64 {
+    match resolver_sqlite_bytes(root).await {
+        Ok(bytes) => bytes.saturating_sub(dry_expired),
+        Err(err) => {
+            tracing::warn!(
+                path = %cache_dir.display(), error = %err,
+                "failed to re-measure SQLite cache footprint after size eviction; keeping pre-flush estimate",
+            );
+            fallback_bytes
+        }
+    }
 }
 
 fn queue_lru_entry(
@@ -336,15 +394,6 @@ fn queue_lru_entry(
     state: &mut EvictionState,
 ) -> u64 {
     let next_total = total_size.saturating_sub(entry.size);
-    if let Some(digest) = cas_digest_of_store_file(cache_dir, &entry.path) {
-        state.pending_cas.push((entry, digest));
-    } else {
-        let max_effective_time = Some(entry.effective_time);
-        state.pending_files.push(PendingFile {
-            file: entry,
-            max_effective_time,
-            fallback: RemovalFallback::CountTowardsSize,
-        });
-    }
+    queue_evictable_file(cache_dir, entry, RemovalFallback::CountTowardsSize, state);
     next_total
 }

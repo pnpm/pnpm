@@ -7,10 +7,12 @@ use pnpm_store_dir::STORE_VERSION;
 use std::{
     ffi::{OsStr, OsString},
     io::{self, ErrorKind},
+    sync::Arc,
     vec::IntoIter,
 };
 
 pub(super) struct CacheInventory {
+    pub(super) root: Arc<OpenDir>,
     pub(super) files: Vec<CachedFile>,
     pub(super) non_evictable_bytes: u64,
 }
@@ -25,11 +27,12 @@ enum DirPolicy {
 /// regular files into eviction candidates and non-evictable live overhead
 /// (`layout.json`, `.cache-secret`, in-flight staging/replay/blob uploads, and
 /// `shared-artifacts`). SQLite databases for the active `resolver-cache` and
-/// `resolver-store` are accounted separately.
+/// `resolver-store` are accounted separately. Returns `Ok(None)` when
+/// `cache_dir` does not exist.
 pub(super) async fn inventory_cache_dir(
     cache_dir: &Path,
     excluded_dirs: &HashSet<PathBuf>,
-) -> Result<CacheInventory> {
+) -> Result<Option<CacheInventory>> {
     let root = cache_dir.to_path_buf();
     let excluded = excluded_dirs.clone();
     tokio::task::spawn_blocking(move || inventory_cache_dir_sync(&root, &excluded))
@@ -40,20 +43,22 @@ pub(super) async fn inventory_cache_dir(
 fn inventory_cache_dir_sync(
     cache_dir: &Path,
     excluded_dirs: &HashSet<PathBuf>,
-) -> Result<CacheInventory> {
-    let mut inventory = CacheInventory { files: Vec::new(), non_evictable_bytes: 0 };
+) -> Result<Option<CacheInventory>> {
     let root_dir = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(inventory),
+        Ok(dir) => Arc::new(dir),
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err.into()),
     };
-    for name in root_dir.entry_names()? {
+    let entries = root_dir.entry_names()?;
+    let mut inventory =
+        CacheInventory { root: Arc::clone(&root_dir), files: Vec::new(), non_evictable_bytes: 0 };
+    for name in entries {
         if excluded_dirs.contains(&cache_dir.join(&name)) {
             continue;
         }
-        inspect_root_entry(cache_dir, &root_dir, &name, excluded_dirs, &mut inventory)?;
+        inspect_root_entry(cache_dir, &root_dir, &name, excluded_dirs, &mut inventory);
     }
-    Ok(inventory)
+    Ok(Some(inventory))
 }
 
 fn inspect_root_entry(
@@ -62,24 +67,37 @@ fn inspect_root_entry(
     name: &OsStr,
     excluded_dirs: &HashSet<PathBuf>,
     inventory: &mut CacheInventory,
-) -> io::Result<()> {
-    if let Some(child_dir) = root_dir.open_child_dir(name)? {
-        return match root_dir_policy(name) {
-            DirPolicy::Skip => Ok(()),
-            DirPolicy::CountOnly => {
-                let (_, bytes) = super::orphans::count_dir_contents(child_dir)?;
-                inventory.non_evictable_bytes += bytes;
-                Ok(())
+) {
+    let entry_path = cache_dir.join(name);
+    match root_dir.open_child_dir(name) {
+        Ok(Some(child_dir)) => {
+            match root_dir_policy(name) {
+                DirPolicy::Skip => {}
+                DirPolicy::CountOnly => {
+                    inventory.non_evictable_bytes += count_dir_bytes_lenient(child_dir);
+                }
+                DirPolicy::Evictable => {
+                    collect_evictable_tree(
+                        cache_dir,
+                        child_dir,
+                        excluded_dirs,
+                        &mut inventory.files,
+                    );
+                }
             }
-            DirPolicy::Evictable => {
-                collect_evictable_tree(cache_dir, child_dir, excluded_dirs, &mut inventory.files)
-            }
-        };
+            return;
+        }
+        Ok(None) => {}
+        Err(err) => {
+            log_skipped_entry(&entry_path, &err);
+            return;
+        }
     }
-    if let Some(stat) = root_dir.child_file_stat(name)? {
-        inspect_root_file(cache_dir, name, stat, inventory);
+    match root_dir.child_file_stat(name) {
+        Ok(Some(stat)) => inspect_root_file(cache_dir, name, stat, inventory),
+        Ok(None) => {}
+        Err(err) => log_skipped_entry(&entry_path, &err),
     }
-    Ok(())
 }
 
 fn root_dir_policy(name: &OsStr) -> DirPolicy {
@@ -121,20 +139,20 @@ fn collect_evictable_tree(
     root: OpenDir,
     excluded_dirs: &HashSet<PathBuf>,
     files: &mut Vec<CachedFile>,
-) -> io::Result<()> {
-    let entries = root.entry_names()?.into_iter();
+) {
+    let Some(entries) = list_dir_entries_logged(&root) else {
+        return;
+    };
     let mut stack = vec![(root, entries)];
     while let Some((dir, iter)) = stack.last_mut() {
         let Some(name) = iter.next() else {
             stack.pop();
             continue;
         };
-        if let Some(child_frame) = inspect_tree_entry(cache_dir, dir, &name, excluded_dirs, files)?
-        {
+        if let Some(child_frame) = inspect_tree_entry(cache_dir, dir, &name, excluded_dirs, files) {
             stack.push(child_frame);
         }
     }
-    Ok(())
 }
 
 fn inspect_tree_entry(
@@ -143,22 +161,94 @@ fn inspect_tree_entry(
     name: &OsStr,
     excluded_dirs: &HashSet<PathBuf>,
     files: &mut Vec<CachedFile>,
-) -> io::Result<Option<(OpenDir, IntoIter<OsString>)>> {
+) -> Option<(OpenDir, IntoIter<OsString>)> {
     let path = dir.path().join(name);
     if excluded_dirs.contains(&path) {
-        return Ok(None);
+        return None;
     }
-    if let Some(subdir) = dir.open_child_dir(name)? {
-        let entries = subdir.entry_names()?.into_iter();
-        return Ok(Some((subdir, entries)));
+    match dir.open_child_dir(name) {
+        Ok(Some(subdir)) => {
+            let entries = list_dir_entries_logged(&subdir)?;
+            return Some((subdir, entries));
+        }
+        Ok(None) => {}
+        Err(err) => {
+            log_skipped_entry(&path, &err);
+            return None;
+        }
     }
-    if !is_managed_sqlite_file(cache_dir, &path)
-        && let Some(stat) = dir.child_file_stat(name)?
-    {
-        let (effective_time, age) = stat_effective_time(stat);
-        files.push(CachedFile { path, size: stat.len, effective_time, age });
+    if is_managed_sqlite_file(cache_dir, &path) {
+        return None;
     }
-    Ok(None)
+    match dir.child_file_stat(name) {
+        Ok(Some(stat)) => {
+            let (effective_time, age) = stat_effective_time(stat);
+            files.push(CachedFile { path, size: stat.len, effective_time, age });
+        }
+        Ok(None) => {}
+        Err(err) => log_skipped_entry(&path, &err),
+    }
+    None
+}
+
+fn count_dir_bytes_lenient(root: OpenDir) -> u64 {
+    let Some(entries) = list_dir_entries_logged(&root) else {
+        return 0;
+    };
+    let mut bytes = 0u64;
+    let mut stack = vec![(root, entries)];
+    while let Some((dir, iter)) = stack.last_mut() {
+        let Some(name) = iter.next() else {
+            stack.pop();
+            continue;
+        };
+        if let Some(frame) = count_child_entry_lenient(dir, &name, &mut bytes) {
+            stack.push(frame);
+        }
+    }
+    bytes
+}
+
+fn count_child_entry_lenient(
+    dir: &OpenDir,
+    name: &OsStr,
+    bytes: &mut u64,
+) -> Option<(OpenDir, IntoIter<OsString>)> {
+    let path = dir.path().join(name);
+    match dir.open_child_dir(name) {
+        Ok(Some(subdir)) => {
+            return list_dir_entries_logged(&subdir).map(|entries| (subdir, entries));
+        }
+        Ok(None) => {}
+        Err(err) => {
+            log_skipped_entry(&path, &err);
+            return None;
+        }
+    }
+    match dir.child_file_stat(name) {
+        Ok(Some(stat)) => *bytes += stat.len,
+        Ok(None) => {}
+        Err(err) => log_skipped_entry(&path, &err),
+    }
+    None
+}
+
+fn list_dir_entries_logged(dir: &OpenDir) -> Option<IntoIter<OsString>> {
+    match dir.entry_names() {
+        Ok(names) => Some(names.into_iter()),
+        Err(err) => {
+            log_skipped_entry(dir.path(), &err);
+            None
+        }
+    }
+}
+
+fn log_skipped_entry(path: &Path, err: &io::Error) {
+    tracing::warn!(
+        path = %path.display(),
+        error = %err,
+        "skipping unreadable cache entry during inventory",
+    );
 }
 
 pub(super) fn is_managed_sqlite_file(cache_dir: &Path, path: &Path) -> bool {

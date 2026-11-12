@@ -7,15 +7,15 @@ use super::{ChildFileStat, ChildWrite, OpenDir, validate_child_name};
 use super::{c_name, unix};
 #[cfg(unix)]
 use std::os::fd::AsFd as _;
-#[cfg(not(unix))]
+#[cfg(any(not(unix), test))]
 use std::path::Path;
 use std::{
     ffi::{OsStr, OsString},
-    io,
+    io::{self, ErrorKind},
     sync::atomic::{AtomicU64, Ordering},
 };
 #[cfg(not(any(unix, windows)))]
-use std::{fs, io::ErrorKind, time::SystemTime};
+use std::{fs, time::SystemTime};
 
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -37,21 +37,35 @@ impl OpenDir {
     /// following symbolic links. Returns `None` for directories, symbolic
     /// links, special files, and missing entries.
     pub fn read_child_file(&self, name: &OsStr) -> io::Result<Option<Vec<u8>>> {
+        self.read_child_file_bounded(name, usize::MAX)
+    }
+
+    /// Read the regular file `name` directly inside this directory without
+    /// following symbolic links, failing with [`ErrorKind::InvalidData`] if its
+    /// length exceeds `max_bytes`. Returns `None` for directories, symbolic
+    /// links, special files, and missing entries.
+    pub fn read_child_file_bounded(
+        &self,
+        name: &OsStr,
+        max_bytes: usize,
+    ) -> io::Result<Option<Vec<u8>>> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::read_file_at(self.handle.as_fd(), &c_name(name)?);
+        return unix::read_file_at(self.handle.as_fd(), &c_name(name)?, max_bytes);
         #[cfg(windows)]
-        return windows::read_child_file(&self.pinned, name);
+        return windows::read_child_file(&self.pinned, name, max_bytes);
         #[cfg(not(any(unix, windows)))]
         {
-            if self.child_file_stat(name)?.is_none() {
+            let Some(stat) = self.child_file_stat(name)? else {
                 return Ok(None);
-            }
-            match fs::read(self.path.join(name)) {
-                Ok(bytes) => Ok(Some(bytes)),
-                Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-                Err(error) => Err(error),
-            }
+            };
+            ensure_within_max_bytes(stat.len, max_bytes)?;
+            let file = match fs::File::open(self.path.join(name)) {
+                Ok(file) => file,
+                Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            read_bounded_bytes(file, max_bytes).map(Some)
         }
     }
 
@@ -144,7 +158,34 @@ pub(in crate::open_dir) fn unique_child_tmp_name(name: &OsStr) -> OsString {
     tmp
 }
 
-#[cfg(not(unix))]
+pub(in crate::open_dir) fn ensure_within_max_bytes(len: u64, max_bytes: usize) -> io::Result<()> {
+    if u64::try_from(max_bytes).is_ok_and(|limit| len > limit) {
+        return Err(io::Error::new(ErrorKind::InvalidData, "child file exceeds maximum size"));
+    }
+    Ok(())
+}
+
+pub(in crate::open_dir) fn read_bounded_bytes(
+    mut reader: impl io::Read,
+    max_bytes: usize,
+) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    if let Some(limit_plus_one) = u64::try_from(max_bytes)
+        .ok()
+        .and_then(|limit| limit.checked_add(1))
+    {
+        let mut bounded = io::Read::take(&mut reader, limit_plus_one);
+        io::Read::read_to_end(&mut bounded, &mut bytes)?;
+        if bytes.len() > max_bytes {
+            return Err(io::Error::new(ErrorKind::InvalidData, "child file exceeds maximum size"));
+        }
+    } else {
+        io::Read::read_to_end(&mut reader, &mut bytes)?;
+    }
+    Ok(bytes)
+}
+
+#[cfg(any(not(unix), test))]
 pub(in crate::open_dir) fn write_child_file_in_pinned_dir(
     dir_path: &Path,
     name: &OsStr,
@@ -152,50 +193,68 @@ pub(in crate::open_dir) fn write_child_file_in_pinned_dir(
     mode: ChildWrite,
     mut is_link: impl FnMut() -> io::Result<bool>,
 ) -> io::Result<()> {
-    use std::io::Write as _;
-
-    let tmp_path = (0..16)
-        .find_map(|_| {
-            let candidate = dir_path.join(unique_child_tmp_name(name));
-            match std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&candidate)
-            {
-                Ok(mut file) => {
-                    let result = file.write_all(bytes).and_then(|()| file.sync_all());
-                    drop(file);
-                    Some(
-                        result
-                            .map(|()| candidate)
-                            .inspect_err(|_| {
-                                let _ = std::fs::remove_file(&candidate);
-                            }),
-                    )
-                }
-                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => None,
-                Err(err) => Some(Err(err)),
-            }
-        })
-        .unwrap_or_else(|| {
-            Err(io::Error::new(std::io::ErrorKind::AlreadyExists, "temporary child collided"))
-        })?;
+    let tmp_path = create_temp_child_in_pinned_dir(dir_path, name, bytes)?;
     let dest = dir_path.join(name);
     let published = match mode {
-        ChildWrite::CreateNew => std::fs::hard_link(&tmp_path, &dest),
+        ChildWrite::CreateNew => {
+            crate::retry::retry_transient_file_locks(|| std::fs::hard_link(&tmp_path, &dest))
+        }
+        ChildWrite::Replace => replace_pinned_dest(&tmp_path, &dest, &mut is_link),
+    };
+    match mode {
+        ChildWrite::CreateNew => {
+            let _ = crate::remove_file_with_retry(&tmp_path);
+        }
         ChildWrite::Replace => {
-            if is_link()? {
-                Err(io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "refusing to replace symlink child",
-                ))
-            } else {
-                std::fs::rename(&tmp_path, &dest)
+            if published.is_err() {
+                let _ = crate::remove_file_with_retry(&tmp_path);
             }
         }
-    };
-    let _ = std::fs::remove_file(&tmp_path);
+    }
     published
+}
+
+#[cfg(any(not(unix), test))]
+fn create_temp_child_in_pinned_dir(
+    dir_path: &Path,
+    name: &OsStr,
+    bytes: &[u8],
+) -> io::Result<std::path::PathBuf> {
+    use std::io::Write as _;
+
+    for _ in 0..16 {
+        let candidate = dir_path.join(unique_child_tmp_name(name));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                let result = file.write_all(bytes).and_then(|()| crate::sync_file(&file));
+                drop(file);
+                if let Err(err) = result {
+                    let _ = crate::remove_file_with_retry(&candidate);
+                    return Err(err);
+                }
+                return Ok(candidate);
+            }
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Err(io::Error::new(ErrorKind::AlreadyExists, "temporary child collided"))
+}
+
+#[cfg(any(not(unix), test))]
+fn replace_pinned_dest(
+    tmp_path: &Path,
+    dest: &Path,
+    is_link: &mut impl FnMut() -> io::Result<bool>,
+) -> io::Result<()> {
+    if is_link()? {
+        return Err(io::Error::new(ErrorKind::InvalidInput, "refusing to replace symlink child"));
+    }
+    crate::rename_with_retry(tmp_path, dest)
 }
 
 #[cfg(not(any(unix, windows)))]

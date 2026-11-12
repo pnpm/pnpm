@@ -509,6 +509,63 @@ fn create_and_write_child_file_stay_anchored_and_refuse_symlinks() {
     }
 }
 
+#[test]
+fn read_child_file_bounded_enforces_size_cap_and_pinned_helper_cleans_up_temps() {
+    let root = tempdir().unwrap();
+    fs::write(root.path().join("small"), b"abcd").unwrap();
+    fs::write(root.path().join("large"), vec![b'x'; 512]).unwrap();
+    let dir = OpenDir::open(root.path()).unwrap();
+
+    assert_eq!(dir.read_child_file_bounded("missing".as_ref(), 4).unwrap(), None);
+    assert_eq!(
+        dir.read_child_file_bounded("small".as_ref(), 4)
+            .unwrap()
+            .as_deref(),
+        Some(&b"abcd"[..]),
+    );
+    assert_eq!(
+        dir.read_child_file_bounded("small".as_ref(), 3)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData,
+    );
+    assert_eq!(
+        dir.read_child_file_bounded("large".as_ref(), 64)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData,
+    );
+
+    let pinned = root.path().join("pinned");
+    fs::create_dir_all(&pinned).unwrap();
+    super::write_child_file_in_pinned_dir(
+        &pinned,
+        ".marker".as_ref(),
+        b"first",
+        super::ChildWrite::CreateNew,
+        || Ok(false),
+    )
+    .unwrap();
+    assert_eq!(
+        super::write_child_file_in_pinned_dir(
+            &pinned,
+            ".marker".as_ref(),
+            b"second",
+            super::ChildWrite::Replace,
+            || Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+        )
+        .unwrap_err()
+        .kind(),
+        io::ErrorKind::PermissionDenied,
+    );
+    let entries: Vec<_> = fs::read_dir(&pinned)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(entries, vec![std::ffi::OsString::from(".marker")]);
+    assert_eq!(fs::read(pinned.join(".marker")).unwrap(), b"first");
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_retargeted_ancestor_junction_stays_bound_to_opened_root() {

@@ -1,6 +1,9 @@
 use crate::{
     Config,
-    config_validation::{CacheDirCheck, is_ignorable_cache_entry},
+    config_validation::{
+        CacheDirCheck, MAX_CACHE_SECRET_MARKER_BYTES, PENDING_CACHE_CLAIM,
+        ensure_only_ignorable_entries,
+    },
 };
 use pnpm_fs::OpenDir;
 use pnpr_config::{CACHE_SECRET_MARKER, cache_secret_fingerprint};
@@ -12,42 +15,20 @@ use std::{
     time::Duration,
 };
 
-const PENDING_CACHE_CLAIM: &str = "pending";
-
 enum ClaimAttempt {
     Claimed,
     RetryAfterRollback,
+}
+
+enum ExclusiveClaim {
+    Claimed,
+    AlreadyExists,
 }
 
 enum MarkerRead {
     Missing,
     Symlink,
     Contents(String),
-}
-
-pub(super) fn preflight_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
-    if config.has_configured_secret {
-        return Ok(());
-    }
-    let dir = match OpenDir::open(&config.storage.cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(err.into()),
-    };
-    let marker = OsStr::new(CACHE_SECRET_MARKER);
-    if dir.has_symlink_child(marker)? {
-        return Err(persistent_cache_secret_error());
-    }
-    if let Some(bytes) = dir.read_child_file(marker)? {
-        let fingerprint = cache_secret_fingerprint(&config.cache_secret);
-        let allowed = std::str::from_utf8(&bytes)
-            .is_ok_and(|raw| {
-                let trimmed = raw.trim();
-                trimmed == fingerprint || trimmed == PENDING_CACHE_CLAIM
-            });
-        return if allowed { Ok(()) } else { Err(persistent_cache_secret_error()) };
-    }
-    ensure_only_ephemeral_entries(&dir)
 }
 
 pub(super) async fn claim_ephemeral_cache_dir(config: &Config) -> pnpr_error::Result<()> {
@@ -88,20 +69,22 @@ async fn try_claim_ephemeral_marker(
     let handle = Arc::clone(dir);
     let target = cache_dir.to_path_buf();
     let expected = fingerprint.to_string();
-    let created = tokio::task::spawn_blocking(move || {
+    let outcome = tokio::task::spawn_blocking(move || {
         match handle.create_child_file_new(
             OsStr::new(CACHE_SECRET_MARKER),
             PENDING_CACHE_CLAIM.as_bytes(),
         ) {
-            Ok(()) => finalize_pending_claim_sync(&handle, &target, &expected).map(|()| true),
-            Err(err) if err.kind() == ErrorKind::AlreadyExists => Ok(false),
+            Ok(()) => finalize_pending_claim_sync(&handle, &target, &expected)
+                .map(|()| ExclusiveClaim::Claimed),
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => Ok(ExclusiveClaim::AlreadyExists),
             Err(err) => Err(err.into()),
         }
     })
     .await
     .map_err(|err| join_error(&err))??;
-    if created {
-        return Ok(ClaimAttempt::Claimed);
+    match outcome {
+        ExclusiveClaim::Claimed => return Ok(ClaimAttempt::Claimed),
+        ExclusiveClaim::AlreadyExists => {}
     }
     match await_completed_marker(dir).await? {
         Some(stored) if stored == fingerprint => {
@@ -119,7 +102,7 @@ fn finalize_pending_claim_sync(
     fingerprint: &str,
 ) -> pnpr_error::Result<()> {
     let marker = OsStr::new(CACHE_SECRET_MARKER);
-    let outcome = ensure_only_ephemeral_entries(dir)
+    let outcome = ensure_only_ignorable_entries(dir, CacheDirCheck::ClaimedWithMarker)
         .and_then(|()| ensure_anchored_identity(dir, cache_dir))
         .and_then(|()| {
             dir.write_child_file(marker, fingerprint.as_bytes())
@@ -161,8 +144,13 @@ async fn read_marker_state(dir: &Arc<OpenDir>) -> pnpr_error::Result<MarkerRead>
         if handle.has_symlink_child(marker)? {
             return Ok(MarkerRead::Symlink);
         }
-        let Some(bytes) = handle.read_child_file(marker)? else {
-            return Ok(MarkerRead::Missing);
+        let bytes = match handle.read_child_file_bounded(marker, MAX_CACHE_SECRET_MARKER_BYTES) {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => return Ok(MarkerRead::Missing),
+            Err(err) if err.kind() == ErrorKind::InvalidData => {
+                return Ok(MarkerRead::Contents("<oversized>".to_string()));
+            }
+            Err(err) => return Err(err.into()),
         };
         let parsed = std::str::from_utf8(&bytes)
             .map(|raw| raw.trim().to_string())
@@ -171,15 +159,6 @@ async fn read_marker_state(dir: &Arc<OpenDir>) -> pnpr_error::Result<MarkerRead>
     })
     .await
     .map_err(|err| join_error(&err))?
-}
-
-fn ensure_only_ephemeral_entries(dir: &OpenDir) -> pnpr_error::Result<()> {
-    for name in dir.entry_names()? {
-        if !is_ignorable_cache_entry(&name, CacheDirCheck::ClaimedWithMarker) {
-            return Err(persistent_cache_secret_error());
-        }
-    }
-    Ok(())
 }
 
 fn ensure_anchored_identity(dir: &OpenDir, configured_cache: &Path) -> pnpr_error::Result<()> {

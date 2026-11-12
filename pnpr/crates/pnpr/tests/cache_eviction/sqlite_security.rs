@@ -610,3 +610,59 @@ async fn batch_eviction_across_hundreds_of_parent_dirs_removes_every_expired_ent
     assert_eq!(report.files_evicted, 300);
     assert!(!cache_dir.join("~public/npm/packages").exists());
 }
+
+#[tokio::test]
+async fn eviction_preserves_files_index_dir_and_skips_unreadable_subdirs() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let cache_dir = &config.storage.cache_dir;
+    std::fs::create_dir_all(cache_dir).unwrap();
+    std::fs::write(
+        cache_dir.join(pnpr_config::CACHE_SECRET_MARKER),
+        pnpr_config::cache_secret_fingerprint(&config.cache_secret),
+    )
+    .unwrap();
+
+    let files_index_dir = cache_dir
+        .join("resolver-store")
+        .join(pnpm_store_dir::STORE_VERSION)
+        .join("index");
+    let shard_dir = files_index_dir.join("ab");
+    std::fs::create_dir_all(&shard_dir).unwrap();
+    let expired = cache_dir.join("~public/npm/packages/pkg/document.json");
+    create_file_with_age(&expired, b"{}", Duration::from_hours(48));
+
+    #[cfg(unix)]
+    let locked_dir = {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = cache_dir.join("~public/npm/packages/locked");
+        create_file_with_age(&dir.join("document.json"), b"{}", Duration::from_hours(48));
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+        dir
+    };
+
+    let result = collect_cache(
+        &config,
+        &CacheGcOptions {
+            effect: CacheGcEffect::Apply,
+            max_size: None,
+            max_age: Some(Duration::from_hours(1)),
+            scope: CacheGcScope::Full,
+        },
+    )
+    .await;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let _ = std::fs::set_permissions(&locked_dir, std::fs::Permissions::from_mode(0o755));
+    }
+
+    let report = result.unwrap();
+    assert!(report.files_evicted >= 1);
+    assert!(!expired.exists(), "sibling expired entries must be evicted even if one subdir fails");
+    assert!(
+        files_index_dir.is_dir(),
+        "empty resolver-store/<version>/index must stay intact so FilesIndex backend is preserved",
+    );
+}

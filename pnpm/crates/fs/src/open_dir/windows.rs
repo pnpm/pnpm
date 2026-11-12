@@ -7,9 +7,14 @@
 //! the pinned path.
 
 use crate::{
-    open_dir::{ChildFileStat, ChildWrite, OpenDir, write_child_file_in_pinned_dir},
+    open_dir::{
+        ChildFileStat, ChildWrite, OpenDir,
+        child_ops::{ensure_within_max_bytes, read_bounded_bytes},
+        write_child_file_in_pinned_dir,
+    },
     remove_dirent,
-    retry::retry_transient_removal_locks,
+    retry::{retry_transient_file_locks, retry_transient_removal_locks},
+    symlink_metadata_with_retry,
 };
 use std::{
     ffi::OsStr,
@@ -118,7 +123,7 @@ pub(super) fn stat_child_file(
     parent_path: &Path,
     name: &OsStr,
 ) -> io::Result<Option<ChildFileStat>> {
-    let metadata = match fs::symlink_metadata(parent_path.join(name)) {
+    let metadata = match symlink_metadata_with_retry(&parent_path.join(name)) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
@@ -134,15 +139,19 @@ pub(super) fn stat_child_file(
 pub(super) fn read_child_file(
     parent_pinned: &PinnedChain,
     name: &OsStr,
+    max_bytes: usize,
 ) -> io::Result<Option<Vec<u8>>> {
-    if stat_child_file(parent_pinned.path(), name)?.is_none() {
+    let Some(stat) = stat_child_file(parent_pinned.path(), name)? else {
         return Ok(None);
-    }
-    let mut file = match fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-        .open(parent_pinned.path().join(name))
-    {
+    };
+    ensure_within_max_bytes(stat.len, max_bytes)?;
+    let child_path = parent_pinned.path().join(name);
+    let file = match retry_transient_file_locks(|| {
+        fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(&child_path)
+    }) {
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
@@ -151,16 +160,16 @@ pub(super) fn read_child_file(
     if !metadata.file_type().is_file() || is_reparse_point(&metadata) {
         return Ok(None);
     }
-    let mut bytes = Vec::new();
-    io::Read::read_to_end(&mut file, &mut bytes)?;
-    Ok(Some(bytes))
+    ensure_within_max_bytes(metadata.len(), max_bytes)?;
+    read_bounded_bytes(file, max_bytes).map(Some)
 }
 
 pub(super) fn remove_child_file(parent_pinned: &PinnedChain, name: &OsStr) -> io::Result<bool> {
     if stat_child_file(parent_pinned.path(), name)?.is_none() {
         return Ok(false);
     }
-    match fs::remove_file(parent_pinned.path().join(name)) {
+    let child_path = parent_pinned.path().join(name);
+    match retry_transient_removal_locks(|| fs::remove_file(&child_path)) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),
@@ -174,7 +183,8 @@ pub(super) fn remove_empty_child_dir(
     if !is_real_child_dir(parent_pinned.path(), name)? {
         return Ok(false);
     }
-    match fs::remove_dir(parent_pinned.path().join(name)) {
+    let child_path = parent_pinned.path().join(name);
+    match retry_transient_removal_locks(|| fs::remove_dir(&child_path)) {
         Ok(()) => Ok(true),
         Err(error)
             if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
@@ -191,8 +201,16 @@ pub(super) fn write_child_file(
     bytes: &[u8],
     mode: ChildWrite,
 ) -> io::Result<()> {
-    if matches!(mode, ChildWrite::Replace) && is_reparse_child(parent_pinned.path(), name)? {
-        return Err(io::Error::new(ErrorKind::InvalidInput, "refusing to replace reparse child"));
+    match mode {
+        ChildWrite::CreateNew => {}
+        ChildWrite::Replace => {
+            if is_reparse_child(parent_pinned.path(), name)? {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    "refusing to replace reparse child",
+                ));
+            }
+        }
     }
     write_child_file_in_pinned_dir(parent_pinned.path(), name, bytes, mode, || {
         is_reparse_child(parent_pinned.path(), name)
@@ -200,7 +218,7 @@ pub(super) fn write_child_file(
 }
 
 pub(super) fn is_reparse_child(parent_path: &Path, name: &OsStr) -> io::Result<bool> {
-    match fs::symlink_metadata(parent_path.join(name)) {
+    match symlink_metadata_with_retry(&parent_path.join(name)) {
         Ok(metadata) => Ok(metadata.file_type().is_symlink() || is_reparse_point(&metadata)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),
@@ -208,7 +226,7 @@ pub(super) fn is_reparse_child(parent_path: &Path, name: &OsStr) -> io::Result<b
 }
 
 pub(super) fn is_real_child_dir(parent_path: &Path, name: &OsStr) -> io::Result<bool> {
-    match fs::symlink_metadata(parent_path.join(name)) {
+    match symlink_metadata_with_retry(&parent_path.join(name)) {
         Ok(metadata) => Ok(metadata.is_dir() && !is_reparse_point(&metadata)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),

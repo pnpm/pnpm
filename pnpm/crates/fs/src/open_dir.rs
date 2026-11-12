@@ -28,7 +28,7 @@ mod windows;
 
 #[cfg(unix)]
 use self::child_ops::unique_child_tmp_name;
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 use self::child_ops::write_child_file_in_pinned_dir;
 
 #[derive(Clone, Copy)]

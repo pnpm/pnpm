@@ -1,6 +1,6 @@
 mod cache_claim;
 
-use self::cache_claim::{claim_ephemeral_cache_dir, preflight_ephemeral_cache_dir};
+use self::cache_claim::claim_ephemeral_cache_dir;
 use std::future::IntoFuture;
 
 use axum::Router;
@@ -29,8 +29,7 @@ pub(super) fn load_active_osv_index(
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
-    crate::config_validation::validate_cache_paths_and_backend(config)?;
-    preflight_ephemeral_cache_dir(config)?;
+    crate::config_validation::validate_cache_secret_for_claim(config)?;
     let storage = Storage::from_config(&config.storage)?;
     if !config.routing.hosted.is_empty() {
         storage.ensure_hosted_layout().await?;
@@ -177,7 +176,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
-    crate::config_validation::validate_startup_config(&mut config)?;
+    crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -296,7 +295,7 @@ pub async fn serve_listener_with(
     wrap: impl FnOnce(Router) -> Router,
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
-    crate::config_validation::validate_startup_config(&mut config)?;
+    crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`

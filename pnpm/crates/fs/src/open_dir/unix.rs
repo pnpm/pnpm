@@ -15,7 +15,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use super::ChildFileStat;
+use super::{
+    ChildFileStat,
+    child_ops::{ensure_within_max_bytes, read_bounded_bytes},
+};
 
 /// Open the directory `name` inside `parent` without following a link.
 pub(super) fn open_dir_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<OwnedFd> {
@@ -89,10 +92,15 @@ pub(super) fn is_symlink_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<b
     Ok(lstat_at(parent, name)?.is_some_and(|stat| (stat.st_mode & libc::S_IFMT) == libc::S_IFLNK))
 }
 
-pub(super) fn read_file_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<Vec<u8>>> {
-    if stat_file_at(parent, name)?.is_none() {
+pub(super) fn read_file_at(
+    parent: BorrowedFd<'_>,
+    name: &CStr,
+    max_bytes: usize,
+) -> io::Result<Option<Vec<u8>>> {
+    let Some(stat) = stat_file_at(parent, name)? else {
         return Ok(None);
-    }
+    };
+    ensure_within_max_bytes(stat.len, max_bytes)?;
     // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
     let descriptor = unsafe {
         libc::openat(
@@ -106,14 +114,14 @@ pub(super) fn read_file_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Op
         return if is_non_regular_open_error(&error) { Ok(None) } else { Err(error) };
     }
     // SAFETY: the descriptor was just opened and nothing else owns it.
-    let mut file = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
-    if !file.metadata()?.file_type().is_file() {
+    let file = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() {
         return Ok(None);
     }
+    ensure_within_max_bytes(metadata.len(), max_bytes)?;
     clear_nonblock(file.as_raw_fd());
-    let mut bytes = Vec::new();
-    io::Read::read_to_end(&mut file, &mut bytes)?;
-    Ok(Some(bytes))
+    read_bounded_bytes(file, max_bytes).map(Some)
 }
 
 fn clear_nonblock(fd: libc::c_int) {

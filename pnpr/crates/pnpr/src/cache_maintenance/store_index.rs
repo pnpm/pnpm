@@ -1,45 +1,46 @@
-use super::{HashSet, Path};
+use super::HashSet;
 use pnpm_fs::OpenDir;
-use pnpm_store_dir::{PackageFilesIndex, StoreIndex, StoreIndexError, decode_package_files_index};
+use pnpm_store_dir::{
+    PackageFilesIndex, STORE_VERSION, StoreIndex, StoreIndexError, decode_package_files_index,
+};
 use std::{
     ffi::OsStr,
     io::{self, ErrorKind},
+    sync::Arc,
 };
 
-const STORE_V11_COMPONENTS: [&str; 2] = ["resolver-store", "v11"];
+const STORE_DIR_COMPONENTS: [&str; 2] = ["resolver-store", STORE_VERSION];
 const STORE_INDEX_FAMILY: [&str; 4] =
     ["index.db", "index.db-wal", "index.db-shm", "index.db-journal"];
 
-pub(super) fn store_index_family_bytes(cache_dir: &Path) -> io::Result<u64> {
-    let mut dir = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(0),
-        Err(err) => return Err(err),
+pub(super) fn store_index_family_bytes(cache_root: &OpenDir) -> io::Result<u64> {
+    let Some(first) = cache_root.open_child_dir(OsStr::new(STORE_DIR_COMPONENTS[0]))? else {
+        return Ok(0);
     };
-    for part in STORE_V11_COMPONENTS {
-        let Some(next) = dir.open_child_dir(OsStr::new(part))? else {
-            return Ok(0);
-        };
-        dir = next;
-    }
-    sqlite_bytes_in(&dir)
+    let Some(store_dir) = first.open_child_dir(OsStr::new(STORE_DIR_COMPONENTS[1]))? else {
+        return Ok(0);
+    };
+    sqlite_bytes_in(&store_dir)
 }
 
 pub(super) async fn prune_store_index_digests(
-    cache_dir: &Path,
+    cache_root: &Arc<OpenDir>,
     removed_digests: HashSet<String>,
 ) -> io::Result<u64> {
     if removed_digests.is_empty() {
         return Ok(0);
     }
-    let root = cache_dir.to_path_buf();
+    let root = Arc::clone(cache_root);
     tokio::task::spawn_blocking(move || prune_store_index_sync(&root, &removed_digests))
         .await
         .map_err(|err| io::Error::other(err.to_string()))?
 }
 
-fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -> io::Result<u64> {
-    let Some(store_root) = open_store_v11_dir(cache_dir)? else {
+fn prune_store_index_sync(
+    cache_root: &OpenDir,
+    removed_digests: &HashSet<String>,
+) -> io::Result<u64> {
+    let Some(store_root) = open_store_dir(cache_root)? else {
         return Ok(0);
     };
     let before = sqlite_bytes_in(&store_root)?;
@@ -63,25 +64,25 @@ fn prune_store_index_sync(cache_dir: &Path, removed_digests: &HashSet<String>) -
     Ok(before.saturating_sub(sqlite_bytes_in(&store_root)?))
 }
 
-fn open_store_v11_dir(cache_dir: &Path) -> io::Result<Option<OpenDir>> {
-    let mut dir = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(err),
-    };
-    for part in STORE_V11_COMPONENTS {
-        if dir.has_symlink_child(OsStr::new(part))? {
-            return Err(io::Error::new(
-                ErrorKind::InvalidInput,
-                format!("refusing symlinked cache directory component `{part}`"),
-            ));
-        }
-        let Some(next) = dir.open_child_dir(OsStr::new(part))? else {
-            return Ok(None);
-        };
-        dir = next;
+fn open_store_dir(cache_root: &OpenDir) -> io::Result<Option<OpenDir>> {
+    let first_name = STORE_DIR_COMPONENTS[0];
+    if cache_root.has_symlink_child(OsStr::new(first_name))? {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            format!("refusing symlinked cache directory component `{first_name}`"),
+        ));
     }
-    Ok(Some(dir))
+    let Some(first) = cache_root.open_child_dir(OsStr::new(first_name))? else {
+        return Ok(None);
+    };
+    let second_name = STORE_DIR_COMPONENTS[1];
+    if first.has_symlink_child(OsStr::new(second_name))? {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            format!("refusing symlinked cache directory component `{second_name}`"),
+        ));
+    }
+    first.open_child_dir(OsStr::new(second_name))
 }
 
 fn sqlite_bytes_in(dir: &OpenDir) -> io::Result<u64> {

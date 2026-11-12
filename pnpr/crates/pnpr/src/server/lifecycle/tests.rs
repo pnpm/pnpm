@@ -491,3 +491,53 @@ async fn concurrent_same_config_claims_reject_dirty_cache_and_prepare_validates_
     assert!(err.contains("when using shared storage or database backends"), "{err}");
     assert!(!shared_no_secret.storage.cache_dir.exists());
 }
+
+#[tokio::test]
+async fn serving_startup_defers_pending_claim_while_rejecting_dirty_or_oversized_markers() {
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().join("pending-serving-cache");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    let marker = cache_dir.join(pnpr_config::CACHE_SECRET_MARKER);
+    std::fs::write(&marker, "pending").unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+    let mut cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    cfg.storage.cache_dir = cache_dir.clone();
+
+    assert!(
+        crate::config_validation::validate_startup_config(&mut cfg).is_err(),
+        "non-serving validation must still reject a stale pending marker",
+    );
+    crate::config_validation::validate_serving_startup_config(&mut cfg).unwrap();
+
+    let marker_writer = marker.clone();
+    let fingerprint = pnpr_config::cache_secret_fingerprint(&cfg.cache_secret);
+    let finalize = tokio::spawn(async move {
+        tokio::task::yield_now().await;
+        std::fs::write(&marker_writer, fingerprint).unwrap();
+    });
+    super::claim_ephemeral_cache_dir(&cfg).await.unwrap();
+    finalize.await.unwrap();
+
+    let dirty_pending_cache = tmp.path().join("dirty-pending-cache");
+    std::fs::create_dir_all(dirty_pending_cache.join("~upstreams/npm")).unwrap();
+    std::fs::write(dirty_pending_cache.join(pnpr_config::CACHE_SECRET_MARKER), "pending").unwrap();
+    let uncreated_hosted = tmp.path().join("uncreated-hosted");
+    let mut dirty_cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    dirty_cfg.storage.cache_dir = dirty_pending_cache;
+    dirty_cfg.storage.hosted_dir = uncreated_hosted.clone();
+    assert!(crate::config_validation::validate_serving_startup_config(&mut dirty_cfg).is_err());
+    assert!(super::prepare_storage(&dirty_cfg).await.is_err());
+    assert!(
+        !uncreated_hosted.exists(),
+        "prepare_storage must reject a dirty pending cache before touching hosted storage",
+    );
+
+    let oversized_cache = tmp.path().join("oversized-marker-cache");
+    std::fs::create_dir_all(&oversized_cache).unwrap();
+    std::fs::write(oversized_cache.join(pnpr_config::CACHE_SECRET_MARKER), vec![b'a'; 1024])
+        .unwrap();
+    let mut oversized_cfg = Config::from_default_yaml(tmp.path(), listen, None);
+    oversized_cfg.storage.cache_dir = oversized_cache;
+    assert!(crate::config_validation::validate_startup_config(&mut oversized_cfg).is_err());
+    assert!(super::claim_ephemeral_cache_dir(&oversized_cfg).await.is_err());
+}

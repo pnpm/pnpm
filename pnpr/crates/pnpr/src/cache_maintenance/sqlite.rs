@@ -9,8 +9,9 @@ use self::conn::{
 use super::{
     CacheGcEffect, Duration, Path, PathBuf, SystemTime, store_index::store_index_family_bytes,
 };
+use pnpm_fs::OpenDir;
 use rusqlite::{Connection, OpenFlags};
-use std::{io, time::UNIX_EPOCH};
+use std::{io, sync::Arc, time::UNIX_EPOCH};
 
 const EMPTY_VERDICT_DB_BYTES: u64 = 12 * 1024;
 
@@ -20,8 +21,8 @@ pub(super) struct VerdictExpiry {
     pub(super) cutoff_ms: i64,
 }
 
-pub(super) async fn resolver_sqlite_bytes(cache_dir: &Path) -> io::Result<u64> {
-    let root = cache_dir.to_path_buf();
+pub(super) async fn resolver_sqlite_bytes(cache_root: &Arc<OpenDir>) -> io::Result<u64> {
+    let root = Arc::clone(cache_root);
     tokio::task::spawn_blocking(move || {
         let verdict = verdict_family_bytes_in_cache(&root)?;
         let store_index = store_index_family_bytes(&root)?;
@@ -32,24 +33,24 @@ pub(super) async fn resolver_sqlite_bytes(cache_dir: &Path) -> io::Result<u64> {
 }
 
 pub(super) async fn expire_verdict_rows(
-    cache_dir: &Path,
+    cache_root: &Arc<OpenDir>,
     max_age: Duration,
     effect: CacheGcEffect,
 ) -> VerdictExpiry {
-    let root = cache_dir.to_path_buf();
+    let root = Arc::clone(cache_root);
     tokio::task::spawn_blocking(move || expire_verdict_rows_sync(&root, max_age, effect))
         .await
         .unwrap_or(VerdictExpiry { reclaimed_bytes: 0, deferred_free_bytes: 0, cutoff_ms: 0 })
 }
 
 fn expire_verdict_rows_sync(
-    cache_dir: &Path,
+    cache_root: &OpenDir,
     max_age: Duration,
     effect: CacheGcEffect,
 ) -> VerdictExpiry {
     let ttl_ms = i64::try_from(max_age.as_millis()).unwrap_or(i64::MAX);
     let cutoff_ms = now_ms().saturating_sub(ttl_ms);
-    let Some(verdict) = open_verdict_dir(cache_dir) else {
+    let Some(verdict) = open_verdict_dir(cache_root) else {
         return VerdictExpiry { reclaimed_bytes: 0, deferred_free_bytes: 0, cutoff_ms };
     };
     let (reclaimed_bytes, deferred_free_bytes) = match effect {
@@ -156,18 +157,21 @@ pub(super) struct VerdictTrimParams {
     pub(super) effect: CacheGcEffect,
 }
 
-pub(super) async fn trim_verdict_db_to_fit(cache_dir: &Path, params: VerdictTrimParams) -> u64 {
-    let root = cache_dir.to_path_buf();
+pub(super) async fn trim_verdict_db_to_fit(
+    cache_root: &Arc<OpenDir>,
+    params: VerdictTrimParams,
+) -> u64 {
+    let root = Arc::clone(cache_root);
     tokio::task::spawn_blocking(move || trim_verdict_db_sync(&root, &params))
         .await
         .unwrap_or(0)
 }
 
-fn trim_verdict_db_sync(cache_dir: &Path, params: &VerdictTrimParams) -> u64 {
+fn trim_verdict_db_sync(cache_root: &OpenDir, params: &VerdictTrimParams) -> u64 {
     if params.excess_bytes == 0 {
         return 0;
     }
-    let Some(verdict) = open_verdict_dir(cache_dir) else {
+    let Some(verdict) = open_verdict_dir(cache_root) else {
         return 0;
     };
     match params.effect {

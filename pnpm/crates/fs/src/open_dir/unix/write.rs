@@ -19,8 +19,16 @@ pub(in crate::open_dir) fn write_file_at(
     bytes: &[u8],
     mode: ChildWrite,
 ) -> io::Result<()> {
-    if matches!(mode, ChildWrite::Replace) && is_symlink_at(parent, dest_name)? {
-        return Err(io::Error::new(ErrorKind::InvalidInput, "refusing to replace symlink child"));
+    match mode {
+        ChildWrite::CreateNew => {}
+        ChildWrite::Replace => {
+            if is_symlink_at(parent, dest_name)? {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    "refusing to replace symlink child",
+                ));
+            }
+        }
     }
     let (mut file, tmp_name) = create_temp_at(parent, base_name)?;
     if let Err(error) = write_and_sync(&mut file, bytes) {
@@ -33,13 +41,22 @@ pub(in crate::open_dir) fn write_file_at(
         ChildWrite::CreateNew => link_new_at(parent, &tmp_name, dest_name),
         ChildWrite::Replace => replace_at(parent, &tmp_name, dest_name),
     };
-    let _ = unlink_at(parent, &tmp_name, 0);
+    match mode {
+        ChildWrite::CreateNew => {
+            let _ = unlink_at(parent, &tmp_name, 0);
+        }
+        ChildWrite::Replace => {
+            if published.is_err() {
+                let _ = unlink_at(parent, &tmp_name, 0);
+            }
+        }
+    }
     published
 }
 
 fn write_and_sync(file: &mut File, bytes: &[u8]) -> io::Result<()> {
     file.write_all(bytes)?;
-    file.sync_all()
+    crate::sync_file(file)
 }
 
 fn create_temp_at(parent: BorrowedFd<'_>, base_name: &OsStr) -> io::Result<(File, CString)> {

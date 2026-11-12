@@ -141,7 +141,12 @@ async fn should_prune_private_resolver_scopes(
         if dir.has_symlink_child(marker).ok()? {
             return None;
         }
-        let bytes = dir.read_child_file(marker).ok()??;
+        let bytes = dir
+            .read_child_file_bounded(
+                marker,
+                crate::config_validation::MAX_CACHE_SECRET_MARKER_BYTES,
+            )
+            .ok()??;
         Some(std::str::from_utf8(&bytes).ok()?.trim() == fingerprint)
     })
     .await

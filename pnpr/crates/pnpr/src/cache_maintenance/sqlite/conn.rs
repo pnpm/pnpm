@@ -16,15 +16,14 @@ pub(super) struct AnchoredVerdictDb {
     pub(super) db_path: PathBuf,
 }
 
-pub(super) fn open_verdict_dir(cache_dir: &Path) -> Option<AnchoredVerdictDb> {
-    let root = OpenDir::open(cache_dir).ok()?;
-    if root
+pub(super) fn open_verdict_dir(cache_root: &OpenDir) -> Option<AnchoredVerdictDb> {
+    if cache_root
         .has_symlink_child(OsStr::new(VERDICT_DIR))
         .ok()?
     {
         return None;
     }
-    let dir = root
+    let dir = cache_root
         .open_child_dir(OsStr::new(VERDICT_DIR))
         .ok()??;
     if VERDICT_FAMILY
@@ -42,13 +41,8 @@ pub(super) fn open_verdict_dir(cache_dir: &Path) -> Option<AnchoredVerdictDb> {
     Some(AnchoredVerdictDb { dir, db_path: anchored_dir.join(VERDICT_DB) })
 }
 
-pub(super) fn verdict_family_bytes_in_cache(cache_dir: &Path) -> std::io::Result<u64> {
-    let root = match OpenDir::open(cache_dir) {
-        Ok(dir) => dir,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(0),
-        Err(err) => return Err(err),
-    };
-    let Some(dir) = root.open_child_dir(OsStr::new(VERDICT_DIR))? else {
+pub(super) fn verdict_family_bytes_in_cache(cache_root: &OpenDir) -> std::io::Result<u64> {
+    let Some(dir) = cache_root.open_child_dir(OsStr::new(VERDICT_DIR))? else {
         return Ok(0);
     };
     let mut total = 0u64;
