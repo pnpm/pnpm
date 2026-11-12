@@ -11,7 +11,7 @@ pub(crate) use lifecycle::{
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, DependencyManifestSources, DirectoryManifests,
     FreshnessCheckError, FreshnessScope, ImporterSatisfactionCheck, LockfileFreshnessInputs,
-    OptionalDependencyExclusions, ProjectManifestsByDir, WorkspaceProjects,
+    OptionalDependencyExclusions, ProjectManifestsByDir, RecordedPeerChildren, WorkspaceProjects,
     check_importer_satisfies, check_lockfile_settings_drift, dependency_manifests_by_dir,
     hooked_importer_directory_manifests, ignored_optional_matcher, is_declared_local_directory,
     parse_config_overrides, project_manifests_by_dir, spec_target_and_range,

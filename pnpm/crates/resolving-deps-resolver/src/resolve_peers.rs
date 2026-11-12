@@ -285,8 +285,8 @@ pub struct ImporterPeerInput {
     /// remap uses the correct per-importer target. `None` disables
     /// the remap for this importer.
     pub modules_dir: Option<PathBuf>,
-    /// Missing optional peers left unbound because every candidate was
-    /// rejected. A variant of this importer's closure that leaves one of
+    /// Missing optional peers with rejected providers in the current graph.
+    /// A variant of this importer's closure that leaves one of
     /// them unbound never collapses into a variant that resolves it.
     pub rejected_optional_peers: HashSet<String>,
 }

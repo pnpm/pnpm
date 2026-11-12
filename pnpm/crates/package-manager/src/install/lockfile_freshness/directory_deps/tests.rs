@@ -292,6 +292,7 @@ fn check_directory_dep_in_scope(
         importer_id: ".",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -823,6 +824,7 @@ snapshots:
         importer_id: "packages/c",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -885,6 +887,7 @@ fn check_root_with_directories(
         importer_id: ".",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -1227,6 +1230,7 @@ snapshots:
         importer_id: "packages/c",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),
@@ -1372,6 +1376,7 @@ fn catalog_child_matches_workspace_target(workspace_version: &str) -> bool {
         importer_id: ".",
         config: &config,
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            peer_children: &super::RecordedPeerChildren::default(),
             packages: None,
             manifests_by_dir: &manifests_by_dir,
             directory_manifests: crate::install::DirectoryManifests::none(),

@@ -25,7 +25,7 @@ pnpm skips that version if installing it would leave the project with an unmet p
 
 pnpm also resolves optional peers this way when `autoInstallPeers` is `false` and `dedupePeerDependents` is `true`. To stop it, set both settings to `false`.
 
-When you change or remove a direct dependency, its previous peer versions no longer guide optional peer selection. Unchanged dependencies can still retain their locked peer versions.
+When you change or remove a direct dependency, its previous peer versions no longer guide optional peer selection. Unchanged dependencies can still retain their locked peer versions. A removed provider that remains only in the old lockfile does not prevent deduplication with the providers still installed.
 
 #### Version conflicts
 

@@ -81,7 +81,7 @@ pub(super) fn check_recorded_local_targets(
                             check,
                             dep,
                             local_manifest,
-                            (snapshot, &bound),
+                            (snapshot, key, &bound),
                             child,
                         ))
             }))
@@ -115,7 +115,11 @@ fn peer_replaces_child(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     manifest: &PackageManifest,
-    (snapshot, bound): (&pnpm_lockfile::SnapshotEntry, &pnpm_lockfile::BoundProviders),
+    (snapshot, key, bound): (
+        &pnpm_lockfile::SnapshotEntry,
+        &pnpm_lockfile::PackageKey,
+        &pnpm_lockfile::BoundProviders,
+    ),
     child: &DependencySpec,
 ) -> bool {
     let Some(optional) =
@@ -130,7 +134,8 @@ fn peer_replaces_child(
     let Some(recorded) = recorded_child(snapshot, &child.alias, group) else {
         // The shared children's owner may take a peer this occurrence leaves unbound.
         return recorded_child(snapshot, &child.alias, RecordedDeps::Required).is_none()
-            && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_none();
+            && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_none()
+            && check.workspace.peer_children.contains(check.lockfile, key, &child.alias);
     };
     (!bound.is_hashed()
         && child.alias

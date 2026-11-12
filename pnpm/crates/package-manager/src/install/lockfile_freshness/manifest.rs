@@ -28,6 +28,7 @@ pub(crate) struct ImporterSatisfactionCheck<'a> {
 /// The workspace projects an importer's dependencies may point at.
 #[derive(Clone, Copy)]
 pub(crate) struct WorkspaceProjects<'a> {
+    pub(crate) peer_children: &'a super::directory_deps::RecordedPeerChildren,
     /// Linkable projects by name and version, when links are left out of
     /// the lockfile and have to be resolved against them.
     pub(crate) packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,

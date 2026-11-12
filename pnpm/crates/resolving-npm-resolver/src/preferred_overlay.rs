@@ -11,7 +11,7 @@ use std::{borrow::Cow, sync::Mutex};
 
 /// Keep an eligible edge on its own locked version even when its subtree
 /// needs fresh resolution. Other edges combine the workspace and level preferences.
-pub(crate) fn preferred_selectors<'a>(
+pub fn preferred_selectors<'a>(
     opts: &'a ResolveOptions,
     name: &str,
 ) -> Option<Cow<'a, VersionSelectors>> {

@@ -144,7 +144,7 @@ fn resolve_with(
             &importers,
             &[DependencyGroup::Prod],
             fixture.workspace_opts(settings, reuse),
-            |importer| fixture.importer_opts(&importer.id, settings),
+            |importer| fixture.importer_opts(&importer.id, settings, reuse),
         ))
         .map_err(|error| format!("{error:?}"))
 }
