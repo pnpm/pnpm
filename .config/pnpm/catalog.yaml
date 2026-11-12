@@ -9,7 +9,7 @@ catalog:
   '@cyclonedx/cyclonedx-library': 10.5.0
   '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.7.5
+  '@inquirer/prompts': ^8.8.0
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
