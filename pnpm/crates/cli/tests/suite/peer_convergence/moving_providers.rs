@@ -559,17 +559,23 @@ fn check_required_peer_pins(bundle: Option<&OsStr>, format: &str) {
 
 #[test]
 fn specifier_changes_and_updates_release_required_peer_pins() {
-    for update in [false, true] {
+    for change in [PeerPinChange::ConsumerSpecifier, PeerPinChange::NamedUpdate] {
         if let Some(bundle) = read_v11_bundle_path() {
-            check_changed_consumer_pin(Some(&bundle), ("v9", update));
+            check_changed_consumer_pin(Some(&bundle), "v9", change);
         }
         for format in ["v9", "v13"] {
-            check_changed_consumer_pin(None, (format, update));
+            check_changed_consumer_pin(None, format, change);
         }
     }
 }
 
-fn check_changed_consumer_pin(bundle: Option<&OsStr>, (format, update): (&str, bool)) {
+#[derive(Clone, Copy)]
+enum PeerPinChange {
+    ConsumerSpecifier,
+    NamedUpdate,
+}
+
+fn check_changed_consumer_pin(bundle: Option<&OsStr>, format: &str, change: PeerPinChange) {
     let registry_dir = tempfile::tempdir().unwrap();
     let mut fixture = WorkspaceFixture::new();
     fixture.registry.mock_instance = registry_from_manifests(
@@ -605,19 +611,26 @@ fn check_changed_consumer_pin(bundle: Option<&OsStr>, (format, update): (&str, b
     fixture.write_root_manifest(
         "root",
         ManifestDeps {
-            prod: &[("consumer", if update { "1.0.0" } else { "^1.0.0" })],
+            prod: &[(
+                "consumer",
+                match change {
+                    PeerPinChange::NamedUpdate => "1.0.0",
+                    PeerPinChange::ConsumerSpecifier => "^1.0.0",
+                },
+            )],
             ..Default::default()
         },
     );
-    if update {
-        let args = ["update", "provider", "--depth", "100", "--lockfile-only"];
-        let output = match bundle {
-            Some(bundle) => fixture.v11_command_at(bundle, &fixture.workspace, args),
-            None => fixture.command_at(&fixture.workspace, args),
-        };
-        assert_success(&output);
-    } else {
-        install_lockfile(&fixture, bundle);
+    match change {
+        PeerPinChange::NamedUpdate => {
+            let args = ["update", "provider", "--depth", "100", "--lockfile-only"];
+            let output = match bundle {
+                Some(bundle) => fixture.v11_command_at(bundle, &fixture.workspace, args),
+                None => fixture.command_at(&fixture.workspace, args),
+            };
+            assert_success(&output);
+        }
+        PeerPinChange::ConsumerSpecifier => install_lockfile(&fixture, bundle),
     }
     let changed = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     let alias = "consumer".parse().unwrap();
