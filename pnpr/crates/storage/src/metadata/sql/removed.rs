@@ -1,7 +1,7 @@
 use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
-    batch::Batch,
+    batch::{Batch, Retired},
     commit::{package_row_from, package_row_query, parse_json},
     to_column,
     transactions::Freshness,
@@ -52,8 +52,10 @@ pub(super) fn remove_package(
         ecosystem,
         name,
     );
+    // Only a stored package is removed, and a retired namespace holds none.
+    let reads = [package_row_query(key), mapped];
     let (mut batch, results) =
-        Batch::begin_with(connection, &key.namespace, &[package_row_query(key), mapped])?;
+        Batch::begin_with(connection, &key.namespace, Retired::Allowed, &reads)?;
     let mut results = results.into_iter();
     let Some(row) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(RemovedPackage::NotFound);

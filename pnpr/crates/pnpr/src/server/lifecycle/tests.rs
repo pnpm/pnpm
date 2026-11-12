@@ -1,7 +1,7 @@
 use super::{
-    Config, StartupGraph, Storage, current_routing_of, load_startup_auth, may_stage_archives,
-    spawn_periodic_archive_temp_sweep, state_and_router, sweep_abandoned_archive_temps,
-    sweep_current_archive_temps,
+    Config, StartupGraph, Storage, adopt_startup_graph, current_routing_of, load_startup_auth,
+    may_stage_archives, spawn_periodic_archive_temp_sweep, state_and_router,
+    sweep_abandoned_archive_temps, sweep_current_archive_temps,
 };
 use object_store::memory::InMemory;
 use pnpr_auth::TokenBackend;
@@ -178,7 +178,7 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
     let tmp = TempDir::new().unwrap();
     let mut config = s3_config(&tmp);
     config.http.shutdown_timeout = Duration::from_millis(80);
-    let auth = load_startup_auth(&config, StartupGraph::Loaded).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::File).await.unwrap();
     let (state, app) = super::state_and_router(config, auth, None).unwrap();
     let probe_app = app.clone();
 
@@ -301,7 +301,7 @@ async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store()
     proxy_config.routing.hosted.clear();
     proxy_config.storage.metadata =
         pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
-    load_startup_auth(&proxy_config, StartupGraph::Loaded).await.unwrap();
+    load_startup_auth(&proxy_config, StartupGraph::File).await.unwrap();
     tokio::time::advance(Duration::from_hours(2)).await;
     tokio::task::yield_now().await;
 
@@ -712,7 +712,7 @@ async fn startup_and_periodic_sweeps_delete_expired_tokens() {
         .unwrap();
     drop(seeded);
 
-    let auth = load_startup_auth(&config, StartupGraph::Loaded).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::File).await.unwrap();
     assert!(
         auth.tokens
             .find_by_key(&crate::server::ecosystem::sha256_hex(already_expired.as_bytes()))
@@ -897,4 +897,28 @@ fn a_server_whose_stored_graph_has_no_hosted_registry_sweeps_staged_archives() {
     assert!(!may_stage_archives(&config), "an upstream-only proxy leaves them alone");
     config.registries_managed_by = pnpr_config::Management::Api;
     assert!(may_stage_archives(&config));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_graph_loaded_at_startup_counts_its_stale_limit_from_startup() {
+    let tmp = TempDir::new().unwrap();
+    let config_path = tmp.path().join("config.yaml");
+    let yaml = format!(
+        "storage: {}\nsecret: test-secret-key-32-chars-long-12\nregistriesManagedBy: api\n",
+        tmp.path().join("storage").display(),
+    );
+    std::fs::write(&config_path, yaml).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let (state, _) = state_and_router(config, pnpr_auth::AuthState::in_memory(), None).unwrap();
+    let graph = state.inner.identity.managed.graph.as_ref().unwrap();
+    assert!(!graph.is_available());
+
+    adopt_startup_graph(&state, StartupGraph::Stored { generation: Some(1) });
+    assert!(graph.is_available());
+    assert_eq!(state.inner.current_routing().generation, Some(1));
+    tokio::time::advance(Duration::from_secs(59)).await;
+    assert!(graph.is_available());
+    tokio::time::advance(Duration::from_secs(2)).await;
+    assert!(!graph.is_available());
 }

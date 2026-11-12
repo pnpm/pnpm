@@ -264,6 +264,7 @@ async fn a_replica_that_cannot_read_the_graph_serves_no_registry() {
         actor_id: "-",
         restored_from: None,
         vacated: &[],
+        bound: &[],
     };
     storage.write_registry_graph(current, unreadable).await.unwrap();
     let app = router_with_auth(config, auth);

@@ -187,7 +187,8 @@ pub enum RegistryError {
 
     /// This replica has no registry graph it may serve: the stored graph was
     /// never loaded, or could not be read for longer than the stale limit.
-    /// Maps to 503.
+    /// Also a publish into a hosted namespace that the stored graph retired,
+    /// from a replica that has not loaded that graph yet. Maps to 503.
     #[display("The registries are temporarily unavailable")]
     #[from(skip)]
     RegistriesUnavailable,

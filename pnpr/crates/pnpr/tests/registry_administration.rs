@@ -552,8 +552,13 @@ async fn a_stored_upstream_never_reaches_a_refused_address() {
     });
     let storage = Storage::from_config(&config.storage).unwrap();
     let document = graph.to_string();
-    let revision =
-        NewRegistryGraph { document: &document, actor_id: "-", restored_from: None, vacated: &[] };
+    let revision = NewRegistryGraph {
+        document: &document,
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
     let written = storage
         .write_registry_graph(Some(1), revision)
         .await
@@ -593,6 +598,7 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
             actor_id: "-",
             restored_from: None,
             vacated: &[],
+            bound: &[],
         };
         storage
             .write_registry_graph(Some(1), revision)
@@ -723,6 +729,35 @@ async fn concurrent_writers_on_two_replicas_both_land() {
     assert_eq!(statuses, [StatusCode::OK, StatusCode::PRECONDITION_FAILED]);
 }
 
+#[tokio::test]
+async fn a_replica_that_still_serves_a_removed_hosted_registry_cannot_publish_into_it() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let auth = crate::tokens::seeded_auth(&config, ACCOUNTS);
+    let writer = Replica::with_auth(config, auth.clone()).await;
+    let path = format!("{DOCUMENT}/doomed");
+    let doomed = json!({
+        "type": "hosted",
+        "namespace": "doomed",
+        "packages": { "**": { "publish": "$authenticated" } },
+    });
+    assert_eq!(writer.as_root("PUT", &path, Some(doomed.clone())).await.0, StatusCode::OK);
+    let stale = Replica::with_auth(reload_config(dir.path()), auth).await;
+    assert_eq!(writer.as_root("DELETE", &path, None).await.0, StatusCode::OK);
+
+    let publish = |name: &str| Some(crate::npm::publish_doc(name, "1.0.0", b"tarball-contents"));
+    let target = "/npm/~doomed/fenced-pkg";
+    let (status, error, _) =
+        stale.send("PUT", target, Some(&stale.bob), publish("fenced-pkg")).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{error}");
+    assert_eq!(error["code"], "ERR_PNPR_REGISTRIES_UNAVAILABLE");
+
+    assert_eq!(writer.as_root("PUT", &path, Some(doomed)).await.0, StatusCode::OK);
+    let (status, body, _) =
+        stale.send("PUT", target, Some(&stale.bob), publish("fenced-pkg")).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+}
+
 async fn directory_lists(replica: &Replica, name: &str) -> bool {
     let (_, directory, _) =
         replica.send("GET", "/-/pnpr/v0/registries", Some(&replica.bob), None).await;
@@ -845,8 +880,13 @@ async fn a_registry_admin_repairs_a_graph_the_replica_cannot_serve() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path()).await;
     let storage = Storage::from_config(&config.storage).unwrap();
-    let unreadable =
-        NewRegistryGraph { document: "{", actor_id: "-", restored_from: None, vacated: &[] };
+    let unreadable = NewRegistryGraph {
+        document: "{",
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
     storage
         .write_registry_graph(Some(1), unreadable)
         .await
@@ -976,8 +1016,13 @@ async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
     let accounts = config.storage.hosted_dir.join("test-accounts.sqlite");
     config.identity.backend = pnpr_config::BackendConfig::Sqlite(accounts);
     let storage = Storage::from_config(&config.storage).unwrap();
-    let unreadable =
-        NewRegistryGraph { document: "{", actor_id: "-", restored_from: None, vacated: &[] };
+    let unreadable = NewRegistryGraph {
+        document: "{",
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
     storage
         .write_registry_graph(Some(1), unreadable)
         .await
@@ -1061,4 +1106,30 @@ async fn offline_paths_refuse_a_public_upstream_with_a_credential() {
     .await;
     let error = checked.expect_err("config check accepted it").to_string();
     assert!(error.contains("public"), "{error}");
+}
+
+#[tokio::test]
+async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!(
+        "storage: {}\nregistryEnv: [PNPR_TEST_UNSET_TOKEN]\nregistries:\n  corp:\n    type: upstream\n    \
+         url: https://npm.corp.example/\n    access: $authenticated\n    \
+         auth: {{ type: bearer, tokenEnv: PNPR_TEST_UNSET_TOKEN }}\n",
+        storage_dir(dir.path()).display(),
+    );
+    let mut config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await;
+    let report = pnpr::config_check::check_config_and_stored_registries(
+        &mut config,
+        &pnpr::ConfigSource::Bundled,
+    )
+    .await
+    .unwrap();
+    let report = pnpr::config_check::format_report(&report);
+    assert!(report.contains("corp"), "{report}");
 }

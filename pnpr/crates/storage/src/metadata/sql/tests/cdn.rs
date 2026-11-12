@@ -8,7 +8,8 @@ use serde_json::Map;
 /// Store `document` as the next registry graph revision.
 async fn write_graph(storage: &Storage, document: &str) {
     let current = storage.read_registry_graph_generation().await.unwrap();
-    let revision = NewRegistryGraph { document, actor_id: "-", restored_from: None, vacated: &[] };
+    let revision =
+        NewRegistryGraph { document, actor_id: "-", restored_from: None, vacated: &[], bound: &[] };
     let written = storage.write_registry_graph(current, revision).await.unwrap();
     assert!(matches!(written, RegistryGraphWrite::Written(_)), "{written:?}");
 }

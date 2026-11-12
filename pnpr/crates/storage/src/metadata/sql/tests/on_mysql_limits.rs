@@ -7,8 +7,13 @@ async fn oversized_keys_fail_without_truncating_or_advancing_generation() {
     let db = Db::network("PNPR_TEST_MYSQL_URL").await;
     let storage = storage(&db);
     let boundary = "x".repeat(512);
-    let revision =
-        |actor_id| NewRegistryGraph { document: "{}", actor_id, restored_from: None, vacated: &[] };
+    let revision = |actor_id| NewRegistryGraph {
+        document: "{}",
+        actor_id,
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
     let first = storage
         .write_registry_graph(None, revision(&boundary))
         .await

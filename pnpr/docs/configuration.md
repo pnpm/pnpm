@@ -519,7 +519,7 @@ The setting decides where each part of the configuration lives:
 
 | In the database | In the config file |
 | --- | --- |
-| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `database`, `s3`, `secret`, `secrets` |
+| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `database`, `s3`, `secret` |
 | `defaultRegistry` | `auth`, including `auth.admins` and `auth.registryAdmins` |
 | `routes.public` | `routes.allowedPrivateNetworks` |
 | | `registryEnv`, and every other setting on this page |
@@ -594,6 +594,13 @@ file. pnpr also refuses with `409` to:
 
 A registry is identified by its name. Renaming one removes it and adds a new
 one.
+
+Removing a hosted registry, or moving it to another `namespace` or
+`ecosystem`, retires the namespace it served. A replica that has not
+[reloaded](#replica-reloads) the change still routes publishes there, and pnpr
+refuses them with `503` and the error code `ERR_PNPR_REGISTRIES_UNAVAILABLE`.
+A retry reaches the reloaded registries. A hosted registry that serves the
+namespace again lifts the refusal.
 
 ## Replica reloads {#replica-reloads}
 

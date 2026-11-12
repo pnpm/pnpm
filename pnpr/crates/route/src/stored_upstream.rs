@@ -3,9 +3,20 @@
 
 use std::net::IpAddr;
 
+use pnpr_config::RoutingConfig;
+
 use super::RouteContext;
 
 impl RouteContext {
+    /// This context with the upstreams of `routing` as ones the admin API
+    /// wrote: the resolver fetches from them at the own host only at the
+    /// `public_url` origin.
+    #[must_use]
+    pub fn with_stored_upstreams(mut self, routing: &RoutingConfig) -> Self {
+        self.connect_policy = self.connect_policy.with_stored_upstreams(routing);
+        self
+    }
+
     /// Whether a client built from an upstream URL that the admin API wrote
     /// may connect to `address`: [`Self::allows_address`] without the
     /// exemption for this server's own host, since that URL is not this

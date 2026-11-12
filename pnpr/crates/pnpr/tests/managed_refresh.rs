@@ -223,8 +223,13 @@ fn graph() -> serde_json::Value {
 
 async fn store_unreadable_graph(storage: &Storage) {
     let current = storage.read_registry_graph_generation().await.unwrap();
-    let unreadable =
-        NewRegistryGraph { document: "{", actor_id: "-", restored_from: None, vacated: &[] };
+    let unreadable = NewRegistryGraph {
+        document: "{",
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
     storage.write_registry_graph(current, unreadable).await.unwrap();
 }
 
@@ -236,6 +241,7 @@ async fn restore_graph(storage: &Storage) {
         actor_id: "-",
         restored_from: Some(1),
         vacated: &[],
+        bound: &[],
     };
     storage.write_registry_graph(current, revision).await.unwrap();
 }

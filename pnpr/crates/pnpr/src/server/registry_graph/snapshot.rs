@@ -108,7 +108,11 @@ pub(crate) fn build_snapshot(
             (name.clone(), namespace)
         })
         .collect();
-    let route_context = Arc::new(RouteContext::from_routing(&routing, &config.http.public_url));
+    let route_context = RouteContext::from_routing(&routing, &config.http.public_url);
+    let route_context = Arc::new(match config.registries_managed_by {
+        Management::Api => route_context.with_stored_upstreams(&routing),
+        Management::Config => route_context,
+    });
     RoutingSnapshot {
         routing,
         upstream_clients,

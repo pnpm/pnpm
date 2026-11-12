@@ -630,14 +630,25 @@ async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     assert!(!reason.contains("Pre-1.0"), "{reason}");
 }
 
-async fn a_matching_marker_without_the_registry_graph_table_is_refused(db: Db) {
+async fn a_matching_marker_without_the_registry_graph_tables_is_refused(db: Db) {
     open(&db).await.unwrap();
-    execute(&db, &["DROP TABLE registry_graph_revisions"]).await;
+    execute(&db, &["DROP TABLE registry_graph_revisions", "DROP TABLE retired_hosted_namespaces"])
+        .await;
     let reason = refused(&db).await;
     assert!(
         reason.contains(&format!(
-            "holds schema version {SCHEMA_VERSION} without the tables registry_graph_revisions,"
+            "holds schema version {SCHEMA_VERSION} without the tables registry_graph_revisions, \
+             retired_hosted_namespaces,"
         )),
+        "{reason}",
+    );
+}
+
+async fn a_retired_namespaces_table_without_a_marker_is_refused(db: Db) {
+    execute(&db, &["CREATE TABLE retired_hosted_namespaces (namespace TEXT NOT NULL)"]).await;
+    let reason = refused(&db).await;
+    assert!(
+        reason.contains(&format!("holds metadata or auth tables without a {MARKER} table,")),
         "{reason}",
     );
 }
@@ -721,7 +732,9 @@ async fn an_interrupted_step_3_reruns(db: Db) {
     open(&db).await.unwrap();
     assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
     let tables = tables(&db).await;
-    assert!(tables.contains(&"registry_graph_revisions".to_string()), "{tables:?}");
+    for created in schema::CREATED_IN_STEP_3 {
+        assert!(tables.contains(&(*created).to_string()), "{created} not in {tables:?}");
+    }
     for retired in schema::DROPPED_IN_STEP_3 {
         assert!(!tables.contains(&(*retired).to_string()), "{retired} in {tables:?}");
     }
@@ -736,8 +749,9 @@ conformance! {
     a_failed_step_is_not_recorded_and_can_be_rerun,
     two_replicas_starting_at_once_do_not_both_migrate,
     a_matching_marker_without_its_tables_is_refused,
-    a_matching_marker_without_the_registry_graph_table_is_refused,
+    a_matching_marker_without_the_registry_graph_tables_is_refused,
     a_registry_graph_table_without_a_marker_is_refused,
+    a_retired_namespaces_table_without_a_marker_is_refused,
     an_unreadable_schema_migrations_table_is_refused,
     an_unreadable_legacy_schema_version_table_is_refused,
     a_matching_version_opens,

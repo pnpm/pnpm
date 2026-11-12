@@ -97,7 +97,7 @@ impl AppInner {
         auth: AuthState,
         osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     ) -> pnpr_error::Result<Self> {
-        let storage = Storage::from_config(&config.storage)?;
+        let storage = open_storage(&config)?;
         let builds = BuildServices::new(&config, &storage)?;
         let routing = std::mem::take(&mut config.routing);
         config.routing.route_policy.allowed_private_networks.clone_from(
@@ -201,4 +201,12 @@ fn artifact_store(
             .map(|store| store.with_quota(config.features.artifacts.quota))
         })
         .transpose()
+}
+
+fn open_storage(config: &Config) -> pnpr_error::Result<Storage> {
+    let storage = Storage::from_config(&config.storage)?;
+    if config.registries_managed_by == Management::Api {
+        storage.refuse_publishes_into_retired_namespaces();
+    }
+    Ok(storage)
 }

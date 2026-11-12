@@ -258,12 +258,12 @@ async fn load_startup_auth(config: &Config, graph: StartupGraph) -> pnpr_error::
 /// loaded leaves the replica serving none until a reload succeeds.
 async fn load_stored_graph(config: &mut Config) -> StartupGraph {
     if config.registries_managed_by != Management::Api {
-        return StartupGraph::Loaded;
+        return StartupGraph::File;
     }
-    match super::registry_graph::with_stored_routing(config, Credentials::Resolve).await {
-        Ok(loaded) => {
-            config.routing = loaded.routing;
-            StartupGraph::Loaded
+    match super::registry_graph::load_stored_routing(config, Credentials::Resolve).await {
+        Ok((routing, generation)) => {
+            config.routing = routing;
+            StartupGraph::Stored { generation }
         }
         Err(err) => {
             tracing::error!(error = %err, "could not load the stored registry graph");
@@ -272,10 +272,22 @@ async fn load_stored_graph(config: &mut Config) -> StartupGraph {
     }
 }
 
+/// Serve the stored graph startup loaded as the confirmed one, so the stale
+/// limit counts from startup instead of from the first reload.
+fn adopt_startup_graph(state: &AppState, graph: StartupGraph) {
+    if let StartupGraph::Stored { generation } = graph {
+        let routing = RoutingConfig::clone(&state.inner.current_routing());
+        drop(super::registry_graph::publish_routing(state, routing, generation));
+    }
+}
+
 /// Whether startup holds the registry graph the server will serve.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StartupGraph {
-    Loaded,
+    /// The config file declares the graph.
+    File,
+    /// The stored graph of `generation` loaded.
+    Stored { generation: Option<u64> },
     /// The stored graph could not be loaded; startup work that walks the
     /// registries skips what it would get wrong without them.
     Unavailable,
@@ -299,6 +311,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    adopt_startup_graph(&state, graph);
     let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state.clone()).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
@@ -457,6 +470,7 @@ pub async fn serve_listener_with(
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config, graph).await?;
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    adopt_startup_graph(&state, graph);
     let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state.clone()).await?;
     let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(

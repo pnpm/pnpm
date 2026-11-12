@@ -108,8 +108,7 @@ async fn put_rules(
         let request =
             GraphEdit::latest(crate::audit::Actor::of(&identity)).expecting(expected.as_deref());
         let outcome = edit_graph(&state, request, |document| {
-            let ecosystem =
-                document.hosted_storage(&registry).ok_or(RegistryError::NotFound)?.ecosystem;
+            let ecosystem = edited_ecosystem(document, &registry, &path.ecosystem)?;
             apply_rule_changes(document, &registry, ecosystem, &changes)
         })
         .await?;
@@ -171,6 +170,25 @@ fn rules_body(state: &AppState, rules: &RuleTable, version: &str) -> serde_json:
     view["registriesManagedBy"] =
         serde_json::json!(state.inner.config.registries_managed_by.as_str());
     view
+}
+
+/// The ecosystem of the hosted registry `registry` in `document`, the one
+/// being edited. A registry that changed ecosystem since the request resolved
+/// it is not the one the request addressed.
+fn edited_ecosystem(
+    document: &RegistryGraphDocument,
+    registry: &str,
+    addressed: &str,
+) -> Result<Ecosystem, RegistryError> {
+    let ecosystem = document.hosted_storage(registry).ok_or(RegistryError::NotFound)?.ecosystem;
+    if ecosystem.as_str() != addressed {
+        return Err(RegistryError::AdminConflict {
+            reason: format!(
+                "registry {registry:?} serves {ecosystem} now, not {addressed}; read its rules again",
+            ),
+        });
+    }
+    Ok(ecosystem)
 }
 
 /// Replace the lists `changes` names in `registry`'s rules.
@@ -256,3 +274,6 @@ fn hosted_registry<'a>(
         .map(|(key, hosted)| (key.as_str(), hosted))
         .ok_or(RegistryError::NotFound)
 }
+
+#[cfg(test)]
+mod tests;

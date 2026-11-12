@@ -3,6 +3,7 @@
 //! new revision must pass before it is written.
 
 use super::super::{oidc::validate_workloads, oidc_groups::validate_group_grants};
+use pnpm_env_replace::EnvVar;
 use pnpr_config::{
     Config, DocumentOrigin, Management, RegistryGraphDocument, RoutingConfig, RoutingOptions,
 };
@@ -21,9 +22,19 @@ use url::{Host, Url};
 pub(crate) enum Credentials {
     /// Resolve them from this process's environment, as a serving replica must.
     Resolve,
-    /// Check only that each reference is allowed. Offline commands that send
-    /// no upstream request use this, so they run without the variables set.
+    /// Check that each reference is allowed, and stand in for its value.
+    /// Offline commands that send no upstream request use this, so they run
+    /// without the variables set; the routing is never used for a request.
     Skip,
+}
+
+/// An environment in which every variable has a stand-in value.
+struct StandInCredentials;
+
+impl EnvVar for StandInCredentials {
+    fn var(_name: &str) -> Option<String> {
+        Some("unread".to_string())
+    }
 }
 
 /// The version string of a stored generation, as `ETag` and `version` carry
@@ -56,17 +67,19 @@ pub(crate) fn stored_routing(
     document: &RegistryGraphDocument,
     credentials: Credentials,
 ) -> Result<RoutingConfig, RegistryError> {
-    RoutingConfig::from_document(
-        document,
-        &RoutingOptions {
-            origin: DocumentOrigin::Stored { registry_env: &config.registry_env },
-            allowed_private_networks: config.routing.route_policy
-                .allowed_private_networks
-                .clone(),
-            resolve_upstreams: credentials == Credentials::Resolve
-                && config.features.registry.enabled,
-        },
-    )
+    let options = RoutingOptions {
+        origin: DocumentOrigin::Stored { registry_env: &config.registry_env },
+        allowed_private_networks: config.routing.route_policy
+            .allowed_private_networks
+            .clone(),
+        resolve_upstreams: config.features.registry.enabled,
+    };
+    match credentials {
+        Credentials::Resolve => RoutingConfig::from_document(document, &options),
+        Credentials::Skip => {
+            RoutingConfig::from_document_with_env::<StandInCredentials>(document, &options)
+        }
+    }
 }
 
 /// The config file's references into the graph: the OIDC workloads and group
@@ -82,9 +95,16 @@ pub(crate) fn check_file_references(
 /// A revision that passed [`check_revision`].
 pub(crate) struct CheckedRevision {
     pub(crate) routing: RoutingConfig,
-    /// The hosted namespaces the revision stops serving. The write checks
-    /// again, in its transaction, that they hold no package.
+    pub(crate) hosted: HostedChange,
+}
+
+/// The hosted namespaces of a revision, as
+/// [`pnpr_storage::metadata::NewRegistryGraph`] takes them.
+pub(crate) struct HostedChange {
+    /// The namespaces the revision stops serving. The write checks again, in
+    /// its transaction, that they hold no package.
     pub(crate) vacated: Vec<HostedNamespace>,
+    pub(crate) bound: Vec<HostedNamespace>,
 }
 
 /// Validate `next` as the revision that replaces `previous`. An invalid
@@ -102,7 +122,11 @@ pub(crate) async fn check_revision(
     check_file_references(config, &routing).map_err(refused_change)?;
     check_upstream_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    Ok(CheckedRevision { routing, vacated })
+    let bound = next
+        .registry_names()
+        .filter_map(|name| next.hosted_storage(name))
+        .map(|hosted| HostedNamespace { namespace: hosted.namespace, ecosystem: hosted.ecosystem });
+    Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound.collect() } })
 }
 
 /// The refusal of a write that would vacate `occupied`.
@@ -214,10 +238,19 @@ pub(crate) async fn with_stored_routing(
 ) -> Result<Config, RegistryError> {
     let mut config = config.clone();
     if config.registries_managed_by == Management::Api {
-        let storage = Storage::from_config(&config.storage)?;
-        let stored = storage.read_registry_graph().await?;
-        let document = stored_document(stored.as_ref())?;
-        config.routing = stored_routing(&config, &document, credentials)?;
+        config.routing = load_stored_routing(&config, credentials).await?.0;
     }
     Ok(config)
+}
+
+/// The routing of the stored graph and its generation.
+pub(crate) async fn load_stored_routing(
+    config: &Config,
+    credentials: Credentials,
+) -> Result<(RoutingConfig, Option<u64>), RegistryError> {
+    let storage = Storage::from_config(&config.storage)?;
+    let stored = storage.read_registry_graph().await?;
+    let document = stored_document(stored.as_ref())?;
+    let routing = stored_routing(config, &document, credentials)?;
+    Ok((routing, stored.map(|stored| stored.generation)))
 }

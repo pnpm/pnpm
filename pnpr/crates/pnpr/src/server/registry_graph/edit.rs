@@ -8,15 +8,13 @@ use super::{
     RoutingSnapshot,
     reload::publish_routing,
     stored::{
-        Credentials, check_revision, graph_version, occupied_namespace_error, parse_document,
-        stored_document,
+        Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
+        parse_document, stored_document,
     },
 };
 use crate::audit::Actor;
 use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig};
-use pnpr_storage::metadata::{
-    HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite,
-};
+use pnpr_storage::metadata::{NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite};
 use std::sync::Arc;
 
 /// The version the caller expects the stored graph to have.
@@ -156,7 +154,7 @@ where
         let version = base.version.clone();
         return Ok(Some(EditOutcome { previous_version: base.version, version, changes, routing }));
     }
-    let target = Target { current: base.generation, vacated: &checked.vacated };
+    let target = Target { current: base.generation, hosted: &checked.hosted };
     let Some(generation) = store_revision(state, request, target, &next).await? else {
         return Ok(None);
     };
@@ -200,7 +198,7 @@ async fn read_base(state: &AppState, request: GraphEdit<'_>) -> Result<Base, Reg
 #[derive(Clone, Copy)]
 struct Target<'a> {
     current: Option<u64>,
-    vacated: &'a [HostedNamespace],
+    hosted: &'a HostedChange,
 }
 
 /// Store `next` as the revision after `target.current`. `None` when another
@@ -216,7 +214,8 @@ async fn store_revision(
         document: &document,
         actor_id: request.actor.id,
         restored_from: request.restored_from,
-        vacated: target.vacated,
+        vacated: &target.hosted.vacated,
+        bound: &target.hosted.bound,
     };
     match state.inner.storage.write_registry_graph(target.current, revision).await? {
         RegistryGraphWrite::Written(generation) => Ok(Some(generation)),

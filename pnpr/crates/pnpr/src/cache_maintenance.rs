@@ -359,7 +359,7 @@ pub async fn evict_configured_cache(config: &Config) -> Result<CacheReport> {
 /// A pass is skipped while it returns `None`: without the graph, every
 /// upstream cache would look orphaned.
 #[must_use]
-pub fn spawn_periodic_cache_eviction(
+pub(crate) fn spawn_periodic_cache_eviction(
     config: &Config,
     current_routing: impl Fn() -> Option<pnpr_config::RoutingConfig> + Send + 'static,
 ) -> PeriodicCacheEviction {

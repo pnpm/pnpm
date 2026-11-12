@@ -3,8 +3,9 @@
 //! restore until pruning drops them.
 
 use super::{
+    SqlMetadata,
     adapter::{Connection, Row},
-    batch::WriteTransaction,
+    batch::{Retired, WriteTransaction},
     cdn, to_column, to_generation,
     transactions::Freshness,
 };
@@ -12,6 +13,7 @@ use crate::{Storage, publish::now_millis};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
+use std::sync::atomic::Ordering;
 
 /// How many revisions a write keeps, the one it writes included.
 pub const REGISTRY_GRAPH_REVISIONS_KEPT: u64 = 500;
@@ -68,8 +70,11 @@ pub struct NewRegistryGraph<'a> {
     /// The generation whose document this revision restores.
     pub restored_from: Option<u64>,
     /// The hosted namespaces the revision stops serving, which must hold no
-    /// package when it is written.
+    /// package when it is written. Publishing into one is refused until a
+    /// later revision serves it again.
     pub vacated: &'a [HostedNamespace],
+    /// Every hosted namespace the revision serves.
+    pub bound: &'a [HostedNamespace],
 }
 
 /// Lock a namespace's row the way a publish into it does, so a publish and a
@@ -81,9 +86,23 @@ const NAMESPACE_HAS_PACKAGES: DialectSql = DialectSql::with_mysql(
     "SELECT 1 FROM packages WHERE namespace = ?1 AND ecosystem = ?2 LIMIT 1 LOCK IN SHARE MODE",
 );
 
+const RETIRE_NAMESPACE: DialectSql = DialectSql::with_mysql(
+    "INSERT INTO retired_hosted_namespaces (namespace, ecosystem) VALUES (?1, ?2)
+     ON CONFLICT DO NOTHING",
+    "INSERT IGNORE INTO retired_hosted_namespaces (namespace, ecosystem) VALUES (?1, ?2)",
+);
+
 const REVISION_COLUMNS: &str = "generation, document, actor_id, created_at, restored_from";
 
 impl Storage {
+    /// Refuse, with [`RegistryError::RegistriesUnavailable`], every publish
+    /// into a hosted namespace that a stored registry graph revision vacated
+    /// and no later revision serves again. A server whose registries live in
+    /// the database calls this before serving.
+    pub fn refuse_publishes_into_retired_namespaces(&self) {
+        self.database.refuses_retired.store(true, Ordering::Relaxed);
+    }
+
     /// The generation of the current registry graph, `None` when none is
     /// stored.
     pub async fn read_registry_graph_generation(&self) -> Result<Option<u64>> {
@@ -170,6 +189,7 @@ impl Storage {
         let actor_id = revision.actor_id.to_string();
         let restored_from = revision.restored_from.map(to_column);
         let vacated = revision.vacated.to_vec();
+        let bound = revision.bound.to_vec();
         self.database.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let current = current_generation(&*transaction)?;
@@ -191,6 +211,7 @@ impl Storage {
                 "DELETE FROM registry_graph_revisions WHERE generation < ?1",
                 params![to_column(oldest_kept)],
             )?;
+            retire_namespaces(&*transaction, &vacated, &bound)?;
             cdn::enqueue(&*transaction, "*")?;
             transaction.commit()?;
             Ok(RegistryGraphWrite::Written(generation))
@@ -215,6 +236,39 @@ impl Storage {
         })
         .await
     }
+}
+
+impl SqlMetadata {
+    pub(super) fn retired(&self) -> Retired {
+        if self.refuses_retired.load(Ordering::Relaxed) {
+            Retired::Refused
+        } else {
+            Retired::Allowed
+        }
+    }
+}
+
+/// Fence the `vacated` namespaces against publishes from replicas that still
+/// serve them, and lift the fence from every `bound` one.
+fn retire_namespaces(
+    connection: &dyn Connection,
+    vacated: &[HostedNamespace],
+    bound: &[HostedNamespace],
+) -> Result<()> {
+    let retire = RETIRE_NAMESPACE.get(connection.dialect());
+    for hosted in vacated
+        .iter()
+        .filter(|hosted| !bound.contains(hosted))
+    {
+        connection.execute(retire, params![hosted.namespace, hosted.ecosystem.as_str()])?;
+    }
+    for hosted in bound {
+        connection.execute(
+            "DELETE FROM retired_hosted_namespaces WHERE namespace = ?1 AND ecosystem = ?2",
+            params![hosted.namespace, hosted.ecosystem.as_str()],
+        )?;
+    }
+    Ok(())
 }
 
 /// The first of `namespaces` that holds a package.

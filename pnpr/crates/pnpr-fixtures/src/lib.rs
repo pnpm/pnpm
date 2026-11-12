@@ -230,8 +230,10 @@ fn fixture_fingerprint(root: &Path) -> String {
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
     hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.to_le_bytes());
-    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_TABLES.as_bytes());
-    hasher.update([0]);
+    for statements in pnpr_storage::metadata::SqlMetadata::SCHEMA_STATEMENTS {
+        hasher.update(statements.as_bytes());
+        hasher.update([0]);
+    }
     hasher.update(
         local_archive_path(Path::new(""), "", Ecosystem::Npm, "sha512-00.1")
             .to_string_lossy()

@@ -6,14 +6,15 @@ use crate::{
     Config, RegistriesSubcommand, RegistryError,
     audit::Actor,
     server::{
-        Credentials, check_revision, graph_version, occupied_namespace_error, stored_document,
+        Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
+        stored_document,
     },
 };
 use pnpm_diagnostics::{print, println};
 use pnpr_config::{Management, RegistryGraphChanges, RegistryGraphDocument};
 use pnpr_storage::{
     Storage,
-    metadata::{HostedNamespace, NewRegistryGraph, RegistryGraphWrite},
+    metadata::{NewRegistryGraph, RegistryGraphWrite},
 };
 use std::path::Path;
 
@@ -62,7 +63,7 @@ async fn import(config: &Config, file: &Path, dry_run: bool) -> Result<(), Regis
         println!("Version {} already holds these registries.", graph_version(current));
         return Ok(());
     }
-    let import = Import { current, document: &next, vacated: &checked.vacated };
+    let import = Import { current, document: &next, hosted: &checked.hosted };
     let version = store_import(&storage, import).await?;
     println!("Stored version {version}: {}", describe(&changes));
     Ok(())
@@ -80,7 +81,7 @@ async fn read_document(file: &Path) -> Result<RegistryGraphDocument, RegistryErr
 struct Import<'a> {
     current: Option<u64>,
     document: &'a RegistryGraphDocument,
-    vacated: &'a [HostedNamespace],
+    hosted: &'a HostedChange,
 }
 
 /// Store `import` as the next revision, returning its version.
@@ -90,7 +91,8 @@ async fn store_import(storage: &Storage, import: Import<'_>) -> Result<String, R
         document: &document,
         actor_id: Actor::NONE.id,
         restored_from: None,
-        vacated: import.vacated,
+        vacated: &import.hosted.vacated,
+        bound: &import.hosted.bound,
     };
     match storage.write_registry_graph(import.current, revision).await? {
         RegistryGraphWrite::Written(generation) => {

@@ -4,7 +4,7 @@
 use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
-    batch::Batch,
+    batch::{Batch, Retired},
     cargo_rows::{self, CARGO_STATE_VERSION, StoredCargo},
     oci_rows::{self, OCI_STATE_VERSION, StoredOci},
     packument::{PackumentRows, VersionRows, decompose},
@@ -292,9 +292,10 @@ pub(super) fn write_document(
     bytes: &[u8],
     expected: &Expected,
     principal: Option<&str>,
+    retired: Retired,
 ) -> Result<DocumentWrite> {
     let (mut batch, results) =
-        Batch::begin_with(connection, &key.namespace, &StoredPackage::queries(key))?;
+        Batch::begin_with(connection, &key.namespace, retired, &StoredPackage::queries(key))?;
     let stored = StoredPackage::from_rows(key, &mut results.into_iter())?;
     let records = ReleaseRecords::new();
     let commit = batch.package(key);

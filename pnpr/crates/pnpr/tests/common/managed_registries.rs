@@ -35,8 +35,13 @@ pub async fn store_graph(config: &Config, graph: &Value) {
     let document = serde_json::to_string(&document).unwrap();
     let storage = Storage::from_config(&config.storage).unwrap();
     let current = storage.read_registry_graph_generation().await.unwrap();
-    let revision =
-        NewRegistryGraph { document: &document, actor_id: "-", restored_from: None, vacated: &[] };
+    let revision = NewRegistryGraph {
+        document: &document,
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
     let written = storage.write_registry_graph(current, revision).await.unwrap();
     assert!(matches!(written, RegistryGraphWrite::Written(_)), "{written:?}");
 }

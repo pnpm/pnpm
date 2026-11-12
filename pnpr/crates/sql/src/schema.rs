@@ -75,6 +75,18 @@ pub const REGISTRY_GRAPH_REVISIONS_TABLE: DialectSql = DialectSql {
     mysql: "CREATE TABLE IF NOT EXISTS registry_graph_revisions (generation BIGINT NOT NULL PRIMARY KEY, document LONGTEXT NOT NULL, actor_id VARBINARY(512) NOT NULL, created_at BIGINT NOT NULL, restored_from BIGINT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs",
 };
 
+/// The `retired_hosted_namespaces` table step 3 creates: each hosted
+/// `(namespace, ecosystem)` a stored registry graph revision stopped serving
+/// and no later revision serves again. Publishing into one is refused.
+pub const RETIRED_HOSTED_NAMESPACES_TABLE: DialectSql = DialectSql {
+    sqlite: "CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (namespace TEXT NOT NULL, ecosystem TEXT NOT NULL, PRIMARY KEY (namespace, ecosystem)) STRICT",
+    postgres: "CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (namespace TEXT NOT NULL, ecosystem TEXT NOT NULL, PRIMARY KEY (namespace, ecosystem))",
+    mysql: "CREATE TABLE IF NOT EXISTS retired_hosted_namespaces (namespace VARBINARY(512) NOT NULL, ecosystem VARBINARY(512) NOT NULL, PRIMARY KEY (namespace, ecosystem)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs",
+};
+
+/// The tables step 3 creates.
+pub const CREATED_IN_STEP_3: &[&str] = &["registry_graph_revisions", "retired_hosted_namespaces"];
+
 /// The step-1 tables step 3 drops: the team rosters and rule overrides that
 /// the registry graph replaced.
 pub const DROPPED_IN_STEP_3: &[&str] = &[
@@ -84,6 +96,15 @@ pub const DROPPED_IN_STEP_3: &[&str] = &[
     "rule_override_sets",
     "rule_overrides",
     "rule_override_grants",
+];
+
+/// The `SQLite` statements of every step, so a cache of databases can tell a
+/// layout that changed under one version apart.
+pub const SQLITE_STATEMENTS: &[&str] = &[
+    TABLES.sqlite,
+    HOSTED_STORE_TABLE.sqlite,
+    REGISTRY_GRAPH_REVISIONS_TABLE.sqlite,
+    RETIRED_HOSTED_NAMESPACES_TABLE.sqlite,
 ];
 
 /// One forward-only migration step.
@@ -115,10 +136,11 @@ pub fn step_2(connection: &dyn Connection) -> Result<()> {
     connection.execute_ddl(HOSTED_STORE_TABLE.get(connection.dialect()))
 }
 
-/// Step 3: the `registry_graph_revisions` table holding the registry graph,
-/// replacing the team roster and rule override tables.
+/// Step 3: the tables holding the registry graph, replacing the team roster
+/// and rule override tables.
 pub fn step_3(connection: &dyn Connection) -> Result<()> {
     connection.execute_ddl(REGISTRY_GRAPH_REVISIONS_TABLE.get(connection.dialect()))?;
+    connection.execute_ddl(RETIRED_HOSTED_NAMESPACES_TABLE.get(connection.dialect()))?;
     for table in DROPPED_IN_STEP_3 {
         connection.execute_ddl(&format!("DROP TABLE IF EXISTS {table}"))?;
     }
@@ -361,7 +383,7 @@ fn inspect_without_marker(
         return Ok(Inspection::Refused(Stored::Pre1_0Auth));
     }
     if has("hosted_store")
-        || has("registry_graph_revisions")
+        || CREATED_IN_STEP_3.iter().any(|table| has(table))
         || table_names(TABLES.sqlite).iter().any(|table| has(table))
     {
         return Ok(Inspection::Refused(Stored::Unmarked));
@@ -441,8 +463,13 @@ fn incomplete(max_version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
     if max_version >= 2 && !has("hosted_store") {
         missing.push("hosted_store".to_string());
     }
-    if max_version >= 3 && !has("registry_graph_revisions") {
-        missing.push("registry_graph_revisions".to_string());
+    if max_version >= 3 {
+        missing.extend(
+            CREATED_IN_STEP_3
+                .iter()
+                .filter(|table| !has(table))
+                .map(|table| (*table).to_string()),
+        );
     }
     (!missing.is_empty()).then_some(Stored::Incomplete(missing))
 }

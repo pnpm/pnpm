@@ -1,6 +1,6 @@
 //! Stored revisions of the registry graph.
 
-use super::{Db, packument, storage, write};
+use super::{Db, packument, storage, try_write, write};
 use crate::{
     Storage,
     metadata::{
@@ -8,10 +8,17 @@ use crate::{
         RegistryGraphWrite,
     },
 };
+use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 
 fn revision(document: &str) -> NewRegistryGraph<'_> {
-    NewRegistryGraph { document, actor_id: "u-admin", restored_from: None, vacated: &[] }
+    NewRegistryGraph {
+        document,
+        actor_id: "u-admin",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    }
 }
 
 async fn write_graph(storage: &Storage, expected: Option<u64>, document: &str) -> u64 {
@@ -116,6 +123,7 @@ async fn revisions_list_newest_first_in_pages(db: Db) {
                 actor_id: "-",
                 restored_from: Some(2),
                 vacated: &[],
+                bound: &[],
             },
         )
         .await
@@ -212,7 +220,40 @@ async fn a_write_that_vacates_an_occupied_namespace_stores_nothing(db: Db) {
     );
 }
 
+async fn a_vacated_namespace_refuses_publishes_until_a_revision_binds_it_again(db: Db) {
+    let retired = [HostedNamespace { namespace: "retired".to_string(), ecosystem: Ecosystem::Npm }];
+    let config_managed = storage(&db);
+    let first = write_graph(&config_managed, None, "{}").await;
+    let vacating = NewRegistryGraph { vacated: &retired, ..revision("{}") };
+    let retiring = config_managed
+        .write_registry_graph(Some(first), vacating)
+        .await
+        .unwrap();
+    assert_eq!(retiring, RegistryGraphWrite::Written(first + 1));
+    // Without the refusal turned on, as with registries in the config file,
+    // the fence is ignored.
+    let unfenced = config_managed.for_hosted("retired", Ecosystem::Npm);
+    write(&unfenced, "allowed", &packument("allowed", &["1.0.0"])).await;
+
+    let api_managed = storage(&db);
+    api_managed.refuse_publishes_into_retired_namespaces();
+    let fenced = api_managed.for_hosted("retired", Ecosystem::Npm);
+    let refused = try_write(&fenced, "widget", &packument("widget", &["1.0.0"])).await;
+    assert!(matches!(refused, Err(RegistryError::RegistriesUnavailable)), "{refused:?}");
+    let other_namespace = api_managed.for_hosted("served", Ecosystem::Npm);
+    write(&other_namespace, "widget", &packument("widget", &["1.0.0"])).await;
+
+    let binding = NewRegistryGraph { bound: &retired, ..revision("{}") };
+    let rebound = api_managed
+        .write_registry_graph(Some(first + 1), binding)
+        .await
+        .unwrap();
+    assert_eq!(rebound, RegistryGraphWrite::Written(first + 2));
+    write(&fenced, "widget", &packument("widget", &["1.0.0"])).await;
+}
+
 conformance!(
+    a_vacated_namespace_refuses_publishes_until_a_revision_binds_it_again,
     a_write_that_vacates_an_occupied_namespace_stores_nothing,
     a_written_graph_reads_back_as_the_current_revision,
     a_write_from_a_stale_read_conflicts,

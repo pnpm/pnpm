@@ -68,19 +68,22 @@ fn allows_fetch_checks_an_ip_literal_host_against_the_connect_policy() {
 }
 
 #[test]
-fn the_own_host_is_fetchable_only_at_the_public_url_origin() {
+fn the_own_host_at_another_origin_is_fetchable_unless_an_api_written_upstream_is_there() {
     for host in ["127.0.0.1", "localhost"] {
-        let routes = [format!("http://{host}:6379/"), format!("https://{host}:4873/")];
-        let routes: Vec<&str> = routes
-            .iter()
-            .map(String::as_str)
-            .collect();
-        let context =
-            RouteContext::from_config(&config(&format!("http://{host}:4873"), &routes, &[]));
-        assert!(context.allows_fetch(&format!("http://{host}:4873/~local/foo")), "{host}");
-        for route in routes {
-            assert!(context.allows_registry(route), "{route} is on the allowlist");
-            assert!(!context.allows_fetch(&format!("{route}foo")), "fetched {route}");
-        }
+        let other = format!("http://{host}:6379/");
+        let mut config = config(&format!("http://{host}:4873"), &[other.as_str()], &[]);
+        config.routing.upstreams.insert(
+            "up".to_string(),
+            pnpr_config::UpstreamConfig::with_defaults(
+                other.clone(),
+                reqwest::header::HeaderMap::new(),
+            ),
+        );
+        let file = RouteContext::from_config(&config);
+        assert!(file.allows_fetch(&format!("{other}foo")), "file mode fetches {other}");
+        let stored = RouteContext::from_config(&config).with_stored_upstreams(&config.routing);
+        assert!(stored.allows_registry(&other), "{other} is on the allowlist");
+        assert!(!stored.allows_fetch(&format!("{other}foo")), "fetched stored {other}");
+        assert!(stored.allows_fetch(&format!("http://{host}:4873/~local/foo")), "{host}");
     }
 }
