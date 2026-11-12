@@ -73,6 +73,34 @@ async fn update_config_lockfile_dir_restores_default_workspace_paths() {
 }
 
 #[tokio::test]
+async fn clearing_lockfile_dir_preserves_project_relative_virtual_store_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: custom\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    let virtual_store_dir = project.join("cache");
+    config.explicit_settings.insert("virtualStoreDir".to_string(), serde_json::json!("cache"));
+    config.set_virtual_store_dir(virtual_store_dir.clone());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.install_state_dir, virtual_store_dir);
+}
+
+#[tokio::test]
 async fn update_config_default_lockfile_dir_preserves_project_virtual_store_path() {
     let root = tempfile::tempdir().expect("workspace tempdir");
     let workspace = root.path().join("workspace");

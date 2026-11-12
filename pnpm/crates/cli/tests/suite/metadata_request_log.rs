@@ -51,14 +51,19 @@ fn every_case_of_the_shared_table() {
 /// frozen CLI install on the same metadata path as an unset lockfileDir.
 #[test]
 fn explicit_default_lockfile_dir_does_not_add_frozen_metadata_requests() {
-    let unset = frozen_install_metadata_requests(false);
-    let explicit = frozen_install_metadata_requests(true);
+    let unset = frozen_install_metadata_requests(LockfileDirCase::Unset);
+    let explicit = frozen_install_metadata_requests(LockfileDirCase::ExplicitDefault);
 
     assert_eq!(explicit, unset, "explicit lockfileDir added frozen-install metadata requests");
 }
 
+enum LockfileDirCase {
+    Unset,
+    ExplicitDefault,
+}
+
 fn frozen_install_metadata_requests(
-    explicit_lockfile_dir: bool,
+    lockfile_dir_case: LockfileDirCase,
 ) -> Vec<(String, Option<String>, u16)> {
     let CommandTempCwd {
         mut pacquet,
@@ -79,7 +84,7 @@ fn frozen_install_metadata_requests(
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove installed modules");
     fs::remove_dir_all(cache_dir.join("v12/metadata")).expect("clear registry metadata cache");
 
-    if explicit_lockfile_dir {
+    if let LockfileDirCase::ExplicitDefault = lockfile_dir_case {
         let workspace_yaml = workspace.join("pnpm-workspace.yaml");
         let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
         fs::write(&workspace_yaml, format!("{yaml}lockfileDir: .\n"))

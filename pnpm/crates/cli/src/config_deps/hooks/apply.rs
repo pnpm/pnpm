@@ -12,6 +12,7 @@ struct HookExecutionChanges {
 
 struct LockfileDirPathsBeforeHook {
     lockfile_dir: Option<PathBuf>,
+    configured_virtual_store_dir: Option<PathBuf>,
     node_path_dirs: [PathBuf; 2],
     hook_node_path: Option<Option<String>>,
     hook_node_options: Option<Option<String>>,
@@ -115,7 +116,9 @@ fn apply_lockfile_dir_change(config: &mut Config, paths_before_hook: LockfileDir
         .clone()
         .unwrap_or_else(|| config.lockfile_dir_for(&project_dir).to_path_buf());
     let modules_dir = config.modules_dir.clone();
-    let configured_virtual_store_dir = config.configured_virtual_store_dir.clone();
+    let configured_virtual_store_dir = paths_before_hook
+        .configured_virtual_store_dir
+        .clone();
     let install_state_dir = config.install_state_dir.clone();
     if paths_before_hook.lockfile_dir.is_none() {
         config.lockfile_dir = None;
@@ -149,7 +152,7 @@ fn restore_default_lockfile_dir_paths(
     if let Some(hook_modules_dir) = paths_before_hook.hook_modules_dir.as_ref() {
         config.modules_dir.clone_from(hook_modules_dir);
     }
-    config.configured_virtual_store_dir = configured_virtual_store_dir;
+    config.configured_virtual_store_dir = configured_virtual_store_dir.clone();
     config.install_state_dir = install_state_dir;
     if paths_before_hook.modules_dir_changed {
         if !config.explicit_settings.contains_key("virtualStoreDir")
@@ -160,7 +163,22 @@ fn restore_default_lockfile_dir_paths(
     } else if paths_before_hook.lockfile_dir.is_some() {
         let project_dir = config.dir.clone();
         let default_lockfile_dir = config.lockfile_dir_for(&project_dir).to_path_buf();
+        let project_relative_virtual_store_dir = config.explicit_settings
+            .get("virtualStoreDir")
+            .and_then(Value::as_str)
+            .and_then(|raw| {
+                let dir = configured_virtual_store_dir.as_ref()?;
+                (!Path::new(raw).is_absolute()
+                    && pnpm_fs::lexical_normalize(dir)
+                        == pnpm_fs::lexical_normalize(&project_dir.join(raw)))
+                .then(|| dir.clone())
+            });
         config.anchor_lockfile_paths(&default_lockfile_dir);
+        if !config.enable_global_virtual_store
+            && let Some(dir) = project_relative_virtual_store_dir
+        {
+            config.set_virtual_store_dir(dir);
+        }
     }
 }
 
@@ -187,6 +205,7 @@ fn lockfile_dir_paths_before_hook(
         .get("lockfileDir")
         .map(|_| LockfileDirPathsBeforeHook {
             lockfile_dir: config.lockfile_dir.clone(),
+            configured_virtual_store_dir: config.configured_virtual_store_dir.clone(),
             node_path_dirs: [
                 config.install_state_dir.join("node_modules"),
                 config.modules_dir.clone(),
