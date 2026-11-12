@@ -8,9 +8,14 @@ use crate::byte_size::parse_positive_byte_size;
 pub(super) fn build_http_config(
     file: &mut ConfigFile,
     base_dir: &Path,
-    listen: SocketAddr,
+    listen: Option<SocketAddr>,
     public_url: Option<String>,
 ) -> Result<HttpConfig, RegistryError> {
+    let listen = match listen.or(file.listen) {
+        Some(listen) => listen,
+        None => Config::DEFAULT_LISTEN.parse().expect("DEFAULT_LISTEN is a socket address"),
+    };
+    let public_url = public_url.or_else(|| file.public_url.take());
     let cors = build_cors_config(std::mem::take(&mut file.cors))?;
     let ui = build_ui_config(std::mem::take(&mut file.ui), base_dir);
     let trusted_proxies = parse_trusted_proxies(&file.trusted_proxies.networks)?;

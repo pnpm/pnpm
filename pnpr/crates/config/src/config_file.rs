@@ -196,6 +196,13 @@ pub(super) struct CacheSettingsFile {
     )
 )]
 pub(super) struct ConfigFile {
+    /// The address the server binds to. The `--listen` flag overrides it.
+    #[serde(default)]
+    pub(super) listen: Option<std::net::SocketAddr>,
+    /// The URL clients reach the server at. The `--public-url` flag
+    /// overrides it.
+    #[serde(default)]
+    pub(super) public_url: Option<String>,
     #[serde(default = "default_storage_string")]
     pub(super) storage: String,
     /// Disposable proxy-cache root or settings table. When omitted

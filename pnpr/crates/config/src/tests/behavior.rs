@@ -84,7 +84,7 @@ fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
         disable_artifacts: true,
         disable_pipeline: true,
     };
-    let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
+    let err = Config::resolve_with_overrides(None, None, Some(listen()), None, overrides)
         .expect_err("all surfaces disabled must error rather than panic");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
 }
@@ -130,7 +130,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
     let enabled = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),
-        listen(),
+        Some(listen()),
         None,
         FeatureOverrides::default(),
     )
@@ -140,7 +140,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
     let error = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),
-        listen(),
+        Some(listen()),
         None,
         FeatureOverrides { disable_artifacts: true, ..FeatureOverrides::default() },
     )

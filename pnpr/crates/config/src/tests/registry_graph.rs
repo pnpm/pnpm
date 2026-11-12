@@ -217,9 +217,14 @@ registries:
         disable_artifacts: false,
         disable_pipeline: false,
     };
-    let err =
-        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
-            .expect_err("a broken registry graph must fail even with the registry disabled");
+    let err = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        Some(listen()),
+        None,
+        overrides,
+    )
+    .expect_err("a broken registry graph must fail even with the registry disabled");
     assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
 }
 

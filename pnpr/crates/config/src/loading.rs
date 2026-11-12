@@ -8,10 +8,8 @@ use super::{
 use crate::config_file::RegistryFile;
 
 impl Config {
-    /// Load YAML from `path` and merge it with runtime values
-    /// supplied by the binary. `listen` and `public_url` are not
-    /// represented in verdaccio's YAML and must be provided here;
-    /// `packument_ttl` defaults to [`Self::DEFAULT_PACKUMENT_TTL`].
+    /// Load YAML from `path`. `listen` and `public_url` override the file's
+    /// `listen:` and `publicUrl:` keys.
     ///
     /// `storage` from the YAML is resolved relative to the config
     /// file's parent directory when not absolute — same convention
@@ -21,12 +19,12 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<Self> {
-        Self::from_yaml_with_overrides(path, listen, public_url, FeatureOverrides::default())
+        Self::from_yaml_with_overrides(path, Some(listen), public_url, FeatureOverrides::default())
     }
 
     pub(super) fn from_yaml_with_overrides(
         path: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> std::io::Result<Self> {
@@ -66,7 +64,7 @@ impl Config {
         // disable every surface (a runtime input error).
         Self::from_default_yaml_with_overrides(
             base_dir,
-            listen,
+            Some(listen),
             public_url,
             FeatureOverrides::default(),
         )
@@ -75,7 +73,7 @@ impl Config {
 
     pub(super) fn from_default_yaml_with_overrides(
         base_dir: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
@@ -126,7 +124,7 @@ impl Config {
         Self::resolve_with_overrides(
             explicit,
             default_path,
-            listen,
+            Some(listen),
             public_url,
             FeatureOverrides::default(),
         )
@@ -134,13 +132,14 @@ impl Config {
 
     /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
     /// parse, so a surface disabled on the command line skips its parse-time
-    /// work (e.g. strict upstream token resolution) — not just its routes. The
-    /// binary uses this; tests and embedders that don't override features
-    /// call [`Self::resolve`].
+    /// work (e.g. strict upstream token resolution) — not just its routes.
+    /// `listen` is `None` unless the command line sets it, so the file's
+    /// `listen:` applies. The binary uses this; tests and embedders that don't
+    /// override features call [`Self::resolve`].
     pub fn resolve_with_overrides(
         explicit: Option<&Path>,
         default_path: Option<&Path>,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> std::io::Result<(Self, ConfigSource)> {
@@ -176,7 +175,7 @@ impl Config {
         Self::from_yaml_str_with_overrides(
             raw,
             base_dir,
-            listen,
+            Some(listen),
             public_url,
             FeatureOverrides::default(),
         )
@@ -185,7 +184,7 @@ impl Config {
     pub(super) fn from_yaml_str_with_overrides(
         raw: &str,
         base_dir: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
@@ -203,7 +202,7 @@ impl Config {
     pub(super) fn from_config_file(
         mut file: ConfigFile,
         base_dir: &Path,
-        listen: SocketAddr,
+        listen: Option<SocketAddr>,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {

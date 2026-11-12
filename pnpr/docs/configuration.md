@@ -49,6 +49,20 @@ Relative paths in the config, such as `storage`, `cache`, `osv.path`, and
 `ui.dir`, resolve against the config file's directory. For the bundled config,
 they resolve against the working directory.
 
+## `listen` and `publicUrl`
+
+```yaml title="pnpr.yaml"
+listen: 0.0.0.0:7677
+publicUrl: https://registry.example.com
+```
+
+`listen` is the address pnpr binds to. It defaults to `127.0.0.1:7677`.
+`publicUrl` is the URL clients use to reach pnpr. pnpr rewrites the
+`dist.tarball` URLs in served packuments onto it. It defaults to
+`http://<listen>`, and pnpr logs a warning at startup if `listen` is not a
+loopback address and `publicUrl` is unset. The `--listen` and `--public-url`
+flags override both.
+
 ## `storage` and `cache`
 
 pnpr keeps two kinds of data:

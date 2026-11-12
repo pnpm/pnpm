@@ -1,6 +1,6 @@
 use super::{
-    ArtifactQuota, Config, Identity, LogFormat, LogLevel, Path, PathBuf, RegistryError, listen,
-    parse_log_yaml,
+    ArtifactQuota, Config, FeatureOverrides, Identity, LogFormat, LogLevel, Path, PathBuf,
+    RegistryError, listen, parse_log_yaml,
 };
 
 #[test]
@@ -592,4 +592,40 @@ fn cloudflare_cdn_validates_identifiers_and_redacts_credentials() {
     ] {
         assert!(Config::from_yaml_str(&invalid, Path::new("/config"), listen(), None).is_err());
     }
+}
+
+#[test]
+fn listen_and_public_url_come_from_the_file_unless_overridden() {
+    let yaml = "listen: 0.0.0.0:4873\npublicUrl: https://registry.example.com\n";
+    let config = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        None,
+        None,
+        FeatureOverrides::default(),
+    )
+    .unwrap();
+    assert_eq!(config.http.listen, "0.0.0.0:4873".parse().unwrap());
+    assert_eq!(config.http.public_url, "https://registry.example.com");
+
+    let overridden = Config::from_yaml_str(
+        yaml,
+        Path::new("/x"),
+        listen(),
+        Some("https://override.example.com".to_string()),
+    )
+    .unwrap();
+    assert_eq!(overridden.http.listen, listen());
+    assert_eq!(overridden.http.public_url, "https://override.example.com");
+
+    let defaults = Config::from_yaml_str_with_overrides(
+        "{}",
+        Path::new("/x"),
+        None,
+        None,
+        FeatureOverrides::default(),
+    )
+    .unwrap();
+    assert_eq!(defaults.http.listen.to_string(), Config::DEFAULT_LISTEN);
+    assert_eq!(defaults.http.public_url, format!("http://{}", Config::DEFAULT_LISTEN));
 }

@@ -68,7 +68,7 @@ fn env_vars_stand_in_for_omitted_flags() {
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
     assert_eq!(args.config.as_deref(), Some("/etc/pnpr/config.yaml".as_ref()));
-    assert_eq!(args.server.listen, "0.0.0.0:4873".parse::<SocketAddr>().unwrap());
+    assert_eq!(args.server.listen, Some("0.0.0.0:4873".parse::<SocketAddr>().unwrap()));
     assert_eq!(args.paths.storage.as_deref(), Some("/var/lib/pnpr".as_ref()));
     assert_eq!(args.paths.cache.as_deref(), Some("/var/cache/pnpr".as_ref()));
     assert_eq!(args.server.public_url.as_deref(), Some("https://registry.example.com"));
@@ -87,7 +87,7 @@ fn omitted_flags_without_env_vars_keep_their_defaults() {
 
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
-    assert_eq!(args.server.listen, super::Config::DEFAULT_LISTEN.parse::<SocketAddr>().unwrap());
+    assert_eq!(args.server.listen, None);
     assert_eq!(args.config, None);
     assert_eq!(args.server.packument_ttl, None);
     assert_eq!(args.server.osv_options.osv, None);
@@ -114,7 +114,7 @@ fn flags_on_the_command_line_win_over_env_vars() {
     ])
     .unwrap();
 
-    assert_eq!(args.server.listen, "127.0.0.1:7677".parse::<SocketAddr>().unwrap());
+    assert_eq!(args.server.listen, Some("127.0.0.1:7677".parse::<SocketAddr>().unwrap()));
     assert_eq!(args.server.packument_ttl, Some(Duration::from_secs(5)));
     assert!(args.server.features.disable_artifacts);
 }
@@ -227,7 +227,7 @@ fn pnpr_serve_subcommand_works_as_alias() {
     let _env = scrubbed_env();
     let args = Args::try_parse_from(["pnpr", "serve", "--listen", "0.0.0.0:4873"]).unwrap();
     assert!(
-        matches!(args.command, Some(super::Command::Serve(server)) if server.listen.to_string() == "0.0.0.0:4873"),
+        matches!(args.command, Some(super::Command::Serve(server)) if server.listen == Some("0.0.0.0:4873".parse().unwrap())),
     );
 }
 
@@ -279,6 +279,21 @@ fn a_storage_override_takes_the_default_metadata_database_along() {
         config.identity.backend,
         pnpr_config::BackendConfig::Sqlite(ref path) if *path == metadata,
     ));
+}
+
+#[test]
+fn a_storage_override_takes_the_default_cache_along() {
+    let storage = std::path::Path::new("/srv/pnpr");
+    let config = served_from("storage: ./storage\n", storage);
+    assert_eq!(config.storage.cache_dir, pnpr::default_cache_dir(storage));
+}
+
+#[test]
+fn a_storage_override_leaves_a_configured_cache_where_it_is() {
+    let cache = tempfile::TempDir::new().unwrap();
+    let yaml = format!("storage: ./storage\ncache: '{}'\n", cache.path().display());
+    let config = served_from(&yaml, std::path::Path::new("/srv/pnpr"));
+    assert_eq!(config.storage.cache_dir, cache.path());
 }
 
 #[test]

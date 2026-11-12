@@ -5,7 +5,7 @@ use pnpr::{
     default_cache_dir, logging::log_subscriber, run_command, serve,
 };
 use pnpr_config::{BackendConfig, MetadataBackend, default_metadata_path};
-use std::{io::IsTerminal, net::SocketAddr, path::PathBuf};
+use std::{io::IsTerminal, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
 #[derive(Debug, Parser)]
@@ -30,10 +30,8 @@ struct Args {
 #[derive(Debug, Default, Clone, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
-    /// `-c`). Unless
-    /// `--cache` is also given, the disposable proxy cache is
-    /// re-derived as a subdirectory of this path, and so is a metadata
-    /// database at its default path in the storage directory.
+    /// `-c`). A proxy cache or metadata database at its default path in
+    /// the storage directory moves with it.
     #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
 
@@ -71,6 +69,7 @@ async fn main() -> miette::Result<()> {
     init_logging(&config.logs);
     log_config_source(&source);
     warn_experimental_database(&config);
+    warn_derived_public_url(&config);
     serve(config).await.map_err(|err| redacted_report(&err))
 }
 
@@ -79,12 +78,11 @@ async fn run_maintenance(
     mut args: Args,
     auto_path: Option<PathBuf>,
 ) -> miette::Result<()> {
-    let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().unwrap();
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
-        default_listen,
-        None,
+        args.server.listen,
+        args.server.public_url.clone(),
         args.server.features.feature_overrides(),
     )
     .map_err(|err| miette::miette!("{err}"))?;
@@ -105,7 +103,11 @@ async fn run_maintenance(
 
 fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs) {
     if let Some(storage) = paths.storage.take() {
-        config.storage.cache_dir = default_cache_dir(&storage);
+        // A cache at its default path lives in the storage directory, so it
+        // moves with it. One the config places elsewhere stays there.
+        if config.storage.cache_dir == default_cache_dir(&config.storage.hosted_dir) {
+            config.storage.cache_dir = default_cache_dir(&storage);
+        }
         // A database at the default path lives in the storage directory, so
         // it moves with it, whether or not the config spells the path out.
         // One anywhere else stays where it is.
@@ -165,6 +167,18 @@ fn log_config_source(source: &ConfigSource) {
             tracing::info!(path = %path.display(), "loaded config from default path");
         }
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
+    }
+}
+
+/// A server reachable beyond loopback without a public URL rewrites tarball
+/// URLs to its bind address, which clients usually cannot reach.
+fn warn_derived_public_url(config: &Config) {
+    let listen = config.http.listen;
+    if !listen.ip().is_loopback() && config.http.public_url == format!("http://{listen}") {
+        tracing::warn!(
+            %listen,
+            "publicUrl is not set; tarball URLs point at the bind address. Set `publicUrl` to the URL clients use",
+        );
     }
 }
 

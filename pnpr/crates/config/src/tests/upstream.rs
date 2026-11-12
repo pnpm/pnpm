@@ -309,9 +309,14 @@ registries:
         disable_artifacts: false,
         disable_pipeline: false,
     };
-    let config =
-        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
-            .expect("a resolver-only tier must not fail on unused upstream credentials");
+    let config = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        Some(listen()),
+        None,
+        overrides,
+    )
+    .expect("a resolver-only tier must not fail on unused upstream credentials");
     assert!(config.routing.upstreams.is_empty(), "credentials must not be resolved or carried");
     assert!(
         config.routing.registries.get("main").is_some(),

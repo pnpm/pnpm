@@ -1,4 +1,3 @@
-use crate::Config;
 use clap::{Args, builder::BoolishValueParser};
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
@@ -9,13 +8,14 @@ pub fn parse_cli_interval(raw: &str) -> std::result::Result<Duration, String> {
 
 #[derive(Debug, Clone, Args)]
 pub struct ServerArgs {
-    /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
-    pub listen: SocketAddr,
+    /// Address to bind to. Overrides the config's `listen`, which
+    /// defaults to 127.0.0.1:7677.
+    #[arg(long, env = "PNPR_LISTEN")]
+    pub listen: Option<SocketAddr>,
 
     /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in served packuments. Defaults
-    /// to `http://<listen>`.
+    /// rewriting `dist.tarball` URLs in served packuments. Overrides the
+    /// config's `publicUrl`, which defaults to `http://<listen>`.
     #[arg(long, env = "PNPR_PUBLIC_URL")]
     pub public_url: Option<String>,
 
@@ -34,7 +34,7 @@ pub struct ServerArgs {
 impl Default for ServerArgs {
     fn default() -> Self {
         Self {
-            listen: Config::DEFAULT_LISTEN.parse().unwrap(),
+            listen: None,
             public_url: None,
             packument_ttl: None,
             osv_options: OsvArgs::default(),
@@ -46,7 +46,7 @@ impl Default for ServerArgs {
 impl ServerArgs {
     #[must_use]
     pub fn merge(mut self, other: Self) -> Self {
-        if other.listen.to_string() != Config::DEFAULT_LISTEN {
+        if other.listen.is_some() {
             self.listen = other.listen;
         }
         if other.public_url.is_some() {
