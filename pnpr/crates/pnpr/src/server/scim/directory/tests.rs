@@ -370,7 +370,6 @@ async fn directory_reload_retries_failed_token_revocation_until_reconciled() {
     let temp = tempfile::TempDir::new().unwrap();
     let users_path = temp.path().join("users.json");
     let tokens_path = temp.path().join("tokens.db");
-    let backup_path = temp.path().join("tokens.db.bak");
     let mut config =
         Config::static_serve("127.0.0.1:0".parse().unwrap(), temp.path().to_path_buf());
     config.identity.auth.scim =
@@ -417,8 +416,13 @@ async fn directory_reload_retries_failed_token_revocation_until_reconciled() {
         .await
         .unwrap();
 
-    std::fs::rename(&tokens_path, &backup_path).unwrap();
-    std::fs::create_dir(&tokens_path).unwrap();
+    let fault = rusqlite::Connection::open(&tokens_path).unwrap();
+    fault
+        .execute_batch(
+            "CREATE TRIGGER fail_revocation BEFORE DELETE ON tokens
+             BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
+        )
+        .unwrap();
 
     let directory = ScimState::default();
     assert!(!super::reload_directory(&state, &directory).await);
@@ -428,8 +432,7 @@ async fn directory_reload_retries_failed_token_revocation_until_reconciled() {
     );
     assert!(!super::reload_directory(&state, &directory).await);
 
-    std::fs::remove_dir(&tokens_path).unwrap();
-    std::fs::rename(&backup_path, &tokens_path).unwrap();
+    fault.execute_batch("DROP TRIGGER fail_revocation;").unwrap();
 
     assert!(super::reload_directory(&state, &directory).await);
     assert_eq!(auth.tokens.lookup(&token).await.unwrap(), None);

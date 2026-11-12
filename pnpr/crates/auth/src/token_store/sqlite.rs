@@ -1,5 +1,51 @@
-use super::{Connection, HashMap, RegistryError, Result, TokenKind, TokenRecord};
+use super::{Connection, HashMap, Path, RegistryError, Result, TokenKind, TokenRecord};
 use crate::validation::{token_timestamp_from_sql, token_timestamp_to_sql};
+
+/// The token database connection every write of one store commits through.
+///
+/// `PRAGMA data_version` changes only when another connection commits, so a
+/// change means another process, such as `pnpr add-user`, edited the tokens.
+#[derive(Debug)]
+pub(crate) struct TokenDatabase {
+    connection: Connection,
+    /// `data_version` when the tokens were last loaded.
+    loaded_version: i64,
+}
+
+impl TokenDatabase {
+    /// Open the database at `path`, migrating its schema, and load every token.
+    pub(crate) fn open(path: &Path) -> Result<(Self, HashMap<String, TokenRecord>)> {
+        let connection = Connection::open(path)?;
+        init_tokens_schema(&connection)?;
+        // A WAL read never waits for another process's write, so checking for
+        // changes cannot stall a lookup.
+        connection.pragma_update(None, "journal_mode", "WAL")?;
+        let mut database = Self { connection, loaded_version: 0 };
+        database.loaded_version = database.data_version()?;
+        let tokens = load_all_tokens(&database.connection)?;
+        Ok((database, tokens))
+    }
+
+    pub(crate) fn connection(&self) -> &Connection {
+        &self.connection
+    }
+
+    /// Every token, if another connection committed since the last load.
+    pub(crate) fn load_if_changed(&mut self) -> Result<Option<HashMap<String, TokenRecord>>> {
+        let version = self.data_version()?;
+        if version == self.loaded_version {
+            return Ok(None);
+        }
+        // Read before loading: a commit in between loads again next time.
+        let tokens = load_all_tokens(&self.connection)?;
+        self.loaded_version = version;
+        Ok(Some(tokens))
+    }
+
+    fn data_version(&self) -> Result<i64> {
+        Ok(self.connection.pragma_query_value(None, "data_version", |row| row.get(0))?)
+    }
+}
 
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
     pnpr_sql::sqlite::ensure_schema(conn, "SQLite auth database")
@@ -31,7 +77,7 @@ fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
     ))
 }
 
-pub(crate) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
+fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
     let mut stmt = conn.prepare(
         "SELECT token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, kind
          FROM tokens",

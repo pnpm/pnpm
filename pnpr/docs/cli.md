@@ -159,7 +159,8 @@ A new account never inherits tokens or grants from a reused login name.
 
 The command needs `auth.users.file` or a database backend. With the
 account file, edits share a lock with the running server. Password changes
-preserve the account ID.
+preserve the account ID and revoke the account's tokens, also on a running
+server.
 
 ```sh
 # Prompts for the password
