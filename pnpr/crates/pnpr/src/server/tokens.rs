@@ -114,7 +114,7 @@ async fn create_verified_token(
         .await?
         .ok_or_else(|| RegistryError::Unauthenticated { resource: format!("user {username:?}") })?;
     let verified_credential =
-        verify_caller_password(state, client_ip, username, request.password()).await?;
+        verify_caller_password(state, client_ip, caller.identity, request.password()).await?;
     let now = pnpr_auth::unix_millis();
     request = request
         .expiring_by_default(default_token_expiry(state, now))
@@ -131,7 +131,15 @@ async fn create_verified_token(
         new_token,
     )
     .await?;
-    Ok(json_response(StatusCode::OK, &create_token_response(&raw, &record)))
+    let key = super::ecosystem::sha256_hex(raw.as_bytes());
+    crate::audit::audit!(
+        crate::audit::Actor::of(caller.identity),
+        "token.create",
+        token_key = %key,
+        readonly = record.readonly,
+        "token created",
+    );
+    Ok(json_response(StatusCode::OK, &create_token_response(&raw, &key, &record)))
 }
 
 /// When a token issued at `now` without a requested expiry expires: after
@@ -177,9 +185,10 @@ async fn credential_limits(
 pub(super) async fn verify_caller_password(
     state: &AppState,
     client_ip: Option<IpAddr>,
-    username: &str,
+    identity: &Identity,
     password: Option<&str>,
 ) -> Result<pnpr_auth::AccountCredential, RegistryError> {
+    let username = identity.username().expect("authenticated caller");
     let credential = state.inner.identity.auth.users
         .credential(username)
         .await?
@@ -188,7 +197,8 @@ pub(super) async fn verify_caller_password(
         })?;
     if let Err(error) = verify_account_credential(username, password, &credential).await {
         if matches!(error, RegistryError::Unauthenticated { .. }) {
-            state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
+            let actor = crate::audit::Actor::of(identity);
+            super::user_accounts::record_login_failure(state, client_ip, actor, username);
         }
         return Err(error);
     }
@@ -223,8 +233,7 @@ async fn verify_account_credential(
     }
 }
 
-fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
-    let key = super::ecosystem::sha256_hex(raw_token.as_bytes());
+fn create_token_response(raw_token: &str, key: &str, record: &TokenRecord) -> Value {
     let mut obj = json!({
         "token": raw_token,
         "key": key,
@@ -284,7 +293,10 @@ pub(super) async fn revoke_token_by_key(
             .into_response()
         }
         Ok(Some(_)) => match state.inner.identity.auth.tokens.revoke_by_key(key).await {
-            Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
+            Ok(Some(_)) => {
+                audit_token_revoke(identity, key);
+                json_response(StatusCode::OK, &json!({ "ok": "token revoked" }))
+            }
             Ok(None) => not_found(),
             Err(err) => err.into_response(),
         },
@@ -343,10 +355,22 @@ async fn logout_bearer_token(state: &AppState, identity: &Identity, raw_token: &
         .into_response();
     }
     match state.inner.identity.auth.tokens.revoke_by_raw(raw_token).await {
-        Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": true })),
+        Ok(Some(_)) => {
+            audit_token_revoke(identity, &super::ecosystem::sha256_hex(raw_token.as_bytes()));
+            json_response(StatusCode::OK, &json!({ "ok": true }))
+        }
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     }
+}
+
+fn audit_token_revoke(identity: &Identity, key: &str) {
+    crate::audit::audit!(
+        crate::audit::Actor::of(identity),
+        "token.revoke",
+        token_key = %key,
+        "token revoked",
+    );
 }
 
 pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) -> Value {

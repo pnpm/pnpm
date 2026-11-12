@@ -180,6 +180,9 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) namespace: Option<String>,
     /// Who published it, recorded with every dist-tag the document moves.
     pub(in super::super) publisher: Option<String>,
+    /// The caller who published it, whom the `package.publish` audit record
+    /// names.
+    pub(in super::super) caller: Identity,
     /// What verifying the published archives produced.
     pub(in super::super) verification: Verification,
 }
@@ -243,7 +246,12 @@ pub(in super::super) async fn stage_publish(
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
     drop(doc.incoming);
     let ValidatedPublish {
-        name, prepared, tarballs, variants, ..
+        name,
+        prepared,
+        tarballs,
+        variants,
+        publisher: caller,
+        ..
     } = doc;
 
     let verified = write_verified(
@@ -261,6 +269,7 @@ pub(in super::super) async fn stage_publish(
         slots: verified.slots,
         namespace: namespace.map(str::to_string),
         publisher,
+        caller,
         verification: verified.verification,
     })
 }

@@ -104,7 +104,7 @@ async fn callback(
         )
         .await
         {
-            Ok(session) => finish_sign_in(&state, &query.state, session).await,
+            Ok(session) => finish_sign_in(&state, (&provider, &query.state), session).await,
             Err(err) => err.into_response(),
         }
     } else {
@@ -423,25 +423,39 @@ impl WorkloadScope {
 #[cfg(test)]
 mod tests;
 
-async fn finish_sign_in(state: &AppState, flow: &str, session: LoginSession) -> Response {
+async fn finish_sign_in(
+    state: &AppState,
+    (provider, flow): (&str, &str),
+    session: LoginSession,
+) -> Response {
     let verified = async {
         let user = state.inner.identity.oidc
             .session(&session.token)?
             .ok_or_else(|| RegistryError::Unauthenticated {
                 resource: "OIDC browser session".to_string(),
             })?;
-        super::authentication::require_active_account(state, &user.user_id).await?;
+        let name = super::authentication::active_account_name(state, &user.user_id).await?;
         if super::scim::is_deprovisioned(state, &user.user_id)? {
             return Err(RegistryError::Unauthenticated {
                 resource: "an inactive account".to_string(),
             });
         }
-        Ok(())
+        Ok((user.user_id, name))
     }
     .await;
-    if let Err(err) = verified {
-        state.inner.identity.oidc.revoke_session(&session.token);
-        return err.into_response();
-    }
+    let (id, name) = match verified {
+        Ok(account) => account,
+        Err(err) => {
+            state.inner.identity.oidc.revoke_session(&session.token);
+            return err.into_response();
+        }
+    };
+    crate::audit::audit!(
+        crate::audit::Actor { id: &id, name: &name },
+        "auth.sign_in",
+        method = "oidc",
+        provider = %provider,
+        "signed in",
+    );
     signed_in(&state.inner.identity.oidc, flow, session)
 }

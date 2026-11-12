@@ -254,11 +254,9 @@ async fn reclaim_unpublished_blobs(
 }
 
 fn log_packument_update(identity: &Identity, name: &CanonicalPackageName, source: &str) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.update_packument",
-        actor = %actor,
+    crate::audit::audit!(
+        crate::audit::Actor::of(identity),
+        "package.update_packument",
         package = %name.as_str(),
         registry = %source,
         "package packument updated",

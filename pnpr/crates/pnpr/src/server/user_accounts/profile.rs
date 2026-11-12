@@ -53,7 +53,7 @@ async fn update_password(
     let update: ProfileUpdate = serde_json::from_value(parse_json_body(body)?)
         .map_err(|error| RegistryError::BadRequest { reason: error.to_string() })?;
     let verified_credential =
-        verify_caller_password(state, client_ip, &username, Some(&update.password.old)).await?;
+        verify_caller_password(state, client_ip, identity, Some(&update.password.old)).await?;
     let pnpr_auth::AccountCredential::PasswordHash(verified_hash) = verified_credential else {
         return Err(RegistryError::Unauthenticated { resource: "a password account".to_string() });
     };
@@ -70,10 +70,9 @@ async fn update_password(
         });
     }
     state.inner.identity.oidc.revoke_user_sessions(user_id);
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "user.password_update",
-        actor = %username,
+    crate::audit::audit!(
+        crate::audit::Actor::of(identity),
+        "user.password_update",
         user = %username,
         user_id = %user_id,
         "account password changed",

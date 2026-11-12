@@ -127,11 +127,11 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
         let (id, created) = create_stored(&state, &username, &user).await?;
         let response =
             scim_json(StatusCode::CREATED, &user_resource(&id, &created, &location(&state, &id)));
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "scim.user_create",
-            actor = "scim",
+        crate::audit::audit!(
+            crate::audit::Actor::SCIM,
+            "scim.user_create",
             user = %created.username,
+            user_id = %id,
             active = created.active,
             "scim user created",
         );
@@ -154,10 +154,9 @@ async fn replace_user(
             StatusCode::OK,
             &user_resource(&path.id, &replaced, &location(&state, &path.id)),
         );
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "scim.user_replace",
-            actor = "scim",
+        crate::audit::audit!(
+            crate::audit::Actor::SCIM,
+            "scim.user_replace",
             user = %replaced.username,
             user_id = %path.id,
             active = replaced.active,
@@ -182,10 +181,9 @@ async fn patch_user(
             StatusCode::OK,
             &user_resource(&path.id, &patched, &location(&state, &path.id)),
         );
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "scim.user_patch",
-            actor = "scim",
+        crate::audit::audit!(
+            crate::audit::Actor::SCIM,
+            "scim.user_patch",
             user = %patched.username,
             user_id = %path.id,
             active = patched.active,
@@ -204,10 +202,9 @@ async fn delete_user(
 ) -> Response {
     let result = async {
         let username = delete_stored(&state, &path.id).await?;
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "scim.user_delete",
-            actor = "scim",
+        crate::audit::audit!(
+            crate::audit::Actor::SCIM,
+            "scim.user_delete",
             user = %username,
             user_id = %path.id,
             "scim user deleted",

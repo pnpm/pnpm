@@ -353,6 +353,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         namespace: Some(target.namespace.to_string()),
         // Only an npm document has dist-tags to record a publisher with.
         publisher: None,
+        caller: target.publisher.clone(),
         verification: Verification::default(),
     })
 }

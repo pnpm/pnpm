@@ -149,11 +149,9 @@ pub(crate) async fn delete_tarball(
 }
 
 fn log_package_deleted(identity: &Identity, name: &CanonicalPackageName, source: &str) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.unpublish",
-        actor = %actor,
+    crate::audit::audit!(
+        crate::audit::Actor::of(identity),
+        "package.unpublish",
         package = %name.as_str(),
         registry = %source,
         "entire package unpublished",
@@ -167,11 +165,9 @@ fn log_tarball_deleted(
     version: &str,
     source: &str,
 ) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.unpublish_tarball",
-        actor = %actor,
+    crate::audit::audit!(
+        crate::audit::Actor::of(identity),
+        "package.unpublish_tarball",
         package = %name.as_str(),
         tarball = %filename,
         version = %version,

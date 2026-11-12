@@ -64,11 +64,9 @@ pub(super) async fn grant_team_access(
             Permissions::ReadOnly => "read-only",
             Permissions::ReadWrite => "read-write",
         };
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "team.access_grant",
-            actor = %actor,
+        crate::audit::audit!(
+            crate::audit::Actor::of(identity),
+            "team.access_grant",
             registry = %registry,
             scope = %target.scope,
             team = team,
@@ -102,11 +100,9 @@ pub(super) async fn revoke_team_access(
             })
         })
         .await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "team.access_revoke",
-            actor = %actor,
+        crate::audit::audit!(
+            crate::audit::Actor::of(identity),
+            "team.access_revoke",
             registry = %registry,
             scope = %target.scope,
             team = team,

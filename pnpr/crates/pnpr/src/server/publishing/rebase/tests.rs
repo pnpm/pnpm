@@ -122,6 +122,7 @@ fn a_client_revision_precondition_forbids_rebasing() {
         slots: Vec::new(),
         namespace: None,
         publisher: None,
+        caller: crate::server::Identity::Anonymous,
         verification: Verification::default(),
     }];
     assert!(rebase_bases(&mut staged).is_none());

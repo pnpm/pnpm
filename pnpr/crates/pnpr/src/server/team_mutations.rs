@@ -53,11 +53,9 @@ pub(super) async fn create_team(
         validate_team_name(&team).map_err(|reason| RegistryError::BadRequest { reason })?;
         let id = pnpr_auth::new_principal_id();
         create_team_in_roster(state, registry, &id, &team).await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "team.create",
-            actor = %actor,
+        crate::audit::audit!(
+            crate::audit::Actor::of(identity),
+            "team.create",
             registry = %registry,
             scope = %target.scope,
             team = %team,
@@ -79,11 +77,9 @@ pub(super) async fn destroy_team(
     let result = async {
         let registry = admin_roster(state, identity, &target, "destroy a team")?;
         destroy_team_in_roster(state, registry, team).await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "team.destroy",
-            actor = %actor,
+        crate::audit::audit!(
+            crate::audit::Actor::of(identity),
+            "team.destroy",
             registry = %registry,
             scope = %target.scope,
             team = %team,
@@ -111,15 +107,14 @@ pub(super) async fn add_team_member(
             .await?
             .ok_or(RegistryError::NotFound)?;
         add_member_to_team(state, registry, team, &user_id).await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "team.member_add",
-            actor = %actor,
+        crate::audit::audit!(
+            crate::audit::Actor::of(identity),
+            "team.member_add",
             registry = %registry,
             scope = %target.scope,
             team = %team,
             user = %user,
+            user_id = %user_id,
             "team member added",
         );
         Ok((StatusCode::CREATED, axum::Json(json!({}))))
@@ -140,11 +135,9 @@ pub(super) async fn remove_team_member(
         let registry = admin_roster(state, identity, &target, "remove a team member")?;
         let (user_id, user) = member_removal(state, body).await?;
         remove_member_from_team(state, registry, team, &user_id).await?;
-        let actor = identity.username().unwrap_or("-");
-        tracing::info!(
-            target: "pnpr::audit",
-            action = "team.member_remove",
-            actor = %actor,
+        crate::audit::audit!(
+            crate::audit::Actor::of(identity),
+            "team.member_remove",
             registry = %registry,
             scope = %target.scope,
             team = %team,

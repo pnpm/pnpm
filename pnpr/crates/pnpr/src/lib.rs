@@ -48,6 +48,7 @@ pub use server::{
     try_router, try_router_with_auth,
 };
 
+mod audit;
 mod config_validation;
 mod resolver;
 mod server;

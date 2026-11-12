@@ -152,6 +152,10 @@ async fn commit_staged(
     };
     let promoted = promote_fenced(state, &mut staged).await?;
     let rebases = super::rebase::rebase_bases(&mut staged);
+    let audited: Vec<_> = staged
+        .iter()
+        .map(PublishAudit::of)
+        .collect();
     let (documents, logged) = batch_documents(staged);
     let publication = super::rebase::Publication {
         namespace: &namespace,
@@ -169,12 +173,51 @@ async fn commit_staged(
         }
     };
     if !commit.replayed {
+        for publish in &audited {
+            publish.record(&namespace);
+        }
         for ecosystem in logged {
             let log = LogId { namespace: namespace.clone(), ecosystem };
             super::super::release_record_logs::integrate_in_background(state, log);
         }
     }
     Ok(commit.into())
+}
+
+/// What the `package.publish` audit record of a committed publish names.
+struct PublishAudit {
+    caller: Identity,
+    ecosystem: pnpr_package_name::Ecosystem,
+    name: String,
+    /// The versions the publish introduces, comma-separated.
+    versions: String,
+}
+
+impl PublishAudit {
+    fn of(stage: &StagedPublish) -> Self {
+        let versions: Vec<&str> = stage.verification.records
+            .keys()
+            .map(String::as_str)
+            .collect();
+        PublishAudit {
+            caller: stage.caller.clone(),
+            ecosystem: stage.ecosystem,
+            name: stage.name.as_str().to_string(),
+            versions: versions.join(","),
+        }
+    }
+
+    fn record(&self, namespace: &str) {
+        crate::audit::audit!(
+            crate::audit::Actor::of(&self.caller),
+            "package.publish",
+            package = %self.name,
+            ecosystem = %self.ecosystem,
+            versions = %self.versions,
+            namespace = %namespace,
+            "package published",
+        );
+    }
 }
 
 /// Resolve the single namespace of `staged` and reconcile every ecosystem's
