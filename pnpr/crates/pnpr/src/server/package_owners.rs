@@ -147,8 +147,9 @@ pub(super) async fn change_owners<Document: HostedDocument>(
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     // Turn away a caller who may not change the owners before looking up the
     // accounts the request names. The check inside the retry decides.
-    let current = storage.read_hosted_document(&key).await?.ok_or(RegistryError::NotFound)?;
-    let current = parse_current::<Document>(&key, &current)?;
+    let current =
+        storage.read_hosted_document_for_update(&key).await?.ok_or(RegistryError::NotFound)?;
+    let current = parse_current::<Document>(&key, &current.bytes)?;
     authorize_owner_change(state, identity, &key, current.owners())?;
     let requested = account_ids(state, &logins, change).await?;
     let outcome = storage.update_hosted_document_with_retry(
@@ -187,13 +188,13 @@ fn parse_logins(body: &[u8]) -> Result<Vec<String>, RegistryError> {
     if users.is_empty() {
         return Err(RegistryError::BadRequest { reason: "users must not be empty".to_string() });
     }
+    let mut seen = std::collections::HashSet::new();
+    users.retain(|user| seen.insert(user.clone()));
     if users.len() > MAX_OWNER_LOGINS {
         return Err(RegistryError::BadRequest {
             reason: format!("users must name at most {MAX_OWNER_LOGINS} accounts"),
         });
     }
-    let mut seen = std::collections::HashSet::new();
-    users.retain(|user| seen.insert(user.clone()));
     Ok(users)
 }
 

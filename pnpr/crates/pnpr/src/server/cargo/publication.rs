@@ -265,7 +265,7 @@ pub(super) async fn set_yanked(
     let outcome = state.inner.storage
         .for_hosted(&target.namespace, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
-            update_crate_yank_status(existing, &key, (version, yanked), &authorize)
+            update_crate_yank_status(existing, &key, YankChange { version, yanked }, &authorize)
         })
         .await;
     match outcome {
@@ -275,10 +275,17 @@ pub(super) async fn set_yanked(
     }
 }
 
+/// The release a yank or unyank names, and the yank status it sets.
+#[derive(Clone, Copy)]
+struct YankChange<'version> {
+    version: &'version str,
+    yanked: bool,
+}
+
 fn update_crate_yank_status(
     existing: Option<&[u8]>,
     key: &CanonicalPackageName,
-    (version, yanked): (&str, bool),
+    change: YankChange<'_>,
     authorize: &impl Fn(&[String]) -> Result<(), RegistryError>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let Some(bytes) = existing else { return Ok(None) };
@@ -291,7 +298,7 @@ fn update_crate_yank_status(
         });
     }
     authorize(&document.owners)?;
-    let Some(entry) = document.version_mut(version) else { return Ok(None) };
-    entry.yanked = yanked;
+    let Some(entry) = document.version_mut(change.version) else { return Ok(None) };
+    entry.yanked = change.yanked;
     Ok(Some(document.to_bytes()))
 }
