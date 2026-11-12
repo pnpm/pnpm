@@ -1,6 +1,6 @@
 use super::{
-    Arc, DepPath, HashSet, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceTreeCtx,
-    add_lazy_direct_dep, child_edge, package,
+    Arc, BTreeMap, DepPath, DirectDep, HashSet, NodeId, PeerHoistDiscovery, ResolvePeersOptions,
+    WorkspaceTreeCtx, add_lazy_direct_dep, child_edge, package, tree_node,
 };
 use crate::{
     ImporterPeerInput, PeerWalkAbort, ResolutionCancel, ResolveImporterError,
@@ -740,4 +740,107 @@ fn discovery_recomputes_peer_cycle_when_provider_rebinds_with_unchanged_dep_path
         !engine.snapshot_budget.cyclic_peers_of.contains_key(&node_a),
         "rebind to non-cyclic provider must clear stale cyclic_peers_of entry even when DepPath is unchanged",
     );
+}
+
+#[test]
+fn discovery_refresh_preserves_in_tree_promoted_provider_context_and_budget() {
+    let workspace = WorkspaceTreeCtx::default();
+    // Exact final live-path count in rounds 2 and 3:
+    // round 2: host@1.0.0, sib@1.0.0, plugin@1.0.0(sib@1.0.0),
+    //          consumer@1.0.0(plugin@1.0.0(sib@1.0.0)) -> 4 snapshots.
+    // round 3 (+ pkg-e): host@1.0.0(pkg-e@1.0.0), sib@1.0.0,
+    //          plugin@1.0.0(pkg-e@1.0.0)(sib@1.0.0),
+    //          consumer@1.0.0(pkg-e@1.0.0)(plugin@1.0.0(pkg-e@1.0.0)(sib@1.0.0)),
+    //          pkg-e@1.0.0 -> 5 snapshots.
+    // A phantom root-fallback snapshot for `plugin` would push round 2 to 5 or round 3 to 6.
+    let mut engine = PeerHoistDiscovery::with_max_snapshots(Some(5));
+
+    let view = &mut engine.tree;
+    for peer in ["plugin", "sib", "pkg-e"] {
+        view.all_peer_dep_names.insert(peer.to_string());
+    }
+    view.packages.insert(
+        "host@1.0.0".into(),
+        package("host", "1.0.0", &[("pkg-e", "^1.0.0")], false),
+    );
+    view.packages.insert("sib@1.0.0".into(), package("sib", "1.0.0", &[], true));
+    view.packages.insert(
+        "plugin@1.0.0".into(),
+        package("plugin", "1.0.0", &[("sib", "^1.0.0"), ("pkg-e", "^1.0.0")], true),
+    );
+    view.packages.insert(
+        "consumer@1.0.0".into(),
+        package("consumer", "1.0.0", &[("plugin", "^1.0.0"), ("pkg-e", "^1.0.0")], true),
+    );
+    view.packages.insert("pkg-e@1.0.0".into(), package("pkg-e", "1.0.0", &[], true));
+
+    // Allocate `plugin_id` BEFORE `host_id` so provider-first sorting places `plugin` ahead of
+    // `host`, exercising the `own_pending` vs `provider_pending` partition directly.
+    let plugin_id = NodeId::next();
+    let sib_id = NodeId::next();
+    let host_id = NodeId::next();
+    view.dependencies_tree.insert(plugin_id.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1));
+    view.dependencies_tree.insert(sib_id.clone(), tree_node("sib@1.0.0", BTreeMap::new(), 1));
+    view.dependencies_tree.insert(
+        host_id.clone(),
+        tree_node("host@1.0.0", BTreeMap::from([("sib".to_string(), sib_id.clone())]), 0),
+    );
+
+    let plugin_dep = DirectDep {
+        alias: "plugin".to_string(),
+        node_id: plugin_id.clone(),
+        id: "plugin@1.0.0".into(),
+    };
+    let host_dep =
+        DirectDep { alias: "host".to_string(), node_id: host_id, id: "host@1.0.0".into() };
+    let mut consumer_vec = Vec::new();
+    add_lazy_direct_dep(
+        &mut view.dependencies_tree,
+        &mut consumer_vec,
+        "consumer",
+        "consumer@1.0.0",
+    );
+    let consumer_dep = consumer_vec.pop().unwrap();
+
+    let mut pkg_e_vec = Vec::new();
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut pkg_e_vec, "pkg-e", "pkg-e@1.0.0");
+    let pkg_e_dep = pkg_e_vec.pop().unwrap();
+
+    let mut opts = ResolvePeersOptions::default();
+    opts.scope.hoisted_peer_provider_node_ids.insert(plugin_id.clone());
+
+    // Round 1: `host` initially has only `sib` (not `plugin`), so `host`, `consumer`, AND
+    // root-fallback `plugin` (`plugin_id < host_id`) are all recorded in `scoped.by_direct_dep`
+    // with `importer_refs["pkg-e"] = None`.
+    let round1 = vec![consumer_dep.clone(), host_dep.clone(), plugin_dep.clone()];
+    engine.discover(&workspace, &round1, &round1, opts.clone());
+    engine.check_snapshot_limit().expect("round 1 fits budget");
+    assert_eq!(engine.caches.node_dep_paths[&plugin_id], DepPath::from("plugin@1.0.0"));
+
+    // Round 2: `host` now owns `plugin` alongside `sib`, and `pkg-e` is hoisted (`walk_direct = [pkg-e]`).
+    // `evict_stale_scope_budget` evicts `plugin`, `host`, and `consumer` together into
+    // `walk_budget_only_direct_deps` with `plugin_id < host_id`. `own_pending` (`host`, `consumer`)
+    // must run before `provider_pending` (`plugin`), and `visited_this_call` must skip `plugin`
+    // instead of overwriting its in-tree `(sib@1.0.0)` context at root fallback.
+    engine.tree.dependencies_tree.insert(
+        host_dep.node_id.clone(),
+        tree_node(
+            "host@1.0.0",
+            BTreeMap::from([
+                ("plugin".to_string(), plugin_id.clone()),
+                ("sib".to_string(), sib_id),
+            ]),
+            0,
+        ),
+    );
+    let round2 = vec![consumer_dep, host_dep, plugin_dep, pkg_e_dep.clone()];
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &round2, std::slice::from_ref(&pkg_e_dep), opts);
+    engine.check_snapshot_limit().expect("round 2 fits tight max_snapshots = 5");
+    assert_eq!(
+        engine.caches.node_dep_paths[&plugin_id],
+        DepPath::from("plugin@1.0.0(pkg-e@1.0.0)(sib@1.0.0)"),
+        "promoted provider must keep its in-tree sibling peer context after budget refresh",
+    );
+    assert_eq!(engine.snapshot_budget.live_paths.len(), 5);
 }

@@ -24,6 +24,7 @@ impl Walker<'_> {
         {
             return;
         }
+        self.drop_in_tree_provider_budgets();
         if !initial_pending.is_empty() {
             self.walk_budget_only_direct_deps(initial_pending, root);
         }
@@ -39,6 +40,19 @@ impl Walker<'_> {
                 break;
             }
             self.refresh_dirty_subgraph(&dirty, root, &mut refresh_counts);
+            self.drop_in_tree_provider_budgets();
+        }
+    }
+
+    fn drop_in_tree_provider_budgets(&mut self) {
+        let in_tree_providers: Vec<NodeId> = self.opts.scope
+            .hoisted_peer_provider_node_ids
+            .iter()
+            .filter(|id| self.traversal.visited_this_call.contains(*id))
+            .cloned()
+            .collect();
+        for node_id in &in_tree_providers {
+            self.evict_direct_dep(node_id);
         }
     }
 
@@ -127,6 +141,11 @@ impl Walker<'_> {
         refresh_counts: &mut HashMap<NodeId, u8>,
     ) {
         let node_id = &entry.direct_dep.node_id;
+        if self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id)
+            && self.traversal.visited_this_call.contains(node_id)
+        {
+            return;
+        }
         let is_stale = changed_cyclic.contains(node_id)
             || !self.direct_dep_budget_matches(&entry, &root.importer_parents);
         if !is_stale {
@@ -156,43 +175,54 @@ impl Walker<'_> {
     }
 
     fn walk_budget_only_direct_deps(&mut self, pending: Vec<PendingBudgetDep>, root: &RootWalk) {
-        self.prime_pending_budget_contexts(&pending, root);
-        for item in pending {
+        let (own_pending, provider_pending): (Vec<PendingBudgetDep>, Vec<PendingBudgetDep>) =
+            pending
+                .into_iter()
+                .partition(|item| {
+                    !self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id)
+                });
+        for item in &own_pending {
+            self.remember_parent_context_if_peer_provider(
+                &item.dep.alias,
+                &item.dep.node_id,
+                &root.parent_dep_paths,
+            );
+        }
+        for item in own_pending {
             if self.traversal.snapshot_budget.poll_cancelled_amortized()
                 || self.traversal.snapshot_budget.is_stopped()
             {
                 return;
             }
-            if self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id)
-                && self.has_recorded_direct_budget(&item.dep.node_id)
-            {
-                continue;
-            }
             self.resolve_or_restore_pending_dep(item, root);
         }
         self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
+        self.walk_provider_budget_deps(provider_pending, root);
+        self.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
     }
 
-    fn prime_pending_budget_contexts(&mut self, pending: &[PendingBudgetDep], root: &RootWalk) {
-        for item in pending {
-            if !self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id) {
-                self.remember_parent_context_if_peer_provider(
-                    &item.dep.alias,
-                    &item.dep.node_id,
-                    &root.parent_dep_paths,
-                );
-            }
-        }
-        for item in pending {
-            if self.opts.scope.hoisted_peer_provider_node_ids.contains(&item.dep.node_id)
-                && !self.has_recorded_direct_budget(&item.dep.node_id)
+    fn walk_provider_budget_deps(
+        &mut self,
+        provider_pending: Vec<PendingBudgetDep>,
+        root: &RootWalk,
+    ) {
+        for item in provider_pending {
+            if self.traversal.snapshot_budget.poll_cancelled_amortized()
+                || self.traversal.snapshot_budget.is_stopped()
             {
-                self.remember_parent_context_if_peer_provider(
-                    &item.dep.alias,
-                    &item.dep.node_id,
-                    &root.parent_dep_paths,
-                );
+                return;
             }
+            if self.traversal.visited_this_call.contains(&item.dep.node_id)
+                || self.has_recorded_direct_budget(&item.dep.node_id)
+            {
+                continue;
+            }
+            self.remember_parent_context_if_peer_provider(
+                &item.dep.alias,
+                &item.dep.node_id,
+                &root.parent_dep_paths,
+            );
+            self.resolve_or_restore_pending_dep(item, root);
         }
     }
 
