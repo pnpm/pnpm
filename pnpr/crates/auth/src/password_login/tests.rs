@@ -209,7 +209,9 @@ async fn deactivation_during_login_or_token_creation_revokes_issued_token() {
 
     let login = {
         let auth = Arc::clone(&auth);
-        tokio::spawn(async move { auth.password_login("example-user", "old-password").await })
+        tokio::spawn(async move {
+            auth.password_login("example-user", "old-password", NewToken::new()).await
+        })
     };
     tokens.started.notified().await;
     auth.apply_account_status(&id, 1, crate::AccountLifecycle::Deactivated)
