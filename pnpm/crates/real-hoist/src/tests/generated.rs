@@ -146,7 +146,6 @@ fn importer(seed: u64) -> Rc<HoisterTree> {
 
 #[test]
 fn generated_peer_graphs_resolve_as_declared() {
-    std::panic::set_hook(Box::new(|_| {}));
     let failures: Vec<(u64, String)> = (0..SEEDS)
         .filter_map(|seed| {
             let root = importer(seed);
@@ -159,6 +158,5 @@ fn generated_peer_graphs_resolve_as_declared() {
             Some((seed, message))
         })
         .collect();
-    let _ = std::panic::take_hook();
     assert!(failures.is_empty(), "{} graphs break, first: {:?}", failures.len(), failures.first());
 }
