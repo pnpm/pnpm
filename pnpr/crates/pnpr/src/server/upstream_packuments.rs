@@ -148,22 +148,20 @@ pub(super) async fn cache_upstream_packument(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match fetched {
         PackumentFetch::Modified(fetched) => {
-            // Pins are published into the cached copy, so a packument that
-            // failed to cache is served as fetched.
-            if upstream.caches()
-                && write_cached_packument(state, namespace, name, &fetched.bytes).await
-            {
-                return super::upstream_integrity::complete_missing_tarball_integrities(
-                    state,
-                    namespace,
-                    upstream,
-                    name,
-                    fetched.bytes,
-                )
-                .await
-                .map(Some);
+            if !upstream.caches() {
+                return Ok(Some(fetched.bytes));
             }
-            Ok(Some(fetched.bytes))
+            let refreshed = super::upstream_integrity::refresh_cached_packument(
+                state,
+                namespace,
+                name,
+                fetched.bytes,
+            )
+            .await?;
+            if refreshed.needs_backfill {
+                super::upstream_integrity::schedule(state, namespace, upstream, name);
+            }
+            Ok(Some(refreshed.bytes))
         }
         PackumentFetch::NotFound => {
             // The 404 is authoritative: the package is gone from this origin,
@@ -187,22 +185,9 @@ pub(super) async fn cache_upstream_packument(
     }
 }
 
-async fn write_cached_packument(
-    state: &AppState,
-    namespace: &str,
-    name: &CanonicalPackageName,
-    bytes: &[u8],
-) -> bool {
-    let _guard = lock_upstream_package(state, namespace, name).await;
-    let written = state.inner.storage.write_upstream_document(namespace, name, bytes).await;
-    if let Err(err) = &written {
-        tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
-    }
-    written.is_ok()
-}
-
 async fn purge_cached_package(state: &AppState, namespace: &str, name: &CanonicalPackageName) {
     let _guard = lock_upstream_package(state, namespace, name).await;
+    invalidate_upstream_package(state, namespace, name);
     if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
         tracing::warn!(
             ?err,
@@ -220,8 +205,28 @@ pub(super) async fn lock_upstream_package<'a>(
     namespace: &str,
     name: &CanonicalPackageName,
 ) -> tokio::sync::MutexGuard<'a, ()> {
-    let lock_key = format!("upstream:{namespace}:{}", name.as_str());
+    let lock_key = upstream_package_key(namespace, name);
     state.inner.locks.packages.lock(&lock_key).await
+}
+
+pub(super) fn upstream_package_generation(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) -> u64 {
+    state.inner.locks.packages.generation(&upstream_package_key(namespace, name))
+}
+
+pub(super) fn invalidate_upstream_package(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) {
+    state.inner.locks.packages.advance_generation(&upstream_package_key(namespace, name));
+}
+
+fn upstream_package_key(namespace: &str, name: &CanonicalPackageName) -> String {
+    format!("upstream:{namespace}:{}", name.as_str())
 }
 
 /// Serve a stale cache entry only when an upstream fetch failed transiently.

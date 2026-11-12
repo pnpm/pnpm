@@ -114,6 +114,8 @@ pub(super) struct UpstreamFile {
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
     #[serde(default)]
+    pub(super) max_packument_size: Option<ByteSize>,
+    #[serde(default)]
     pub(super) max_fails: Option<u32>,
     #[serde(default)]
     pub(super) fail_timeout: Option<Interval>,

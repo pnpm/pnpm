@@ -700,3 +700,66 @@ async fn abandoned_archive_staging_files_are_swept() {
     assert!(!staged.exists());
     assert!(other.exists());
 }
+
+#[tokio::test]
+async fn local_upstream_metadata_updates_preserve_fetch_age() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("example");
+    storage.write_upstream_document("mirror", &name, b"old").await.unwrap();
+    let path = storage.cached.namespaced("mirror").document_path(&name);
+    let fetched = std::time::SystemTime::now() - std::time::Duration::from_mins(5);
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(fetched))
+        .unwrap();
+    let original = storage
+        .upstream_document_stamp("mirror", &name)
+        .await
+        .unwrap()
+        .unwrap();
+    for bytes in [b"one", b"two"] {
+        storage.update_upstream_document("mirror", &name, bytes).await.unwrap();
+        assert!(
+            storage
+                .read_upstream_document("mirror", &name, std::time::Duration::from_mins(1))
+                .await
+                .unwrap()
+                .is_none(),
+        );
+        assert!(
+            storage
+                .fresh_upstream_document_stamp("mirror", &name, std::time::Duration::from_mins(1))
+                .await
+                .unwrap()
+                .is_none(),
+        );
+        assert_ne!(
+            storage
+                .upstream_document_stamp("mirror", &name)
+                .await
+                .unwrap()
+                .unwrap(),
+            original,
+        );
+        assert_eq!(
+            storage
+                .read_upstream_document_any("mirror", &name)
+                .await
+                .unwrap()
+                .unwrap(),
+            bytes,
+        );
+    }
+    storage.write_upstream_document("mirror", &name, b"new").await.unwrap();
+    assert_eq!(
+        storage
+            .read_upstream_document("mirror", &name, std::time::Duration::from_mins(1))
+            .await
+            .unwrap()
+            .unwrap(),
+        b"new",
+    );
+}

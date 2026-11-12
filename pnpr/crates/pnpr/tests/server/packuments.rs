@@ -55,7 +55,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(body["versions"]["1.0.0"]["dist"]["tarball"], "http://example.test/npm/foo@1.0.0");
     assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], sha1_hex_of(tarball));
-    assert_eq!(body["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(tarball));
+    super::integrity_backfill::wait_for_pins(tmp.path(), 1).await;
 
     let cached = app
         .clone()
@@ -67,6 +67,8 @@ async fn packument_is_proxied_cached_and_rewritten() {
         .await
         .unwrap();
     assert_eq!(cached.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(cached.into_body()).await).unwrap();
+    assert_eq!(body["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(tarball));
 
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;

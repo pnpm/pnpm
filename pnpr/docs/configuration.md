@@ -263,10 +263,14 @@ registries:
 | `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
+| `maxPackumentSize` | Maximum upstream npm package metadata response size. Defaults to `64 MiB`. Accepts a positive number of bytes or a size such as `64 MiB`. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 | `search` | Opts this upstream into browser-facing search and organization discovery. Defaults to `false`. See [Browsing and discovery](discovery.md). |
-| `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes a SHA-512 `dist.integrity` for up to 64 versions per fetched packument that omit one, caching each tarball it hashes. |
+| `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes missing SHA-512 `dist.integrity` values in the background for up to 64 versions per fetched packument. It reuses cached tarballs and retains matching integrities across refreshes. Initial metadata responses may omit these integrities until the work completes. Downloads that need a computed integrity wait for scheduled backfill, up to the upstream `timeout`. Failed pins are retried on the next metadata refresh. Backfill work waits for capacity and retries when metadata changes during a download. At most 256 package jobs can be queued or active. When that limit is reached, metadata still responds, but downloads that need a computed integrity return HTTP 429 until capacity is available. Computing integrities does not extend metadata freshness. |
+
+Tarball requests refresh stale package metadata before serving cached bytes.
+A refresh deletes cached tarballs for versions the upstream removed.
 
 Timeouts while reading a response body do not count toward `maxFails`.
 An open circuit returns HTTP 503 with the configured upstream name and a
