@@ -619,9 +619,6 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
         intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
     };
 
-    // The same overrides sent with a different JSON key order must dedup to a
-    // single interned config — the second call returns the *same* leaked
-    // config, not a new one, and the map stays at one entry.
     let first =
         intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
     let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
@@ -755,4 +752,56 @@ fn intern_config_keys_project_scoped_optional_peers() {
         resolution_cache_key(&on, &cache_request).expect("resolution cache key"),
         resolution_cache_key(&off, &cache_request).expect("resolution cache key"),
     );
+}
+
+#[tokio::test]
+async fn active_config_admission_follows_detached_work_and_recovers() {
+    use pnpr_fixtures::MockConfigPresets;
+    let temp = tempfile::tempdir().unwrap();
+    let config =
+        pnpr_config::Config::proxy("127.0.0.1:7677".parse().unwrap(), temp.path().to_owned());
+    let mut runtime = super::super::Resolver::build(&config, None);
+    runtime.configs.admission = Arc::new(tokio::sync::Semaphore::new(1));
+    let admit = |request: &ResolveRequest| {
+        runtime
+            .config_for(request)
+            .unwrap_or_else(|response| {
+                panic!("unexpected admission failure: {}", response.status())
+            })
+    };
+    let first = admit(&ResolveRequest::default());
+    let (release, wait) = tokio::sync::oneshot::channel::<()>();
+    let task = tokio::spawn(async move {
+        wait.await.unwrap();
+        drop(first);
+    });
+    let second = ResolveRequest { minimum_release_age: Some(42), ..Default::default() };
+    let response = runtime
+        .config_for(&second)
+        .err()
+        .unwrap();
+    assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        runtime.configs.entries
+            .lock()
+            .unwrap()
+            .len(),
+        1,
+    );
+    release.send(()).unwrap();
+    task.await.unwrap();
+    assert_eq!(admit(&second).minimum_release_age, Some(42));
+    let oversized = ResolveRequest {
+        overrides: Some(serde_json::json!({"example": "x".repeat(128 * 1024)})),
+        ..Default::default()
+    };
+    assert_eq!(
+        runtime
+            .config_for(&oversized)
+            .err()
+            .unwrap()
+            .status(),
+        axum::http::StatusCode::BAD_REQUEST,
+    );
+    assert_eq!(admit(&second).minimum_release_age, Some(42));
 }

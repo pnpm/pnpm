@@ -53,8 +53,8 @@ use verify_lockfile::{VerifyFailure, verify_input_lockfile};
 
 mod config_cache;
 use config_cache::{
-    CONFIG_KEY_TOO_LARGE_MESSAGE, CachedConfig, MAX_CACHED_CONFIGS, MAX_CONFIG_KEY_BYTES,
-    intern_config,
+    ActiveConfig, CONFIG_KEY_TOO_LARGE_MESSAGE, ConfigCache, MAX_CACHED_CONFIGS,
+    MAX_CONFIG_KEY_BYTES, intern_config,
 };
 
 mod cache;
@@ -125,7 +125,7 @@ pub(crate) struct Resolver {
     store_dir: StoreDir,
     client: Arc<ThrottledClient>,
     /// Configurations keyed by canonical JSON, with least recently used eviction.
-    configs: Mutex<HashMap<String, CachedConfig>>,
+    configs: ConfigCache,
     osv_index: Option<Arc<OsvIndex>>,
     /// Route-classification inputs (public/private rules, pnpr-managed
     /// upstream credentials, hosted origin, package policy), resolved once
@@ -227,7 +227,7 @@ impl Resolver {
         Resolver {
             store_dir: StoreDir::new(store_dir),
             client,
-            configs: Mutex::new(HashMap::new()),
+            configs: ConfigCache::default(),
             osv_index,
             route_context,
             local_registry: crate::server::LocalRegistry::new(config.http.public_url.clone()),
@@ -255,16 +255,23 @@ impl Resolver {
             .join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
-    /// Reuse the request's effective configuration. Reject oversized keys.
-    fn config_for(&self, request: &ResolveRequest) -> Option<Arc<PacquetConfig>> {
-        intern_config(
-            &self.configs,
+    /// Reuse the request's configuration while bounding active work and cached entries.
+    fn config_for(&self, request: &ResolveRequest) -> Result<ActiveConfig, Response> {
+        let permit = Arc::clone(&self.configs.admission)
+            .try_acquire_owned()
+            .map_err(|_| {
+                json_error(StatusCode::SERVICE_UNAVAILABLE, "too many active resolver requests")
+            })?;
+        let config = intern_config(
+            &self.configs.entries,
             &self.store_dir,
             &self.cache.dir,
             request,
             MAX_CACHED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
         )
+        .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, CONFIG_KEY_TOO_LARGE_MESSAGE))?;
+        Ok(ActiveConfig { config, _permit: permit })
     }
 }
 
@@ -344,8 +351,9 @@ async fn resolve_npm_request(
     }
 
     // Resolve against the client's registries, not the server's own.
-    let Some(config) = runtime.config_for(&request) else {
-        return json_error(StatusCode::BAD_REQUEST, CONFIG_KEY_TOO_LARGE_MESSAGE);
+    let config = match runtime.config_for(&request) {
+        Ok(config) => config,
+        Err(response) => return response,
     };
     // Auth is selected by this server's route policy for the caller, not
     // forwarded from the client. Every metadata/tarball fetch the

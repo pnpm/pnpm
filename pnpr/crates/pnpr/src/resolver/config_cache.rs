@@ -4,6 +4,36 @@ use super::{
 
 use std::{sync::Arc, time::Instant};
 
+pub(super) const MAX_ACTIVE_CONFIGS: usize = 1024;
+
+pub(super) struct ConfigCache {
+    pub(super) entries: Mutex<HashMap<String, CachedConfig>>,
+    pub(super) admission: Arc<tokio::sync::Semaphore>,
+}
+
+impl Default for ConfigCache {
+    fn default() -> Self {
+        Self {
+            entries: Mutex::default(),
+            admission: Arc::new(tokio::sync::Semaphore::new(MAX_ACTIVE_CONFIGS)),
+        }
+    }
+}
+
+/// Retains admission until verification or the detached resolution finishes.
+pub(super) struct ActiveConfig {
+    pub(super) config: Arc<PacquetConfig>,
+    pub(super) _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl std::ops::Deref for ActiveConfig {
+    type Target = PacquetConfig;
+
+    fn deref(&self) -> &Self::Target {
+        &self.config
+    }
+}
+
 pub(super) const MAX_CACHED_CONFIGS: usize = 1024;
 pub(super) const CONFIG_KEY_TOO_LARGE_MESSAGE: &str = "registry configuration is too large";
 

@@ -1,6 +1,6 @@
 use super::{
-    Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile, Mutex, OsvIndex,
-    PackageVersionGuard, PacquetConfig, ResolveRequest, Resolver, Response, StoreCandidate,
+    ActiveConfig, Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile,
+    Mutex, OsvIndex, PackageVersionGuard, ResolveRequest, Resolver, Response, StoreCandidate,
     StreamObserver, TarballRouter, ThrottledClient, done_frame, error_frame_with_code,
     ndjson_stream_response, osv_violations_for_lockfile, resolve, store_resolution_candidate,
     violations_frame,
@@ -8,7 +8,7 @@ use super::{
 
 /// What one streamed resolve carries out of the request handling.
 pub(super) struct StreamedResolveInputs {
-    pub(super) config: Arc<PacquetConfig>,
+    pub(super) config: ActiveConfig,
     pub(super) request: ResolveRequest,
     pub(super) request_auth: Arc<AuthHeaders>,
     pub(super) tarball_router: TarballRouter,

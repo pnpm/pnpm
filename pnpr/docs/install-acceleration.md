@@ -64,7 +64,13 @@ instead of resolving again.
 
 pnpr caches client configurations and evicts the least recently used entries
 when the cache is full. Active requests keep their configuration until they
-finish. A configuration larger than 128 KiB returns `400 Bad Request`.
+finish.
+
+Up to 1,024 npm resolution and lockfile verification requests can run at once.
+Further requests return `503 Service Unavailable` until active work finishes.
+
+Oversized resolver settings return `400 Bad Request`. Lockfile verification
+with `trustLockfile` skips the size and concurrency checks.
 
 ## Cargo and Python
 

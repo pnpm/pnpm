@@ -183,12 +183,13 @@ fn init_warm_store_is_noop_and_leaves_cache_empty() {
 }
 
 #[test]
-fn cloned_store_shares_shard_cache() {
+fn cloned_store_shares_paths_and_shard_cache() {
     let store = super::StoreDir::new("example-store");
     let cloned = store.clone();
     store.mark_shard_ensured(42);
     assert!(cloned.shard_already_ensured(42));
     cloned.mark_shard_ensured(43);
     assert!(store.shard_already_ensured(43));
-    assert_eq!(store.files_dir(), cloned.files_dir());
+    assert!(std::sync::Arc::ptr_eq(&store.root, &cloned.root));
+    assert!(std::ptr::eq(store.files_dir(), cloned.files_dir()));
 }
