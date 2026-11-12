@@ -46,6 +46,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         || context.repeat.filtered
         || context.repeat.disable_optimistic_check
         || config.force
+        || config.enable_global_virtual_store
     {
         return None;
     }
