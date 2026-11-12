@@ -124,7 +124,10 @@ function retainedUnselectedPackages (
 
 async function writeModulesManifestOfInstall (ctx: HeadlessContext, depGraph: HeadlessDepGraph, outcome: InstallOutcome): Promise<void> {
   const { opts } = ctx
-  const injectedDeps = getInjectedDeps(depGraph.injectionTargetsByDepPath, opts.lockfileDir)
+  const skippedHoistedTree = ctx.skipPostImportLinking && opts.nodeLinker === 'hoisted'
+  const injectedDeps = skippedHoistedTree
+    ? opts.modulesFile?.injectedDeps
+    : getInjectedDeps(depGraph.injectionTargetsByDepPath, opts.lockfileDir)
   await writeModulesManifest(ctx.rootModulesDir, {
     hoistedDependencies: outcome.newHoistedDependencies!,
     hoistPattern: opts.hoistPattern,
@@ -132,7 +135,7 @@ async function writeModulesManifestOfInstall (ctx: HeadlessContext, depGraph: He
     injectedDeps,
     ignoredBuilds: outcome.ignoredBuilds,
     layoutVersion: LAYOUT_VERSION,
-    hoistedLocations: depGraph.hoistedLocations,
+    hoistedLocations: skippedHoistedTree ? opts.currentHoistedLocations : depGraph.hoistedLocations,
     nodeLinker: opts.nodeLinker,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,

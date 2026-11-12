@@ -44,9 +44,10 @@ export async function readInstallChecksums ({ ctx, opts }: Pick<MutationRun, 'ct
   const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
   const untrackedReadPackageHookMayHaveChanged = readPackageHookMayHaveChanged(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.workspaceDir ?? opts.lockfileDir)
+  const computedPatchHashes = resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {}
   const patchedDependencies = opts.ignorePackageManifest
-    ? ctx.wantedLockfile.patchedDependencies
-    : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
+    ? (ctx.wantedLockfile.patchedDependencies ?? computedPatchHashes)
+    : computedPatchHashes
   const patchGroups = groupPatchedDependenciesWithPaths(patchedDependencies, resolvedPatchedDeps)
   const frozenLockfile = opts.frozenLockfile ||
     opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile

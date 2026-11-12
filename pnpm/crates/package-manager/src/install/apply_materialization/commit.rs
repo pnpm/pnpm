@@ -75,6 +75,9 @@ fn record_agent_skills(
         next_modules.linked_skills.clone_from(&prior.linked_skills);
         next_modules.has_unlinked_skills = prior.has_unlinked_skills;
     }
+    if inputs.tree.config.virtual_store_only {
+        return Ok(Vec::new());
+    }
     let Some(lockfile) = inputs.lockfiles.materialized else { return Ok(Vec::new()) };
     let linked = inputs.prior.metadata
         .and_then(|modules| modules.linked_skills.as_deref())
@@ -148,6 +151,14 @@ pub(super) fn merge_committed_modules_metadata(
         && let Some(recorded) = inputs.prior.layout
     {
         keep_recorded_layout(next_modules, recorded);
+    }
+    if inputs.tree.config.virtual_store_only
+        && inputs.tree.node_linker == pnpm_config::NodeLinker::Hoisted
+        && !inputs.prior.is_inconsistent
+        && let Some(previous) = inputs.prior.metadata
+    {
+        next_modules.hoisted_locations.clone_from(&previous.hoisted_locations);
+        next_modules.injected_deps.clone_from(&previous.injected_deps);
     }
     if let (Some(previous), Some(current), Some(policy)) =
         (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)

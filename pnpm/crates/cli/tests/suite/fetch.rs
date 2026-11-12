@@ -308,8 +308,8 @@ fn fetch_runs_a_build_script_that_calls_a_sibling_dependency_bin() {
     drop((root, mock_instance));
 }
 
-/// TS: `fetch fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is
-/// missing` ([pnpm/pnpm#5268](https://github.com/pnpm/pnpm/issues/5268)).
+/// TS: `fetch with nodeLinker=%s fails with ERR_PNPM_PATCH_NOT_FOUND when a
+/// patch file is missing` ([pnpm/pnpm#5268](https://github.com/pnpm/pnpm/issues/5268)).
 #[test]
 fn fetch_fails_with_patch_not_found_when_a_patch_file_is_missing() {
     const PATCHED_DEP: &str = "@pnpm.e2e/console-log";
@@ -317,46 +317,160 @@ fn fetch_fails_with_patch_not_found_when_a_patch_file_is_missing() {
         "../../../../../pnpm11/installing/commands/test/__fixtures__/patchedDependencies/console-log-replace-1st-line.patch"
     );
 
+    for node_linker in ["isolated", "hoisted"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+        fs::write(workspace.join("patches/console-log.patch"), PATCH).expect("write patch file");
+        append_workspace_yaml_key(&workspace, "nodeLinker", format!(" {node_linker}"));
+        append_workspace_yaml_key(
+            &workspace,
+            "patchedDependencies",
+            format!("\n  '{PATCHED_DEP}': patches/console-log.patch"),
+        );
+
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "dependencies": { PATCHED_DEP: "1.0.0" } }).to_string(),
+        )
+        .expect("write package.json");
+        pacquet_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        fs::remove_dir_all(workspace.join("patches")).expect("remove patches dir");
+
+        let output = pacquet_at(&workspace)
+            .with_arg("fetch")
+            .output()
+            .expect("run pnpm fetch");
+
+        assert!(
+            !output.status.success(),
+            "fetch under {node_linker} must fail without the patch file",
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
+        assert!(stderr.contains("Patch file not found"), "stderr: {stderr}");
+        // miette wraps the report at the terminal width, splitting the temp path.
+        let unwrapped: String = stderr
+            .chars()
+            .filter(|&c| !c.is_whitespace() && c != '│')
+            .collect();
+        assert!(unwrapped.contains("console-log.patch"), "stderr: {stderr}");
+
+        drop((root, mock_instance));
+    }
+}
+
+/// `nodeLinker: hoisted` has no virtual store, so `fetch` populates only the
+/// CAS store and defers patching and dependency build scripts to the install
+/// that materializes the hoisted tree
+/// ([pnpm/pnpm#18037](https://github.com/pnpm/pnpm/issues/18037)).
+#[test]
+fn fetch_under_hoisted_defers_patches_and_builds_until_offline_install() {
+    const PATCHED_DEP: &str = "@pnpm.e2e/console-log";
+    const BUILT_DEP: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    const PATCH: &str = include_str!(
+        "../../../../../pnpm11/installing/commands/test/__fixtures__/patchedDependencies/console-log-replace-1st-line.patch"
+    );
+
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
     fs::write(workspace.join("patches/console-log.patch"), PATCH).expect("write patch file");
-    append_workspace_yaml_key(
-        &workspace,
-        "patchedDependencies",
-        format!("\n  '{PATCHED_DEP}': patches/console-log.patch"),
-    );
-
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path)
+        .expect("read pnpm-workspace.yaml")
+        .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
     fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { PATCHED_DEP: "1.0.0" } }).to_string(),
+        &yaml_path,
+        format!(
+            "{yaml}nodeLinker: hoisted\nallowBuilds:\n  '{BUILT_DEP}': true\npatchedDependencies:\n  '{PATCHED_DEP}': patches/console-log.patch\n",
+        ),
     )
-    .expect("write package.json");
+    .expect("write pnpm-workspace.yaml");
+
+    let manifest = serde_json::json!({
+        "dependencies": {
+            PATCHED_DEP: "1.0.0",
+            BUILT_DEP: "1.0.0",
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
     pacquet_at(&workspace)
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    fs::remove_dir_all(workspace.join("patches")).expect("remove patches dir");
 
-    let output = pacquet_at(&workspace)
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+
+    pacquet_at(&workspace)
         .with_arg("fetch")
-        .output()
-        .expect("run pnpm fetch");
+        .assert()
+        .success();
 
-    assert!(!output.status.success(), "fetch must fail without the patch file");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
-    assert!(stderr.contains("Patch file not found"), "stderr: {stderr}");
-    // miette wraps the report at the terminal width, splitting the temp path.
-    let unwrapped: String = stderr
-        .chars()
-        .filter(|&c| !c.is_whitespace() && c != '│')
-        .collect();
-    assert!(unwrapped.contains("console-log.patch"), "stderr: {stderr}");
+    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must populate the CAS store");
+    assert!(
+        !store_dir
+            .join(STORE_VERSION)
+            .join("links")
+            .exists(),
+        "hoisted fetch must not populate global virtual store links",
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join(PATCHED_DEP)
+            .exists(),
+        "hoisted fetch must not materialize project node_modules",
+    );
+    let modules_after_fetch = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect("fetch must write .modules.yaml");
+    assert_eq!(modules_after_fetch.virtual_store_only, Some(true));
+    assert_eq!(modules_after_fetch.hoisted_locations, None);
 
-    drop((root, mock_instance));
+    fs::write(workspace.join("package.json"), &manifest).expect("restore package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile", "--config.frozen-store=true"])
+        .assert()
+        .success();
+
+    let patched_index = fs::read_to_string(
+        workspace
+            .join("node_modules")
+            .join(PATCHED_DEP)
+            .join("index.js"),
+    )
+    .expect("read patched index.js");
+    assert!(patched_index.contains("FIRST LINE"), "patched index.js: {patched_index}");
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(BUILT_DEP)
+            .join("generated-by-postinstall.js")
+            .exists(),
+        "offline install must run the approved postinstall script",
+    );
+    let modules_after_install =
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+            "node_modules",
+        ))
+        .expect("read .modules.yaml")
+        .expect("install must write .modules.yaml");
+    assert_eq!(modules_after_install.virtual_store_only, None);
+    assert!(modules_after_install.hoisted_locations.is_some());
+
+    drop((root, mock_instance, store_dir));
 }
 
 /// An env document pinning pnpm 99.0.0, recorded as the bare `pnpm` package
