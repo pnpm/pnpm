@@ -59,11 +59,14 @@ pub(super) fn check_recorded_local_targets(
     check: &ImporterSatisfactionCheck<'_>,
     (dep, scope): (&LocalDepContext<'_>, &AliasScope),
     local_manifest: &PackageManifest,
-    snapshot: &pnpm_lockfile::SnapshotEntry,
+    (snapshot, key): (&pnpm_lockfile::SnapshotEntry, &pnpm_lockfile::PackageKey),
     shadowed: &HashSet<&str>,
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let children = local_dep_children(check, (dep, local_manifest), shadowed)?;
+    let bound = std::cell::LazyCell::new(|| {
+        pnpm_lockfile::BoundProviders::of_snapshot(check.lockfile.into(), key)
+    });
     let child_catalogs = local_child_catalogs(dep, local_manifest)?;
     for child in &children {
         if child.optional && !check.config.optional {
@@ -74,11 +77,11 @@ pub(super) fn check_recorded_local_targets(
             .is_some_and(|catalog| {
                 recorded_catalog_spec_matches(check, dep, &child.alias, catalog) == Some(false)
                     || !(catalog_child_is_fresh(check, dep, snapshot, child)
-                        || optional_peer_supplies_child(
+                        || peer_replaces_child(
                             check,
                             dep,
                             local_manifest,
-                            snapshot,
+                            (snapshot, &bound),
                             child,
                         ))
             }))
@@ -108,22 +111,35 @@ fn local_child_catalogs(
         .collect())
 }
 
-fn optional_peer_supplies_child(
+fn peer_replaces_child(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     manifest: &PackageManifest,
-    snapshot: &pnpm_lockfile::SnapshotEntry,
+    (snapshot, bound): (&pnpm_lockfile::SnapshotEntry, &pnpm_lockfile::BoundProviders),
     child: &DependencySpec,
 ) -> bool {
-    check.config.optional
-        && declared_peer_dependencies(manifest.value())
-            .get(&child.alias)
-            .is_some_and(|peer| peer.optional)
-        && recorded_child(snapshot, &child.alias, RecordedDeps::Optional)
-            .is_some_and(|recorded| {
-                implicit_workspace_target_satisfies(dep, child, recorded)
-                    .unwrap_or_else(|| recorded_child_satisfies_spec(check, dep, child, recorded))
-            })
+    let Some(optional) =
+        declared_peer_dependencies(manifest.value()).get(&child.alias).map(|peer| peer.optional)
+    else {
+        return false;
+    };
+    if optional && !check.config.optional {
+        return false;
+    }
+    let group = if optional { RecordedDeps::Optional } else { RecordedDeps::Required };
+    let Some(recorded) = recorded_child(snapshot, &child.alias, group) else {
+        // The shared children's owner may take a peer this occurrence leaves unbound.
+        return recorded_child(snapshot, &child.alias, RecordedDeps::Required).is_none()
+            && recorded_child(snapshot, &child.alias, RecordedDeps::Optional).is_none();
+    };
+    (!bound.is_hashed()
+        && child.alias
+            .parse()
+            .ok()
+            .and_then(|name| recorded.resolve(&name))
+            .is_some_and(|provider| bound.binds(&provider)))
+        || implicit_workspace_target_satisfies(dep, child, recorded)
+            .unwrap_or_else(|| recorded_child_satisfies_spec(check, dep, child, recorded))
 }
 
 fn recorded_catalog_spec_matches(

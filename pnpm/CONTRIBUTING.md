@@ -181,6 +181,22 @@ guarded by `pnpm_testing_utils::allow_known_failure!`), and the
 verification step of temporarily breaking the implementation to confirm a
 ported test actually fails for the right reason before committing.
 
+### Generated peer-resolution oracles
+
+The [Peer Resolution Oracles workflow](../.github/workflows/peer-resolution-oracles.yml)
+runs larger generated-workspace suites daily. Its run ID is the random seed;
+the `peer-resolution-oracles` artifact retains that seed and failure output.
+Reproduce a run with the values from its log:
+
+```sh
+PROPTEST_CASES=1024 PROPTEST_RNG_SEED=143 PROPTEST_MAX_SHRINK_ITERS=256 pnpm test:rust -p pnpm-package-manager -E 'test(peer_proptest::)'
+```
+
+Keep a minimized failure as a fixed regression test when fixing its cause.
+The moving-provider property checks frozen acceptance and stability of the
+installed dependency graph after dependency changes. It keeps published manifests unchanged and allows
+valid locked peer choices to differ from fresh resolution.
+
 ## Benchmarking
 
 First, start a local registry server, such as [verdaccio](https://verdaccio.org/):
