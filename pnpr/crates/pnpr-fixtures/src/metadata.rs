@@ -317,7 +317,7 @@ fn move_tag(storage: &Path, package: &str, version: &str, tag: &str) {
     let store = open(storage);
     let name = canonical(package, Ecosystem::Npm);
     run(async move {
-        let change = TagChange { tag, target: Some(version), principal: None };
+        let change = TagChange { tag, target: Some(version), principal: None, expected: None };
         let update = store
             .change_dist_tag(&name, change)
             .await

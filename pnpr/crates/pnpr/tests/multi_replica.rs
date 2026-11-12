@@ -230,6 +230,35 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
     assert!(packument["versions"].get("1.0.0").is_none());
 }
 
+/// A first publish that loses the race to another user who published and then
+/// unpublished the package is refused: that user's tombstone owns the name.
+#[tokio::test]
+async fn a_first_publish_that_loses_the_race_to_a_tombstone_is_refused() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let slow = Replica::start(&store, &metadata).await;
+    let mut fast = Replica::start(&store, &metadata).await;
+    fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret123").await;
+
+    objects.pause_write(tarball_key("tombstoned-pkg", "1.0.0", b"slow"));
+    let slow_publish = slow.spawn_publish("tombstoned-pkg", "1.0.0", b"slow");
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the slow publish reaches its tarball upload");
+    assert_eq!(fast.publish("tombstoned-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    let (deleted, _) = fast.send("DELETE", "/npm/tombstoned-pkg/-rev/1", Body::empty()).await;
+    assert_eq!(deleted, StatusCode::CREATED);
+    objects.resume.notify_one();
+
+    assert_eq!(slow_publish.await.unwrap(), StatusCode::CONFLICT);
+    assert_eq!(
+        slow.send("GET", "/npm/tombstoned-pkg", Body::empty()).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(slow.publish("tombstoned-pkg", "3.0.0", b"three").await, StatusCode::FORBIDDEN);
+}
+
 /// The key the first incarnation of the tarball `publish_doc` builds for
 /// `name@version` from `payload` is stored under.
 fn tarball_key(name: &str, version: &str, payload: &[u8]) -> String {

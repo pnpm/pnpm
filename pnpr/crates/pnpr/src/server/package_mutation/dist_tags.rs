@@ -8,10 +8,15 @@ use serde_json::{Value, json};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::metadata::{Generation, TagChange, TagUpdate, validate_dist_tag};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    metadata::{Generation, TagChange, TagUpdate, validate_dist_tag},
+    wait_after_document_write_conflict,
+};
 
+use super::read_authorized_packument;
 use crate::server::{
-    Action, AppState, GENERATION_HEADER, RegistrySource, authorize_package,
+    Action, AppState, GENERATION_HEADER, RegistrySource, authorize_without_owners,
     filter_osv_vulnerable_dist_tags, hosted_storage, load_packument_for_read, not_found,
     resolve_write_target,
 };
@@ -113,8 +118,8 @@ struct TagOutcome {
     moved: bool,
 }
 
-/// Authorize a dist-tag change and commit it. Answers 201 with the committed
-/// generation.
+/// Authorize a dist-tag change against the stored packument and commit it at
+/// that generation. Answers 201 with the committed generation.
 async fn update_dist_tag(
     state: &AppState,
     identity: &Identity,
@@ -125,31 +130,58 @@ async fn update_dist_tag(
         .map_err(IntoResponse::into_response)?;
     let target = resolve_write_target(state, identity, request.registry, &name)
         .map_err(IntoResponse::into_response)?;
-    // Under the lock, so a maintainer removed meanwhile can no longer move tags.
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    authorize_package(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Publish,
-        Some(&target.namespace),
-    )
-    .await
-    .map_err(IntoResponse::into_response)?;
+    for attempt in 0..DOCUMENT_WRITE_RETRIES {
+        match try_update_dist_tag(state, identity, (&target, &name), request).await? {
+            Some(outcome) => return Ok(outcome),
+            None if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
+                wait_after_document_write_conflict(attempt).await;
+            }
+            None => {}
+        }
+    }
+    Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }.into_response())
+}
+
+async fn try_update_dist_tag(
+    state: &AppState,
+    identity: &Identity,
+    (target, name): (&crate::server::WriteTarget, &CanonicalPackageName),
+    request: TagRequest<'_>,
+) -> Result<Option<TagOutcome>, Response> {
+    let source = RegistrySource::Hosted(target.source.clone());
+    let expected =
+        if authorize_without_owners(state, identity, &source, name.as_str(), Action::Publish)
+            .map_err(IntoResponse::into_response)?
+        {
+            None
+        } else {
+            let Some((_, version)) =
+                read_authorized_packument(state, identity, (target, name), Action::Publish)
+                    .await
+                    .map_err(IntoResponse::into_response)?
+            else {
+                return Err(not_found());
+            };
+            Some(version)
+        };
     let version = parse_tag_target(request.body).map_err(IntoResponse::into_response)?;
+    let change = TagChange {
+        tag: request.tag,
+        target: version.as_deref(),
+        principal: identity.user_id(),
+        expected: expected.as_ref(),
+    };
     let storage = hosted_storage(state, Some(&target.namespace));
-    let change =
-        TagChange { tag: request.tag, target: version.as_deref(), principal: identity.user_id() };
-    match storage.change_dist_tag(&name, change).await {
-        Ok(TagUpdate::Committed { generation, moved }) => Ok(TagOutcome {
+    match storage.change_dist_tag(name, change).await.map_err(IntoResponse::into_response)? {
+        TagUpdate::Committed { generation, moved } => Ok(Some(TagOutcome {
             response: ok_created_response(generation.as_ref()),
-            source: target.source,
+            source: target.source.clone(),
             version,
             moved,
-        }),
-        Ok(TagUpdate::NotFound) => Err(not_found()),
-        Err(err) => Err(err.into_response()),
+        })),
+        TagUpdate::NotFound => Err(not_found()),
+        TagUpdate::Conflict => Ok(None),
     }
 }
 

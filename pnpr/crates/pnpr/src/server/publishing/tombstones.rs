@@ -33,14 +33,15 @@ pub(super) async fn check_staged_tombstone(
     storage: &Storage,
     doc: &ValidatedPublish,
     package_exists: bool,
-) -> Result<(), RegistryError> {
+) -> Result<Option<PackageTombstone>, RegistryError> {
     let Some(tombstone) = storage.read_tombstone(&doc.name).await? else {
-        return Ok(());
+        return Ok(None);
     };
     if !package_exists {
         check_may_reclaim(state, &doc.publisher, &tombstone, &doc.name)?;
     }
-    check_unpublished_versions(&tombstone, &doc.name, &doc.incoming)
+    check_unpublished_versions(&tombstone, &doc.name, &doc.incoming)?;
+    Ok(Some(tombstone))
 }
 
 fn check_may_reclaim(

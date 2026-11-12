@@ -206,7 +206,7 @@ impl PackageMetadata {
         let principal = principal.map(str::to_string);
         self.database.write(move |connection| {
             let principal = principal.as_deref();
-            commit::write_document(connection, &key, &bytes, expected, principal)
+            commit::write_document(connection, &key, &bytes, &expected, principal)
         })
         .await
     }
@@ -218,21 +218,27 @@ impl PackageMetadata {
         change: TagChange<'_>,
     ) -> Result<TagUpdate> {
         let key = self.key(name);
-        let change = tags::OwnedTagChange::from(change);
+        let change = tags::OwnedTagChange::try_from(change)?;
         self.database.write(move |connection| tags::change_tag(connection, &key, &change)).await
     }
 
-    /// Remove the package's metadata. Returns the blobs its files were
-    /// mapped to, `None` when there was no metadata.
+    /// Remove the package's metadata while its stored document is still at
+    /// `version` (`None` for any current document). Returns the blobs its
+    /// files were mapped to.
     pub(crate) async fn remove_package(
         &self,
         name: &CanonicalPackageName,
+        version: Option<&HostedDocumentVersion>,
         principal: Option<&str>,
-    ) -> Result<Option<Vec<crate::BlobId>>> {
+    ) -> Result<removed::RemovedPackage> {
+        let expected = match version {
+            Some(version) => Expected::from_version(Some(version))?,
+            None => Expected::Any,
+        };
         let key = self.key(name);
         let principal = principal.map(str::to_string);
         self.database.write(move |connection| {
-            removed::remove_package(connection, &key, principal.as_deref())
+            removed::remove_package(connection, &key, &expected, principal.as_deref())
         })
         .await
     }

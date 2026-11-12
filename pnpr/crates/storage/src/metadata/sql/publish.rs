@@ -238,7 +238,7 @@ fn write_member(
     let principal = document.principal.as_deref();
     let records = &document.records;
     let commit = batch.package(key);
-    match commit.write_document(stored, &document.bytes, expected, principal, records)? {
+    match commit.write_document(stored, &document.bytes, &expected, principal, records)? {
         None => Err(RegistryError::DocumentWriteConflict { package: document.name.clone() }),
         Some(true) => {
             batch.touch(key);

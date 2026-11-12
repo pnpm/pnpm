@@ -1,9 +1,14 @@
-use super::{Digest, ErrorCode, ImageDocument, Request, error, no_content, registry_error};
+use super::{
+    Action, Digest, ErrorCode, HostedRepo, ImageDocument, Ownership, RegistrySource, Request,
+    authorize_with_ownership, error, no_content, registry_error,
+};
 use crate::archive_gc::liveness::referenced_document_blobs;
 use axum::{http::StatusCode, response::Response};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, metadata::BlobLookup};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES, metadata::BlobLookup, wait_after_document_write_conflict,
+};
 
 impl Request {
     pub(super) async fn delete_blob(&self, name: &str, digest: &Digest) -> Response {
@@ -11,14 +16,14 @@ impl Request {
             Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let (key, storage) = (&repo.key, &repo.storage);
+        let key = &repo.key;
         let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
-        if let Err(err) = self.authorize_unpublish(&repo).await {
-            return registry_error(err);
-        }
         let result = async {
-            for _ in 0..DOCUMENT_WRITE_RETRIES {
-                let Some(response) = self.try_delete_blob(storage, key, digest).await? else {
+            for attempt in 0..DOCUMENT_WRITE_RETRIES {
+                let Some(response) = self.try_delete_blob(&repo, digest).await? else {
+                    if attempt + 1 < DOCUMENT_WRITE_RETRIES {
+                        wait_after_document_write_conflict(attempt).await;
+                    }
                     continue;
                 };
                 if response.status().is_success() {
@@ -51,15 +56,14 @@ impl Request {
     /// first and the attempt should be repeated.
     async fn try_delete_blob(
         &self,
-        storage: &pnpr_storage::Storage,
-        key: &CanonicalPackageName,
+        repo: &HostedRepo,
         digest: &Digest,
     ) -> Result<Option<Response>, RegistryError> {
+        let (key, storage) = (&repo.key, &repo.storage);
         let filename = digest.blob_filename();
         let lookup = BlobLookup { ids: Vec::new(), artifacts: vec![filename.clone()] };
         let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
-        let document =
-            parse_deletion_target(base.stored.as_ref().map(|stored| stored.bytes.as_slice()), key)?;
+        let document = self.authorize_blob_deletion(repo, base.stored.as_ref()).await?;
         if base.artifacts.is_empty() {
             return Ok(Some(error(ErrorCode::BlobUnknown, "no such blob")));
         }
@@ -82,16 +86,34 @@ impl Request {
             None => Ok(None),
         }
     }
+
+    async fn authorize_blob_deletion(
+        &self,
+        repo: &HostedRepo,
+        stored: Option<&pnpr_storage::HostedDocumentForUpdate>,
+    ) -> Result<ImageDocument, RegistryError> {
+        let Some(stored) = stored else {
+            self.authorize_unpublish(repo).await?;
+            return Ok(ImageDocument::new(repo.key.as_str()));
+        };
+        let document = ImageDocument::parse(&stored.bytes)?;
+        let source = RegistrySource::Hosted(repo.source.clone());
+        let ownership = Ownership::Owners(&document.owners);
+        authorize_with_ownership(
+            &self.state,
+            &self.identity,
+            &source,
+            (repo.key.as_str(), &ownership),
+            Action::Unpublish,
+        )?;
+        check_deletion_target(document, &repo.key)
+    }
 }
 
-fn parse_deletion_target(
-    existing_bytes: Option<&[u8]>,
+fn check_deletion_target(
+    document: ImageDocument,
     key: &CanonicalPackageName,
 ) -> Result<ImageDocument, RegistryError> {
-    let document = existing_bytes
-        .map(ImageDocument::parse)
-        .transpose()?
-        .unwrap_or_else(|| ImageDocument::new(key.as_str()));
     if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
             document: key.as_str().to_string(),

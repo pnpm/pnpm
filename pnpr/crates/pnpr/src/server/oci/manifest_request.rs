@@ -1,7 +1,8 @@
 use super::{
-    Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
-    ImageDocument, Method, OciPublication, Refusal, RegistryError, Request, Response, ResponseBody,
-    StatusCode, collect_body, created, error, header, hosted_manifest_response, insert_header,
+    Action, Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
+    HostedRepo, ImageDocument, Method, OciPublication, Ownership, Refusal, RegistryError,
+    RegistrySource, Request, Response, ResponseBody, StatusCode, authorize_with_ownership,
+    collect_body, created, error, header, hosted_manifest_response, insert_header,
     lookup_in_hosted_document, method_not_allowed, no_content, read_manifest_bytes, registry_error,
     unknown_repository,
 };
@@ -95,20 +96,8 @@ impl Request {
             Err(refusal) => return refusal.respond(),
         };
         let _guard = self.state.inner.locks.packages.lock(repo.key.as_str()).await;
-        if let Err(err) = self.authorize_unpublish(&repo).await {
-            return registry_error(err);
-        }
         let mut referenced_child = None;
-        let outcome = repo.storage.update_hosted_document_with_retry(
-            &repo.key,
-            DOCUMENT_WRITE_RETRIES,
-            self.identity.user_id(),
-            |existing| {
-                referenced_child = None;
-                remove_manifest_or_tag(existing, &repo.key, reference, &mut referenced_child)
-            },
-        )
-        .await;
+        let outcome = self.update_manifest_deletion(&repo, reference, &mut referenced_child).await;
         match outcome {
             Ok(DocumentUpdate::Written) => {
                 self.log_oci_manifest_deleted(repo.key.as_str(), reference);
@@ -122,6 +111,41 @@ impl Request {
             },
             Err(err) => registry_error(err),
         }
+    }
+
+    async fn update_manifest_deletion(
+        &self,
+        repo: &HostedRepo,
+        reference: &str,
+        referenced_child: &mut Option<Digest>,
+    ) -> Result<DocumentUpdate, RegistryError> {
+        let source = RegistrySource::Hosted(repo.source.clone());
+        let mut authorized = false;
+        let outcome = repo.storage.update_hosted_document_with_retry(
+            &repo.key,
+            DOCUMENT_WRITE_RETRIES,
+            self.identity.user_id(),
+            |existing| {
+                *referenced_child = None;
+                let Some(bytes) = existing else { return Ok(None) };
+                let document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
+                let ownership = Ownership::Owners(&document.owners);
+                authorize_with_ownership(
+                    &self.state,
+                    &self.identity,
+                    &source,
+                    (repo.key.as_str(), &ownership),
+                    Action::Unpublish,
+                )?;
+                authorized = true;
+                remove_manifest_or_tag(document, &repo.key, reference, referenced_child)
+            },
+        )
+        .await?;
+        if !authorized {
+            self.authorize_unpublish(repo).await?;
+        }
+        Ok(outcome)
     }
 
     fn log_oci_manifest_deleted(&self, repository: &str, reference: &str) {
@@ -158,13 +182,11 @@ impl Request {
 }
 
 fn remove_manifest_or_tag(
-    bytes: Option<&[u8]>,
+    mut document: ImageDocument,
     key: &CanonicalPackageName,
     reference: &str,
     referenced_child: &mut Option<Digest>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    let Some(bytes) = bytes else { return Ok(None) };
-    let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
     if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
             document: key.as_str().to_string(),

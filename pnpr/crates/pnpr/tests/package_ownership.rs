@@ -896,3 +896,176 @@ async fn staged_publish_approval_rejects_malformed_body_without_claiming_stage()
     let res = app.oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn mutations_reauthorize_after_concurrent_package_update() {
+    let (dir, config) = config_with_packages(
+        "packages:\n  'race-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+    let db_path = dir.path().join("storage/.metadata/metadata.sqlite");
+
+    for (version, tarball) in [("1.0.0", b"v1".as_slice()), ("1.1.0", b"v2".as_slice())] {
+        let doc = publish_doc("race-pkg", version, tarball);
+        let res = app
+            .clone()
+            .oneshot(authed_put("/npm/race-pkg", &alice_token, doc))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+    }
+
+    let restore_both_owners = || {
+        let app = app.clone();
+        let bob_token = bob_token.clone();
+        async move {
+            let body = json!({
+                "_id": "race-pkg",
+                "_rev": "1-abc",
+                "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+            });
+            let res = app
+                .oneshot(authed_put("/npm/race-pkg/-rev/1-abc", &bob_token, body))
+                .await
+                .unwrap();
+            assert_eq!(res.status(), StatusCode::CREATED);
+        }
+    };
+    let set_initial = json!({
+        "_id": "race-pkg",
+        "_rev": "1-abc",
+        "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+    });
+    assert_eq!(
+        app.clone()
+            .oneshot(authed_put("/npm/race-pkg/-rev/1-abc", &alice_token, set_initial))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let packument = body_json(
+        app.clone()
+            .oneshot(authed_get("/npm/race-pkg", &alice_token))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let both_maintainers = packument["maintainers"].clone();
+    let bob_only = json!([both_maintainers
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["name"] == "bob")
+        .unwrap()
+        .clone()]);
+
+    // When a concurrent commit advances the package generation without
+    // removing Alice, her dist-tag update retries and succeeds.
+    let status = run_with_concurrent_state_commit(
+        &db_path,
+        &both_maintainers,
+        app.clone(),
+        authed_put("/npm/-/package/race-pkg/dist-tags/next", &alice_token, json!("1.0.0")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    restore_both_owners().await;
+    let mut trimmed_packument = body_json(
+        app.clone()
+            .oneshot(authed_get("/npm/race-pkg", &alice_token))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let rev = trimmed_packument["_rev"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    trimmed_packument["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0");
+    trimmed_packument["dist-tags"]["latest"] = json!("1.0.0");
+    let requests = [
+        authed_put(&format!("/npm/race-pkg/-rev/{rev}"), &alice_token, trimmed_packument),
+        authed_put("/npm/-/package/race-pkg/dist-tags/canary", &alice_token, json!("1.1.0")),
+        authed_delete("/npm/-/package/race-pkg/dist-tags/next", &alice_token),
+        authed_delete("/npm/race-pkg/-/race-pkg-1.1.0.tgz/-rev/1", &alice_token),
+        authed_delete("/npm/race-pkg/-rev/1", &alice_token),
+        authed_put(
+            "/npm/race-pkg/-rev/1",
+            &alice_token,
+            json!({ "_id": "race-pkg", "_rev": "1", "maintainers": [{ "name": "alice" }] }),
+        ),
+    ];
+    for request in requests {
+        let uri = request.uri().to_string();
+        let method = request.method().clone();
+        let status =
+            run_with_concurrent_state_commit(&db_path, &bob_only, app.clone(), request).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
+        restore_both_owners().await;
+    }
+
+    let final_doc = body_json(
+        app.oneshot(authed_get("/npm/race-pkg", &bob_token)).await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    assert!(final_doc["versions"]["1.0.0"].is_object());
+    assert!(final_doc["versions"]["1.1.0"].is_object());
+    assert_eq!(final_doc["dist-tags"]["next"], "1.0.0");
+    assert!(final_doc["dist-tags"].get("canary").is_none());
+    assert_eq!(final_doc["maintainers"], both_maintainers);
+}
+
+async fn run_with_concurrent_state_commit(
+    db_path: &std::path::Path,
+    maintainers: &Value,
+    app: axum::Router,
+    request: Request<Body>,
+) -> StatusCode {
+    let connection = rusqlite::Connection::open(db_path).unwrap();
+    connection.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let state: Vec<u8> = connection
+        .query_row(
+            "SELECT state FROM packages WHERE namespace = '' AND ecosystem = 'npm' AND name = 'race-pkg'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let mut parsed: Value = serde_json::from_slice(&state).unwrap();
+    parsed["maintainers"] = maintainers.clone();
+    let updated_state = serde_json::to_vec(&parsed).unwrap();
+    connection
+        .execute("UPDATE namespaces SET generation = generation + 1 WHERE namespace = ''", [])
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE packages
+             SET generation = (SELECT generation FROM namespaces WHERE namespace = ''),
+                 state = ?1
+             WHERE namespace = '' AND ecosystem = 'npm' AND name = 'race-pkg'",
+            [&updated_state],
+        )
+        .unwrap();
+
+    let task = tokio::spawn(async move {
+        app.oneshot(request).await
+            .unwrap()
+            .status()
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    connection.execute_batch("COMMIT").unwrap();
+    drop(connection);
+    task.await.unwrap()
+}

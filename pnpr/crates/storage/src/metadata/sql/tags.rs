@@ -1,7 +1,7 @@
 //! Dist-tags and their insert-only history.
 
 use super::{
-    PackageKey,
+    Expected, PackageKey,
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
@@ -24,15 +24,23 @@ pub(super) struct OwnedTagChange {
     tag: String,
     target: Option<String>,
     principal: Option<String>,
+    expected: Expected,
 }
 
-impl From<TagChange<'_>> for OwnedTagChange {
-    fn from(change: TagChange<'_>) -> Self {
-        Self {
+impl TryFrom<TagChange<'_>> for OwnedTagChange {
+    type Error = pnpr_error::RegistryError;
+
+    fn try_from(change: TagChange<'_>) -> Result<Self> {
+        let expected = match change.expected {
+            Some(version) => Expected::from_version(Some(version))?,
+            None => Expected::Any,
+        };
+        Ok(Self {
             tag: change.tag.to_string(),
             target: change.target.map(str::to_string),
             principal: change.principal.map(str::to_string),
-        }
+            expected,
+        })
     }
 }
 
@@ -121,6 +129,9 @@ pub(super) fn change_tag(
     let Some(package) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
+    if !change.expected.admits(Some(package.generation), None) {
+        return Ok(TagUpdate::Conflict);
+    }
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
     validate_dist_tag_target(
         &change.tag,

@@ -21,11 +21,14 @@ use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DocumentWrite, metadata::validate_document_dist_tags};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES, DocumentWrite, HostedDocumentVersion,
+    metadata::validate_document_dist_tags, wait_after_document_write_conflict,
+};
 
 use super::{
-    Action, AppState, RegistrySource, WriteTarget, authorize_package, hosted_storage,
-    parse_json_body, resolve_write_target,
+    Action, AppState, RegistrySource, WriteTarget, authorize_against_packument, authorize_package,
+    hosted_storage, parse_json_body, resolve_write_target,
 };
 
 /// Apply a partial unpublish based on its revision, or an owner update.
@@ -49,75 +52,17 @@ pub(super) async fn update_packument(
         Err(err) => return err.into_response(),
     };
     if incoming_val.get("maintainers").is_some() && incoming_val.get("versions").is_none() {
-        return apply_maintainer_update(state, identity, &target, &name, &incoming_val).await;
+        return update_package_maintainers(state, identity, &target, (&name, &incoming_val)).await;
     }
-    apply_packument_rewrite(state, identity, &target, (&name, revision), incoming_val).await
-}
-
-async fn apply_maintainer_update(
-    state: &AppState,
-    identity: &Identity,
-    target: &WriteTarget,
-    name: &CanonicalPackageName,
-    incoming_val: &Value,
-) -> Response {
-    let source = RegistrySource::Hosted(target.source.clone());
-    if let Err(err) = authorize_package(
-        state,
-        identity,
-        &source,
-        name.as_str(),
-        Action::Publish,
-        Some(&target.namespace),
-    )
-    .await
-    {
-        return err.into_response();
-    }
-    let storage = hosted_storage(state, Some(&target.namespace));
-    update_package_maintainers(state, identity, &target.source, &storage, name, incoming_val).await
-}
-
-async fn apply_packument_rewrite(
-    state: &AppState,
-    identity: &Identity,
-    target: &WriteTarget,
-    (name, revision): (&CanonicalPackageName, &str),
-    incoming_val: Value,
-) -> Response {
-    let source = RegistrySource::Hosted(target.source.clone());
-    if let Err(err) =
-        authorize_rewrite(state, identity, &source, name.as_str(), Some(&target.namespace)).await
-    {
-        return err.into_response();
-    }
-    let mut packument = match submitted_packument(incoming_val, (name, revision)) {
-        Ok(packument) => packument,
-        Err(err) => return err.into_response(),
-    };
-    let storage = hosted_storage(state, Some(&target.namespace));
-    rewrite_packument(state, identity, &target.source, &storage, name, &mut packument).await
-}
-
-async fn read_hosted_packument(
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-) -> Result<pnpr_storage::HostedDocumentForUpdate, Response> {
-    match storage.read_hosted_document_for_update(name).await {
-        Ok(Some(packument)) => Ok(packument),
-        Ok(None) => Err(no_published_packument(name).into_response()),
-        Err(err) => Err(err.into_response()),
-    }
+    rewrite_packument(state, identity, &target, (&name, revision, &incoming_val)).await
 }
 
 fn prepare_packument_rewrite(
-    hosted_bytes: &[u8],
+    mut hosted: Value,
     tar_integrities: &std::collections::BTreeMap<String, pnpr_storage::DerivedTar>,
     name: &CanonicalPackageName,
     packument: &mut Value,
 ) -> Result<Vec<String>, Response> {
-    let mut hosted: Value = serde_json::from_slice(hosted_bytes)
-        .map_err(|err| RegistryError::Json(err).into_response())?;
     if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
         && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
     {
@@ -156,42 +101,103 @@ fn prepare_packument_rewrite(
 async fn rewrite_packument(
     state: &AppState,
     identity: &Identity,
-    source: &str,
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-    packument: &mut serde_json::Value,
+    target: &WriteTarget,
+    (name, revision, incoming_val): (&CanonicalPackageName, &str, &Value),
 ) -> Response {
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let hosted_packument = match read_hosted_packument(storage, name).await {
-        Ok(packument) => packument,
-        Err(response) => return response,
-    };
-    let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
-    let removed =
-        match prepare_packument_rewrite(&hosted_packument.bytes, &tar_integrities, name, packument)
-        {
-            Ok(removed) => removed,
+    for attempt in 0..DOCUMENT_WRITE_RETRIES {
+        match try_rewrite_packument(state, identity, target, (name, revision, incoming_val)).await {
+            Ok(Some(response)) => return response,
+            Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
+                wait_after_document_write_conflict(attempt).await;
+            }
+            Ok(None) => {}
             Err(response) => return response,
-        };
-    let bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(bytes) => bytes,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let unpublished = unpublished_blobs(storage, name, &removed).await;
-    let version = Some(&hosted_packument.version);
-    match storage.write_hosted_document_if_current(name, &bytes, version, identity.user_id()).await
-    {
-        Ok(DocumentWrite::Written) => {
-            reclaim_unpublished_blobs(storage, name, unpublished).await;
-            log_packument_update(identity, name, source);
-            ok_created()
         }
-        Ok(DocumentWrite::Conflict) => {
-            RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
-                .into_response()
-        }
-        Err(err) => err.into_response(),
     }
+    RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }.into_response()
+}
+
+async fn try_rewrite_packument(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    (name, revision, incoming_val): (&CanonicalPackageName, &str, &Value),
+) -> Result<Option<Response>, Response> {
+    let (hosted, version) = read_packument_for_rewrite(state, identity, target, name).await?;
+    let mut packument = submitted_packument(incoming_val.clone(), (name, revision))
+        .map_err(IntoResponse::into_response)?;
+    let storage = hosted_storage(state, Some(&target.namespace));
+    let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
+    let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;
+    let bytes = serde_json::to_vec_pretty(&packument)
+        .map_err(|err| RegistryError::Json(err).into_response())?;
+    let unpublished = unpublished_blobs(&storage, name, &removed).await;
+    match storage
+        .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())
+        .await
+        .map_err(IntoResponse::into_response)?
+    {
+        DocumentWrite::Written => {
+            reclaim_unpublished_blobs(&storage, name, unpublished).await;
+            log_packument_update(identity, name, &target.source);
+            Ok(Some(ok_created()))
+        }
+        DocumentWrite::Conflict => Ok(None),
+    }
+}
+
+async fn read_packument_for_rewrite(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    name: &CanonicalPackageName,
+) -> Result<(Value, HostedDocumentVersion), Response> {
+    let registry_source = RegistrySource::Hosted(target.source.clone());
+    let Some((hosted, version)) =
+        read_authorized_packument(state, identity, (target, name), Action::Publish)
+            .await
+            .map_err(IntoResponse::into_response)?
+    else {
+        authorize_package(
+            state,
+            identity,
+            &registry_source,
+            name.as_str(),
+            Action::Unpublish,
+            Some(&target.namespace),
+        )
+        .await
+        .map_err(IntoResponse::into_response)?;
+        return Err(no_published_packument(name).into_response());
+    };
+    authorize_against_packument(
+        state,
+        identity,
+        &registry_source,
+        (name.as_str(), &hosted),
+        Action::Unpublish,
+    )
+    .map_err(IntoResponse::into_response)?;
+    Ok((hosted, version))
+}
+
+pub(super) async fn read_authorized_packument(
+    state: &AppState,
+    identity: &Identity,
+    (target, name): (&WriteTarget, &CanonicalPackageName),
+    action: Action,
+) -> Result<Option<(Value, HostedDocumentVersion)>, RegistryError> {
+    let storage = hosted_storage(state, Some(&target.namespace));
+    let source = RegistrySource::Hosted(target.source.clone());
+    let Some(stored) = storage.read_hosted_document_for_update(name).await? else {
+        authorize_package(state, identity, &source, name.as_str(), action, Some(&target.namespace))
+            .await?;
+        return Ok(None);
+    };
+    let packument: Value = serde_json::from_slice(&stored.bytes)?;
+    authorize_against_packument(state, identity, &source, (name.as_str(), &packument), action)?;
+    Ok(Some((packument, stored.version)))
 }
 
 fn preserve_existing_maintainers(hosted: &Value, packument: &mut Value) {
@@ -257,21 +263,6 @@ fn log_packument_update(identity: &Identity, name: &CanonicalPackageName, source
         registry = %source,
         "package packument updated",
     );
-}
-
-/// A packument rewrite adds nothing but may remove anything, so it is held to
-/// both write permissions.
-pub(super) async fn authorize_rewrite(
-    state: &AppState,
-    identity: &Identity,
-    source: &RegistrySource,
-    name: &str,
-    namespace: Option<&str>,
-) -> Result<(), RegistryError> {
-    for action in [Action::Publish, Action::Unpublish] {
-        authorize_package(state, identity, source, name, action, namespace).await?;
-    }
-    Ok(())
 }
 
 fn no_published_packument(name: &CanonicalPackageName) -> RegistryError {

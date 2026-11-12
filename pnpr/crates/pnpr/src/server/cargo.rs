@@ -24,8 +24,8 @@ use owners::{delete_owners, get_owners, put_owners};
 use publication::{delete_yank, put_publish, put_unyank};
 
 use super::{
-    Action, AppState, AuthedCaller, DiscoverySource, RegistrySource, SearchPage, TargetRegistry,
-    authorize_package,
+    Action, AppState, AuthedCaller, DiscoverySource, Ownership, RegistrySource, SearchPage,
+    TargetRegistry, authorize_package, authorize_with_ownership,
     conditional_requests::is_not_modified,
     discovery_sources,
     documents::{

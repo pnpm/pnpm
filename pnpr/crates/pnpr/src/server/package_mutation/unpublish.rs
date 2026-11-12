@@ -6,10 +6,14 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, PackageRemoval, wait_after_document_write_conflict};
 
-use super::super::{
-    Action, AppState, RegistrySource, WriteTarget, authorize_package, hosted_storage,
-    resolve_write_target,
+use super::{
+    super::{
+        Action, AppState, RegistrySource, authorize_without_owners, hosted_storage,
+        resolve_write_target,
+    },
+    read_authorized_packument,
 };
 
 pub(crate) async fn delete_package(
@@ -22,21 +26,63 @@ pub(crate) async fn delete_package(
         Ok(parsed) => parsed,
         Err(err) => return err.into_response(),
     };
-    let target = match resolve_and_authorize_unpublish(state, identity, registry, &name).await {
+    let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(response) => return response,
-    };
-    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let storage = hosted_storage(state, Some(&target.namespace));
-
-    let removed = match storage.remove_package(&name, identity.user_id()).await {
-        Ok(removed) => removed,
         Err(err) => return err.into_response(),
     };
-    if removed {
-        log_package_deleted(identity, &name, &target.source);
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
+
+    for attempt in 0..DOCUMENT_WRITE_RETRIES {
+        match try_delete_package(state, identity, &target, &name).await {
+            Ok(Some(response)) => return response,
+            Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
+                wait_after_document_write_conflict(attempt).await;
+            }
+            Ok(None) => {}
+            Err(response) => return response,
+        }
     }
-    ok_created_response()
+    RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }.into_response()
+}
+
+async fn try_delete_package(
+    state: &AppState,
+    identity: &Identity,
+    target: &super::super::WriteTarget,
+    name: &CanonicalPackageName,
+) -> Result<Option<Response>, Response> {
+    let source = RegistrySource::Hosted(target.source.clone());
+    let storage = hosted_storage(state, Some(&target.namespace));
+    if authorize_without_owners(state, identity, &source, name.as_str(), Action::Unpublish)
+        .map_err(IntoResponse::into_response)?
+    {
+        if storage
+            .remove_package(name, identity.user_id())
+            .await
+            .map_err(IntoResponse::into_response)?
+        {
+            log_package_deleted(identity, name, &target.source);
+        }
+        return Ok(Some(ok_created_response()));
+    }
+    let Some((_, version)) =
+        read_authorized_packument(state, identity, (target, name), Action::Unpublish)
+            .await
+            .map_err(IntoResponse::into_response)?
+    else {
+        return Ok(Some(ok_created_response()));
+    };
+    match storage
+        .remove_package_if_current(name, &version, identity.user_id())
+        .await
+        .map_err(IntoResponse::into_response)?
+    {
+        PackageRemoval::Removed => {
+            log_package_deleted(identity, name, &target.source);
+            Ok(Some(ok_created_response()))
+        }
+        PackageRemoval::NotFound | PackageRemoval::Conflict => Ok(None),
+    }
 }
 
 pub(crate) async fn delete_tarball(
@@ -60,58 +106,20 @@ pub(crate) async fn delete_tarball(
         }
         .into_response();
     }
-    let target = match resolve_and_authorize_unpublish(state, identity, registry, &name).await {
+    let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(response) => return response,
+        Err(err) => return err.into_response(),
     };
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let storage = hosted_storage(state, Some(&target.namespace));
-    match package_exists(&storage, &name).await {
-        Ok(true) => {}
-        Ok(false) => return RegistryError::NotFound.into_response(),
-        Err(err) => return err.into_response(),
-    }
-    match super::version_removal::remove_listed_version(&storage, identity, &name, &version).await {
+    let removed =
+        super::version_removal::remove_listed_version(state, identity, &target, (&name, &version))
+            .await;
+    match removed {
         Ok(true) => log_tarball_deleted(identity, &name, &canonical, &version, &target.source),
         Ok(false) => {}
         Err(err) => return err.into_response(),
     }
     ok_created_response()
-}
-
-async fn resolve_and_authorize_unpublish(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    name: &CanonicalPackageName,
-) -> Result<WriteTarget, Response> {
-    let target = match resolve_write_target(state, identity, registry, name) {
-        Ok(target) => target,
-        Err(err) => return Err(err.into_response()),
-    };
-    if let Err(err) = authorize_package(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Unpublish,
-        Some(&target.namespace),
-    )
-    .await
-    {
-        return Err(err.into_response());
-    }
-    Ok(target)
-}
-
-async fn package_exists(
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-) -> Result<bool, RegistryError> {
-    if storage.read_hosted_document(name).await?.is_some() {
-        return Ok(true);
-    }
-    Ok(storage.read_tombstone(name).await?.is_some())
 }
 
 fn log_package_deleted(identity: &Identity, name: &CanonicalPackageName, source: &str) {

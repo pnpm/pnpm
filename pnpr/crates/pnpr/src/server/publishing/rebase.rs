@@ -80,8 +80,16 @@ async fn rebase_documents(
             // left a tombstone the publish was never checked against.
             (None, Some(_)) => return Ok(Rebase::Conflict),
             (None, None) => {
+                let tombstone = storage
+                    .read_tombstone(&name)
+                    .await?
+                    .map(|tombstone| {
+                        pnpr_storage::HostedDocumentVersion::Tombstone(tombstone.maintainers)
+                    });
+                if tombstone != document.expected {
+                    return Ok(Rebase::Conflict);
+                }
                 document.bytes = serde_json::to_vec(ours)?;
-                document.expected = None;
             }
         }
     }

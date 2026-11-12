@@ -80,7 +80,7 @@ async fn cargo_versions_normalize_and_yank_in_place(db: Db) {
         storage.write_hosted_document_if_current(&name, &initial, None, None).await.unwrap(),
         DocumentWrite::Written,
     );
-    let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
+    let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None, expected: None };
     assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);
 
     let current = storage
@@ -174,7 +174,9 @@ async fn pypi_removed_filenames_remain_reserved_after_package_removal(db: Db) {
 
     assert!(storage.remove_package(&name, None).await.unwrap());
     let recreate = pypi_document("requests", &[("requests-2.0.0.tar.gz", "2.0.0")], &[]);
-    let err = storage.write_hosted_document_if_current(&name, &recreate, None, None).await;
+    let tombstone = crate::HostedDocumentVersion::Tombstone(Vec::new());
+    let err =
+        storage.write_hosted_document_if_current(&name, &recreate, Some(&tombstone), None).await;
     assert!(matches!(err, Err(RegistryError::BadRequest { .. })));
 }
 

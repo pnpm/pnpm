@@ -106,6 +106,9 @@ pub struct TagChange<'change> {
     pub target: Option<&'change str>,
     /// Who asked for the change, recorded in the tag's history.
     pub principal: Option<&'change str>,
+    /// The stored document the change was authorized against; `None` when
+    /// any current document is accepted.
+    pub expected: Option<&'change crate::HostedDocumentVersion>,
 }
 
 /// Outcome of [`Storage::change_dist_tag`].
@@ -113,6 +116,8 @@ pub struct TagChange<'change> {
 pub enum TagUpdate {
     /// The package has no document to tag.
     NotFound,
+    /// The stored document moved since [`TagChange::expected`] was read.
+    Conflict,
     /// The tag points where the change asked. `generation` is the one that
     /// holds it; `moved` says whether this change moved it, rather than
     /// finding it there.

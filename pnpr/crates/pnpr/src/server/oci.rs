@@ -55,7 +55,8 @@ mod proxy;
 mod publication;
 
 use super::{
-    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize, authorize_package,
+    Action, AppState, AuthedCaller, Ownership, RegistrySource, TargetRegistry, authorize,
+    authorize_package, authorize_with_ownership,
     documents::{lookup_in_hosted_document, read_hosted_document},
     ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
     hosted_read_namespace,

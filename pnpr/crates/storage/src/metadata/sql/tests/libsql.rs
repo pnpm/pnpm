@@ -350,7 +350,8 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
     assert_eq!(made.len(), 2, "a replayed publication: {made:#?}");
 
     let metadata = views(&database);
-    let change = TagChange { tag: "latest", target: Some("1.0.0"), principal: Some("bob") };
+    let change =
+        TagChange { tag: "latest", target: Some("1.0.0"), principal: Some("bob"), expected: None };
     metadata
         .change_tag(&npm("core"), change)
         .await
@@ -387,13 +388,13 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
     let made = round_trips(&server);
     assert_eq!(made.len(), 1, "a view read the cache answers: {made:#?}");
 
-    assert!(
+    assert!(matches!(
         metadata
-            .remove_package(&npm("core"), None)
+            .remove_package(&npm("core"), None, None)
             .await
-            .unwrap()
-            .is_some(),
-    );
+            .unwrap(),
+        crate::metadata::sql::RemovedPackage::Removed(_),
+    ));
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a removal: {made:#?}");
 }
