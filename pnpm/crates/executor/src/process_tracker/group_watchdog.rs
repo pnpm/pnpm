@@ -220,7 +220,8 @@ impl GroupWatchdog {
             .stderr(Stdio::null())
             // A group of its own keeps it out of a kill aimed at pnpm's.
             .process_group(0);
-        let spawned = pnpm_process::watchdog_spawning().spawn(&mut command);
+        let spawning = pnpm_process::watchdog_spawning();
+        let spawned = spawning.spawn(&mut command);
         let mut process = match spawned {
             Ok(process) => process,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -233,7 +234,11 @@ impl GroupWatchdog {
             Err(error) => return Err(error),
         };
         let lifeline = process.stdin.take().expect("the watchdog's stdin is piped");
-        Ok(Some(Self { process: Mutex::new(WatchdogProcess::new(process)), lifeline }))
+        // Pinned before any other child of pnpm can spawn and take the pid
+        // of a watchdog that already died.
+        let process = WatchdogProcess::new(process);
+        drop(spawning);
+        Ok(Some(Self { process: Mutex::new(process), lifeline }))
     }
 
     fn is_running(&self) -> bool {
@@ -320,14 +325,16 @@ impl WatchdogAddress {
     /// Address the child `pid`. pnpm's pipe keeps the `sh` from exiting on
     /// its own, but a signal from elsewhere can end it before the pidfd
     /// opens, so the pidfd is kept only once a wait finds a running child
-    /// behind it.
+    /// behind it. The caller holds the spawn lock, so that child is the
+    /// `sh`. A pidfd that cannot be opened or waited on, other than for a
+    /// process that is gone, leaves the pid to address it.
     #[cfg(target_os = "linux")]
     fn of(pid: u32) -> Self {
         let Ok(pid) = i32::try_from(pid) else { return Self::Gone };
         let pidfd = match linux::open(pid) {
             Ok(pidfd) => pidfd,
-            Err(error) if error.raw_os_error() == Some(libc::ENOSYS) => return Self::Pid,
-            Err(_) => return Self::Gone,
+            Err(error) if error.raw_os_error() == Some(libc::ESRCH) => return Self::Gone,
+            Err(_) => return Self::Pid,
         };
         match linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT) {
             Some(false) => Self::Pidfd(pidfd),
