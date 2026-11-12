@@ -657,8 +657,6 @@ async fn passwordless_token_creation_stays_within_the_calling_token() {
 
 const DAY_SECS: i64 = 86_400;
 
-/// Log in, then create a token for each request, and check that each token
-/// expires the given number of seconds after it was issued.
 async fn assert_token_lifetimes(
     tokens: TokensConfig,
     login_lifetime: i64,

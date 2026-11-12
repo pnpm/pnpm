@@ -739,11 +739,13 @@ Two settings limit how long a token from a password login or
 
 - `auth.tokens.defaultLifetime`: the lifetime of a login token, and of a
   created token that sets no expiry. Defaults to `90d`.
-- `auth.tokens.maxLifetime`: the longest any token stays valid. A token with a
+- `auth.tokens.maxLifetime`: the longest a token stays valid. A token with a
   later expiry expires after the maximum instead. Without the setting, a
   created token can set any expiry.
 
-Each must be at least `1m`. Units are `s`, `m`, `h`, `d`, and `w`. A
+Both apply when pnpr issues a token. A token keeps the expiry it was issued
+with, so changing either setting does not affect existing tokens. Each must be
+at least `1m`. Units are `s`, `m`, `h`, `d`, and `w`. A
 [browser sign-in](oidc.md) keeps its session's expiry of at most an hour.
 
 ```yaml title="pnpr.yaml"
