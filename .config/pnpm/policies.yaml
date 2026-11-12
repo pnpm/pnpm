@@ -90,6 +90,23 @@ minimumReleaseAgeExclude:
 minimumReleaseAgeExcludePrune: true
 
 overrides:
+  # Keep the @inquirer/* dependencies of the pinned @inquirer/prompts on the
+  # releases before 8.8.0 (see the catalog), which still support Node.js 22.13.
+  '@inquirer/ansi@2': ~2.0.10
+  '@inquirer/checkbox@5': ~5.2.8
+  '@inquirer/confirm@6': ~6.3.5
+  '@inquirer/core@12': ~12.0.6
+  '@inquirer/editor@5': ~5.3.6
+  '@inquirer/expand@5': ~5.1.8
+  '@inquirer/external-editor@3': ~3.0.7
+  '@inquirer/figures@2': ~2.0.10
+  '@inquirer/input@5': ~5.1.9
+  '@inquirer/number@4': ~4.2.6
+  '@inquirer/password@5': ~5.2.5
+  '@inquirer/rawlist@5': ~5.3.8
+  '@inquirer/search@4': ~4.3.6
+  '@inquirer/select@5': ~5.2.8
+  '@inquirer/type@4': ~4.2.1
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
   '@yarnpkg/nm>@yarnpkg/core': 'catalog:'
@@ -137,7 +154,7 @@ overrides:
   serve-static@<1.16.0: ^1.16.0
   # GHSA-w7jw-789q-3m8p / CVE-2026-9277: 1.8.4 patches critical shell-quote vulnerabilities in <=1.8.3.
   shell-quote: 1.8.4
-  socks@2: ^2.8.1
+  socks@2: 'catalog:'
   tar@<=7.5.9: '>=7.5.10'
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
