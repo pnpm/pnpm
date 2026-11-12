@@ -542,3 +542,31 @@ async fn the_final_wheel_must_preserve_static_dependencies() {
         "omits static project dependencies",
     );
 }
+
+#[test]
+fn a_virtual_workspace_root_leaves_its_requirements_and_environment_alone() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    fs::write(
+        root.path().join("pyproject.toml"),
+        "[tool.uv.workspace]\nmembers = ['app']\nexclude = ['.']\n",
+    )
+    .unwrap();
+    fs::write(root.path().join("requirements.txt"), "ruff==0.14.13\n").unwrap();
+    fs::create_dir(root.path().join(".venv")).unwrap();
+    fs::write(root.path().join(".venv/owned-by-user"), "preserve").unwrap();
+    let member = root.path().join("app");
+    fs::create_dir(&member).unwrap();
+    fs::write(
+        member.join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = []\n",
+    )
+    .unwrap();
+    super::pacquet_in(root.path())
+        .args(["install", "--offline"])
+        .assert()
+        .success();
+    assert!(member.join(".venv").exists());
+    assert_eq!(fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(), "preserve",);
+    assert!(!root.path().join("pylock.toml").exists());
+}

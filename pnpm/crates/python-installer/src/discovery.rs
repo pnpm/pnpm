@@ -302,12 +302,17 @@ async fn read_manifest(path: &Path, contents: &str, allowed_root: &Path) -> Resu
     read_adjacent_requirements(path, manifest, allowed_root).await
 }
 
+/// Read the `requirements.txt` beside a manifest that declares no
+/// `[project]` as its dependencies. A manifest that declares a workspace
+/// is excluded: like uv's virtual workspace root, it is not a member of
+/// its own workspace, and a `requirements.txt` there usually lists tooling
+/// installed by other means.
 async fn read_adjacent_requirements(
     path: &Path,
     mut manifest: Manifest,
     allowed_root: &Path,
 ) -> Result<Manifest> {
-    if manifest.project.is_none() {
+    if manifest.project.is_none() && manifest.tool.uv.workspace.is_none() {
         let requirements_path = path.with_file_name("requirements.txt");
         if tokio::fs::try_exists(&requirements_path).await.into_diagnostic()? {
             let allowed_root = allowed_root.to_path_buf();

@@ -101,7 +101,7 @@ Every platform is paired with every Python version. The lockfile pins wheels and
 
 ## Filtering projects
 
-Project discovery honors `[tool.uv.workspace]` members. Outside an explicitly declared uv workspace, conventional example, demo, documentation, template, test, and fixture directories are skipped.
+Project discovery honors `[tool.uv.workspace]` members. A `pyproject.toml` that declares a workspace without a `[project]` table is not a project, so pnpm ignores a `requirements.txt` beside it. Outside an explicitly declared uv workspace, conventional example, demo, documentation, template, test, and fixture directories are skipped.
 
 Since v12.5.0, `pnpm install --filter <selector>` selects Python projects by name, path, or dependencies declared in `[tool.uv.sources]`. A Python project colocated with an npm workspace project is selected with that project. `--fail-if-no-match` accepts Python-only matches, and `pnpm add --filter <selector> pypi:<package>` writes to every selected project. Selecting a member of a shared environment installs the whole environment.
 
