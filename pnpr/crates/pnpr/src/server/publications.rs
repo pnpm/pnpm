@@ -313,8 +313,9 @@ async fn change_publication_note(
     if !database.set_publication_note(&publication.namespace, publication.id, change).await? {
         return Err(RegistryError::NotFound);
     }
+    let actor = crate::audit::Actor::of(identity);
     crate::audit::audit!(
-        crate::audit::Actor::of(identity),
+        actor,
         "publication.note_change",
         namespace = %publication.namespace,
         publication = publication.id,

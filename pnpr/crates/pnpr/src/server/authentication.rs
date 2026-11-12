@@ -342,8 +342,9 @@ async fn resolve_caller(
             super::oidc::check_workload_request(&workload, method, path)?;
             let scope = WorkloadScope::new(&state.inner.config, &workload);
             let identity = account_identity(state, &workload.identity.user_id).await?;
+            let actor = crate::audit::Actor::of(&identity);
             crate::audit::audit!(
-                crate::audit::Actor::of(&identity),
+                actor,
                 "auth.workload_use",
                 subject = %workload.identity.subject,
                 registry = %workload.registry,

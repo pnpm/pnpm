@@ -178,11 +178,8 @@ pub(in super::super) struct StagedPublish {
     /// default hosted namespace. Threaded into the commit so the write
     /// lands in the right namespace.
     pub(in super::super) namespace: Option<String>,
-    /// Who published it, recorded with every dist-tag the document moves.
-    pub(in super::super) publisher: Option<String>,
-    /// The caller who published it, whom the `package.publish` audit record
-    /// names.
-    pub(in super::super) caller: Identity,
+    /// Who published it.
+    pub(in super::super) publisher: Identity,
     /// What verifying the published archives produced.
     pub(in super::super) verification: Verification,
 }
@@ -241,7 +238,7 @@ pub(in super::super) async fn stage_publish(
         base.version =
             tombstone.map(|tombstone| HostedDocumentVersion::Tombstone(tombstone.maintainers));
     }
-    let publisher = doc.publisher.user_id().map(str::to_string);
+    let principal = doc.publisher.user_id().map(str::to_string);
     let (merged, without_any) =
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
     drop(doc.incoming);
@@ -250,12 +247,12 @@ pub(in super::super) async fn stage_publish(
         prepared,
         tarballs,
         variants,
-        publisher: caller,
+        publisher,
         ..
     } = doc;
 
     let verified = write_verified(
-        (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
+        (&storage, principal.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
         (prepared, tarballs),
         (merged, &variants, &without_any),
@@ -269,7 +266,6 @@ pub(in super::super) async fn stage_publish(
         slots: verified.slots,
         namespace: namespace.map(str::to_string),
         publisher,
-        caller,
         verification: verified.verification,
     })
 }

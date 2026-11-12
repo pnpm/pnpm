@@ -149,8 +149,9 @@ pub(crate) async fn delete_tarball(
 }
 
 fn log_package_deleted(identity: &Identity, name: &CanonicalPackageName, source: &str) {
+    let actor = crate::audit::Actor::of(identity);
     crate::audit::audit!(
-        crate::audit::Actor::of(identity),
+        actor,
         "package.unpublish",
         package = %name.as_str(),
         registry = %source,
@@ -165,8 +166,9 @@ fn log_tarball_deleted(
     version: &str,
     source: &str,
 ) {
+    let actor = crate::audit::Actor::of(identity);
     crate::audit::audit!(
-        crate::audit::Actor::of(identity),
+        actor,
         "package.unpublish_tarball",
         package = %name.as_str(),
         tarball = %filename,

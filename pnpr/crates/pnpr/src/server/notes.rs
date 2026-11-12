@@ -163,9 +163,11 @@ async fn write_version_note(
     if !database.set_version_note(name, &target.namespace, version, change).await? {
         return Err(RegistryError::NotFound);
     }
+    let actor = crate::audit::Actor::of(identity);
+    let action = if deleted { "package.note_delete" } else { "package.note_set" };
     crate::audit::audit!(
-        crate::audit::Actor::of(identity),
-        if deleted { "package.note_delete" } else { "package.note_set" },
+        actor,
+        action,
         package = %name.as_str(),
         version = %version,
         registry = %target.source,

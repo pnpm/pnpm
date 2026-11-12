@@ -88,8 +88,9 @@ async fn create_user(
                 reason: format!("username {name:?} is taken"),
             });
         };
+        let actor = crate::audit::Actor::of(&identity);
         crate::audit::audit!(
-            crate::audit::Actor::of(&identity),
+            actor,
             "user.create",
             user = %name,
             user_id = %id,
@@ -124,8 +125,9 @@ async fn set_user_password(
             return Err(RegistryError::NotFound);
         }
         state.inner.identity.oidc.revoke_user_sessions(&path.id);
+        let actor = crate::audit::Actor::of(&identity);
         crate::audit::audit!(
-            crate::audit::Actor::of(&identity),
+            actor,
             "user.password_update",
             user = %name,
             user_id = %path.id,
@@ -154,8 +156,9 @@ async fn delete_user(
         if removed == UserRemoval::NoSuchUser && revoked_total == 0 {
             return Err(RegistryError::NotFound);
         }
+        let actor = crate::audit::Actor::of(&identity);
         crate::audit::audit!(
-            crate::audit::Actor::of(&identity),
+            actor,
             "user.delete",
             user = %name,
             user_id = %path.id,
@@ -203,8 +206,9 @@ async fn revoke_user_token(
                     .account_name(&path.id)
                     .await?
                     .unwrap_or_else(|| format!("deleted:{}", path.id));
+                let actor = crate::audit::Actor::of(&identity);
                 crate::audit::audit!(
-                    crate::audit::Actor::of(&identity),
+                    actor,
                     "user.token_revoke",
                     user = %name,
                     user_id = %path.id,
@@ -247,8 +251,9 @@ async fn rename_user(
         require_admin(&state, &identity, "rename", format!("account {:?}", path.id))?;
         let RenameUser { name } = parse_json_body(&body)?;
         state.inner.identity.auth.users.rename_user(&path.id, &name).await?;
+        let actor = crate::audit::Actor::of(&identity);
         crate::audit::audit!(
-            crate::audit::Actor::of(&identity),
+            actor,
             "user.rename",
             user = %name,
             user_id = %path.id,

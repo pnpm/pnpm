@@ -149,8 +149,9 @@ impl Request {
     }
 
     fn log_oci_manifest_deleted(&self, repository: &str, reference: &str) {
+        let actor = crate::audit::Actor::of(&self.identity);
         crate::audit::audit!(
-            crate::audit::Actor::of(&self.identity),
+            actor,
             "oci.delete_manifest",
             repository = %repository,
             reference = %reference,

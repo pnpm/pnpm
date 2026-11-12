@@ -138,8 +138,9 @@ fn check_maintainer_authority(
 }
 
 fn log_maintainers_updated(identity: &Identity, name: &CanonicalPackageName, source: &str) {
+    let actor = crate::audit::Actor::of(identity);
     crate::audit::audit!(
-        crate::audit::Actor::of(identity),
+        actor,
         "package.update_maintainers",
         package = %name.as_str(),
         registry = %source,

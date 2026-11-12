@@ -450,8 +450,9 @@ async fn finish_sign_in(
             return err.into_response();
         }
     };
+    let actor = crate::audit::Actor { id: &id, name: &name };
     crate::audit::audit!(
-        crate::audit::Actor { id: &id, name: &name },
+        actor,
         "auth.sign_in",
         method = "oidc",
         provider = %provider,
