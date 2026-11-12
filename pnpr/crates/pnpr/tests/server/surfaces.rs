@@ -521,8 +521,10 @@ async fn readiness_probe_fails_when_auth_is_inaccessible() {
         .unwrap();
     let app = pnpr::router_with_auth(config, auth);
 
-    // Remove the tokens database file so token store readiness fails
-    std::fs::remove_file(&tokens_path).unwrap();
+    rusqlite::Connection::open(&tokens_path)
+        .unwrap()
+        .execute_batch("DROP TABLE tokens;")
+        .unwrap();
 
     // /-/ready returns 503 Service Unavailable when auth check fails
     let ready = app

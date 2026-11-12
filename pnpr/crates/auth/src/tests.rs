@@ -372,9 +372,13 @@ async fn tokens_persist_across_reopen() {
         "token issued before restart must still resolve after reload",
     );
 
-    std::fs::remove_file(&path).unwrap();
-    assert!(reopened.check_readiness().await.is_err());
-    assert!(!path.exists(), "check_readiness must not recreate missing database");
+    // Windows refuses to delete a database the store holds open.
+    #[cfg(unix)]
+    {
+        std::fs::remove_file(&path).unwrap();
+        assert!(reopened.check_readiness().await.is_err());
+        assert!(!path.exists(), "check_readiness must not recreate missing database");
+    }
 }
 
 #[tokio::test]
