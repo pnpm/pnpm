@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{ArgMatches, CommandFactory as _, FromArgMatches as _, Parser, parser::ValueSource};
 use pnpm_diagnostics::println;
 use pnpr::{
     Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
@@ -45,12 +45,15 @@ struct StorageArgs {
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
-    let mut args = Args::parse();
+    let matches = Args::command().get_matches();
+    let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
     let auto_path = Config::auto_config_path();
 
     let server_args = match args.command.take() {
         None => args.server,
-        Some(Command::Serve(server)) => args.server.merge(server),
+        Some(Command::Serve(server)) => {
+            args.server.merge(without_env_values(server, matches.subcommand_matches("serve")))
+        }
         Some(cmd) => return run_maintenance(cmd, args, auto_path).await,
     };
 
@@ -99,6 +102,31 @@ async fn run_maintenance(
     log_config_source(&source);
     warn_experimental_database(&config);
     run_command(&config, cmd).await
+}
+
+/// `serve` reads the same environment variables as the top level, which
+/// already holds their values. Taken from `serve` as well, they would replace
+/// an explicit top-level flag in [`ServerArgs::merge`].
+fn without_env_values(mut serve: ServerArgs, matches: Option<&ArgMatches>) -> ServerArgs {
+    let from_env = |id: &str| {
+        matches.is_some_and(|matches| matches.value_source(id) == Some(ValueSource::EnvVariable))
+    };
+    if from_env("listen") {
+        serve.listen = None;
+    }
+    if from_env("public_url") {
+        serve.public_url = None;
+    }
+    if from_env("packument_ttl") {
+        serve.packument_ttl = None;
+    }
+    if from_env("osv") {
+        serve.osv_options.osv = None;
+    }
+    if from_env("osv_db") {
+        serve.osv_options.osv_db = None;
+    }
+    serve
 }
 
 fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs) {

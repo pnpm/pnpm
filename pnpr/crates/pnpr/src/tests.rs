@@ -1,4 +1,6 @@
-use super::{Args, RegistryError, StorageArgs, apply_storage_overrides, redacted_report};
+use super::{
+    Args, RegistryError, StorageArgs, apply_storage_overrides, redacted_report, without_env_values,
+};
 use clap::{CommandFactory as _, Parser as _};
 use pnpm_testing_utils::env_guard::EnvGuard;
 use std::{ffi::OsStr, net::SocketAddr, time::Duration};
@@ -324,4 +326,21 @@ fn a_storage_override_takes_a_database_named_at_the_default_path_along() {
         config.storage.metadata,
         pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(storage)),
     );
+}
+
+#[test]
+fn an_env_var_read_by_serve_keeps_the_explicit_top_level_flag() {
+    let env = scrubbed_env();
+    env.set("PNPR_LISTEN", "127.0.0.1:7677");
+    env.set("PNPR_PUBLIC_URL", "https://env.example.com");
+
+    let matches = Args::command()
+        .try_get_matches_from(["pnpr", "--listen", "0.0.0.0:4873", "serve"])
+        .unwrap();
+    let mut args = <Args as clap::FromArgMatches>::from_arg_matches(&matches).unwrap();
+    let Some(super::Command::Serve(serve)) = args.command.take() else { panic!("expected serve") };
+    let merged = args.server.merge(without_env_values(serve, matches.subcommand_matches("serve")));
+
+    assert_eq!(merged.listen, Some("0.0.0.0:4873".parse::<SocketAddr>().unwrap()));
+    assert_eq!(merged.public_url.as_deref(), Some("https://env.example.com"));
 }

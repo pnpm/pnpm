@@ -15,7 +15,7 @@ use serde::Deserialize;
 /// references no unset environment variable, so a missing variable fails
 /// startup instead of leaving an empty credential, and its `Debug` output is
 /// redacted.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, derive_more::From)]
 pub struct Secret(String);
 
 impl Secret {
@@ -28,6 +28,17 @@ impl Secret {
     pub fn into_inner(self) -> String {
         self.0
     }
+
+    /// `value` as a secret, refused while it holds an unset environment
+    /// variable.
+    pub(crate) fn checked(value: String) -> Result<Self, String> {
+        match unset_placeholder_in(&value) {
+            Some(placeholder) => Err(refuse(format!(
+                "a secret-bearing field references the unset environment variable {placeholder}",
+            ))),
+            None => Ok(Self(value)),
+        }
+    }
 }
 
 impl Deref for Secret {
@@ -35,12 +46,6 @@ impl Deref for Secret {
 
     fn deref(&self) -> &str {
         &self.0
-    }
-}
-
-impl From<String> for Secret {
-    fn from(value: String) -> Self {
-        Self(value)
     }
 }
 
@@ -65,17 +70,11 @@ impl<'de> Deserialize<'de> for Secret {
     }
 }
 
-impl Secret {
-    /// `value` as a secret, refused while it holds an unset environment
-    /// variable.
-    pub(crate) fn checked(value: String) -> Result<Self, String> {
-        match unset_placeholder_in(&value) {
-            Some(placeholder) => Err(format!(
-                "a secret-bearing field references the unset environment variable {placeholder}",
-            )),
-            None => Ok(Self(value)),
-        }
-    }
+/// `reason` as the error of a secret-bearing value, which [`parse_with_env`]
+/// reports rather than reading as the place of an empty substitution.
+pub(crate) fn refuse(reason: String) -> String {
+    REFUSED_SECRET.set(true);
+    reason
 }
 
 /// An unresolved `${...}` placeholder and the token standing in for it while
@@ -91,24 +90,18 @@ thread_local! {
 }
 
 fn unset_placeholder_in(value: &str) -> Option<String> {
-    let placeholder = UNSET_PLACEHOLDERS.with_borrow(|unset| {
+    UNSET_PLACEHOLDERS.with_borrow(|unset| {
         unset
             .iter()
             .find(|entry| value.contains(&entry.token))
             .map(|entry| entry.placeholder.clone())
-    });
-    if placeholder.is_some() {
-        REFUSED_SECRET.set(true);
-    }
-    placeholder
+    })
 }
 
 /// Substitute environment variables into `raw` and deserialize the result.
 ///
 /// A placeholder that resolves to nothing is a [`Secret`] error. Elsewhere it
-/// becomes an empty string with a warning, except where an empty string is
-/// not a valid value, such as a number, which fails with the placeholder
-/// named.
+/// becomes an empty string with a warning.
 pub(crate) fn parse_with_env<Sys: EnvVar, Value>(raw: &str) -> Result<Value, RegistryError>
 where
     Value: for<'de> Deserialize<'de>,
@@ -120,30 +113,107 @@ where
     tracing::warn!(?unresolved, "config references unset environment variables");
     let (marked, unset) = mark_unset_placeholders::<Sys>(raw);
     UNSET_PLACEHOLDERS.with_borrow_mut(|slot| *slot = unset);
-    REFUSED_SECRET.set(false);
-    let result = parse_yaml::<Value>(&marked);
+    let checked = check_secrets::<Value>(marked);
     let unset = UNSET_PLACEHOLDERS.with_borrow_mut(std::mem::take);
-    if let Err(RegistryError::InvalidConfig { reason }) = result {
-        // The parser quotes the lines around the error, which hold the rest of
-        // the secret, so a refused secret keeps only the located message.
-        let reason = if REFUSED_SECRET.take() {
-            reason
-                .lines()
-                .next()
-                .unwrap_or_default()
-                .to_string()
-        } else {
-            reason
-        };
-        let reason = unset
-            .iter()
-            .fold(reason, |reason, entry| reason.replace(&entry.token, &entry.placeholder));
+    if let Err((reason, marked)) = checked {
+        let reason = name_unset_placeholders(&reason, &marked, &unset);
         return Err(RegistryError::InvalidConfig { reason });
     }
     parse_yaml(&substituted)
 }
 
-/// An empty document parses as `{}`.
+/// Parse `marked` until no [`Secret`] holds a token. A parse error at a token
+/// that no secret refused marks a place an empty substitution must reach, so
+/// that token becomes empty, as [`env_replace_lossy`] leaves it, and the parse
+/// retries. Returns the error that remains, with the document it came from.
+fn check_secrets<Value>(mut marked: String) -> Result<(), (String, String)>
+where
+    Value: for<'de> Deserialize<'de>,
+{
+    loop {
+        REFUSED_SECRET.set(false);
+        let Err(RegistryError::InvalidConfig { reason }) = parse_yaml::<Value>(&marked) else {
+            return Ok(());
+        };
+        if REFUSED_SECRET.take() || !blank_token_at(&mut marked, &reason) {
+            return Err((reason, marked));
+        }
+    }
+}
+
+/// Empty the token that starts where `reason` locates its error. Returns
+/// whether one did.
+fn blank_token_at(marked: &mut String, reason: &str) -> bool {
+    let Some((line, column)) = error_location(reason) else { return false };
+    let preceding = line.saturating_sub(1);
+    let Some(text) = marked.split('\n').nth(preceding) else { return false };
+    let line_start: usize = marked
+        .split('\n')
+        .take(preceding)
+        .map(|earlier| earlier.len() + 1)
+        .sum();
+    let token = UNSET_PLACEHOLDERS.with_borrow(|unset| {
+        unset
+            .iter()
+            .find_map(|entry| {
+                let offset = text.find(&entry.token)?;
+                let token_column = text[..offset].chars().count() + 1;
+                (token_column == column).then(|| (line_start + offset, entry.token.len()))
+            })
+    });
+    let Some((start, len)) = token else { return false };
+    marked.replace_range(start..start + len, "");
+    true
+}
+
+/// The 1-based line and column of a `line <L> column <C>` error.
+fn error_location(reason: &str) -> Option<(usize, usize)> {
+    let (_, rest) = reason.split_once("line ")?;
+    let (line, rest) = rest.split_once(" column ")?;
+    let column = rest
+        .split(|char: char| !char.is_ascii_digit())
+        .next()?;
+    Some((line.parse().ok()?, column.parse().ok()?))
+}
+
+/// `reason`, a located error in `marked`, with the unset placeholders that
+/// stand on its line named, or every unset placeholder when none does.
+fn name_unset_placeholders(reason: &str, marked: &str, unset: &[UnsetPlaceholder]) -> String {
+    let reason = unset
+        .iter()
+        .fold(reason.to_string(), |reason, entry| reason.replace(&entry.token, &entry.placeholder));
+    if unset
+        .iter()
+        .any(|entry| reason.contains(&entry.placeholder))
+    {
+        return reason;
+    }
+    let error_line = error_location(&reason)
+        .and_then(|(line, _)| {
+            marked
+                .split('\n')
+                .nth(line.saturating_sub(1))
+        })
+        .unwrap_or_default();
+    let on_line: Vec<&str> = unset
+        .iter()
+        .filter(|entry| error_line.contains(&entry.token))
+        .map(|entry| entry.placeholder.as_str())
+        .collect();
+    let named = if on_line.is_empty() {
+        unset
+            .iter()
+            .map(|entry| entry.placeholder.as_str())
+            .collect()
+    } else {
+        on_line
+    };
+    format!("{reason} (unset environment variables: {})", named.join(", "))
+}
+
+/// An empty document parses as `{}`. An error keeps only its located message:
+/// the parser also quotes the lines around the error, which can hold a
+/// credential.
 fn parse_yaml<Value>(text: &str) -> Result<Value, RegistryError>
 where
     Value: for<'de> Deserialize<'de>,
@@ -155,7 +225,13 @@ where
 }
 
 fn invalid(err: impl fmt::Display) -> RegistryError {
-    RegistryError::InvalidConfig { reason: err.to_string() }
+    let reason = err.to_string();
+    let located = reason
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    RegistryError::InvalidConfig { reason: located }
 }
 
 /// `raw` with every placeholder the environment leaves unresolved replaced by

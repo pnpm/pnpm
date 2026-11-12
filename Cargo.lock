@@ -7203,6 +7203,7 @@ dependencies = [
 name = "pnpr-config"
 version = "0.0.1"
 dependencies = [
+ "derive_more",
  "getrandom 0.4.3",
  "home",
  "indexmap 2.14.2",

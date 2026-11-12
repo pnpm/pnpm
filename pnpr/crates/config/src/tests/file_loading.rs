@@ -604,11 +604,14 @@ secret:
 }
 
 #[test]
-fn unset_variable_in_a_typed_field_names_the_placeholder() {
-    let yaml = "auth:\n  users:\n    maxUsers: ${PNPR_TEST_UNRESOLVED_VAR_123}\n";
+fn an_unset_variable_in_a_typed_field_is_empty() {
+    let yaml = "secret: ${PNPR_TEST_UNRESOLVED_VAR_123}\nauth:\n  users:\n    maxUsers: ${PNPR_TEST_UNRESOLVED_VAR_456}\n";
     let reason =
         Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err().to_string();
     assert!(reason.contains("${PNPR_TEST_UNRESOLVED_VAR_123}"), "{reason}");
+
+    let yaml = "auth:\n  users:\n    maxUsers: ${PNPR_TEST_UNRESOLVED_VAR_456}\n";
+    Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
 }
 
 #[test]
@@ -654,7 +657,7 @@ cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${
 }
 
 #[test]
-fn unset_variable_that_breaks_the_yaml_is_an_error() {
+fn unset_yaml_fragments_do_not_hide_unresolved_secrets() {
     struct EmptyEnv;
     impl pnpm_env_replace::EnvVar for EmptyEnv {
         fn var(_: &str) -> Option<String> {
@@ -662,10 +665,12 @@ fn unset_variable_that_breaks_the_yaml_is_an_error() {
         }
     }
     let raw = r#"${UNSET_NON_SECRET}
-cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: example-token, cacheTag: example }
+cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: prefix-${CF_TOKEN}, cacheTag: example }
 "#;
     let error = crate::loading::parse_config_file_with_env::<EmptyEnv>(raw).unwrap_err();
-    assert!(error.to_string().contains("${UNSET_NON_SECRET}"), "{error}");
+    assert!(error.to_string().contains("${CF_TOKEN}"), "{error}");
+    let optional = raw.replace("prefix-${CF_TOKEN}", "example-token");
+    crate::loading::parse_config_file_with_env::<EmptyEnv>(&optional).unwrap();
 }
 
 #[test]
@@ -685,4 +690,41 @@ ui: { dir: ${OPTIONAL_DIR} }
 cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: ${CF_TOKEN}, cacheTag: example }
 "#;
     crate::loading::parse_config_file_with_env::<LiteralEnv>(raw).unwrap();
+}
+
+#[test]
+fn a_parse_error_does_not_quote_a_resolved_secret() {
+    struct CredentialEnv;
+    impl pnpm_env_replace::EnvVar for CredentialEnv {
+        fn var(name: &str) -> Option<String> {
+            (name == "CF_TOKEN").then(|| "resolved-credential-value".to_string())
+        }
+    }
+    for raw in [
+        r#"cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: ${CF_TOKEN}, cacheTag: example, typo: 1 }
+"#,
+        r#"cloudflareCdn: { zoneId: "00000000000000000000000000000000", apiToken: ${CF_TOKEN}, cacheTag: example, typo: ${UNSET} }
+"#,
+    ] {
+        let message = crate::loading::parse_config_file_with_env::<CredentialEnv>(raw)
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("unknown field `typo`"), "{message}");
+        assert!(!message.contains("resolved-cred"), "{message}");
+    }
+}
+
+#[test]
+fn an_unquoted_numeric_secret_asks_for_quotes_without_echoing_it() {
+    let message =
+        Config::from_yaml_str("secret: 1234567890123456\n", Path::new("/x"), listen(), None)
+            .unwrap_err()
+            .to_string();
+    assert!(message.contains("quote it"), "{message}");
+    assert!(!message.contains("1234567890123456"), "{message}");
+
+    let quoted =
+        Config::from_yaml_str("secret: \"0012345678901234\"\n", Path::new("/x"), listen(), None)
+            .unwrap();
+    assert_eq!(quoted.cache_secret, crate::derive_subkey(b"0012345678901234", b"pnpr cache v1"));
 }

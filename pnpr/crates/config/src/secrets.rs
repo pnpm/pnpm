@@ -4,7 +4,7 @@ use pnpr_error::RegistryError;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::secret::Secret;
+use crate::secret::{Secret, refuse};
 
 /// Minimum length of a configured `secret:` in bytes.
 pub const MIN_SECRET_LEN: usize = 16;
@@ -90,6 +90,22 @@ impl<'de> serde::de::Visitor<'de> for SecretFileVisitor {
         formatter.write_str("a secret string or a table of `cache` and `oci` secrets")
     }
 
+    fn visit_i64<DeError: serde::de::Error>(self, _: i64) -> Result<SecretFile, DeError> {
+        Err(not_a_string())
+    }
+
+    fn visit_u64<DeError: serde::de::Error>(self, _: u64) -> Result<SecretFile, DeError> {
+        Err(not_a_string())
+    }
+
+    fn visit_f64<DeError: serde::de::Error>(self, _: f64) -> Result<SecretFile, DeError> {
+        Err(not_a_string())
+    }
+
+    fn visit_bool<DeError: serde::de::Error>(self, _: bool) -> Result<SecretFile, DeError> {
+        Err(not_a_string())
+    }
+
     fn visit_str<DeError: serde::de::Error>(self, value: &str) -> Result<SecretFile, DeError> {
         Secret::checked(value.to_string()).map(SecretFile::Root).map_err(DeError::custom)
     }
@@ -98,6 +114,15 @@ impl<'de> serde::de::Visitor<'de> for SecretFileVisitor {
         SecretKeysFile::deserialize(serde::de::value::MapAccessDeserializer::new(map))
             .map(SecretFile::Keys)
     }
+}
+
+/// YAML reads an unquoted all-digit or `true`/`false` value as a number or a
+/// boolean, which loses its exact text, such as leading zeros.
+fn not_a_string<DeError: serde::de::Error>() -> DeError {
+    DeError::custom(refuse(
+        "`secret` reads as a number or a boolean; quote it, as in `secret: \"${PNPR_SECRET}\"`"
+            .to_string(),
+    ))
 }
 
 fn validate_secret_len(field: &str, secret: &Secret) -> Result<(), RegistryError> {

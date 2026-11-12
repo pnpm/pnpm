@@ -823,7 +823,8 @@ pnpr derives a key for each purpose from its secret:
   reveal neither registry names nor credentials.
 - **`oci`**: bearer token signing key for the OCI registry surface.
 
-Each secret must be at least 16 bytes. Changing the `cache` secret orphans the
+Each secret must be at least 16 bytes. Quote a secret that YAML would read as a
+number, such as `secret: "${PNPR_SECRET}"` for an all-digit value. Changing the `cache` secret orphans the
 private cache entries keyed with the old one. `pnpr cache gc` removes them.
 
 When no `cache` secret is configured, pnpr generates a random one for a single
@@ -1105,9 +1106,7 @@ s3:
 
 `${ENV_VAR-default}` supplies `default` when `ENV_VAR` is unset, and
 `${ENV_VAR:-default}` also when it is empty. An unset or empty variable without
-a default becomes an empty string, and pnpr logs a warning. If an empty string
-is not a valid value at that place, such as a number, pnpr fails to start and
-names the variable.
+a default becomes an empty string, and pnpr logs a warning.
 
 An unset variable in a field that holds a credential fails startup, so pnpr
 never runs with an empty credential. These fields are `secret`, `secret.cache`,
