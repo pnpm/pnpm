@@ -32,9 +32,11 @@ pub(super) fn addressed_registry(
     ecosystem: Ecosystem,
 ) -> Option<String> {
     match registry {
-        Some(name) => {
-            state.inner.config.routing.registries.addressed(name, ecosystem).map(str::to_string)
-        }
+        Some(name) => state
+            .routing()
+            .registries
+            .addressed(name, ecosystem)
+            .map(str::to_string),
         None => default_registry_target(state, ecosystem),
     }
 }
@@ -104,15 +106,15 @@ pub(super) fn registry_requires_auth(
     registry: &str,
     ecosystem: Ecosystem,
 ) -> bool {
-    let config = &state.inner.config;
-    config.routing.registries
+    let routing = state.routing();
+    routing.registries
         .sources(registry, ecosystem)
         .into_iter()
-        .any(|source| match config.routing.registries.get(source) {
-            Some(Registry::Hosted { .. }) => config.routing.hosted
+        .any(|source| match routing.registries.get(source) {
+            Some(Registry::Hosted { .. }) => routing.hosted
                 .get(source)
                 .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
-            Some(Registry::Upstream { .. }) => config.routing.upstreams
+            Some(Registry::Upstream { .. }) => routing.upstreams
                 .get(source)
                 .is_some_and(|upstream| upstream.access.is_some()),
             Some(Registry::Router { .. }) | None => false,
@@ -125,7 +127,8 @@ pub(super) fn hosted_sources(
     registry: &str,
     ecosystem: Ecosystem,
 ) -> Vec<String> {
-    let registries = &state.inner.config.routing.registries;
+    let routing = state.routing();
+    let registries = &routing.registries;
     registries
         .sources(registry, ecosystem)
         .into_iter()
@@ -140,7 +143,8 @@ pub(super) fn upstream_sources(
     registry: &str,
     ecosystem: Ecosystem,
 ) -> Vec<String> {
-    let registries = &state.inner.config.routing.registries;
+    let routing = state.routing();
+    let registries = &routing.registries;
     registries
         .sources(registry, ecosystem)
         .into_iter()
@@ -171,12 +175,12 @@ pub(super) async fn serve_hosted_blob(
 
 /// The upstream behind `source`, authorized for `identity` to read `key`,
 /// with its cache namespace.
-pub(super) fn upstream_for<'state>(
-    state: &'state AppState,
+pub(super) fn upstream_for(
+    state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
     key: &CanonicalPackageName,
-) -> Result<(&'state Upstream, String), RegistryError> {
+) -> Result<(Upstream, String), RegistryError> {
     let RegistrySource::Upstream(name) = source else {
         return Err(RegistryError::NotFound);
     };
@@ -296,18 +300,27 @@ pub(super) fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+/// The redirect guard of an upstream client: the upstream's own origin, the
+/// well-known artifact hosts of its ecosystem, and the registries the current
+/// graph allows.
 pub(super) fn upstream_fetch_guard(
-    config: &pnpr_config::Config,
+    guard_context: &super::registry_graph::UpstreamGuardContext,
     upstream: &pnpr_config::UpstreamConfig,
 ) -> pnpm_network::RedirectGuard {
-    let context = pnpr_route::RouteContext::from_config(config);
+    let guard_context = Arc::clone(guard_context);
     let base = url::Url::parse(&upstream.url).ok();
     Arc::new(move |url| {
         let Some(base) = &base else { return false };
+        let allows_registry = || {
+            guard_context
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .allows_registry(url.as_str())
+        };
         is_fetchable_artifact_url(url)
             && (url.origin() == base.origin()
                 || pnpr_upstream::oci_download_allowed(base, url)
-                || context.allows_registry(url.as_str())
+                || allows_registry()
                 || (base.as_str() == "https://index.crates.io/"
                     && url.origin().ascii_serialization() == "https://static.crates.io")
                 || (base.origin().ascii_serialization() == "https://pypi.org"

@@ -25,6 +25,7 @@ const SCIM_TOKEN: &str = "scim-secret-0123456789abcdef0123456789";
 const CONFIG: &str = "\
 auth:
   admins: [root]
+  registryAdmins: [root]
   scim:
     token: scim-secret-0123456789abcdef0123456789
   users:
@@ -33,8 +34,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    rulesManagedBy: api
-    teamsManagedBy: api
     teams:
       readers: { name: readers, members: [] }
     packages:
@@ -159,13 +158,19 @@ impl tracing::field::Visit for EventVisitor<'_> {
     }
 }
 
-fn load_config(dir: &Path) -> Config {
+async fn load_config(dir: &Path) -> Config {
     let storage = dir.join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let path = dir.join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage.display())).unwrap();
+    let yaml = format!("storage: {}\n{CONFIG}", storage.display());
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+    crate::managed_registries::managed_config(
+        &path,
+        &yaml,
+        listen,
+        Some("http://example.test".to_string()),
+    )
+    .await
 }
 
 async fn app_router(config: Config) -> axum::Router {
@@ -282,7 +287,7 @@ async fn send_bytes(
 async fn audit_log_user_admin_and_registration() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = login(&app, "root", "secret123").await;
 
     // 1. user.create
@@ -366,7 +371,7 @@ async fn audit_log_user_admin_and_registration() {
 async fn audit_log_rule_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = login(&app, "root", "secret123").await;
 
     // 1. rules.replace
@@ -386,21 +391,52 @@ async fn audit_log_rule_admin() {
     let ev = find_event(&logs, "rules.replace", "registry", "local");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
     assert_request_span(&ev, "PUT");
+}
 
-    // 2. rules.delete
-    let (status, _) =
-        send(&app, "DELETE", "/-/pnpr/v0/admin/rules/npm/local", Some(&root), None).await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
-    let ev = find_event(&logs, "rules.delete", "registry", "local");
+#[tokio::test]
+async fn audit_log_registry_admin() {
+    let logs = init_audit_subscriber();
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path()).await).await;
+    let root = login(&app, "root", "secret123").await;
+    let entry = json!({ "type": "hosted", "namespace": "audited" });
+
+    let path = "/-/pnpr/v0/admin/registries/audited";
+    let (status, _) = send(&app, "PUT", path, Some(&root), Some(entry)).await;
+    assert_eq!(status, StatusCode::OK);
+    let ev = find_event(&logs, "registries.update", "registry", "audited");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
+    assert_eq!(ev.fields.get("version").map(String::as_str), Some("2"));
+    assert_eq!(ev.fields.get("previous_version").map(String::as_str), Some("1"));
+    assert_request_span(&ev, "PUT");
+
+    let (status, _) = send(&app, "DELETE", path, Some(&root), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let ev = find_event(&logs, "registries.delete", "registry", "audited");
     assert_request_span(&ev, "DELETE");
+
+    let restore = "/-/pnpr/v0/admin/registry-revisions/2/restore";
+    assert_eq!(send(&app, "POST", restore, Some(&root), None).await.0, StatusCode::OK);
+    let ev = find_event(&logs, "registries.restore", "restored", "2");
+    assert_eq!(ev.fields.get("version").map(String::as_str), Some("4"));
+
+    let (_, document) = send(&app, "GET", "/-/pnpr/v0/admin/registries", Some(&root), None).await;
+    let mut document = document;
+    document["registries"]
+        .as_object_mut()
+        .unwrap()
+        .remove("audited");
+    let documents = "/-/pnpr/v0/admin/registries";
+    assert_eq!(send(&app, "PUT", documents, Some(&root), Some(document)).await.0, StatusCode::OK);
+    let ev = find_event(&logs, "registries.replace", "version", "5");
+    assert_eq!(ev.fields.get("previous_version").map(String::as_str), Some("4"));
 }
 
 #[tokio::test]
 async fn audit_log_team_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = login(&app, "root", "secret123").await;
 
     // 1. team.create
@@ -493,7 +529,7 @@ async fn audit_log_team_admin() {
 async fn audit_log_scim_operations() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
 
     // 1. scim.user_create
     let (status, created) = send(
@@ -568,7 +604,7 @@ async fn audit_log_scim_operations() {
 async fn audit_log_unpublish_and_dist_tags() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let publisher = login(&app, "aud_publisher", "password").await;
 
     // Publish package
@@ -818,7 +854,7 @@ async fn audit_log_oci_deletion_operations() {
 async fn renaming_an_account_audits_its_stable_id_and_new_name() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = login(&app, "root", "secret123").await;
     let (status, created) = send(
         &app,
@@ -848,7 +884,7 @@ async fn renaming_an_account_audits_its_stable_id_and_new_name() {
 async fn audit_log_sign_in_and_tokens() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let session = login(&app, "aud_tokens", "password1").await;
     let id = crate::tokens::account_id(&app, "aud_tokens", Some(&session)).await.unwrap();
 
@@ -899,7 +935,7 @@ async fn audit_log_sign_in_and_tokens() {
 async fn audit_log_publish() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let publisher = login(&app, "aud_pub", "password").await;
     let id = crate::tokens::account_id(&app, "aud_pub", Some(&publisher)).await.unwrap();
 

@@ -269,7 +269,7 @@ pub(super) async fn load_upstream_packument_for(
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = authorized_upstream(state, identity, upstream)?;
     let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
-    load_upstream_packument(state, &namespace, upstream, name, ttl).await
+    load_upstream_packument(state, &namespace, &upstream, name, ttl).await
 }
 
 /// Load a package's packument bytes through the addressed `/~<name>/` (or,
@@ -332,7 +332,7 @@ pub(super) async fn serve_packument_via_upstream(
     };
     let document = UpstreamDocument {
         state,
-        upstream: client,
+        upstream: &client,
         namespace: upstream_cache_namespace(state, upstream),
         name,
         ttl: client.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl),

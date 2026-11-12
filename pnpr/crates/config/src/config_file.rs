@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
     Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
-    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, TrustedProxyHeader,
+    ReleaseRecordsFile, S3Settings, ScimConfig, Serialize, TarballFormat, TrustedProxyHeader,
     UpstreamAuthFile, access::TeamFile, default_storage_string,
     null_default::deserialize_null_default, oidc,
 };
@@ -16,19 +16,19 @@ pub(super) struct RoutesFile {
     pub(super) allowed_private_networks: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct PublicRouteFile {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) registry: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) package: Option<String>,
 }
 
 /// Disk shape of one `registries:` entry, discriminated by an internal `type:` tag
 /// (`hosted` / `upstream` / `router`). The tag selects exactly one kind, so
 /// "declared none or more than one" is unrepresentable — no runtime count check.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(super) enum RegistryFile {
     Hosted(HostedFile),
@@ -39,53 +39,53 @@ pub(super) enum RegistryFile {
 }
 
 /// Disk shape of a `hosted:` registry.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct HostedFile {
     /// The package ecosystem this registry serves, which selects the protocol
     /// spoken at its `/~<name>/` endpoint. Omitted ⇒ `npm`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) ecosystem: Option<Ecosystem>,
     /// Storage namespace for this registry's packages, so two hosted registries can
     /// hold the same `name@version` without colliding. Omitted ⇒ the default
     /// namespace (`""`).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) namespace: Option<String>,
     /// The registry-level default: who may read this registry's packages when
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) access: Option<AccessSpec>,
     /// This registry's teams: each key is a team ID, each value its name
     /// and member account IDs. Referenced from this registry's access lists as
     /// `team:<id>` — teams are registry-scoped, never shared across
     /// registries (YAML anchors cover a shared roster in one file).
-    #[serde(default, deserialize_with = "deserialize_null_default")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_default",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub(super) teams: IndexMap<String, TeamFile>,
-    /// Whether `teams:` is the roster or only the seed of one the team API
-    /// edits. Omitted ⇒ `config`.
-    #[serde(default)]
-    pub(super) teams_managed_by: Management,
-    /// Whether the `packages:` rules and `access:` are fixed, or a starting
-    /// point the admin API may change. Omitted ⇒ `config`.
-    #[serde(default)]
-    pub(super) rules_managed_by: Management,
     /// The package patterns this registry serves and accepts publishes for,
     /// with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
     /// specific matching key wins; key order carries no meaning. Omitted ⇒
     /// every name, default rules.
-    #[serde(default, deserialize_with = "deserialize_null_default")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_default",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub(super) packages: IndexMap<String, Option<PackageAccess>>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) tarballs: Option<TarballFormat>,
 }
 
 /// Disk shape of an `upstream:` registry — one external origin. Mirrors an
 /// upstream's tuning knobs plus `public` (an anonymous, no-credential origin)
 /// and `access` (which pnpr callers may reach a private one).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -99,39 +99,47 @@ pub(super) struct UpstreamFile {
     /// pnpr proxies at `/~<name>/` and speaks to `url`. Omitted ⇒ `npm`. For
     /// `cargo`, `url` is a sparse index root (`https://index.crates.io/`); for
     /// `pypi`, a Simple API root (`https://pypi.org/simple/`).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) ecosystem: Option<Ecosystem>,
     pub(super) url: String,
     /// An anonymous, world-readable origin (e.g. the public npm registry).
     /// Mutually exclusive with `auth`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub(super) public: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) auth: Option<UpstreamAuthFile>,
-    #[serde(default, deserialize_with = "deserialize_null_default")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_default",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub(super) headers: IndexMap<String, crate::Secret>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) packument_ttl: Option<Interval>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) timeout: Option<Interval>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) max_packument_size: Option<ByteSize>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) max_fails: Option<u32>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) fail_timeout: Option<Interval>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) cache: Option<bool>,
     /// Opt an upstream into browser-facing search and organization discovery.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub(super) search: bool,
     /// Which pnpr callers may reach this registry at `/~<name>/`. Required for a
     /// non-`public` upstream (otherwise no one could be authorized to use it).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) access: Option<AccessSpec>,
     /// This registry's teams, exactly as on a hosted registry — referenced
     /// from `access` and the per-package refinements as `team:<id>`.
-    #[serde(default, deserialize_with = "deserialize_null_default")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_default",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub(super) teams: IndexMap<String, TeamFile>,
     /// The package patterns that may be requested through this registry,
     /// with optional per-package `access` refinements as values (`{}` or null
@@ -139,28 +147,36 @@ pub(super) struct UpstreamFile {
     /// error, since no write can land on an upstream). Omitted ⇒ every name.
     /// Bounding a private upstream stops an authorized caller from pulling
     /// arbitrary public names through its server-owned credential.
-    #[serde(default, deserialize_with = "deserialize_null_default")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_default",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub(super) packages: IndexMap<String, Option<PackageAccess>>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) tarballs: Option<TarballFormat>,
 }
 
 /// Disk shape of a `router:` registry: an ordered list of concrete registry names.
 /// The first source whose declared patterns claim a package serves it.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct RouterFile {
-    #[serde(default, deserialize_with = "deserialize_null_default")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_default",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub(super) sources: Vec<String>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) tarballs: Option<TarballFormat>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub(super) enum DefaultRegistryFile {
     Shared(String),
@@ -280,6 +296,13 @@ pub(super) struct ConfigFile {
     /// registry and clients must address a `/~<name>/`.
     #[serde(default)]
     pub(super) default_registry: Option<DefaultRegistryFile>,
+    /// Whether this file or the metadata database holds the registry graph.
+    #[serde(default)]
+    pub(super) registries_managed_by: Management,
+    /// The environment variables a registry graph stored in the database may
+    /// reference.
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub(super) registry_env: Vec<String>,
     /// pnpr-only: which fetch routes the resolution cache treats as
     /// public.
     #[serde(default)]
@@ -341,6 +364,8 @@ pub(super) struct LogEntryFile {
 pub(super) struct AuthFile {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) admins: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub(super) registry_admins: Vec<String>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) oidc: Vec<oidc::OidcProvider>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
@@ -460,4 +485,13 @@ pub(super) struct PipelineFeatureFile {
 
 pub(super) fn default_true() -> bool {
     true
+}
+
+/// `skip_serializing_if` for a flag that defaults to `false`.
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's `skip_serializing_if` passes the field by reference"
+)]
+pub(super) fn is_false(value: &bool) -> bool {
+    !*value
 }

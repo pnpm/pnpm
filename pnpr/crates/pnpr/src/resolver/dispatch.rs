@@ -162,7 +162,8 @@ fn short_circuit_npm_resolve(
     ) {
         return Some(within_deadline(response, inputs.deadline));
     }
-    inputs.cache_key = resolution_cache_key(&inputs.request);
+    inputs.cache_key =
+        resolution_cache_key(&inputs.request).map(|key| runtime.graph_cache_key(&key));
     cached_resolution_response(
         runtime,
         identity,

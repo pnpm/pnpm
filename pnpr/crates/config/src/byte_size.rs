@@ -1,5 +1,5 @@
 use pnpr_error::RegistryError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// A byte size representation parsed from YAML or string input.
 ///
@@ -8,6 +8,15 @@ use serde::Deserialize;
 /// `PB`, `PiB`), case-insensitively.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ByteSize(pub String);
+
+impl Serialize for ByteSize {
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
 
 impl<'de> Deserialize<'de> for ByteSize {
     fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>

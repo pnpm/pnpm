@@ -91,7 +91,13 @@ struct CachedFile {
 pub fn active_cache_namespaces(config: &Config) -> HashSet<String> {
     config.routing.upstreams
         .keys()
-        .map(|name| crate::server::compute_upstream_cache_namespace(config, name))
+        .map(|name| {
+            crate::server::compute_upstream_cache_namespace(
+                &config.routing,
+                &config.resolution_cache_secret,
+                name,
+            )
+        })
         .chain([crate::server::TAR_VARIANT_CACHE_NAMESPACE.to_string()])
         .collect()
 }

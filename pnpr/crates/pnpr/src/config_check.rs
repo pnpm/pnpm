@@ -49,6 +49,16 @@ pub fn check_resolved_config(
     Ok(build_report(config, source_description))
 }
 
+/// [`check_resolved_config`] that, with `registriesManagedBy: api`, first
+/// reads and validates the registries the metadata database stores.
+pub async fn check_config_and_stored_registries(
+    config: &mut Config,
+    source: &ConfigSource,
+) -> pnpr_error::Result<ConfigCheckReport> {
+    *config = crate::server::with_stored_routing(config, crate::server::Credentials::Skip).await?;
+    check_resolved_config(config, source)
+}
+
 pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckReport> {
     if let Some(path) = config_path.filter(|item| !item.exists()) {
         let display_path = path.display();

@@ -2,8 +2,13 @@ pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
+pub(crate) use registry_graph::{
+    Credentials, RoutingSnapshot, check_revision, graph_version, occupied_namespace_error,
+    stored_document, with_stored_routing,
+};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
+pub(crate) use routing::state_and_router;
 pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
@@ -140,10 +145,10 @@ mod pypi;
 mod rate_limit;
 use rate_limit::LoginRateLimiter;
 mod registry_directory;
+mod registry_graph;
 mod request_id;
 mod routing;
 mod rule_admin;
-mod rule_overrides;
 mod scim;
 mod security_audit;
 mod singleflight;
@@ -153,7 +158,6 @@ mod staged_archives;
 mod striped_locks;
 mod team_access;
 mod team_mutations;
-mod team_rosters;
 mod user_admin;
 mod web_login;
 mod web_ui;
@@ -177,7 +181,7 @@ use self::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
         resolve_publish_target_for, routes_to_upstream, stage_publish, validate_publish_doc,
     },
-    routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
+    routing::{metrics_listener_router, router_with_auth_and_osv},
 };
 
 use axum::{

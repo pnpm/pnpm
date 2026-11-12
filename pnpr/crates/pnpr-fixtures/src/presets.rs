@@ -234,6 +234,7 @@ fn with_routing(
             auth: AuthConfig::default(),
             backend: BackendConfig::Sqlite(metadata),
             admins: std::collections::BTreeSet::new(),
+            registry_admins: std::collections::BTreeSet::new(),
         },
         features: pnpr_config::Features {
             registry: RegistryFeature::default(),
@@ -242,6 +243,8 @@ fn with_routing(
             pipeline: PipelineFeature::default(),
         },
         routing,
+        registries_managed_by: pnpr_config::Management::Config,
+        registry_env: Vec::new(),
         release_records: pnpr_config::ReleaseRecordsConfig::default(),
         gc: pnpr_config::GcConfig::default(),
     }

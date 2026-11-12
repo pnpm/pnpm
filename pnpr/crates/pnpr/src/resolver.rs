@@ -124,27 +124,66 @@ use self::{
 /// registries come from each client request. Configurations are cached
 /// by their effective settings and shared with active requests.
 ///
-/// Held lazily in a [`OnceLock`] on the server's state so servers that
-/// never receive such a request pay nothing, and so each server in
-/// a multi-server test process keeps its own store.
+/// Held lazily in a [`OnceLock`] on the server's routing snapshot so servers
+/// that never receive such a request pay nothing, and so each server in
+/// a multi-server test process keeps its own store. A new snapshot builds a
+/// new engine around the same [`ResolverShared`].
 pub(crate) struct Resolver {
-    store_dir: StoreDir,
     client: Arc<ThrottledClient>,
     osv_index: Option<Arc<OsvIndex>>,
     /// Route-classification inputs (public/private rules, pnpr-managed
     /// upstream credentials, hosted origin, package policy), resolved once
-    /// from the server config and combined per request with the caller's
+    /// from the registry graph and combined per request with the caller's
     /// identity to drive auth selection and footprint recording.
     route_context: Arc<RouteContext>,
     /// Public URL clients use for pnpr-hosted and `/~<name>/` endpoint
     /// tarball URLs.
     local_registry: crate::server::LocalRegistry,
-    cache: ResolverCache,
-    index: IndexCache,
-    limits: ResolverLimits,
+    cache: Arc<ResolverCache>,
+    index: Arc<IndexCache>,
+    limits: Arc<ResolverLimits>,
+    /// The [`crate::server::RoutingSnapshot::epoch`] this engine resolves
+    /// for. Results are cached under it, so a resolution made under one
+    /// graph is never served under another.
+    graph_epoch: u64,
+}
+
+/// The resolver state that outlives a registry graph change: its caches and
+/// its admission limits, so a swapped graph neither drops cached work nor
+/// hands out a second set of permits.
+pub(crate) struct ResolverShared {
+    cache: Arc<ResolverCache>,
+    index: Arc<IndexCache>,
+    limits: Arc<ResolverLimits>,
+}
+
+impl ResolverShared {
+    /// Drop every cached resolution. Called when the registry graph changes:
+    /// a resolution may have read a name the new graph routes elsewhere.
+    pub(crate) fn forget_results(&self) {
+        self.cache.entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+    }
+
+    fn new(config: &RegistryConfig) -> Self {
+        let cache_dir = config.storage.cache_dir.join("resolver-cache");
+        // Best-effort: a real failure here (e.g. a permission problem)
+        // resurfaces with a precise error on the first cache write during
+        // resolution, so there's nothing actionable to report yet.
+        let _ = std::fs::create_dir_all(&cache_dir);
+        Self {
+            cache: Arc::new(ResolverCache::new(cache_dir, config)),
+            index: Arc::new(IndexCache::new(config.http.packument_ttl)),
+            limits: Arc::new(ResolverLimits::from_config(config)),
+        }
+    }
 }
 struct ResolverCache {
     dir: PathBuf,
+    /// The package store resolutions fetch into, shared by every graph.
+    store_dir: StoreDir,
     /// Configurations keyed by canonical JSON, with least recently used eviction.
     configs: ConfigCache,
     /// Held behind an [`Arc`] so the detached streaming-resolve task can
@@ -175,8 +214,12 @@ struct IndexCache {
 impl ResolverCache {
     fn new(cache_dir: PathBuf, config: &RegistryConfig) -> Self {
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
+        let store_dir = config.storage.cache_dir.join("resolver-store");
+        // Best-effort, as for the cache dir in [`ResolverShared::new`].
+        let _ = std::fs::create_dir_all(&store_dir);
         Self {
             dir: cache_dir,
+            store_dir: StoreDir::new(store_dir),
             configs: ConfigCache::default(),
             entries: Arc::new(Mutex::new(HashMap::new())),
             ttl: config.http.packument_ttl,
@@ -220,27 +263,48 @@ impl IndexCache {
 
 impl Resolver {
     pub(crate) fn get_or_init<'a>(
-        cell: &'a OnceLock<Resolver>,
-        config: &RegistryConfig,
+        routing: &'a crate::server::RoutingSnapshot,
+        shared: &OnceLock<ResolverShared>,
         osv_index: Option<Arc<OsvIndex>>,
         state: &crate::server::AppState,
     ) -> &'a Resolver {
-        cell.get_or_init(|| {
-            let mut resolver = Resolver::build(config, osv_index);
-            resolver.local_registry.attach(state);
+        routing.resolver.get_or_init(|| {
+            let config = &state.inner.config;
+            let shared = shared.get_or_init(|| ResolverShared::new(config));
+            let route_context = Arc::clone(&routing.route_context);
+            let mut resolver = Resolver::build_for(config, route_context, shared, osv_index);
+            resolver.local_registry.attach(state, routing);
+            resolver.graph_epoch = routing.epoch;
             resolver
         })
     }
 
+    #[cfg(test)]
     fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
-        let store_dir = config.storage.cache_dir.join("resolver-store");
-        let cache_dir = config.storage.cache_dir.join("resolver-cache");
-        // Best-effort: a real failure here (e.g. a permission problem)
-        // resurfaces with a precise error on the first store/cache write
-        // during resolution, so there's nothing actionable to report yet.
-        let _ = std::fs::create_dir_all(&store_dir);
-        let _ = std::fs::create_dir_all(&cache_dir);
         let route_context = Arc::new(RouteContext::from_config(config));
+        Self::build_for(config, route_context, &ResolverShared::new(config), osv_index)
+    }
+
+    /// The engine's limits, for a test that tunes them on an engine it built
+    /// alone.
+    #[cfg(test)]
+    fn limits_mut(&mut self) -> &mut ResolverLimits {
+        Arc::get_mut(&mut self.limits).expect("a test engine shares no limits")
+    }
+
+    /// The engine's cache, for a test that tunes it on an engine it built
+    /// alone.
+    #[cfg(test)]
+    fn cache_mut(&mut self) -> &mut ResolverCache {
+        Arc::get_mut(&mut self.cache).expect("a test engine shares no cache")
+    }
+
+    fn build_for(
+        config: &RegistryConfig,
+        route_context: Arc<RouteContext>,
+        shared: &ResolverShared,
+        osv_index: Option<Arc<OsvIndex>>,
+    ) -> Resolver {
         // Re-validate every redirect hop against the same fetch allowlist the
         // request boundary uses, so an allowlisted registry that redirects to
         // an off-allowlist host cannot slip a server-side fetch past it (SSRF),
@@ -255,15 +319,20 @@ impl Resolver {
             )),
         ));
         Resolver {
-            store_dir: StoreDir::new(store_dir),
             client,
             osv_index,
             route_context,
             local_registry: crate::server::LocalRegistry::new(config.http.public_url.clone()),
-            cache: ResolverCache::new(cache_dir, config),
-            index: IndexCache::new(config.http.packument_ttl),
-            limits: ResolverLimits::from_config(config),
+            cache: Arc::clone(&shared.cache),
+            index: Arc::clone(&shared.index),
+            limits: Arc::clone(&shared.limits),
+            graph_epoch: 0,
         }
+    }
+
+    /// `key`, a resolution cache key, scoped to this engine's graph.
+    fn graph_cache_key(&self, key: &str) -> String {
+        format!("{}:{key}", self.graph_epoch)
     }
 
     /// Where `registry`'s Cargo sparse-index files are cached. The origin
@@ -287,7 +356,7 @@ impl Resolver {
 
     /// Reuse the request's configuration while bounding active work and cached entries.
     fn config_for(&self, request: &ResolveRequest) -> Result<ActiveConfig, Response> {
-        self.cache.config_for(&self.store_dir, request)
+        self.cache.config_for(&self.cache.store_dir, request)
     }
 }
 

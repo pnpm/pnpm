@@ -196,7 +196,8 @@ async fn an_empty_database_initializes(db: Db) {
     open(&db).await.unwrap();
     let tables = tables(&db).await;
     for table in schema::table_names(TABLES.sqlite) {
-        assert!(tables.contains(&table), "{table} is missing from {tables:?}");
+        let dropped = schema::DROPPED_IN_STEP_3.contains(&table.as_str());
+        assert_eq!(tables.contains(&table), !dropped, "{table} in {tables:?}");
     }
     assert!(tables.contains(&MARKER.to_string()));
     assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
@@ -256,14 +257,14 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
     assert_eq!(migrated, fresh);
 }
 
-fn step_2_ddl(connection: &dyn Connection) -> Result<()> {
+fn future_step_ddl(connection: &dyn Connection) -> Result<()> {
     connection.execute_ddl("ALTER TABLE auth_counters ADD COLUMN note TEXT")?;
     connection.execute_ddl(
         "CREATE INDEX IF NOT EXISTS auth_counters_by_value ON auth_counters (value)",
     )
 }
 
-fn step_3_rust_data_fix(connection: &dyn Connection) -> Result<()> {
+fn future_step_data_fix(connection: &dyn Connection) -> Result<()> {
     let rows = connection.query("SELECT name, value FROM auth_counters", params![])?;
     for mut row in rows {
         let name: String = row.get(0)?;
@@ -375,7 +376,13 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
 
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
-        let steps: &[Step] = &[schema::step_1, schema::step_2, step_2_ddl, step_3_rust_data_fix];
+        let steps: &[Step] = &[
+            schema::step_1,
+            schema::step_2,
+            schema::step_3,
+            future_step_ddl,
+            future_step_data_fix,
+        ];
         let refused = schema::prepare_adapter_with_steps(&*adapter, steps)?;
         assert_eq!(refused, None);
         Ok::<_, RegistryError>(())
@@ -384,7 +391,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
     .unwrap()
     .unwrap();
 
-    assert_eq!(marker(&db).await, [1, 2, 3, 4]);
+    assert_eq!(marker(&db).await, [1, 2, 3, 4, 5]);
     assert_migrated_v1_fixture_rows(&db).await;
 }
 
@@ -623,6 +630,27 @@ async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     assert!(!reason.contains("Pre-1.0"), "{reason}");
 }
 
+async fn a_matching_marker_without_the_registry_graph_table_is_refused(db: Db) {
+    open(&db).await.unwrap();
+    execute(&db, &["DROP TABLE registry_graph_revisions"]).await;
+    let reason = refused(&db).await;
+    assert!(
+        reason.contains(&format!(
+            "holds schema version {SCHEMA_VERSION} without the tables registry_graph_revisions,"
+        )),
+        "{reason}",
+    );
+}
+
+async fn a_registry_graph_table_without_a_marker_is_refused(db: Db) {
+    execute(&db, &["CREATE TABLE registry_graph_revisions (generation BIGINT NOT NULL)"]).await;
+    let reason = refused(&db).await;
+    assert!(
+        reason.contains(&format!("holds metadata or auth tables without a {MARKER} table,")),
+        "{reason}",
+    );
+}
+
 async fn an_unreadable_schema_migrations_table_is_refused(db: Db) {
     open(&db).await.unwrap();
     execute(
@@ -672,6 +700,8 @@ conformance! {
     a_failed_step_is_not_recorded_and_can_be_rerun,
     two_replicas_starting_at_once_do_not_both_migrate,
     a_matching_marker_without_its_tables_is_refused,
+    a_matching_marker_without_the_registry_graph_table_is_refused,
+    a_registry_graph_table_without_a_marker_is_refused,
     an_unreadable_schema_migrations_table_is_refused,
     an_unreadable_legacy_schema_version_table_is_refused,
     a_matching_version_opens,

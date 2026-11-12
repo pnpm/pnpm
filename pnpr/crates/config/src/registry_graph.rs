@@ -11,10 +11,10 @@ use std::collections::BTreeSet;
 use rules::{build_rules, registry_access_list};
 
 use super::{
-    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, Management,
-    PackageAccess, PackagePattern, Registries, Registry, RegistryConfigError, RegistryError,
-    RegistryFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig, UpstreamConfigFile,
-    UpstreamFile, build_teams, resolve_upstream_config,
+    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackageAccess,
+    PackagePattern, Registries, Registry, RegistryConfigError, RegistryError, RegistryFile,
+    TarballFormat, TeamDirectory, UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams,
+    resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -34,7 +34,7 @@ pub(super) fn registry_err(err: &RegistryConfigError) -> RegistryError {
 /// upstream registry still joins the graph for validation but its credentials
 /// and serving config are not resolved — a resolver-only tier must not fail
 /// on (or carry) upstream secrets it never uses.
-pub(super) fn build_registries(
+pub(super) fn build_registries<Sys: EnvVar>(
     upstreams: &mut IndexMap<String, UpstreamConfig>,
     registry_files: IndexMap<String, RegistryFile>,
     default_registry: Option<DefaultRegistryFile>,
@@ -49,7 +49,7 @@ pub(super) fn build_registries(
         builder.graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
     }
     for (name, file) in registry_files {
-        builder.add(name, file, upstreams, resolve_upstreams)?;
+        builder.add::<Sys>(name, file, upstreams, resolve_upstreams)?;
     }
     let registries = builder.ecosystems
         .iter()
@@ -98,7 +98,7 @@ pub(super) struct RegistryGraphBuilder {
 }
 
 impl RegistryGraphBuilder {
-    pub(super) fn add(
+    pub(super) fn add<Sys: EnvVar>(
         &mut self,
         name: String,
         file: RegistryFile,
@@ -126,7 +126,7 @@ impl RegistryGraphBuilder {
             }
             RegistryFile::Upstream(upstream) => {
                 let (resolved, ecosystem, patterns) =
-                    build_upstream_entry(&name, *upstream, resolve_upstreams)?;
+                    build_upstream_entry::<Sys>(&name, *upstream, resolve_upstreams)?;
                 self.ecosystems.insert(name.clone(), ecosystem);
                 if let Some(resolved) = resolved {
                     upstreams.insert(name.clone(), resolved);
@@ -210,26 +210,12 @@ pub(super) fn build_hosted_entry(
     {
         return Err(namespace_collision_error(name, &namespace, other));
     }
-    if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "hosted registry `{name}` specifies `teamsManagedBy: api`, but team management API \
-                 is only available for npm registries",
-            ),
-        });
-    }
     let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
     let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
     let patterns = rules.patterns();
-    let (teams_managed_by, rules_managed_by) =
-        (registry.teams_managed_by, registry.rules_managed_by);
-    Ok((
-        HostedConfig { namespace, rules, teams, teams_managed_by, rules_managed_by },
-        ecosystem,
-        patterns,
-    ))
+    Ok((HostedConfig { namespace, rules, teams }, ecosystem, patterns))
 }
 
 /// The resolved serving config, ecosystem and claimed patterns of one
@@ -238,7 +224,7 @@ pub(super) fn build_hosted_entry(
 /// `publish`/`unpublish` value — a write rule on a registry no write can land
 /// on — fails startup on every tier too. A resolver-only tier gets no serving
 /// config back.
-pub(super) fn build_upstream_entry(
+pub(super) fn build_upstream_entry<Sys: EnvVar>(
     name: &str,
     upstream: UpstreamFile,
     resolve_upstreams: bool,
@@ -262,7 +248,7 @@ pub(super) fn build_upstream_entry(
     if !resolve_upstreams {
         return Ok((None, ecosystem, patterns));
     }
-    let mut resolved = resolve_upstream_registry::<SystemEnv>(name, upstream, &teams)?;
+    let mut resolved = resolve_upstream_registry::<Sys>(name, upstream, &teams)?;
     resolved.rules = rules;
     Ok((Some(resolved), ecosystem, patterns))
 }
@@ -354,13 +340,13 @@ pub(super) struct ResolvedFileRegistries {
     pub(super) tar_registries: BTreeSet<String>,
 }
 
-pub(super) fn resolve_file_registries(
+pub(super) fn resolve_file_registries<Sys: EnvVar>(
     registries: IndexMap<String, RegistryFile>,
     default_registry: Option<DefaultRegistryFile>,
     registry_enabled: bool,
 ) -> Result<ResolvedFileRegistries, RegistryError> {
     let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
     let ResolvedRegistryGraph { hosted, registries, tar_registries } =
-        build_registries(&mut upstreams, registries, default_registry, registry_enabled)?;
+        build_registries::<Sys>(&mut upstreams, registries, default_registry, registry_enabled)?;
     Ok(ResolvedFileRegistries { upstreams, hosted, registries, tar_registries })
 }

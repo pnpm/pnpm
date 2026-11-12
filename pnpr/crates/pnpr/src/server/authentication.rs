@@ -116,7 +116,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
 pub(super) async fn authenticate(
     State(state): State<AppState>,
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Response {
     // Copy what resolution needs out of the request before mutating its
@@ -130,6 +130,20 @@ pub(super) async fn authenticate(
         return error.into_response();
     }
     super::managed_state::refresh_managed_state(&state).await;
+    let path = request.uri().path().to_owned();
+    let authenticated = authenticate_caller(state.clone(), header, request, next);
+    super::registry_graph::with_pinned_routing(&state, &path, authenticated).await
+}
+
+/// Resolve the caller of `request` and run the rest of the stack for it.
+/// Runs with the request's routing snapshot pinned, so the identity and the
+/// handler see one graph.
+async fn authenticate_caller(
+    state: AppState,
+    header: Option<String>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
     let client_ip = resolve_and_attach_client_ip(&mut request, &state);
@@ -327,10 +341,7 @@ async fn resolve_caller(
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
             let name = active_account_name(state, &user.user_id).await?;
-            return Ok((
-                super::oidc_groups::session_identity(&state.inner.config, user, name),
-                None,
-            ));
+            return Ok((super::oidc_groups::session_identity(&state.routing(), user, name), None));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -340,7 +351,7 @@ async fn resolve_caller(
                     resource: "OIDC workload credentials".to_string(),
                 })?;
             super::oidc::check_workload_request(&workload, method, path)?;
-            let scope = WorkloadScope::new(&state.inner.config, &workload);
+            let scope = WorkloadScope::new(&state.routing(), &workload);
             let identity = account_identity(state, &workload.identity.user_id).await?;
             let actor = crate::audit::Actor::of(&identity);
             crate::audit!(

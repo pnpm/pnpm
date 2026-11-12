@@ -436,6 +436,7 @@ async fn config_managed_errors_expose_stable_codes() {
     for (error, code) in [
         (RegistryError::TeamsConfigManaged { action: "update" }, "ERR_PNPR_TEAMS_CONFIG_MANAGED"),
         (RegistryError::RulesConfigManaged, "ERR_PNPR_RULES_CONFIG_MANAGED"),
+        (RegistryError::RegistriesConfigManaged, "ERR_PNPR_REGISTRIES_CONFIG_MANAGED"),
         (
             RegistryError::Shared(std::sync::Arc::new(RegistryError::RulesConfigManaged)),
             "ERR_PNPR_RULES_CONFIG_MANAGED",
@@ -448,4 +449,13 @@ async fn config_managed_errors_expose_stable_codes() {
         assert_eq!(body["code"], code);
         assert_eq!(body["error"], body["reason"]);
     }
+}
+
+#[tokio::test]
+async fn unavailable_registries_answer_503_with_a_stable_code() {
+    let response = RegistryError::RegistriesUnavailable.into_response();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["code"], "ERR_PNPR_REGISTRIES_UNAVAILABLE");
 }

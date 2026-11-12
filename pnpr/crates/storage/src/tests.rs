@@ -2,11 +2,7 @@ use super::{
     AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig, Storage,
     atomic_write::create_tmp_file_with, fs,
 };
-use crate::{
-    archives::testing::{served, store_file},
-    metadata::{RuleOverridesWrite, StoredRuleOverrides, StoredTeam},
-};
-use std::collections::BTreeSet;
+use crate::archives::testing::{served, store_file};
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
@@ -560,63 +556,6 @@ async fn a_blob_being_staged_is_not_listed() {
         .await
         .unwrap();
     assert_eq!(files.len(), 1, "{files:?}");
-}
-
-#[tokio::test]
-async fn grouped_registries_with_same_local_name_keep_records_isolated() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    let npm_teams = [StoredTeam {
-        id: "t-npm".to_string(),
-        name: "npm-team".to_string(),
-        members: BTreeSet::new(),
-    }];
-    let pypi_teams = [StoredTeam {
-        id: "t-pypi".to_string(),
-        name: "pypi-team".to_string(),
-        members: BTreeSet::new(),
-    }];
-
-    storage.replace_team_roster("npm/shared", &npm_teams).await.unwrap();
-    storage.replace_team_roster("pypi/shared", &pypi_teams).await.unwrap();
-
-    assert_eq!(
-        storage
-            .read_team_roster("npm/shared")
-            .await
-            .unwrap()
-            .unwrap()
-            .teams,
-        npm_teams,
-    );
-    assert_eq!(
-        storage
-            .read_team_roster("pypi/shared")
-            .await
-            .unwrap()
-            .unwrap()
-            .teams,
-        pypi_teams,
-    );
-    assert!(storage.remove_team_roster("npm/shared").await.unwrap());
-    assert_eq!(storage.read_team_roster("npm/shared").await.unwrap(), None);
-}
-
-#[tokio::test]
-async fn replace_rule_overrides_returns_conflict_if_record_is_absent() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    let overrides =
-        StoredRuleOverrides { access: Some(vec!["$all".to_string()]), ..Default::default() };
-    let write_result = storage
-        .replace_rule_overrides("npm/shared", Some(Some(1)), &overrides)
-        .await
-        .unwrap();
-    assert_eq!(write_result, RuleOverridesWrite::Conflict);
-
-    assert_eq!(storage.read_rule_overrides("npm/shared").await.unwrap(), None);
 }
 
 #[test]

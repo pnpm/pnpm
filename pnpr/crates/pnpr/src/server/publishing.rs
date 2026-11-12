@@ -158,8 +158,12 @@ fn addressed_publish_target(
         let target = default_registry_target(state, ecosystem)?;
         return Some((target, "to the path-less base".to_string()));
     };
-    let target = state.inner.config.routing.registries.addressed(registry, ecosystem)?;
-    Some((target.to_string(), format!("through registry {registry:?}")))
+    let target = state
+        .routing()
+        .registries
+        .addressed(registry, ecosystem)?
+        .to_string();
+    Some((target, format!("through registry {registry:?}")))
 }
 
 /// Whether `identity` may learn that the registry `name` exists. A hosted
@@ -173,18 +177,18 @@ pub(super) fn registry_visible_to_caller(
     identity: &Identity,
     name: &str,
 ) -> bool {
-    let concrete_visible =
-        |name: &str| match state.inner.config.routing.registries.get(name) {
-            // The name being probed is unclaimed, so there is no per-package
-            // entry to consult: the registry-level default `access:` decides
-            // whether the caller may learn the registry exists at all.
-            Some(Registry::Hosted { .. }) => state.inner.config.routing.hosted
-                .get(name)
-                .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
-            Some(Registry::Upstream { .. }) => true,
-            Some(Registry::Router { .. }) | None => false,
-        };
-    match state.inner.config.routing.registries.get(name) {
+    let routing = state.routing();
+    let concrete_visible = |name: &str| match routing.registries.get(name) {
+        // The name being probed is unclaimed, so there is no per-package
+        // entry to consult: the registry-level default `access:` decides
+        // whether the caller may learn the registry exists at all.
+        Some(Registry::Hosted { .. }) => routing.hosted
+            .get(name)
+            .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
+        Some(Registry::Upstream { .. }) => true,
+        Some(Registry::Router { .. }) | None => false,
+    };
+    match routing.registries.get(name) {
         Some(Registry::Router { sources }) => sources.iter().any(|source| concrete_visible(source)),
         Some(_) => concrete_visible(name),
         None => false,

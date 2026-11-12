@@ -98,8 +98,9 @@ database:
 ```
 
 Archives stay in the hosted store. The database holds every hosted package's
-metadata in every ecosystem, former maintainers and unpublished versions, team
-rosters, rule overrides, SCIM users, and staged-publish approval records. An
+metadata in every ecosystem, former maintainers and unpublished versions, the
+[registries kept in the database](configuration.md#registries-in-the-database),
+SCIM users, and staged-publish approval records. An
 unpublish records former maintainers and removed versions in one transaction.
 Back up this database for package ownership and managed access settings,
 alongside the hosted store for archives and staged bodies. Transparency log

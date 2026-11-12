@@ -4,6 +4,7 @@ pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
 use crate::{
     Config, RegistryError,
     cache_maintenance::{CacheGcEffect, CacheGcScope},
+    server::{Credentials, with_stored_routing},
 };
 use clap::Subcommand;
 use pnpm_diagnostics::{print, println};
@@ -106,6 +107,33 @@ pub enum Command {
         #[arg(skip)]
         password: Option<String>,
     },
+    /// Read or replace the registries the metadata database stores, with
+    /// `registriesManagedBy: api`.
+    Registries {
+        #[command(subcommand)]
+        action: RegistriesSubcommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RegistriesSubcommand {
+    /// Print the stored registries as YAML: the `registries`,
+    /// `defaultRegistry`, and `routes.public` keys.
+    Export {
+        /// Write the YAML to this file instead of standard output.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Replace the stored registries with the ones a YAML file declares, as one
+    /// new revision.
+    Import {
+        /// YAML file with the `registries`, `defaultRegistry`, and
+        /// `routes.public` keys.
+        file: PathBuf,
+        /// Check the file and report what would change without storing it.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -115,6 +143,7 @@ pub enum ConfigSubcommand {
 }
 
 pub async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
+    let config = &with_registries(config, &command).await?;
     match command {
         Command::Serve(..) => Err(miette::miette!(
             "`serve` is not a maintenance command; start the server with `pnpr::serve`"
@@ -129,7 +158,22 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::AddUser { username, password } => {
             run_add_user_command(config, username, password).await
         }
+        Command::Registries { action } => crate::registries_command::run(config, action).await,
     }
+}
+
+/// `config` with the stored registries for the commands that walk them, when
+/// the metadata database stores them.
+async fn with_registries(config: &Config, command: &Command) -> miette::Result<Config> {
+    let credentials = match command {
+        Command::CacheGc { .. } => Credentials::Resolve,
+        Command::Gc { .. }
+        | Command::Verify { .. }
+        | Command::Export { .. }
+        | Command::MigrateStorage { .. } => Credentials::Skip,
+        _ => return Ok(config.clone()),
+    };
+    with_stored_routing(config, credentials).await.map_err(|err| redacted_report(&err))
 }
 
 async fn run_gc_command(config: &Config, command: Command) -> miette::Result<()> {

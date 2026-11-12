@@ -8,8 +8,9 @@ use futures_util::FutureExt as _;
 
 use super::{
     AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, Storage,
-    metrics_listener_router, shutdown_signal, state_and_router,
+    metrics_listener_router, registry_graph::Credentials, shutdown_signal, state_and_router,
 };
+use pnpr_config::Management;
 
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
 /// tier skips the database because artifact requests do not use OSV data.
@@ -30,8 +31,12 @@ pub(super) fn load_active_osv_index(
 /// requests.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
     crate::config_validation::validate_cache_secret_for_claim(config)?;
+    let config = &super::registry_graph::with_stored_routing(config, Credentials::Skip).await?;
     let storage = Storage::from_config(&config.storage)?;
-    if !config.routing.hosted.is_empty() {
+    // A stored graph can gain a hosted registry while this replica runs, so
+    // the store is bound to the database even while it declares none.
+    let may_host = config.registries_managed_by == Management::Api;
+    if may_host || !config.routing.hosted.is_empty() {
         storage.ensure_hosted_layout().await?;
         super::release_record_logs::reconcile_configured_logs(&storage, config).await?;
     }
@@ -203,6 +208,19 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     Ok(auth)
 }
 
+/// With `registriesManagedBy: api`, start from the stored graph, so the
+/// startup work over the hosted registries sees them. A graph that cannot be
+/// loaded leaves the replica serving none until a reload succeeds.
+async fn load_stored_graph(config: &mut Config) {
+    if config.registries_managed_by != Management::Api {
+        return;
+    }
+    match super::registry_graph::with_stored_routing(config, Credentials::Resolve).await {
+        Ok(loaded) => config.routing = loaded.routing,
+        Err(err) => tracing::error!(error = %err, "could not load the stored registry graph"),
+    }
+}
+
 /// Bind to `config.http.listen` and serve forever. Loads auth state before
 /// binding so a startup-time auth error surfaces before we accept any
 /// client connections. Registry startup additionally prepares the storage.
@@ -213,6 +231,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // rather than start a server that only answers `/-/ping`.
     crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
+    load_stored_graph(&mut config).await;
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
     let listen = config.http.listen;
@@ -350,6 +369,7 @@ pub async fn serve_listener_with(
     let listen = listener.local_addr()?;
     crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
+    load_stored_graph(&mut config).await;
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
     // would silently fall back to in-memory auth and ignore a persisted

@@ -59,7 +59,7 @@ pub(super) async fn serve_stage_archive(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    if state.inner.config.routing.hosted.is_empty() {
+    if state.routing().hosted.is_empty() {
         return private_no_cache(StatusCode::NOT_FOUND.into_response());
     }
     private_no_cache(
@@ -77,7 +77,7 @@ pub(super) async fn serve_staged_archive_size(
     caller: AuthedCaller,
     Path(ArchivePath { integrity }): Path<ArchivePath>,
 ) -> Response {
-    if state.inner.config.routing.hosted.is_empty() {
+    if state.routing().hosted.is_empty() {
         return private_no_cache(StatusCode::NOT_FOUND.into_response());
     }
     let result = async {

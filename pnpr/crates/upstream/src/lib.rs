@@ -36,8 +36,9 @@ use pnpm_lockfile::{
     is_revision_registry_tarball_url, revision_registry_tarball_url,
 };
 use pnpm_network::{
-    HeadError, RedirectGuard, ThrottledClient, ThrottledClientGuard, ThrottledResponse,
-    UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+    AddressGuard, GuardedDnsResolver, HeadError, RedirectGuard, ThrottledClient,
+    ThrottledClientGuard, ThrottledResponse, UNPRIORITIZED, is_url_secure_for_credentials,
+    native_dns_resolver, read_limited_body,
 };
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
@@ -176,6 +177,23 @@ impl Upstream {
             Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
                 redirect_guard(url)
             }));
+        self.http.fetch_guard = Some(guard);
+        self
+    }
+
+    /// Like [`Self::with_fetch_guard`], also checking every address a hostname
+    /// resolves to with `connect_guard` before connecting.
+    #[must_use]
+    pub fn with_fetch_and_connect_guards(
+        mut self,
+        guard: RedirectGuard,
+        connect_guard: AddressGuard,
+    ) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.client = Arc::new(ThrottledClient::new_for_installs_with_guards(
+            move |url| redirect_guard(url),
+            Arc::new(GuardedDnsResolver::new(native_dns_resolver(), connect_guard)),
+        ));
         self.http.fetch_guard = Some(guard);
         self
     }

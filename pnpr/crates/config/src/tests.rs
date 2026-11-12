@@ -12,6 +12,8 @@ mod upstream;
 
 mod server_options;
 
+mod graph_document;
+
 use super::{
     ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides,
     HostedStoreConfig, Interval, LogFormat, LogLevel, S3Settings, TeamDirectory, UpstreamAuthFile,

@@ -120,7 +120,7 @@ fn bytes_response(body: Vec<u8>, content_type: &'static str) -> Response {
 /// none, or several, has no log.
 fn registry_log(state: &AppState, registry: Option<&str>) -> Option<LogId> {
     let target = addressed_registry(state, registry, Ecosystem::Npm)?;
-    let routing = &state.inner.config.routing;
+    let routing = state.routing();
     let mut namespaces = routing.registries
         .sources(&target, Ecosystem::Npm)
         .into_iter()
@@ -146,11 +146,12 @@ impl LogReaders {
     /// What `identity` may read of `log`, by the rules of every hosted
     /// registry of its namespace.
     fn of(state: &AppState, log: &LogId, identity: &Identity) -> Self {
-        let hosted: Vec<&HostedConfig> = state.inner.config.routing.hosted
+        let routing = state.routing();
+        let hosted: Vec<&HostedConfig> = routing.hosted
             .iter()
             .filter(|(name, hosted)| {
                 hosted.namespace == log.namespace
-                    && state.inner.config.routing.registries.ecosystem(name) == Some(log.ecosystem)
+                    && routing.registries.ecosystem(name) == Some(log.ecosystem)
             })
             .map(|(_, hosted)| hosted)
             .collect();

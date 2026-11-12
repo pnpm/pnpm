@@ -185,15 +185,27 @@ pub struct IdentityConfig {
     pub backend: BackendConfig,
     /// Account IDs from `auth.admins`, who may administer every registry.
     pub admins: BTreeSet<String>,
+    /// Account IDs from `auth.registryAdmins`, who may also change the
+    /// structure of a registry graph stored in the database.
+    pub registry_admins: BTreeSet<String>,
 }
 
 impl IdentityConfig {
     #[must_use]
     pub fn is_admin(&self, identity: &Identity) -> bool {
-        match identity {
-            Identity::User { id, .. } => self.admins.contains(id),
-            Identity::Anonymous | _ => false,
-        }
+        is_listed(&self.admins, identity)
+    }
+
+    #[must_use]
+    pub fn is_registry_admin(&self, identity: &Identity) -> bool {
+        is_listed(&self.registry_admins, identity)
+    }
+}
+
+fn is_listed(accounts: &BTreeSet<String>, identity: &Identity) -> bool {
+    match identity {
+        Identity::User { id, .. } => accounts.contains(id),
+        Identity::Anonymous | _ => false,
     }
 }
 
@@ -205,7 +217,8 @@ pub(super) fn build_identity_config(
         scim.validate()?;
     }
     Ok(IdentityConfig {
-        admins: build_admins(&file.admins)?,
+        admins: build_admins("auth.admins", &file.admins)?,
+        registry_admins: build_admins("auth.registryAdmins", &file.registry_admins)?,
         auth: build_auth_config(file)?,
         backend,
     })

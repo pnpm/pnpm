@@ -311,7 +311,7 @@ async fn load_upstream_index(
         accept: None,
         limit: INDEX_FILE_LIMIT,
     };
-    let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
+    let bytes = load_upstream_document(state, &upstream, &namespace, request, |document| {
         decode_index_text(document.bytes, path).map(String::into_bytes)
     })
     .await?;
@@ -412,7 +412,7 @@ async fn download_via_upstream(
             reason: format!("index entry {name}@{version} has no SHA-256 checksum"),
         });
     };
-    let config = match upstream_index_config(state, upstream, &namespace).await {
+    let config = match upstream_index_config(state, &upstream, &namespace).await {
         Ok(config) => config,
         Err(err) => return error_response(err),
     };
@@ -424,7 +424,7 @@ async fn download_via_upstream(
         });
     }
     let filename = crate_filename(&entry.name, &entry.vers);
-    serve_upstream_artifact(state, upstream, &namespace, key, &filename, &url, &integrity).await
+    serve_upstream_artifact(state, &upstream, &namespace, key, &filename, &url, &integrity).await
 }
 
 /// The upstream sparse index's `config.json`, through the cache.

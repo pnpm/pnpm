@@ -107,6 +107,7 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
                 ("artifact_blobs", "mapped_at"),
                 ("staged_archives", "staged_at"),
                 ("removed_packages", "unpublished_at"),
+                ("registry_graph_revisions", "created_at"),
                 ("tokens", "created_at"),
                 ("tokens", "last_used_at"),
                 ("tokens", "expires_at"),

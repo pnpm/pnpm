@@ -57,7 +57,7 @@ use pnpr_storage::metadata::MAX_NOTE_BYTES;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;
-use pnpr_config::Config;
+use pnpr_config::{Config, Management, RoutingConfig};
 use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
@@ -71,7 +71,7 @@ pub(super) fn router_with_auth_and_osv(
 
 /// The main router and the state it serves, which [`metrics_listener_router`]
 /// shares.
-pub(super) fn state_and_router(
+pub(crate) fn state_and_router(
     config: Config,
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
@@ -219,7 +219,8 @@ fn surface_routes(
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())
-        .merge(super::rule_admin::rule_admin_routes());
+        .merge(super::rule_admin::rule_admin_routes())
+        .merge(super::registry_graph::registry_admin_routes());
     if state.inner.config.identity.auth.scim.is_some() {
         router = router.merge(super::scim::scim_routes());
     }
@@ -258,7 +259,12 @@ fn surface_routes(
 /// Mount the npm-compatible registry surface and every other ecosystem the
 /// configuration declares.
 fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    let registries = &state.inner.config.routing.registries;
+    let routing = state.routing();
+    let registries = &routing.registries;
+    // A stored graph can gain an ecosystem at any time, so every ecosystem is
+    // mounted when the database manages the registries.
+    let all_ecosystems = state.inner.config.registries_managed_by == Management::Api;
+    let serves = |ecosystem| all_ecosystems || registries.has_ecosystem(ecosystem);
     let npm = npm_registry_routes();
     // One publish transaction for packages of any ecosystem. It answers here
     // rather than inside the npm surface.
@@ -277,16 +283,16 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
                 .delete(super::publications::serve_publication_note)
                 .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         );
-    if registries.has_ecosystem(Ecosystem::Npm) {
+    if serves(Ecosystem::Npm) {
         router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
     }
-    if registries.has_ecosystem(Ecosystem::Cargo) {
+    if serves(Ecosystem::Cargo) {
         router = router.merge(cargo::routes());
     }
-    if registries.has_ecosystem(Ecosystem::Pypi) {
+    if serves(Ecosystem::Pypi) {
         router = router.merge(pypi::routes());
     }
-    if registries.has_ecosystem(Ecosystem::Oci) {
+    if serves(Ecosystem::Oci) {
         router = router.merge(oci::routes());
     }
     router
@@ -415,8 +421,8 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
 }
 
-pub(super) fn local_registry_router(config: &Config) -> Router<AppState> {
-    if config.features.registry.enabled && config.routing.registries.has_ecosystem(Ecosystem::Npm) {
+pub(super) fn local_registry_router(config: &Config, routing: &RoutingConfig) -> Router<AppState> {
+    if config.features.registry.enabled && routing.registries.has_ecosystem(Ecosystem::Npm) {
         let mut packages = Router::new();
         for base in ["", "/~{registry}"] {
             packages = npm_package_routes(packages, base);

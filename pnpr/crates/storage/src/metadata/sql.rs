@@ -15,15 +15,15 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
-pub(crate) use removed::RemovedPackage;
-pub use rule_overrides::{
-    RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrideSet, StoredRuleOverrides,
+pub use registry_graph::{
+    HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision,
+    RegistryGraphWrite, StoredRegistryGraph,
 };
+pub(crate) use removed::RemovedPackage;
 pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser};
 pub(crate) use staged::{StagedEntry, StagedId};
 pub(crate) use store_binding::{StoreBinding, StoreClaim};
 pub use tags::TagHistoryEntry;
-pub use team_rosters::{StoredTeam, StoredTeamRoster, TeamRosterWrite};
 pub(crate) use view::PackageMetadata;
 
 mod batch;
@@ -44,15 +44,14 @@ mod publish;
 mod pypi_rows;
 mod reclaims;
 mod records;
+mod registry_graph;
 mod removed;
 mod render;
-mod rule_overrides;
 mod schema_monitor;
 mod scim;
 mod staged;
 mod store_binding;
 mod tags;
-mod team_rosters;
 mod transactions;
 mod versions;
 mod view;

@@ -130,6 +130,10 @@ addressed to an upstream's own `/~<name>/` URL gets any name that upstream
 claims, including a name in a scope a hosted registry claims. Point clients at
 a router, not at an upstream.
 
+The registries live in this file by default. To change them at runtime instead,
+keep them in the metadata database. See
+[Registries in the database](#registries-in-the-database).
+
 `defaultRegistry` names the registry that an ecosystem's base URL, such as
 `https://<pnpr>/npm/`, aliases. This is usually a router. When omitted, the base serves
 no registry and clients must address a `/~<name>/` URL under it.
@@ -449,89 +453,176 @@ to that key. A bare access token refers to an account ID.
 
 ### Managing teams through the API {#managing-teams-through-the-api}
 
-By default the `teams:` map is the roster. npm's team endpoints serve it
-read-only and refuse every change. Set `teamsManagedBy: api` on a hosted
-registry to let the [`auth.admins`](#auth) edit its roster with `pnpm team`:
+With [`registriesManagedBy: api`](#registries-in-the-database), the
+[`auth.admins`](#auth) and `auth.registryAdmins` can edit the teams of a hosted
+npm registry with `pnpm team`. In the default mode, the `teams:` map is the
+roster, and npm's team endpoints serve it read-only and refuse every change.
 
-```yaml title="pnpr.yaml"
-auth:
-  admins: [<account-id>]
-registries:
-  private:
-    type: hosted
-    teamsManagedBy: api
-    teams:
-      <platform-team-id>: { name: platform, members: [<account-id>] }
-    packages:
-      '@corp/*':
-        access: [team:<platform-team-id>]
-```
-
-- pnpr stores the roster in the metadata database. Other replicas follow the
-  [replica reload timing](#replica-reloads).
-- If pnpr cannot read a stored roster, that registry's `team:` grants admit
-  nobody until a read succeeds. Other access rules are not affected.
-- The `teams:` map is used only until the first change is stored. After that,
-  editing `teams:` has no effect.
+- A change applies at once on the replica that took it. Other replicas follow
+  the [replica reload timing](#replica-reloads).
 - A team that a `packages:` rule names cannot be destroyed.
-- Only npm hosted registries accept `teamsManagedBy`. Non-npm registries (such as Cargo and PyPI) reject `teamsManagedBy: api` because team management is specific to the npm org/team API.
+- The team endpoints edit only npm hosted registries, because team management
+  is specific to the npm org and team API. To change the teams of another
+  registry, replace its entry through the
+  [registry admin endpoints](endpoints.md#registry-admin-endpoints).
 
 See [Team endpoints](endpoints.md#team-endpoints).
 
 ### Changing rules through the API {#changing-rules-through-the-api}
 
-Set `rulesManagedBy: api` on a hosted registry to let the
-[`auth.admins`](#auth) change its rules without a config deploy:
-
-```yaml title="pnpr.yaml"
-registries:
-  private:
-    type: hosted
-    rulesManagedBy: api
-    packages:
-      '@corp/*':
-        access: $authenticated
-```
+With [`registriesManagedBy: api`](#registries-in-the-database), the
+[`auth.admins`](#auth) and `auth.registryAdmins` can change the rules of a
+hosted registry without a config deploy:
 
 - An admin can replace the registry-level `access:` and the `access`,
   `publish`, and `unpublish` lists of every key the `packages:` map declares.
-  The keys themselves stay in the config, because they decide which registry
-  serves a name.
-- A change applies at once on the replica that took it. pnpr stores changes in
-  the metadata database. Other replicas follow the [replica reload timing](#replica-reloads).
+  Adding or removing a key changes which registry serves a name, so only the
+  `auth.registryAdmins` can do it, by replacing the registry's entry.
+- A change applies at once on the replica that took it. Other replicas follow
+  the [replica reload timing](#replica-reloads).
 - A shared cache in front of pnpr, such as a CDN, can keep serving a package
   that a change makes private. A packument stays until its `max-age`, the
   [`packumentTtl`](#packumentttl), runs out. A tarball carries no `max-age`, so
   it stays for as long as the cache keeps it.
-- Resetting the changes brings back the config's rules.
-- If pnpr cannot read the stored changes, the registry admits nobody until a
-  read succeeds.
-- Only hosted registries accept `rulesManagedBy`.
+- To undo a change, restore an earlier revision.
 - `npm access grant` and `npm access revoke` edit the lists of a package the
   `packages:` map declares by name.
 
 See [Admin endpoints](endpoints.md#admin-endpoints) and
 [Team package access](endpoints.md#team-package-access).
 
+## Registries in the database {#registries-in-the-database}
+
+Set `registriesManagedBy: api` to keep the registries in the
+[metadata database](storage.md#sqlite-metadata) instead of this file. Admins
+then add, change, and remove registries through the
+[registry admin endpoints](endpoints.md#registry-admin-endpoints), and every
+replica serves the same registries without a config deploy.
+
+```yaml title="pnpr.yaml"
+storage: ./storage
+secret: ${PNPR_SECRET}
+registriesManagedBy: api
+registryEnv: [CORP_NPM_TOKEN]
+auth:
+  admins: [<account-id>]
+  registryAdmins: [<account-id>]
+```
+
+To move existing registries into the database, copy the `registries`,
+`defaultRegistry`, and `routes.public` blocks from the config into a file of
+their own, remove them from the config, and import the file with
+[`pnpr registries import`](cli.md#registries). `pnpr registries export`
+writes the stored registries back out in the same shape.
+
+The setting decides where each part of the configuration lives:
+
+| In the database | In the config file |
+| --- | --- |
+| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `database`, `s3`, `secret`, `secrets` |
+| `defaultRegistry` | `auth`, including `auth.admins` and `auth.registryAdmins` |
+| `routes.public` | `routes.allowedPrivateNetworks` |
+| | `registryEnv`, and every other setting on this page |
+
+With `registriesManagedBy: api`, the config file must not declare
+`registries`, `defaultRegistry`, or `routes.public`, and an
+[`artifacts.owners`](#registry-resolver-and-artifact-surfaces) list must not
+name a `team:`. pnpr refuses to start otherwise. The registry surface is
+served even while no registry is stored.
+
+### Who may change the registries
+
+- `auth.registryAdmins` may change everything: add, replace, and remove
+  registries, change `defaultRegistry` and `routes.public`, and restore an
+  earlier revision.
+- `auth.admins` may read the stored registries and their revisions, edit
+  teams, and change the access lists of declared `packages:` keys. An admin
+  who is not a registry admin cannot change which registry serves a name or
+  where an upstream sends its credential.
+
+Each change is stored as a new revision and logged under
+[`pnpr::audit`](#admin-audit-logs). pnpr keeps the newest 500 revisions.
+
+### Upstream credentials
+
+The database stores no credential values. A stored upstream names the
+environment variables that hold its credential, and each replica reads them
+when it loads the registries:
+
+```yaml title="registries.yaml"
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example.com/
+    auth:
+      type: bearer
+      tokenEnv: CORP_NPM_TOKEN
+    headers:
+      X-Api-Key: ${CORP_API_KEY}
+    access: $authenticated
+```
+
+- `auth.tokenEnv` and `${NAME}` references in `auth.token` and in `headers`
+  values may name only the variables that `registryEnv` lists in the config
+  file. `tokenEnv: true` names `NPM_TOKEN`.
+- `auth.token` and each `headers` value must be a single `${NAME}`
+  reference. A literal value is refused, so put a header that is not a
+  secret in a variable too.
+- No other field takes `${NAME}` references.
+- Every replica needs every variable a stored upstream names. A replica
+  without one keeps serving the registries it loaded before and logs an error,
+  and a change it takes is refused.
+
+### Upstream addresses
+
+An upstream stored in the database cannot reach loopback, private, or
+link-local addresses, the same rule the resolver follows. A `url` that names
+one, or `localhost`, is refused, and a hostname that resolves to one is not
+connected to. To use an upstream on an internal network, list its addresses in
+[`routes.allowedPrivateNetworks`](#routes).
+
+### Changes pnpr refuses
+
+A change is refused with `400` when the result would not load as a config
+file. pnpr also refuses with `409` to:
+
+- remove or rename a hosted registry that holds packages, or move it to
+  another `namespace` or `ecosystem`;
+- remove a registry or team that an [OIDC](oidc.md) workload or group grant
+  names;
+- destroy a team that a `packages:` rule names.
+
+A registry is identified by its name. Renaming one removes it and adds a new
+one.
+
 ## Replica reloads {#replica-reloads}
 
-Team rosters, managed access rules, and the [SCIM directory](scim.md) reload
-when a request arrives after the replica's state is 10 seconds old. That
-request starts a background reload and can still use the existing state, so
-a change can take effect later than 10 seconds after it is made. The first
-request after startup waits for the initial reload.
+The registries stored with
+[`registriesManagedBy: api`](#registries-in-the-database) and the
+[SCIM directory](scim.md) reload when a request arrives after the replica's
+state is 10 seconds old. That request starts a background reload and can still
+use the existing state, so a change can take effect later than 10 seconds after
+it is made. The first request after startup waits for the initial reload.
+A change applies at once on the replica that made it.
 
-Each record read has a five-second deadline. An error or expired deadline
-clears the affected roster, denies access under the affected registry's
-managed rules, or refuses user credentials when the SCIM directory cannot be
-read. A successful read restores the stored state. SCIM reloads independently
-of rosters and rules. Rosters load before rules, so a reload with both phases
-can take up to ten seconds.
+Each record read has a five-second deadline. The registries and the SCIM
+directory reload independently:
 
-After any failed read, pnpr retries on a request arriving at least one second
-after the reload finishes. Reloads share a lock with management writes. These
-read deadlines do not cancel writes or limit the time spent waiting for a
-management write to release the lock.
+- If the stored registries cannot be read or loaded, the replica keeps
+  serving the registries it loaded last. When it has not loaded them for
+  60 seconds, or has never loaded them, it answers requests with `503` and the
+  error code `ERR_PNPR_REGISTRIES_UNAVAILABLE`, and
+  [`/-/ready`](endpoints.md#always-available) fails. The health probes, the
+  account endpoints, and the
+  [registry admin endpoints](endpoints.md#registry-admin-endpoints) keep
+  answering, so an admin can restore a revision that loads.
+- If the SCIM directory cannot be read, the replica refuses user credentials.
+
+A successful read restores the stored state. After any failed read, pnpr
+retries on a request arriving at least one second after the reload finishes.
+Reloads share a lock with management writes. These read deadlines do not
+cancel writes or limit the time spent waiting for a management write to
+release the lock.
 
 ## `oci`
 
@@ -787,10 +878,9 @@ may:
 - create and remove accounts, change passwords, and revoke tokens through the
   [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
   is disabled;
-- edit the teams of every registry with
-  [`teamsManagedBy: api`](#managing-teams-through-the-api);
-- change the rules of every registry with
-  [`rulesManagedBy: api`](#changing-rules-through-the-api).
+- with [`registriesManagedBy: api`](#registries-in-the-database), edit
+  [teams](#managing-teams-through-the-api) and change
+  [package access lists](#changing-rules-through-the-api).
 
 Create the first admin with [`pnpr add-user`](cli.md#add-user), then copy the
 printed account ID into `auth.admins`. Account IDs also belong in access lists
@@ -801,6 +891,12 @@ and team membership lists. Names are used for login and display. See
 auth:
   admins: [<account-id>]
 ```
+
+`auth.registryAdmins` lists the account IDs that may change the registries
+stored with [`registriesManagedBy: api`](#registries-in-the-database): add,
+replace, and remove registries, and restore earlier revisions. A registry
+admin may also edit teams and change package access lists, but does not
+manage accounts unless `auth.admins` lists them too.
 
 An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI
 publishing alongside the password backend. See
@@ -889,10 +985,10 @@ artifacts:
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
   signed-in account. Use `team:<registry>:<teamId>` for a hosted registry's team,
   for example `team:local:builders`. The registry key and team ID must exist
-  in the config. These rules follow live team roster updates and OIDC session
-  grants for that registry. The team API refuses to delete a team while an
-  artifact owner rule references it. Publishing also requires `access`. An empty list denies
-  everyone. An owner nobody may read is invisible: requests for it answer
+  in the config. With
+  [`registriesManagedBy: api`](#registries-in-the-database), `owners` cannot
+  name a team. These rules follow OIDC session grants for that registry.
+  Publishing also requires `access`. An empty list denies everyone. An owner nobody may read is invisible: requests for it answer
   as if it did not exist. An undeclared owner is unavailable.
   See [Access evaluation](access.md) for how these rules combine with authentication.
   `owners` is read even when `enabled` is false, for a server that only stores
@@ -952,6 +1048,9 @@ unparsable `registry` URL or `package` glob is a startup error.
 
 The same public routes are the download allowlist of the Cargo and Python
 proxies (see [Ecosystems](ecosystems.md)).
+
+With [`registriesManagedBy: api`](#registries-in-the-database), `routes.public`
+is stored with the registries instead of in this file.
 
 The resolver refuses to connect to loopback, private, and link-local
 addresses, other than the `--public-url` host. To resolve through an upstream
@@ -1030,9 +1129,13 @@ Events about another account name it with `user` and `user_id`. The operation-sp
   - `user.token_revoke`: revoking user tokens (`actor`, `user`, `user_id`, `token_key`).
   - `user.delete`: deleting an account (`actor`, `user`, `user_id`, `tokens_revoked`).
   - `user.register`: self-registering a new account (`actor`, `user`, `user_id`).
-- **Rule overrides**:
-  - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`, `ecosystem`, `version`).
-  - `rules.delete`: removing dynamic package access rules (`actor`, `registry`).
+- **Registries stored in the database**:
+  - `registries.replace`: replacing every stored registry at once (`actor`, `version`, `previous_version`).
+  - `registries.update`: adding or replacing one registry (`actor`, `registry`, `version`, `previous_version`).
+  - `registries.delete`: removing one registry (`actor`, `registry`, `version`, `previous_version`).
+  - `registries.restore`: restoring an earlier revision (`actor`, `restored`, `version`, `previous_version`).
+  - `registries.import`: storing registries with `pnpr registries import` (`actor`, `version`, `previous_version`). The actor is `-`.
+  - `rules.replace`: replacing a registry's package access lists (`actor`, `registry`, `ecosystem`, `version`).
 - **Team administration and package access**:
   - `team.create`: creating a team (`actor`, `scope`, `team`).
   - `team.destroy`: deleting a team (`actor`, `scope`, `team`).
@@ -1119,6 +1222,11 @@ never runs with an empty credential. These fields are `secret`, `secret.cache`,
 `auth.scim.token`, OIDC `clientSecret`, `metrics.token`,
 `cloudflareCdn.apiToken`, the `releaseRecords` signing keys, and an upstream
 registry's `auth.token` and `headers` values.
+
+The registries stored with
+[`registriesManagedBy: api`](#registries-in-the-database) are not part of the
+file. They take `${ENV_VAR}` references only in upstream credentials. See
+[Upstream credentials](#upstream-credentials).
 
 ## cloudflareCdn
 
