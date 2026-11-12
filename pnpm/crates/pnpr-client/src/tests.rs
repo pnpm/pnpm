@@ -67,7 +67,7 @@ async fn lockfile_repair_uses_an_advertised_capability() {
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfileFormat": "pnpm-lock/9.0", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
         .create_async()
         .await;
 
@@ -115,7 +115,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustLockfile": true,
             "updatePatches": true,
         })))
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfileFormat": "pnpm-lock/9.0", "lockfile": response_lockfile, "appliedPolicies": matching_applied_policies(&options) })))
         .create_async()
         .await;
 
@@ -195,7 +195,7 @@ async fn does_not_check_a_project_the_server_did_not_return() {
     let applied = matching_applied_policies(&options);
     let result = resolve_mock_frames(
         options,
-        vec![json!({ "type": "done", "lockfile": lockfile, "appliedPolicies": applied })],
+        vec![json!({ "type": "done", "lockfileFormat": "pnpm-lock/9.0", "lockfile": lockfile, "appliedPolicies": applied })],
         true,
         |_| {},
     )
@@ -216,6 +216,7 @@ async fn rejects_an_old_server_before_consuming_package_frames() {
         mock_package_frame(),
         json!({
             "type": "done",
+            "lockfileFormat": "pnpm-lock/9.0",
             "lockfile": { "lockfileVersion": "9.0" },
         }),
     ];
@@ -338,7 +339,7 @@ async fn assert_protocol_rejected(
     let applied = matching_applied_policies(&options);
     let Err(PnprClientError::Protocol(message)) = resolve_mock_frames(
         options,
-        vec![json!({ "type": "done", "lockfile": lockfile, "appliedPolicies": applied })],
+        vec![json!({ "type": "done", "lockfileFormat": "pnpm-lock/9.0", "lockfile": lockfile, "appliedPolicies": applied })],
         true,
         |_| {},
     )
@@ -567,6 +568,7 @@ async fn negotiates_v0_when_supported_by_handshake() {
     let options = resolve_projects_options();
     let done = json!({
         "type": "done",
+        "lockfileFormat": "pnpm-lock/9.0",
         "lockfile": matching_transform_lockfile(&options),
         "appliedPolicies": matching_applied_policies(&options)
     });
@@ -630,6 +632,7 @@ async fn unknown_frames_are_ignored() {
     let options = resolve_projects_options();
     let done_frame = json!({
         "type": "done",
+        "lockfileFormat": "pnpm-lock/9.0",
         "lockfile": matching_transform_lockfile(&options),
         "appliedPolicies": matching_applied_policies(&options)
     });
@@ -660,6 +663,7 @@ async fn fails_when_server_ignores_trust_policy() {
     mismatched_policies["trustPolicy"] = json!("off");
     let done = json!({
         "type": "done",
+        "lockfileFormat": "pnpm-lock/9.0",
         "lockfile": matching_transform_lockfile(&opts),
         "appliedPolicies": mismatched_policies
     });
@@ -748,7 +752,7 @@ async fn resolve_rejects_missing_applied_policies() {
         "projectScopedOptionalPeers",
     ] {
         let options = resolve_projects_options();
-        let mut done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": matching_applied_policies(&options) });
+        let mut done = json!({ "type": "done", "lockfileFormat": "pnpm-lock/9.0", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": matching_applied_policies(&options) });
         if field == "appliedPolicies" {
             done.as_object_mut()
                 .unwrap()
@@ -837,7 +841,7 @@ async fn resolve_rejects_mismatched_policies() {
         let options = resolve_projects_options();
         let mut applied = matching_applied_policies(&options);
         applied[field] = mismatched_policy(field);
-        let done = json!({ "type": "done", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": applied });
+        let done = json!({ "type": "done", "lockfileFormat": "pnpm-lock/9.0", "lockfile": matching_transform_lockfile(&options), "appliedPolicies": applied });
         let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
         let Err(PnprClientError::Protocol(message)) = result else {
             panic!("{field}: expected a protocol error, got {result:?}");
@@ -849,4 +853,118 @@ async fn resolve_rejects_mismatched_policies() {
         };
         assert_eq!(message, expected_message, "{field}");
     }
+}
+
+#[tokio::test]
+async fn resolve_rejects_a_done_frame_in_another_lockfile_format() {
+    for lockfile_format in [None, Some("pnpm-lock/13.0"), Some("cargo-lock")] {
+        let options = resolve_projects_options();
+        let mut done = json!({
+            "type": "done",
+            "lockfile": matching_transform_lockfile(&options),
+            "appliedPolicies": matching_applied_policies(&options),
+        });
+        if let Some(lockfile_format) = lockfile_format {
+            done["lockfileFormat"] = json!(lockfile_format);
+        }
+        let result = resolve_mock_frames(options, vec![done], true, |_| {}).await;
+        assert!(
+            matches!(&result, Err(PnprClientError::Protocol(message)) if message.contains("lockfileFormat")),
+            "{lockfile_format:?}: {result:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn resolve_sends_the_lockfile_formats_it_reads() {
+    let options = resolve_projects_options();
+    let done = json!({
+        "type": "done",
+        "lockfileFormat": "pnpm-lock/9.0",
+        "lockfile": matching_transform_lockfile(&options),
+        "appliedPolicies": matching_applied_policies(&options),
+    });
+    let mut server = mockito::Server::new_async().await;
+    let _handshake = mock_transform_handshake(&mut server, true).await;
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .match_body(mockito::Matcher::PartialJson(json!({
+            "acceptedLockfileFormats": ["pnpm-lock/9.0"],
+        })))
+        .with_body(format!("{done}\n"))
+        .create_async()
+        .await;
+
+    let outcome =
+        PnprClient::new(server.url()).resolve_projects(options).await.expect("resolve succeeds");
+    assert!(outcome.applied_policies.is_some());
+    resolve_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_refused_setting_or_lockfile_format_is_an_unsupported_request() {
+    for (code, unsupported) in [
+        ("ERR_PNPR_UNSUPPORTED_REQUEST_FIELD", true),
+        ("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT", true),
+        ("ERR_PNPR_FORBIDDEN", false),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let _handshake = mock_transform_handshake(&mut server, true).await;
+        let _resolve = server
+            .mock("POST", "/-/pnpr/v0/resolve")
+            .with_status(400)
+            .with_header("content-type", "application/json")
+            .with_body(json!({ "error": "refused", "code": code }).to_string())
+            .create_async()
+            .await;
+
+        let error = PnprClient::new(server.url())
+            .resolve_projects(resolve_projects_options())
+            .await
+            .expect_err("the server refuses the request");
+
+        assert!(
+            matches!(&error, PnprClientError::Server { code: Some(got), .. } if got == code),
+            "{error:?}",
+        );
+        assert_eq!(error.is_unsupported_request(), unsupported, "{code}");
+    }
+}
+
+#[tokio::test]
+async fn a_cargo_resolve_accepts_a_server_that_predates_lockfile_format() {
+    for (done, accepted) in [
+        (json!({ "type": "done", "lockfile": "version = 4\n" }), true),
+        (
+            json!({ "type": "done", "lockfileFormat": "cargo-lock", "lockfile": "version = 4\n" }),
+            true,
+        ),
+        (json!({ "type": "done", "lockfileFormat": "pylock", "lockfile": "version = 4\n" }), false),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let _resolve = server
+            .mock("POST", "/-/pnpr/v0/resolve")
+            .with_body(format!("{done}\n"))
+            .create_async()
+            .await;
+
+        let resolved = PnprClient::new(server.url())
+            .resolve_cargo(super::CargoResolveOptions {
+                metadata: "{}".to_string(),
+                registry: "https://index.crates.io/".to_string(),
+                authorization: None,
+            })
+            .await;
+
+        assert_eq!(resolved.is_ok(), accepted, "{done}: {resolved:?}");
+    }
+}
+
+#[test]
+fn a_sole_lockfile_format_may_be_omitted_but_not_replaced() {
+    use super::lockfile_format::{PYLOCK, expect_sole_lockfile_format};
+
+    assert!(expect_sole_lockfile_format(None, PYLOCK).is_ok());
+    assert!(expect_sole_lockfile_format(Some(PYLOCK), PYLOCK).is_ok());
+    assert!(expect_sole_lockfile_format(Some("cargo-lock"), PYLOCK).is_err());
 }

@@ -152,6 +152,23 @@ Resolve responses no longer carry a separate capability header.
 lockfile metadata while retaining compatible locked versions, including for a
 filtered install.
 
+The server refuses a request that has a field it does not know. The `400`
+response carries the code `ERR_PNPR_UNSUPPORTED_REQUEST_FIELD`, because an
+ignored field could be a setting that changes the resolution. The same applies
+to fields inside `projects` and to Cargo and Python requests.
+
+`acceptedLockfileFormats` lists the lockfile formats the client reads. The
+server refuses a request that lists none it renders with
+`ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT`. An absent list means `pnpm-lock/9.0`.
+
+| `lockfileFormat` | Ecosystem | `done.lockfile` |
+| --- | --- | --- |
+| `pnpm-lock/9.0` | npm | `pnpm-lock.yaml` with `lockfileVersion: '9.0'`, as a JSON object. |
+| `cargo-lock` | Cargo | `Cargo.lock`, as a TOML string. |
+| `pylock` | Python | `pylock.toml`, as a JSON object. |
+
+pnpm resolves locally when the server refuses a request with either code.
+
 The `registries` map is keyed by URL. Each entry can carry a `prefix` and an
 optional `aliases` list. All declared prefixes resolve to that URL. The smallest
 prefix in alphabetical order determines package keys in the returned lockfile,
@@ -166,14 +183,23 @@ client: pnpr selects its own server-owned credential per route (see
 [Install acceleration](install-acceleration.md#private-registries)), and a URL
 carrying inline `user:pass@` credentials is rejected.
 
-The `resolve` response is an NDJSON stream:
+The `resolve` and `verify-lockfile` responses are NDJSON streams. Each line is
+one JSON object whose `type` names the frame. Clients ignore frame types and
+fields they do not know.
 
-| Frame | Description |
-| --- | --- |
-| `package` | One resolved tarball: `id`, `name`, `version`, `integrity`, `tarball`, and optional `unpackedSize` / `fileCount` / `requiresBuild`. |
-| `done` | Terminal success frame. For `resolve`, carries `lockfile` and `stats.totalPackages`; for npm `resolve` and `verify-lockfile`, also carries `appliedPolicies`. Clients must reject success when this echo is missing, incomplete, or differs from their requested policies. |
-| `violations` | Terminal policy failure frame. Carries rendered lockfile or OSV violations. |
-| `error` | Terminal server-side resolution or verification error. |
+| Frame | Terminal | Fields |
+| --- | --- | --- |
+| `package` | No | `id`, `name`, `version`, `integrity`, `tarball`. Optional: `unpackedSize`, `fileCount`, `revision`, `requiresBuild`. |
+| `progress` | No | None. Sent every 15 seconds while a streamed resolve runs, so a proxy with an idle timeout keeps the connection open. |
+| `done` | Yes | `resolve`: `lockfileFormat`, `lockfile`, and for npm, `stats.totalPackages` and `appliedPolicies`. `verify-lockfile`: `appliedPolicies`. |
+| `violations` | Yes | `violations`: a list of `name`, `version`, `code`, `reason`. The lockfile or an OSV advisory failed the client's policy. |
+| `error` | Yes | `message`. Optional: `code`. |
+
+A stream ends with exactly one terminal frame. Clients reject a `resolve`
+`done` frame whose `lockfileFormat` is not one they accepted. For npm `resolve`
+and for `verify-lockfile`, clients also reject a `done` frame whose
+`appliedPolicies` echo is missing, incomplete, or differs from the requested
+policies.
 
 For npm requests, `appliedPolicies` includes `autoInstallPeers`, `dedupePeers`,
 `excludeLinksFromLockfile`, `addMissingPeerTypes`, `projectScopedOptionalPeers`,

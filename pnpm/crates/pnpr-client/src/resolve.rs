@@ -6,6 +6,8 @@ use super::{
     BTreeMap, Deserialize, HashSet, IndexMap, Lockfile, PnprClient, PnprClientError,
     ResolveOptions, ResolveOutcome, ResolveProjectsOptions, ResolvedPackage, Stats,
     TarballRevision, WireViolation, build_verify_error, hash_object_nullable_with_prefix,
+    lockfile_format::{PNPM_LOCK_V9, expect_lockfile_format},
+    resolver_error_response,
 };
 use applied_policies::assert_applied_policies;
 use futures_util::StreamExt as _;
@@ -59,7 +61,9 @@ fn permitted_importers(opts: &ResolveProjectsOptions) -> HashSet<String> {
 }
 
 fn resolve_request_body(opts: &ResolveProjectsOptions) -> serde_json::Value {
-    serde_json::to_value(opts).expect("resolution request serializes to JSON")
+    let mut body = serde_json::to_value(opts).expect("resolution request serializes to JSON");
+    body["acceptedLockfileFormats"] = serde_json::json!([PNPM_LOCK_V9]);
+    body
 }
 
 fn forward_package_frame(frame: Frame, on_package: &mut impl FnMut(ResolvedPackage)) {
@@ -100,7 +104,13 @@ fn handle_resolve_frame(
             forward_package_frame(frame, on_package);
             Ok(None)
         }
-        Frame::Done { lockfile, stats, applied_policies } => {
+        Frame::Done {
+            lockfile,
+            lockfile_format,
+            stats,
+            applied_policies,
+        } => {
+            expect_lockfile_format(lockfile_format.as_deref(), PNPM_LOCK_V9)?;
             assert_requested_importers(&lockfile, permitted_importers)?;
             assert_transform_metadata(&lockfile, opts)?;
             assert_publish_directories(&lockfile, opts)?;
@@ -243,6 +253,8 @@ pub(super) enum Frame {
     /// behind a pointer keeps the enum small.
     Done {
         lockfile: Box<Lockfile>,
+        #[serde(rename = "lockfileFormat", default)]
+        lockfile_format: Option<String>,
         #[serde(default)]
         stats: Stats,
         #[serde(default, rename = "appliedPolicies")]
@@ -337,11 +349,7 @@ impl PnprClient {
         }
         let response = post.send().await?;
         if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::server(format!(
-                "/-/pnpr/v0/resolve returned {status}: {body}",
-            )));
+            return Err(resolver_error_response("/-/pnpr/v0/resolve", response).await);
         }
 
         let outcome = read_ndjson_frames(response, |line| {

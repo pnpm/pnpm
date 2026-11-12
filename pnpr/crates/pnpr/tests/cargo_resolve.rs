@@ -130,6 +130,7 @@ async fn resolved_lockfile(response: axum::response::Response) -> String {
     let frames = frames(response.into_body()).await;
     assert_eq!(frames.len(), 1, "{frames:?}");
     assert_eq!(frames[0]["type"], "done", "{frames:?}");
+    assert_eq!(frames[0]["lockfileFormat"], "cargo-lock", "{frames:?}");
     frames[0]["lockfile"]
         .as_str()
         .expect("done frame carries the lockfile")

@@ -4,7 +4,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::hash_lockfile;
 use sha2::{Digest, Sha256};
@@ -12,7 +11,10 @@ use sha2::{Digest, Sha256};
 use pnpr_policy::Identity;
 use pnpr_route::{Footprint, RouteContext};
 
-use super::protocol::ResolveRequest;
+use super::{
+    config_cache::{CONFIG_KEY, ConfigKeyInputs, KeyPart, key_value},
+    protocol::ResolveRequest,
+};
 
 pub(super) struct CachedResolution {
     lockfile: Lockfile,
@@ -181,43 +183,55 @@ fn lru_resolution_candidate(
         .min_by_key(|(_, _, last_used)| *last_used)
 }
 
-pub(super) fn resolution_cache_key(
-    config: &PacquetConfig,
-    request: &ResolveRequest,
-) -> Option<String> {
+/// The parts the resolution cache key carries beyond [`CONFIG_KEY`].
+pub(super) const RESOLUTION_KEY: &[KeyPart] = &[
+    // Raw, unlike the config key's parsed view: the frozen fast path reads
+    // the request's own value.
+    KeyPart { fields: &["overrides"], value: |request, _| serde_json::json!(request.overrides) },
+    KeyPart { fields: &["catalogs"], value: |request, _| serde_json::json!(request.catalogs) },
+    KeyPart {
+        fields: &[
+            "projects",
+            "dependencies",
+            "devDependencies",
+            "optionalDependencies",
+            "peerDependencies",
+        ],
+        value: |request, _| serde_json::Value::Array(cache_key_projects(request)),
+    },
+    KeyPart {
+        fields: &["lockfile"],
+        value: |request, _| serde_json::json!(request.lockfile.as_ref().map(hash_lockfile)),
+    },
+    KeyPart {
+        fields: &["frozenLockfile"],
+        value: |request, _| serde_json::json!(request.frozen_lockfile),
+    },
+    KeyPart {
+        fields: &["preferFrozenLockfile"],
+        value: |request, _| serde_json::json!(request.prefer_frozen_lockfile),
+    },
+    KeyPart {
+        fields: &["ignoreManifestCheck"],
+        value: |request, _| serde_json::json!(request.ignore_manifest_check),
+    },
+    KeyPart {
+        fields: &["trustLockfile"],
+        value: |request, _| serde_json::json!(request.trust_lockfile),
+    },
+];
+
+pub(super) fn resolution_cache_key(request: &ResolveRequest) -> Option<String> {
     // Explicit metadata refreshes must not repeat an old registry selection
     // from the whole-resolution cache.
     if request.update_patches || request.fix_lockfile {
         return None;
     }
-    let projects = cache_key_projects(request);
-    let input = serde_json::json!({
-        "registry": &config.registry,
-        "registries": &request.registries,
-        "overrides": &request.overrides,
-        "catalogs": &request.catalogs,
-        "patchedDependencies": &request.patched_dependencies,
-        "packageExtensions": &request.package_extensions,
-        "allowUnusedPatches": request.allow_unused_patches,
-        "autoInstallPeers": config.auto_install_peers,
-        "dedupePeers": config.dedupe_peers,
-        "excludeLinksFromLockfile": config.exclude_links_from_lockfile,
-        "addMissingPeerTypes": config.add_missing_peer_types,
-        "projectScopedOptionalPeers": config.project_scoped_optional_peers,
-        "projects": projects,
-        "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
-        "frozenLockfile": request.frozen_lockfile,
-        "preferFrozenLockfile": request.prefer_frozen_lockfile,
-        "ignoreManifestCheck": request.ignore_manifest_check,
-        "trustLockfile": request.trust_lockfile,
-        "resolutionMode": request.resolution_mode,
-        "minimumReleaseAge": request.minimum_release_age,
-        "minimumReleaseAgeExclude": &request.minimum_release_age_exclude,
-        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
-        "trustPolicy": request.trust_policy,
-        "trustPolicyExclude": &request.trust_policy_exclude,
-        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
-    });
+    let inputs = ConfigKeyInputs::for_request(request);
+    let input = serde_json::json!([
+        key_value(CONFIG_KEY, request, &inputs),
+        key_value(RESOLUTION_KEY, request, &inputs),
+    ]);
     let bytes = serde_json::to_vec(&input).ok()?;
     let mut hasher = Sha256::new();
     hasher.update(bytes);

@@ -13,6 +13,7 @@ async fn an_importer_outside_the_request_is_rejected() {
     let addr = listener.local_addr().expect("capture addr");
     let done = serde_json::json!({
         "type": "done",
+        "lockfileFormat": "pnpm-lock/9.0",
         "lockfile": {
             "lockfileVersion": "9.0",
             "importers": {

@@ -5,7 +5,10 @@ use super::{
 use crate::{
     cli_args::{
         ecosystem_deps::excludes_only,
-        install::{PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target},
+        install::{
+            PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target,
+            resolves_locally_after,
+        },
     },
     state::command_lockfile,
 };
@@ -80,9 +83,11 @@ impl UpdateArgs {
         let lockfile_path = state.lockfile_path();
         if self.can_delegate_patch_refresh(update_actions, &include_direct) {
             let link = self.pnpr_patch_link(&state, &lockfile_path);
-            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
-                return run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link)
-                    .await;
+            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await?
+                && run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link).await?
+                    == PatchRefresh::Refreshed
+            {
+                return Ok(());
             }
         }
         let workspace_packages = match &selection {
@@ -369,16 +374,32 @@ impl UpdateArgs {
     }
 }
 
+/// What [`run_patch_refresh`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatchRefresh {
+    Refreshed,
+    /// The server refused the request, so the update resolves locally.
+    ResolveLocally,
+}
+
+/// Refresh patches through the pnpr server.
 async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
     state: &State,
     selection: Option<&InstallFamilySelection>,
     target: PnprTarget<'_>,
     link: PnprLink<'_>,
-) -> miette::Result<()> {
-    match selection {
+) -> miette::Result<PatchRefresh> {
+    let server = target.server;
+    let refreshed = match selection {
         Some(selection) => {
             install_selected_via_pnpr::<Reporter>(state, target, selection, link).await
         }
         None => install_via_pnpr::<Reporter>(state, target, link).await,
+    };
+    match refreshed {
+        Err(error) if resolves_locally_after::<Reporter>(&error, server) => {
+            Ok(PatchRefresh::ResolveLocally)
+        }
+        refreshed => refreshed.map(|()| PatchRefresh::Refreshed),
     }
 }

@@ -566,10 +566,12 @@ mod pipeline_runs;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 
 mod resolve;
+use error::resolver_error_response;
 use resolve::read_ndjson_frames;
 
 mod ecosystem_cache;
 mod ecosystems;
 mod error;
+mod lockfile_format;
 
 use ecosystems::{WireViolation, build_verify_error};

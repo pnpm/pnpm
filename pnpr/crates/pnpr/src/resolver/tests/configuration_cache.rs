@@ -1,6 +1,6 @@
 use super::{
     Arc, HashMap, HashSet, Lockfile, Mutex, PacquetConfig, PathBuf, RegistryDeclaration,
-    ResolutionMode, ResolveRequest, ResolveRequestProject, RouteContext, config, deps, lockfile,
+    ResolutionMode, ResolveRequest, ResolveRequestProject, RouteContext, deps, lockfile,
     registry_config, reject_off_allowlist_fetches, resolution_cache_key,
 };
 
@@ -19,10 +19,7 @@ fn resolution_cache_key_normalizes_single_project_requests() {
         ..ResolveRequest::default()
     };
 
-    assert_eq!(
-        resolution_cache_key(&config(), &top_level),
-        resolution_cache_key(&config(), &projects),
-    );
+    assert_eq!(resolution_cache_key(&top_level), resolution_cache_key(&projects));
 }
 
 #[test]
@@ -33,12 +30,8 @@ fn resolution_cache_key_changes_with_catalogs() {
         }))
         .expect("resolve request parses")
     };
-    let config = config();
 
-    assert_ne!(
-        resolution_cache_key(&config, &request("^1.0.0")),
-        resolution_cache_key(&config, &request("^2.0.0")),
-    );
+    assert_ne!(resolution_cache_key(&request("^1.0.0")), resolution_cache_key(&request("^2.0.0")));
 }
 
 #[test]
@@ -52,10 +45,7 @@ fn resolution_cache_key_normalizes_catalog_json_order() {
     )
     .expect("reordered request parses");
 
-    assert_eq!(
-        resolution_cache_key(&config(), &first),
-        resolution_cache_key(&config(), &reordered),
-    );
+    assert_eq!(resolution_cache_key(&first), resolution_cache_key(&reordered));
 }
 
 #[test]
@@ -75,10 +65,9 @@ fn resolution_cache_key_changes_with_project_identity() {
     let renamed = request("renamed-app", "1.0.0");
     let reversioned = request("app", "2.0.0");
 
-    let config = config();
-    let base_key = resolution_cache_key(&config, &base);
-    assert_ne!(base_key, resolution_cache_key(&config, &renamed));
-    assert_ne!(base_key, resolution_cache_key(&config, &reversioned));
+    let base_key = resolution_cache_key(&base);
+    assert_ne!(base_key, resolution_cache_key(&renamed));
+    assert_ne!(base_key, resolution_cache_key(&reversioned));
 }
 
 #[test]
@@ -94,19 +83,16 @@ fn resolution_cache_key_changes_with_the_project_publish_config() {
         }))
         .expect("resolve request parses")
     };
-    let config = config();
     // An absent publish directory and an explicit one resolve differently, and
     // the two halves of the config are independent: only `linkDirectory`
     // changing must also miss the cache, or a toggled project keeps the link it
     // was resolved with.
-    let absent = resolution_cache_key(&config, &request(serde_json::Value::Null));
-    let dist = resolution_cache_key(&config, &request(serde_json::json!({ "directory": "dist" })));
-    let build =
-        resolution_cache_key(&config, &request(serde_json::json!({ "directory": "build" })));
-    let unlinked = resolution_cache_key(
-        &config,
-        &request(serde_json::json!({ "directory": "dist", "linkDirectory": false })),
-    );
+    let absent = resolution_cache_key(&request(serde_json::Value::Null));
+    let dist = resolution_cache_key(&request(serde_json::json!({ "directory": "dist" })));
+    let build = resolution_cache_key(&request(serde_json::json!({ "directory": "build" })));
+    let unlinked = resolution_cache_key(&request(
+        serde_json::json!({ "directory": "dist", "linkDirectory": false }),
+    ));
 
     assert_ne!(absent, dist);
     assert_ne!(dist, build);
@@ -134,12 +120,11 @@ fn resolution_cache_key_changes_with_dependencies_and_policy() {
         ..ResolveRequest::default()
     };
 
-    let config = config();
-    let base_key = resolution_cache_key(&config, &base);
+    let base_key = resolution_cache_key(&base);
 
-    assert_ne!(base_key, resolution_cache_key(&config, &different_dep));
-    assert_ne!(base_key, resolution_cache_key(&config, &different_policy));
-    assert_ne!(base_key, resolution_cache_key(&config, &different_mode));
+    assert_ne!(base_key, resolution_cache_key(&different_dep));
+    assert_ne!(base_key, resolution_cache_key(&different_policy));
+    assert_ne!(base_key, resolution_cache_key(&different_mode));
 }
 
 #[test]
@@ -154,13 +139,12 @@ fn resolution_cache_key_changes_with_project_transforms() {
         }))
         .expect("resolve request parses")
     };
-    let config = config();
     let base = request("hash-one", "1.0.0", false);
-    let base_key = resolution_cache_key(&config, &base);
+    let base_key = resolution_cache_key(&base);
 
-    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-two", "1.0.0", false)));
-    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-one", "2.0.0", false)));
-    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-one", "1.0.0", true)));
+    assert_ne!(base_key, resolution_cache_key(&request("hash-two", "1.0.0", false)));
+    assert_ne!(base_key, resolution_cache_key(&request("hash-one", "2.0.0", false)));
+    assert_ne!(base_key, resolution_cache_key(&request("hash-one", "1.0.0", true)));
 }
 
 #[test]
@@ -210,10 +194,9 @@ importers:
 
     let request =
         |lockfile| ResolveRequest { lockfile: Some(lockfile), ..ResolveRequest::default() };
-    let config = config();
-    let first_key = resolution_cache_key(&config, &request(first_lockfile));
-    assert_eq!(first_key, resolution_cache_key(&config, &request(reordered_lockfile)));
-    assert_ne!(first_key, resolution_cache_key(&config, &request(drifted_lockfile)));
+    let first_key = resolution_cache_key(&request(first_lockfile));
+    assert_eq!(first_key, resolution_cache_key(&request(reordered_lockfile)));
+    assert_ne!(first_key, resolution_cache_key(&request(drifted_lockfile)));
 }
 
 #[test]
@@ -459,17 +442,16 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
         intern(&configs, &request((None, Some(true), None), Some((false, false, true)), false));
     assert_eq!(effective(&partial_update), (true, true, false));
 
-    let intern_key = |settings| intern(&configs, &request(requested(settings), None, false));
-    let cache_request = ResolveRequest::default();
     let mut cache_keys = HashSet::new();
     for auto_install_peers in [false, true] {
         for dedupe_peers in [false, true] {
             for exclude_links_from_lockfile in [false, true] {
                 let settings = (auto_install_peers, dedupe_peers, exclude_links_from_lockfile);
-                let config = intern_key(settings);
+                let settings_request = request(requested(settings), None, false);
+                let config = intern(&configs, &settings_request);
                 assert_eq!(effective(&config), settings);
                 let cache_key =
-                    resolution_cache_key(&config, &cache_request).expect("resolution cache key");
+                    resolution_cache_key(&settings_request).expect("resolution cache key");
                 assert!(cache_keys.insert(cache_key));
             }
         }
@@ -676,25 +658,21 @@ fn intern_config_keys_add_missing_peer_types() {
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-peer-types-store"));
     let cache_dir = PathBuf::from("/tmp/pnpr-peer-types-cache");
-    let intern = |add_missing_peer_types| {
-        let request = ResolveRequest {
-            registry: Some("https://a.test/".to_string()),
-            add_missing_peer_types: Some(add_missing_peer_types),
-            ..ResolveRequest::default()
-        };
-        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+    let request = |add_missing_peer_types| ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        add_missing_peer_types: Some(add_missing_peer_types),
+        ..ResolveRequest::default()
+    };
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
             .expect("intern config")
     };
 
-    let on = intern(true);
-    let off = intern(false);
-
-    assert!(on.add_missing_peer_types);
-    assert!(!off.add_missing_peer_types);
-    let cache_request = ResolveRequest::default();
+    assert!(intern(&request(true)).add_missing_peer_types);
+    assert!(!intern(&request(false)).add_missing_peer_types);
     assert_ne!(
-        resolution_cache_key(&on, &cache_request).expect("resolution cache key"),
-        resolution_cache_key(&off, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(&request(true)).expect("resolution cache key"),
+        resolution_cache_key(&request(false)).expect("resolution cache key"),
     );
 }
 
@@ -732,25 +710,21 @@ fn intern_config_keys_project_scoped_optional_peers() {
     let configs = Mutex::new(HashMap::new());
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-scoped-peers-store"));
     let cache_dir = PathBuf::from("/tmp/pnpr-scoped-peers-cache");
-    let intern = |project_scoped_optional_peers| {
-        let request = ResolveRequest {
-            registry: Some("https://a.test/".to_string()),
-            project_scoped_optional_peers: Some(project_scoped_optional_peers),
-            ..ResolveRequest::default()
-        };
-        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+    let request = |project_scoped_optional_peers| ResolveRequest {
+        registry: Some("https://a.test/".to_string()),
+        project_scoped_optional_peers: Some(project_scoped_optional_peers),
+        ..ResolveRequest::default()
+    };
+    let intern = |request: &ResolveRequest| {
+        intern_config(&configs, &store_dir, &cache_dir, request, 10, usize::MAX)
             .expect("intern config")
     };
 
-    let on = intern(true);
-    let off = intern(false);
-
-    assert!(on.project_scoped_optional_peers);
-    assert!(!off.project_scoped_optional_peers);
-    let cache_request = ResolveRequest::default();
+    assert!(intern(&request(true)).project_scoped_optional_peers);
+    assert!(!intern(&request(false)).project_scoped_optional_peers);
     assert_ne!(
-        resolution_cache_key(&on, &cache_request).expect("resolution cache key"),
-        resolution_cache_key(&off, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(&request(true)).expect("resolution cache key"),
+        resolution_cache_key(&request(false)).expect("resolution cache key"),
     );
 }
 
@@ -804,4 +778,43 @@ async fn active_config_admission_follows_detached_work_and_recovers() {
         axum::http::StatusCode::BAD_REQUEST,
     );
     assert_eq!(admit(&second).minimum_release_age, Some(42));
+}
+
+/// A request field that changes the resolution and is in neither key would
+/// let one client's cached lockfile answer another's request.
+#[test]
+fn every_request_field_is_keyed_or_listed_as_unkeyed() {
+    use super::super::{cache::RESOLUTION_KEY, config_cache::CONFIG_KEY};
+
+    const UNKEYED_FIELDS: &[&str] = &[
+        // These bypass the resolution cache.
+        "updatePatches",
+        "fixLockfile",
+        // The server picks upstream credentials itself.
+        "authHeaders",
+        // The server renders one lockfile format.
+        "acceptedLockfileFormats",
+        // Resolution does not read them.
+        "ecosystem",
+        "nodeVersion",
+        "os",
+        "arch",
+    ];
+    let error = serde_json::from_str::<ResolveRequest>(r#"{"\u0000":0}"#)
+        .expect_err("an unknown field is refused")
+        .to_string();
+    let (_, declared) = error.split_once("expected one of ").expect("serde lists the fields");
+    let declared: HashSet<&str> = declared
+        .split(", ")
+        .map(|field| field.trim_matches(|char: char| char == '`' || char.is_whitespace()))
+        .map(|field| field.split('`').next().unwrap_or(field))
+        .collect();
+    let classified: HashSet<&str> = CONFIG_KEY
+        .iter()
+        .chain(RESOLUTION_KEY)
+        .flat_map(|part| part.fields.iter().copied())
+        .chain(UNKEYED_FIELDS.iter().copied())
+        .collect();
+
+    assert_eq!(declared, classified);
 }

@@ -1,7 +1,7 @@
 use super::{Arc, Identity, Mutex, ResolveRequest, deps};
 use crate::resolver::{
     Resolver, request_tarball_router,
-    streaming::{StreamedResolveInputs, stream_resolve_response},
+    streaming::{StreamedResolveInputs, send_keepalives, stream_resolve_response},
 };
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
@@ -72,4 +72,21 @@ async fn dropping_a_stream_cancels_pending_resolution_and_releases_admission() {
     upstream.abort();
     let error = upstream.await.unwrap_err();
     assert!(error.is_cancelled(), "{error}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn keepalives_send_progress_frames_until_the_client_hangs_up() {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let keepalives = tokio::spawn(async move {
+        send_keepalives(&tx, Duration::from_secs(15)).await;
+    });
+    for _ in 0..2 {
+        let frame = rx.recv().await.expect("progress frame");
+        let frame: serde_json::Value = serde_json::from_slice(&frame).unwrap();
+        assert_eq!(frame, serde_json::json!({ "type": "progress" }));
+    }
+    drop(rx);
+    tokio::time::timeout(Duration::from_secs(60), keepalives).await
+        .expect("keepalives stop once the client hangs up")
+        .unwrap();
 }
