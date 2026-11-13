@@ -23,8 +23,12 @@ use std::{error::Error, fmt};
 /// already installed is left alone — the first caller wins.
 pub fn install_report_handler() {
     let _ = miette::set_hook(Box::new(|_| {
-        Box::new(CollapsingHandler { inner: MietteHandlerOpts::new().build() })
+        Box::new(CollapsingHandler { inner: handler_options().build() })
     }));
+}
+
+fn handler_options() -> MietteHandlerOpts {
+    MietteHandlerOpts::new().wrap_lines(false).break_words(false)
 }
 
 /// The reported error and its distinct causes on one line, joined by
