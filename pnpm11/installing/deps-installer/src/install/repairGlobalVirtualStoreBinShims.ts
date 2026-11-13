@@ -124,12 +124,17 @@ async function repairSlot (opts: {
   const packages = await readPackageBins(modulesDir)
   const packageManifest = await readPackageManifest(packageDir)
   const bundledDependencies = packageManifest?.bundledDependencies ?? packageManifest?.bundleDependencies
-  if (bundledDependencies === true || (Array.isArray(bundledDependencies) && bundledDependencies.length > 0)) {
-    packages.push(...await readPackageBins(path.join(packageDir, 'node_modules')))
-  }
+  const bundledPackages = bundledDependencies === true || (Array.isArray(bundledDependencies) && bundledDependencies.length > 0)
+    ? await readPackageBins(path.join(packageDir, 'node_modules'))
+    : []
   const binsDir = path.join(packageDir, 'node_modules/.bin')
-  const commands = await getBinsToLink(packages)
+  const commands = await getBinsToLink([...packages, ...bundledPackages])
   await linkBinsOfPackages(packages, binsDir, {
+    ...opts.slotShimNodePathOptions,
+    force: true,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+  })
+  await linkBinsOfPackages(bundledPackages, binsDir, {
     ...opts.slotShimNodePathOptions,
     force: true,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

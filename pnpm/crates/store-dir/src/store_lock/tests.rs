@@ -96,7 +96,7 @@ fn waiting_store_update_does_not_block_new_consumers() {
     reader.join().unwrap();
     assert!(
         reader_unblocked_early.is_some(),
-        "a waiting store update must not block new consumers"
+        "a waiting store update must not block new consumers",
     );
 }
 
