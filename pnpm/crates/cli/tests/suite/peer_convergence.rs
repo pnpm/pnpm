@@ -28,6 +28,7 @@ mod fast_update;
 mod harness;
 mod moving_providers;
 mod ranged_provider_pins;
+mod same_name_peer_contexts;
 
 use harness::{Harness, Move, Project, project};
 
