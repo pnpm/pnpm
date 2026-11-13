@@ -254,6 +254,7 @@ fn global_slot_link_options(link_options: &LinkBinsOptions) -> LinkBinsOptions {
         options.own_node_paths = OwnNodePaths::Always;
     }
     options.extra_node_paths.clear();
+    options.project_modules_dir_name = None;
     options
 }
 
