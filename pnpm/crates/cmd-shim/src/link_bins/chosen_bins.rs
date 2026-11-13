@@ -98,7 +98,7 @@ fn bin_shim_exists<Sys: FsReadHead>(shim_path: &Path) -> Result<bool, LinkBinsEr
             Err(error)
                 if matches!(
                     error.kind(),
-                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
                 ) => {}
             Err(error) => return Err(LinkBinsError::ProbeShimSource { path, error }),
         }
