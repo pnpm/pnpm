@@ -9,9 +9,6 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-/// How many `pub use` items an owner's name is followed through.
-const MAX_REEXPORT_DEPTH: u8 = 4;
-
 /// A module of the crate, read from its own file or inline in another.
 pub struct Scope<'surface> {
     /// Whether the parent declares it `pub mod`.
@@ -151,14 +148,16 @@ impl Exported {
 }
 
 /// The module that declares the type `name` of `module`, and its name there,
-/// following the `pub use` items that bind it. A type declared in a module
-/// shadows a re-export of a function of the same name.
+/// following the `pub use` items that bind it until a declaration or a
+/// cycle. A type declared in a module shadows a re-export of a function of
+/// the same name.
 fn declaration(
     scopes: &BTreeMap<ModulePath, Scope<'_>>,
     mut module: ModulePath,
     mut name: String,
 ) -> Option<(ModulePath, String)> {
-    for _ in 0..MAX_REEXPORT_DEPTH {
+    let mut visited = BTreeSet::new();
+    while visited.insert((module.clone(), name.clone())) {
         let surface = scopes.get(&module)?.surface;
         if surface.declared_types.contains(&name) || surface.public_items.contains(&name) {
             break;

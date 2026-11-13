@@ -407,3 +407,23 @@ fn a_private_type_shadows_a_reexported_function_of_the_same_name() {
     let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
     assert_eq!(leaked, ["base::Function"]);
 }
+
+#[test]
+fn an_owner_is_followed_through_any_number_of_reexports() {
+    let lib = concat!(
+        "mod hidden { pub struct Config; }\n",
+        "mod aliases {\n",
+        "    pub use crate::hidden::Config as A0;\n",
+        "    pub use self::A0 as A1;\n",
+        "    pub use self::A1 as A2;\n",
+        "    pub use self::A2 as A3;\n",
+        "    pub use self::A3 as A4;\n",
+        "    pub use self::Loop as Loop;\n",
+        "}\n",
+        "pub use hidden::Config;\n",
+        "impl aliases::A4 { pub fn make(_: base::Input) {} }\n",
+        "impl aliases::Loop { pub fn cycle(_: base::Cycle) {} }\n",
+    );
+    let leaked = leaked_items(&[("api/src/lib.rs", lib)]);
+    assert_eq!(leaked, ["base::Input"]);
+}
