@@ -199,7 +199,7 @@ fn from_yaml_str_rejects_malformed_registry_names() {
 fn from_yaml_str_rejects_reserved_registry_names() {
     for name in ["npm", "jsr", "workspace", "file", "git", "pkg", "PKG"] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a reserved registry name must be rejected");
         assert!(
             err.to_string().contains("reserved dependency specifier prefix"),
@@ -212,7 +212,7 @@ fn from_yaml_str_rejects_reserved_registry_names() {
 fn from_yaml_str_accepts_well_formed_registry_names() {
     for name in ["npmjs", "gh", "Team-A", "a.b_c-1"] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
-        Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .unwrap_or_else(|err| panic!("rejected {name}: {err}"));
     }
 }
