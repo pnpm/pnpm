@@ -82,6 +82,7 @@ pub enum Problem {
     StaleException { from: String, to: String },
     Ratchet(Mismatch),
     OverTransitiveBudget { crate_name: String, layer: String, count: usize, budget: usize },
+    Boundary(BoundaryViolation),
 }
 
 impl fmt::Display for Problem {
@@ -110,6 +111,35 @@ impl fmt::Display for Problem {
                 "{crate_name} reaches {count} workspace crates through its dependencies, more \
                  than the {budget} the {layer} layer allows; `crate-layers dependencies --crate \
                  {crate_name}` lists them",
+            ),
+            Self::Boundary(violation) => violation.fmt(formatter),
+        }
+    }
+}
+
+/// A mismatch between the dependencies across the product boundary and
+/// `[product_boundary]`.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BoundaryViolation {
+    /// A crate depends on a crate of another product that is not listed.
+    Unlisted { from: String, from_product: String, to: String, to_product: String },
+    /// A listed crate that no crate of another product depends on.
+    Stale(String),
+}
+
+impl fmt::Display for BoundaryViolation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unlisted { from, from_product, to, to_product } => write!(
+                formatter,
+                "{from} ({from_product}) depends on {to} ({to_product}), which is not in \
+                 [product_boundary] of crate-layers.toml; depend on a crate listed there, or \
+                 list {to} when both products should share it",
+            ),
+            Self::Stale(name) => write!(
+                formatter,
+                "[product_boundary] lists {name}, but no crate of another product depends on \
+                 it; remove it from crate-layers.toml",
             ),
         }
     }

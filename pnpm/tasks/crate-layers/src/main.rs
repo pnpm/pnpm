@@ -18,6 +18,7 @@ use std::{
 };
 use tree::{GitRevision, Tree, WorkingTree};
 
+mod boundary;
 mod cfg;
 mod cycles;
 mod dependencies;
@@ -56,8 +57,10 @@ enum Command {
     /// Fail when a crate depends on a crate in a higher layer, when a crate
     /// is in no layer, when an exception no longer matches an edge, when a
     /// crate's value differs from its entry in `module_cycles`,
-    /// `direct_dependencies`, or `leaked_dependencies`, or when a crate
-    /// reaches more crates than its layer's `max_transitive_dependencies`.
+    /// `direct_dependencies`, or `leaked_dependencies`, when a crate
+    /// reaches more crates than its layer's `max_transitive_dependencies`,
+    /// or when a dependency between products is not on a crate in
+    /// `[product_boundary]`.
     Check,
     /// Print, as Markdown, the crates and edges the working tree adds or
     /// removes compared to a git revision.
@@ -128,10 +131,12 @@ fn check(root: &Path) -> Result<ExitCode, String> {
         problems.extend(ratchet::check(metric, &measured, layers.baseline(metric)));
     }
     problems.extend(reach.check_budgets(&layers));
+    problems.extend(boundary::check(&graph, layers.boundary_crates()));
     if problems.is_empty() {
         println!(
             "Every crate dependency points to its own layer or a lower one, no ratchet value \
-             changed, and every crate is within its layer's transitive budget.",
+             changed, every crate is within its layer's transitive budget, and every \
+             dependency between products is on a crate in [product_boundary].",
         );
         return Ok(ExitCode::SUCCESS);
     }

@@ -4,7 +4,8 @@
 # crates each of its crates reaches through normal and build dependencies. `just crate-layers check` enforces this, and
 # `just crate-layers diff <rev>` lists the edges a change adds or removes.
 # A new crate goes into the layer that matches its role, not the lowest
-# layer its current dependencies allow.
+# layer its current dependencies allow. `[product_boundary]` lists the crates
+# that pnpm and pnpr may share.
 
 [[layer]]
 name = "foundation"
@@ -177,6 +178,50 @@ crates = [
   "pnpm-registry-mock",
   "pnpm-testing-utils",
   "pnpr-fixtures",
+]
+
+# The crates that a crate of another product may depend on. A crate's
+# product is the first component of its directory: `pnpm` for the pnpm CLI
+# and its tasks, `pnpr` for the registry server. The check covers every
+# dependency kind, dev-dependencies included. It fails when a crate depends
+# on a crate of another product that is not listed here, and when a listed
+# crate no longer has a dependent in another product, so the list only
+# shrinks. Before listing a crate, consider moving what both products need
+# into a crate already listed.
+[product_boundary]
+crates = [
+  # pnpm crates that pnpr depends on.
+  "pnpm-cargo-resolver",
+  "pnpm-catalogs-types",
+  "pnpm-config",
+  "pnpm-config-dir",
+  "pnpm-crypto-hash",
+  "pnpm-deps-path",
+  "pnpm-diagnostics",
+  "pnpm-env-replace",
+  "pnpm-fs",
+  "pnpm-lockfile",
+  "pnpm-lockfile-verification",
+  "pnpm-network",
+  "pnpm-package-manager",
+  "pnpm-package-manifest",
+  "pnpm-package-name",
+  "pnpm-platform-variants",
+  "pnpm-python-resolver",
+  "pnpm-release-record",
+  "pnpm-reporter",
+  "pnpm-resolving-npm-resolver",
+  "pnpm-resolving-resolver-base",
+  "pnpm-shared-artifact-protocol",
+  "pnpm-store-dir",
+  "pnpm-tarball",
+  "pnpm-testing-utils",
+  "pnpm-transparency-log",
+  # pnpr crates that pnpm depends on.
+  "pnpr",
+  "pnpr-fixtures",
+  "pnpr-package-name",
+  "pnpr-registry",
 ]
 
 # The accepted size of each crate's largest cycle among its top-level

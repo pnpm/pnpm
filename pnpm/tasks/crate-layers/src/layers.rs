@@ -17,6 +17,15 @@ struct LayersFile {
     direct_dependencies: BTreeMap<String, usize>,
     #[serde(default)]
     leaked_dependencies: BTreeMap<String, usize>,
+    #[serde(default)]
+    product_boundary: ProductBoundary,
+}
+
+/// The crates that a crate of another product may depend on.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProductBoundary {
+    crates: BTreeSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +60,7 @@ pub struct Layers {
     rank_by_crate: BTreeMap<String, usize>,
     exceptions: Vec<Exception>,
     baselines: BTreeMap<Metric, BTreeMap<String, usize>>,
+    boundary_crates: BTreeSet<String>,
 }
 
 impl Layers {
@@ -83,12 +93,18 @@ impl Layers {
                 (Metric::DirectDependencies, file.direct_dependencies),
                 (Metric::LeakedDependencies, file.leaked_dependencies),
             ]),
+            boundary_crates: file.product_boundary.crates,
         })
     }
 
     /// The accepted value of each crate in the metric's table.
     pub fn baseline(&self, metric: Metric) -> &BTreeMap<String, usize> {
         &self.baselines[&metric]
+    }
+
+    /// The crates in `[product_boundary]`.
+    pub const fn boundary_crates(&self) -> &BTreeSet<String> {
+        &self.boundary_crates
     }
 
     pub fn layer_of(&self, name: &str) -> Option<&str> {

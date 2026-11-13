@@ -7,7 +7,8 @@ Checks the Rust workspace's crate dependency graph against the layers in
   in a higher layer, when a crate is in no layer, or when an exception no
   longer matches an upward edge. It also fails when a
   [ratchet](#ratchets) value differs from its entry, and when a crate
-  exceeds its layer's [transitive budget](#transitive-budgets). CI runs it in
+  exceeds its layer's [transitive budget](#transitive-budgets). The
+  [product boundary](#product-boundary) list is checked too. CI runs it in
   the `Crate Layers` job.
 - `just crate-layers modules` lists the crates whose top-level modules form
   a cycle. `--crate <name>` prints one crate's cycle and the references inside
@@ -90,3 +91,18 @@ of its crates reaches through normal and build dependencies. It keeps the
 lower layers cheap to build and to depend on. When a crate exceeds it, cut
 the dependency that pulls in the most crates, usually by moving a type down to
 the crate that owns it.
+
+## Product boundary
+
+The workspace holds two products, the pnpm CLI and the pnpr registry server.
+A crate's product is the first component of its directory, `pnpm/` or
+`pnpr/`, whatever the crate's name. `[product_boundary]` lists the crates
+that a crate of the other product may depend on. The check covers every
+dependency kind, dev-dependencies included, and fails:
+
+- when a crate depends on a crate of the other product that is not listed;
+- when a listed crate has no dependent in the other product, so the list
+  only shrinks.
+
+Before listing a crate, consider moving what both products need into a
+crate that is already listed.
