@@ -7,6 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
+import { localSpecPath } from '@pnpm/resolving.local-resolver'
 import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
@@ -100,7 +101,7 @@ function toLockfileDependency (
   if (shouldRecordVersion(pkg.version, { depPath: opts.depPath, registryName: opts.registryName, lockfileResolution })) {
     result['version'] = pkg.version
   }
-  addChildDependencies(result, opts)
+  addChildDependencies(result, opts, pkg.resolution)
   if (pkg.optional) {
     result['optional'] = true
   }
@@ -129,17 +130,20 @@ function addChildDependencies (
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
     lockfileDir?: string
-  }
+  },
+  parentResolution: ResolvedPackage['resolution']
 ): void {
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph,
-    opts.lockfileDir
+    opts.lockfileDir,
+    parentResolution
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.updatedOptionalDeps,
     opts.depGraph,
-    opts.lockfileDir
+    opts.lockfileDir,
+    parentResolution
   )
   if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
@@ -272,15 +276,21 @@ function getDeprecationToRecord (
 function updateResolvedDeps (
   updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph,
-  lockfileDir: string | undefined
+  lockfileDir: string | undefined,
+  parentResolution: ResolvedPackage['resolution']
 ): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
           const depNode = depGraph[depPath]
-          if (lockfileDir == null || depNode?.resolution.type !== 'directory') return [alias, depPath]
-          return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string]
+          if (lockfileDir == null) return [alias, depPath]
+          if (depNode?.resolution.type === 'directory') {
+            return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string]
+          }
+          if (parentResolution.type !== 'directory') return [alias, depPath]
+          const linkTarget = localSpecPath(depPath.slice(5), parentResolution.directory)
+          return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, linkTarget) as string]
         }
         const depNode = depGraph[depPath]
         return [
