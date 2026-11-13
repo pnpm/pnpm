@@ -6,8 +6,10 @@
 //!
 //! One file per `(registry, name)` under
 //! [`ATTESTED_TIME_DIR`](crate::mirror::ATTESTED_TIME_DIR), one JSON
-//! line per version. A line is appended whole, so concurrent installs never
-//! rewrite each other's lines, and a line that does not parse is skipped.
+//! line per version. A record is appended whole, so concurrent installs
+//! never rewrite each other's records. It is written between two newlines,
+//! so a record that an interrupted write left unfinished costs only itself.
+//! A line that does not parse is skipped.
 
 use crate::lookup_context::PublishedAtTimeMap;
 use serde::{Deserialize, Serialize};
@@ -47,8 +49,7 @@ pub(crate) fn append_attested_time(
     }
     let record =
         AttestedTime { version: version.to_string(), published_at: published_at.to_string() };
-    let mut line = serde_json::to_string(&record)?;
-    line.push('\n');
+    let line = format!("\n{}\n", serde_json::to_string(&record)?);
     OpenOptions::new()
         .create(true)
         .append(true)

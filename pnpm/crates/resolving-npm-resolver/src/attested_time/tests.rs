@@ -18,10 +18,10 @@ fn appended_times_are_loaded_by_version() {
 }
 
 #[test]
-fn a_line_that_does_not_parse_is_skipped() {
+fn an_unfinished_record_costs_only_itself() {
     let dir = TempDir::new().expect("tempdir");
     let path = dir.path().join("acme.jsonl");
-    fs::write(&path, "{\"version\":\"1.0.0\",\"publ\n").expect("write torn line");
+    fs::write(&path, "{\"version\":\"1.0.0\",\"publ").expect("write unfinished record");
 
     append_attested_time(&path, "1.1.0", "2025-02-01T00:00:00.000Z").expect("append");
 

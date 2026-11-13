@@ -22,15 +22,22 @@ test('appended attested times are loaded by version', async () => {
   })
 })
 
-test('a line that does not parse is skipped', async () => {
+test('an unfinished record costs only itself', async () => {
   const location = { cacheDir: temporaryDirectory(), registry, name: 'pkg' }
   const file = getPkgMirrorPath(location.cacheDir, ATTESTED_TIME_DIR, registry, 'pkg')
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, '{"version":"1.0.0","publ\n')
+  fs.writeFileSync(file, '{"version":"1.0.0","publ')
 
   await appendAttestedTime(location, { version: '1.1.0', publishedAt: '2025-02-01T00:00:00.000Z' })
 
   expect(await loadAttestedTimes(location)).toStrictEqual({ '1.1.0': '2025-02-01T00:00:00.000Z' })
+})
+
+test('a file that cannot be read holds no attested times', async () => {
+  const location = { cacheDir: temporaryDirectory(), registry, name: 'pkg' }
+  fs.mkdirSync(getPkgMirrorPath(location.cacheDir, ATTESTED_TIME_DIR, registry, 'pkg'), { recursive: true })
+
+  expect(await loadAttestedTimes(location)).toStrictEqual({})
 })
 
 test('a missing file holds no attested times', async () => {

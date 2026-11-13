@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { ATTESTED_TIME_DIR } from '@pnpm/constants'
 import { isError } from '@pnpm/error'
+import { logger } from '@pnpm/logger'
 
 import { getPkgMirrorPath } from './metaMirror.js'
 
@@ -18,9 +19,11 @@ export interface AttestedTimeLocation {
  * mirror records it; without this record an offline verification could not
  * repeat a check the attestation endpoint settled online.
  *
- * One file per (registry, name), one JSON line per version. A line is
- * appended whole, so concurrent installs never rewrite each other's lines,
- * and a line that does not parse is skipped. The layout is shared with the
+ * One file per (registry, name), one JSON line per version. A record is
+ * appended whole, so concurrent installs never rewrite each other's records.
+ * It is written between two newlines, so a record that an interrupted write
+ * left unfinished costs only itself. A line that does not parse is skipped,
+ * and a file that cannot be read holds no times. The layout is shared with the
  * Rust stack (`pnpm/crates/resolving-npm-resolver/src/attested_time.rs`).
  */
 export async function loadAttestedTimes (location: AttestedTimeLocation): Promise<Record<string, string>> {
@@ -28,8 +31,10 @@ export async function loadAttestedTimes (location: AttestedTimeLocation): Promis
   try {
     contents = await fs.readFile(attestedTimePath(location), 'utf8')
   } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return {}
-    throw err
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) {
+      logger.debug({ message: `Failed to read the attested publish times of ${location.name}`, err })
+    }
+    return {}
   }
   const times: Record<string, string> = {}
   for (const line of contents.split('\n')) {
@@ -45,7 +50,7 @@ export async function appendAttestedTime (
 ): Promise<void> {
   const file = attestedTimePath(location)
   await fs.mkdir(path.dirname(file), { recursive: true })
-  await fs.appendFile(file, `${JSON.stringify({ version: record.version, publishedAt: record.publishedAt })}\n`)
+  await fs.appendFile(file, `\n${JSON.stringify({ version: record.version, publishedAt: record.publishedAt })}\n`)
 }
 
 function attestedTimePath ({ cacheDir, registry, name }: AttestedTimeLocation): string {
