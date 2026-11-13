@@ -3,7 +3,7 @@
 //! replica when it builds the routing.
 
 use pnpm_env_replace::{EnvVar, env_replace_lossy, placeholder_ranges};
-use pnpr_error::RegistryError;
+use pnpr_error::{RegistryError, redact_url_credentials};
 
 use super::{RegistryFile, RegistryGraphDocument};
 use crate::config_file::UpstreamFile;
@@ -23,7 +23,10 @@ impl RegistryGraphDocument {
         }
         if let Some(registry) = self.public_route_registries().find(|url| has_user_info(url)) {
             return Err(RegistryError::InvalidConfig {
-                reason: format!("routes.public registry {registry:?} must not carry credentials"),
+                reason: format!(
+                    "routes.public registry {:?} must not carry a user name or password",
+                    redact_url_credentials(registry),
+                ),
             });
         }
         Ok(())
