@@ -46,8 +46,7 @@ fn registry_options_digest(
         .filter(|(_, options)| **options != pnpm_lockfile::RegistryOptions::default())
         .map(|(url, options)| (url.as_str(), options))
         .collect();
-    let encoded = serde_json::to_vec(&non_default)
-        .expect("registry options are serializable");
+    let encoded = serde_json::to_vec(&non_default).expect("registry options are serializable");
     format!("{:x}", Sha256::digest(encoded))
 }
 
