@@ -54,7 +54,7 @@ fn rejects_invalid_libsql_urls_without_leaking_credentials() {
         let mut config = base_config();
         config.storage.database = DatabaseBackend::Libsql(libsql_settings(url));
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
-        assert!(err.contains("database.url is not a valid URL"), "{url}: {err}");
+        assert!(err.contains("storage.database.url is not a valid URL"), "{url}: {err}");
         assert!(!err.contains("supersecret"), "{url}: {err}");
     }
 }
@@ -71,7 +71,7 @@ fn rejects_mismatched_schemes_and_invalid_urls_on_identity_backend() {
         let mut config = base_config();
         config.identity.backend = backend;
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
-        assert!(err.contains("database.url is not a valid URL"), "{err}");
+        assert!(err.contains("storage.database.url is not a valid URL"), "{err}");
         assert!(!err.contains("supersecret"), "{err}");
     }
 }
@@ -86,7 +86,7 @@ fn rejects_invalid_postgres_connect_options_without_leaking_credentials() {
         let mut config = base_config();
         config.storage.database = DatabaseBackend::Postgres(sql_settings(url));
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
-        assert!(err.contains("database.url is not a valid URL"), "{url}: {err}");
+        assert!(err.contains("storage.database.url is not a valid URL"), "{url}: {err}");
         assert!(!err.contains("supersecret"), "{url}: {err}");
     }
 }
@@ -101,7 +101,7 @@ fn rejects_invalid_mysql_connect_options_without_leaking_credentials() {
         let mut config = base_config();
         config.storage.database = DatabaseBackend::Mysql(sql_settings(url));
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
-        assert!(err.contains("database.url is not a valid URL"), "{url}: {err}");
+        assert!(err.contains("storage.database.url is not a valid URL"), "{url}: {err}");
         assert!(!err.contains("supersecret"), "{url}: {err}");
     }
 }
@@ -245,12 +245,12 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
     sqlite_in_cache.storage.database =
         DatabaseBackend::Sqlite(sqlite_in_cache.storage.cache_dir.join("metadata.sqlite"));
     let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
-    assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
+    assert!(err.contains("storage.database.url SQLite path must not live inside"), "{err}");
 
     sqlite_in_cache.features.registry.enabled = false;
     sqlite_in_cache.features.resolver.enabled = true;
     let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
-    assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
+    assert!(err.contains("storage.database.url SQLite path must not live inside"), "{err}");
 }
 
 #[cfg(unix)]

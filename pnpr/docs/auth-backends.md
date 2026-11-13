@@ -8,18 +8,18 @@ state. By default users live in a JSON account file and tokens in a local SQLite
 database (see [`auth`](configuration.md#auth)), so two pnpr replicas don't see
 each other's accounts.
 
-Set `database.url` to a libSQL, PostgreSQL, or MySQL database to share accounts,
+Set `storage.database.url` to a libSQL, PostgreSQL, or MySQL database to share accounts,
 tokens, and package metadata across instances. Archives stay in the configured
 filesystem or S3 store. PostgreSQL and MySQL share one connection pool for auth
-and metadata, limited by `database.maxConnections`.
+and metadata, limited by `storage.database.maxConnections`.
 
 pnpr supports these databases:
 
 | Backend | Config key | Status |
 | --- | --- | --- |
-| libsql / Turso | `database.url: libsql://…` | Stable |
-| PostgreSQL | `database.url: postgres://…` | Stable |
-| MySQL 8.0.19 or later | `database.url: mysql://…` | Experimental |
+| libsql / Turso | `storage.database.url: libsql://…` | Stable |
+| PostgreSQL | `storage.database.url: postgres://…` | Stable |
+| MySQL 8.0.19 or later | `storage.database.url: mysql://…` | Experimental |
 
 :::tip
 
@@ -31,14 +31,14 @@ low-latency from the server.
 ## libsql / Turso
 
 ```yaml title="pnpr.yaml"
-storage: ./storage
-
-database:
-  # libsql/Turso database URL. `libsql://…` for Turso, or
-  # `http://127.0.0.1:8080` for a local `sqld`.
-  url: ${PNPR_LIBSQL_URL}
-  # Bearer token for the database. Omit for an unauthenticated local `sqld`.
-  authToken: ${PNPR_LIBSQL_TOKEN}
+storage:
+  path: ./storage
+  database:
+    # libsql/Turso database URL. `libsql://…` for Turso, or
+    # `http://127.0.0.1:8080` for a local `sqld`.
+    url: ${PNPR_LIBSQL_URL}
+    # Bearer token for the database. Omit for an unauthenticated local `sqld`.
+    authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 | Key | Required | Description |
@@ -55,11 +55,12 @@ a local replica. pnpr uses the sync protocol the primary offers, so the same
 setting works with Turso Cloud and with a self-hosted `sqld`.
 
 ```yaml title="pnpr.yaml"
-database:
-  url: ${PNPR_LIBSQL_URL}
-  authToken: ${PNPR_LIBSQL_TOKEN}
-  replicaPath: ./auth-replica.db
-  syncInterval: 60s
+storage:
+  database:
+    url: ${PNPR_LIBSQL_URL}
+    authToken: ${PNPR_LIBSQL_TOKEN}
+    replicaPath: ./auth-replica.db
+    syncInterval: 60s
 ```
 
 The trade-off is read freshness: an embedded replica reflects another replica's
@@ -74,11 +75,12 @@ recreated from it.
 ## PostgreSQL
 
 ```yaml title="pnpr.yaml"
-database:
-  url: ${PNPR_POSTGRES_URL}
-  maxConnections: 16
-  timeout: 30s
-  startupTimeout: 5m
+storage:
+  database:
+    url: ${PNPR_POSTGRES_URL}
+    maxConnections: 16
+    timeout: 30s
+    startupTimeout: 5m
 ```
 
 pnpr uses the connection's current schema. Instances on different schemas of
@@ -100,11 +102,12 @@ Use SQLite, libSQL, or PostgreSQL for production data.
 :::
 
 ```yaml title="pnpr.yaml"
-database:
-  url: ${PNPR_MYSQL_URL}
-  maxConnections: 16
-  timeout: 30s
-  startupTimeout: 5m
+storage:
+  database:
+    url: ${PNPR_MYSQL_URL}
+    maxConnections: 16
+    timeout: 30s
+    startupTimeout: 5m
 ```
 
 MySQL metadata keys are case-sensitive and limited to 512 bytes each. This
@@ -122,7 +125,7 @@ with InnoDB and its default 16 KiB page size.
 | `startupTimeout` | no | Initial connection and schema operation deadline. Defaults to `5m`. |
 
 Accounts and tokens live in the same database as package metadata. When
-`database.url` is absent or uses `sqlite:`, that is the SQLite metadata
+`storage.database.url` is absent or uses `sqlite:`, that is the SQLite metadata
 database. The `auth.users.maxUsers` registration cap applies to every
 database. Omitted `maxUsers` and `maxUsers: -1` both disable
 self-registration; set a non-negative cap to let new users register.

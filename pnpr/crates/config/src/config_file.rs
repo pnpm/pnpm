@@ -1,8 +1,8 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
     MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf, ReleaseRecordsFile,
-    S3Settings, ScimConfig, Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile,
-    access::TeamFile, default_storage_string, null_default::deserialize_null_default, oidc,
+    ScimConfig, Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile, access::TeamFile,
+    null_default::deserialize_null_default, oidc, storage_config::StorageFile,
 };
 
 /// Disk shape of the `routes:` block.
@@ -218,10 +218,12 @@ pub(super) struct ConfigFile {
     /// overrides it.
     #[serde(default)]
     pub(super) public_url: Option<String>,
-    #[serde(default = "default_storage_string")]
-    pub(super) storage: String,
+    /// Where pnpr keeps its authoritative data: the storage directory, the
+    /// hosted store, and the database.
+    #[serde(default)]
+    pub(super) storage: Option<StorageFile>,
     /// Disposable proxy-cache root or settings table. When omitted
-    /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
+    /// it defaults to a `.pnpr-cache` subdirectory of the storage directory.
     #[serde(default)]
     pub(super) cache: Option<CacheFile>,
     /// Reverse proxies trusted to supply the client IP address.
@@ -263,13 +265,6 @@ pub(super) struct ConfigFile {
     /// Who may scrape Prometheus metrics. Omitted ⇒ pnpr serves none.
     #[serde(default)]
     pub(super) metrics: Option<MetricsConfig>,
-    /// pnpr-only block: store the hosted (published) packages in an
-    /// S3-compatible object store instead of `storage`.
-    #[serde(default)]
-    pub(super) s3: Option<S3Settings>,
-    /// The database for accounts, tokens, and package metadata.
-    #[serde(default)]
-    pub(super) database: Option<crate::storage_config::DatabaseFile>,
     /// pnpr-only local OSV database settings.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) osv: OsvFile,

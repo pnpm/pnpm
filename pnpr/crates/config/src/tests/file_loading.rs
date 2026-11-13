@@ -384,15 +384,15 @@ fn config_rejects_unknown_fields_across_subsystems() {
         ("auth.users", "auth:\n  users:\n    unknownHt: true\n", "unknown field `unknownHt`"),
         (
             "backend.libsql",
-            "database:\n  url: libsql://x\n  unknownLibsql: 1\n",
+            "storage:\n  database:\n    url: libsql://x\n    unknownLibsql: 1\n",
             "unknown field `unknownLibsql`",
         ),
         (
             "backend.postgres",
-            "database:\n  url: postgres://x\n  unknownPg: 1\n",
+            "storage:\n  database:\n    url: postgres://x\n    unknownPg: 1\n",
             "unknown field `unknownPg`",
         ),
-        ("s3", "s3:\n  bucket: b\n  unknownS3: 1\n", "unknown field `unknownS3`"),
+        ("s3", "storage:\n  s3:\n    bucket: b\n    unknownS3: 1\n", "unknown field `unknownS3`"),
         ("osv", "osv:\n  unknownOsv: 1\n", "unknown field `unknownOsv`"),
         ("log", "log:\n  unknownLog: 1\n", "unknown field `unknownLog`"),
         ("routes", "routes:\n  unknownRoutes: 1\n", "unknown field `unknownRoutes`"),
@@ -428,7 +428,13 @@ fn config_rejects_unknown_fields_across_subsystems() {
 #[test]
 fn config_accepts_camel_case_fields() {
     let yaml = "\
-storage: ./storage
+storage:
+  path: ./storage
+  database:
+    url: libsql://test.db
+    authToken: secret
+    replicaPath: ./replica.db
+    syncInterval: 15s
 packumentTtl: 42s
 requestTimeout: 55s
 shutdownTimeout: 20s
@@ -442,11 +448,6 @@ routes:
 auth:
   users:
     maxUsers: 10
-database:
-  url: libsql://test.db
-  authToken: secret
-  replicaPath: ./replica.db
-  syncInterval: 15s
 registryEnv: [CUSTOM_TOKEN]
 registries:
   local:
@@ -494,8 +495,8 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
         ("secret.cache", "secret:\n  cache: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         ("secret.oci", "secret:\n  oci: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         (
-            "s3.secretAccessKey",
-            "s3:\n  bucket: b\n  secretAccessKey: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+            "storage.s3.secretAccessKey",
+            "storage:\n  s3:\n    bucket: b\n    secretAccessKey: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
         ("auth.scim.token", "auth:\n  scim:\n    token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         ("metrics.token", "metrics:\n  token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
@@ -504,12 +505,12 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
             "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      login:\n        clientSecret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n        users: []\n",
         ),
         (
-            "database.authToken",
-            "database:\n  url: libsql://x\n  authToken: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+            "storage.database.authToken",
+            "storage:\n  database:\n    url: libsql://x\n    authToken: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
         (
-            "database.url",
-            "database:\n  url: postgres://pnpr:${PNPR_TEST_UNRESOLVED_VAR_123}@db/pnpr\n",
+            "storage.database.url",
+            "storage:\n  database:\n    url: postgres://pnpr:${PNPR_TEST_UNRESOLVED_VAR_123}@db/pnpr\n",
         ),
     ];
 

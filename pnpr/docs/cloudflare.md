@@ -54,20 +54,19 @@ The pnpr config points the hosted store at your bucket and auth at Turso. The
 credentials arrive as environment variables, which the Worker below sets:
 
 ```yaml title="pnpr.yaml"
-storage: /pnpr/storage
-
-s3:
-  bucket: my-pnpr-packages
-  region: auto
-  endpoint: https://<account-id>.r2.cloudflarestorage.com
-  # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
-
-database:
-  url: ${PNPR_LIBSQL_URL}
-  authToken: ${PNPR_LIBSQL_TOKEN}
-  # Package views are read from a local replica, rebuilt on each start.
-  replicaPath: /pnpr/cache/metadata-replica.db
-  syncInterval: 10s
+storage:
+  path: /pnpr/storage
+  s3:
+    bucket: my-pnpr-packages
+    region: auto
+    endpoint: https://<account-id>.r2.cloudflarestorage.com
+    # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+  database:
+    url: ${PNPR_LIBSQL_URL}
+    authToken: ${PNPR_LIBSQL_TOKEN}
+    # Package views are read from a local replica, rebuilt on each start.
+    replicaPath: /pnpr/cache/metadata-replica.db
+    syncInterval: 10s
 
 secret: ${PNPR_SECRET}
 

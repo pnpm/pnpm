@@ -44,7 +44,7 @@ pub use startup::{Checkout, StartupConnection, connect_startup};
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 fn invalid_pool_size() -> RegistryError {
     RegistryError::InvalidConfig {
-        reason: "database.maxConnections must be greater than 0".to_string(),
+        reason: "storage.database.maxConnections must be greater than 0".to_string(),
     }
 }
 

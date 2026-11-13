@@ -19,7 +19,7 @@ pub(crate) const PENDING_CACHE_CLAIM: &str = "pending";
 const CACHE_OVERLAPS_HOSTED_STORAGE: &str =
     "cache path must not equal or contain the storage directory";
 const CACHE_CONTAINS_METADATA_DB: &str =
-    "database.url SQLite path must not live inside the disposable cache directory";
+    "storage.database.url SQLite path must not live inside the disposable cache directory";
 const CACHE_CONTAINS_REPLICA_DB: &str =
     "libSQL replicaPath must not live inside the disposable cache directory";
 const CACHE_CONTAINS_OSV_DB: &str =
@@ -261,7 +261,7 @@ pub(crate) fn ensure_only_ignorable_entries(
 fn validate_database_backend(metadata: &DatabaseBackend) -> Result<()> {
     match metadata {
         DatabaseBackend::Sqlite(path) if path.as_os_str().is_empty() => {
-            Err(invalid("database.url `sqlite:` needs a path after the colon"))
+            Err(invalid("storage.database.url `sqlite:` needs a path after the colon"))
         }
         DatabaseBackend::Sqlite(_) => Ok(()),
         DatabaseBackend::Postgres(settings) => validate_postgres(settings),
@@ -315,11 +315,11 @@ fn validate_mysql(settings: &SqlBackendSettings) -> Result<()> {
 
 fn validate_libsql(settings: &LibsqlSettings) -> Result<()> {
     if settings.max_connections == Some(0) {
-        return Err(invalid("database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0"));
     }
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
-            "database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
+            "storage.database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
              replica read may be",
         ));
     }
@@ -334,19 +334,19 @@ fn validate_libsql(settings: &LibsqlSettings) -> Result<()> {
         return Err(missing_driver());
     }
     #[cfg(feature = "backend-libsql")]
-    pnpr_libsql::validate_settings(settings, "database")?;
+    pnpr_libsql::validate_settings(settings, "storage.database")?;
     Ok(())
 }
 
 fn validate_sql_pool(settings: &SqlBackendSettings) -> Result<()> {
     if settings.max_connections == Some(0) {
-        return Err(invalid("database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0"));
     }
     if settings.timeout.is_zero() {
-        return Err(invalid("database.timeout must be greater than 0"));
+        return Err(invalid("storage.database.timeout must be greater than 0"));
     }
     if settings.startup_timeout.is_zero() {
-        return Err(invalid("database.startupTimeout must be greater than 0"));
+        return Err(invalid("storage.database.startupTimeout must be greater than 0"));
     }
     Ok(())
 }
@@ -363,7 +363,7 @@ fn parse_hierarchical_url(raw: &str) -> Result<Url> {
 }
 
 fn invalid_url() -> RegistryError {
-    invalid("database.url is not a valid URL")
+    invalid("storage.database.url is not a valid URL")
 }
 
 fn missing_driver() -> RegistryError {

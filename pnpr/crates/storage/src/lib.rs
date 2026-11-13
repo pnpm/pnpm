@@ -145,7 +145,7 @@ pub enum CachedDocument {
 ///   served in static mode. Served as-is and never overwritten by an
 ///   upstream refresh, so a hosted version can't be masked or lost.
 ///   Backed by a local directory by default, or an S3-compatible
-///   object store (S3, Cloudflare R2, `MinIO`, ...) when the YAML `s3:`
+///   object store (S3, Cloudflare R2, `MinIO`, ...) when the YAML `storage.s3`
 ///   block is set — see the S3 backend.
 /// * `cached` — the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Always local,

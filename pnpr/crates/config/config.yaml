@@ -4,8 +4,29 @@
 #listen: 0.0.0.0:7677
 #publicUrl: https://registry.example.com
 
-# Authoritative storage for hosted packages published to this server.
+# Authoritative storage for hosted packages published to this server: a
+# directory, or a table that also names the object store and the database.
 storage: ./storage
+#storage:
+#  path: ./storage
+#  # S3-compatible object store for hosted packages.
+#  s3:
+#    bucket: my-pnpr-packages
+#    region: auto
+#    endpoint: https://<account-id>.r2.cloudflarestorage.com
+#    prefix: packages
+#    accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+#    secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+#    forcePathStyle: true   # the default unless AWS_VIRTUAL_HOSTED_STYLE_REQUEST=true; false selects virtual-hosted addressing
+#    allowHttp: false
+#  # Shared database for accounts, tokens, and package metadata.
+#  # PostgreSQL and MySQL use the same url setting with their connection URL.
+#  database:
+#    url: ${PNPR_LIBSQL_URL}
+#    authToken: ${PNPR_LIBSQL_TOKEN}
+#    replicaPath: ./metadata-replica.db
+#    syncInterval: 60s
+#    maxConnections: 16
 
 # Disposable proxy cache for upstream registries and the install accelerator.
 # Defaults to `.pnpr-cache` under `storage`.
@@ -35,26 +56,6 @@ storage: ./storage
 #metrics:
 #  token: ${PNPR_METRICS_TOKEN}   # scrapers send it as a bearer token
 #  listen: 127.0.0.1:9464         # serve metrics only on this address
-
-# S3-compatible object store for hosted packages.
-#s3:
-#  bucket: my-pnpr-packages
-#  region: auto
-#  endpoint: https://<account-id>.r2.cloudflarestorage.com
-#  prefix: packages
-#  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
-#  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
-#  forcePathStyle: true   # the default unless AWS_VIRTUAL_HOSTED_STYLE_REQUEST=true; false selects virtual-hosted addressing
-#  allowHttp: false
-
-# Shared database for accounts, tokens, and package metadata.
-# PostgreSQL and MySQL use the same database.url setting with their connection URL.
-#database:
-#  url: ${PNPR_LIBSQL_URL}
-#  authToken: ${PNPR_LIBSQL_TOKEN}
-#  replicaPath: ./metadata-replica.db
-#  syncInterval: 60s
-#  maxConnections: 16
 
 # Secret key for private cache HMACs and OCI token signing.
 # Required when the cache persists across restarts, is shared, or there are

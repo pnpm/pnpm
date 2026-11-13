@@ -293,10 +293,15 @@ fn build_storage_config(
     base_dir: &Path,
     hosts_packages: bool,
 ) -> Result<super::StorageConfig, RegistryError> {
-    let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
-    let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
+    let settings = file.storage
+        .take()
+        .map(crate::storage_config::StorageFile::into_settings)
+        .unwrap_or_default();
+    let (hosted_dir, cache_dir, cache) =
+        resolve_storage_paths(file, settings.path.as_deref(), base_dir)?;
+    let hosted_backend = settings.s3.map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
     let database = crate::storage_config::resolve_database_backend(
-        file.database.as_ref(),
+        settings.database.as_ref(),
         &hosted_dir,
         base_dir,
         &hosted_backend,

@@ -218,7 +218,8 @@ fn runtime_mock_config(database: Option<&Path>, config: &str) -> io::Result<Path
             let database = std::path::absolute(database)?;
             let mut yaml: serde_json::Value =
                 serde_saphyr::from_str(config).map_err(io::Error::other)?;
-            yaml["database"] = serde_json::json!({"url": format!("sqlite:{}", database.display())});
+            yaml["storage"]["database"] =
+                serde_json::json!({"url": format!("sqlite:{}", database.display())});
             serde_saphyr::to_string(&yaml).map_err(io::Error::other)?
         }
         None => config.to_string(),

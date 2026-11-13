@@ -96,7 +96,12 @@ fn seeding_a_moving_revision_discards_old_auth_state() {
 #[test]
 fn revision_database_uses_the_revisions_config_key() {
     let directory = tempfile::tempdir().unwrap();
-    for (name, setting) in [("old", ""), ("new", "database: {}\n")] {
+    let cases = [
+        ("metadata", "", "/metadata/url"),
+        ("database", "database: {}\n", "/database/url"),
+        ("storage", "storage:\n  database: {}\n", "/storage/database/url"),
+    ];
+    for (name, setting, pointer) in cases {
         let source = directory.path().join(name);
         fs::create_dir_all(source.join("pnpr/.fixtures")).unwrap();
         fs::write(
@@ -109,12 +114,10 @@ fn revision_database_uses_the_revisions_config_key() {
             .join(format!("{name}-home"));
         let yaml = mock_config(&source.join("target/release/pnpr"), &home);
         let config: Value = serde_saphyr::from_str(&yaml).unwrap();
-        let (key, absent) =
-            if name == "old" { ("metadata", "database") } else { ("database", "metadata") };
-        assert_eq!(
-            config[key]["url"],
-            format!("sqlite:{}", home.join("metadata.sqlite").display()),
-        );
-        assert!(config.get(absent).is_none());
+        let url = format!("sqlite:{}", home.join("metadata.sqlite").display());
+        for (_, _, candidate) in cases {
+            let expected = (candidate == pointer).then_some(url.as_str());
+            assert_eq!(config.pointer(candidate).and_then(Value::as_str), expected, "{candidate}");
+        }
     }
 }

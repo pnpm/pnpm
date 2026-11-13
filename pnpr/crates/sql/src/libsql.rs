@@ -146,7 +146,7 @@ impl LibsqlAdapter {
 
 impl Opened {
     async fn open(settings: &LibsqlSettings) -> Result<Arc<Self>> {
-        let connector = pnpr_libsql::connector(settings, "database")?;
+        let connector = pnpr_libsql::connector(settings, "storage.database")?;
         let _startup_dials = connector.retry_timed_out_dials();
         let max_connections =
             settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS) as usize;

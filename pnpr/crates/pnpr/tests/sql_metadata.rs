@@ -708,7 +708,7 @@ async fn rejected_tag_rewrites_do_not_mark_versions_unpublished() {
 }
 
 /// The published binaries are built with the default features, so those
-/// features must include every database `database.url` accepts. The pools
+/// features must include every database `storage.database.url` accepts. The pools
 /// connect lazily: nothing listens at these addresses.
 #[tokio::test]
 async fn the_default_build_opens_postgres_and_mysql_metadata() {

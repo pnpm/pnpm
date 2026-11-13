@@ -87,7 +87,7 @@ pnpr verify --skip-hashes
 
 ### migrate-storage
 
-Migrates hosted package blobs and transparency log records from local filesystem storage to an S3-compatible object store. Package metadata stays in the database selected by `database.url`. S3 deployments support libSQL, PostgreSQL, or MySQL metadata. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `database.url` at it. A run that is not `--dry-run` refuses local SQLite metadata.
+Migrates hosted package blobs and transparency log records from local filesystem storage to an S3-compatible object store. Package metadata stays in the database selected by `storage.database.url`. S3 deployments support libSQL, PostgreSQL, or MySQL metadata. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `storage.database.url` at it. A run that is not `--dry-run` refuses local SQLite metadata.
 
 ```sh
 # Preview packages and blobs that would be transferred
@@ -108,11 +108,11 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 | `--verify` | Read back and verify content of uploaded blobs after transfer. |
 
 Without `--to-bucket`, the command migrates into the bucket of the config's
-[`s3:`](storage.md#backends) block. With `--to-bucket`, only the `--to-*` flags
+[`storage.s3`](storage.md#backends) block. With `--to-bucket`, only the `--to-*` flags
 describe the destination. The region, endpoint, and prefix are not read from
 the config, credentials come only from `AWS_ACCESS_KEY_ID` and
 `AWS_SECRET_ACCESS_KEY`, and `forcePathStyle` and `allowHttp` cannot be set.
-To reach a plain-HTTP MinIO, configure the `s3:` block instead:
+To reach a plain-HTTP MinIO, configure the `storage.s3` block instead:
 
 ```sh
 pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
@@ -122,7 +122,7 @@ pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
 
 Imports users from an Apache or Verdaccio `htpasswd` file into the SQLite database. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login). The whole file is imported in one transaction, so the command can run next to a running server.
 
-The command refuses a config whose `database.url` names a libSQL, PostgreSQL, or MySQL database.
+The command refuses a config whose `storage.database.url` names a libSQL, PostgreSQL, or MySQL database.
 
 ```sh
 # Preview users that would be imported

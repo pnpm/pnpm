@@ -15,11 +15,17 @@ pub(super) fn mock_config(binary: &Path, home: &Path) -> String {
     let mut config: Value =
         serde_saphyr::from_str(&yaml).expect("parse revision mock configuration");
     config["auth"] = seed_auth(&yaml, home);
-    let database_key = if config.get("database").is_some() { "database" } else { "metadata" };
     let database = std::path::absolute(home)
         .expect("absolute revision database directory")
         .join("metadata.sqlite");
-    config[database_key] = json!({"url": format!("sqlite:{}", database.display())});
+    let database = json!({"url": format!("sqlite:{}", database.display())});
+    if config["storage"].get("database").is_some() {
+        config["storage"]["database"] = database;
+    } else if config.get("database").is_some() {
+        config["database"] = database;
+    } else {
+        config["metadata"] = database;
+    }
     serde_saphyr::to_string(&config).expect("serialize revision mock configuration")
 }
 

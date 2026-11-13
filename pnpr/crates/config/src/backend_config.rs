@@ -67,7 +67,7 @@ impl LibsqlSettings {
     pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
 }
 
-/// The settings of a `PostgreSQL` or `MySQL` `database:` block. Whole-file
+/// The settings of a `PostgreSQL` or `MySQL` `storage.database` block. Whole-file
 /// `${ENV}` substitution runs before parsing, so `url` can hold
 /// `${...}` refs and keep credentials out of the committed config.
 #[derive(Clone, PartialEq, Eq, Deserialize)]
@@ -181,7 +181,7 @@ impl MaxUsers {
 pub struct IdentityConfig {
     pub auth: AuthConfig,
     /// The database that holds accounts and tokens, which is the metadata
-    /// database the `database:` block selects.
+    /// database the `storage.database` block selects.
     pub backend: BackendConfig,
     /// Account IDs from `auth.admins`, who may administer every registry.
     pub admins: BTreeSet<String>,
@@ -265,14 +265,14 @@ pub(super) fn build_sql_backend_settings(
         .unwrap_or(SqlBackendSettings::DEFAULT_TIMEOUT);
     if timeout.is_zero() {
         return Err(RegistryError::InvalidConfig {
-            reason: "database.timeout must be greater than 0".to_string(),
+            reason: "storage.database.timeout must be greater than 0".to_string(),
         });
     }
     let startup_timeout = parse_backend_interval("startupTimeout", file.startup_timeout.as_ref())?
         .unwrap_or(SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT);
     if startup_timeout.is_zero() {
         return Err(RegistryError::InvalidConfig {
-            reason: "database.startupTimeout must be greater than 0".to_string(),
+            reason: "storage.database.startupTimeout must be greater than 0".to_string(),
         });
     }
     Ok(SqlBackendSettings {

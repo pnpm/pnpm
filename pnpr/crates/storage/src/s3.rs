@@ -2,7 +2,7 @@
 //!
 //! The hosted store is pnpr's source of truth — packages published
 //! through its API plus the content served in static mode. When the
-//! YAML `s3:` block is present, those authoritative documents and
+//! YAML `storage.s3` block is present, those authoritative documents and
 //! blobs live in an object store instead of on local disk, so the
 //! durable data can be replicated by the provider and shared by
 //! several stateless pnpr replicas.

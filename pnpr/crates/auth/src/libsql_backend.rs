@@ -88,7 +88,7 @@ impl LibsqlAuth {
     /// [`DEFAULT_STARTUP_TIMEOUT`], within which a dial that times out is
     /// retried.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
-        let connector = pnpr_libsql::connector(settings, "database")?;
+        let connector = pnpr_libsql::connector(settings, "storage.database")?;
         let _startup_dials = connector.retry_timed_out_dials();
         with_auth_timeout(
             DEFAULT_STARTUP_TIMEOUT,
