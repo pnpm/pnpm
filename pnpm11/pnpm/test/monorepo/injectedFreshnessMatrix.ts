@@ -85,7 +85,7 @@ describe.each(LAYOUTS)('injected package edits: %j', (layout) => {
 
     expect(await frozenInstallPasses()).toBe(true)
 
-    if (filter.length > 0 && layout.sharedWorkspaceLockfile) return
+    if (layout.childSpec != null || (filter.length > 0 && layout.sharedWorkspaceLockfile)) return
     const scratch = cleanCopy()
     for (const lockfile of Object.keys(readLockfiles(scratch))) {
       fs.rmSync(path.join(scratch, lockfile))

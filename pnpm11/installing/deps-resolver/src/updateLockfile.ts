@@ -311,8 +311,7 @@ function linkedDependencyRef ({ alias, depPath, depGraph, lockfileDir, parentPkg
   ) return depPath
   const localSpec = parentPkg.localLinkedDependencies?.get(alias)
   if (localSpec != null) {
-    const localPkgDir = localSpecPath(parentPkg.pkgIdWithPatchHash, lockfileDir)
-    const childDir = localSpecPath(localSpec, localPkgDir)
+    const childDir = localSpecPath(localSpec, parentPkg.resolution.directory)
     if (recordedLocalPath(depPath.slice('link:'.length), lockfileDir) === childDir) return depPath
     return createNodeIdForLinkedLocalPkg(lockfileDir, childDir) as string
   }
