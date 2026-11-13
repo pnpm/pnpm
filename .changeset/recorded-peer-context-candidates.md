@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Simplified lockfile reuse for packages with hashed peer contexts.
+Reduced peer-context lookup work when reusing a lockfile with hashed peer suffixes.

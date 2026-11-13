@@ -32,7 +32,7 @@ fn collect(lockfile: &Lockfile) -> Option<HashMap<PackageKey, HashSet<PkgName>>>
             continue;
         };
         let Some(peers) = &metadata.peer_dependencies else { continue };
-        let bound = BoundProviders::of_snapshot(lockfile.into(), &key);
+        let bound = BoundProviders::from_recorded_snapshot(lockfile.into(), &key);
         if bound.is_hashed() {
             continue;
         }
