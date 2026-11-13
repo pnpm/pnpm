@@ -151,9 +151,6 @@
       "path": "../../store/index"
     },
     {
-      "path": "../../store/path"
-    },
-    {
       "path": "../../testing/command-defaults"
     },
     {

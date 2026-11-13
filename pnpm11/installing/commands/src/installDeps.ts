@@ -18,7 +18,6 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import { getStorePath } from '@pnpm/store.path'
 import type {
   IncludedDependencies,
   PackageVulnerabilityAudit,
@@ -112,7 +111,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'packageExtensions'
 | 'updateConfig'
 | 'virtualStoreDirMaxLength'
-| 'virtualStoreDir'
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'allProjectsGraph'
@@ -255,14 +253,10 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
 
 async function globalVirtualStoreBinShimsArePending (opts: InstallDepsOptions): Promise<boolean> {
   if (!opts.enableGlobalVirtualStore || opts.frozenStore) return false
-  const globalVirtualStoreDir = opts.virtualStoreDir == null
-    ? path.join(await getStorePath({
-      pkgRoot: opts.workspaceDir ?? opts.dir,
-      storePath: opts.storeDir,
-      pnpmHomeDir: opts.pnpmHomeDir,
-    }), 'links')
-    : path.resolve(opts.lockfileDir ?? opts.dir, opts.virtualStoreDir)
-  return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)
+  const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
+  const modules = await readModulesManifest(modulesDir)
+  if (modules?.virtualStoreDir == null) return true
+  return globalVirtualStoreBinShimsNeedRepair(modules.virtualStoreDir, opts)
 }
 
 function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
