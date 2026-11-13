@@ -25,7 +25,7 @@ export function updateLockfile (
     lockfile: LockfileObject
     prefix: string
     lockfileIncludeTarballUrl?: boolean
-    lockfileDir: string
+    lockfileDir?: string
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
@@ -79,7 +79,7 @@ function toLockfileDependency (
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
     lockfileIncludeTarballUrl?: boolean
-    lockfileDir: string
+    lockfileDir?: string
   }
 ): PackageSnapshot {
   const lockfileResolution = keepRecordedTarballIntegrity(
@@ -129,7 +129,7 @@ function addChildDependencies (
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
-    lockfileDir: string
+    lockfileDir?: string
   },
   parentResolution: ResolvedPackage['resolution']
 ): void {
@@ -276,14 +276,14 @@ function getDeprecationToRecord (
 function updateResolvedDeps (
   updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph,
-  lockfileDir: string,
+  lockfileDir: string | undefined,
   parentResolution: ResolvedPackage['resolution']
 ): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          if (parentResolution.type !== 'directory') return [alias, depPath]
+          if (lockfileDir == null || parentResolution.type !== 'directory') return [alias, depPath]
           const linkTarget = localSpecPath(depPath.slice(5), parentResolution.directory)
           return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, linkTarget) as string]
         }
