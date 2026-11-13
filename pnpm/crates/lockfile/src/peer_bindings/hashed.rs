@@ -19,7 +19,7 @@ pub(super) fn recover_hashed_providers(
     let snapshot = snapshots.get(key)?;
     let package = entries.packages?.get(&key.without_peer())?;
 
-    let candidates = peer_candidates_by_name(snapshots, snapshot, package, &key.name)?;
+    let candidates = peer_candidates_by_name(snapshots, snapshot, package, key)?;
     match_candidates(&candidates, &hash_hex)
 }
 
@@ -36,9 +36,10 @@ fn peer_candidates_by_name(
     snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     snapshot: &SnapshotEntry,
     package: &PackageMetadata,
-    self_name: &PkgName,
+    self_key: &PkgNameVerPeer,
 ) -> Option<Vec<Vec<PkgNameVerPeer>>> {
-    let peers = peer_names_of_snapshot(snapshot, package, self_name);
+    let peers = peer_names_of_snapshot(snapshot, package);
+    let self_identity = self_key.without_peer();
     let transitive_peers: Vec<(PkgName, &str)> = peers
         .iter()
         .filter(|(_, name)| lists_transitive_peer(snapshot, name))
@@ -53,7 +54,15 @@ fn peer_candidates_by_name(
         peers
             .into_iter()
             .map(|(peer, _)| {
-                targets_for_peer(snapshot, &peer, descendant_targets.get(&peer).map(Vec::as_slice))
+                let mut targets = targets_for_peer(
+                    snapshot,
+                    &peer,
+                    descendant_targets.get(&peer).map(Vec::as_slice),
+                );
+                if peer == self_key.name {
+                    targets.retain(|target| target.without_peer() != self_identity);
+                }
+                targets
             })
             .filter(|targets| !targets.is_empty())
             .collect(),
@@ -63,7 +72,6 @@ fn peer_candidates_by_name(
 fn peer_names_of_snapshot<'a>(
     snapshot: &'a SnapshotEntry,
     package: &'a PackageMetadata,
-    self_name: &PkgName,
 ) -> Vec<(PkgName, &'a str)> {
     let mut names: Vec<&str> = package.peer_dependencies
         .iter()
@@ -88,7 +96,7 @@ fn peer_names_of_snapshot<'a>(
         .into_iter()
         .filter_map(|name| {
             let peer = name.parse::<PkgName>().ok()?;
-            (peer != *self_name).then_some((peer, name))
+            Some((peer, name))
         })
         .collect()
 }

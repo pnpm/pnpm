@@ -55,6 +55,10 @@ fn aliased_package_retains_a_different_version_of_its_own_name_as_a_peer() {
             let direct = lockfile.importers[importer].dependencies.as_ref().unwrap();
             let alias = "aliased".parse().unwrap();
             let key = direct[&alias].version.resolved_key(&alias).unwrap();
+            let providers = pnpm_lockfile::BoundProviders::of_snapshot((&lockfile).into(), &key);
+            assert!(!providers.is_hashed(), "{key}");
+            assert!(providers.binds(&format!("provider@{version}").parse().unwrap()));
+            assert!(!providers.binds(&"provider@2.0.0".parse().unwrap()));
             let snapshots = lockfile.snapshots.as_ref().unwrap();
             let consumer = "consumer".parse().unwrap();
             let consumer_key = snapshots[&key].dependencies.as_ref().unwrap()[&consumer]
