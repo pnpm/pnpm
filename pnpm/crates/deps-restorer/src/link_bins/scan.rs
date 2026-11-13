@@ -112,7 +112,9 @@ fn repair_slot(
         {
             Ok(())
         }
-        Err(error) => Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: package_dir, error }),
+        Err(error) => {
+            Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: package_dir.clone(), error })
+        }
     }
 }
 
