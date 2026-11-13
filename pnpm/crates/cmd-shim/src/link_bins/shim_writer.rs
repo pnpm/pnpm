@@ -143,10 +143,8 @@ where
                 && prepare_direct_target::<Sys>(spec, cache)?
                 && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
         };
-    if linked {
-        if let Some(path) = stale_powershell {
-            return Err(LinkBinsError::FrozenStoreWrite { path: path.to_path_buf() });
-        }
+    if linked && let Some(path) = stale_powershell {
+        return Err(LinkBinsError::FrozenStoreWrite { path: path.to_path_buf() });
     }
     Ok(linked)
 }
