@@ -1,5 +1,5 @@
 use super::{InstallError, run::InstallExecution};
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::Config;
 use pnpm_store_dir::StoreOperationLock;
 
 pub(super) fn lock_store(
@@ -19,7 +19,6 @@ pub(super) fn lock_store(
 fn should_repair(config: &Config, execution: InstallExecution) -> bool {
     config.enable_global_virtual_store
         && !config.frozen_store
-        && !matches!(execution.node_linker, NodeLinker::Hoisted | NodeLinker::Pnp)
         && !execution.lockfile_only
         && !execution.dry_run
 }
