@@ -244,7 +244,7 @@ fn reused_global_virtual_store_bin_shims_are_repaired_once_per_store() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    set_gvs_workspace_yaml(&workspace, "");
+    set_gvs_workspace_yaml(&workspace, "nodeLinker: isolated\n");
     write_manifest(
         &workspace,
         &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
