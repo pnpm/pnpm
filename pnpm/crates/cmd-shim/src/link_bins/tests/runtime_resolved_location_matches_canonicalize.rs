@@ -1,8 +1,9 @@
 use super::{
-    Arc, DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf,
-    ShimTargetCache, Value, create_dir_all, io, is_shim_pointing_at, json, link_bins_of_packages,
-    link_bins_of_packages_cached, read_file, read_to_string, tempdir, write_file,
+    Arc, DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadHead,
+    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsOptions, PackageBinSource,
+    Path, PathBuf, ShimTargetCache, Value, create_dir_all, io, is_shim_pointing_at, json,
+    link_bins_of_packages, link_bins_of_packages_cached, read_file, read_to_string, tempdir,
+    write_file,
 };
 
 /// A caller-supplied resolved location and the canonicalize fallback
@@ -305,6 +306,11 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
             <Host as FsReadToString>::read_to_string(path)
         }
     }
+    impl FsReadDir for ReadCountingHost {
+        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsReadDir>::read_dir(path)
+        }
+    }
     impl FsCreateDirAll for ReadCountingHost {
         fn create_dir_all(path: &Path) -> io::Result<()> {
             <Host as FsCreateDirAll>::create_dir_all(path)
@@ -392,6 +398,11 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
     impl FsReadToString for CountingHost {
         fn read_to_string(path: &Path) -> io::Result<String> {
             <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsReadDir for CountingHost {
+        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsReadDir>::read_dir(path)
         }
     }
     impl FsCreateDirAll for CountingHost {

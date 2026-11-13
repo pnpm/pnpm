@@ -725,6 +725,11 @@ fn precalculated_bins_write_shims_without_walking_directories_or_reading_shebang
             Host::read_to_string(path)
         }
     }
+    impl FsReadDir for NoProbeSys {
+        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            Host::read_dir(path)
+        }
+    }
     impl FsReadHead for NoProbeSys {
         fn read_head(path: &Path, _: u64, _: &mut [u8]) -> io::Result<usize> {
             panic!("unexpected read_head on {}", path.display());
