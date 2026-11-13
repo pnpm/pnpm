@@ -42,12 +42,12 @@ pub use pnpm_resolving_resolver_base::{
 };
 pub use pnpm_version_policy as version_policy;
 pub use setting_types::{
-    AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
+    AuditConfig, AuditLevel, CatalogMode, ColorMode, FilterSource, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
     PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
-pub use settings::{Config, HoistPatterns};
+pub use settings::{Config, HoistPatterns, ordered_filter_entries};
 pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
 pub use shim_policy::{
     GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,

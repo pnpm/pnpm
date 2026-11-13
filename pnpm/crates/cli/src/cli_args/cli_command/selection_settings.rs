@@ -27,3 +27,26 @@ pub struct SelectionSettingArgs {
     )]
     pub no_include_workspace_root: bool,
 }
+
+/// Extract the command-line interleaving of `--filter` and `--filter-prod`
+/// arguments from `matches`.
+pub fn extract_filter_order(matches: &clap::ArgMatches) -> Vec<pnpm_config::FilterSource> {
+    let mut indexed: Vec<(usize, pnpm_config::FilterSource)> = matches
+        .indices_of("filter")
+        .into_iter()
+        .flatten()
+        .map(|index| (index, pnpm_config::FilterSource::Filter))
+        .chain(
+            matches
+                .indices_of("filter_prod")
+                .into_iter()
+                .flatten()
+                .map(|index| (index, pnpm_config::FilterSource::FilterProd)),
+        )
+        .collect();
+    indexed.sort_by_key(|&(index, _)| index);
+    indexed
+        .into_iter()
+        .map(|(_, source)| source)
+        .collect()
+}

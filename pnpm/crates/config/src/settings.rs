@@ -1,21 +1,23 @@
+pub use filters::ordered_filter_entries;
+
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
-    ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
-    PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
-    PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
-    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, SmartDefault, StoreDir,
-    StoreIndexFormat, SystemTime, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
-    default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
-    default_hoist_pattern, default_install_state_dir, default_max_tarball_unpacked_size,
-    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
-    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
-    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
+    ConfigDependency, Ecosystem, EnvVar, FilterSource, GlobalShims, HashMap, HoistingLimits, Host,
+    IndexMap, InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode,
+    NodePackageMapType, PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail,
+    ProjectConfig, PythonSettings, RegistryOptions, RemoteCacheSettings,
+    RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, SmartDefault, StoreDir, StoreIndexFormat, SystemTime, Tool,
+    ToolSettings, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
+    default_max_tarball_unpacked_size, default_modules_cache_max_age, default_modules_dir,
+    default_peers_suffix_max_length, default_public_hoist_pattern, default_registry,
+    default_state_dir, default_store_dir, default_tag_version_prefix, default_unsafe_perm,
+    default_user_agent, default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci,
+    npmrc_auth, side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
 };
 use crate::MacosBackupConfig;
 
@@ -1370,6 +1372,12 @@ pub struct Config {
     /// dependency walk runs. Populated the same way.
     pub filter_prod: Vec<String>,
 
+    /// Relative command-line order of [`Self::filter`] and [`Self::filter_prod`]
+    /// entries when set from CLI flags. Empty when selectors were not
+    /// interleaved on the command line or after an `updateConfig` hook rewrites
+    /// them.
+    pub filter_order: Vec<FilterSource>,
+
     /// `--workspace-root` / `-w`: run the command on the root workspace
     /// project. CLI-only, like [`Self::filter`].
     pub workspace_root: bool,
@@ -1921,5 +1929,6 @@ impl Config {
 }
 
 mod cache;
+mod filters;
 mod patches;
 mod tools;

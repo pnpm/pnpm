@@ -14,6 +14,7 @@ import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
 import type { ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { orderWorkspaceFilters } from '@pnpm/workspace.projects-filter'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { realpathMissing } from 'realpath-missing'
 
@@ -328,11 +329,17 @@ export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'o
  * being gated was filtered to, otherwise a filtered `run` or `exec` would
  * install every project of the workspace.
  */
-export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter' | 'filterProd'>): string[] {
-  return [
-    ...(opts.filter ?? []).map((selector) => `--filter=${withDependencies(selector)}`),
-    ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
-  ]
+export function createFilterArgs (
+  opts: Pick<RunDepsStatusCheckOptions, 'argv' | 'cliOptions' | 'filter' | 'filterProd'>
+): string[] {
+  return orderWorkspaceFilters({
+    filter: opts.filter,
+    filterProd: opts.filterProd,
+    cliOptions: opts.cliOptions,
+    cookedArgv: opts.argv?.cooked,
+  }).map(({ filter, followProdDepsOnly }) =>
+    `${followProdDepsOnly ? '--filter-prod' : '--filter'}=${withDependencies(filter)}`
+  )
 }
 
 /**

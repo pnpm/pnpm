@@ -120,6 +120,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("fetch_timeout", NotAnInput(NETWORK)),
     ("fetch_warn_timeout_ms", NotAnInput(NETWORK)),
     ("filter", Through("the selection the fast path is scoped to")),
+    ("filter_order", Through("the selection the fast path is scoped to")),
     ("filter_prod", Through("the selection the fast path is scoped to")),
     ("force", Through("skips the fast path before it runs")),
     ("force_ignores_platform", Through("acts only with `force`, which skips the fast path")),

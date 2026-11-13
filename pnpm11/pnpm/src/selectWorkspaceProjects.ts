@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
+import { filterProjectsFromDir, orderWorkspaceFilters, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import { isEmpty } from 'ramda'
 
 import { recursiveByDefaultCommands } from './cmd/index.js'
@@ -14,6 +14,7 @@ export interface CommandInvocation {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   cliOptions: Record<string, any>
   workspaceDir: string | undefined
+  cookedArgv?: string[]
 }
 
 /**
@@ -99,10 +100,12 @@ function buildWorkspaceFilters (
   scope: CommandInvocation & { wsDir: string, filter: string[], filterProd: string[] }
 ): WorkspaceFilter[] {
   const { cmd, workspaceDir, wsDir } = scope
-  const filters: WorkspaceFilter[] = [
-    ...scope.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
-    ...scope.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
-  ]
+  const filters: WorkspaceFilter[] = orderWorkspaceFilters({
+    filter: scope.filter,
+    filterProd: scope.filterProd,
+    cliOptions: scope.cliOptions,
+    cookedArgv: scope.cookedArgv,
+  })
   const relativeWSDirPath = () => path.relative(config.dir, wsDir) || '.'
   // Both of the selectors below are pnpm's own; the user did not write
   // them. Each has to mean "the project whose directory is the workspace

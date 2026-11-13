@@ -356,3 +356,58 @@ fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link
     expected.sort();
     assert_eq!(verified, expected);
 }
+
+#[test]
+fn select_recursive_projects_combines_filter_prod_with_regular_exclusion() {
+    let tmp = tempfile::tempdir().unwrap();
+    let write_project = |rel: &str, json: &str| {
+        let dir = if rel == "." { tmp.path().to_path_buf() } else { tmp.path().join(rel) };
+        fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        Project {
+            root_dir: dir,
+            manifest: PackageManifest::from_path(manifest_path).unwrap(),
+            dependency_manifest: None,
+        }
+    };
+    let ws_root = write_project(".", r#"{"name":"ws-root","private":true}"#);
+    let app = write_project(
+        "packages/app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"lib-a":"workspace:*"},"devDependencies":{"lib-dev":"workspace:*"}}"#,
+    );
+    let app_dir = app.root_dir.clone();
+    let lib_a = write_project("packages/lib-a", r#"{"name":"lib-a","version":"1.0.0"}"#);
+    let lib_dev = write_project("packages/lib-dev", r#"{"name":"lib-dev","version":"1.0.0"}"#);
+    let unrelated =
+        write_project("packages/unrelated", r#"{"name":"unrelated","version":"1.0.0"}"#);
+    let projects = [ws_root, app, lib_a, lib_dev, unrelated];
+    let patterns = vec!["packages/*".to_string()];
+
+    let config = Config {
+        filter: vec!["!lib-a".to_string()],
+        filter_prod: vec!["app...".to_string()],
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..Config::default()
+    };
+    let selection = super::select_recursive_projects(
+        &projects,
+        &config,
+        tmp.path(),
+        super::AutoExcludeRoot::Enabled { workspace_patterns: Some(&patterns) },
+    )
+    .unwrap();
+
+    assert_eq!(
+        selection.selected
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![app_dir.clone()],
+    );
+    assert!(selection.prod_only_selected.contains(&app_dir));
+
+    let verified =
+        projects_to_verify([app_dir.as_path()], &selection, &config, tmp.path()).unwrap();
+    assert_eq!(verified, vec![app_dir]);
+}

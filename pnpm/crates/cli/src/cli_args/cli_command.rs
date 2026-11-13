@@ -1,7 +1,7 @@
 pub(super) mod options;
 
 pub use commands::CliCommand;
-pub use selection_settings::SelectionSettingArgs;
+pub use selection_settings::{SelectionSettingArgs, extract_filter_order};
 
 use super::{
     access::AccessArgs,
@@ -297,6 +297,8 @@ pub struct WorkspaceSelectionArgs {
     /// selecting projects.
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
+    #[clap(skip)]
+    pub filter_order: Vec<pnpm_config::FilterSource>,
     /// Run the command on the root workspace project.
     #[clap(short = 'w', long = "workspace-root", global = true)]
     pub workspace_root: bool,

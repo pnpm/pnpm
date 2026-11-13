@@ -369,6 +369,7 @@ fn apply_project_selector_changes(
     if filter.is_none() && filter_prod.is_none() {
         return Ok(());
     }
+    config.filter_order.clear();
     let prefix = if config.dir.as_os_str().is_empty() { base_dir } else { &config.dir };
     if let Some(filter) = filter {
         config.filter = filter

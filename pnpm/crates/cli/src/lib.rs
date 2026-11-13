@@ -228,7 +228,8 @@ fn parse_or_answer(
     }
 }
 
-/// Parse argv, recording whether `--dir` or `-r` came from the command line.
+/// Parse argv, recording whether `--dir` or `-r` came from the command line
+/// and the relative order of `--filter` and `--filter-prod` flags.
 pub(crate) fn parse_cli_args(
     command: clap::Command,
     argv: Vec<OsString>,
@@ -240,6 +241,7 @@ pub(crate) fn parse_cli_args(
                 matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
             let recursive_from_command_line =
                 matches.value_source("recursive") == Some(clap::parser::ValueSource::CommandLine);
+            let filter_order = crate::cli_args::cli_command::extract_filter_order(&matches);
             CliArgs::from_arg_matches(&matches)
                 .map(|args| CliArgs {
                     paths: crate::cli_args::cli_command::CliPathArgs {
@@ -248,6 +250,10 @@ pub(crate) fn parse_cli_args(
                     },
                     workspace: crate::cli_args::cli_command::CliWorkspaceArgs {
                         recursive_from_command_line,
+                        selection: crate::cli_args::cli_command::WorkspaceSelectionArgs {
+                            filter_order,
+                            ..args.workspace.selection
+                        },
                         ..args.workspace
                     },
                     ..args
