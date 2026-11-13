@@ -6,9 +6,11 @@
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
+pub use pnpm_resolving_resolver_base::{Ecosystem, RegistryDeclaration, RegistryPrefixes};
+
 pub use python::{EcosystemIndex, PythonRegistryRoute};
 
-pub use ecosystems::{Ecosystem, serves_another_ecosystem, take_roles_from_earlier_layers};
+pub use ecosystems::{serves_another_ecosystem, take_roles_from_earlier_layers};
 
 pub use env_placeholders::{refuse_env_placeholder_entries, retain_without_env_placeholders};
 
@@ -16,7 +18,7 @@ use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{redact_registry_url, registry_url_has_userinfo};
 use ecosystems::DeclaredIndexes;
 use indexmap::IndexMap;
-use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_lockfile::RegistryOptions;
 use pnpm_network::normalize_registry_url;
 use serde::{
     Deserialize, Deserializer,
@@ -57,78 +59,6 @@ pub enum RegistryEntry {
     /// The older `<scope>: <url>` shape, which is the scope lookup already.
     ScopeRoute(String),
     Declaration(RegistryDeclaration),
-}
-
-/// Everything a project declares about one registry.
-///
-/// Unknown fields are captured rather than refused by serde on purpose, for
-/// the same reason this module validates after parsing: a parse error renders
-/// the offending source line verbatim, so refusing an `_authToken` field at
-/// parse time would print the very credential being refused.
-#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RegistryDeclaration {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub server_type: Option<RegistryServerType>,
-    /// See [`RegistryOptions::supports_time_field`].
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub supports_time_field: Option<bool>,
-    /// The most requests pnpm keeps in flight to this registry's origin, within
-    /// the overall `networkConcurrency`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub network_concurrency: Option<NonZeroUsize>,
-    /// The scopes routed here, `@`-prefixed. A bare `@` is the scope-less
-    /// default registry, the one the `registry` setting names.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scopes: Option<Vec<String>>,
-    #[serde(flatten)]
-    pub prefixes: RegistryPrefixes,
-    /// Which ecosystem's packages this registry serves. Absent is
-    /// [`Ecosystem::Npm`], so every entry written before there was anything
-    /// else to serve means what it did.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ecosystem: Option<Ecosystem>,
-    /// Python package names or trailing-prefix patterns routed exclusively here.
-    /// Omitted, or `*`, declares the default Python index.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub packages: Option<Vec<String>>,
-    #[serde(flatten)]
-    pub unknown: BTreeMap<String, serde_json::Value>,
-}
-
-impl Eq for RegistryDeclaration {}
-
-/// The bare-specifier prefixes that address a registry.
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
-pub struct RegistryPrefixes {
-    /// The bare-specifier prefix this registry answers to, as in
-    /// `"foo": "work:^1.0.0"`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prefix: Option<String>,
-    /// The other prefixes routed to this registry. A pnpr request carries
-    /// them, `pnpm-workspace.yaml` refuses them: the request names every
-    /// prefix the client resolves, while `prefix` holds the smallest, the one
-    /// lockfile keys carry.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub aliases: Vec<String>,
-}
-
-impl RegistryPrefixes {
-    fn iter(&self) -> impl Iterator<Item = &str> {
-        self.prefix
-            .as_deref()
-            .into_iter()
-            .chain(self.aliases.iter().map(String::as_str))
-    }
-}
-
-impl RegistryDeclaration {
-    /// The ecosystem this entry serves, with the absent field read as
-    /// [`Ecosystem::Npm`].
-    #[must_use]
-    pub fn ecosystem(&self) -> Ecosystem {
-        self.ecosystem.unwrap_or_default()
-    }
 }
 
 impl<'de> Deserialize<'de> for RegistryEntry {

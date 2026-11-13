@@ -1,6 +1,8 @@
-pub use workspace::{CatalogMode, PackageImportMethod, ResolutionMode};
+pub use workspace::{CatalogMode, PackageImportMethod};
 
-pub use pnpm_resolving_resolver_base::{LinkWorkspacePackages, SaveWorkspaceProtocol, TrustPolicy};
+pub use pnpm_resolving_resolver_base::{
+    LinkWorkspacePackages, ResolutionMode, SaveWorkspaceProtocol, TrustPolicy,
+};
 pub use pnpm_workspace_state::RuntimeOnFail;
 
 use super::{Deserialize, Serialize};

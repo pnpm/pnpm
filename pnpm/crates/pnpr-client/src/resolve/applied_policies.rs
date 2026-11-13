@@ -51,8 +51,8 @@ pub(crate) fn assert_verification_policies(
     trust_lockfile: bool,
 ) -> Result<(), PnprClientError> {
     let expected_trust = match policy.trust_policy {
-        pnpm_config::TrustPolicy::Off => None,
-        pnpm_config::TrustPolicy::NoDowngrade => Some("no-downgrade"),
+        crate::TrustPolicy::Off => None,
+        crate::TrustPolicy::NoDowngrade => Some("no-downgrade"),
     };
     let checks = [
         ("trustPolicy", applied.trust_policy.as_deref() == expected_trust),
@@ -113,9 +113,9 @@ fn assert_resolution_settings(
         )));
     }
     let expected_mode = match opts.resolution.resolution_mode {
-        pnpm_config::ResolutionMode::Highest => "highest",
-        pnpm_config::ResolutionMode::TimeBased => "time-based",
-        pnpm_config::ResolutionMode::LowestDirect => "lowest-direct",
+        crate::ResolutionMode::Highest => "highest",
+        crate::ResolutionMode::TimeBased => "time-based",
+        crate::ResolutionMode::LowestDirect => "lowest-direct",
     };
     if applied.resolution_mode != expected_mode {
         return Err(PnprClientError::Protocol(format!(

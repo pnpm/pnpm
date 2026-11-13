@@ -12,7 +12,7 @@ use super::{
     ResolveArtifactsOptions, VerifiedArtifact,
     artifacts::{retain_permitted_candidates, select_verified_artifacts},
 };
-use pnpm_config::{Config, RemoteCacheSettings};
+use pnpm_network::AuthHeaders;
 use std::path::Path;
 
 pub enum ArtifactStore {
@@ -20,24 +20,41 @@ pub enum ArtifactStore {
     Turborepo(TurborepoArtifactStore),
 }
 
+/// The settings that pick an [`ArtifactStore`] and authenticate to it.
+#[derive(Clone, Copy)]
+pub struct ArtifactStoreOptions<'a> {
+    /// `remoteCache.url`.
+    pub remote_cache_url: Option<&'a str>,
+    /// `remoteCache.team`.
+    pub team: Option<&'a str>,
+    /// `pnprServer`.
+    pub pnpr_server: Option<&'a str>,
+    pub auth_headers: &'a AuthHeaders,
+}
+
 impl ArtifactStore {
     /// The server `remoteCache.url` names, or `pnprServer` without one.
     /// `Ok(None)` when neither is set. Credentials are refused for a server
     /// that is neither HTTPS nor loopback.
-    pub fn from_config(
-        config: &Config,
-        settings: &RemoteCacheSettings,
+    pub fn from_options(
+        options: ArtifactStoreOptions<'_>,
     ) -> Result<Option<ArtifactStore>, PnprClientError> {
-        if let Some(url) = settings.url.as_deref() {
-            let authorization = config.auth_headers.for_secure_url(url);
-            return TurborepoArtifactStore::new(url, settings.team.as_deref(), authorization)
+        let ArtifactStoreOptions {
+            remote_cache_url,
+            team,
+            pnpr_server,
+            auth_headers,
+        } = options;
+        if let Some(url) = remote_cache_url {
+            let authorization = auth_headers.for_secure_url(url);
+            return TurborepoArtifactStore::new(url, team, authorization)
                 .map(|store| Some(ArtifactStore::Turborepo(store)))
                 .map_err(remote_cache_error);
         }
-        let Some(server) = config.pnpr_server.as_deref() else {
+        let Some(server) = pnpr_server else {
             return Ok(None);
         };
-        let authorization = config.auth_headers.for_url(server);
+        let authorization = auth_headers.for_url(server);
         if authorization.is_some() && !pnpm_network::is_url_secure_for_credentials(server) {
             return Err(PnprClientError::Protocol(
                 "pnpr artifact credentials require HTTPS or a loopback server".to_string(),

@@ -62,9 +62,9 @@ async fn unknown_route_keeps_its_upstream_tarball_url() {
     let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries.insert(
         registry.url().to_string(),
-        pnpm_config::RegistryDeclaration {
+        pnpm_pnpr_client::RegistryDeclaration {
             server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
-            ..pnpm_config::RegistryDeclaration::default()
+            ..pnpm_pnpr_client::RegistryDeclaration::default()
         },
     );
     let outcome = PnprClient::new(pnpr_url).resolve(opts).await.expect("install should succeed");

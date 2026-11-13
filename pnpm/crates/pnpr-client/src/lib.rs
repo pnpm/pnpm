@@ -24,8 +24,8 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use artifact_signer::ArtifactSigner;
-pub use artifact_store::{ArtifactStore, TurborepoArtifactStore};
+pub use artifact_signer::{ArtifactSigner, ArtifactSignerSettings};
+pub use artifact_store::{ArtifactStore, ArtifactStoreOptions, TurborepoArtifactStore};
 pub use artifacts::{
     ArtifactBuildPolicy, RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact,
 };
@@ -34,6 +34,9 @@ pub use ecosystem_cache::server_resolves;
 pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
 pub use error::PnprClientError;
 pub use pipeline_runs::PublishPipelineRunRequest;
+pub use pnpm_resolving_resolver_base::{
+    PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy,
+};
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
@@ -55,7 +58,6 @@ use std::{
 use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
