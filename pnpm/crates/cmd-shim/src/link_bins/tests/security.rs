@@ -7,9 +7,7 @@ use super::{is_sh_shim_hardened, is_shim_pointing_at};
 #[cfg(unix)]
 use crate::shim::generate_sh_shim;
 #[cfg(unix)]
-use std::fs::metadata;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::{fs::metadata, os::unix::fs::PermissionsExt};
 
 #[cfg(unix)]
 #[test]
