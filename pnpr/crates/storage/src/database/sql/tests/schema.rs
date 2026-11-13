@@ -818,8 +818,8 @@ mod embedded_layout {
 #[cfg(feature = "backend-mysql")]
 mod mysql_recovery {
     use super::{
-        Connection, Db, MARKER, ReadSource, RegistryError, Result, SCHEMA_VERSION, SqlDatabase,
-        schema,
+        ALPHA_TABLE, Connection, Db, MARKER, ReadSource, RegistryError, Result, SCHEMA_VERSION,
+        SqlDatabase, schema,
     };
     use std::sync::Arc;
 
@@ -851,7 +851,10 @@ mod mysql_recovery {
             .unwrap();
         for completed in [0, first_index + 1, schema_statements.len()] {
             let db = Db::network("PNPR_TEST_MYSQL_URL").await;
-            let mut partial = schema_statements[..completed].to_vec();
+            // Another application's table named like the alpha one does
+            // not stop the interrupted migration from resuming.
+            let mut partial = vec![format!("CREATE TABLE {ALPHA_TABLE} (body TEXT NOT NULL)")];
+            partial.extend_from_slice(&schema_statements[..completed]);
             let all_created = completed == schema_statements.len();
             if all_created {
                 partial.push("UPDATE record_generation SET generation = 7".to_string());

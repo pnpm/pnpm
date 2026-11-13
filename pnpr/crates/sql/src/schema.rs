@@ -347,15 +347,17 @@ fn inspect_marked(
     target: i64,
     has: impl Fn(&str) -> bool,
 ) -> Result<Inspection> {
-    if has(ALPHA_TABLE) && !has(ALPHA_REPLACEMENT) {
-        return Ok(Inspection::Refused(Stored::Pre1_0Alpha));
-    }
     let rows = connection.query(&format!("SELECT version FROM {MARKER}"), params![])?;
     if rows.is_empty() {
         if connection.is_recoverable_empty_migrations()? {
             return Ok(Inspection::Current(0));
         }
         return Ok(Inspection::Refused(Stored::Unreadable));
+    }
+    // An alpha database recorded its steps, so an interrupted first
+    // migration is resumed even when it has not created the replacement yet.
+    if has(ALPHA_TABLE) && !has(ALPHA_REPLACEMENT) {
+        return Ok(Inspection::Refused(Stored::Pre1_0Alpha));
     }
     let Some(max_version) = parse_contiguous_versions(rows) else {
         return Ok(Inspection::Refused(Stored::Unreadable));
