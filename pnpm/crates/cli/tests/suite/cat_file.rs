@@ -149,15 +149,22 @@ fn should_fail_on_empty_or_short_digest() {
 
 #[test]
 fn should_fail_on_invalid_base64() {
-    let CommandTempCwd { mut pacquet, root: _root, .. } =
+    use pnpm_testing_utils::command_env::CommandTestExt;
+
+    let CommandTempCwd { workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let output = pacquet
-        .arg("cat-file")
-        .arg("sha512-InvalidBase64!!!")
-        .assert()
-        .failure();
-    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(stderr.contains("Failed to decode base64 hash"));
+    for invalid in ["sha512-InvalidBase64!!!", "sha512-YWJj=", "sha512-YWI==="] {
+        let output = std::process::Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .current_dir(&workspace)
+            .args(["cat-file", invalid])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        assert!(stderr.contains("ERR_PNPM_INVALID_HASH"), "for {invalid}: {stderr}");
+        assert!(stderr.contains("Failed to decode base64 hash"), "for {invalid}: {stderr}");
+    }
 }
 
 #[test]

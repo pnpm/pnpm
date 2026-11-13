@@ -7,7 +7,7 @@ import { getFilePathByModeInCafs } from '@pnpm/store.cafs'
 import { getStorePath } from '@pnpm/store.path'
 import { renderHelp } from 'render-help'
 
-const INTEGRITY_REGEX: RegExp = /^[^-]+-([a-z0-9+/=]+)$/i
+const INTEGRITY_REGEX: RegExp = /^[^-]+-([a-z0-9+/]+={0,2})$/i
 
 export const skipPackageManagerCheck = true
 
@@ -38,7 +38,7 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
   }
 
   const match = INTEGRITY_REGEX.exec(params[0])
-  if (!match) {
+  if (!match || (match[1].endsWith('=') && match[1].length % 4 !== 0)) {
     throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
   }
 

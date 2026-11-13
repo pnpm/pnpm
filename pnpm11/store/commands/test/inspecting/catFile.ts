@@ -222,8 +222,23 @@ test('reject malformed or short hash inputs with ERR_PNPM_INVALID_HASH', async (
     pnpmHomeDir: config.pnpmHomeDir,
   })
   fs.mkdirSync(path.join(storeDir, 'files', '61'), { recursive: true })
+  fs.writeFileSync(path.join(storeDir, 'files', '61', '6263'), 'abc')
+  fs.writeFileSync(path.join(storeDir, 'files', '61', '62'), 'ab')
 
-  const invalidHashes = ['sha512-', 'invalid_hash_format', '-abc', 'sha512-InvalidBase64!!!', 'sha512-==', 'sha512-YQ==']
+  expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWJj'])).toBe('abc')
+  expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWI'])).toBe('ab')
+
+  const invalidHashes = [
+    'sha512-',
+    'invalid_hash_format',
+    '-abc',
+    'sha512-InvalidBase64!!!',
+    'sha512-==',
+    'sha512-YQ==',
+    'sha512-YWJj=',
+    'sha512-YWI===',
+    'sha512-YW=Jj',
+  ]
   await Promise.all(invalidHashes.map(async (invalid) => {
     await expect(
       catFile.handler(config as catFile.CatFileCommandOptions, [invalid])

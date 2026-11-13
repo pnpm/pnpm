@@ -216,11 +216,7 @@ fn allow_build_key_package_name(key: &str) -> Option<&str> {
     if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
         return None;
     }
-    let separator = match key.strip_prefix('@') {
-        Some(rest) => rest.find('@').map(|offset| offset + 1),
-        None => key.find('@'),
-    };
-    let name = match separator {
+    let name = match pnpm_deps_path::version_separator_index(key) {
         // The version part after the `@` separator must be non-empty.
         Some(at) if at + 1 < key.len() => &key[..at],
         Some(_) => return None,

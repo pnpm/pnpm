@@ -6955,6 +6955,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-parse-overrides",
+ "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-workspace",
