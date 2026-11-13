@@ -254,12 +254,7 @@ impl InstallArgs {
         let gates = [
             (self.effective_frozen_lockfile(config), "the lockfile is frozen"),
             (
-                config.enable_global_virtual_store
-                    && !config.frozen_store
-                    && pnpm_package_manager::global_virtual_store_bin_shims_need_repair(
-                        config.virtual_store_dir(),
-                    )
-                    .unwrap_or(true),
+                global_virtual_store_bin_shims_need_repair(config),
                 "global virtual store bin shims need repair",
             ),
             (self.lockfile.only, "--lockfile-only"),
@@ -299,6 +294,15 @@ impl InstallArgs {
             .into_iter()
             .find_map(|(blocked, reason)| blocked.then_some(reason))
     }
+}
+
+fn global_virtual_store_bin_shims_need_repair(config: &pnpm_config::Config) -> bool {
+    config.enable_global_virtual_store
+        && !config.frozen_store
+        && pnpm_package_manager::global_virtual_store_bin_shims_need_repair(
+            config.virtual_store_dir(),
+        )
+        .unwrap_or(true)
 }
 
 /// The gates the config setup resolves: config dependencies to install or
