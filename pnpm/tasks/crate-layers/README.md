@@ -25,6 +25,10 @@ Checks the Rust workspace's crate dependency graph against the layers in
 - `just crate-layers diff <rev>` prints, as Markdown, the crates and edges the
   working tree adds or removes compared to `<rev>`. CI writes it to the job
   summary of every pull request.
+- `just crate-layers dsm` prints a [dependency structure matrix](#dependency-structure-matrix)
+  of the workspace crates as an HTML page. `--crate <name>` shows one
+  crate's top-level modules. `--output <file>` writes the page to a file.
+  CI uploads it as the `crate-dsm` artifact of the `Crate Layers` job.
 
 The tool reads the manifests directly, so it needs neither `cargo metadata`
 nor network access, and reads a git revision without touching the working
@@ -114,3 +118,26 @@ dependency kind, dev-dependencies included, and fails:
 
 Before listing a crate, consider moving what both products need into a
 crate that is already listed.
+
+## Dependency structure matrix
+
+The page lists the crates in rows and columns in the same order: by layer
+from the bottom up, then by name. A mark in a cell means the row depends on
+the column, so a dependency on a lower layer sits below the diagonal and an
+upward dependency sits above it, highlighted. Lines separate the layers.
+
+A cell's shade grows with how many commits changed both crates. A commit
+changes a crate when it changes a file in the crate's directory. A pair
+that is shaded but not marked changes together without depending on each
+other, and the page lists those pairs below the matrix. Hover a cell for
+its dependency kinds and commit counts.
+
+`--commits` sets how many of the latest non-merge commits before `HEAD` the
+page reads. A commit that changes more crates than `--max-changed`, such as
+a rename across the workspace, counts for each crate but for no pair.
+`just crate-layers dsm --help` prints the defaults.
+
+With `--crate <name>`, the rows are the crate's top-level modules in name
+order, and a mark means the module names the other. A commit changes a
+module when it changes `src/<module>.rs` or a file under `src/<module>/`, so
+a module whose file is set with `#[path]` shows no changes.

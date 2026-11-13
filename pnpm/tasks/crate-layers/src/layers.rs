@@ -107,6 +107,16 @@ impl Layers {
         &self.boundary_crates
     }
 
+    /// The layer names, bottom layer first.
+    pub fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    /// The position of the crate's layer in [`Self::names`].
+    pub fn rank_of(&self, name: &str) -> Option<usize> {
+        self.rank_by_crate.get(name).copied()
+    }
+
     pub fn layer_of(&self, name: &str) -> Option<&str> {
         self.rank_by_crate
             .get(name)

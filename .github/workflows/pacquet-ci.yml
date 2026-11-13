@@ -860,6 +860,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The dependency structure matrix reads co-changes from the
+          # latest 1000 commits, the default of its `--commits`.
+          fetch-depth: 1000
 
       - name: Install Rust
         uses: $/.github/actions/rustup
@@ -872,6 +875,19 @@ jobs:
           install: false
 
       - run: pnpm pipeline rust-layers --include-workspace-root --full --no-cache
+
+      # Runs before the shallow fetch below, which can cut the history short.
+      - name: Write the dependency structure matrix
+        if: ${{ !cancelled() }}
+        run: cargo run --locked --quiet -p pnpm-crate-layers -- dsm --output crate-dsm.html
+
+      - name: Upload the dependency structure matrix
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crate-dsm
+          path: crate-dsm.html
+          retention-days: 30
 
       # Lists the crate dependency edges the pull request adds or removes, so
       # a review sees a new coupling even when it points downward.

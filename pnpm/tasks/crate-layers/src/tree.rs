@@ -91,7 +91,7 @@ impl Tree for GitRevision {
     }
 }
 
-fn git(root: &Path, args: &[&str]) -> Result<String, String> {
+pub fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)

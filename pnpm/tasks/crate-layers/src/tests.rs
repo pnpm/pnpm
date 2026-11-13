@@ -11,6 +11,7 @@ use pretty_assertions::assert_eq;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod boundary;
+mod dsm;
 mod leaks;
 mod modules;
 
