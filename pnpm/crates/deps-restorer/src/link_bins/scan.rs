@@ -28,7 +28,7 @@ pub(super) fn repair_global_virtual_store_bin_shims(
         repair_root_entry(&package_path, link_options)?;
     }
     Host::write(&marker, b"1")
-        .map_err(|error| LinkVirtualStoreBinsError::WriteVirtualStore { path: marker, error })
+        .map_err(|error| LinkVirtualStoreBinsError::UpdateVirtualStore { path: marker, error })
 }
 
 fn marker_is_complete(marker: &Path) -> Result<bool, LinkVirtualStoreBinsError> {
@@ -104,6 +104,16 @@ fn repair_slot(
     match Host::read_dir(&package_dir) {
         Ok(_) => {
             let bins_dir = package_dir.join("node_modules/.bin");
+            match fs::remove_dir_all(&bins_dir) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(LinkVirtualStoreBinsError::UpdateVirtualStore {
+                        path: bins_dir,
+                        error,
+                    });
+                }
+            }
             link_bins_excluding::<Host>(&modules_dir, &bins_dir, &package_dir, link_options)
                 .map_err(LinkVirtualStoreBinsError::LinkBins)
         }

@@ -44,9 +44,9 @@ pub enum LinkVirtualStoreBinsError {
         error: io::Error,
     },
 
-    #[display("Failed to write global virtual store marker at {path:?}: {error}")]
+    #[display("Failed to update global virtual store at {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_VIRTUAL_STORE))]
-    WriteVirtualStore {
+    UpdateVirtualStore {
         path: PathBuf,
         #[error(source)]
         error: io::Error,
