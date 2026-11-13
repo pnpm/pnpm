@@ -717,6 +717,15 @@ async fn a_pre_1_0_alpha_database_is_refused(db: Db) {
     assert!(!reason.contains("Upgrade pnpr"), "{reason}");
 }
 
+/// Only a marked database without the 1.0 notes tables is an alpha one: a
+/// table of that name from another application sharing the database is not.
+async fn another_applications_alpha_named_table_is_left_alone(db: Db) {
+    execute(&db, &[&format!("CREATE TABLE {ALPHA_TABLE} (body TEXT NOT NULL)")]).await;
+    open(&db).await.unwrap();
+    open(&db).await.unwrap();
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION).collect::<Vec<_>>());
+}
+
 /// Every backend orders text keys by their bytes, as `SQLite` does.
 async fn text_keys_sort_by_bytes(db: Db) {
     open(&db).await.unwrap();
@@ -749,6 +758,7 @@ async fn text_keys_sort_by_bytes(db: Db) {
 conformance! {
     an_empty_database_initializes,
     a_pre_1_0_alpha_database_is_refused,
+    another_applications_alpha_named_table_is_left_alone,
     text_keys_sort_by_bytes,
     unused_metadata_objects_are_absent,
     applying_every_step_matches_the_fresh_schema,

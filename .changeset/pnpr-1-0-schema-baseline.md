@@ -2,6 +2,6 @@
 "@pnpm/pnpr": minor
 ---
 
-pnpr creates its 1.0 database schema in a single migration step. It refuses a database created by an alpha release. Drop its pnpr tables together with the hosted store, and pnpr creates them afresh.
+pnpr refuses a database created by an alpha release. Drop its pnpr tables together with the hosted store, and pnpr creates them afresh.
 
 On PostgreSQL, pnpr sorts and compares package names, versions, and other keys by bytes, as it does on SQLite and MySQL.

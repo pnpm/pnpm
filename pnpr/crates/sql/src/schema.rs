@@ -43,9 +43,14 @@ pub const LEGACY_MARKER: &str = "schema_version";
 /// The pre-1.0 auth migrations table, refused without migration.
 pub const LEGACY_AUTH_MARKER: &str = "auth_schema_migrations";
 
-/// A table every pre-1.0 alpha schema holds and the 1.0 schema does not,
-/// refused without migration.
+/// A table every pre-1.0 alpha schema holds. A database with [`MARKER`] and
+/// this table but without [`ALPHA_REPLACEMENT`] is an alpha one, refused
+/// without migration.
 pub const ALPHA_TABLE: &str = "notes";
+
+/// The 1.0 table that replaced [`ALPHA_TABLE`], so a 1.0 database sharing its
+/// schema with another application's [`ALPHA_TABLE`] still opens.
+pub const ALPHA_REPLACEMENT: &str = "version_notes";
 
 /// The statement that creates the [`MARKER`] table. On `MySQL` its table
 /// comment marks a first migration still in progress, so an interrupted one
@@ -128,7 +133,8 @@ pub enum Stored {
     Pre1_0Integer(i64),
     /// The pre-1.0 [`LEGACY_AUTH_MARKER`] table is present without [`MARKER`].
     Pre1_0Auth,
-    /// The pre-1.0 alpha [`ALPHA_TABLE`] is present.
+    /// [`MARKER`] and the pre-1.0 alpha [`ALPHA_TABLE`] are present without
+    /// [`ALPHA_REPLACEMENT`].
     Pre1_0Alpha,
     /// [`MARKER`] holds anything else, or no valid rows.
     Unreadable,
@@ -314,9 +320,6 @@ fn inspect(connection: &dyn Connection, target: i64) -> Result<Inspection> {
             .iter()
             .any(|table| table.eq_ignore_ascii_case(name))
     };
-    if has(ALPHA_TABLE) {
-        return Ok(Inspection::Refused(Stored::Pre1_0Alpha));
-    }
     if !has(MARKER) {
         return inspect_without_marker(connection, has);
     }
@@ -344,6 +347,9 @@ fn inspect_marked(
     target: i64,
     has: impl Fn(&str) -> bool,
 ) -> Result<Inspection> {
+    if has(ALPHA_TABLE) && !has(ALPHA_REPLACEMENT) {
+        return Ok(Inspection::Refused(Stored::Pre1_0Alpha));
+    }
     let rows = connection.query(&format!("SELECT version FROM {MARKER}"), params![])?;
     if rows.is_empty() {
         if connection.is_recoverable_empty_migrations()? {
