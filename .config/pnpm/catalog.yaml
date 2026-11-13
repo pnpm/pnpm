@@ -6,7 +6,7 @@ catalog:
   '@commitlint/cli': ^21.2.4
   '@commitlint/config-conventional': ^21.2.4
   '@commitlint/prompt-cli': ^21.2.4
-  '@cyclonedx/cyclonedx-library': 10.5.0
+  '@cyclonedx/cyclonedx-library': 10.5.1
   '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
   # @inquirer/prompts 8.8.0 (and its @inquirer/* dependencies) require Node.js
@@ -259,11 +259,11 @@ catalog:
   ssri: 13.0.1
   stacktracey: ^2.2.0
   string-length: ^7.0.1
-  string-width: ^8.3.0
+  string-width: ^9.0.0
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.3
-  tar: ^7.5.22
+  tar: ^7.5.23
   tar-stream: ^3.2.2
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
   # module init. When esbuild bundles this into its __esm lazy-init pattern,
