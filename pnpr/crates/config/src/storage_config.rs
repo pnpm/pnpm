@@ -137,9 +137,7 @@ impl<'de> serde::de::Visitor<'de> for StorageFileVisitor {
     type Value = StorageFile;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(
-            "a storage path or a table of `path`, `storage.s3`, and `storage.database`",
-        )
+        formatter.write_str("a storage path or a table of `path`, `s3`, and `database`")
     }
 
     fn visit_str<DeError: serde::de::Error>(self, value: &str) -> Result<StorageFile, DeError> {
