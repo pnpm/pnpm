@@ -52,7 +52,7 @@ function restoreEnvVar (name: string, value: string | undefined): void {
   }
 }
 
-async function withPlatform<T> (platform: NodeJS.Platform, action: () => Promise<T>): Promise<T> {
+async function withPlatform<Result> (platform: NodeJS.Platform, action: () => Promise<Result>): Promise<Result> {
   const originalPlatform = process.platform
   Object.defineProperty(process, 'platform', { value: platform, configurable: true })
   try {
