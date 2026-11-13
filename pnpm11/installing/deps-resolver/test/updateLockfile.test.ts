@@ -68,6 +68,7 @@ test('injected package child links are recorded relative to the lockfile directo
       version: '1.0.0',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
       resolvedVia: 'local-filesystem',
+      localLinkedDependencyAliases: new Set(['child']),
       optional: false,
       children: { child: 'link:../child' },
       optionalDependencies: new Set<string>(),
@@ -85,6 +86,32 @@ test('injected package child links are recorded relative to the lockfile directo
     registriesByScope: REGISTRIES,
   })
   expect(lockfile.packages![parentDepPath].dependencies).toStrictEqual({ child: 'link:../packages/child' })
+})
+
+test('workspace child links keep their lockfile-relative target', () => {
+  const parentDepPath = 'lib@file:../packages/lib' as DepPath
+  const dependenciesGraph = {
+    [parentDepPath]: {
+      name: 'lib',
+      version: '1.0.0',
+      resolution: { type: 'directory', directory: '/workspace/packages/lib' },
+      optional: false,
+      children: { child: 'link:../child' },
+      optionalDependencies: new Set<string>(),
+      peers: peerSetOf({}),
+      transitivePeerDependencies: new Set<string>(),
+      additionalInfo: {},
+      hasBin: false,
+    },
+  } as unknown as DependenciesGraph
+  const lockfile = updateLockfile({
+    dependenciesGraph,
+    lockfile: { lockfileVersion: LOCKFILE_VERSION, importers: {}, packages: {} },
+    prefix: '/workspace/app',
+    lockfileDir: '/workspace/app',
+    registriesByScope: REGISTRIES,
+  })
+  expect(lockfile.packages![parentDepPath].dependencies).toStrictEqual({ child: 'link:../child' })
 })
 
 test('a freshly resolved integrity is never overwritten by the previous one', () => {

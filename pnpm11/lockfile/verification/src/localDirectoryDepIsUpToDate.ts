@@ -439,7 +439,7 @@ async function localSpecIsUpToDate (
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
-  if (!currentSpec.includes(':') && barePathIsUnambiguous(currentSpec)) {
+  if (barePathIsUnambiguous(currentSpec)) {
     if (lockfileDep.startsWith('link:')) {
       return linkPathMatches(localDep, currentSpec, lockfileDep)
     }

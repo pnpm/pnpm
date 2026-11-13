@@ -2,6 +2,7 @@ import type { CatalogResolver } from '@pnpm/catalogs.resolver'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
+import { barePathIsUnambiguous } from '@pnpm/resolving.local-resolver'
 import type { PackageResponse } from '@pnpm/store.controller-types'
 import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash, type ProjectManifest } from '@pnpm/types'
 
@@ -101,6 +102,11 @@ export function getResolvedPackage (
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
+    localLinkedDependencyAliases: new Set(
+      Object.entries({ ...options.pkg.dependencies, ...options.pkg.optionalDependencies })
+        .filter(([, specifier]) => specifier.startsWith('link:') || barePathIsUnambiguous(specifier))
+        .map(([alias]) => alias)
+    ),
     name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),

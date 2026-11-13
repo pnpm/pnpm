@@ -134,20 +134,9 @@ function addChildDependencies (
   },
   pkg: ResolvedPackage
 ): void {
-  const newResolvedDeps = updateResolvedDeps(
-    opts.updatedDeps,
-    opts.depGraph,
-    opts.lockfileDir,
-    pkg,
-    opts.depPath
-  )
-  const newResolvedOptionalDeps = updateResolvedDeps(
-    opts.updatedOptionalDeps,
-    opts.depGraph,
-    opts.lockfileDir,
-    pkg,
-    opts.depPath
-  )
+  const updateOptions = { depGraph: opts.depGraph, lockfileDir: opts.lockfileDir, parentDepPath: opts.depPath, parentPkg: pkg }
+  const newResolvedDeps = updateResolvedDeps({ ...updateOptions, updatedDeps: opts.updatedDeps })
+  const newResolvedOptionalDeps = updateResolvedDeps({ ...updateOptions, updatedDeps: opts.updatedOptionalDeps })
   if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
   }
@@ -276,18 +265,25 @@ function getDeprecationToRecord (
   return deprecated || undefined
 }
 
-function updateResolvedDeps (
-  updatedDeps: Array<{ alias: string, depPath: DepPath }>,
-  depGraph: DependenciesGraph,
-  lockfileDir: string | undefined,
-  parentPkg: ResolvedPackage,
+function updateResolvedDeps ({
+  updatedDeps,
+  depGraph,
+  lockfileDir,
+  parentPkg,
+  parentDepPath,
+}: {
+  updatedDeps: Array<{ alias: string, depPath: DepPath }>
+  depGraph: DependenciesGraph
+  lockfileDir: string | undefined
+  parentPkg: ResolvedPackage
   parentDepPath: string
-): Record<string, string> {
+}): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          return [alias, linkedDependencyRef(depPath, lockfileDir, parentPkg, parentDepPath)]
+          const shouldRebaseLink = parentPkg.localLinkedDependencyAliases?.has(alias) === true
+          return [alias, shouldRebaseLink ? linkedDependencyRef({ depPath, lockfileDir, parentPkg, parentDepPath }) : depPath]
         }
         const depNode = depGraph[depPath]
         return [
@@ -301,12 +297,12 @@ function updateResolvedDeps (
   )
 }
 
-function linkedDependencyRef (
-  depPath: DepPath,
-  lockfileDir: string | undefined,
-  parentPkg: ResolvedPackage,
+function linkedDependencyRef ({ depPath, lockfileDir, parentPkg, parentDepPath }: {
+  depPath: DepPath
+  lockfileDir: string | undefined
+  parentPkg: ResolvedPackage
   parentDepPath: string
-): string {
+}): string {
   if (
     lockfileDir == null ||
     !parentDepPath.includes('@file:') ||
