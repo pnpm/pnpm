@@ -8,6 +8,8 @@ use super::{is_sh_shim_hardened, is_shim_pointing_at};
 use crate::shim::generate_sh_shim;
 #[cfg(unix)]
 use std::fs::metadata;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 #[cfg(unix)]
 #[test]
@@ -46,6 +48,68 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
         "fake-node-binary",
         "node bin special case must not rewrite the underlying binary",
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn frozen_relink_accepts_a_node_symlink_without_reading_binary_contents() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let node_dir = tmp.path().join("node_modules/node");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    std::fs::write(node_bin_dir.join("node"), [0xff, 0xfe]).unwrap();
+    std::fs::set_permissions(node_bin_dir.join("node"), std::fs::Permissions::from_mode(0o755))
+        .unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    let package = PackageBinSource::new(node_dir, Arc::new(manifest));
+
+    link_bins_of_packages::<Host>(
+        std::slice::from_ref(&package),
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+    link_bins_of_packages::<Host>(
+        &[package],
+        &bins_dir,
+        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn frozen_relink_accepts_a_preferred_executable_symlink_without_reading_binary_contents() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let package_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&package_dir).unwrap();
+    std::fs::write(package_dir.join("cli"), [0xff, 0xfe]).unwrap();
+    write_file(
+        package_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli"}).to_string(),
+    )
+    .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&read_file(package_dir.join("package.json")).unwrap()).unwrap();
+    let package = PackageBinSource::new(package_dir, Arc::new(manifest));
+    let options =
+        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+
+    link_bins_of_packages::<Host>(std::slice::from_ref(&package), &bins_dir, &options).unwrap();
+    link_bins_of_packages::<Host>(
+        &[package],
+        &bins_dir,
+        &LinkBinsOptions { read_only: true, ..options },
+    )
+    .unwrap();
 }
 
 #[cfg(unix)]

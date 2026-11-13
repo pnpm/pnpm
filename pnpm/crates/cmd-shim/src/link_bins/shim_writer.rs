@@ -105,6 +105,9 @@ where
     // it up front, above the short-circuits below — they all return
     // without touching the Windows siblings.
     let stale_powershell = stale_powershell_path::<Sys>(&spec)?;
+    if frozen_direct_shim_is_current::<Sys>(&spec, stale_powershell.as_deref())? {
+        return Ok(());
+    }
 
     let existing_shim = match read_or_create_shim::<Sys>(&spec, cache)? {
         ExistingShim::Written => return Ok(()),
@@ -120,6 +123,28 @@ where
     }
 
     write_shell_shim::<Sys>(&spec, cache, existing_shim.as_deref(), stale_powershell.is_some())
+}
+
+fn frozen_direct_shim_is_current<Sys>(
+    spec: &ShimSpec<'_>,
+    stale_powershell: Option<&Path>,
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadHead,
+{
+    if !spec.options.read_only
+        || spec.options.force
+        || !symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
+    {
+        return Ok(false);
+    }
+    if let Some(path) = stale_powershell {
+        return Err(LinkBinsError::FrozenStoreWrite { path: path.to_path_buf() });
+    }
+    if target_requires_shim::<Sys>(spec.probe_path) {
+        return Err(LinkBinsError::FrozenStoreWrite { path: spec.shim_path.to_path_buf() });
+    }
+    Ok(true)
 }
 
 fn link_direct_executable<Sys>(

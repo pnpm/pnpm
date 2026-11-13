@@ -217,7 +217,6 @@ test('warm GVS reinstall restores internal linking', async () => {
   // Delete node_modules
   fs.rmSync(path.resolve('node_modules'), { recursive: true })
 
-  // Reinstall with frozen lockfile and reuse the existing GVS slots
   await execPnpm(['install', '--frozen-lockfile'])
 
   // Verify structure is correct after warm reinstall
