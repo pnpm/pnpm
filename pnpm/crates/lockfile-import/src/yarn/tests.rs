@@ -173,3 +173,119 @@ fn a_berry_entry_that_is_not_a_mapping_is_rejected() {
         "got {error}",
     );
 }
+
+#[test]
+fn yarn_classic_with_metadata_prefixed_packages_is_not_berry() {
+    let versions = collect(
+        r#"# yarn lockfile v1
+# __metadata:
+
+__metadata-helper@file:../meta:
+  version "0.0.0"
+
+"__metadata@1.0.0":
+  version "1.0.0"
+
+app@^1.0.0:
+  version "1.2.3"
+  dependencies:
+    __metadata-helper "file:../meta"
+    "__metadata" "1.0.0"
+"#,
+    );
+    assert_eq!(
+        versions,
+        vec![
+            ("__metadata".to_string(), vec!["1.0.0".to_string()]),
+            ("__metadata-helper".to_string(), vec!["0.0.0".to_string()]),
+            ("app".to_string(), vec!["1.2.3".to_string()]),
+        ],
+    );
+}
+
+#[test]
+fn yarn_berry_metadata_variants_are_detected() {
+    let expected = vec![("foo".to_string(), vec!["1.0.0".to_string()])];
+    assert_eq!(
+        collect("\u{feff}__metadata:\n  version: 6\n\"foo@npm:1.0.0\":\n  version: 1.0.0\n"),
+        expected,
+    );
+    assert_eq!(
+        collect("\"__metadata\":\r\n  version: 6\r\n\"foo@npm:1.0.0\":\r\n  version: 1.0.0\r\n"),
+        expected,
+    );
+    assert_eq!(
+        collect("'__metadata': # berry\n  version: 6\n\"foo@npm:1.0.0\":\n  version: 1.0.0\n"),
+        expected,
+    );
+}
+
+#[test]
+fn yarn_classic_npm_aliases_record_target_package_names() {
+    let versions = collect(
+        r#"# yarn lockfile v1
+
+my-alias@npm:minimatch@^3.0.4:
+  version "3.0.4"
+
+"scoped-alias@npm:@babel/core@^7.0.0":
+  version "7.2.0"
+
+"@my/alias@npm:@pnpm.e2e/foo@^1.0.0":
+  version "1.0.0"
+
+bare-alias@npm:is-positive:
+  version "1.0.0"
+
+"bare-scoped@npm:@pnpm.e2e/bar":
+  version "2.0.0"
+"#,
+    );
+    assert_eq!(
+        versions,
+        vec![
+            ("@babel/core".to_string(), vec!["7.2.0".to_string()]),
+            ("@pnpm.e2e/bar".to_string(), vec!["2.0.0".to_string()]),
+            ("@pnpm.e2e/foo".to_string(), vec!["1.0.0".to_string()]),
+            ("is-positive".to_string(), vec!["1.0.0".to_string()]),
+            ("minimatch".to_string(), vec!["3.0.4".to_string()]),
+        ],
+    );
+}
+
+#[test]
+fn yarn_berry_npm_aliases_and_dist_tags() {
+    let versions = collect(
+        r#"__metadata:
+  version: 8
+
+"my-alias@npm:minimatch@^3.0.4":
+  version: 3.0.4
+  resolution: "minimatch@npm:3.0.4"
+
+"@my/alias@npm:@babel/core@^7.0.0":
+  version: 7.2.0
+  resolution: "@babel/core@npm:7.2.0"
+
+"bare-alias@npm:is-positive":
+  version: 1.0.0
+  resolution: "is-positive@npm:1.0.0"
+
+"headless-alias@npm:@pnpm.e2e/foo@^1.0.0":
+  version: 1.0.0
+
+"tagged-pkg@npm:latest":
+  version: 2.0.0
+"#,
+    );
+    assert_eq!(
+        versions,
+        vec![
+            ("@babel/core".to_string(), vec!["7.2.0".to_string()]),
+            ("@pnpm.e2e/foo".to_string(), vec!["1.0.0".to_string()]),
+            ("is-positive".to_string(), vec!["1.0.0".to_string()]),
+            ("minimatch".to_string(), vec!["3.0.4".to_string()]),
+            ("tagged-pkg".to_string(), vec!["2.0.0".to_string()]),
+        ],
+    );
+}

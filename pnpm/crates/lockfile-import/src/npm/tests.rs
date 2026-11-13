@@ -97,3 +97,65 @@ fn entries_without_a_version_are_skipped() {
     }));
     assert!(versions.is_empty(), "got {versions:?}");
 }
+
+#[test]
+fn nested_format_unwraps_npm_alias_versions() {
+    let versions = collect(&json!({
+        "lockfileVersion": 1,
+        "dependencies": {
+            "my-alias": { "version": "npm:is-positive@1.0.0" },
+            "parent": {
+                "version": "1.0.0",
+                "dependencies": {
+                    "@my/alias": { "version": "npm:@pnpm.e2e/foo@1.0.0" },
+                    "self-npm": { "version": "npm:2.0.0" },
+                },
+            },
+        },
+    }));
+    assert_eq!(
+        versions,
+        vec![
+            ("@pnpm.e2e/foo".to_string(), vec!["1.0.0".to_string()]),
+            ("is-positive".to_string(), vec!["1.0.0".to_string()]),
+            ("parent".to_string(), vec!["1.0.0".to_string()]),
+            ("self-npm".to_string(), vec!["2.0.0".to_string()]),
+        ],
+    );
+}
+
+#[test]
+fn flat_format_reads_npm_alias_target_names_and_skips_root_name() {
+    let versions = collect(&json!({
+        "lockfileVersion": 3,
+        "packages": {
+            "": {
+                "name": "project",
+                "version": "0.0.0",
+                "dependencies": {
+                    "my-alias": "npm:is-positive@^1.0.0",
+                    "bare-alias": "npm:is-negative",
+                },
+            },
+            "node_modules/my-alias": { "name": "is-positive", "version": "1.0.0" },
+            "node_modules/bare-alias": { "name": "is-negative", "version": "2.1.0" },
+            "node_modules/parent": {
+                "version": "1.0.0",
+                "dependencies": { "nested-alias": "npm:@pnpm.e2e/foo@1.0.0" },
+            },
+            "node_modules/parent/node_modules/@my/nested-alias": {
+                "name": "@pnpm.e2e/foo",
+                "version": "1.1.0",
+            },
+        },
+    }));
+    assert_eq!(
+        versions,
+        vec![
+            ("@pnpm.e2e/foo".to_string(), vec!["1.0.0".to_string(), "1.1.0".to_string()]),
+            ("is-negative".to_string(), vec!["2.1.0".to_string()]),
+            ("is-positive".to_string(), vec!["1.0.0".to_string(), "^1.0.0".to_string()]),
+            ("parent".to_string(), vec!["1.0.0".to_string()]),
+        ],
+    );
+}

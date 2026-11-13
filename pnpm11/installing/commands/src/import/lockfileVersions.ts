@@ -3,12 +3,13 @@ import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
+import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import { type LockFileObject, parse as parseYarnLockfile } from '@yarnpkg/lockfile'
 import yaml from 'js-yaml'
 import { loadJsonFile } from 'load-json-file'
 
-import { yarnLockFileKeyNormalizer } from './yarnUtil.js'
+import { splitDescriptor, yarnLockFileKeyNormalizer } from './yarnUtil.js'
 
 interface NpmPackageLock {
   dependencies: LockedPackagesMap
@@ -34,6 +35,7 @@ interface LockedPackagesMap {
 
 interface YarnLockPackage {
   version: string
+  resolution?: string
   resolved: string
   integrity: string
   dependencies?: {
@@ -55,6 +57,8 @@ const YarnLockType = {
 } as const
 
 type YarnLockType = (typeof YarnLockType)[keyof typeof YarnLockType]
+
+const BERRY_METADATA_PREFIXES = ['__metadata:', '"__metadata":', "'__metadata':"] as const
 
 // copy from yarn v1
 interface YarnLock2Struct {
@@ -86,32 +90,33 @@ export async function readVersionsByPackageNames (dir: string): Promise<Versions
 
 export async function readYarnLockFile (dir: string): Promise<LockFileObject> {
   try {
-    const yarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
-    const yarnLockFileType = getYarnLockfileType(yarnLockFile)
-    if (yarnLockFileType === YarnLockType.yarn) {
-      const lockJsonFile = parseYarnLockfile(yarnLockFile)
-      if (lockJsonFile.type === 'success') {
-        return lockJsonFile.object
-      } else {
-        throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Yarn.lock file was ${lockJsonFile.type}`)
-      }
-    } else if (yarnLockFileType === YarnLockType.yarn2) {
-      const lockJsonFile = parseYarn2Lock(yarnLockFile)
-      if (lockJsonFile.type === YarnLockType.yarn2) {
-        return lockJsonFile.object
-      }
-    }
+    const rawYarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
+    return parseYarnLockFileContents(rawYarnLockFile)
   } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
   }
   throw new PnpmError('YARN_LOCKFILE_NOT_FOUND', 'No yarn.lock found')
 }
 
+function parseYarnLockFileContents (rawYarnLockFile: string): LockFileObject {
+  const yarnLockFile = rawYarnLockFile.startsWith('\uFEFF')
+    ? rawYarnLockFile.slice(1)
+    : rawYarnLockFile
+  if (getYarnLockfileType(yarnLockFile) === YarnLockType.yarn2) {
+    return parseYarn2Lock(yarnLockFile).object
+  }
+  const lockJsonFile = parseYarnLockfile(yarnLockFile)
+  if (lockJsonFile.type === 'success') {
+    return lockJsonFile.object
+  }
+  throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Yarn.lock file was ${lockJsonFile.type}`)
+}
+
 function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
   const parseYarnLock = parseYarn2Yaml(lockFileContents)
 
   delete parseYarnLock.__metadata
-  const dependencies: YarnPackageLock = {}
+  const dependencies: YarnPackageLock = Object.create(null)
 
   const { parseDescriptor, parseRange } = structUtils
   const keyNormalizer = yarnLockFileKeyNormalizer(
@@ -121,6 +126,11 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
 
   for (const fullDescriptor in parseYarnLock) {
     const versionData = parseYarnLock[fullDescriptor]
+    const resolutionDescriptor = getBerryNpmResolutionDescriptor(versionData?.resolution)
+    if (resolutionDescriptor != null) {
+      dependencies[resolutionDescriptor] = versionData
+      continue
+    }
     for (const descriptor of keyNormalizer(fullDescriptor)) {
       dependencies[descriptor] = versionData
     }
@@ -129,6 +139,13 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
     object: dependencies,
     type: YarnLockType.yarn2,
   }
+}
+
+function getBerryNpmResolutionDescriptor (resolution: string | undefined): string | undefined {
+  if (!resolution) return undefined
+  const [name, spec] = splitDescriptor(resolution) ?? []
+  if (!name || !spec?.startsWith('npm:')) return undefined
+  return `${name}@${spec.slice('npm:'.length)}`
 }
 
 function parseYarn2Yaml (lockFileContents: string): YarnLockYaml {
@@ -165,10 +182,7 @@ function getAllVersionsByPackageNamesPreV3 (
 ): void {
   if (npmPackageLock.dependencies == null) return
   for (const [packageName, { version }] of Object.entries(npmPackageLock.dependencies)) {
-    if (!versionsByPackageNames[packageName]) {
-      versionsByPackageNames[packageName] = new Set()
-    }
-    versionsByPackageNames[packageName].add(version)
+    addResolvedNpmVersion(versionsByPackageNames, packageName, version)
   }
   for (const dep of Object.values(npmPackageLock.dependencies)) {
     getAllVersionsByPackageNamesPreV3(dep, versionsByPackageNames)
@@ -192,9 +206,9 @@ function extractDependencies (
   dependencies: LockedPackagesMap
 ): void {
   for (const [pkgPath, pkgDetails] of Object.entries(dependencies)) {
-    const versions = getVersionsOfPackage(versionsByPackageNames, getPackageNameFromLockfileKey(pkgPath))
-    if (pkgDetails.version) {
-      versions.add(pkgDetails.version)
+    const keyName = getPackageNameFromLockfileKey(pkgPath)
+    if (keyName && pkgDetails.version) {
+      addResolvedNpmVersion(versionsByPackageNames, pkgDetails.name || keyName, pkgDetails.version)
     }
 
     if (pkgDetails.packages) {
@@ -216,12 +230,28 @@ function extractDependencyRanges (
   dependencies: SimpleDependenciesMap
 ): void {
   for (const [pkgName, version] of Object.entries(dependencies)) {
-    getVersionsOfPackage(versionsByPackageNames, pkgName).add(version)
+    addResolvedNpmVersion(versionsByPackageNames, pkgName, version)
+  }
+}
+
+function addResolvedNpmVersion (
+  versionsByPackageNames: VersionsByPackageNames,
+  pkgName: string,
+  spec: string | undefined
+): void {
+  if (!pkgName || !spec) return
+  const aliasTarget = parseNpmAliasTarget(spec, pkgName)
+  if (aliasTarget == null) {
+    getVersionsOfPackage(versionsByPackageNames, pkgName).add(spec)
+    return
+  }
+  if (aliasTarget.name && aliasTarget.versionSelector) {
+    getVersionsOfPackage(versionsByPackageNames, aliasTarget.name).add(aliasTarget.versionSelector)
   }
 }
 
 function getVersionsOfPackage (versionsByPackageNames: VersionsByPackageNames, pkgName: string): Set<string> {
-  if (!versionsByPackageNames[pkgName]) {
+  if (!Object.hasOwn(versionsByPackageNames, pkgName)) {
     versionsByPackageNames[pkgName] = new Set<string>()
   }
   return versionsByPackageNames[pkgName]
@@ -233,19 +263,38 @@ export function getAllVersionsFromYarnLockFile (
     [packageName: string]: Set<string>
   }
 ): void {
-  for (const [packageName, { version }] of Object.entries(yarnPackageLock)) {
-    const pkgName = packageName.substring(0, packageName.lastIndexOf('@'))
-    if (!versionsByPackageNames[pkgName]) {
-      versionsByPackageNames[pkgName] = new Set()
-    }
-    versionsByPackageNames[pkgName].add(version)
+  for (const [descriptor, { version }] of Object.entries(yarnPackageLock)) {
+    const pkgName = getYarnDescriptorPackageName(descriptor)
+    if (!pkgName || !version) continue
+    getVersionsOfPackage(versionsByPackageNames, pkgName).add(String(version))
   }
+}
+
+function getYarnDescriptorPackageName (descriptor: string): string | undefined {
+  const [name, spec] = splitDescriptor(descriptor) ?? []
+  if (!name || spec == null) return undefined
+  const aliasTarget = parseNpmAliasTarget(spec, name)
+  return aliasTarget?.name || name
 }
 
 function getYarnLockfileType (
   lockFileContents: string
 ): YarnLockType {
-  return lockFileContents.includes('__metadata')
-    ? YarnLockType.yarn2
-    : YarnLockType.yarn
+  for (const rawLine of lockFileContents.split('\n')) {
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+    if (isBerryMetadataLine(line)) {
+      return YarnLockType.yarn2
+    }
+  }
+  return YarnLockType.yarn
+}
+
+function isBerryMetadataLine (line: string): boolean {
+  for (const prefix of BERRY_METADATA_PREFIXES) {
+    if (line.startsWith(prefix)) {
+      const rest = line.slice(prefix.length).trimStart()
+      return rest === '' || rest.startsWith('#') || rest.startsWith('{')
+    }
+  }
+  return false
 }
