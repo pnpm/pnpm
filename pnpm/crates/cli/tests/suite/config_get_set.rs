@@ -495,3 +495,72 @@ fn flow_mapping_workspace_yaml_rejects_registry_env_and_drops_proxy_env() {
 
     drop(root);
 }
+
+#[test]
+fn global_tools_and_resolution_keys_round_trip_through_cli() {
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
+    let config_home = root.path().join("xdg-config");
+    let pnpm_home = root.path().join("pnpm-home");
+
+    let run = |args: &[&str]| {
+        pacquet_in(&workspace)
+            .with_env("XDG_CONFIG_HOME", &config_home)
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_args(args)
+            .output()
+            .expect("run pnpm config")
+    };
+
+    let bad_tools = run(&["config", "set", "--global", "--json", "tools", r#"{"node":"22.0.0"}"#]);
+    assert!(!bad_tools.status.success());
+    assert!(
+        String::from_utf8_lossy(&bad_tools.stderr).contains("ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE"),
+        "stderr={}",
+        String::from_utf8_lossy(&bad_tools.stderr),
+    );
+
+    let project_tools = run(&[
+        "config",
+        "set",
+        "--location=project",
+        "--json",
+        "tools",
+        r#"{"node":{"mirror":"https://mirror.example.com/node/download"}}"#,
+    ]);
+    assert!(!project_tools.status.success());
+    let project_stderr = String::from_utf8_lossy(&project_tools.stderr);
+    assert!(
+        project_stderr.contains("ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING")
+            && project_stderr.contains("pnpm config set --global tools"),
+        "stderr={project_stderr}",
+    );
+
+    let set_tools = run(&[
+        "config",
+        "set",
+        "--global",
+        "--json",
+        "tools",
+        r#"{"node":{"mirror":"https://mirror.example.com/node/download"}}"#,
+    ]);
+    assert!(set_tools.status.success(), "stderr={}", String::from_utf8_lossy(&set_tools.stderr));
+
+    let get_tools = run(&["config", "get", "--global", "tools.node.mirror"]);
+    assert!(get_tools.status.success(), "stderr={}", String::from_utf8_lossy(&get_tools.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&get_tools.stdout).trim_end(),
+        "https://mirror.example.com/node/download",
+    );
+
+    for key in ["blockExoticSubdeps", "excludeLinksFromLockfile"] {
+        let set_out = run(&["config", "set", "--global", key, "true"]);
+        assert!(set_out.status.success(), "stderr={}", String::from_utf8_lossy(&set_out.stderr));
+        let get_out = run(&["config", "get", "--global", key]);
+        assert!(get_out.status.success(), "stderr={}", String::from_utf8_lossy(&get_out.stderr));
+        assert_eq!(String::from_utf8_lossy(&get_out.stdout).trim_end(), "true", "{key}");
+    }
+
+    drop(root);
+}

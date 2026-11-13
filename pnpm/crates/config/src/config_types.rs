@@ -77,6 +77,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("lockfile-include-tarball-url", false),
     ("lockfile-only", false),
     ("loglevel", false),
+    ("max-sockets", true),
     ("maxsockets", true),
     ("modules-cache-max-age", true),
     ("dlx-cache-max-age", true),

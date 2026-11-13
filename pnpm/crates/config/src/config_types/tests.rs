@@ -79,3 +79,96 @@ fn publish_wait_timeout_is_numeric_and_routes_to_yaml() {
     assert!(super::is_config_file_key("publish-wait-timeout"));
     assert!(!super::is_ini_config_key("publish-wait-timeout"));
 }
+
+/// Mirrors TypeScript's `_proofExcludedPnpmKeysIsExhaustive` and
+/// `_proofNoContradiction`: `PNPM_CONFIG_FILE_KEYS` and `EXCLUDED_PNPM_KEYS`
+/// form an exact partition of `PNPM_TYPES`, and `STRUCTURED_CONFIG_FILE_KEYS`
+/// covers only structured sections outside `PNPM_TYPES` and `NPM_CONFIG_TYPES`.
+#[test]
+fn pnpm_types_are_partitioned_between_global_and_excluded_keys() {
+    use std::collections::BTreeSet;
+
+    let pnpm_types: BTreeSet<&str> = super::PNPM_TYPES
+        .iter()
+        .map(|(key, _)| *key)
+        .collect();
+    let npm_types: BTreeSet<&str> = super::NPM_CONFIG_TYPES
+        .iter()
+        .map(|(key, _)| *key)
+        .collect();
+    let global_keys: BTreeSet<&str> = super::routing::PNPM_CONFIG_FILE_KEYS
+        .iter()
+        .copied()
+        .collect();
+    let excluded_keys: BTreeSet<&str> = super::routing::EXCLUDED_PNPM_KEYS
+        .iter()
+        .copied()
+        .collect();
+    let structured_keys: BTreeSet<&str> = super::routing::STRUCTURED_CONFIG_FILE_KEYS
+        .iter()
+        .copied()
+        .collect();
+
+    assert_eq!(global_keys.len(), super::routing::PNPM_CONFIG_FILE_KEYS.len());
+    assert_eq!(excluded_keys.len(), super::routing::EXCLUDED_PNPM_KEYS.len());
+    assert_eq!(structured_keys.len(), super::routing::STRUCTURED_CONFIG_FILE_KEYS.len());
+
+    let overlap: Vec<&&str> = global_keys.intersection(&excluded_keys).collect();
+    assert_eq!(overlap, Vec::<&&str>::new(), "keys in both global and excluded lists");
+
+    let union: BTreeSet<&str> = global_keys
+        .union(&excluded_keys)
+        .copied()
+        .collect();
+    assert_eq!(union, pnpm_types, "PNPM_CONFIG_FILE_KEYS ∪ EXCLUDED_PNPM_KEYS != PNPM_TYPES");
+
+    for key in &structured_keys {
+        assert!(!pnpm_types.contains(key), "structured key {key} should not be in PNPM_TYPES");
+        assert!(!npm_types.contains(key), "structured key {key} should not be in NPM_CONFIG_TYPES");
+        let camel = crate::naming_cases::to_camel_case(key);
+        assert!(
+            crate::validate_structured_setting(
+                &camel,
+                &serde_json::Value::String("not-an-object".to_string()),
+                false,
+            )
+            .is_err(),
+            "validate_structured_setting must reject scalar string for {camel}",
+        );
+    }
+}
+
+/// Every `WorkspaceSettings` field accepted by `is_config_file_key` must
+/// survive `clear_workspace_only_fields`, and every field rejected by
+/// `is_config_file_key` (except `_auth`, which routes via `is_ini_config_key`)
+/// must be zeroed by `clear_workspace_only_fields`.
+#[test]
+fn global_config_clearing_agrees_with_config_file_key_routing() {
+    let serialized_keys =
+        crate::workspace_yaml::serialized_field_keys(&crate::WorkspaceSettings::default());
+    let workspace_only = crate::WorkspaceSettings::workspace_only_keys();
+
+    for key in workspace_only {
+        assert!(
+            serialized_keys.contains(key),
+            "workspace_only_keys entry {key} does not match any serialized WorkspaceSettings field",
+        );
+    }
+
+    for key in &serialized_keys {
+        if key == "_auth" {
+            assert!(is_ini_config_key("_auth"));
+            assert!(!workspace_only.contains("_auth"));
+            continue;
+        }
+        let kebab = crate::naming_cases::to_kebab_case(key);
+        let kept_in_global_yaml = !workspace_only.contains(key);
+        assert_eq!(
+            kept_in_global_yaml,
+            is_config_file_key(&kebab),
+            "global scope mismatch for WorkspaceSettings field {key} ({kebab}): \
+             kept_in_global_yaml={kept_in_global_yaml}, is_config_file_key={}",
+            is_config_file_key(&kebab),
+        );
+    }
+}

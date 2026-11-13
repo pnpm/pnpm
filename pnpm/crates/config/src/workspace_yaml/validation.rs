@@ -318,7 +318,7 @@ fn invalid_task_concurrency(task: &str, settings: &TaskSettings) -> Option<LoadW
 /// state directory, so it is held to a portable file name that cannot
 /// leave that directory: the Windows device names are refused whatever
 /// follows their first dot, and a trailing dot would be dropped there.
-fn is_valid_concurrency_group_name(group: &str) -> bool {
+pub(super) fn is_valid_concurrency_group_name(group: &str) -> bool {
     !group.is_empty()
         && !group.ends_with('.')
         && group

@@ -67,7 +67,7 @@ pub use workspace_yaml::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
         RegistryLookups, RegistryPrefixes,
     },
-    workspace_root_or,
+    validate_structured_setting, workspace_root_or,
 };
 
 mod api;
@@ -245,6 +245,10 @@ fn collect_explicit_settings(
     if let Some(level) = settings.audit.as_ref().and_then(|audit| audit.level) {
         let Ok(level) = serde_json::to_value(level) else { return };
         target.insert("auditLevel".to_string(), level);
+    }
+    if let Some(max_sockets) = settings.max_sockets.or(settings.maxsockets) {
+        target.insert("maxSockets".to_string(), max_sockets.into());
+        target.insert("maxsockets".to_string(), max_sockets.into());
     }
 }
 

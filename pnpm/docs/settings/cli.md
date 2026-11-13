@@ -181,7 +181,7 @@ Added in: v12.5.0
 * Default: **undefined**
 * Type: **Object**
 
-Configure download sources for the programs pnpm installs. Set `tools` in the [global configuration file](../cli/config.md) or as JSON in `PNPM_CONFIG_TOOLS`. Tool mirrors in `pnpm-workspace.yaml` are ignored.
+Configure download sources for the programs pnpm installs. Set `tools` in the [global configuration file](../cli/config.md) with `pnpm config set --global --json tools`, or as JSON in `PNPM_CONFIG_TOOLS`. Tool mirrors in `pnpm-workspace.yaml` are ignored.
 
 ```yaml title="config.yaml"
 tools:
