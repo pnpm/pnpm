@@ -10,7 +10,7 @@ import { partition } from 'ramda'
 
 import { buildTree } from './childrenResolution.js'
 import { createResolutionContext } from './createResolutionContext.js'
-import { collectDirectDependencySpecs, findStalePeerPins, releaseStalePeerPins } from './findStalePeerPins.js'
+import { collectDirectDependencySpecs, type DirectDependencySpecs, findStalePeerPins, releaseStalePeerPins } from './findStalePeerPins.js'
 import type { WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
@@ -222,18 +222,18 @@ function toImportersToResolve<WantedDepExtraProps> (
   importers: Array<ImporterToResolveGeneric<WantedDepExtraProps>>,
   opts: ResolveDependenciesOptions
 ): ImporterToResolve[] {
-  const directSpecsByName = opts.autoInstallPeers === true && importers.some(({ manifest }) => manifest.peerDependencies != null)
-    ? collectDirectDependencySpecs(importers.map(({ manifest }) => manifest), opts.catalogs ?? {})
+  const directSpecs = opts.autoInstallPeers === true && importers.some(({ manifest }) => manifest.peerDependencies != null)
+    ? collectDirectDependencySpecs(importers, opts.catalogs ?? {}, opts.wantedLockfile)
     : undefined
-  return importers.map((importer) => toImporterToResolve(importer, opts, directSpecsByName))
+  return importers.map((importer) => toImporterToResolve(importer, opts, directSpecs))
 }
 
 function toImporterToResolve<WantedDepExtraProps> (
   importer: ImporterToResolveGeneric<WantedDepExtraProps>,
   opts: ResolveDependenciesOptions,
-  directSpecsByName: Map<string, Set<string>> | undefined
+  directSpecs: DirectDependencySpecs | undefined
 ): ImporterToResolve {
-  const { preferredVersions, resolvedDependencies } = getLockedDependenciesOfImporter(importer, opts, directSpecsByName)
+  const { preferredVersions, resolvedDependencies } = getLockedDependenciesOfImporter(importer, opts, directSpecs)
   // This may be optimized.
   // We only need to proceed resolving every dependency
   // if the newly added dependency has peer dependencies.
@@ -271,7 +271,7 @@ function toImporterToResolve<WantedDepExtraProps> (
 function getLockedDependenciesOfImporter<WantedDepExtraProps> (
   importer: ImporterToResolveGeneric<WantedDepExtraProps>,
   opts: ResolveDependenciesOptions,
-  directSpecsByName: Map<string, Set<string>> | undefined
+  directSpecs: DirectDependencySpecs | undefined
 ): { preferredVersions: PreferredVersions, resolvedDependencies: ResolvedDependencies } {
   const projectSnapshot = opts.wantedLockfile.importers[importer.id]
   const lockedDependencies = {
@@ -280,18 +280,19 @@ function getLockedDependenciesOfImporter<WantedDepExtraProps> (
     ...projectSnapshot.optionalDependencies,
   }
   const preferredVersions = importer.preferredVersions ?? {}
-  if (directSpecsByName == null) {
+  if (directSpecs == null) {
     return { preferredVersions, resolvedDependencies: lockedDependencies }
   }
   const stalePeerPins = findStalePeerPins(lockedDependencies, {
-    directSpecsByName,
+    directSpecsByName: directSpecs.ranges,
+    rangePins: directSpecs.rangePins,
     lockfile: opts.wantedLockfile,
     manifest: importer.manifest,
   })
   if (!stalePeerPins.size) {
     return { preferredVersions, resolvedDependencies: lockedDependencies }
   }
-  return releaseStalePeerPins(stalePeerPins, { directSpecsByName, preferredVersions, resolvedDependencies: lockedDependencies })
+  return releaseStalePeerPins(stalePeerPins, { directSpecsByName: directSpecs.ranges, preferredVersions, resolvedDependencies: lockedDependencies })
 }
 
 function attachNewCatalogEntry (directDep: PkgAddress, catalogs: Catalogs | undefined): void {

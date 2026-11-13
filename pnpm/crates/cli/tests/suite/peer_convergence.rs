@@ -26,6 +26,7 @@
 mod fast_update;
 mod harness;
 mod moving_providers;
+mod ranged_provider_pins;
 
 use harness::{Harness, Move, Project, project};
 
@@ -312,3 +313,5 @@ fn peer_provided_by_another_projects_direct_dependency_moves() {
         vec![],
     );
 }
+
+mod retargeted_provider_removal;

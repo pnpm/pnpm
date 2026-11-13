@@ -1,5 +1,5 @@
 use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, LockfileResolution};
 use pnpm_testing_utils::registry::TestRegistry;
 use serde_json::{Value, json};
 use std::{ffi::OsStr, fs, path::Path};
@@ -95,7 +95,7 @@ fn cycle_registry(root: &Path) -> TestRegistry {
     registry_from_manifests(root, manifests)
 }
 
-fn registry_from_manifests(
+pub(super) fn registry_from_manifests(
     root: &Path,
     manifests: impl IntoIterator<Item = Value>,
 ) -> TestRegistry {
@@ -112,7 +112,7 @@ fn registry_from_manifests(
     TestRegistry::start_static_with_storage(&storage)
 }
 
-fn install_lockfile(fixture: &WorkspaceFixture, bundle: Option<&OsStr>) {
+pub(super) fn install_lockfile(fixture: &WorkspaceFixture, bundle: Option<&OsStr>) {
     let args = ["install", "--lockfile-only", "--no-prefer-frozen-lockfile"];
     let output = match bundle {
         Some(bundle) => fixture.v11_command_at(bundle, &fixture.workspace, args),
@@ -792,4 +792,19 @@ fn check_injected_children_owner(bundle: Option<&OsStr>, format: &str, suffix_le
     let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     dbg!(&fresh, &reused);
     assert_eq!(fresh, reused, "{bundle:?}, {format}, {suffix_length}");
+}
+
+pub(super) fn normalize_registry_origin(
+    mut lockfile: Lockfile,
+    fixture: &WorkspaceFixture,
+) -> Lockfile {
+    for package in lockfile.packages.iter_mut().flat_map(|packages| packages.values_mut()) {
+        if let LockfileResolution::Tarball(resolution) = &mut package.resolution {
+            resolution.tarball = resolution.tarball.replace(
+                fixture.registry.mock_instance.server_url(),
+                "https://registry.example.test/",
+            );
+        }
+    }
+    lockfile
 }

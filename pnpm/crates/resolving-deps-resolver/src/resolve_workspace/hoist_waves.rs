@@ -119,7 +119,6 @@ where
     loop {
         check_cancelled(cancel)?;
         if !hoist_optional_wave(resolver, states, OptionalPeerCandidates::Resolved, cancel).await?
-            && !enable_locked_peer_fallbacks(states)
             && !hoist_optional_wave(resolver, states, OptionalPeerCandidates::Preferred, cancel)
                 .await?
         {
@@ -127,14 +126,6 @@ where
         }
         settle_required_rounds(resolver, states, workspace, peer_discovery, cancel).await?;
     }
-}
-
-fn enable_locked_peer_fallbacks(states: &mut [ImporterHoistState]) -> bool {
-    let mut enabled = false;
-    for state in states {
-        enabled |= state.enable_locked_peer_fallbacks();
-    }
-    enabled
 }
 
 async fn settle_required_rounds<Chain>(

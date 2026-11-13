@@ -147,7 +147,6 @@ where
     loop {
         state.run_required_round(resolver, &mut peer_discovery).await?;
         if !state.hoist_optional_round(resolver, OptionalPeerCandidates::Resolved).await?
-            && !state.enable_locked_peer_fallbacks()
             && !state.hoist_optional_round(resolver, OptionalPeerCandidates::Preferred).await?
         {
             break;

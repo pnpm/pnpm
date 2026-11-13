@@ -113,6 +113,8 @@ impl Fixture {
                 },
             ),
         );
+        opts.base_opts.version.preferred_versions =
+            std::sync::Arc::clone(&opts.resolution.all_preferred_versions);
         opts.resolution.catalogs = self.catalogs.clone();
         opts.resolution.catalogs_dir = Some(self.root.path().to_path_buf());
         opts.links.lockfile_dir = Some(self.root.path().to_path_buf());
@@ -126,6 +128,10 @@ impl Fixture {
     ) -> WorkspaceResolveOptions {
         let mut opts = super::workspace_opts(settings, reuse);
         opts.peers.lockfile_dir = self.root.path().to_path_buf();
+        opts.registry_context.registries.insert(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        );
         opts
     }
 }
