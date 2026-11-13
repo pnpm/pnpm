@@ -25,6 +25,7 @@ pub use url_credentials::{
     sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
 };
 
+pub use connect_policy::normalized_host_name;
 pub use local_routes::split_package_identifier;
 pub use pnpm_network::LocalFetch;
 pub use route_hook::RouteHook;

@@ -216,7 +216,7 @@ fn upstream_host_allowed(context: &RouteContext, url: &Url) -> bool {
         Some(Host::Ipv4(address)) => IpAddr::V4(address),
         Some(Host::Ipv6(address)) => IpAddr::V6(address),
         Some(Host::Domain(domain)) => {
-            let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+            let domain = pnpr_route::normalized_host_name(domain);
             return domain != "localhost" && !domain.ends_with(".localhost");
         }
         None => return false,
@@ -318,10 +318,15 @@ pub(super) fn loaded_routing(
 ) -> Result<RoutingConfig, RegistryError> {
     let routing = stored_routing(config, document, credentials)?;
     if let Err(err) = check_file_references(config, &routing) {
-        if references == FileReferences::Refuse {
-            return Err(err);
+        match references {
+            FileReferences::Refuse => return Err(err),
+            FileReferences::Warn => {
+                tracing::warn!(
+                    error = %err,
+                    "the stored registry graph lacks what the config file names",
+                );
+            }
         }
-        tracing::warn!(error = %err, "the stored registry graph lacks what the config file names");
     }
     Ok(routing)
 }

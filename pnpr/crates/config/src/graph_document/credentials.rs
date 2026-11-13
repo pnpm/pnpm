@@ -9,16 +9,22 @@ use super::{RegistryFile, RegistryGraphDocument};
 use crate::config_file::UpstreamFile;
 
 impl RegistryGraphDocument {
-    /// Check the rules a stored document is held to: an upstream `auth.token`
-    /// and every `headers` value are exactly one `${VAR}` reference, so the
-    /// database holds no credential, and every variable an upstream's
-    /// `auth.token`, `auth.tokenEnv`, or `headers` reference is listed in
-    /// `registry_env` (`registryEnv` in the config file).
+    /// Check the rules a stored document is held to, so the database holds no
+    /// credential: an upstream `auth.token` and every `headers` value are
+    /// exactly one `${VAR}` reference, no upstream `url` or `routes.public`
+    /// registry carries a user name or password, and every variable an
+    /// upstream's `auth.token`, `auth.tokenEnv`, or `headers` reference is
+    /// listed in `registry_env` (`registryEnv` in the config file).
     pub fn check_stored(&self, registry_env: &[String]) -> Result<(), RegistryError> {
         for (name, entry) in &self.registries {
             if let RegistryFile::Upstream(upstream) = entry {
                 check_stored_upstream(name, upstream, registry_env)?;
             }
+        }
+        if let Some(registry) = self.public_route_registries().find(|url| has_user_info(url)) {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!("routes.public registry {registry:?} must not carry credentials"),
+            });
         }
         Ok(())
     }
@@ -50,6 +56,12 @@ fn check_stored_upstream(
     upstream: &UpstreamFile,
     registry_env: &[String],
 ) -> Result<(), RegistryError> {
+    if has_user_info(&upstream.url) {
+        return Err(invalid_stored(
+            name,
+            "`url` must not carry a user name or password; use `auth` with a `${VAR}` reference",
+        ));
+    }
     if let Some(auth) = &upstream.auth {
         if let Some(token) = &auth.token {
             let variable = whole_reference(token)
@@ -136,4 +148,9 @@ fn require_listed(
 
 fn invalid_stored(name: &str, reason: &str) -> RegistryError {
     RegistryError::InvalidConfig { reason: format!("upstream registry {name:?}: {reason}") }
+}
+
+/// Whether `url` parses with a user name or password.
+fn has_user_info(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|url| !url.username().is_empty() || url.password().is_some())
 }

@@ -10,32 +10,96 @@ use url::{Host, Url};
 /// fetches hosted packages from.
 #[derive(Debug, Clone)]
 pub(super) struct ConnectPolicy {
-    own_host: Option<String>,
-    /// The origin of `public_url`.
-    own_origin: Option<url::Origin>,
-    /// The address of `public_url` when its host is an IP literal.
-    own_address: Option<IpAddr>,
-    /// Whether the exemption for the own host covers only `own_origin`, as
-    /// it does when the admin API writes the registries, so a destination
-    /// on another port of that host is not exempt.
-    exact_own_origin: bool,
+    own: Option<OwnUrl>,
+    own_host_policy: OwnHost,
     allowed_private_networks: Vec<IpNetwork>,
+}
+
+/// Which destinations on this server's own `public_url` host the exemption
+/// for that host covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OwnHost {
+    /// Any port: the registries come from the config file.
+    AnyPort,
+    /// Only `public_url`'s origin: the admin API writes the registries, and
+    /// another port of the host is another service on the same machine.
+    ExactOrigin,
+}
+
+/// `public_url`, compared by canonical host.
+#[derive(Debug, Clone)]
+struct OwnUrl {
+    scheme: String,
+    host: HostKey,
+    port: Option<u16>,
+}
+
+/// A host as own-host comparisons see it: an IP literal by its canonical
+/// address, so `::ffff:a.b.c.d` is `a.b.c.d`, and a name by
+/// [`normalized_host_name`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HostKey {
+    Address(IpAddr),
+    Name(String),
+}
+
+impl HostKey {
+    fn of_url(url: &Url) -> Option<Self> {
+        Some(match url.host()? {
+            Host::Ipv4(address) => Self::Address(IpAddr::V4(address)),
+            Host::Ipv6(address) => Self::Address(IpAddr::V6(address).to_canonical()),
+            Host::Domain(name) => Self::Name(normalized_host_name(name)),
+        })
+    }
+
+    /// The key of a host as a resolver names it: a name, or an IP literal
+    /// with or without brackets.
+    fn of_host(host: &str) -> Self {
+        let literal = host
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+            .unwrap_or(host);
+        match literal.parse::<IpAddr>() {
+            Ok(address) => Self::Address(address.to_canonical()),
+            Err(_) => Self::Name(normalized_host_name(host)),
+        }
+    }
+}
+
+/// `host` lowercased, without one terminal dot, so `Registry.Example.` and
+/// `registry.example` are one host.
+#[must_use]
+pub fn normalized_host_name(host: &str) -> String {
+    host.strip_suffix('.')
+        .unwrap_or(host)
+        .to_ascii_lowercase()
 }
 
 impl ConnectPolicy {
     pub(super) fn from_routing(routing: &RoutingConfig, public_url: &str) -> Self {
-        let own_url = Url::parse(public_url).ok();
+        let own = Url::parse(public_url)
+            .ok()
+            .and_then(|url| {
+                Some(OwnUrl {
+                    host: HostKey::of_url(&url)?,
+                    scheme: url.scheme().to_string(),
+                    port: url.port_or_known_default(),
+                })
+            });
         Self {
-            own_host: own_url
-                .as_ref()
-                .and_then(|url| url.host_str().map(str::to_owned)),
-            own_origin: own_url.map(|url| url.origin()),
-            own_address: literal_address(public_url).map(|(_, address)| address),
-            exact_own_origin: false,
+            own,
+            own_host_policy: OwnHost::AnyPort,
             allowed_private_networks: routing.route_policy
                 .allowed_private_networks
                 .clone(),
         }
+    }
+
+    /// This policy with the own-host exemption limited to `public_url`'s
+    /// origin.
+    pub(super) fn with_exact_own_origin(mut self) -> Self {
+        self.own_host_policy = OwnHost::ExactOrigin;
+        self
     }
 
     /// With the exemption limited to `public_url`'s origin, the own literal
@@ -43,35 +107,46 @@ impl ConnectPolicy {
     /// [`Self::allows_own_host_origin`] limits to that origin, so another
     /// name for it cannot reach another port.
     pub(super) fn allows_address(&self, host: &str, address: IpAddr) -> bool {
-        let is_own_host = self.is_own_host_name(host);
-        if self.exact_own_origin && self.own_address == Some(address) {
-            return is_own_host;
+        let is_own_host = self.is_own_host_key(&HostKey::of_host(host));
+        match self.own_host_policy {
+            OwnHost::ExactOrigin if self.is_own_address(address) => is_own_host,
+            OwnHost::ExactOrigin | OwnHost::AnyPort => {
+                self.allows_listed_address(address) || is_own_host
+            }
         }
-        self.allows_listed_address(address) || is_own_host
     }
 
-    fn is_own_host_name(&self, host: &str) -> bool {
-        self.own_host
-            .as_deref()
-            .is_some_and(|own_host| own_host.eq_ignore_ascii_case(host))
+    fn is_own_host_key(&self, key: &HostKey) -> bool {
+        self.own
+            .as_ref()
+            .is_some_and(|own| own.host == *key)
+    }
+
+    fn is_own_address(&self, address: IpAddr) -> bool {
+        self.is_own_host_key(&HostKey::Address(address.to_canonical()))
     }
 
     /// Whether `url` is on this server's own `public_url` host, at any origin.
     pub(super) fn is_own_host(&self, url: &str) -> bool {
         Url::parse(url)
             .ok()
-            .and_then(|url| {
-                url.host_str()
-                    .map(|host| self.is_own_host_name(host))
-            })
-            .unwrap_or(false)
+            .and_then(|url| HostKey::of_url(&url))
+            .is_some_and(|key| self.is_own_host_key(&key))
+    }
+
+    /// Whether `url` is at `public_url`'s origin.
+    pub(super) fn is_own_origin(&self, url: &str) -> bool {
+        let (Some(own), Ok(url)) = (&self.own, Url::parse(url)) else { return false };
+        url.scheme() == own.scheme
+            && url.port_or_known_default() == own.port
+            && HostKey::of_url(&url).as_ref() == Some(&own.host)
     }
 
     /// An address a client built from a URL the admin API wrote may connect
     /// to: [`Self::allows_listed_address`], and not `public_url`'s literal
     /// address.
     pub(super) fn allows_stored_address(&self, address: IpAddr) -> bool {
-        self.own_address != Some(address) && self.allows_listed_address(address)
+        !self.is_own_address(address) && self.allows_listed_address(address)
     }
 
     /// `false` when `url`'s host is an IP literal
@@ -83,6 +158,7 @@ impl ConnectPolicy {
     /// [`Self::allows_address`] without the exemption for this server's own
     /// host: a public address, or one in `routes.allowedPrivateNetworks`.
     pub(super) fn allows_listed_address(&self, address: IpAddr) -> bool {
+        let address = address.to_canonical();
         is_public_address(address)
             || self.allowed_private_networks
                 .iter()
@@ -102,25 +178,14 @@ impl ConnectPolicy {
         self.allows_literal_host(url) && self.allows_own_host_origin(url)
     }
 
-    /// This policy with the own-host exemption limited to `public_url`'s
-    /// origin.
-    pub(super) fn with_exact_own_origin(mut self) -> Self {
-        self.exact_own_origin = true;
-        self
-    }
-
     /// `false` when the exemption is limited to `public_url`'s origin and
     /// `url` is on this server's own host at another origin, whatever that
-    /// host is: a hostname, or a private or public IP literal. The exemption
-    /// covers the hosted packages the resolver fetches from this server;
-    /// another port of the host is another service on the same machine.
+    /// host is: a hostname, or a private or public IP literal.
     pub(super) fn allows_own_host_origin(&self, url: &str) -> bool {
-        !self.exact_own_origin || !self.is_own_host(url) || self.is_own_origin(url)
-    }
-
-    /// Whether `url` is at `public_url`'s origin.
-    pub(super) fn is_own_origin(&self, url: &str) -> bool {
-        Url::parse(url).is_ok_and(|url| self.own_origin.as_ref() == Some(&url.origin()))
+        match self.own_host_policy {
+            OwnHost::AnyPort => true,
+            OwnHost::ExactOrigin => !self.is_own_host(url) || self.is_own_origin(url),
+        }
     }
 }
 

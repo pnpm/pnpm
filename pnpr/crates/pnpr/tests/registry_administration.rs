@@ -1302,3 +1302,55 @@ async fn a_stored_upstream_at_another_port_of_the_own_host_is_never_contacted() 
     assert_eq!(hits.load(Ordering::SeqCst), 0);
     server.abort();
 }
+
+#[tokio::test]
+async fn another_spelling_of_the_own_host_is_refused_for_a_stored_upstream() {
+    let spellings = [
+        ("http://104.16.0.5:4873", "http://[::ffff:104.16.0.5]:9000/"),
+        ("http://[::ffff:104.16.0.5]:4873", "http://104.16.0.5:9000/"),
+        ("http://example.test", "http://example.test.:9000/"),
+        ("http://example.test.", "http://example.test:9000/"),
+    ];
+    for (own, other_port) in spellings {
+        let dir = TempDir::new().unwrap();
+        let yaml = format!("storage: {}\n{CONFIG}", storage_dir(dir.path()).display());
+        let config = crate::managed_registries::managed_config(
+            &config_path(dir.path()),
+            &yaml,
+            listen(),
+            Some(own.to_string()),
+        )
+        .await;
+        let replica = Replica::new(config).await;
+        let entry = Some(upstream(other_port));
+        let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), entry).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{own}: {other_port}: {error}");
+    }
+}
+
+#[tokio::test]
+async fn credentials_in_a_stored_url_are_refused_by_the_api_and_import() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let replica = Replica::new(config.clone()).await;
+    let entry = Some(upstream("https://user:pass@npm.corp.example/"));
+    let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), entry).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
+    let (_, mut document, _) = replica.send("GET", DOCUMENT, Some(&replica.root), None).await;
+    document["routes"] = json!({ "public": [{ "registry": "https://user:pass@mirror.example/" }] });
+    let (status, error) = replica.as_root("PUT", DOCUMENT, Some(document)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
+
+    let file = dir.path().join("with-credentials.yaml");
+    std::fs::write(
+        &file,
+        "registries:\n  up:\n    type: upstream\n    url: https://user:pass@npm.corp.example/\n    \
+         access: $authenticated\n",
+    )
+    .unwrap();
+    for dry_run in [true, false] {
+        let import = pnpr::RegistriesSubcommand::Import { file: file.clone(), dry_run };
+        let result = pnpr::run_command(&config, pnpr::Command::Registries { action: import }).await;
+        assert!(result.is_err(), "import with dry_run {dry_run} accepted it");
+    }
+}

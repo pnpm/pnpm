@@ -367,3 +367,26 @@ fn changes_name_the_registries_that_differ() {
     assert_eq!((storage.namespace.as_str(), storage.ecosystem), ("acme", Ecosystem::Npm));
     assert!(previous.hosted_storage("corp").is_none());
 }
+
+#[test]
+fn a_stored_url_must_not_carry_credentials() {
+    for url in ["https://user:pass@npm.corp.example/", "https://token@npm.corp.example/"] {
+        let yaml = format!(
+            "registries:\n  corp:\n    type: upstream\n    url: {url}\n    access: $authenticated\n",
+        );
+        let document = RegistryGraphDocument::from_yaml(&yaml).unwrap();
+        let error = document
+            .check_stored(&[])
+            .expect_err("credentials in `url` are refused");
+        assert!(error.to_string().contains("`url`"), "{url}: {error}");
+    }
+    let route = "routes:\n  public:\n    - registry: https://user:pass@mirror.example/\n";
+    let document = RegistryGraphDocument::from_yaml(route).unwrap();
+    let error = document
+        .check_stored(&[])
+        .expect_err("credentials in a public route are refused");
+    assert!(error.to_string().contains("routes.public"), "{error}");
+    upstream_document("")
+        .check_stored(&[])
+        .unwrap();
+}

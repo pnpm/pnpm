@@ -503,7 +503,7 @@ replica serves the same registries without a config deploy.
 storage: ./storage
 secret: ${PNPR_SECRET}
 registriesManagedBy: api
-registryEnv: [CORP_NPM_TOKEN]
+registryEnv: [CORP_NPM_TOKEN, CORP_API_KEY]
 auth:
   admins: [<account-id>]
   registryAdmins: [<account-id>]
@@ -569,6 +569,8 @@ registries:
   reference. A literal value is refused, so put a header that is not a
   secret in a variable too.
 - No other field takes `${NAME}` references.
+- An upstream `url` or a `routes.public` registry with a user name or password
+  in it is refused.
 - Every replica needs every variable a stored upstream names. A replica
   without one keeps serving the registries it loaded before and logs an error,
   and a change it takes is refused.
