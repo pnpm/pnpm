@@ -83,7 +83,7 @@ function prepareHookManifest (
   switch (stage) {
     case 'start':
       if (!hookManifest.scripts.start) {
-        if (!existsSync('server.js')) {
+        if (!existsSync(path.join(pkgRoot, 'server.js'))) {
           throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
         }
         hookManifest.scripts.start = 'node server.js'

@@ -1,6 +1,6 @@
 use super::{
     Config, ExecDirs, HashMap, IndexMap, IntoDiagnostic, Mutex, PackageManifest, Path,
-    ProcessTracker, RunError, RunScript, ScheduleGraphOptions, ScriptExit, ScriptOutput,
+    ProcessTracker, RunArgs, RunError, RunScript, ScheduleGraphOptions, ScriptExit, ScriptOutput,
     ScriptSelector, TaskCompletion, Value, env, exec_fallback, exit_like,
     injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
     interrupt_count,
@@ -141,24 +141,36 @@ fn run_one_script(
     }
 }
 
-/// What a run does when the manifest declares no matching script:
-/// `--if-present` succeeds, a shorthand invocation falls back to `exec`,
-/// and anything else is an error.
-pub(super) fn no_matching_script(
-    script_name: &str,
-    args: &[String],
-    dirs: ExecDirs<'_>,
-    config: &Config,
-    if_present: bool,
-    fallback_to_exec: bool,
-) -> miette::Result<()> {
-    if if_present {
-        return Ok(());
+#[derive(Clone, Copy)]
+pub(super) enum MissingScript {
+    ReportError,
+    FallbackToExec,
+}
+
+impl RunArgs {
+    /// What a run does when the manifest declares no matching script:
+    /// `--if-present` succeeds, `start` reports [`RunError::NoScriptOrServer`],
+    /// a shorthand invocation falls back to `exec`, and anything else reports
+    /// [`RunError::NoScript`].
+    pub(super) fn no_matching_script(
+        &self,
+        script_name: &str,
+        args: &[String],
+        dirs: ExecDirs<'_>,
+        config: &Config,
+        missing_script: MissingScript,
+    ) -> miette::Result<()> {
+        if self.if_present {
+            return Ok(());
+        }
+        if script_name == "start" {
+            return Err(RunError::NoScriptOrServer.into());
+        }
+        if matches!(missing_script, MissingScript::FallbackToExec) {
+            return exec_fallback(script_name, args, dirs, config);
+        }
+        Err(RunError::no_script(script_name, args).into())
     }
-    if fallback_to_exec {
-        return exec_fallback(script_name, args, dirs, config);
-    }
-    Err(RunError::no_script(script_name, args).into())
 }
 
 /// The scripts the selector matches. Hidden scripts (names starting
@@ -166,9 +178,10 @@ pub(super) fn no_matching_script(
 /// an inherited `npm_lifecycle_event`.
 pub(super) fn selected_scripts(
     manifest: &PackageManifest,
+    dir: &Path,
     script_name: &str,
 ) -> miette::Result<Vec<String>> {
-    let specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
+    let specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value(), dir);
     if env::var_os("npm_lifecycle_event").is_some() {
         return Ok(specified);
     }

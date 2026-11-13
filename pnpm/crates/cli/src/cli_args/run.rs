@@ -11,7 +11,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 
 use execution::{
-    ScriptOutcome, no_matching_script, run_selected_scripts, script_concurrency, script_extra_env,
+    MissingScript, ScriptOutcome, run_selected_scripts, script_concurrency, script_extra_env,
     selected_scripts,
 };
 use filter_hint::filter_placement_hint;
@@ -175,7 +175,7 @@ impl RunArgs {
     /// pnpm 11, to a single selected script: every script runs, and the
     /// command ends with [`RunError::SomeScriptsFailed`] if any failed.
     pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
-        self.run_inner(ExecDirs::same(dir), config, reporter, false)
+        self.run_inner(ExecDirs::same(dir), config, reporter, MissingScript::ReportError)
     }
 
     /// Like [`Self::run`], but a name that matches no script is handed to
@@ -186,7 +186,7 @@ impl RunArgs {
         config: &Config,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        self.run_inner(dirs, config, reporter, true)
+        self.run_inner(dirs, config, reporter, MissingScript::FallbackToExec)
     }
 
     fn run_inner(
@@ -194,7 +194,7 @@ impl RunArgs {
         dirs: ExecDirs<'_>,
         config: &Config,
         reporter: ReporterType,
-        fallback_to_exec: bool,
+        missing_script: MissingScript,
     ) -> miette::Result<()> {
         let dir = dirs.project;
         // Before the dependency verification: an unsupported flag must
@@ -214,23 +214,16 @@ impl RunArgs {
         let manifest = match read_project_manifest_only(dir) {
             Ok(manifest) => manifest,
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-                if fallback_to_exec =>
+                if matches!(missing_script, MissingScript::FallbackToExec) =>
             {
                 return exec_fallback(script_name, args, dirs, config);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let specified = selected_scripts(&manifest, script_name)?;
+        let specified = selected_scripts(&manifest, dir, script_name)?;
         if specified.is_empty() {
-            return no_matching_script(
-                script_name,
-                args,
-                dirs,
-                config,
-                self.if_present,
-                fallback_to_exec,
-            );
+            return self.no_matching_script(script_name, args, dirs, config, missing_script);
         }
         self.run_scripts_here(dir, &manifest, config, reporter, specified, args)
     }
