@@ -430,10 +430,9 @@ function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<v
  * running, holding the caller's pipes open
  * (https://github.com/pnpm/pnpm/issues/15555). The signal cannot be relayed,
  * so a sh in a group of its own reads a pipe naming watched and released
- * groups, and kills
- * the groups still named when the pipe ends. One watchdog serves every group
- * of a pnpm process. Without a sh to run there is no watchdog, and the groups
- * are on their own.
+ * groups, and kills the groups still named when the pipe ends. One watchdog
+ * serves every group of a pnpm process. Without a sh to run there is no
+ * watchdog, and the groups are on their own.
  */
 export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
   const lifeline = getWatchdogLifeline()

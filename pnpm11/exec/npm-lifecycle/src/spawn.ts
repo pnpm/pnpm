@@ -138,7 +138,8 @@ function preserveBashOptions (cmd: string, args: string[], environment: NodeJS.P
 function recoverScriptRegistration (raw: ChildProcess, descriptor: number, recover: () => Promise<void>): void {
   const receipt = raw.stdio[descriptor]
   if (!(receipt instanceof Socket)) throw new Error('The watchdog receipt is not a duplex pipe')
-  receipt.on('error', (error) => raw.emit('error', error))
+  // The reply fails only when the launcher is gone, and its exit status reports that.
+  receipt.on('error', () => {})
   receipt.once('data', () => {
     recover().then(() => {
       receipt.end('registered\n')
