@@ -184,10 +184,10 @@ async fn disconnect_aborts_streaming_resolve_and_releases_permits() {
 #[tokio::test]
 async fn overall_deadline_aborts_streaming_resolve_after_headers_are_sent() {
     let entered = Arc::new(Notify::new());
-    let (origin, upstream) = spawn_stalled_upstream(entered).await;
+    let (origin, upstream) = spawn_stalled_upstream(Arc::clone(&entered)).await;
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
-    resolver.limits_mut().deadline = Duration::from_millis(250);
+    resolver.limits_mut().deadline = Duration::from_secs(60);
 
     let body = Bytes::from(
         serde_json::to_vec(&json!({
@@ -199,7 +199,12 @@ async fn overall_deadline_aborts_streaming_resolve_after_headers_are_sent() {
         .unwrap(),
     );
 
+    let stalled = entered.notified();
     let response = handle_resolve(&resolver, identity_with_id("u-1", "caller-one"), body).await;
+    tokio::time::timeout(Duration::from_secs(30), stalled).await
+        .expect("resolution must reach the stalled dependency before advancing the deadline");
+    tokio::time::pause();
+    tokio::time::advance(resolver.limits.deadline).await;
     let (status, frames) = tokio::time::timeout(Duration::from_secs(2), collect_frames(response))
         .await
         .expect("overall deadline must terminate the streamed body");
