@@ -220,30 +220,83 @@ fn merge_importers(
         if merged.contains_key(id) {
             continue;
         }
-        let (our_importer, their_importer) = (ours.get(id), theirs.get(id));
-        let group = |select: fn(&ProjectSnapshot) -> Option<&ResolvedDependencyMap>| {
-            merge_dependency_group(
-                our_importer.and_then(select),
-                their_importer.and_then(select),
-                merge_resolved_dependency,
-            )
-        };
-        merged.insert(
-            id.clone(),
-            ProjectSnapshot {
-                specifiers: None,
-                dependencies: group(|importer| importer.dependencies.as_ref()),
-                dev_dependencies: group(|importer| importer.dev_dependencies.as_ref()),
-                optional_dependencies: group(|importer| {
-                    importer.optional_dependencies.as_ref()
-                }),
-                dependencies_meta: None,
-                publish_directory: None,
-                link_directory: None,
-            },
-        );
+        merged.insert(id.clone(), merge_importer(ours.get(id), theirs.get(id)));
     }
     merged
+}
+
+fn merge_importer(
+    our_importer: Option<&ProjectSnapshot>,
+    their_importer: Option<&ProjectSnapshot>,
+) -> ProjectSnapshot {
+    let group = |select: fn(&ProjectSnapshot) -> Option<&ResolvedDependencyMap>| {
+        merge_dependency_group(
+            our_importer.and_then(select),
+            their_importer.and_then(select),
+            merge_resolved_dependency,
+        )
+    };
+    ProjectSnapshot {
+        specifiers: merge_dependency_group(
+            our_importer.and_then(|importer| importer.specifiers.as_ref()),
+            their_importer.and_then(|importer| importer.specifiers.as_ref()),
+            |ours, theirs| take_changed(ours, theirs),
+        ),
+        dependencies: group(|importer| importer.dependencies.as_ref()),
+        dev_dependencies: group(|importer| importer.dev_dependencies.as_ref()),
+        optional_dependencies: group(|importer| importer.optional_dependencies.as_ref()),
+        dependencies_meta: merge_dependencies_meta(
+            our_importer.and_then(|importer| importer.dependencies_meta.as_ref()),
+            their_importer.and_then(|importer| importer.dependencies_meta.as_ref()),
+        ),
+        publish_directory: their_importer
+            .and_then(|importer| importer.publish_directory.as_ref())
+            .or_else(|| {
+                our_importer.and_then(|importer| importer.publish_directory.as_ref())
+            })
+            .cloned(),
+        link_directory: their_importer
+            .and_then(|importer| importer.link_directory)
+            .or_else(|| our_importer.and_then(|importer| importer.link_directory)),
+    }
+}
+
+fn merge_dependencies_meta(
+    ours: Option<&serde_json::Value>,
+    theirs: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    if ours.is_none() && theirs.is_none() {
+        return None;
+    }
+    let mut merged = match ours {
+        Some(serde_json::Value::Object(fields)) => fields.clone(),
+        _ => serde_json::Map::new(),
+    };
+    if let Some(serde_json::Value::Object(their_fields)) = theirs {
+        for (dep_name, their_entry) in their_fields {
+            let entry = merged
+                .get(dep_name)
+                .map_or_else(
+                    || their_entry.clone(),
+                    |our_entry| merge_meta_entry(our_entry, their_entry),
+                );
+            merged.insert(dep_name.clone(), entry);
+        }
+    }
+    (!merged.is_empty()).then_some(serde_json::Value::Object(merged))
+}
+
+fn merge_meta_entry(ours: &serde_json::Value, theirs: &serde_json::Value) -> serde_json::Value {
+    match (ours, theirs) {
+        (serde_json::Value::Object(our_fields), serde_json::Value::Object(their_fields)) => {
+            let mut merged = our_fields.clone();
+            for (key, value) in their_fields {
+                merged.insert(key.clone(), value.clone());
+            }
+            serde_json::Value::Object(merged)
+        }
+        _ => theirs.clone(),
+    }
 }
 
 /// The v9 importer block inlines the specifier next to the resolved

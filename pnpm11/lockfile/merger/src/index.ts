@@ -7,7 +7,7 @@ import type {
   ProjectSnapshot,
   ResolvedCatalogEntry,
 } from '@pnpm/lockfile.types'
-import type { DepPath, ProjectId } from '@pnpm/types'
+import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 import { comverToSemver } from 'comver-to-semver'
 import semver from 'semver'
 
@@ -129,7 +129,44 @@ function mergeSingleImporter (
     theirImporter?.specifiers ?? {},
     takeChangedValue
   )
+  applyImporterMetadata(result, ourImporter, theirImporter)
   return result
+}
+
+function applyImporterMetadata (
+  target: ProjectSnapshot,
+  ourImporter?: ProjectSnapshot,
+  theirImporter?: ProjectSnapshot
+): void {
+  const dependenciesMeta = mergeDependenciesMeta(ourImporter?.dependenciesMeta, theirImporter?.dependenciesMeta)
+  if (dependenciesMeta) {
+    target.dependenciesMeta = dependenciesMeta
+  }
+  const publishDirectory = theirImporter?.publishDirectory ?? ourImporter?.publishDirectory
+  if (publishDirectory) {
+    target.publishDirectory = publishDirectory
+  }
+  const linkDirectory = theirImporter?.linkDirectory ?? ourImporter?.linkDirectory
+  if (linkDirectory === false) {
+    target.linkDirectory = false
+  }
+}
+
+function mergeDependenciesMeta (
+  ourMeta?: DependenciesMeta,
+  theirMeta?: DependenciesMeta
+): DependenciesMeta | undefined {
+  if (!ourMeta && !theirMeta) return undefined
+  const allDepNames = Array.from(new Set([
+    ...Object.keys(ourMeta ?? {}),
+    ...Object.keys(theirMeta ?? {}),
+  ]))
+  if (allDepNames.length === 0) return undefined
+  return Object.fromEntries(allDepNames.map((depName) => {
+    const ourEntry = ourMeta && Object.hasOwn(ourMeta, depName) ? ourMeta[depName] : undefined
+    const theirEntry = theirMeta && Object.hasOwn(theirMeta, depName) ? theirMeta[depName] : undefined
+    return [depName, { ...ourEntry, ...theirEntry }]
+  }))
 }
 
 function mergePackageSnapshots (

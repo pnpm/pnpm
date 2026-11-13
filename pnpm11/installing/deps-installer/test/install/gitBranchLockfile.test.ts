@@ -760,3 +760,49 @@ test.each([
     }))
   ).rejects.toThrow(/ERR_PNPM_OUTDATED_LOCKFILE|not up to date/)
 })
+
+test('install with --merge-git-branch-lockfiles and --frozen-lockfile preserves importer publishDirectory, linkDirectory, and dependenciesMeta', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('local-dep', { recursive: true })
+  fs.mkdirSync('dist', { recursive: true })
+  fs.writeFileSync('local-dep/package.json', JSON.stringify({ name: 'local-dep', version: '1.0.0' }))
+
+  const manifest: ProjectManifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    publishConfig: {
+      directory: 'dist',
+      linkDirectory: false,
+    },
+    dependencies: {
+      'local-dep': 'file:./local-dep',
+    },
+    dependenciesMeta: {
+      'local-dep': {
+        injected: true,
+      },
+    },
+  }
+
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main-branch'))
+  await install(manifest, testDefaults({ useGitBranchLockfile: false }))
+
+  const otherLockfilePath = path.resolve('pnpm-lock.feature.yaml')
+  fs.copyFileSync(WANTED_LOCKFILE, otherLockfilePath)
+
+  await install(manifest, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  }))
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].publishDirectory).toBe('dist')
+  expect(lockfile.importers['.'].linkDirectory).toBe(false)
+  expect(lockfile.importers['.'].dependenciesMeta).toStrictEqual({
+    'local-dep': {
+      injected: true,
+    },
+  })
+})

@@ -320,3 +320,94 @@ fn a_side_pinning_another_integrity_target_lends_no_entries() {
     let snapshots = merged.snapshots.as_ref().unwrap();
     assert!(!snapshots.contains_key(&"only-theirs@2.0.0".parse::<PackageKey>().unwrap()));
 }
+
+#[test]
+fn merging_preserves_and_merges_importer_metadata() {
+    let ours = "\
+lockfileVersion: '9.0'
+importers:
+  .:
+    publishDirectory: dist
+    linkDirectory: false
+    dependenciesMeta:
+      only-ours:
+        injected: true
+      shared:
+        injected: true
+        patch: patches/old.patch
+  packages/ours-only:
+    publishDirectory: build
+    linkDirectory: false
+    dependenciesMeta:
+      ours-dep:
+        injected: true
+";
+    let theirs = "\
+lockfileVersion: '9.0'
+importers:
+  .:
+    publishDirectory: out
+    dependenciesMeta:
+      only-theirs:
+        injected: true
+      shared:
+        patch: patches/new.patch
+  packages/theirs-only:
+    publishDirectory: lib
+    linkDirectory: false
+    dependenciesMeta:
+      theirs-dep:
+        injected: true
+  packages/empty-meta:
+    dependenciesMeta: {}
+";
+    let merged = merged(ours, theirs);
+
+    let root = &merged.importers["."];
+    assert_eq!(root.publish_directory.as_deref(), Some("out"));
+    assert_eq!(root.link_directory, Some(false));
+    assert_eq!(
+        root.dependencies_meta,
+        Some(serde_json::json!({
+            "only-ours": { "injected": true },
+            "only-theirs": { "injected": true },
+            "shared": { "injected": true, "patch": "patches/new.patch" },
+        })),
+    );
+
+    let ours_only = &merged.importers["packages/ours-only"];
+    assert_eq!(ours_only.publish_directory.as_deref(), Some("build"));
+    assert_eq!(ours_only.link_directory, Some(false));
+    assert_eq!(
+        ours_only.dependencies_meta,
+        Some(serde_json::json!({ "ours-dep": { "injected": true } })),
+    );
+
+    let theirs_only = &merged.importers["packages/theirs-only"];
+    assert_eq!(theirs_only.publish_directory.as_deref(), Some("lib"));
+    assert_eq!(theirs_only.link_directory, Some(false));
+    assert_eq!(
+        theirs_only.dependencies_meta,
+        Some(serde_json::json!({ "theirs-dep": { "injected": true } })),
+    );
+
+    assert_eq!(merged.importers["packages/empty-meta"].dependencies_meta, None);
+}
+
+#[test]
+fn merging_preserves_in_memory_importer_specifiers() {
+    let mut ours = parse(OURS);
+    ours.importers.get_mut(".").unwrap().specifiers = Some(std::collections::HashMap::from([
+        ("is-positive".to_string(), "^3.0.0".to_string()),
+        ("only-ours".to_string(), "^1.0.0".to_string()),
+    ]));
+    let mut theirs = parse(THEIRS);
+    theirs.importers.get_mut(".").unwrap().specifiers =
+        Some(std::collections::HashMap::from([("is-positive".to_string(), "^3.1.0".to_string())]));
+
+    let merged = merge_lockfile_changes(&ours, &theirs);
+    let specifiers =
+        merged.importers["."].specifiers.as_ref().expect("in-memory specifiers survive");
+    assert_eq!(specifiers.get("is-positive").map(String::as_str), Some("^3.1.0"));
+    assert_eq!(specifiers.get("only-ours").map(String::as_str), Some("^1.0.0"));
+}
