@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { scheduler } from 'node:timers/promises'
@@ -35,7 +35,11 @@ export default async () => {
   // whichever test happens to write next.
   global.registryMockStorage = storage
   const config = writeTestConfig(storage)
-  const currentVersionConfig = writeCurrentVersionTestConfig(storage)
+  // The current-version registry serves other registries, so it gets a
+  // storage and metadata database of its own.
+  const currentVersionStorage = mkdtempSync(path.join(tmpdir(), STORAGE_PREFIX))
+  global.registryMockCurrentVersionStorage = currentVersionStorage
+  const currentVersionConfig = buildCurrentVersionStorage(currentVersionStorage, pnpmVersion)
 
   const bin = resolvePnprBin()
 
@@ -59,7 +63,7 @@ export default async () => {
     [
       '--config', currentVersionConfig,
       '--listen', `127.0.0.1:${currentVersionPort}`,
-      '--storage', storage,
+      '--storage', path.join(currentVersionStorage, 'storage'),
       '--public-url', `http://localhost:${currentVersionPort}`,
       '--packument-ttl', '31536000',
     ],
@@ -127,25 +131,39 @@ function writeTestConfig (storage) {
   return target
 }
 
-function writeCurrentVersionTestConfig (storage) {
-  const target = path.join(storage, 'current-version-config.yaml')
-  // Shares the metadata database pnpr-prepare seeded with the main registry.
-  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n    maxFails: 0\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
-  return target
+/**
+ * Build the current-version registry's storage under `root`: the `pnpm` and
+ * `@pnpm/exe` fixtures, served locally, and everything else proxied to npm.
+ * Returns its config file.
+ */
+function buildCurrentVersionStorage (root, pnpmVersion) {
+  const packages = path.join(root, 'packages')
+  for (const name of ['pnpm', '@pnpm/exe']) {
+    cpSync(path.join(FIXTURE_PACKAGES, name), path.join(packages, name), { recursive: true })
+  }
+  const registries = path.join(root, 'registries.yaml')
+  writeFileSync(registries, `registries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n    maxFails: 0\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
+  const storage = path.join(root, 'storage')
+  buildStorage(storage, pnpmVersion, { packages, registries })
+  const config = path.join(root, 'config.yaml')
+  writeFileSync(config, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\n`)
+  return config
 }
 
 /**
  * Build registry storage from the in-repo fixtures into `out`, replacing the
- * current-version sentinel with `pnpmVersion`. Throws if `pnpr-prepare`
- * cannot build the storage.
+ * current-version sentinel with `pnpmVersion`. `packages` and `registries`
+ * replace the fixture packages and the registry-mock registries. Throws if
+ * `pnpr-prepare` cannot build the storage.
  */
-function buildStorage (out, pnpmVersion) {
+function buildStorage (out, pnpmVersion, { packages = FIXTURE_PACKAGES, registries } = {}) {
   const bin = resolvePnprPrepareBin()
   const result = spawnSync(bin, [
-    '--packages', FIXTURE_PACKAGES,
+    '--packages', packages,
     '--out', out,
     '--substitute', `0.0.0-test-current-pnpm=${pnpmVersion}`,
     '--substitute', `http://localhost:7769=http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
+    ...(registries == null ? [] : ['--registries', registries]),
   ], { stdio: 'inherit' })
   if (result.status !== 0) {
     throw new Error(

@@ -243,7 +243,7 @@ fn with_routing(
             pipeline: PipelineFeature::default(),
         },
         routing,
-        registries_managed_by: pnpr_config::Management::Config,
+        graph_source: pnpr_config::GraphSource::Supplied,
         registry_env: Vec::new(),
         release_records: pnpr_config::ReleaseRecordsConfig::default(),
         gc: pnpr_config::GcConfig::default(),

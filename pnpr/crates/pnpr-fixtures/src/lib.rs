@@ -8,8 +8,12 @@ pub use presets::{
     MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, REGISTRY_MOCK_UPSTREAM_TIMEOUT, TAR_REGISTRY,
     proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
+pub use registries::{
+    MOCK_REGISTRIES_YAML, load_seeded_config, seed_registries, split_graph, store_document,
+};
 
 mod metadata;
+mod registries;
 mod tarball;
 use tarball::{build_tarball, fixture_files};
 
@@ -229,6 +233,7 @@ fn fixture_fingerprint(root: &Path) -> String {
     // A storage tree built in another layout, or with metadata in another
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
+    hasher.update(MOCK_REGISTRIES_YAML.as_bytes());
     hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.to_le_bytes());
     for statements in pnpr_storage::metadata::SqlMetadata::SCHEMA_STATEMENTS {
         hasher.update(statements.as_bytes());
@@ -279,6 +284,19 @@ fn build_storage(
     }
     write_local_layout_marker(storage_root).expect("write registry fixture layout marker");
     metadata::write_packuments_with_archives(storage_root, packuments, archives);
+    seed_storage_registries(storage_root, MOCK_REGISTRIES_YAML);
+}
+
+/// Store the registries document `yaml` in the metadata database of the
+/// fixture storage at `storage`.
+///
+/// # Panics
+///
+/// The document does not parse or cannot be stored.
+pub fn seed_storage_registries(storage: &Path, yaml: &str) {
+    let document = pnpr_config::RegistryGraphDocument::from_yaml(yaml)
+        .unwrap_or_else(|error| panic!("parse the registries document: {error}"));
+    store_document(&metadata::open(storage), &document);
 }
 
 fn remove_version_field(packuments: &mut [(String, Value)], removed: &RemovedVersionField<'_>) {
