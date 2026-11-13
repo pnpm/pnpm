@@ -309,10 +309,7 @@ function getLinkedPackageRef (
   if (depNode?.resolution.type === 'directory') {
     return createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string
   }
-  if (
-    parentResolution.type === 'directory' &&
-    (linkSpec.startsWith('../') || linkSpec.startsWith('./'))
-  ) {
+  if (parentResolution.type === 'directory') {
     return createNodeIdForLinkedLocalPkg(
       lockfileDir,
       localSpecPath(linkSpec, parentResolution.directory)
