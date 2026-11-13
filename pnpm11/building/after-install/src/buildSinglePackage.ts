@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.linker'
+import { getSlotShimNodePathOptions, linkBins } from '@pnpm/bins.linker'
 import { createStagingToken, discardStagingDir, getStagingDir, isPackagePlaced, replacePlacedPackage } from '@pnpm/building.during-install'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -174,7 +174,11 @@ export async function prepareBinPaths ({ depPath, pkgRoot }: Pick<PackageToBuild
   const binPath = path.join(pkgRoot, 'node_modules', '.bin')
   const snapshot = state.pkgSnapshots[depPath]
   const forceForPackages = builtBinPackages(modules, { ...snapshot.dependencies, ...snapshot.optionalDependencies }, state)
-  await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn: state.warn, forceForPackages })
+  await linkBins(modules, binPath, {
+    ...getSlotShimNodePathOptions({ enableGlobalVirtualStore: opts.enableGlobalVirtualStore, extraNodePaths: ctx.extraNodePaths }),
+    forceForPackages,
+    warn: state.warn,
+  })
   return ctx.extraBinPaths
 }
 

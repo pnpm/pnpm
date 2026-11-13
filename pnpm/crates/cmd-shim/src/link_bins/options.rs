@@ -1,5 +1,18 @@
 use std::{ffi::OsString, path::PathBuf};
 
+/// When a shim puts the target's own `node_modules` directories on
+/// `NODE_PATH`.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum OwnNodePaths {
+    /// Only alongside a project modules directory or
+    /// [`LinkBinsOptions::extra_node_paths`].
+    #[default]
+    WithExtras,
+    /// Even with neither, for a shim that must not name the installing
+    /// project but still extends `NODE_PATH`.
+    Always,
+}
+
 /// Options shared by every bin one linking call writes — pnpm's
 /// `LinkBinOptions`.
 #[derive(Debug, Default, Clone)]
@@ -8,6 +21,7 @@ pub struct LinkBinsOptions {
     pub force: bool,
     /// pnpm's `extraNodePaths` — see [`super::link_bins_of_packages`].
     pub extra_node_paths: Vec<String>,
+    pub own_node_paths: OwnNodePaths,
     /// pnpm's `preferSymlinkedExecutables`: on Unix, materialize each
     /// bin as a relative symlink to the target file instead of a shell
     /// shim. Inert on Windows, where bins always get shims. The node

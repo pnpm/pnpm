@@ -1,5 +1,5 @@
 pub use discovery::collect_packages_in_modules_dir;
-pub use options::LinkBinsOptions;
+pub use options::{LinkBinsOptions, OwnNodePaths};
 pub use prepared::{PreparedPackageBins, link_bins_of_packages_precomputed};
 pub use refresh::{DirectoryBinPlan, prune_stale_bins, prune_stale_bins_with};
 pub use relocatable::bin_dir_is_relocatable;
@@ -386,7 +386,12 @@ where
                 if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {
                     Vec::new()
                 } else {
-                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
+                    shim_node_path(
+                        pkg,
+                        paths.project_node_path.as_deref(),
+                        &paths.extra_node_paths,
+                        options.own_node_paths,
+                    )
                 };
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(

@@ -45,6 +45,12 @@ export interface LinkBinOptions {
    */
   extraNodePaths?: string[]
   /**
+   * Write the bin's own dependency directories to `NODE_PATH` even when
+   * `extraNodePaths` is empty, for a shim that must not name the installing
+   * project but still extends `NODE_PATH`.
+   */
+  ownNodePaths?: boolean
+  /**
    * The first `NODE_PATH` entry: the modules directory of the project whose
    * bins are linked, when Node cannot find it by walking up to `node_modules`.
    */
@@ -153,8 +159,8 @@ function isShimRelativeTargetCurrent (content: string, { cmd, shShimDir }: BinLi
  * real path, which moves when a link on the way to it is re-pointed.
  */
 async function isShimNodePathCurrent (content: string, { cmd, opts }: BinLinkContext): Promise<boolean> {
-  if (opts.extraNodePaths == null && opts.projectModulesDir == null) return true
-  const writesNodePath = Boolean(opts.extraNodePaths?.length) || opts.projectModulesDir != null
+  if (opts.extraNodePaths == null && opts.projectModulesDir == null && !opts.ownNodePaths) return true
+  const writesNodePath = writesShimNodePath(opts)
   // The shim lists every entry once, at its first position.
   const listed = new Set(opts.projectModulesDir == null ? [] : [opts.projectModulesDir])
   const middle = takeUnlisted(writesNodePath ? await getBinNodePaths(cmd.path, opts.projectModulesDir) : [], listed)
@@ -252,12 +258,16 @@ async function writeCmdShim ({ cmd, externalBinPath, shShimDir, opts }: BinLinkC
 }
 
 async function getShimNodePath (target: string, opts: LinkBinOptions): Promise<string[] | undefined> {
-  if (!opts.extraNodePaths?.length && !opts.projectModulesDir) return undefined
+  if (!writesShimNodePath(opts)) return undefined
   return Array.from(new Set([
     ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
     ...await getBinNodePaths(target, opts.projectModulesDir),
     ...opts.extraNodePaths ?? [],
   ]))
+}
+
+function writesShimNodePath (opts: LinkBinOptions): boolean {
+  return Boolean(opts.extraNodePaths?.length) || opts.projectModulesDir != null || opts.ownNodePaths === true
 }
 
 function isSkippableShimError (err: NodeJS.ErrnoException): boolean {

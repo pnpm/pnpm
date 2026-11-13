@@ -85,6 +85,7 @@ async function relinkBuiltVirtualStoreBins (
   if (affectedNodes.length === 0) return
   await linkAllBins(depGraph.graph, {
     depNodes: affectedNodes,
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     extraNodePaths: opts.extraNodePaths,
     forceForPackages: builtPackageDirs,
     optional: opts.include.optionalDependencies,

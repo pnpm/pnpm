@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getSlotShimNodePathOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { logger } from '@pnpm/logger'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -14,6 +14,7 @@ export async function linkBinsOfDependencies<NodeId extends string> (
   depGraph: DependenciesGraph<NodeId>,
   opts: {
     builtPackageDirs?: ReadonlySet<string>
+    enableGlobalVirtualStore?: boolean
     extraNodePaths?: string[]
     optional: boolean
     preferSymlinkedExecutables?: boolean
@@ -25,6 +26,7 @@ export async function linkBinsOfDependencies<NodeId extends string> (
     : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
   const binPath = path.join(depNode.dir, 'node_modules/.bin')
+  const nodePathOptions = getSlotShimNodePathOptions(opts)
 
   const pkgNodes = [
     ...Object.entries(childrenToLink)
@@ -50,7 +52,7 @@ export async function linkBinsOfDependencies<NodeId extends string> (
   )
 
   await linkBinsOfPackages(pkgs, binPath, {
-    extraNodePaths: opts.extraNodePaths,
+    ...nodePathOptions,
     forceForPackages: opts.builtPackageDirs,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
@@ -59,7 +61,7 @@ export async function linkBinsOfDependencies<NodeId extends string> (
   if (depNode.hasBundledDependencies) {
     const bundledModules = path.join(depNode.dir, 'node_modules')
     await linkBins(bundledModules, binPath, {
-      extraNodePaths: opts.extraNodePaths,
+      ...nodePathOptions,
       forceForPackages: opts.builtPackageDirs,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: opts.warn,
