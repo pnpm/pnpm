@@ -677,7 +677,7 @@ async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_net
         let rewrite = Some(upstream(&format!("{own_url}/other/")));
         let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
-        let elsewhere = Some(upstream("http://127.0.0.1:1/"));
+        let elsewhere = Some(upstream("http://127.0.0.2:1/"));
         let (status, body) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), elsewhere).await;
         assert_eq!(status, StatusCode::OK, "{host}: an allowed address at another origin {body}");
     }
@@ -1252,4 +1252,53 @@ async fn a_public_route_is_checked_over_both_schemes() {
         let (status, body) = replica.as_root("PUT", DOCUMENT, Some(document)).await;
         assert_eq!(status, expected, "{registry}: {body}");
     }
+}
+
+#[tokio::test]
+async fn a_public_ip_public_url_refuses_stored_destinations_at_its_other_ports() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!("storage: {}\n{CONFIG}", storage_dir(dir.path()).display());
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        Some("http://104.16.0.5:4873".to_string()),
+    )
+    .await;
+    let replica = Replica::new(config).await;
+    let entry = Some(upstream("http://104.16.0.5:9000/"));
+    let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), entry).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
+    let (_, mut document, _) = replica.send("GET", DOCUMENT, Some(&replica.root), None).await;
+    document["routes"] = json!({ "public": [{ "registry": "http://104.16.0.5:9000/" }] });
+    let (status, error) = replica.as_root("PUT", DOCUMENT, Some(document)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
+}
+
+#[tokio::test]
+async fn a_stored_upstream_at_another_port_of_the_own_host_is_never_contacted() {
+    let (address, hits, server) = counting_server().await;
+    let dir = TempDir::new().unwrap();
+    let yaml = format!("storage: {}\n{CONFIG}", storage_dir(dir.path()).display()).replace(
+        "['10.0.0.0/8']",
+        "['10.0.0.0/8', '127.0.0.0/8']",
+    );
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        Some("http://127.0.0.1:4873".to_string()),
+    )
+    .await;
+    let other_port = format!("http://127.0.0.1:{}/", address.port());
+    let graph = json!({ "registries": { "up": upstream(&other_port) } });
+    crate::managed_registries::store_graph(&config, &graph).await;
+    let replica = Replica::new(config).await;
+    let (status, _, _) = replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
+    assert_ne!(status, StatusCode::OK);
+    let rewrite = Some(upstream(&format!("{other_port}other/")));
+    let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+    server.abort();
 }

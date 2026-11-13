@@ -142,7 +142,7 @@ pub(crate) fn occupied_namespace_error(occupied: &HostedNamespace) -> RegistryEr
 }
 
 /// An upstream URL the admin API writes must not name this server's own
-/// `public_url` origin, nor loopback, private, or link-local addresses that
+/// `public_url` host at any origin, nor loopback, private, or link-local addresses that
 /// `routes.allowedPrivateNetworks` does not allow.
 /// Hostnames are checked again on every connection, when they resolve.
 fn check_upstream_hosts(
@@ -163,9 +163,11 @@ fn check_upstream_hosts(
             .ok_or_else(|| RegistryError::BadRequest {
                 reason: format!("upstream registry {name:?} has `url` {url:?}, not an http(s) URL"),
             })?;
-        if context.is_own_origin(url) {
+        if context.is_own_host(url) {
             return Err(RegistryError::BadRequest {
-                reason: format!("upstream registry {name:?} points at this server's own {url:?}"),
+                reason: format!(
+                    "upstream registry {name:?} points at {url:?}, on this server's own host",
+                ),
             });
         }
         if !upstream_host_allowed(&context, &parsed) {

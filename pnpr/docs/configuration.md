@@ -579,8 +579,8 @@ An upstream stored in the database cannot reach loopback, private, or
 link-local addresses, the same rule the resolver follows. A `url` that names
 one, or `localhost`, is refused, and a hostname that resolves to one is not
 connected to. To use an upstream on an internal network, list its addresses in
-[`routes.allowedPrivateNetworks`](#routes). An upstream at pnpr's own
-`publicUrl` origin is refused too, wherever that origin's address is.
+[`routes.allowedPrivateNetworks`](#routes). An upstream on pnpr's own
+`publicUrl` host is refused at any port, even when that host is a public IP.
 
 ### Changes pnpr refuses
 
@@ -1066,7 +1066,8 @@ is stored with the registries instead of in this file.
 The resolver refuses to connect to loopback, private, and link-local
 addresses, other than the `--public-url` host. With
 [`registriesManagedBy: api`](#registries-in-the-database), only the
-`--public-url` origin is exempt, so another port of that host is refused. A
+`--public-url` origin is exempt, so another port of that host is refused,
+even when the host is a public IP. A
 stored `routes.public` registry that the resolver would refuse is refused when
 it is written. To resolve through an upstream
 on an internal network, list its addresses in `allowedPrivateNetworks`, as IPs

@@ -13,6 +13,8 @@ pub(super) struct ConnectPolicy {
     own_host: Option<String>,
     /// The origin of `public_url`.
     own_origin: Option<url::Origin>,
+    /// The address of `public_url` when its host is an IP literal.
+    own_address: Option<IpAddr>,
     /// Whether the exemption for the own host covers only `own_origin`, as
     /// it does when the admin API writes the registries, so a destination
     /// on another port of that host is not exempt.
@@ -28,6 +30,7 @@ impl ConnectPolicy {
                 .as_ref()
                 .and_then(|url| url.host_str().map(str::to_owned)),
             own_origin: own_url.map(|url| url.origin()),
+            own_address: literal_address(public_url).map(|(_, address)| address),
             exact_own_origin: false,
             allowed_private_networks: routing.route_policy
                 .allowed_private_networks
@@ -35,11 +38,46 @@ impl ConnectPolicy {
         }
     }
 
+    /// With the exemption limited to `public_url`'s origin, the own literal
+    /// address is admitted only for the own host, whose fetches
+    /// [`Self::allows_own_host_origin`] limits to that origin, so another
+    /// name for it cannot reach another port.
     pub(super) fn allows_address(&self, host: &str, address: IpAddr) -> bool {
-        self.allows_listed_address(address)
-            || self.own_host
-                .as_deref()
-                .is_some_and(|own_host| own_host.eq_ignore_ascii_case(host))
+        let is_own_host = self.is_own_host_name(host);
+        if self.exact_own_origin && self.own_address == Some(address) {
+            return is_own_host;
+        }
+        self.allows_listed_address(address) || is_own_host
+    }
+
+    fn is_own_host_name(&self, host: &str) -> bool {
+        self.own_host
+            .as_deref()
+            .is_some_and(|own_host| own_host.eq_ignore_ascii_case(host))
+    }
+
+    /// Whether `url` is on this server's own `public_url` host, at any origin.
+    pub(super) fn is_own_host(&self, url: &str) -> bool {
+        Url::parse(url)
+            .ok()
+            .and_then(|url| {
+                url.host_str()
+                    .map(|host| self.is_own_host_name(host))
+            })
+            .unwrap_or(false)
+    }
+
+    /// An address a client built from a URL the admin API wrote may connect
+    /// to: [`Self::allows_listed_address`], and not `public_url`'s literal
+    /// address.
+    pub(super) fn allows_stored_address(&self, address: IpAddr) -> bool {
+        self.own_address != Some(address) && self.allows_listed_address(address)
+    }
+
+    /// `false` when `url`'s host is an IP literal
+    /// [`Self::allows_stored_address`] refuses.
+    pub(super) fn allows_stored_literal_host(&self, url: &str) -> bool {
+        literal_address(url).is_none_or(|(_, address)| self.allows_stored_address(address))
     }
 
     /// [`Self::allows_address`] without the exemption for this server's own
@@ -72,33 +110,17 @@ impl ConnectPolicy {
     }
 
     /// `false` when the exemption is limited to `public_url`'s origin and
-    /// `url` is on this server's own host at another origin, unless its
-    /// host is an IP literal that the exemption is not needed for. The
-    /// exemption covers the hosted packages the resolver fetches from this
-    /// server. A hostname's addresses are checked when it resolves, with
-    /// the exemption, so such a URL on an own hostname is refused here.
+    /// `url` is on this server's own host at another origin, whatever that
+    /// host is: a hostname, or a private or public IP literal. The exemption
+    /// covers the hosted packages the resolver fetches from this server;
+    /// another port of the host is another service on the same machine.
     pub(super) fn allows_own_host_origin(&self, url: &str) -> bool {
-        let Ok(parsed) = Url::parse(url) else { return true };
-        let origin = parsed.origin();
-        let is_own_host = self.own_host
-            .as_deref()
-            .zip(parsed.host_str())
-            .is_some_and(|(own_host, host)| own_host.eq_ignore_ascii_case(host));
-        if !is_own_host || !self.exact_own_origin || self.own_origin.as_ref() == Some(&origin) {
-            return true;
-        }
-        literal_address(url).is_some_and(|(_, address)| self.allows_listed_address(address))
+        !self.exact_own_origin || !self.is_own_host(url) || self.is_own_origin(url)
     }
 
     /// Whether `url` is at `public_url`'s origin.
     pub(super) fn is_own_origin(&self, url: &str) -> bool {
         Url::parse(url).is_ok_and(|url| self.own_origin.as_ref() == Some(&url.origin()))
-    }
-
-    /// [`Self::allows_literal_host`] checked with
-    /// [`Self::allows_listed_address`].
-    pub(super) fn allows_listed_literal_host(&self, url: &str) -> bool {
-        literal_address(url).is_none_or(|(_, address)| self.allows_listed_address(address))
     }
 }
 

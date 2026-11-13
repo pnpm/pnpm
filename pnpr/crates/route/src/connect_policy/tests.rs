@@ -83,13 +83,30 @@ fn the_own_host_at_another_origin_is_fetchable_only_with_registries_in_the_confi
 }
 
 #[test]
-fn a_stored_upstream_never_fetches_the_own_public_origin() {
-    for host in ["127.0.0.1", "localhost"] {
+fn stored_destinations_never_reach_the_own_host_at_another_origin() {
+    for host in ["127.0.0.1", "localhost", "104.16.0.5"] {
         let own = format!("http://{host}:4873");
         let config = config(&own, &[], &["127.0.0.0/8"]);
-        let context = RouteContext::from_config(&config).with_registries_in_database();
-        assert!(context.is_own_origin(&format!("{own}/pkg")));
-        assert!(!context.allows_stored_upstream_url(&format!("{own}/pkg")), "{own}");
-        assert!(context.allows_stored_upstream_url("http://127.0.0.1:4874/pkg"), "{host}");
+        let stored = RouteContext::from_config(&config).with_registries_in_database();
+        for url in [format!("{own}/pkg"), format!("http://{host}:9000/pkg")] {
+            assert!(!stored.allows_stored_upstream_url(&url), "stored upstream {url}");
+        }
+        assert!(stored.allows_route_host(&format!("{own}/")), "{own} as a public route");
+        assert!(!stored.allows_route_host(&format!("http://{host}:9000/")), "{host}:9000");
+        assert!(stored.allows_stored_upstream_url("http://127.0.0.2:4874/pkg"), "{host}");
     }
+}
+
+#[test]
+fn a_public_ip_public_url_is_reached_only_at_its_origin() {
+    let own: std::net::IpAddr = "104.16.0.5".parse().unwrap();
+    let config = config("http://104.16.0.5:4873", &[], &[]);
+    let file = RouteContext::from_config(&config);
+    let stored = RouteContext::from_config(&config).with_registries_in_database();
+    assert!(file.allows_address("alias.example", own), "file mode is unchanged");
+    assert!(!stored.allows_address("alias.example", own), "another name for the own address");
+    assert!(stored.allows_address("104.16.0.5", own), "the hosted-package fetch");
+    assert!(stored.allows_fetch("http://104.16.0.5:4873/~local/foo"));
+    assert!(!stored.allows_stored_upstream_address(own));
+    assert!(stored.allows_stored_upstream_address("104.16.0.6".parse().unwrap()));
 }
