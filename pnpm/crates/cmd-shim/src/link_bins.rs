@@ -8,12 +8,10 @@ pub use shim_writer::remove_bin;
 pub use source::{BinOrigin, PackageBinSource};
 
 use crate::{
-    bin_resolver::{
-        Command, PackageBin, commands_from_precalculated_bins, get_bins_from_package_manifest,
-    },
+    bin_resolver::{commands_from_precalculated_bins, get_bins_from_package_manifest},
     capabilities::{
-        DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-        FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
+        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
+        FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
         ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, is_sh_shim_basedir_anchor_current,
@@ -24,7 +22,6 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::parse_manifest_bytes;
-use rayon::prelude::*;
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -351,137 +348,16 @@ where
         .iter()
         .map(|(command, _)| command.name.clone())
         .collect();
-    let held_back = link_chosen_bins::<Sys>(chosen, bins_dir, options, cache)?;
+    let held_back = chosen_bins::link::<Sys>(chosen, bins_dir, options, cache)?;
     Ok(LinkBinsOutcome { held_back, linked_commands })
 }
 
-fn link_chosen_bins<Sys>(
-    chosen: Vec<(Command, &PackageBinSource)>,
-    bins_dir: &Path,
-    options: &LinkBinsOptions,
-    cache: &ShimTargetCache,
-) -> Result<bool, LinkBinsError>
-where
-    Sys: FsReadToString
-        + FsReadHead
-        + FsReadDir
-        + FsCreateDirAll
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    if chosen.is_empty() {
-        return Ok(false);
-    }
-    let chosen_count = chosen.len();
-    let bin_dir = prepare_bin_dir::<Sys>(bins_dir, options)?;
-    let paths = linking_paths::LinkingPaths::new(bins_dir, bin_dir, options)?;
-    let to_link = select_bins_to_link::<Sys>(chosen, bins_dir, &paths, options)?;
-    link_selected_bins::<Sys>(&to_link, options, &paths, cache)?;
-    Ok(to_link.len() < chosen_count)
-}
-
-fn prepare_bin_dir<Sys>(
-    bins_dir: &Path,
-    options: &LinkBinsOptions,
-) -> Result<DirCreation, LinkBinsError>
-where
-    Sys: FsReadDir + FsCreateDirAll,
-{
-    if options.read_only {
-        match Sys::read_dir(bins_dir) {
-            Ok(entries) => {
-                drop(entries);
-                Ok(DirCreation::Unknown)
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return Err(LinkBinsError::FrozenStoreWrite { path: bins_dir.to_path_buf() });
-            }
-            Err(error) => {
-                return Err(LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error });
-            }
-        }
-    } else {
-        Sys::create_dir_all_reporting(bins_dir)
-            .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })
-    }
-}
-
-fn select_bins_to_link<'packages, Sys>(
-    chosen: Vec<(Command, &'packages PackageBinSource)>,
-    bins_dir: &Path,
-    paths: &linking_paths::LinkingPaths<'_>,
-    options: &LinkBinsOptions,
-) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError>
-where
-    Sys: FsReadHead,
-{
-    if options.read_only {
-        let pending = chosen
-            .iter()
-            .find(|(command, pkg)| linking_paths::awaits_target::<Sys>(pkg, bins_dir, command));
-        if let Some((command, _)) = pending {
-            return Err(LinkBinsError::FrozenStoreWrite {
-                path: paths.bins_dir.join(&command.name),
-            });
-        }
-        Ok(chosen)
-    } else {
-        remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)
-    }
-}
-
-fn link_selected_bins<Sys>(
-    to_link: &[(Command, &PackageBinSource)],
-    options: &LinkBinsOptions,
-    paths: &linking_paths::LinkingPaths<'_>,
-    cache: &ShimTargetCache,
-) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
-{
-    // Each shim's read-shebang + write-file + chmod sequence is independent
-    // across bin names. There is no shared state, so drive them on rayon.
-    // The hot path is per-package-bin; without parallelism the per-shim
-    // file I/O serialised across the whole `chosen` map.
-    to_link
-        .par_iter()
-        .try_for_each(|(command, pkg)| {
-            // On Unix the symlink branch never writes a shim, so no bin
-            // needs a NODE_PATH — skip `shim_node_path`'s per-package
-            // canonicalize entirely.
-            let node_path =
-                if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {
-                    Vec::new()
-                } else {
-                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
-                };
-            let pkg_name = package_name(pkg);
-            write_shim::<Sys>(
-                ShimSpec {
-                    target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
-                    probe_path: &target_probe_path(pkg, &command.path),
-                    shim_path: &paths.bins_dir.join(&command.name),
-                    node_path: &node_path,
-                    options,
-                    windows: WindowsShimPolicy::for_package(pkg_name),
-                    paths: &paths,
-                    precalculated_runtime: command.precalculated_runtime
-                        .as_ref()
-                        .filter(|_| !pkg.build_pending),
-                },
-                cache,
-            )
-        })?;
-
-    Ok(())
-}
-
+mod chosen_bins;
 #[cfg(test)]
 mod tests;
 
 mod shim_writer;
-use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+use shim_writer::{ShimSpec, remove_stale_bin};
 
 mod frozen_store;
 
@@ -507,7 +383,6 @@ mod exclusions;
 use exclusions::ExcludedBins;
 
 mod linking_paths;
-use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;
 mod source;
