@@ -989,6 +989,49 @@ async fn import_check_exits_with_code_1_while_the_file_differs() {
     assert!(stderr.contains("the stored registries differ from the file"), "{stderr}");
     let storage = Storage::from_config(&config.storage).unwrap();
     assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(1));
+
+    let package = pnpr_package_name::CanonicalPackageName::parse(
+        "example",
+        pnpr_package_name::Ecosystem::Npm,
+    )
+    .unwrap();
+    storage
+        .write_hosted_document_if_current(
+            &package,
+            br#"{"name":"example","versions":{},"dist-tags":{}}"#,
+            Some(&HostedDocumentVersion::Unversioned),
+            None,
+        )
+        .await
+        .unwrap();
+    let renamed = dir.path().join("renamed.yaml");
+    std::fs::write(&renamed, yaml.replace("local", "renamed")).unwrap();
+    let occupied = check(&renamed);
+    assert_eq!(occupied.status.code(), Some(1), "{occupied:?}");
+    let stdout = String::from_utf8_lossy(&occupied.stdout);
+    assert!(stdout.contains("removed local"), "{stdout}");
+}
+
+#[tokio::test]
+async fn an_empty_first_import_is_stored_so_the_defaults_are_not() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!("storage: {}\n{EMPTY_CONFIG}", storage_dir(dir.path()).display());
+    std::fs::write(config_path(dir.path()), yaml).unwrap();
+    let config = reload_config(dir.path());
+    let file = dir.path().join("empty.yaml");
+    std::fs::write(&file, "{}\n").unwrap();
+    let import = pnpr::RegistriesSubcommand::Import { file, dry_run: false, check: false };
+    pnpr::run_command(&config, pnpr::Command::Registries { action: import })
+        .await
+        .unwrap();
+    let storage = Storage::from_config(&config.storage).unwrap();
+    assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(1));
+
+    let replica = Replica::new(reload_config(dir.path())).await;
+    let (status, directory, _) =
+        replica.send("GET", "/-/pnpr/v0/registries", Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{directory}");
+    assert_eq!(directory["registries"], json!([]), "{directory}");
 }
 
 #[tokio::test]

@@ -78,24 +78,26 @@ async fn import(config: &Config, file: &Path, mode: ImportMode) -> Result<Import
     let stored = storage.read_registry_graph().await?;
     let current = stored.as_ref().map(|stored| stored.generation);
     let previous = stored_document(stored.as_ref())?;
-    let checked = check_revision(config, &storage, &previous, &next, Credentials::Skip).await?;
     let changes = next.changes_since(&previous);
-    if changes.is_empty() && mode != ImportMode::DryRun {
+    // With nothing stored, the server stores the default registries on its
+    // first start, so even an empty file is a change to store.
+    let unchanged = changes.is_empty() && current.is_some();
+    if unchanged && mode != ImportMode::DryRun {
         println!("Version {} already holds these registries.", graph_version(current));
         return Ok(Imported::Done);
     }
-    match mode {
-        ImportMode::DryRun => println!("Would change: {}", describe(&changes)),
-        ImportMode::Check => {
-            println!("Would change: {}", describe(&changes));
-            return Ok(Imported::Differs);
-        }
-        ImportMode::Store => {
-            let import = Import { current, document: &next, hosted: &checked.hosted };
-            let version = store_import(&storage, import).await?;
-            println!("Stored version {version}: {}", describe(&changes));
-        }
+    if mode == ImportMode::Check {
+        println!("Would change: {}", describe_import(&changes, current));
+        return Ok(Imported::Differs);
     }
+    let checked = check_revision(config, &storage, &previous, &next, Credentials::Skip).await?;
+    if mode == ImportMode::DryRun {
+        println!("Would change: {}", describe_import(&changes, current));
+        return Ok(Imported::Done);
+    }
+    let import = Import { current, document: &next, hosted: &checked.hosted };
+    let version = store_import(&storage, import).await?;
+    println!("Stored version {version}: {}", describe_import(&changes, current));
     Ok(Imported::Done)
 }
 
@@ -142,6 +144,14 @@ async fn store_import(storage: &Storage, import: Import<'_>) -> Result<String, R
         }),
         RegistryGraphWrite::HostedNotEmpty(occupied) => Err(occupied_namespace_error(&occupied)),
     }
+}
+
+/// [`describe`], naming the first revision when nothing is stored yet.
+fn describe_import(changes: &RegistryGraphChanges, current: Option<u64>) -> String {
+    if changes.is_empty() && current.is_none() {
+        return "the first revision, with no registries".to_string();
+    }
+    describe(changes)
 }
 
 fn describe(changes: &RegistryGraphChanges) -> String {
