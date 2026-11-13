@@ -288,7 +288,7 @@ fn reused_global_virtual_store_bin_shims_are_repaired_once_per_store() {
     let stdout = String::from_utf8(output).expect("install output is UTF-8");
     assert!(
         stdout.contains("Already up to date"),
-        "the repeat-install fast path remains available: {stdout}"
+        "the repeat-install fast path remains available: {stdout}",
     );
 
     drop((root, mock_instance));
