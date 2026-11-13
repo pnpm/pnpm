@@ -1451,7 +1451,7 @@ jobs:
           --features backend-libsql,backend-postgres,backend-mysql
           --target="$TARGET"
 
-      - name: Verify database.url schemes on native target
+      - name: Verify storage.database.url schemes on native target
         if: >-
           matrix.target == 'x86_64-pc-windows-msvc'
           || matrix.target == 'x86_64-unknown-linux-gnu'
@@ -1475,7 +1475,7 @@ jobs:
             'postgres://example:secret@database.example.test/registry' \
             'postgresql://example:secret@database.example.test/registry' \
             'mysql://example:secret@database.example.test/registry'; do
-            printf 'storage: ./storage\ndatabase:\n  url: %s\n' "$url" > "$check_dir/db-check.yaml"
+            printf 'storage:\n  path: ./storage\n  database:\n    url: %s\n' "$url" > "$check_dir/db-check.yaml"
             "$bin" --config "$check_dir/db-check.yaml" config check > /dev/null
           done
 
@@ -1671,7 +1671,7 @@ jobs:
           "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --version
 
           # The packaged Linux x64 binary and the static musl binary staged
-          # into ghcr.io/pnpm/pnpr must accept every documented database.url
+          # into ghcr.io/pnpm/pnpr must accept every documented storage.database.url
           # scheme.
           chmod +x ./pnpr-linux-x64-musl
           for url in \
@@ -1682,7 +1682,7 @@ jobs:
             'postgres://example:secret@database.example.test/registry' \
             'postgresql://example:secret@database.example.test/registry' \
             'mysql://example:secret@database.example.test/registry'; do
-            printf 'storage: ./storage\ndatabase:\n  url: %s\n' "$url" > "$smoke_dir/db-check.yaml"
+            printf 'storage:\n  path: ./storage\n  database:\n    url: %s\n' "$url" > "$smoke_dir/db-check.yaml"
             "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --config "$smoke_dir/db-check.yaml" config check > /dev/null
             ./pnpr-linux-x64-musl --config "$smoke_dir/db-check.yaml" config check > /dev/null
           done

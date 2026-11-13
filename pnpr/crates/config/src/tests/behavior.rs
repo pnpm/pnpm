@@ -189,12 +189,13 @@ fn accounts_default_to_the_sqlite_metadata_database() {
 #[test]
 fn postgres_backend_block_selects_postgres_record_store() {
     let yaml = "\
-storage: /var/lib/pnpr
-database:
-  url: postgres://pnpr:secret@db.example/pnpr
-  maxConnections: 12
-  timeout: 5s
-  startupTimeout: 2m
+storage:
+  path: /var/lib/pnpr
+  database:
+    url: postgres://pnpr:secret@db.example/pnpr
+    maxConnections: 12
+    timeout: 5s
+    startupTimeout: 2m
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -212,9 +213,10 @@ database:
 #[test]
 fn mysql_backend_block_selects_mysql_record_store() {
     let yaml = "\
-storage: /var/lib/pnpr
-database:
-  url: mysql://pnpr:secret@db.example/pnpr
+storage:
+  path: /var/lib/pnpr
+  database:
+    url: mysql://pnpr:secret@db.example/pnpr
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {

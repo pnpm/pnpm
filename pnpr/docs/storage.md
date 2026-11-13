@@ -88,13 +88,14 @@ demand.
 
 pnpr keeps package metadata, accounts, registries, and the rest of its state
 in a SQL database, by default an embedded SQLite database at
-`<storage>/.metadata/metadata.sqlite`. The `database` block names another database by URL:
+`<storage>/.metadata/metadata.sqlite`. The `storage.database` block names another database by URL:
 
 ```yaml title="pnpr.yaml"
-storage: ./storage
-database:
-  # Optional. A relative path is resolved against the config file's directory.
-  url: sqlite:./metadata.sqlite
+storage:
+  path: ./storage
+  database:
+    # Optional. A relative path is resolved against the config file's directory.
+    url: sqlite:./metadata.sqlite
 ```
 
 Archives stay in the hosted store. The database holds every hosted package's
@@ -106,12 +107,12 @@ Back up this database for package ownership and managed access settings,
 alongside the hosted store for archives and staged bodies. Transparency log
 tiles and checkpoints, and pipeline run streams also stay in the hosted store.
 
-pnpr keeps metadata only in a database: an `s3:`
+pnpr keeps metadata only in a database: a `storage.s3`
 block needs a [shared database](auth-backends.md), and pnpr refuses to start on a
-`database` block that still names a `backend`. Earlier releases could keep
+`storage.database` block that still names a `backend`. Earlier releases could keep
 each package's metadata as a document beside its archives. pnpr does not read
 those documents. A filesystem store from then starts with empty metadata. An
-`s3:` store from then is refused at startup until `database.url` names a
+`storage.s3` store from then is refused at startup until `storage.database.url` names a
 shared database, and then starts with empty metadata. Either way, republish
 its packages into a fresh storage directory or bucket prefix: a store in an
 earlier layout is refused.
@@ -149,7 +150,7 @@ With SQL metadata:
 
 SQLite metadata serves one pnpr process. Reads use their own database
 connections, so a read never waits for a write. A `sqlite:` URL cannot be
-combined with an `s3:` block. Back the database file up together with the
+combined with a `storage.s3` block. Back the database file up together with the
 hosted store.
 
 The SQLite and libSQL metadata tables use rowid storage for package state,
@@ -187,12 +188,12 @@ To replace a pre-1.0 database, drop its pnpr tables (or delete the SQLite file
 and its `-wal` and `-shm` files) together with the hosted store, or move to a
 fresh hosted store (such as a new storage directory or bucket prefix) and a
 fresh database (moving the storage directory replaces the default
-SQLite file only when `database.url` is not set), so pnpr initializes both with
+SQLite file only when `storage.database.url` is not set), so pnpr initializes both with
 a new store ID.
 
 ## PostgreSQL and MySQL {#postgresql-and-mysql}
 
-Set `database.url` to a `postgres://` or `mysql://` URL to store package
+Set `storage.database.url` to a `postgres://` or `mysql://` URL to store package
 metadata, accounts, and tokens in the same shared database. Both work with a
 filesystem hosted store or S3. MySQL support is experimental. See
 [Shared database](auth-backends.md) for connection settings and the MySQL
@@ -210,20 +211,21 @@ a committed snapshot.
 Several pnpr instances share one database when its URL names a
 libSQL server, such as [Turso](https://turso.tech) or a self-hosted `sqld`.
 Every behavior of [the database](#database) applies. A libSQL URL
-works with an `s3:` block, so archives stay in the bucket:
+works with a `storage.s3` block, so archives stay in the bucket:
 
 ```yaml title="pnpr.yaml"
-s3:
-  bucket: my-pnpr-packages
-database:
-  url: libsql://my-db.turso.io
-  authToken: ${TURSO_AUTH_TOKEN}
-  # Optional. Reads views from a local copy instead of the primary.
-  replicaPath: ./metadata-replica.db
-  # Optional. Defaults to 60s.
-  syncInterval: 10s
-  # Optional. Defaults to 10.
-  maxConnections: 10
+storage:
+  s3:
+    bucket: my-pnpr-packages
+  database:
+    url: libsql://my-db.turso.io
+    authToken: ${TURSO_AUTH_TOKEN}
+    # Optional. Reads views from a local copy instead of the primary.
+    replicaPath: ./metadata-replica.db
+    # Optional. Defaults to 60s.
+    syncInterval: 10s
+    # Optional. Defaults to 10.
+    maxConnections: 10
 ```
 
 `url` also takes `http://` or `https://` for a self-hosted `sqld`. pnpr
@@ -256,7 +258,7 @@ instead.
 
 ## Backends
 
-By default both are local directories. Adding an `s3:` block moves the
+By default both are local directories. Adding a `storage.s3` block moves the
 **hosted** store and the enabled **shared-artifact** store into an S3-compatible
 object store, so they can be shared by several stateless pnpr replicas. Their
 metadata then lives in a [shared database](auth-backends.md), using libSQL,
@@ -273,25 +275,24 @@ Because any S3-compatible endpoint works, this also covers **Cloudflare R2**,
 host.
 
 ```yaml title="pnpr.yaml"
-storage: ./storage
+storage:
+  path: ./storage
+  s3:
+    bucket: my-pnpr-packages
+    region: auto
+    # Omit `endpoint` for AWS S3. For R2 use the account endpoint:
+    endpoint: https://<account-id>.r2.cloudflarestorage.com
+    # Optional key prefix, so one bucket can hold more than the hosted store:
+    prefix: packages
+    # Credentials. Omit these to fall back to the standard
+    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
+    accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+    secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+  database:
+    # Example shared database for hosted storage on S3.
+    url: libsql://<your-db>.turso.io
+    authToken: ${PNPR_LIBSQL_TOKEN}
 # cache: ./cache     # local proxy cache + resolver cache + S3 upload staging
-
-s3:
-  bucket: my-pnpr-packages
-  region: auto
-  # Omit `endpoint` for AWS S3. For R2 use the account endpoint:
-  endpoint: https://<account-id>.r2.cloudflarestorage.com
-  # Optional key prefix, so one bucket can hold more than the hosted store:
-  prefix: packages
-  # Credentials. Omit these to fall back to the standard
-  # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
-  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
-  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
-
-database:
-  # Example shared database for hosted storage on S3.
-  url: libsql://<your-db>.turso.io
-  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 ## Options
@@ -343,16 +344,15 @@ sharing one object store.
 ## A complete Cloudflare R2 example
 
 ```yaml title="pnpr.yaml"
-storage: ./storage
-
-s3:
-  bucket: my-pnpr-packages
-  region: auto
-  endpoint: https://abc123def456.r2.cloudflarestorage.com
-
-database:
-  url: libsql://my-pnpr.turso.io
-  authToken: ${PNPR_LIBSQL_TOKEN}
+storage:
+  path: ./storage
+  s3:
+    bucket: my-pnpr-packages
+    region: auto
+    endpoint: https://abc123def456.r2.cloudflarestorage.com
+  database:
+    url: libsql://my-pnpr.turso.io
+    authToken: ${PNPR_LIBSQL_TOKEN}
 
 artifacts:
   enabled: true
@@ -378,14 +378,15 @@ fetch tarballs back through this server rather than the upstream.
 MinIO over `http://` needs `allowHttp`:
 
 ```yaml title="pnpr.yaml"
-s3:
-  bucket: pnpr
-  region: us-east-1
-  endpoint: http://127.0.0.1:9000
-  forcePathStyle: true
-  allowHttp: true
-  accessKeyId: minioadmin
-  secretAccessKey: minioadmin
+storage:
+  s3:
+    bucket: pnpr
+    region: us-east-1
+    endpoint: http://127.0.0.1:9000
+    forcePathStyle: true
+    allowHttp: true
+    accessKeyId: minioadmin
+    secretAccessKey: minioadmin
 ```
 
 ## S3 publishing and lifecycle caveats

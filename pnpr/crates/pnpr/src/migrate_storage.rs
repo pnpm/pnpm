@@ -92,9 +92,9 @@ fn init_source_and_target_storage(
     {
         return Err(miette::miette!(
             "migrate-storage moves archives and leaves package metadata in its database, which \
-             an S3 deployment reads through a shared database.url. Move the metadata into the \
+             an S3 deployment reads through a shared storage.database.url. Move the metadata into the \
              database the S3 deployment will use, such as by importing the SQLite file into Turso, \
-             and point database.url at it before migrating"
+             and point storage.database.url at it before migrating"
         ));
     }
 
@@ -142,7 +142,7 @@ fn resolve_target_s3_config(
         Ok(config.storage.hosted_backend.clone())
     } else {
         Err(miette::miette!(
-            "destination S3 storage must be configured via YAML 's3:' or CLI flag '--to-bucket'"
+            "destination S3 storage must be configured via YAML 'storage.s3' or CLI flag '--to-bucket'"
         ))
     }
 }

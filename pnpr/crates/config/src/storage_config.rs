@@ -52,7 +52,7 @@ pub enum DatabaseBackend {
     Libsql(LibsqlSettings),
 }
 
-/// Disk shape of the `database:` block.
+/// Disk shape of the `storage.database` block.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct DatabaseFile {
@@ -84,6 +84,75 @@ pub(crate) struct DatabaseFile {
     startup_timeout: Option<Interval>,
 }
 
+/// The `storage:` value: the storage directory, or a table that also names
+/// the hosted store and the database.
+#[derive(Debug)]
+pub(crate) enum StorageFile {
+    Path(String),
+    // Boxed: the table is far larger than a path.
+    Settings(Box<StorageSettingsFile>),
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct StorageSettingsFile {
+    /// The storage directory. Omitted ⇒ [`DEFAULT_STORAGE_PATH`].
+    #[serde(default)]
+    pub(crate) path: Option<String>,
+    /// Store the hosted (published) packages in an S3-compatible object
+    /// store instead of `path`.
+    #[serde(default)]
+    pub(crate) s3: Option<crate::S3Settings>,
+    /// The database for accounts, tokens, and package metadata.
+    #[serde(default)]
+    pub(crate) database: Option<DatabaseFile>,
+}
+
+pub(crate) const DEFAULT_STORAGE_PATH: &str = "./storage";
+
+impl StorageFile {
+    pub(crate) fn into_settings(self) -> StorageSettingsFile {
+        match self {
+            Self::Path(path) => StorageSettingsFile { path: Some(path), ..Default::default() },
+            Self::Settings(settings) => *settings,
+        }
+    }
+}
+
+/// Hand-written rather than `#[serde(untagged)]`, which would replace the
+/// located error of a nested field, such as an unknown key or a refused
+/// [`crate::Secret`], with one that names no field.
+impl<'de> Deserialize<'de> for StorageFile {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(StorageFileVisitor)
+    }
+}
+
+struct StorageFileVisitor;
+
+impl<'de> serde::de::Visitor<'de> for StorageFileVisitor {
+    type Value = StorageFile;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a storage path or a table of `path`, `s3`, and `database`")
+    }
+
+    fn visit_str<DeError: serde::de::Error>(self, value: &str) -> Result<StorageFile, DeError> {
+        Ok(StorageFile::Path(value.to_string()))
+    }
+
+    fn visit_map<Map: serde::de::MapAccess<'de>>(
+        self,
+        map: Map,
+    ) -> Result<StorageFile, Map::Error> {
+        StorageSettingsFile::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+            .map(|settings| StorageFile::Settings(Box::new(settings)))
+    }
+}
+
 /// The default `SQLite` database of a filesystem hosted store. The
 /// leading dot keeps it out of the package listing.
 #[must_use]
@@ -106,7 +175,7 @@ pub(crate) fn resolve_database_backend(
         && !file.url.as_deref().is_some_and(is_network_sql_url)
     {
         return Err(invalid(
-            "database.timeout and startupTimeout require a PostgreSQL or MySQL URL",
+            "storage.database.timeout and startupTimeout require a PostgreSQL or MySQL URL",
         ));
     }
     match &file.url {
@@ -127,14 +196,14 @@ fn default_metadata(storage: &Path, on_fs: bool) -> Result<DatabaseBackend, Regi
         Ok(DatabaseBackend::Sqlite(default_database_path(storage)))
     } else {
         Err(invalid(
-            "an `s3:` hosted store needs database.url to name a shared database, such as \
+            "a `storage.s3` hosted store needs storage.database.url to name a shared database, such as \
              `libsql://<host>`: pnpr keeps package metadata in a database, not in the bucket",
         ))
     }
 }
 
-const REMOTE_ONLY_SETTINGS: &str = "database.authToken, replicaPath, and syncInterval require a \
-    libSQL URL. database.maxConnections requires a libSQL, PostgreSQL, or MySQL URL";
+const REMOTE_ONLY_SETTINGS: &str = "storage.database.authToken, replicaPath, and syncInterval require a \
+    libSQL URL. storage.database.maxConnections requires a libSQL, PostgreSQL, or MySQL URL";
 
 fn has_remote_settings(file: &DatabaseFile) -> bool {
     file.auth_token.is_some()
@@ -156,19 +225,19 @@ fn sqlite_database(
 ) -> Result<DatabaseBackend, RegistryError> {
     let Some(path) = url.strip_prefix("sqlite:") else {
         return Err(RegistryError::InvalidConfig {
-            reason: "database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
+            reason: "storage.database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
         });
     };
     if has_remote_settings(file) {
         return Err(invalid(REMOTE_ONLY_SETTINGS));
     }
     if path.is_empty() {
-        return Err(invalid("database.url `sqlite:` needs a path after the colon"));
+        return Err(invalid("storage.database.url `sqlite:` needs a path after the colon"));
     }
     if !on_fs {
         return Err(invalid(
-            "database.url `sqlite:` is single-instance and needs the filesystem hosted store; \
-             remove the `s3:` block or the metadata URL",
+            "storage.database.url `sqlite:` is single-instance and needs the filesystem hosted store; \
+             remove the `storage.s3` block or the metadata URL",
         ));
     }
     Ok(DatabaseBackend::Sqlite(resolve_relative(path, base_dir)))
@@ -201,19 +270,15 @@ fn libsql_database(
             max_connections: file.max_connections,
         },
         base_dir,
-        "database",
+        "storage.database",
     )?;
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
-            "database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
+            "storage.database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
              replica read may be",
         ));
     }
     Ok(DatabaseBackend::Libsql(settings))
-}
-
-pub(crate) fn default_storage_string() -> String {
-    "./storage".to_string()
 }
 
 /// The default location for the disposable proxy cache directory.
@@ -241,11 +306,14 @@ pub(crate) fn resolve_relative(raw: &str, base_dir: &Path) -> PathBuf {
     base_dir.join(path)
 }
 
+/// The storage directory at `storage_path`, or at the default path, with the
+/// cache directory and its settings.
 pub(crate) fn resolve_storage_paths(
     file: &ConfigFile,
+    storage_path: Option<&str>,
     base_dir: &Path,
 ) -> Result<(PathBuf, PathBuf, CacheConfig), RegistryError> {
-    let storage = resolve_relative(&file.storage, base_dir);
+    let storage = resolve_relative(storage_path.unwrap_or(DEFAULT_STORAGE_PATH), base_dir);
     let (cache_dir, cache) = match &file.cache {
         None => (default_cache_dir(&storage), CacheConfig::default()),
         Some(CacheFile::Path(raw)) => (resolve_relative(raw, base_dir), CacheConfig::default()),
@@ -284,11 +352,11 @@ fn network_database(file: &DatabaseFile, url: &str) -> Result<DatabaseBackend, R
         || file.sync_interval.is_some()
     {
         return Err(invalid(
-            "database.authToken, replicaPath, and syncInterval require a libSQL URL",
+            "storage.database.authToken, replicaPath, and syncInterval require a libSQL URL",
         ));
     }
     if file.max_connections == Some(0) {
-        return Err(invalid("database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0"));
     }
     let mysql = url
         .split_once(':')

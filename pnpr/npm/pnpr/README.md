@@ -144,7 +144,7 @@ pnpr -c ./pnpr.yaml
   resolver cache. This lives under `cache` (defaults to
   `<storage>/.pnpr-cache`).
 
-By default both are local directories. Adding an `s3:` block moves the
+By default both are local directories. Adding a `storage.s3` block moves the
 **hosted** store into an S3-compatible object store, so the durable data
 is replicated by the provider and can be shared by several stateless
 `pnpr` replicas. The cache stays on local disk — only the hosted
@@ -155,28 +155,27 @@ R2**, **MinIO**, **Backblaze B2**, **Wasabi**, etc. — point `endpoint`
 at the right host.
 
 ```yaml
-storage: ./storage   # still backs the local cache + upload staging
+storage:
+  path: ./storage   # still backs the local cache + upload staging
+  s3:
+    bucket: my-pnpr-packages
+    region: auto
+    # Omit `endpoint` for AWS S3. For R2 use the account endpoint:
+    endpoint: https://<account-id>.r2.cloudflarestorage.com
+    # Optional key prefix, so one bucket can hold more than the hosted store:
+    prefix: packages
+    # Credentials. Omit these to fall back to the standard
+    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
+    accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+    secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+  database:
+    # Package metadata of a hosted registry on S3 lives in a libSQL database.
+    url: libsql://<your-db>.turso.io
+    authToken: ${PNPR_LIBSQL_TOKEN}
 secret: ${PNPR_SECRET}
-
-s3:
-  bucket: my-pnpr-packages
-  region: auto
-  # Omit `endpoint` for AWS S3. For R2 use the account endpoint:
-  endpoint: https://<account-id>.r2.cloudflarestorage.com
-  # Optional key prefix, so one bucket can hold more than the hosted store:
-  prefix: packages
-  # Credentials. Omit these to fall back to the standard
-  # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
-  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
-  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
-
-database:
-  # Package metadata of a hosted registry on S3 lives in a libSQL database.
-  url: libsql://<your-db>.turso.io
-  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
-A registry that hosts packages on S3 needs `database.url` to name a libSQL,
+A registry that hosts packages on S3 needs `storage.database.url` to name a libSQL,
 PostgreSQL, or MySQL database. pnpr refuses to start without one.
 
 | Key | Required | Description |
@@ -205,13 +204,13 @@ A complete R2 example, end to end:
 
 ```yaml
 # pnpr.yaml
-storage: ./storage
+storage:
+  path: ./storage
+  s3:
+    bucket: my-pnpr-packages
+    region: auto
+    endpoint: https://abc123def456.r2.cloudflarestorage.com
 secret: ${PNPR_SECRET}
-
-s3:
-  bucket: my-pnpr-packages
-  region: auto
-  endpoint: https://abc123def456.r2.cloudflarestorage.com
 
 registries:
   npmjs:
@@ -235,19 +234,20 @@ than the upstream.)
 A local MinIO over plain HTTP needs `forcePathStyle` and `allowHttp`:
 
 ```yaml
-s3:
-  bucket: pnpr
-  region: us-east-1
-  endpoint: http://127.0.0.1:9000
-  forcePathStyle: true
-  allowHttp: true
-  accessKeyId: minioadmin
-  secretAccessKey: minioadmin
+storage:
+  s3:
+    bucket: pnpr
+    region: us-east-1
+    endpoint: http://127.0.0.1:9000
+    forcePathStyle: true
+    allowHttp: true
+    accessKeyId: minioadmin
+    secretAccessKey: minioadmin
 ```
 
 ### Sharing package metadata, users, and tokens
 
-A libSQL, PostgreSQL, or MySQL `database.url` selects the database for package
+A libSQL, PostgreSQL, or MySQL `storage.database.url` selects the database for package
 metadata, users, and tokens.
 Before changing it on an existing registry, move or restore its package metadata
 into the target database. Changing the URL does not copy data. An empty database
@@ -261,23 +261,23 @@ pnpr supports these databases:
 
 | Backend | Config key |
 | --- | --- |
-| libsql / Turso | `database.url: libsql://…` |
-| PostgreSQL | `database.url: postgres://…` |
-| MySQL 8.0.19 or later | `database.url: mysql://…` |
+| libsql / Turso | `storage.database.url: libsql://…` |
+| PostgreSQL | `storage.database.url: postgres://…` |
+| MySQL 8.0.19 or later | `storage.database.url: mysql://…` |
 
 Token lookups happen on the request hot path, so the database should be
 low-latency from the server.
 
 ```yaml
-storage: ./storage
-
-database:
-  # libsql/Turso database URL. `libsql://…` for Turso, or
-  # `http://127.0.0.1:8080` for a local `sqld`.
-  url: ${PNPR_LIBSQL_URL}
-  # Bearer token for the database. Omit for an unauthenticated local
-  # `sqld`.
-  authToken: ${PNPR_LIBSQL_TOKEN}
+storage:
+  path: ./storage
+  database:
+    # libsql/Turso database URL. `libsql://…` for Turso, or
+    # `http://127.0.0.1:8080` for a local `sqld`.
+    url: ${PNPR_LIBSQL_URL}
+    # Bearer token for the database. Omit for an unauthenticated local
+    # `sqld`.
+    authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 | Key | Required | Description |
@@ -291,11 +291,12 @@ Token lookups happen on the request hot path, so for a remote primary
 (e.g. Turso) set `replicaPath` to serve reads from a local replica:
 
 ```yaml
-database:
-  url: ${PNPR_LIBSQL_URL}
-  authToken: ${PNPR_LIBSQL_TOKEN}
-  replicaPath: ./auth-replica.db
-  syncInterval: 60s
+storage:
+  database:
+    url: ${PNPR_LIBSQL_URL}
+    authToken: ${PNPR_LIBSQL_TOKEN}
+    replicaPath: ./auth-replica.db
+    syncInterval: 60s
 ```
 
 The trade-off is read freshness: an embedded replica reflects another
@@ -306,30 +307,32 @@ revocation lag. Omit `replicaPath` to always read the primary directly.
 PostgreSQL:
 
 ```yaml
-database:
-  url: ${PNPR_POSTGRES_URL}
-  maxConnections: 16
+storage:
+  database:
+    url: ${PNPR_POSTGRES_URL}
+    maxConnections: 16
 ```
 
 MySQL:
 
 ```yaml
-database:
-  url: ${PNPR_MYSQL_URL}
-  maxConnections: 16
+storage:
+  database:
+    url: ${PNPR_MYSQL_URL}
+    maxConnections: 16
 ```
 
 MySQL needs InnoDB with its default 16 KiB page size.
 
-When the `database:` block is absent, users and tokens stay in the local SQLite
+When the `storage.database` block is absent, users and tokens stay in the local SQLite
 database. The `auth.users.maxUsers` registration cap is honored either
 way.
 
 ### Running several replicas
 
 Several `pnpr` processes can serve one registry behind a load balancer once
-they share their state. Give every replica the same `s3:` bucket for hosted
-packages and the same `database:` database for users and tokens, and give each
+they share their state. Give every replica the same `storage.s3` bucket for hosted
+packages and the same `storage.database` database for users and tokens, and give each
 its own `storage` path for what stays local.
 
 Requests need no affinity. Every write into the shared bucket is conditional:
@@ -353,8 +356,8 @@ What stays local to each replica:
   outlives its restarts
 - blob upload sessions of the image registry when hosted packages are on
   local disk, which is why `docker push` needs sticky sessions there; with
-  `s3:` an upload continues on any replica
-- accounts and tokens, unless a `database:` database is configured
+  `storage.s3` an upload continues on any replica
+- accounts and tokens, unless a `storage.database` database is configured
 
 Pipeline run records are shared: a run submitted through one replica is listed
 and served by every other, and a run id stays append-only across all of them.

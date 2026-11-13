@@ -303,7 +303,7 @@ fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
     let named = tempfile::TempDir::new().unwrap();
     let database = named.path().join("metadata.sqlite");
     let yaml = format!(
-        "storage: ./storage\ndatabase:\n  url: 'sqlite:{}'\n",
+        "storage:\n  path: ./storage\n  database:\n    url: 'sqlite:{}'\n",
         database
             .display()
             .to_string()
@@ -319,7 +319,7 @@ fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
 fn a_storage_override_takes_a_database_named_at_the_default_path_along() {
     let storage = std::path::Path::new("/srv/pnpr");
     let config = served_from(
-        "storage: ./storage\ndatabase:\n  url: sqlite:./storage/.metadata/metadata.sqlite\n",
+        "storage:\n  path: ./storage\n  database:\n    url: sqlite:./storage/.metadata/metadata.sqlite\n",
         storage,
     );
     assert_eq!(

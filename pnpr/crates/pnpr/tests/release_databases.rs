@@ -1,4 +1,4 @@
-//! End-to-end checks for built `pnpr` binaries against every `database.url`
+//! End-to-end checks for built `pnpr` binaries against every `storage.database.url`
 //! scheme.
 
 #[cfg(all(feature = "backend-postgres", feature = "backend-mysql"))]
@@ -221,15 +221,16 @@ async fn exercise_scheme(bin: &Path, client: &Client, case: &SchemeCase) {
 
 fn write_config(dir: &Path, database_url: &str, auth_token: Option<&str>) -> PathBuf {
     let token_line = match auth_token {
-        Some(token) => format!("  authToken: {token}\n"),
+        Some(token) => format!("    authToken: {token}\n"),
         None => String::new(),
     };
     let yaml = format!(
-        "storage: ./storage\n\
-         secret: release-database-test-key-32byte\n\
-         database:\n\
-         \x20 url: {database_url}\n\
+        "storage:\n\
+         \x20 path: ./storage\n\
+         \x20 database:\n\
+         \x20   url: {database_url}\n\
          {token_line}\
+         secret: release-database-test-key-32byte\n\
          auth:\n\
          \x20 users:\n\
          \x20   maxUsers: 10\n\

@@ -487,7 +487,7 @@ async fn test_migrate_storage_refuses_metadata_an_s3_deployment_cannot_read() {
         ..MigrateStorageOptions::default()
     };
     let err = migrate_local_to_s3(&config, &options).await.unwrap_err();
-    assert!(err.to_string().contains("shared database.url"), "{err}");
+    assert!(err.to_string().contains("shared storage.database.url"), "{err}");
 }
 
 #[tokio::test]
@@ -584,20 +584,21 @@ fn test_config_check_reports_the_auth_backend_and_every_default_registry() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
-storage: '{}'
+storage:
+  path: '{}'
+  database:
+    url: 'libsql://db.example.turso.io'
+    authToken: 'secret-database-token'
+    replicaPath: '{}'
 cache: '{}'
 secret: 'test-secret-key-32-chars-long-12'
-database:
-  url: 'libsql://db.example.turso.io'
-  authToken: 'secret-database-token'
-  replicaPath: '{}'
 auth:
   users:
     maxUsers: 3
 ",
         dir.path().join("hosted").display(),
-        dir.path().join("cache").display(),
         dir.path().join("replica.db").display(),
+        dir.path().join("cache").display(),
     );
     let registries = "
 registries:
@@ -637,16 +638,17 @@ fn test_config_check_reports_the_s3_key_prefix() {
     let report = |prefix: &str| {
         let yaml = format!(
             r"
-storage: '{}'
+storage:
+  path: '{}'
+  s3:
+    bucket: packages
+    region: auto
+    endpoint: https://storage.example.com
+{prefix}
+  database:
+    url: libsql://db.example.turso.io
 cache: '{}'
 secret: 'test-secret-key-32-chars-long-12'
-s3:
-  bucket: packages
-  region: auto
-  endpoint: https://storage.example.com
-{prefix}
-database:
-  url: libsql://db.example.turso.io
 ",
             dir.path().join("hosted").display(),
             dir.path().join("cache").display(),
@@ -657,11 +659,11 @@ database:
         pnpr::config_check::format_report(&report)
     };
 
-    let output = report("  prefix: /pnpr");
+    let output = report("    prefix: /pnpr");
     assert!(output.contains("Storage: S3 (bucket: packages, prefix: pnpr/)\n"), "{output}");
     let output = report("");
     assert!(output.contains("Storage: S3 (bucket: packages)\n"), "{output}");
-    let output = report(r#"  prefix: "pn\npr""#);
+    let output = report(r#"    prefix: "pn\npr""#);
     assert!(output.contains(r"Storage: S3 (bucket: packages, prefix: pn\npr/)"), "{output}");
 }
 
@@ -670,10 +672,11 @@ fn test_config_check_hides_an_unparsable_database_url() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
-storage: '{}'
+storage:
+  path: '{}'
+  database:
+    url: 'postgres://admin:hunter2@[::1'
 cache: '{}'
-database:
-  url: 'postgres://admin:hunter2@[::1'
 ",
         dir.path().join("hosted").display(),
         dir.path().join("cache").display(),
@@ -691,11 +694,12 @@ fn test_config_check_redacts_the_database_user_query_parameter() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
-storage: '{}'
+storage:
+  path: '{}'
+  database:
+    url: 'libsql://db.example.com/pnpr?user=registry-admin'
 cache: '{}'
 secret: 'test-secret-key-32-chars-long-12'
-database:
-  url: 'libsql://db.example.com/pnpr?user=registry-admin'
 ",
         dir.path().join("hosted").display(),
         dir.path().join("cache").display(),

@@ -128,32 +128,46 @@ fn osv_config_defaults_off_and_resolves_relative_path() {
 #[test]
 fn sql_backend_rejects_zero_startup_timeout() {
     let yaml = "\
-storage: /var/lib/pnpr
-database:
-  url: mysql://pnpr:secret@db.example/pnpr
-  startupTimeout: 0
+storage:
+  path: /var/lib/pnpr
+  database:
+    url: mysql://pnpr:secret@db.example/pnpr
+    startupTimeout: 0
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero startup timeout must not be accepted");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("database.startupTimeout")),
-        "expected an InvalidConfig naming database.startupTimeout, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("storage.database.startupTimeout")),
+        "expected an InvalidConfig naming storage.database.startupTimeout, got {err:?}",
     );
+}
+
+#[test]
+fn sql_backend_names_the_setting_of_a_malformed_interval() {
+    let yaml = "\
+storage:
+  database:
+    url: postgres://pnpr:secret@db.example/pnpr
+    timeout: soon
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("storage.database.timeout has an invalid interval"), "{err}");
 }
 
 #[test]
 fn sql_backend_rejects_zero_timeout() {
     let yaml = "\
-storage: /var/lib/pnpr
-database:
-  url: postgres://pnpr:secret@db.example/pnpr
-  timeout: 0
+storage:
+  path: /var/lib/pnpr
+  database:
+    url: postgres://pnpr:secret@db.example/pnpr
+    timeout: 0
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero timeout must not be accepted");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("database.timeout")),
-        "expected an InvalidConfig naming database.timeout, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("storage.database.timeout")),
+        "expected an InvalidConfig naming storage.database.timeout, got {err:?}",
     );
 }
 

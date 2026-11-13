@@ -119,7 +119,7 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
                 .unwrap();
         }
     }
-    let yaml = "storage: ./store\ncache: ./cache\ndatabase: { url: 'sqlite:./metadata.sqlite' }\nregistries:\n  first: { type: hosted, ecosystem: oci, namespace: team-one, access: '$all' }\n  second: { type: hosted, ecosystem: oci, namespace: team-two, access: '$all' }\n";
+    let yaml = "storage:\n  path: ./store\n  database: { url: 'sqlite:./metadata.sqlite' }\ncache: ./cache\nregistries:\n  first: { type: hosted, ecosystem: oci, namespace: team-one, access: '$all' }\n  second: { type: hosted, ecosystem: oci, namespace: team-two, access: '$all' }\n";
     let config_path = temp.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let config =

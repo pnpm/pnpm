@@ -11,7 +11,7 @@ A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
    - **Hosted storage (`storage`)**: Contains package archives stored by content digest, staged publish bodies (`.staged/`), and transparency log tiles, entry bundles, and checkpoints (`.transparency-log/`). Back this up regularly.
-   - **[Database](storage.md#database) (`database`)**: Holds package metadata, former maintainers, unpublished versions, and transparency log entries. It also stores the [registries kept in the database](configuration.md#registries-in-the-database) with their revisions, SCIM users, and staged-publish approval records in SQLite, libSQL, PostgreSQL, or MySQL.
+   - **[Database](storage.md#database) (`storage.database`)**: Holds package metadata, former maintainers, unpublished versions, and transparency log entries. It also stores the [registries kept in the database](configuration.md#registries-in-the-database) with their revisions, SCIM users, and staged-publish approval records in SQLite, libSQL, PostgreSQL, or MySQL.
    - **Accounts and tokens** live in the database too, so its backup covers them. The database holds password and token hashes, so keep its backups readable only by the operator.
 2. **Disposable cache (`cache` / `.pnpr-cache`) (optional)**:
    - Upstream proxy packument and tarball cache.
@@ -44,7 +44,7 @@ To back up while pnpr is stopped, stop pnpr and any scheduled `pnpr gc` jobs fir
 tar -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" -C /var/lib/pnpr storage
 ```
 
-The default database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
+The default database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `storage.database.url` needs a database snapshot before archiving storage.
 
 To back up while pnpr runs, your storage volume must provide point-in-time filesystem snapshots (such as ZFS, Btrfs, LVM, or cloud block-volume snapshots). A live `tar` walk across a changing directory can copy a newly written log checkpoint without the tiles and entry bundles written earlier in the walk. Without filesystem snapshots, stop pnpr or block writes and let background log integration finish before archiving.
 
@@ -55,7 +55,7 @@ With filesystem snapshots, follow the [snapshot order](#snapshot-order):
    ```sh
    sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
    ```
-   For a `sqlite:` `database.url`, pass the path that URL names. For a PostgreSQL, MySQL, or libSQL `database.url`, take a provider snapshot or record a point-in-time recovery timestamp ($T_{\text{db}}$) instead.
+   For a `sqlite:` `storage.database.url`, pass the path that URL names. For a PostgreSQL, MySQL, or libSQL `storage.database.url`, take a provider snapshot or record a point-in-time recovery timestamp ($T_{\text{db}}$) instead.
 3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Take a point-in-time snapshot of `/var/lib/pnpr` ($T_{\text{storage}} \ge T_{\text{db}}$), resume publishes, mount the snapshot read-only at `/mnt/pnpr-snap`, and archive hosted storage:
    ```sh
    tar --exclude='storage/.metadata' -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" -C /mnt/pnpr-snap storage
@@ -79,7 +79,7 @@ To restore local filesystem storage:
    ```
 3. Restore the database so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
    - **SQLite**: Keep any `-wal` file extracted from an offline `tar` archive because it can hold committed transactions. When restoring a standalone `sqlite3 .backup` file or an external `sqlite:` database, delete destination `-wal` and `-shm` files before copying it into place.
-   - **PostgreSQL, MySQL, or libSQL (`database.url`)**: Restore the database to $T_{\text{db}}$. When `replicaPath` is configured for libSQL, delete that local replica file and its `-wal` and `-shm` files before starting pnpr.
+   - **PostgreSQL, MySQL, or libSQL (`storage.database.url`)**: Restore the database to $T_{\text{db}}$. When `replicaPath` is configured for libSQL, delete that local replica file and its `-wal` and `-shm` files before starting pnpr.
 4. Run `pnpr verify` to confirm all referenced package documents and archives match:
    ```sh
    pnpr verify
@@ -90,7 +90,7 @@ To restore local filesystem storage:
 
 ## S3 and object storage
 
-With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparency-log/` live in your bucket. Package metadata lives in the libSQL, PostgreSQL, or MySQL database selected by `database.url`.
+With S3 hosted storage (`storage.s3` in YAML configuration), archives and `.transparency-log/` live in your bucket. Package metadata lives in the libSQL, PostgreSQL, or MySQL database selected by `storage.database.url`.
 
 ### Recommended S3 settings
 
@@ -101,7 +101,7 @@ With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparenc
 ### Coordinated backup
 
 1. Pause scheduled `pnpr gc` jobs and block package unpublishes until step 3 finishes. Wait for any running `pnpr gc` or unpublish operations to complete before step 2.
-2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the database (`database.url`).
+2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the database (`storage.database.url`).
 3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
 4. Resume publishes, scheduled `pnpr gc` jobs, and package unpublishes.
 
@@ -143,12 +143,13 @@ To migrate hosted packages from a local directory to an S3 bucket:
 1. Stop pnpr, and move the package metadata into the libSQL database the S3
    deployment uses, for example by importing the SQLite database
    (`<storage>/.metadata/metadata.sqlite` by default) into Turso.
-2. Point `database.url` at that database, still without an `s3:` block:
+2. Point `storage.database.url` at that database, still without a `storage.s3` block:
 
    ```yaml
-   database:
-     url: libsql://<your-db>.turso.io
-     authToken: ${PNPR_LIBSQL_TOKEN}
+   storage:
+     database:
+       url: libsql://<your-db>.turso.io
+       authToken: ${PNPR_LIBSQL_TOKEN}
    ```
 
 3. Move the archives and transparency log. `migrate-storage` copies every stored
@@ -163,15 +164,16 @@ To migrate hosted packages from a local directory to an S3 bucket:
    pnpr migrate-storage --to-bucket my-registry-bucket --verify
    ```
 
-4. Add the `s3:` block, keeping `database.url`:
+4. Add the `storage.s3` block, keeping `storage.database.url`:
 
    ```yaml
-   s3:
-     bucket: my-registry-bucket
-     region: us-east-1
-   database:
-     url: libsql://<your-db>.turso.io
-     authToken: ${PNPR_LIBSQL_TOKEN}
+   storage:
+     s3:
+       bucket: my-registry-bucket
+       region: us-east-1
+     database:
+       url: libsql://<your-db>.turso.io
+       authToken: ${PNPR_LIBSQL_TOKEN}
    ```
 
 ## Importing htpasswd users

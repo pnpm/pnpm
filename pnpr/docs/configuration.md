@@ -87,7 +87,16 @@ pnpr keeps two kinds of data:
   content off the durable disk.
 
 ```yaml title="pnpr.yaml"
+# Path string:
 storage: ./storage
+
+# Or settings table that also names the object store and the database:
+#storage:
+#  path: ./storage   # defaults to ./storage
+#  s3:               # see Storage backends
+#    bucket: my-pnpr-packages
+#  database:         # see The database
+#    url: libsql://my-db.turso.io
 
 # Path string:
 #cache: ./cache
@@ -106,12 +115,17 @@ on startup and runs periodic eviction in the background. On startup, pnpr also
 prunes orphaned upstream namespaces from removed registries or rotated secrets.
 Use [`pnpr cache-gc`](cli.md#cache-gc) for on-demand or offline reclamation.
 
-The hosted store can instead live in an S3-compatible object store. See
-[Storage backends](storage.md). With the filesystem hosted store, package
-metadata lives in an embedded SQLite database by default. Several instances can
-share a [libSQL database](storage.md#libsql-database) instead, which an `s3:`
-block needs. The [`database` block](storage.md#database) configures
-each of these.
+`storage` takes the storage directory, or a table with these keys:
+
+| Field | Meaning |
+| --- | --- |
+| `path` | The storage directory. Defaults to `./storage`. [`--storage`](cli.md#options) overrides it. |
+| `s3` | Keeps the hosted store in an S3-compatible object store. See [Storage backends](storage.md#backends). |
+| `database` | Names the database for accounts, tokens, and package metadata. See [The database](storage.md#database). |
+
+With the filesystem hosted store, package metadata lives in an embedded SQLite
+database by default. A server that hosts packages in `storage.s3` needs a
+[shared database](auth-backends.md) instead.
 
 ## `registries` and `defaultRegistry`
 
@@ -523,7 +537,7 @@ registries:
 
 | In the database | In the config file |
 | --- | --- |
-| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `database`, `s3`, `secret` |
+| `registries`, with their teams and `packages:` rules | `storage`, `cache`, `secret` |
 | `defaultRegistry` | `auth`, including `auth.admins` and `auth.registryAdmins` |
 | `routes.public` | `routes.allowedPrivateNetworks` |
 | | `registryEnv`, and every other setting on this page |
@@ -885,7 +899,7 @@ ui:
 
 Accounts and tokens live in the [database](storage.md#database),
 next to package metadata: `<storage>/.metadata/metadata.sqlite` unless
-`database.url` names another one. Back up that database to keep them.
+`storage.database.url` names another one. Back up that database to keep them.
 
 ```yaml title="pnpr.yaml"
 auth:
@@ -1254,10 +1268,11 @@ Any `${ENV_VAR}` in the config is substituted from the environment before
 parsing, so secrets can be kept out of the file:
 
 ```yaml title="pnpr.yaml"
-s3:
-  bucket: my-pnpr-packages
-  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
-  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+storage:
+  s3:
+    bucket: my-pnpr-packages
+    accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+    secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 ```
 
 `${ENV_VAR-default}` supplies `default` when `ENV_VAR` is unset, and
@@ -1266,7 +1281,7 @@ a default becomes an empty string, and pnpr logs a warning.
 
 An unset variable in a field that holds a credential fails startup, so pnpr
 never runs with an empty credential. These fields are `secret`, `secret.cache`,
-`secret.oci`, `database.url`, `database.authToken`, `s3.secretAccessKey`,
+`secret.oci`, `storage.database.url`, `storage.database.authToken`, `storage.s3.secretAccessKey`,
 `auth.scim.token`, OIDC `clientSecret`, `metrics.token`,
 `cloudflareCdn.apiToken`, and the `releaseRecords` signing keys.
 

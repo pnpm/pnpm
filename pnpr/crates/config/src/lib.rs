@@ -42,7 +42,7 @@ pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse
 pub use web_ui::UiConfig;
 
 pub(crate) use secrets::resolve_secrets;
-pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
+pub(crate) use storage_config::{resolve_relative, resolve_storage_paths};
 
 mod access;
 use access::{build_admins, build_teams};
