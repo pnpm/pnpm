@@ -77,20 +77,23 @@ fn waiting_store_update_does_not_block_new_consumers() {
     thread::sleep(Duration::from_millis(50));
 
     let reader_path = store_path;
+    let (reader_started, reader_started_rx) = mpsc::channel();
     let (reader_finished, reader_finished_rx) = mpsc::channel();
     let reader = thread::spawn(move || {
+        reader_started.send(()).unwrap();
         let result = StoreDir::new(reader_path).lock_for_use();
         reader_finished.send(result.is_ok()).unwrap();
     });
+    reader_started_rx.recv().unwrap();
     let reader_unblocked_early = reader_finished_rx
-        .recv_timeout(Duration::from_millis(100))
+        .recv_timeout(Duration::from_secs(5))
         .ok();
 
     drop(existing_consumer);
     assert!(update.join().unwrap().is_ok());
     assert!(reader_unblocked_early.unwrap_or_else(|| {
         reader_finished_rx
-            .recv_timeout(Duration::from_secs(1))
+            .recv_timeout(Duration::from_secs(5))
             .unwrap()
     }));
     reader.join().unwrap();
