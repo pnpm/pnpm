@@ -22,9 +22,13 @@ impl WorkspaceSettings {
         skip_invalid: bool,
     ) -> Result<(), LoadWorkspaceYamlError> {
         if !skip_invalid {
+            self.validate_no_proxy()?;
             self.validate_registries()?;
             self.validate_tasks()?;
             return self.validate_pipelines();
+        }
+        if self.validate_no_proxy().is_err() {
+            self.no_proxy = None;
         }
         if self.validate_registries().is_err() {
             self.registries = None;
@@ -41,6 +45,19 @@ impl WorkspaceSettings {
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    pub(super) fn validate_no_proxy(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let received_type = match self.no_proxy.as_ref() {
+            None
+            | Some(
+                serde_json::Value::Null | serde_json::Value::String(_) | serde_json::Value::Bool(_),
+            ) => return Ok(()),
+            Some(serde_json::Value::Number(_)) => "number",
+            Some(serde_json::Value::Array(_)) => "array",
+            Some(serde_json::Value::Object(_)) => "object",
+        };
+        Err(LoadWorkspaceYamlError::InvalidNoProxy { received_type })
     }
 
     /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
