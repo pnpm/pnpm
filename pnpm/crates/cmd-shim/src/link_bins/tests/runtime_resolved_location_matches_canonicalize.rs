@@ -38,12 +38,12 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     // dir anchors the expectation so a `/tmp` → `/private/tmp`-style
     // ancestor symlink can't skew the comparison.
     let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
-    let via_fallback = super::super::shim_node_path(
+    let via_fallback = super::super::linking_paths::shim_node_path(
         &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
         None,
         &extras,
     );
-    let via_resolved = super::super::shim_node_path(
+    let via_resolved = super::super::linking_paths::shim_node_path(
         &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
         None,
         &extras,
@@ -94,7 +94,7 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
         .into_owned();
     let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
 
-    let node_path = super::super::shim_node_path(
+    let node_path = super::super::linking_paths::shim_node_path(
         &PackageBinSource::new(tmp.path().join("vendor").join("foo"), manifest)
             .with_resolved_location(pkg_dir.clone()),
         Some(&project),
@@ -473,6 +473,7 @@ fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
         .join(format!("vendor{delimiter}other"));
     let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
     let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
-    let node_path = super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[]);
+    let node_path =
+        super::super::linking_paths::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[]);
     assert_eq!(node_path, Vec::<String>::new());
 }

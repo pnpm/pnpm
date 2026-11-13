@@ -250,7 +250,7 @@ fn preferred_executable_relinks_a_shim_with_stale_node_path() {
         std::fs::symlink_metadata(shim_path)
             .unwrap()
             .file_type()
-            .is_symlink()
+            .is_symlink(),
     );
 }
 
