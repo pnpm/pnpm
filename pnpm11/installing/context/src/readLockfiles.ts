@@ -68,6 +68,7 @@ export async function readLockfiles (
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
   wantedLockfile: LockfileObject
+  originalImporterIds: ReadonlySet<ProjectId>
   wantedLockfileIsModified: boolean
   lockfileHadConflicts: boolean
   patchedDepPathsStatus: PatchedDepPathsStatus
@@ -89,6 +90,7 @@ export async function readLockfiles (
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
   }
 
+  const originalImporterIds = new Set(Object.keys(wantedResult.lockfile?.importers ?? currentLockfileRaw?.importers ?? {}) as ProjectId[])
   const currentLockfile = initLockfileImporters(currentLockfileRaw ?? createLockfileObject(importerIds, sopts), importerIds)
   const existsCurrentLockfile = currentLockfileRaw != null
   const existsWantedLockfile = wantedResult.lockfile != null
@@ -108,6 +110,7 @@ export async function readLockfiles (
   return assembleLockfilesResult({
     currentLockfile,
     wantedLockfile,
+    originalImporterIds,
     existsCurrentLockfile,
     existsWantedLockfile,
     wantedLockfileIsModified,
@@ -119,6 +122,7 @@ export async function readLockfiles (
 function assembleLockfilesResult (params: {
   currentLockfile: LockfileObject
   wantedLockfile: LockfileObject
+  originalImporterIds: ReadonlySet<ProjectId>
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   wantedLockfileIsModified: boolean
@@ -131,6 +135,7 @@ function assembleLockfilesResult (params: {
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
   wantedLockfile: LockfileObject
+  originalImporterIds: ReadonlySet<ProjectId>
   wantedLockfileIsModified: boolean
   lockfileHadConflicts: boolean
   patchedDepPathsStatus: PatchedDepPathsStatus
@@ -147,6 +152,7 @@ function assembleLockfilesResult (params: {
   })
 
   return {
+    originalImporterIds: params.originalImporterIds,
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile,

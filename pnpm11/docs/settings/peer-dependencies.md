@@ -23,6 +23,8 @@ pnpm skips that version if installing it would leave the project with an unmet p
 
 pnpm also resolves optional peers this way when `autoInstallPeers` is `false` and `dedupePeerDependents` is `true`. To stop it, set both settings to `false`.
 
+When selecting a workspace provider for a new project, pnpm prefers compatible optional peer versions already pinned in the lockfile.
+
 #### Version conflicts
 
 If there are conflicting version requirements for a peer dependency from different packages, pnpm will not install any version of the conflicting peer dependency automatically. Instead, a warning is printed. For example, if one dependency requires `react@^16.0.0` and another requires `react@^17.0.0`, these requirements conflict, and no automatic installation will occur.

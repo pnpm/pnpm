@@ -312,7 +312,7 @@ impl ImporterHoistState {
             &hoist_preferred,
             self.hoist_root_deps(),
             &self.ctx.optional_peer_version_tiers(
-                &self.selection.locked_versions,
+                self.selection.locked_versions.versions(self.ctx.workspace()),
                 self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
             ),
             &accepts_candidate,

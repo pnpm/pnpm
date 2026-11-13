@@ -69,6 +69,7 @@ export interface PnpmContext {
   skipped: Set<DepPath>
   storeDir: string
   wantedLockfile: LockfileObject
+  originalImporterIds?: ReadonlySet<ProjectId>
   wantedLockfileIsModified: boolean
   workspacePackages: WorkspacePackages
   registriesByScope: RegistriesByScope
@@ -237,6 +238,7 @@ export interface PnpmSingleContext {
   skipped: Set<string>
   storeDir: string
   wantedLockfile: LockfileObject
+  originalImporterIds?: ReadonlySet<ProjectId>
   wantedLockfileIsModified: boolean
 }
 

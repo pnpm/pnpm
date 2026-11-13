@@ -156,6 +156,7 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   globalVirtualStoreDir: string
   virtualStoreDirMaxLength: number
   wantedLockfile: LockfileObject
+  originalImporterIds?: ReadonlySet<ProjectId>
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   peersSuffixMaxLength: number

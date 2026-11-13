@@ -27,6 +27,9 @@ mod cyclic_locked_contexts;
 mod fast_update;
 mod harness;
 mod moving_providers;
+mod nested_retained_pins;
+mod new_project_pins;
+mod patched_retained_pins;
 mod ranged_provider_pins;
 mod same_name_peer_contexts;
 

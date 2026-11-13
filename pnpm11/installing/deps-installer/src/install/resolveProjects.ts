@@ -228,6 +228,7 @@ function describeResolutionTarget (ctx: PnpmContext, opts: InstallInContextOptio
     virtualStoreDir: ctx.virtualStoreDir,
     virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
     wantedLockfile: ctx.wantedLockfile,
+    originalImporterIds: ctx.originalImporterIds,
     workspacePackages: ctx.workspacePackages,
     patchedDependencies: opts.patchedDependencies,
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,

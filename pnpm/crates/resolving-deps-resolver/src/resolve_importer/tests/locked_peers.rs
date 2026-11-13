@@ -314,7 +314,12 @@ fn importers_missing_from_the_lockfile_share_one_locked_peer_scan() {
         Arc::new(WorkspaceTreeCtx::default().with_wanted_lockfile(Some(Arc::new(lockfile))));
     let peers_of = |importer_id, wanted: &[_]| {
         let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
-        LockedPeers::of(&ctx, importer_id, wanted).versions
+        let retained = super::super::locked_peers::retained_dependency_names(
+            workspace.wanted_lockfile().unwrap(),
+            importer_id,
+            wanted,
+        );
+        Arc::clone(LockedPeers::for_importer(&ctx, importer_id, &retained).versions(&workspace))
     };
     let wanted = [crate::resolve_dependency_tree::DependencySpec {
         alias: "consumer".to_string(),

@@ -231,7 +231,7 @@ impl ImporterHoistState {
             override_bare_specifier: self.selection.override_bare_specifier.as_deref(),
             project_dir: &self.project_dir,
             resolved_versions,
-            locked_versions: &self.selection.locked_versions,
+            locked_versions: self.selection.locked_versions.versions(self.ctx.workspace()),
         }
     }
 

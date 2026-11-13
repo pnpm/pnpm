@@ -1,6 +1,6 @@
 use super::{
-    HashMap, HashSet, assert_eq, importer_locked_peer_versions, peer_context_lockfile,
-    peer_declaring_metadata, plain_dependency, snapshot_with_dependencies,
+    HashMap, HashSet, ResolveOptions, assert_eq, importer_locked_peer_versions,
+    peer_context_lockfile, peer_declaring_metadata, plain_dependency, snapshot_with_dependencies,
 };
 use std::str::FromStr;
 
@@ -87,4 +87,34 @@ fn hashed_and_explicit_suffixes_pin_the_same_peers() {
     );
     assert_eq!(importer_locked_peer_versions(Some(&explicit), "app", |_| true), expected);
     assert_eq!(importer_locked_peer_versions(Some(&hashed), "app", |_| true), expected);
+}
+
+#[test]
+fn production_pins_preserve_undiscovered_hashed_and_nested_peers() {
+    use crate::resolve_dependency_tree::TreeCtx;
+    use crate::resolve_importer::locked_peers::LockedPeers;
+    use std::sync::Arc;
+
+    let suffix = "(deep@4.0.0)(peer@1.0.0(nested@3.0.0))(transitive@2.0.0)";
+    let hashed = pnpm_lockfile::PeerBindings::from_suffix(suffix)
+        .unwrap()
+        .to_suffix(1)
+        .unwrap();
+    let expected = HashMap::from_iter(
+        [("peer", "1.0.0"), ("nested", "3.0.0"), ("transitive", "2.0.0"), ("deep", "4.0.0")].map(
+            |(name, version)| (name.to_string(), HashSet::from_iter([version.to_string()])),
+        ),
+    );
+    for suffix in [suffix.to_string(), hashed] {
+        for importer in ["app", "new-project"] {
+            let lockfile = consumer_lockfile(&format!("1.0.0{suffix}"));
+            let workspace = Arc::new(
+                crate::WorkspaceTreeCtx::default().with_wanted_lockfile(Some(Arc::new(lockfile))),
+            );
+            let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+            let retained = HashSet::from_iter(["consumer".parse().unwrap()]);
+            let pins = LockedPeers::for_importer(&ctx, importer, &retained);
+            assert_eq!(pins.versions(&workspace).as_ref(), &expected, "{suffix}, {importer}");
+        }
+    }
 }

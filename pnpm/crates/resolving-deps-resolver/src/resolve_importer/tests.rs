@@ -1,4 +1,4 @@
-use super::{locked_peers::importer_locked_peer_versions, missing_peers::merge_ranges};
+use super::{locked_peers::test_utils::importer_locked_peer_versions, missing_peers::merge_ranges};
 mod workspace_links;
 
 mod resolution_order;
@@ -14,6 +14,7 @@ mod optional_peers;
 mod hoist_preferences;
 mod locked_peer_cycles;
 mod locked_peers;
+mod manifest_peer_pins;
 
 mod hashed_peer_suffix;
 
