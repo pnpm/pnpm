@@ -1166,6 +1166,26 @@ async fn a_server_whose_stored_graph_does_not_load_starts_and_is_repaired() {
 }
 
 #[tokio::test]
+async fn a_replica_that_finds_no_stored_graph_stores_the_default_one() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!("storage: {}\n{EMPTY_CONFIG}", storage_dir(dir.path()).display());
+    std::fs::write(config_path(dir.path()), yaml).unwrap();
+    let replica = Replica::new(reload_config(dir.path())).await;
+    let (status, directory, _) =
+        replica.send("GET", "/-/pnpr/v0/registries", Some(&replica.bob), None).await;
+    assert_eq!(status, StatusCode::OK, "{directory}");
+    let names: Vec<&str> = directory["registries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|entry| entry["name"].as_str())
+        .collect();
+    assert!(names.contains(&"npmjs") && names.contains(&"local"), "{directory}");
+    let storage = Storage::from_config(&reload_config(dir.path()).storage).unwrap();
+    assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(1));
+}
+
+#[tokio::test]
 async fn offline_paths_refuse_a_public_upstream_with_a_credential() {
     let dir = TempDir::new().unwrap();
     let mut config = load_config(dir.path()).await;
