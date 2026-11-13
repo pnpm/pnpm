@@ -142,7 +142,7 @@ fn resolve_target_s3_config(
         Ok(config.storage.hosted_backend.clone())
     } else {
         Err(miette::miette!(
-            "destination S3 storage must be configured via YAML 's3:' or CLI flag '--to-bucket'"
+            "destination S3 storage must be configured via YAML 'storage.s3' or CLI flag '--to-bucket'"
         ))
     }
 }

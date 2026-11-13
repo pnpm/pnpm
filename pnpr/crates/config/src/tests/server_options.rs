@@ -143,6 +143,18 @@ storage:
 }
 
 #[test]
+fn sql_backend_names_the_setting_of_a_malformed_interval() {
+    let yaml = "\
+storage:
+  database:
+    url: postgres://pnpr:secret@db.example/pnpr
+    timeout: soon
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("storage.database.timeout has an invalid interval"), "{err}");
+}
+
+#[test]
 fn sql_backend_rejects_zero_timeout() {
     let yaml = "\
 storage:

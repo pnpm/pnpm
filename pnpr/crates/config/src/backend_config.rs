@@ -290,7 +290,7 @@ pub(super) fn parse_backend_interval(
     raw.map(|Interval(value)| {
         parse_interval(value)
             .ok_or_else(|| RegistryError::InvalidConfig {
-                reason: format!("database.{field} has an invalid interval {value:?}"),
+                reason: format!("storage.database.{field} has an invalid interval {value:?}"),
             })
     })
     .transpose()

@@ -119,14 +119,13 @@ Use [`pnpr cache-gc`](cli.md#cache-gc) for on-demand or offline reclamation.
 
 | Field | Meaning |
 | --- | --- |
-| `path` | The storage directory. Defaults to `./storage`. [`--storage`](cli.md#options) overrides it and leaves `s3` and `database` as configured. |
+| `path` | The storage directory. Defaults to `./storage`. [`--storage`](cli.md#options) overrides it. |
 | `s3` | Keeps the hosted store in an S3-compatible object store. See [Storage backends](storage.md#backends). |
 | `database` | Names the database for accounts, tokens, and package metadata. See [The database](storage.md#database). |
 
 With the filesystem hosted store, package metadata lives in an embedded SQLite
-database by default. Several instances can share a
-[libSQL database](storage.md#libsql-database) instead, which a `storage.s3`
-block needs.
+database by default. A `storage.s3` block needs a
+[shared database](auth-backends.md) instead.
 
 ## `registries` and `defaultRegistry`
 
