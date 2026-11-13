@@ -790,5 +790,6 @@ fn check_injected_children_owner(bundle: Option<&OsStr>, format: &str, suffix_le
     let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     install_lockfile(&fixture, bundle);
     let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&fresh, &reused);
     assert_eq!(fresh, reused, "{bundle:?}, {format}, {suffix_length}");
 }

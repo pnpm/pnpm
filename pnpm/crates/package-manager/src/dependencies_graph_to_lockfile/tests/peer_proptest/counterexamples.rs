@@ -883,8 +883,12 @@ fn reinstall_preserves_injected_peer_dependency_classification() {
                 let reused =
                     super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
                         .unwrap();
-                assert_eq!(&expected, &outcome_of(&reused, &workspace), "{settings:?}");
-                assert_eq!(lockfile, super::lockfile_with_settings(&reused, &workspace, settings));
+                let actual = outcome_of(&reused, &workspace);
+                dbg!(&expected, &actual);
+                assert_eq!(expected, actual, "{settings:?}");
+                let reused_lockfile = super::lockfile_with_settings(&reused, &workspace, settings);
+                dbg!(&lockfile, &reused_lockfile);
+                assert_eq!(lockfile, reused_lockfile);
             }
         }
     }

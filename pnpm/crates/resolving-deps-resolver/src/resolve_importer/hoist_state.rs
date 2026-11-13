@@ -16,8 +16,15 @@ impl ImporterHoistPolicy {
 }
 
 #[derive(Default)]
+enum RequiredPeerPhase {
+    #[default]
+    CurrentProviders,
+    LockedFallbacks,
+}
+
+#[derive(Default)]
 pub(super) struct ImporterHoistProgress {
-    allow_locked_peer_fallbacks: bool,
+    required_peer_phase: RequiredPeerPhase,
     /// Whether the last required round converged with no missing
     /// required peers left. A converged importer's next required round
     /// is a no-op unless its inputs changed since: an optional hoist
@@ -85,7 +92,7 @@ pub(super) struct ImporterHoistSelection {
 impl super::ImporterHoistState {
     /// Enable lockfile-only required providers after current-graph hoists settle.
     pub(crate) fn enable_locked_peer_fallbacks(&mut self) -> bool {
-        if self.progress.allow_locked_peer_fallbacks
+        if matches!(self.progress.required_peer_phase, RequiredPeerPhase::LockedFallbacks)
             || !self.policy.should_hoist_peers()
             || self.policy.peers.auto_install_peers
             || self.ctx
@@ -97,7 +104,7 @@ impl super::ImporterHoistState {
         {
             return false;
         }
-        self.progress.allow_locked_peer_fallbacks = true;
+        self.progress.required_peer_phase = RequiredPeerPhase::LockedFallbacks;
         true
     }
 
@@ -116,9 +123,12 @@ impl super::ImporterHoistState {
         let Some(lockfile) = self.ctx.workspace().wanted_lockfile() else {
             return preferred;
         };
-        let locked = (self.progress.allow_locked_peer_fallbacks
-            && lockfile.importers.contains_key(&self.importer_id))
-        .then_some(&self.selection.locked_versions);
+        let locked = match self.progress.required_peer_phase {
+            RequiredPeerPhase::CurrentProviders => None,
+            RequiredPeerPhase::LockedFallbacks => lockfile.importers
+                .contains_key(&self.importer_id)
+                .then_some(&self.selection.locked_versions),
+        };
         preferred.retain(|name, versions| {
             versions.retain(|version, entry| {
                 entry.weight() >= DIRECT_DEP_SELECTOR_WEIGHT
