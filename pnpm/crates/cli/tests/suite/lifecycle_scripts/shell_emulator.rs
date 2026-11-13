@@ -129,3 +129,46 @@ fn expands_braced_parameter_expansions_in_scripts() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn preserves_quoting_after_escaped_backslashes_and_single_quotes() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("record.cjs"),
+        "require('node:fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
+    )
+    .expect("write record.cjs");
+    let package_json = serde_json::json!({
+        "name": "project-reading-escaped-backslashes",
+        "version": "1.0.0",
+        "scripts": {
+            "repro": r#"node record.cjs "a\\" '${UNSET_VAR:-expanded_by_mistake}' "dist\\${OUT_DIR:-app}" \' ${OUT_DIR:-app}"#,
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    enable_shell_emulator(&workspace);
+
+    let mut command = pacquet;
+    command.env_remove("UNSET_VAR");
+    command.env_remove("OUT_DIR");
+    command
+        .with_args(["run", "repro"])
+        .assert()
+        .success();
+
+    let recorded: Vec<String> =
+        serde_json::from_slice(&fs::read(workspace.join("args.json")).expect("read args.json"))
+            .expect("parse args.json");
+    assert_eq!(recorded, vec![r"a\", "${UNSET_VAR:-expanded_by_mistake}", r"dist\app", "'", "app"]);
+
+    drop((root, mock_instance));
+}

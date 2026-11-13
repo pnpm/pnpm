@@ -338,6 +338,115 @@ fn bounds_fruitless_scanning_without_bounding_a_body() {
     let (code, lines) = run(&format!("echo {unclosed}"), dir.path(), &env);
     assert_eq!(code, 0);
     assert_eq!(lines, vec![(LifecycleStdio::Stdout, unclosed)]);
+
+    for unclosed_sub in ["$(".repeat(20_000), format!("`{}", "${".repeat(20_000))] {
+        let input = format!("echo {unclosed_sub}");
+        assert_eq!(super::braced_parameters::expand(&input, &env), input);
+    }
+}
+
+/// Inside double quotes `\\` is one literal backslash, so it neither escapes
+/// the closing `"` nor suppresses a `${...}` expansion right behind it.
+#[test]
+fn handles_escaped_backslashes_inside_double_quotes() {
+    let dir = tempdir().expect("create a temp dir");
+    let unset = HashMap::new();
+    let set = HashMap::from([("OUT_DIR".to_string(), "two words".to_string())]);
+
+    for (script, env, expected) in [
+        (r#"echo "a\\""#, &unset, r"a\"),
+        (r#"echo "\\""#, &unset, r"\"),
+        (r#"echo "a\\\\""#, &unset, r"a\\"),
+        (r#"echo "a\\\"b""#, &unset, r#"a\"b"#),
+        (r#"echo "a\\" '${UNSET:-fallback}'"#, &unset, r"a\ ${UNSET:-fallback}"),
+        (r#"echo "dist\\${OUT_DIR:-app}""#, &unset, r"dist\app"),
+        (r#"echo "dist\\${OUT_DIR:-app}""#, &set, r"dist\two words"),
+        (r#"echo "dist\\\${OUT_DIR:-app}""#, &set, r"dist\${OUT_DIR:-app}"),
+    ] {
+        let (code, lines) = run(script, dir.path(), env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
+
+    let (code, _) = run(r#"mkdir -p "dist\\${OUT_DIR:-app}""#, dir.path(), &set);
+    assert_eq!(code, 0);
+    assert!(
+        !dir.path().join("words").exists(),
+        r"double-quoted `\\${{...}}` must stay one argument rather than splitting on spaces",
+    );
+}
+
+/// Outside quotes, `\'` is a literal apostrophe that leaves later `${...}`
+/// expansions active, `\\` is a literal backslash, and `'a\'` closes at the
+/// second `'` because POSIX single quotes give `\` no special meaning.
+#[test]
+fn handles_unquoted_backslash_escapes_and_single_quotes() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("OUT_DIR".to_string(), "custom".to_string())]);
+
+    for (script, expected) in [
+        (r"echo \' ${OUT_DIR:-app}", "' custom"),
+        (r"echo it\'s ${OUT_DIR:-app}", "it's custom"),
+        (r"echo \'${OUT_DIR:-app}\'", "'custom'"),
+        (r"echo \\", r"\"),
+        (r"echo a\\b", r"a\b"),
+        (r"echo dist\\${OUT_DIR:-app}", r"dist\custom"),
+        (r"echo \\'${UNSET:-literal}'", r"\${UNSET:-literal}"),
+        (r"echo \; ${OUT_DIR:-app}", "; custom"),
+        (r"echo \  ${OUT_DIR:-app}", "  custom"),
+        (r"echo 'a\' ${OUT_DIR:-app}", r"a\ custom"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
+}
+
+#[test]
+fn handles_nested_quotes_and_escapes_inside_parameter_defaults() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::new();
+
+    for (script, expected) in [
+        (r#"echo ${MISSING:-"a\\"}"#, r"a\"),
+        (r#"echo ${MISSING:-"a\"}"}"#, r#"a"}"#),
+        (r#"echo "${MISSING:-a\\}""#, r"a\"),
+        (r#"echo "${MISSING:-"a\\"}""#, r"a\"),
+        (r#"echo "${MISSING:-"a   b"}""#, "a   b"),
+        (r#"echo "${MISSING:-"it's"}""#, "it's"),
+        (r#"echo "${MISSING:-a\}b}""#, "a}b"),
+        (r"echo ${MISSING:-'a\'}!", r"a\!"),
+        (r"echo ${MISSING:-a\'b}", "a'b"),
+        (r"echo ${MISSING:-a\\}", r"a\"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
+}
+
+#[test]
+fn tracks_quotes_across_command_substitutions_and_comments() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("OUT_DIR".to_string(), "custom".to_string())]);
+
+    for (script, expected) in [
+        (r#"echo "$(echo "a\\")" '${UNSET:-literal}'"#, r"a\ ${UNSET:-literal}"),
+        (r#"echo "$(echo '${UNSET:-literal}')""#, "${UNSET:-literal}"),
+        (r#"echo "${MISSING:-$(echo '}')}""#, "}"),
+        (r#"echo ${MISSING:-"$(echo "}")"}"#, "}"),
+        (r#"echo "${MISSING:-"$(echo "}")"}""#, "}"),
+        ("echo [${MISSING:-$(echo first && echo second)}]", "[first second]"),
+        (r#"echo `echo "a\\"` '${UNSET:-literal}'"#, r"a\ ${UNSET:-literal}"),
+        (r#"echo "`echo '${UNSET:-literal}'`""#, "${UNSET:-literal}"),
+        (r"echo \`echo hi\` ${OUT_DIR:-app}", "`echo hi` custom"),
+        (r#"echo "\`echo hi\`" ${OUT_DIR:-app}"#, "`echo hi` custom"),
+        ("# don't\necho ${OUT_DIR:-app}", "custom"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
 }
 
 /// An expansion the `$NAME` form cannot stand in for keeps the behavior it
