@@ -68,7 +68,7 @@ test('injected package child links are recorded relative to the lockfile directo
       version: '1.0.0',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
       resolvedVia: 'local-filesystem',
-      localLinkedDependencies: { child: 'link:../child' },
+      localLinkedDependencies: new Map([['child', 'link:../child']]),
       optional: false,
       children: { child: 'link:../child' },
       optionalDependencies: new Set<string>(),
@@ -95,7 +95,7 @@ test('reused injected package child links are not rebased again', () => {
       name: 'lib',
       version: '1.0.0',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
-      localLinkedDependencies: { child: 'link:../child' },
+      localLinkedDependencies: new Map([['child', 'link:../child']]),
       optional: false,
       children: { child: 'link:../packages/child' },
       optionalDependencies: new Set<string>(),
@@ -113,6 +113,33 @@ test('reused injected package child links are not rebased again', () => {
     registriesByScope: REGISTRIES,
   })
   expect(lockfile.packages![parentDepPath].dependencies).toStrictEqual({ child: 'link:../packages/child' })
+})
+
+test('workspace children with prototype-property aliases keep their lockfile references', () => {
+  const parentDepPath = 'lib@file:../packages/lib' as DepPath
+  const dependenciesGraph = {
+    [parentDepPath]: {
+      name: 'lib',
+      version: '1.0.0',
+      resolution: { type: 'directory', directory: '/workspace/packages/lib' },
+      localLinkedDependencies: new Map(),
+      optional: false,
+      children: { constructor: 'link:../child' },
+      optionalDependencies: new Set<string>(),
+      peers: peerSetOf({}),
+      transitivePeerDependencies: new Set<string>(),
+      additionalInfo: {},
+      hasBin: false,
+    },
+  } as unknown as DependenciesGraph
+  const lockfile = updateLockfile({
+    dependenciesGraph,
+    lockfile: { lockfileVersion: LOCKFILE_VERSION, importers: {}, packages: {} },
+    prefix: '/workspace/app',
+    lockfileDir: '/workspace/app',
+    registriesByScope: REGISTRIES,
+  })
+  expect(lockfile.packages![parentDepPath].dependencies).toStrictEqual({ constructor: 'link:../child' })
 })
 
 test('workspace child links keep their lockfile-relative target', () => {

@@ -282,7 +282,7 @@ function updateResolvedDeps ({
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          const localSpec = parentPkg.localLinkedDependencies?.[alias]
+          const localSpec = parentPkg.localLinkedDependencies?.get(alias)
           return [alias, localSpec == null ? depPath : linkedDependencyRef({ depPath, lockfileDir, localSpec, parentPkg, parentDepPath })]
         }
         const depNode = depGraph[depPath]
