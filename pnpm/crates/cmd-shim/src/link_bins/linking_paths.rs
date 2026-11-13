@@ -280,7 +280,7 @@ pub(super) fn remove_bins_awaiting_target<'packages, Sys: FsReadHead>(
 /// ([`PackageBinSource::build_pending`]). A shim an earlier install left is
 /// removed. Other dependents get the shim right away, because the target may
 /// be built after install.
-fn awaits_target<Sys: FsReadHead>(
+pub(super) fn awaits_target<Sys: FsReadHead>(
     pkg: &PackageBinSource,
     bins_dir: &Path,
     command: &Command,

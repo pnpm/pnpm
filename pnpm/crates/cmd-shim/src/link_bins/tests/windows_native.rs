@@ -133,3 +133,29 @@ fn node_binary_replacement_recovers_after_transient_lock() {
     assert_eq!(fs::read_to_string(old_target).unwrap(), "old node binary");
     assert_eq!(fs::read_to_string(target).unwrap(), content);
 }
+
+#[test]
+fn frozen_relink_accepts_a_current_node_exe_without_a_canonical_shim() {
+    let root = tempdir().unwrap();
+    let package = root.path().join("node");
+    fs::create_dir(&package).unwrap();
+    let target = package.join("node.exe");
+    fs::write(&target, "node binary").unwrap();
+    let bins = root.path().join(".bin");
+    fs::create_dir(&bins).unwrap();
+    let packages = [PackageBinSource::new(
+        package,
+        Arc::new(json!({"name": "node", "version": "20.0.0", "bin": {"node": "node.exe"}})),
+    )];
+
+    link_bins_of_packages::<Host>(&packages, &bins, &LinkBinsOptions::default()).unwrap();
+    link_bins_of_packages::<Host>(
+        &packages,
+        &bins,
+        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+
+    assert_eq!(fs::read_to_string(bins.join("node.exe")).unwrap(), "node binary");
+    assert!(!bins.join("node").exists());
+}

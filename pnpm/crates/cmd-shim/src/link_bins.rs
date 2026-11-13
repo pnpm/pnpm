@@ -241,6 +241,7 @@ pub fn link_bins_of_packages<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
+        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite
@@ -272,6 +273,7 @@ pub fn link_bins_of_packages_cached<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
+        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite
@@ -294,6 +296,7 @@ pub fn link_bins_of_packages_outcome<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
+        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite
@@ -315,6 +318,7 @@ pub fn link_bins_of_packages_with_excludes<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
+        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite
@@ -335,6 +339,7 @@ fn link_bins_impl<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
+        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite
@@ -359,6 +364,7 @@ fn link_chosen_bins<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
+        + FsReadDir
         + FsCreateDirAll
         + FsWrite
         + FsSetExecutable
@@ -369,12 +375,39 @@ where
     }
     let chosen_count = chosen.len();
 
-    let bin_dir = Sys::create_dir_all_reporting(bins_dir)
-        .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
+    let bin_dir = if options.read_only {
+        match Sys::read_dir(bins_dir) {
+            Ok(entries) => {
+                drop(entries);
+                DirCreation::Unknown
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(LinkBinsError::FrozenStoreWrite { path: bins_dir.to_path_buf() });
+            }
+            Err(error) => {
+                return Err(LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error });
+            }
+        }
+    } else {
+        Sys::create_dir_all_reporting(bins_dir)
+            .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?
+    };
 
     let paths = linking_paths::LinkingPaths::new(bins_dir, bin_dir, options)?;
 
-    let to_link = remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
+    let to_link = if options.read_only {
+        if let Some((command, _)) = chosen
+            .iter()
+            .find(|(command, pkg)| linking_paths::awaits_target::<Sys>(pkg, bins_dir, command))
+        {
+            return Err(LinkBinsError::FrozenStoreWrite {
+                path: paths.bins_dir.join(&command.name),
+            });
+        }
+        chosen
+    } else {
+        remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?
+    };
 
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.

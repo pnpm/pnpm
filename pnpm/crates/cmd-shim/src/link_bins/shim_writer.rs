@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use super::executable::is_same_file;
 #[cfg(not(target_family = "wasm"))]
 use crate::shim::generate_sh_shim;
 #[cfg(target_family = "wasm")]
@@ -117,8 +119,36 @@ where
     if spec.options.read_only && existing_shim.is_none() {
         return Err(LinkBinsError::FrozenStoreWrite { path: spec.shim_path.to_path_buf() });
     }
+    if spec.options.read_only {
+        if is_node_bin_name(spec.shim_path) && !target_requires_shim::<Sys>(spec.probe_path) {
+            return Err(LinkBinsError::FrozenStoreWrite { path: spec.shim_path.to_path_buf() });
+        }
+        return write_shell_shim::<Sys>(
+            &spec,
+            cache,
+            existing_shim.as_deref(),
+            stale_powershell.is_some(),
+        );
+    }
 
-    if link_direct_executable::<Sys>(&spec, cache, stale_powershell.as_deref())? {
+    let preferred_shim_is_current = if spec.options.prefer_symlinked_executables {
+        match existing_shim.as_deref() {
+            Some(existing) => {
+                let runtime = spec.resolve_runtime::<Sys>(cache)?;
+                let sh_body = spec.sh_body(runtime.as_ref())?;
+                existing_shim_is_current(Some(existing), &sh_body, &spec)
+            }
+            None => false,
+        }
+    } else {
+        false
+    };
+    if link_direct_executable::<Sys>(
+        &spec,
+        cache,
+        stale_powershell.as_deref(),
+        preferred_shim_is_current,
+    )? {
         return Ok(());
     }
 
@@ -132,9 +162,19 @@ fn frozen_direct_shim_is_current<Sys>(
 where
     Sys: FsReadHead,
 {
+    #[cfg(windows)]
+    let current_windows_node_executable = is_node_bin_name(spec.shim_path)
+        && spec.target_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
+        && is_same_file(&with_extension_appended(spec.shim_path, "exe"), spec.target_path);
+    #[cfg(not(windows))]
+    let current_windows_node_executable = false;
     if !spec.options.read_only
         || spec.options.force
-        || !symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
+        || !(symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
+            || current_windows_node_executable)
     {
         return Ok(false);
     }
@@ -151,9 +191,10 @@ fn link_direct_executable<Sys>(
     spec: &ShimSpec<'_>,
     cache: &ShimTargetCache,
     stale_powershell: Option<&Path>,
+    preferred_shim_is_current: bool,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsReadToString + FsReadHead + FsEnsureExecutableBits,
+    Sys: FsReadHead + FsEnsureExecutableBits,
 {
     let linked =
         if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
@@ -166,7 +207,8 @@ where
             spec.options.prefer_symlinked_executables
                 && cfg!(any(unix, target_os = "wasi"))
                 && prepare_direct_target::<Sys>(spec, cache)?
-                && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
+                && (preferred_shim_is_current
+                    || link_symlinked_executable(spec.target_path, spec.shim_path)?)
         };
     if linked && let Some(path) = stale_powershell {
         return Err(LinkBinsError::FrozenStoreWrite { path: path.to_path_buf() });

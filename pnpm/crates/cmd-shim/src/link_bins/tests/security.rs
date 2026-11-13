@@ -1,5 +1,5 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
+    Arc, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
 };
 #[cfg(unix)]
@@ -108,6 +108,150 @@ fn frozen_relink_accepts_a_preferred_executable_symlink_without_reading_binary_c
         &LinkBinsOptions { read_only: true, ..options },
     )
     .unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn frozen_relink_rejects_a_stale_node_shim_without_replacing_it() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    let node_dir = tmp.path().join("node_modules/node");
+    create_dir_all(&node_dir).unwrap();
+    write_file(node_dir.join("node"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "node"}}).to_string(),
+    )
+    .unwrap();
+    let stale_shim = bins_dir.join("node");
+    write_file(&stale_shim, "stale node shim").unwrap();
+    let package = PackageBinSource::new(
+        node_dir,
+        Arc::new(json!({"name": "node", "version": "20.0.0", "bin": {"node": "node"}})),
+    );
+
+    let result = link_bins_of_packages::<Host>(
+        &[package],
+        &bins_dir,
+        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+    );
+
+    assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
+    assert_eq!(read_to_string(stale_shim).unwrap(), "stale node shim");
+}
+
+#[cfg(unix)]
+#[test]
+fn frozen_relink_does_not_create_a_missing_bin_directory() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let package_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&package_dir).unwrap();
+    write_file(package_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    write_file(
+        package_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    let package = PackageBinSource::new(
+        package_dir,
+        Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+    );
+
+    let result = link_bins_of_packages::<Host>(
+        &[package],
+        &bins_dir,
+        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+    );
+
+    assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
+    assert!(!bins_dir.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn frozen_relink_does_not_remove_bins_waiting_for_a_build() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    let package_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&package_dir).unwrap();
+    write_file(
+        package_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": {"foo": "generated.js"}}).to_string(),
+    )
+    .unwrap();
+    let stale_shim = bins_dir.join("foo");
+    write_file(&stale_shim, "stale shim").unwrap();
+    let package = PackageBinSource::new(
+        package_dir,
+        Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": {"foo": "generated.js"}})),
+    )
+    .with_build_pending(true);
+
+    let result = link_bins_of_packages::<Host>(
+        &[package],
+        &bins_dir,
+        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+    );
+
+    assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
+    assert_eq!(read_to_string(stale_shim).unwrap(), "stale shim");
+}
+
+#[cfg(unix)]
+#[test]
+fn preferred_executable_relinks_a_shim_with_stale_node_path() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let package_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&package_dir).unwrap();
+    write_file(package_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    write_file(
+        package_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    let package = PackageBinSource::new(
+        package_dir,
+        Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+    );
+    let previous_node_path = tmp
+        .path()
+        .join("previous-project/node_modules")
+        .display()
+        .to_string();
+
+    link_bins_of_packages::<Host>(
+        std::slice::from_ref(&package),
+        &bins_dir,
+        &LinkBinsOptions {
+            extra_node_paths: vec![previous_node_path],
+            ..LinkBinsOptions::default()
+        },
+    )
+    .unwrap();
+    let shim_path = bins_dir.join("foo");
+    let stale_shim = read_to_string(&shim_path).unwrap();
+    let preferred_options =
+        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    let result = link_bins_of_packages::<Host>(
+        std::slice::from_ref(&package),
+        &bins_dir,
+        &LinkBinsOptions { read_only: true, ..preferred_options.clone() },
+    );
+
+    assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
+    assert_eq!(read_to_string(&shim_path).unwrap(), stale_shim);
+    link_bins_of_packages::<Host>(&[package], &bins_dir, &preferred_options).unwrap();
+
+    assert!(
+        std::fs::symlink_metadata(shim_path)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
 }
 
 #[cfg(unix)]
