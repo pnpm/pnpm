@@ -75,10 +75,10 @@ testWithBash('a script run by a shell other than sh keeps environment variables 
   }
 }, 15_000)
 
-testOnPosix('a script runs when the watchdog cannot be started', () => {
+testOnPosix.each(['none', 'destroyed'])('a script runs when the watchdog cannot be started (previous watchdog: %s)', (previous) => {
   const directory = temporaryDirectory()
   try {
-    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'unavailable.mjs'), directory, 'runner'], {
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'unavailable.mjs'), directory, 'runner', previous], {
       encoding: 'utf8',
       timeout: 10_000,
     })

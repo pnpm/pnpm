@@ -474,6 +474,7 @@ function startWatchdog (): void {
   // A failed spawn still returns a stdin that cannot be passed to a child.
   if (watchdog.pid == null) {
     watchdog.on('error', () => {})
+    watchdogLifeline = undefined
     return
   }
   const lifeline = watchdog.stdin!
