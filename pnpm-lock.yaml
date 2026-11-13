@@ -3742,6 +3742,7 @@ snapshots:
 			"name": "@pnpm/installing.commands",
 			"dependencies": {
 				"@inquirer/prompts": "catalog:",
+				"@pnpm/bins.linker": "workspace:*",
 				"@pnpm/building.after-install": "workspace:*",
 				"@pnpm/building.policy": "workspace:*",
 				"@pnpm/catalogs.config": "workspace:*",

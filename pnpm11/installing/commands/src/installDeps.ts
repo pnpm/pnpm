@@ -1,15 +1,17 @@
 import path from 'node:path'
 
 import { createAllowBuildFunction, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
+import { getExtraNodePaths } from '@pnpm/bins.linker'
 import type { CommandHandler } from '@pnpm/cli.command'
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { checkDepsStatus, findDanglingDirectDependencyLink } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
-import { globalVirtualStoreBinShimsNeedRepair } from '@pnpm/installing.deps-installer'
 import {
   type DryRunInstallResult,
   IgnoredBuildsError,
+  globalVirtualStoreBinShimsNeedRepair,
+  repairGlobalVirtualStoreBinShims,
   type UpdateMatchingFunction,
 } from '@pnpm/installing.deps-installer'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -53,6 +55,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'depth'
 | 'dev'
 | 'enableGlobalVirtualStore'
+| 'extendNodePath'
 | 'frozenStore'
 | 'virtualStoreOnly'
 | 'engineStrict'
@@ -111,6 +114,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'packageExtensions'
 | 'updateConfig'
 | 'virtualStoreDirMaxLength'
+| 'hoistPattern'
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'allProjectsGraph'
@@ -222,7 +226,7 @@ export async function installDeps (
  */
 async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): Promise<boolean> {
   if (!canReportAlreadyUpToDate(opts, params)) return false
-  if (await globalVirtualStoreBinShimsArePending(opts)) return false
+  await repairGlobalVirtualStoreBinShimsIfNeeded(opts)
   if (opts.nodeLinker === 'hoisted' && (opts.hooks?.customFetchers?.length ?? 0) > 0) return false
   const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
     ...opts,
@@ -251,17 +255,26 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
   return true
 }
 
-async function globalVirtualStoreBinShimsArePending (opts: InstallDepsOptions): Promise<boolean> {
-  if (opts.frozenStore) return false
+async function repairGlobalVirtualStoreBinShimsIfNeeded (opts: InstallDepsOptions): Promise<void> {
+  if (opts.frozenStore) return
   const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
   const modules = await readModulesManifest(modulesDir)
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore || modules?.enableGlobalVirtualStore
-  if (!enableGlobalVirtualStore) return false
-  if (modules?.virtualStoreDir == null) return true
+  if (!enableGlobalVirtualStore || modules?.virtualStoreDir == null) return
   const globalVirtualStoreDir = path.resolve(modules.virtualStoreDir) === path.join(modulesDir, '.pnpm')
     ? path.join(modules.storeDir, 'links')
     : modules.virtualStoreDir
-  return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, { ...opts, enableGlobalVirtualStore })
+  if (!await globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, { ...opts, enableGlobalVirtualStore })) return
+  const extraNodePaths = getExtraNodePaths({
+    extendNodePath: opts.extendNodePath,
+    hoistPattern: opts.hoistPattern,
+    nodeLinker: opts.nodeLinker,
+    hoistedModulesDir: path.join(modulesDir, '.pnpm', 'node_modules'),
+  })
+  await repairGlobalVirtualStoreBinShims({
+    extraNodePaths,
+    virtualStoreDir: globalVirtualStoreDir,
+  }, { ...opts, enableGlobalVirtualStore })
 }
 
 function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
