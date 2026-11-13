@@ -1,12 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getSlotShimNodePathOptions, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getBinsToLink, getSlotShimNodePathOptions, linkBinsOfPackages, pruneStaleBins } from '@pnpm/bins.linker'
 import { isError } from '@pnpm/error'
 import type { DependencyManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
+import pLimit from 'p-limit'
 
 const markerName = '.pnpm-gvs-bin-shims-v1'
+const limitRootEntries = pLimit(16)
+const limitPackages = pLimit(16)
+const limitVersions = pLimit(16)
+const limitSlots = pLimit(16)
 type SlotShimNodePathOptions = ReturnType<typeof getSlotShimNodePathOptions> & { resolveSymlinks?: boolean }
 
 export async function globalVirtualStoreBinShimsNeedRepair (
@@ -36,16 +41,15 @@ export async function repairGlobalVirtualStoreBinShims (
       enableGlobalVirtualStore: true,
       extraNodePaths: ctx.extraNodePaths,
     }),
-    resolveSymlinks: false,
   }
   await Promise.all(rootEntries
     .filter((entry) => entry !== 'node_modules')
-    .map((entry) => repairRootEntry({
+    .map((entry) => limitRootEntries(() => repairRootEntry({
       rootPath: path.join(ctx.virtualStoreDir, entry),
       entry,
       slotShimNodePathOptions,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    })))
+    }))))
   await fs.promises.writeFile(markerPath, '1')
 }
 
@@ -57,20 +61,20 @@ async function repairRootEntry (opts: {
 }): Promise<void> {
   if (opts.entry === '@') {
     const packages = await readDirectories(opts.rootPath)
-    await Promise.all((packages ?? []).map((packageName) => repairPackageSlots({
+    await Promise.all((packages ?? []).map((packageName) => limitPackages(() => repairPackageSlots({
       packagePath: path.join(opts.rootPath, packageName),
       scope: '',
       ...opts,
-    })))
+    }))))
     return
   }
   if (opts.entry.startsWith('@')) {
     const packages = await readDirectories(opts.rootPath)
-    await Promise.all((packages ?? []).map((packageName) => repairPackageSlots({
+    await Promise.all((packages ?? []).map((packageName) => limitPackages(() => repairPackageSlots({
       packagePath: path.join(opts.rootPath, packageName),
       scope: opts.entry,
       ...opts,
-    })))
+    }))))
     return
   }
   await repairPackageSlots({ packagePath: opts.rootPath, scope: '', ...opts })
@@ -83,10 +87,10 @@ async function repairPackageSlots (opts: {
   preferSymlinkedExecutables?: boolean
 }): Promise<void> {
   const versions = await readDirectories(opts.packagePath)
-  await Promise.all((versions ?? []).map((version) => repairVersionSlots({
+  await Promise.all((versions ?? []).map((version) => limitVersions(() => repairVersionSlots({
     ...opts,
     versionPath: path.join(opts.packagePath, version),
-  })))
+  }))))
 }
 
 async function repairVersionSlots (opts: {
@@ -97,10 +101,10 @@ async function repairVersionSlots (opts: {
   versionPath: string
 }): Promise<void> {
   const hashes = await readDirectories(opts.versionPath)
-  await Promise.all((hashes ?? []).map((hash) => repairSlot({
+  await Promise.all((hashes ?? []).map((hash) => limitSlots(() => repairSlot({
     ...opts,
     slotPath: path.join(opts.versionPath, hash),
-  })))
+  }))))
 }
 
 async function repairSlot (opts: {
@@ -118,12 +122,19 @@ async function repairSlot (opts: {
   if (!await pathExists(packageDir)) return
 
   const packages = await readPackageBins(modulesDir)
+  const packageManifest = await readPackageManifest(packageDir)
+  const bundledDependencies = packageManifest?.bundledDependencies ?? packageManifest?.bundleDependencies
+  if (bundledDependencies === true || (Array.isArray(bundledDependencies) && bundledDependencies.length > 0)) {
+    packages.push(...await readPackageBins(path.join(packageDir, 'node_modules')))
+  }
   const binsDir = path.join(packageDir, 'node_modules/.bin')
-  await fs.promises.rm(binsDir, { recursive: true, force: true })
+  const commands = await getBinsToLink(packages)
   await linkBinsOfPackages(packages, binsDir, {
     ...opts.slotShimNodePathOptions,
+    force: true,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
+  await pruneStaleBins(binsDir, new Set(commands.map((command) => command.name)))
 }
 
 async function readPackageBins (modulesDir: string): Promise<Array<{ location: string, manifest: DependencyManifest }>> {

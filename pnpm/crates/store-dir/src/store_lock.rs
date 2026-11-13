@@ -2,7 +2,13 @@ use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::LockMode;
-use std::{fs::File, io, path::PathBuf};
+use std::{
+    fs::{File, TryLockError},
+    io,
+    path::{Path, PathBuf},
+    thread,
+    time::Duration,
+};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum StoreLockError {
@@ -81,10 +87,27 @@ fn lock_files_with_modes(
     for (path, mode) in paths {
         let file = pnpm_fs::open_secure_lock_file(&path)
             .map_err(|error| StoreLockError::Open { path: path.clone(), error })?;
-        pnpm_fs::lock_file(&file, mode).map_err(|error| StoreLockError::Acquire { path, error })?;
+        if global_mode == LockMode::Shared && mode == LockMode::Exclusive {
+            lock_store_for_update(&file, &path)?;
+        } else {
+            pnpm_fs::lock_file(&file, mode)
+                .map_err(|error| StoreLockError::Acquire { path, error })?;
+        }
         files.push(file);
     }
     Ok(StoreOperationLock { _files: files })
+}
+
+fn lock_store_for_update(file: &File, path: &Path) -> Result<(), StoreLockError> {
+    loop {
+        match pnpm_fs::try_lock_file(file, LockMode::Exclusive) {
+            Ok(()) => return Ok(()),
+            Err(TryLockError::WouldBlock) => thread::sleep(Duration::from_millis(10)),
+            Err(TryLockError::Error(error)) => {
+                return Err(StoreLockError::Acquire { path: path.to_path_buf(), error });
+            }
+        }
+    }
 }
 
 fn global_operation_lock_path() -> Result<PathBuf, StoreLockError> {

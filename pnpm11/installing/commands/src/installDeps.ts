@@ -206,7 +206,7 @@ export async function installDeps (
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
-      return installWorkspaceProjects({
+      const result = await installWorkspaceProjects({
         opts,
         allProjects,
         params,
@@ -215,9 +215,13 @@ export async function installDeps (
         store,
         runPacquet,
       })
+      await repairGlobalVirtualStoreBinShimsIfNeeded(opts)
+      return result
     }
   }
-  return installSingleProject({ opts, allProjects, store, runPacquet, includeDirect }, params)
+  const result = await installSingleProject({ opts, allProjects, store, runPacquet, includeDirect }, params)
+  await repairGlobalVirtualStoreBinShimsIfNeeded(opts)
+  return result
 }
 
 /**
@@ -256,7 +260,7 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
 }
 
 async function repairGlobalVirtualStoreBinShimsIfNeeded (opts: InstallDepsOptions): Promise<void> {
-  if (opts.frozenStore) return
+  if (opts.frozenStore || opts.lockfileOnly || opts.lockfileCheck != null || opts.dryRun) return
   const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
   const modules = await readModulesManifest(modulesDir)
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore || modules?.enableGlobalVirtualStore

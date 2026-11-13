@@ -152,6 +152,10 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     version: &str,
 ) -> miette::Result<InstalledEngine> {
     let package = registry_engine_packages(pm, version)?;
+    pnpm_package_manager::ensure_global_virtual_store_bin_shims(config, config.node_linker)
+        .wrap_err(
+            "repair global virtual store bin shims before locking the package-manager store",
+        )?;
     let _store_lock =
         config.store_dir.lock_for_use().wrap_err("lock the package-manager engine store")?;
     // An engine already in its slot, with its bins linked, skips both the

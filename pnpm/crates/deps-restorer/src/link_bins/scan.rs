@@ -2,7 +2,7 @@ use super::{GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER, LinkVirtualStoreBinsError};
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
     FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    link_bins, link_bins_of_packages,
+    collect_packages_in_modules_dir, link_bins, link_bins_of_packages,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
@@ -107,24 +107,36 @@ fn repair_slot(
     match Host::read_dir(&package_dir) {
         Ok(_) => {
             let bins_dir = package_dir.join("node_modules/.bin");
-            match fs::remove_dir_all(&bins_dir) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(LinkVirtualStoreBinsError::UpdateVirtualStore {
-                        path: bins_dir,
-                        error,
-                    });
-                }
-            }
             link_bins::<Host>(&modules_dir, &bins_dir, link_options)
-                .map_err(LinkVirtualStoreBinsError::LinkBins)
+                .map_err(LinkVirtualStoreBinsError::LinkBins)?;
+            if read_package::<Host>(&package_dir)
+                .map_err(LinkVirtualStoreBinsError::LinkBins)?
+                .as_ref()
+                .is_some_and(has_bundled_dependencies)
+            {
+                let bundled_packages =
+                    collect_packages_in_modules_dir::<Host>(&package_dir.join("node_modules"))
+                        .map_err(LinkVirtualStoreBinsError::LinkBins)?;
+                link_bins_of_packages::<Host>(&bundled_packages, &bins_dir, link_options)
+                    .map_err(LinkVirtualStoreBinsError::LinkBins)?;
+            }
+            Ok(())
         }
         Err(error) if is_missing_directory_error(&error) => Ok(()),
         Err(error) => {
             Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: package_dir.clone(), error })
         }
     }
+}
+
+fn has_bundled_dependencies(package: &PackageBinSource) -> bool {
+    ["bundledDependencies", "bundleDependencies"]
+        .iter()
+        .any(|field| {
+            package.manifest
+                .get(field)
+                .is_some_and(|value| !value.is_null() && value != false)
+        })
 }
 
 fn is_missing_directory_error(error: &io::Error) -> bool {

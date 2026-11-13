@@ -1,6 +1,11 @@
 use super::{StoreDir, global_operation_lock_path, operation_lock_path};
 use pnpm_fs::LockMode;
-use std::fs::{File, TryLockError};
+use std::{
+    fs::{File, TryLockError},
+    sync::mpsc,
+    thread,
+    time::Duration,
+};
 use tempfile::tempdir;
 
 fn temp_store(root: &tempfile::TempDir) -> StoreDir {
@@ -54,6 +59,45 @@ fn store_updates_exclude_consumers_of_that_store() {
 
     drop(update);
     store.lock_for_use().unwrap();
+}
+
+#[test]
+fn waiting_store_update_does_not_block_new_consumers() {
+    let root = tempdir().unwrap();
+    let store_path = root.path().join("store/v11");
+    let store = StoreDir::new(&store_path);
+    let existing_consumer = store.lock_for_use().unwrap();
+    let updater_path = store_path.clone();
+    let (update_started, update_started_rx) = mpsc::channel();
+    let update = thread::spawn(move || {
+        update_started.send(()).unwrap();
+        StoreDir::new(updater_path).lock_for_update()
+    });
+    update_started_rx.recv().unwrap();
+    thread::sleep(Duration::from_millis(50));
+
+    let reader_path = store_path;
+    let (reader_finished, reader_finished_rx) = mpsc::channel();
+    let reader = thread::spawn(move || {
+        let result = StoreDir::new(reader_path).lock_for_use();
+        reader_finished.send(result.is_ok()).unwrap();
+    });
+    let reader_unblocked_early = reader_finished_rx
+        .recv_timeout(Duration::from_millis(100))
+        .ok();
+
+    drop(existing_consumer);
+    assert!(update.join().unwrap().is_ok());
+    assert!(reader_unblocked_early.unwrap_or_else(|| {
+        reader_finished_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+    }));
+    reader.join().unwrap();
+    assert!(
+        reader_unblocked_early.is_some(),
+        "a waiting store update must not block new consumers"
+    );
 }
 
 #[test]

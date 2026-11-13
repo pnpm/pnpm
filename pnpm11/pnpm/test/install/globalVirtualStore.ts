@@ -97,6 +97,36 @@ test('reused global virtual store bin shims are repaired once per store', async 
   expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
 })
 
+test('repairing global virtual store bin shims preserves bundled dependency bins', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-bundled-dependencies': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+  })
+  await execPnpm(['install'])
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-bundled-dependencies/1.0.0')
+  const [hash] = fs.readdirSync(versionDir)
+  const packageDir = path.join(
+    versionDir,
+    hash!,
+    'node_modules/@pnpm.e2e/pkg-with-bundled-dependencies'
+  )
+  const binsDir = path.join(packageDir, 'node_modules/.bin')
+  fs.rmSync(binsDir, { recursive: true, force: true })
+  fs.writeFileSync(path.join(globalVirtualStoreDir, '.pnpm-gvs-bin-shims-v1'), '0')
+
+  await execPnpm(['install'])
+
+  expect(fs.existsSync(path.join(binsDir, 'hello-world-js-bin'))).toBe(true)
+})
+
 test('frozenStore does not fail while a global virtual store bin shim needs repair', async () => {
   prepare({
     dependencies: {

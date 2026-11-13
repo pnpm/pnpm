@@ -120,6 +120,7 @@ pub(super) fn project_dependency_groups(mut groups: Vec<DependencyGroup>) -> Vec
     groups
 }
 
+pub use repair_global_virtual_store_bin_shims::ensure_global_virtual_store_bin_shims;
 mod repair_global_virtual_store_bin_shims;
 mod run;
 mod workspace_state;

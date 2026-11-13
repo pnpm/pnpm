@@ -297,6 +297,40 @@ fn reused_global_virtual_store_bin_shims_are_repaired_once_per_store() {
 }
 
 #[test]
+fn global_virtual_store_bin_shim_repair_keeps_bundled_dependency_bins() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "nodeLinker: isolated\n");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pkg-with-bundled-dependencies": "1.0.0" }),
+    );
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-bundled-dependencies", "1.0.0");
+    let package =
+        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pkg-with-bundled-dependencies");
+    let bins_dir = package.join("node_modules/.bin");
+    fs::remove_dir_all(&bins_dir).expect("remove bundled dependency bins");
+    fs::write(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1"), "0")
+        .expect("write an incomplete migration marker");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(bins_dir.join("hello-world-js-bin").is_file());
+    drop((root, mock_instance));
+}
+
+#[test]
 fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -327,7 +361,7 @@ fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
     let migration_marker = gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1");
     assert_ne!(stale_shim, shim, "the fixture contains a shim path assignment");
     fs::write(&shim_path, &stale_shim).expect("write a legacy shim");
-    assert_eq!(fs::read(&migration_marker).unwrap(), b"1");
+    fs::write(&migration_marker, "0").expect("write an incomplete migration marker");
 
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -335,7 +369,7 @@ fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
         .success();
 
     assert_eq!(fs::read_to_string(&shim_path).expect("read dependency bin shim"), stale_shim);
-    assert_eq!(fs::read(&migration_marker).unwrap(), b"1");
+    assert_eq!(fs::read(&migration_marker).unwrap(), b"0");
     drop((root, mock_instance));
 }
 
