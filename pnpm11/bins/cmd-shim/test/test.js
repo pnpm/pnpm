@@ -509,6 +509,18 @@ fi
     assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
     assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
   })
+
+  test('rejects an additional NODE_PATH export', () => {
+    const shim = `
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH='/shared/node_modules'
+else
+  export NODE_PATH='/shared/node_modules':"$NODE_PATH"
+fi
+export NODE_PATH='/project/node_modules'
+`
+    assert.equal(isShimNodePath(shim, { first: '/shared/node_modules' }), false)
+  })
 })
 
 describe('readShRelativeTarget', () => {
