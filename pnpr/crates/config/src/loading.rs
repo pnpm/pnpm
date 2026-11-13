@@ -1,14 +1,11 @@
 use super::{
     Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
-    HostedStoreConfig, Management, Path, PathBuf, RegistryError, RoutingConfig, SocketAddr,
+    GraphSource, HostedStoreConfig, Path, PathBuf, RegistryError, RoutingConfig, SocketAddr,
     SystemEnv, build_features, build_identity_config, build_log_config, build_osv_config,
     config_file_in, http_config::build_http_config, parse_allowed_private_networks,
     resolve_secrets, resolve_storage_paths,
 };
-use crate::{
-    DocumentOrigin, RegistryGraphDocument, RoutingOptions, config_file::RegistryFile,
-    graph_document::is_env_name,
-};
+use crate::{RegistryGraphDocument, RoutingOptions, graph_document::is_env_name};
 
 impl Config {
     /// Load YAML from `path`. `listen` and `public_url` override the file's
@@ -209,20 +206,12 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let registries_managed_by = file.registries_managed_by;
-        let registry_env =
-            build_registry_env(registries_managed_by, std::mem::take(&mut file.registry_env))?;
-        if registries_managed_by == Management::Api {
-            reject_file_graph(&file)?;
-        }
-        let hosts_packages = (registries_managed_by == Management::Api
-            || declares_a_hosted_registry(&file))
-            && !overrides.disable_registry;
-        let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
+        let registry_env = build_registry_env(std::mem::take(&mut file.registry_env))?;
+        reject_file_graph(&file)?;
+        let storage = build_storage_config(&mut file, base_dir, !overrides.disable_registry)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = super::backend_config::build_backend_config(&storage.metadata);
-        let (routing, features) =
-            build_routing_and_features(&mut file, registries_managed_by, overrides)?;
+        let (routing, features) = build_routing_and_features(&mut file, &registry_env, overrides)?;
         let secrets = resolve_secrets(file.secret.as_ref())?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),
@@ -236,7 +225,7 @@ impl Config {
             identity: build_identity_config(&file.auth, backend)?,
             features,
             routing,
-            registries_managed_by,
+            graph_source: GraphSource::Database,
             registry_env,
             release_records: super::build_release_records_config(file.release_records.take())?,
             gc: super::build_gc_config(file.gc.take())?,
@@ -244,18 +233,8 @@ impl Config {
     }
 }
 
-/// `registryEnv`, which only a graph stored in the database reads.
-fn build_registry_env(
-    managed_by: Management,
-    registry_env: Vec<String>,
-) -> Result<Vec<String>, RegistryError> {
-    if !registry_env.is_empty() && managed_by != Management::Api {
-        return Err(RegistryError::InvalidConfig {
-            reason: "`registryEnv` lists variables for a registry graph stored in the database; \
-                     it requires `registriesManagedBy: api`"
-                .to_string(),
-        });
-    }
+/// `registryEnv`: the variables the stored registry graph may reference.
+fn build_registry_env(registry_env: Vec<String>) -> Result<Vec<String>, RegistryError> {
     if let Some(name) = registry_env
         .iter()
         .find(|name| !is_env_name(name))
@@ -267,11 +246,11 @@ fn build_registry_env(
     Ok(registry_env)
 }
 
-/// With `registriesManagedBy: api` the database holds the graph, so the file
-/// must not declare one that would be silently ignored.
+/// The metadata database holds the registry graph, so the file must not
+/// declare one that would be silently ignored.
 fn reject_file_graph(file: &ConfigFile) -> Result<(), RegistryError> {
     let declared = [
-        ("registries", !file.registries.is_empty()),
+        ("registries", file.registries.is_some()),
         ("defaultRegistry", file.default_registry.is_some()),
         (
             "routes.public",
@@ -283,8 +262,8 @@ fn reject_file_graph(file: &ConfigFile) -> Result<(), RegistryError> {
     if let Some((key, _)) = declared.iter().find(|(_, present)| *present) {
         return Err(RegistryError::InvalidConfig {
             reason: format!(
-                "`{key}` is managed through the admin API because of `registriesManagedBy: api`; \
-                 import it with `pnpr registries import`",
+                "`{key}` is not read from the config file: the registries live in the \
+                 metadata database; import them with `pnpr registries import`",
             ),
         });
     }
@@ -301,19 +280,12 @@ fn reject_file_graph(file: &ConfigFile) -> Result<(), RegistryError> {
     if let Some(entry) = team_reference {
         return Err(RegistryError::InvalidConfig {
             reason: format!(
-                "`artifacts.owners` names {entry:?}, but registry teams live in the database \
-                 with `registriesManagedBy: api`; list account IDs instead",
+                "`artifacts.owners` names {entry:?}, but registry teams live in the metadata \
+                 database; list account IDs instead",
             ),
         });
     }
     Ok(())
-}
-
-/// Whether the config declares a registry with package metadata of its own.
-fn declares_a_hosted_registry(file: &ConfigFile) -> bool {
-    file.registries
-        .values()
-        .any(|registry| matches!(registry, RegistryFile::Hosted(_)))
 }
 
 fn build_storage_config(
@@ -343,29 +315,28 @@ pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
     crate::secret::parse_with_env::<Sys, ConfigFile>(raw)
 }
 
+/// The empty registry graph with the file's `routes.allowedPrivateNetworks`,
+/// which the server replaces with the stored graph, and the features.
 fn build_routing_and_features(
     file: &mut ConfigFile,
-    managed_by: Management,
+    registry_env: &[String],
     overrides: FeatureOverrides,
 ) -> Result<(RoutingConfig, super::Features), RegistryError> {
-    let registry_declared = managed_by == Management::Api || !file.registries.is_empty();
-    let routes = file.routes.take();
-    let (public, networks) = routes
-        .map(|routes| (routes.public, routes.allowed_private_networks))
+    let networks = file.routes
+        .take()
+        .map(|routes| routes.allowed_private_networks)
         .unwrap_or_default();
-    let document = RegistryGraphDocument::from_file_parts(
-        std::mem::take(&mut file.registries),
-        file.default_registry.take(),
-        public,
-    );
     let options = RoutingOptions {
-        origin: DocumentOrigin::File,
+        registry_env,
         allowed_private_networks: parse_allowed_private_networks(&networks)?,
-        resolve_upstreams: registry_declared && !overrides.disable_registry,
+        resolve_upstreams: !overrides.disable_registry,
     };
-    let routing = RoutingConfig::build_from_document::<SystemEnv>(document, &options)?;
+    let routing = RoutingConfig::build_from_document::<SystemEnv>(
+        RegistryGraphDocument::default(),
+        &options,
+    )?;
     let features = build_features(
-        registry_declared,
+        true,
         file.resolver.take(),
         file.artifacts.take(),
         file.pipeline.take(),

@@ -70,7 +70,7 @@ use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_sql::DialectSql;
 use std::{
     path::Path,
-    sync::{Arc, Mutex, OnceLock, PoisonError, atomic::AtomicBool},
+    sync::{Arc, Mutex, OnceLock, PoisonError},
     time::Instant,
 };
 use transactions::Freshness;
@@ -88,8 +88,6 @@ pub struct SqlMetadata {
     schema_check: Mutex<()>,
     schema_monitor: schema_monitor::SchemaMonitor,
     cache: cache::RenderCache,
-    /// Whether publishes into a retired hosted namespace are refused.
-    refuses_retired: AtomicBool,
 }
 
 /// Which package a statement addresses.
@@ -193,7 +191,6 @@ impl SqlMetadata {
             schema_check: Mutex::new(()),
             schema_monitor: schema_monitor::SchemaMonitor::default(),
             cache: cache::RenderCache::default(),
-            refuses_retired: AtomicBool::new(false),
         }
     }
 
@@ -311,7 +308,6 @@ impl SqlMetadata {
         fence: BlobFence,
     ) -> Result<PublicationCommit> {
         let namespace = namespace.to_string();
-        let retired = self.retired();
         self.write(move |connection| {
             let submission = publish::Submission {
                 namespace: &namespace,
@@ -320,7 +316,7 @@ impl SqlMetadata {
                 notes: &notes,
                 request: request.as_ref(),
                 fence: &fence,
-                retired,
+                retired: batch::Retired::Refused,
             };
             publish::commit_publication(connection, &submission)
         })

@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use pnpm_diagnostics::{print, println};
-use pnpr_config::{Management, RegistryGraphChanges, RegistryGraphDocument};
+use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument};
 use pnpr_storage::{
     Storage,
     metadata::{NewRegistryGraph, RegistryGraphWrite},
@@ -19,20 +19,47 @@ use pnpr_storage::{
 use std::path::Path;
 
 pub(crate) async fn run(config: &Config, action: RegistriesSubcommand) -> miette::Result<()> {
-    if config.registries_managed_by != Management::Api {
-        return Err(miette::miette!(
-            "the registries are declared in the config file; `pnpr registries` needs \
-             `registriesManagedBy: api`",
-        ));
-    }
     let result = match action {
-        RegistriesSubcommand::Export { out } => export(config, out.as_deref()).await,
-        RegistriesSubcommand::Import { file, dry_run } => import(config, &file, dry_run).await,
+        RegistriesSubcommand::Export { out } => {
+            export(config, out.as_deref()).await.map(|()| Imported::Done)
+        }
+        RegistriesSubcommand::Import { file, dry_run, check } => {
+            let mode = match (dry_run, check) {
+                (_, true) => ImportMode::Check,
+                (true, false) => ImportMode::DryRun,
+                (false, false) => ImportMode::Store,
+            };
+            import(config, &file, mode).await
+        }
     };
-    result.map_err(|err| {
-        let message = err.log_message();
-        miette::miette!("{message}")
-    })
+    match result {
+        Ok(Imported::Done) => Ok(()),
+        Ok(Imported::Differs) => {
+            Err(miette::miette!("the stored registries differ from the file",))
+        }
+        Err(err) => {
+            let message = err.log_message();
+            Err(miette::miette!("{message}"))
+        }
+    }
+}
+
+/// What `pnpr registries import` does with a checked file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportMode {
+    /// Store it as the next revision.
+    Store,
+    /// Report what storing it would change.
+    DryRun,
+    /// Report what differs, and fail when anything does.
+    Check,
+}
+
+/// The outcome of an import that did not fail.
+enum Imported {
+    Done,
+    /// [`ImportMode::Check`] found the stored registries differ.
+    Differs,
 }
 
 async fn export(config: &Config, out: Option<&Path>) -> Result<(), RegistryError> {
@@ -47,7 +74,7 @@ async fn export(config: &Config, out: Option<&Path>) -> Result<(), RegistryError
     Ok(())
 }
 
-async fn import(config: &Config, file: &Path, dry_run: bool) -> Result<(), RegistryError> {
+async fn import(config: &Config, file: &Path, mode: ImportMode) -> Result<Imported, RegistryError> {
     let next = read_document(file).await?;
     let storage = Storage::from_config(&config.storage)?;
     let stored = storage.read_registry_graph().await?;
@@ -55,18 +82,23 @@ async fn import(config: &Config, file: &Path, dry_run: bool) -> Result<(), Regis
     let previous = stored_document(stored.as_ref())?;
     let checked = check_revision(config, &storage, &previous, &next, Credentials::Skip).await?;
     let changes = next.changes_since(&previous);
-    if dry_run {
-        println!("Would change: {}", describe(&changes));
-        return Ok(());
-    }
-    if changes.is_empty() {
+    if changes.is_empty() && mode != ImportMode::DryRun {
         println!("Version {} already holds these registries.", graph_version(current));
-        return Ok(());
+        return Ok(Imported::Done);
     }
-    let import = Import { current, document: &next, hosted: &checked.hosted };
-    let version = store_import(&storage, import).await?;
-    println!("Stored version {version}: {}", describe(&changes));
-    Ok(())
+    match mode {
+        ImportMode::DryRun => println!("Would change: {}", describe(&changes)),
+        ImportMode::Check => {
+            println!("Would change: {}", describe(&changes));
+            return Ok(Imported::Differs);
+        }
+        ImportMode::Store => {
+            let import = Import { current, document: &next, hosted: &checked.hosted };
+            let version = store_import(&storage, import).await?;
+            println!("Stored version {version}: {}", describe(&changes));
+        }
+    }
+    Ok(Imported::Done)
 }
 
 async fn read_document(file: &Path) -> Result<RegistryGraphDocument, RegistryError> {

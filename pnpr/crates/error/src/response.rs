@@ -114,9 +114,6 @@ impl RegistryError {
 
     fn admin_log_kind(&self) -> Option<&'static str> {
         match self {
-            RegistryError::TeamsConfigManaged { .. } => Some("teams_config_managed"),
-            RegistryError::RulesConfigManaged => Some("rules_config_managed"),
-            RegistryError::RegistriesConfigManaged => Some("registries_config_managed"),
             RegistryError::RegistriesUnavailable => Some("registries_unavailable"),
             RegistryError::PreconditionFailed { .. } => Some("precondition_failed"),
             RegistryError::AdminConflict { .. } => Some("admin_conflict"),
@@ -278,9 +275,6 @@ impl RegistryError {
             RegistryError::Unauthenticated { .. } => Some(StatusCode::UNAUTHORIZED),
             RegistryError::Forbidden { .. }
             | RegistryError::PublishRejected { .. }
-            | RegistryError::TeamsConfigManaged { .. }
-            | RegistryError::RulesConfigManaged
-            | RegistryError::RegistriesConfigManaged
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. }

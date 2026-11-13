@@ -15,10 +15,10 @@ pub use byte_size::{ByteSize, parse_byte_size};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use graph_document::{
-    DocumentOrigin, HostedStorage, PackageLists, RegistryGraphChanges, RegistryGraphDocument,
-    RoutingOptions, RuleLists,
+    HostedStorage, PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingOptions,
+    RuleLists,
 };
-pub use hosted::{HostedConfig, Management};
+pub use hosted::{GraphSource, HostedConfig};
 pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
@@ -133,6 +133,10 @@ use std::{
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
 
+/// The registry graph the server stores on first start, when the metadata
+/// database holds none.
+pub const DEFAULT_REGISTRIES_YAML: &str = include_str!("../registries.yaml");
+
 /// Where the live [`Config`] came from. Returned alongside
 /// [`Config::resolve`] so the binary can log the resolved source
 /// (path or "bundled") after the tracing subscriber is up.
@@ -187,13 +191,11 @@ pub struct Config {
     pub identity: IdentityConfig,
     pub features: Features,
     pub routing: RoutingConfig,
-    /// Whether the config file or the metadata database holds the registry
-    /// graph. With [`Management::Api`], [`Self::routing`] is the empty graph and
-    /// the server serves the stored one.
-    pub registries_managed_by: Management,
+    /// Where the server takes [`Self::routing`] from. A loaded config file
+    /// starts with the empty graph and the server loads the stored one.
+    pub graph_source: GraphSource,
     /// The environment variables a stored registry graph may reference
-    /// (`registryEnv`). Empty unless [`Self::registries_managed_by`] is
-    /// [`Management::Api`].
+    /// (`registryEnv`).
     pub registry_env: Vec<String>,
     /// How the release records of hosted versions are logged.
     pub release_records: ReleaseRecordsConfig,
@@ -216,7 +218,7 @@ impl std::fmt::Debug for Config {
             .field("identity", &self.identity)
             .field("features", &self.features)
             .field("routing", &self.routing)
-            .field("registries_managed_by", &self.registries_managed_by)
+            .field("graph_source", &self.graph_source)
             .field("registry_env", &self.registry_env)
             .field("release_records", &self.release_records)
             .field("gc", &self.gc)

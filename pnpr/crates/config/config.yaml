@@ -72,22 +72,6 @@ auth:
     # (registration disabled); set a non-negative cap to allow registration.
     maxUsers: -1
 
-# Registries: upstream npm proxy and local hosted storage.
-registries:
-  # The public npm registry. Proxies and caches upstream packages.
-  npmjs:
-    type: upstream
-    url: https://registry.npmjs.org/
-    public: true
-
-  # Hosted registry for private packages, addressable at `/~local/`.
-  local:
-    type: hosted
-    access: $authenticated
-
-# The path-less base URL (`https://<pnpr>/`) proxies the public npm registry.
-defaultRegistry: npmjs
-
 # Log settings.
 log:
   format: pretty

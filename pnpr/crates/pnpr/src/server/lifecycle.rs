@@ -12,7 +12,7 @@ use super::{
     registry_graph::{Credentials, FileReferences},
     shutdown_signal, state_and_router,
 };
-use pnpr_config::{Management, RoutingConfig};
+use pnpr_config::{GraphSource, RoutingConfig};
 
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
 /// tier skips the database because artifact requests do not use OSV data.
@@ -32,9 +32,9 @@ pub(super) fn load_active_osv_index(
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
 ///
-/// With `registriesManagedBy: api`, a stored graph that cannot be loaded does
-/// not stop it: the store is bound all the same, and only the log reconcile,
-/// which walks the hosted registries, is skipped.
+/// A stored graph that cannot be loaded does not stop it: the store is bound
+/// all the same, and only the log reconcile, which walks the hosted
+/// registries, is skipped.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
     crate::config_validation::validate_cache_secret_for_claim(config)?;
     let storage = Storage::from_config(&config.storage)?;
@@ -49,11 +49,8 @@ pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
             // A stored graph can gain a hosted registry while this replica
             // runs, so the store is bound to the database even while it
             // declares none.
-            let may_host = loaded.registries_managed_by == Management::Api;
-            if may_host || !loaded.routing.hosted.is_empty() {
-                storage.ensure_hosted_layout().await?;
-                super::release_record_logs::reconcile_configured_logs(&storage, &loaded).await?;
-            }
+            storage.ensure_hosted_layout().await?;
+            super::release_record_logs::reconcile_configured_logs(&storage, &loaded).await?;
         }
         Err(err) => {
             tracing::warn!(
@@ -168,9 +165,6 @@ async fn sweep_archive_temp_bases(
 /// Remove release archives staged for a publish that never claimed them
 /// before they expired, now and then every hour while the server runs.
 async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
-    if !may_stage_archives(config) {
-        return Ok(());
-    }
     let storage = Storage::from_config(&config.storage)?;
     report_staged_archive_sweep(storage.sweep_staged_archives().await?);
     tokio::spawn(async move {
@@ -185,13 +179,6 @@ async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()
         }
     });
     Ok(())
-}
-
-/// Whether this server can receive staged release archives: it hosts a
-/// registry, or its stored graph can gain one at any time. An upstream-only
-/// proxy sharing the store leaves the archives to the replicas that host.
-fn may_stage_archives(config: &Config) -> bool {
-    config.registries_managed_by == Management::Api || !config.routing.hosted.is_empty()
 }
 
 fn report_staged_archive_sweep(swept: usize) {
@@ -261,12 +248,17 @@ async fn load_startup_auth(config: &Config, graph: StartupGraph) -> pnpr_error::
     Ok(auth)
 }
 
-/// With `registriesManagedBy: api`, start from the stored graph, so the
-/// startup work over the hosted registries sees them. A graph that cannot be
-/// loaded leaves the replica serving none until a reload succeeds.
+/// Start from the stored graph, seeding the default one into an empty
+/// database, so the startup work over the hosted registries sees them. A graph
+/// that cannot be loaded leaves the replica serving none until a reload
+/// succeeds.
 async fn load_stored_graph(config: &mut Config) -> StartupGraph {
-    if config.registries_managed_by != Management::Api {
-        return StartupGraph::File;
+    if config.graph_source == GraphSource::Supplied {
+        return StartupGraph::Supplied;
+    }
+    if let Err(err) = seed(config).await {
+        tracing::error!(error = %err, "could not store the default registries");
+        return StartupGraph::Unavailable;
     }
     match super::registry_graph::load_stored_routing(
         config,
@@ -295,11 +287,16 @@ fn adopt_startup_graph(state: &AppState, graph: StartupGraph) {
     }
 }
 
+async fn seed(config: &Config) -> Result<(), pnpr_error::RegistryError> {
+    let storage = Storage::from_config(&config.storage)?;
+    super::registry_graph::seed_default_graph(&storage).await
+}
+
 /// Whether startup holds the registry graph the server will serve.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StartupGraph {
-    /// The config file declares the graph.
-    File,
+    /// The embedder supplied the graph in code.
+    Supplied,
     /// The stored graph of `generation` loaded.
     Stored { generation: Option<u64> },
     /// The stored graph could not be loaded; startup work that walks the

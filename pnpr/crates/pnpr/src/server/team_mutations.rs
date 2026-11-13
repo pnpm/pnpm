@@ -7,7 +7,7 @@ use super::{
     require_caller,
 };
 use axum::{body::Bytes, response::IntoResponse};
-use pnpr_config::{Management, validate_member_name, validate_team_name};
+use pnpr_config::{validate_member_name, validate_team_name};
 use serde::Deserialize;
 
 /// The registry and scope a team mutation addresses.
@@ -177,9 +177,6 @@ fn admin_roster(
 ) -> Result<String, RegistryError> {
     let routing = state.routing();
     let (registry, _) = team_registry(state, &routing, identity, target.registry, target.scope)?;
-    if state.inner.config.registries_managed_by == Management::Config {
-        return Err(RegistryError::TeamsConfigManaged { action });
-    }
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
     require_caller(identity, &format!("@{scope}"))?;
     require_access_admin(state, identity, action, format!("on @{scope}"))?;

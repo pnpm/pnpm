@@ -131,8 +131,12 @@ pub enum RegistriesSubcommand {
         /// `routes.public` keys.
         file: PathBuf,
         /// Check the file and report what would change without storing it.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "check")]
         dry_run: bool,
+        /// Compare the file with the stored registries without storing it,
+        /// and exit with code 1 when they differ.
+        #[arg(long)]
+        check: bool,
     },
 }
 

@@ -3,7 +3,7 @@ use super::{
     registry_graph::{GraphState, reload_graph},
     scim::{ScimState, reload_directory},
 };
-use pnpr_config::Management;
+use pnpr_config::GraphSource;
 use std::{
     future::Future,
     sync::{
@@ -49,7 +49,7 @@ pub(super) struct ManagedState {
 
 impl ManagedState {
     pub(super) fn new(config: &Config) -> Self {
-        let graph = (config.registries_managed_by == Management::Api).then(GraphState::new);
+        let graph = (config.graph_source == GraphSource::Database).then(GraphState::new);
         let scim = config.identity.auth.scim.as_ref().map(|_| ScimState::default());
         Self {
             graph,

@@ -148,15 +148,6 @@ pub enum RegistryError {
         resource: String,
     },
 
-    /// A team mutation (create/destroy/add/rm) hit the npm team API while the
-    /// configuration file declares the registries. Maps to 403.
-    #[display(
-        "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
-         registry operator to update the config or set `registriesManagedBy: api`"
-    )]
-    #[from(skip)]
-    TeamsConfigManaged { action: &'static str },
-
     /// A conditional write whose `If-Match` names a version the resource no
     /// longer has. Maps to 412.
     #[display("{resource} changed since version {expected}; read it again and repeat the change")]
@@ -166,24 +157,6 @@ pub enum RegistryError {
         resource: String,
         expected: String,
     },
-
-    /// A rules edit hit the admin API while the configuration file declares
-    /// the registries. Maps to 403.
-    #[display(
-        "The package rules of this registry are declared in the pnpr configuration; to change \
-         them, ask the registry operator to update the config or set `registriesManagedBy: api`"
-    )]
-    #[from(skip)]
-    RulesConfigManaged,
-
-    /// A registry admin endpoint was called while the configuration file
-    /// declares the registries. Maps to 403.
-    #[display(
-        "The registries are declared in the pnpr configuration; set `registriesManagedBy: api` \
-         to manage them through the admin API"
-    )]
-    #[from(skip)]
-    RegistriesConfigManaged,
 
     /// This replica has no registry graph it may serve: the stored graph was
     /// never loaded, or could not be read for longer than the stale limit.

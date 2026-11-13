@@ -17,7 +17,7 @@ use super::{
     team_mutations::{TeamScope, respond},
 };
 use axum::body::Bytes;
-use pnpr_config::{HostedConfig, Management, RegistryGraphDocument, RuleLists};
+use pnpr_config::{HostedConfig, RegistryGraphDocument, RuleLists};
 use pnpr_policy::{PackageRule, RuleTable};
 use pnpr_registry::{Ecosystem, PackagePattern};
 use serde::Deserialize;
@@ -171,9 +171,6 @@ fn managed_team(
     let routing = state.routing();
     let (registry, hosted) =
         team_registry(state, &routing, identity, target.registry, target.scope)?;
-    if state.inner.config.registries_managed_by == Management::Config {
-        return Err(RegistryError::RulesConfigManaged);
-    }
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
     require_access_admin(state, identity, action, format!("@{scope}:{team}"))?;
     if !holds_team(hosted, team) {

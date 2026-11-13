@@ -74,7 +74,7 @@ fn the_own_host_at_another_origin_is_fetchable_only_with_registries_in_the_confi
         let config = config(&format!("http://{host}:4873"), &[other.as_str()], &[]);
         let file = RouteContext::from_config(&config);
         assert!(file.allows_fetch(&format!("{other}foo")), "file mode fetches {other}");
-        let stored = RouteContext::from_config(&config).with_registries_in_database();
+        let stored = RouteContext::from_config(&config);
         assert!(stored.allows_registry(&other), "{other} is on the allowlist");
         assert!(!stored.allows_fetch(&format!("{other}foo")), "fetched stored {other}");
         assert!(!stored.allows_route_host(&other), "{other} as a stored public route");
@@ -87,7 +87,7 @@ fn stored_destinations_never_reach_the_own_host_at_another_origin() {
     for host in ["127.0.0.1", "localhost", "104.16.0.5"] {
         let own = format!("http://{host}:4873");
         let config = config(&own, &[], &["127.0.0.0/8"]);
-        let stored = RouteContext::from_config(&config).with_registries_in_database();
+        let stored = RouteContext::from_config(&config);
         for url in [format!("{own}/pkg"), format!("http://{host}:9000/pkg")] {
             assert!(!stored.allows_stored_upstream_url(&url), "stored upstream {url}");
         }
@@ -102,7 +102,7 @@ fn a_public_ip_public_url_is_reached_only_at_its_origin() {
     let own: std::net::IpAddr = "104.16.0.5".parse().unwrap();
     let config = config("http://104.16.0.5:4873", &[], &[]);
     let file = RouteContext::from_config(&config);
-    let stored = RouteContext::from_config(&config).with_registries_in_database();
+    let stored = RouteContext::from_config(&config);
     assert!(file.allows_address("alias.example", own), "file mode is unchanged");
     assert!(!stored.allows_address("alias.example", own), "another name for the own address");
     assert!(stored.allows_address("104.16.0.5", own), "the hosted-package fetch");
@@ -120,8 +120,7 @@ fn an_ipv4_mapped_spelling_of_the_own_address_is_the_own_host() {
         ("http://[::ffff:104.16.0.5]:4873", "http://104.16.0.5:9000/", plain),
     ];
     for (own, other_port, address) in spellings {
-        let stored =
-            RouteContext::from_config(&config(own, &[], &[])).with_registries_in_database();
+        let stored = RouteContext::from_config(&config(own, &[], &[]));
         assert!(stored.is_own_host(other_port), "{own}: {other_port}");
         assert!(!stored.allows_stored_upstream_url(other_port), "{own}: {other_port}");
         assert!(!stored.allows_stored_upstream_address(address), "{own}: {address}");
@@ -137,8 +136,7 @@ fn a_terminal_dot_does_not_make_another_host() {
         ("http://registry.corp.example.:4873", "http://Registry.Corp.Example:9000/"),
     ];
     for (own, other_port) in spellings {
-        let stored =
-            RouteContext::from_config(&config(own, &[], &[])).with_registries_in_database();
+        let stored = RouteContext::from_config(&config(own, &[], &[]));
         assert!(stored.is_own_host(other_port), "{own}: {other_port}");
         assert!(!stored.allows_stored_upstream_url(other_port), "{own}: {other_port}");
         assert!(!stored.allows_route_host(other_port), "{own}: route {other_port}");

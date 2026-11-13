@@ -3,7 +3,7 @@ use super::super::{
 };
 use indexmap::IndexMap;
 use pnpm_network::{AddressGuard, RedirectGuard};
-use pnpr_config::{Config, Management, RoutingConfig, UpstreamConfig};
+use pnpr_config::{Config, RoutingConfig, UpstreamConfig};
 use pnpr_route::RouteContext;
 use reqwest::header::HeaderMap;
 use std::{
@@ -94,9 +94,7 @@ pub(crate) fn build_snapshot(
         .map(|(name, upstream)| (name.clone(), UpstreamClientKey::of(upstream)))
         .collect();
     let upstream_clients = if config.features.registry.enabled {
-        let sources =
-            ClientSources { previous, guard_context, managed_by: config.registries_managed_by };
-        upstream_clients(&routing, &client_keys, &sources)
+        upstream_clients(&routing, &client_keys, previous, guard_context)
     } else {
         IndexMap::new()
     };
@@ -108,11 +106,7 @@ pub(crate) fn build_snapshot(
             (name.clone(), namespace)
         })
         .collect();
-    let route_context = RouteContext::from_routing(&routing, &config.http.public_url);
-    let route_context = Arc::new(match config.registries_managed_by {
-        Management::Api => route_context.with_registries_in_database(),
-        Management::Config => route_context,
-    });
+    let route_context = Arc::new(RouteContext::from_routing(&routing, &config.http.public_url));
     RoutingSnapshot {
         routing,
         upstream_clients,
@@ -125,21 +119,14 @@ pub(crate) fn build_snapshot(
     }
 }
 
-/// What a snapshot's upstream clients are built from besides the graph.
-struct ClientSources<'a> {
-    /// The snapshot whose unchanged clients are reused.
-    previous: Option<&'a RoutingSnapshot>,
-    guard_context: &'a UpstreamGuardContext,
-    /// Who wrote the upstream URLs, which decides how the clients are guarded.
-    managed_by: Management,
-}
-
+/// The upstream clients of `routing`, reusing those of `previous` whose
+/// settings are unchanged.
 fn upstream_clients(
     routing: &RoutingConfig,
     client_keys: &IndexMap<String, UpstreamClientKey>,
-    sources: &ClientSources<'_>,
+    previous: Option<&RoutingSnapshot>,
+    guard_context: &UpstreamGuardContext,
 ) -> IndexMap<String, Upstream> {
-    let ClientSources { previous, guard_context, managed_by } = *sources;
     routing.upstreams
         .iter()
         .map(|(name, upstream)| {
@@ -150,11 +137,7 @@ fn upstream_clients(
                     .filter(|_| unchanged)
                     .cloned()
             });
-            let client = reused.unwrap_or_else(|| match managed_by {
-                Management::Config => Upstream::new(name, upstream)
-                    .with_fetch_guard(upstream_fetch_guard(guard_context, upstream)),
-                Management::Api => stored_upstream(name, upstream, guard_context),
-            });
+            let client = reused.unwrap_or_else(|| stored_upstream(name, upstream, guard_context));
             (name.clone(), client)
         })
         .collect()

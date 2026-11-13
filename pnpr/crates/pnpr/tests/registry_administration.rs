@@ -985,7 +985,11 @@ async fn an_exported_graph_imports_as_no_change() {
     assert!(yaml.contains("defaultRegistry"), "{yaml}");
 
     let import = |file: &Path, dry_run: bool| pnpr::Command::Registries {
-        action: pnpr::RegistriesSubcommand::Import { file: file.to_path_buf(), dry_run },
+        action: pnpr::RegistriesSubcommand::Import {
+            file: file.to_path_buf(),
+            dry_run,
+            check: false,
+        },
     };
     pnpr::run_command(&config, import(&exported, false)).await.unwrap();
     let storage = Storage::from_config(&config.storage).unwrap();
@@ -1153,7 +1157,8 @@ async fn offline_paths_refuse_a_public_upstream_with_a_credential() {
     )
     .unwrap();
     for dry_run in [true, false] {
-        let import = pnpr::RegistriesSubcommand::Import { file: file.clone(), dry_run };
+        let import =
+            pnpr::RegistriesSubcommand::Import { file: file.clone(), dry_run, check: false };
         let result = pnpr::run_command(&config, pnpr::Command::Registries { action: import }).await;
         assert!(result.is_err(), "import with dry_run {dry_run} accepted it");
     }
@@ -1349,7 +1354,8 @@ async fn credentials_in_a_stored_url_are_refused_by_the_api_and_import() {
     )
     .unwrap();
     for dry_run in [true, false] {
-        let import = pnpr::RegistriesSubcommand::Import { file: file.clone(), dry_run };
+        let import =
+            pnpr::RegistriesSubcommand::Import { file: file.clone(), dry_run, check: false };
         let result = pnpr::run_command(&config, pnpr::Command::Registries { action: import }).await;
         assert!(result.is_err(), "import with dry_run {dry_run} accepted it");
     }

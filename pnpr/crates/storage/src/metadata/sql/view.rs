@@ -1,8 +1,8 @@
 //! The [`PackageMetadata`] of one `(namespace, ecosystem)` slice.
 
 use super::{
-    Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, removed, render, tags,
-    transactions::Freshness,
+    Expected, PackageKey, SqlMetadata, batch::Retired, blobs::LookupRead, commit, removed, render,
+    tags, transactions::Freshness,
 };
 use crate::{
     DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion,
@@ -204,10 +204,9 @@ impl PackageMetadata {
         let key = self.key(name);
         let bytes = bytes.to_vec();
         let principal = principal.map(str::to_string);
-        let retired = self.database.retired();
         self.database.write(move |connection| {
             let principal = principal.as_deref();
-            commit::write_document(connection, &key, &bytes, &expected, principal, retired)
+            commit::write_document(connection, &key, &bytes, &expected, principal, Retired::Refused)
         })
         .await
     }

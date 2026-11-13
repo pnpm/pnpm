@@ -60,17 +60,13 @@ fn null_defaulted_aggregate_config_fields_use_defaults() {
     }
 
     let router_yaml = "registries:\n  router: {type: router, sources: null}\n";
-    let parsed = super::super::loading::parse_config_file(router_yaml).unwrap();
-    let super::super::config_file::RegistryFile::Router(router) = parsed
-        .registries
-        .get("router")
-        .unwrap()
-    else {
-        panic!("expected a router registry");
+    let document = crate::RegistryGraphDocument::from_yaml(router_yaml).unwrap();
+    let options = crate::RoutingOptions {
+        registry_env: &[],
+        allowed_private_networks: Vec::new(),
+        resolve_upstreams: true,
     };
-    assert!(router.sources.is_empty());
-
-    Config::from_yaml_str(router_yaml, Path::new("/x"), listen(), None)
+    crate::RoutingConfig::from_document(&document, &options)
         .expect_err("a router with no sources is invalid");
 }
 

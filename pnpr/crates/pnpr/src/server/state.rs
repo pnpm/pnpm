@@ -5,7 +5,7 @@ use super::{
     publishing::retry::ReplayStorage,
     registry_graph::{RoutingSnapshot, UpstreamGuardContext, build_snapshot},
 };
-use pnpr_config::{Management, RoutingConfig};
+use pnpr_config::{GraphSource, RoutingConfig};
 use pnpr_route::RouteContext;
 use std::sync::{Arc, RwLock};
 
@@ -97,7 +97,7 @@ impl AppInner {
         auth: AuthState,
         osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     ) -> pnpr_error::Result<Self> {
-        let storage = open_storage(&config)?;
+        let storage = Storage::from_config(&config.storage)?;
         let builds = BuildServices::new(&config, &storage)?;
         let routing = std::mem::take(&mut config.routing);
         config.routing.route_policy.allowed_private_networks.clone_from(
@@ -170,7 +170,7 @@ impl IdentityServices {
         super::scim::validate_oidc(config)?;
         // A stored graph is checked against these when it loads and when it
         // changes; see `registry_graph::check_file_references`.
-        if config.registries_managed_by == Management::Config {
+        if config.graph_source == GraphSource::Supplied {
             super::oidc::validate_workloads(config, routing)?;
             super::oidc_groups::validate_group_grants(config, routing)?;
         }
@@ -201,12 +201,4 @@ fn artifact_store(
             .map(|store| store.with_quota(config.features.artifacts.quota))
         })
         .transpose()
-}
-
-fn open_storage(config: &Config) -> pnpr_error::Result<Storage> {
-    let storage = Storage::from_config(&config.storage)?;
-    if config.registries_managed_by == Management::Api {
-        storage.refuse_publishes_into_retired_namespaces();
-    }
-    Ok(storage)
 }

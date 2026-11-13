@@ -1,7 +1,7 @@
 use super::{Config, FakeEnv, FeatureOverrides, Path, RegistryError, auth_header, listen, user};
 use crate::{
-    DocumentOrigin, Management, PackageLists, RegistryGraphChanges, RegistryGraphDocument,
-    RoutingConfig, RoutingOptions, RuleLists,
+    PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions,
+    RuleLists,
 };
 use indexmap::IndexMap;
 use pnpr_registry::Ecosystem;
@@ -57,11 +57,7 @@ routes:
 ";
 
 fn stored_options(registry_env: &[String]) -> RoutingOptions<'_> {
-    RoutingOptions {
-        origin: DocumentOrigin::Stored { registry_env },
-        allowed_private_networks: Vec::new(),
-        resolve_upstreams: true,
-    }
+    RoutingOptions { registry_env, allowed_private_networks: Vec::new(), resolve_upstreams: true }
 }
 
 fn upstream_document(auth_and_headers: &str) -> RegistryGraphDocument {
@@ -79,7 +75,7 @@ fn env(names: &[&str]) -> Vec<String> {
 }
 
 fn api_config(yaml: &str) -> Result<Config, RegistryError> {
-    let yaml = format!("storage: ./s\nregistriesManagedBy: api\n{yaml}");
+    let yaml = format!("storage: ./s\n{yaml}");
     Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
 }
 
@@ -94,7 +90,7 @@ fn a_document_survives_serialization() {
     RoutingConfig::from_document_with_env::<FakeEnv>(
         &reparsed,
         &RoutingOptions {
-            origin: DocumentOrigin::File,
+            registry_env: &["CORP_TOKEN".to_string()],
             allowed_private_networks: Vec::new(),
             resolve_upstreams: false,
         },
@@ -213,13 +209,12 @@ fn a_tier_that_reads_no_credential_still_checks_every_upstream_setting() {
 #[test]
 fn api_mode_serves_an_empty_graph_from_the_file() {
     let config = api_config("routes:\n  allowedPrivateNetworks: [10.0.0.0/8]\n").unwrap();
-    assert_eq!(config.registries_managed_by, Management::Api);
     assert!(config.features.registry.enabled);
     assert!(config.routing.hosted.is_empty() && config.routing.upstreams.is_empty());
     assert_eq!(config.routing.route_policy.allowed_private_networks.len(), 1);
 
     let overrides = FeatureOverrides { disable_registry: true, ..FeatureOverrides::default() };
-    let yaml = "storage: ./s\nregistriesManagedBy: api\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),

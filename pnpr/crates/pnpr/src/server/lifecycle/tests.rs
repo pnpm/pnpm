@@ -1,6 +1,6 @@
 use super::{
     Config, StartupGraph, Storage, adopt_startup_graph, current_routing_of, load_startup_auth,
-    load_stored_graph, may_stage_archives, spawn_periodic_archive_temp_sweep, state_and_router,
+    load_stored_graph, spawn_periodic_archive_temp_sweep, state_and_router,
     sweep_abandoned_archive_temps, sweep_current_archive_temps,
 };
 use object_store::memory::InMemory;
@@ -178,7 +178,7 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
     let tmp = TempDir::new().unwrap();
     let mut config = s3_config(&tmp);
     config.http.shutdown_timeout = Duration::from_millis(80);
-    let auth = load_startup_auth(&config, StartupGraph::File).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::Supplied).await.unwrap();
     let (state, app) = super::state_and_router(config, auth, None).unwrap();
     let probe_app = app.clone();
 
@@ -301,7 +301,7 @@ async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store()
     proxy_config.routing.hosted.clear();
     proxy_config.storage.metadata =
         pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
-    load_startup_auth(&proxy_config, StartupGraph::File).await.unwrap();
+    load_startup_auth(&proxy_config, StartupGraph::Supplied).await.unwrap();
     tokio::time::advance(Duration::from_hours(2)).await;
     tokio::task::yield_now().await;
 
@@ -712,7 +712,7 @@ async fn startup_and_periodic_sweeps_delete_expired_tokens() {
         .unwrap();
     drop(seeded);
 
-    let auth = load_startup_auth(&config, StartupGraph::File).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::Supplied).await.unwrap();
     assert!(
         auth.tokens
             .find_by_key(&crate::server::ecosystem::sha256_hex(already_expired.as_bytes()))
@@ -886,17 +886,6 @@ async fn a_periodic_sweep_covers_a_hosted_registry_added_while_serving() {
 
     sweep_current_archive_temps(&state.inner).await.unwrap();
     assert!(!stale_path.exists());
-}
-
-#[test]
-fn a_server_whose_stored_graph_has_no_hosted_registry_sweeps_staged_archives() {
-    let tmp = TempDir::new().unwrap();
-    let mut config = s3_config(&tmp);
-    assert!(may_stage_archives(&config));
-    config.routing.hosted.clear();
-    assert!(!may_stage_archives(&config), "an upstream-only proxy leaves them alone");
-    config.registries_managed_by = pnpr_config::Management::Api;
-    assert!(may_stage_archives(&config));
 }
 
 #[tokio::test(start_paused = true)]

@@ -1,0 +1,17 @@
+# The registries pnpr stores in its metadata database on first start, when
+# the database holds none. Change them afterwards with the registry admin API
+# or `pnpr registries import`.
+registries:
+  # The public npm registry. Proxies and caches upstream packages.
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+
+  # Hosted registry for private packages, addressable at `/~local/`.
+  local:
+    type: hosted
+    access: $authenticated
+
+# The path-less base URL (`https://<pnpr>/`) proxies the public npm registry.
+defaultRegistry: npmjs
