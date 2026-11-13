@@ -52,6 +52,16 @@ function restoreEnvVar (name: string, value: string | undefined): void {
   }
 }
 
+async function withPlatform<Result> (platform: NodeJS.Platform, action: () => Promise<Result>): Promise<Result> {
+  const originalPlatform = process.platform
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+  try {
+    return await action()
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+  }
+}
+
 beforeEach(() => {
   delete process.env.GITHUB_ACTIONS
   delete process.env.GITHUB_ENV
@@ -71,6 +81,39 @@ test('setup makes no changes', async () => {
   }))
   const output = await setup.handler({ pnpmHomeDir: '' })
   expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
+})
+
+test.each<[NodeJS.Platform, string, string]>([
+  ['linux', ':', "':'"],
+  ['linux', '\n', "'\\n'"],
+  ['linux', '\r', "'\\r'"],
+  ['linux', '\0', "'\\0'"],
+  ['win32', ';', "';'"],
+  ['win32', '%', "'%'"],
+  ['win32', '\n', "'\\n'"],
+  ['win32', '\r', "'\\r'"],
+])(
+  'setup on %s rejects an unsafe PNPM_HOME containing %j before making changes',
+  async (platform, character, renderedCharacter) => {
+    jest.mocked(addDirToEnvPath).mockClear()
+    jest.mocked(spawnSync).mockClear()
+    const pnpmHomeDir = `/pnpm${character}home`
+    await expect(withPlatform(platform, () => setup.handler({ pnpmHomeDir }))).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_PNPM_HOME',
+      message: `The pnpm home directory "${pnpmHomeDir}" contains a character (${renderedCharacter}) that is unsafe for the PATH`,
+    })
+    expect(addDirToEnvPath).not.toHaveBeenCalled()
+    expect(spawnSync).not.toHaveBeenCalled()
+  }
+)
+
+test('setup on Windows accepts a drive-letter colon in PNPM_HOME', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  await expect(withPlatform('win32', () => setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' })))
+    .resolves.toBe('No changes to the environment were made. Everything is already up to date.')
 })
 
 test('setup names the shell config file when it makes no changes', async () => {
@@ -296,7 +339,7 @@ test('setup writes the remaining GitHub Actions env files after one target fails
   }
 })
 
-test('setup rejects GitHub Actions env-file values with line-breaking characters', async () => {
+test('setup rejects a line break in PNPM_HOME before writing GitHub Actions files', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',
     newSettings: 'PNPM_HOME=dir',
@@ -308,7 +351,25 @@ test('setup rejects GitHub Actions env-file values with line-breaking characters
   process.env.GITHUB_ENV = githubEnv
   try {
     await expect(setup.handler({ pnpmHomeDir: `${tmpDir}\nINJECTED=value` }))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PNPM_HOME' })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe('')
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup on Windows rejects a NUL in PNPM_HOME before writing GitHub Actions files', async () => {
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const githubEnv = path.join(tmpDir, 'github-env')
+  actualFs.writeFileSync(githubEnv, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  jest.mocked(addDirToEnvPath).mockClear()
+  try {
+    await expect(withPlatform('win32', () => setup.handler({ pnpmHomeDir: `${tmpDir}\0INJECTED=value` })))
       .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE' })
+    expect(addDirToEnvPath).not.toHaveBeenCalled()
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe('')
   } finally {
     actualFs.rmSync(tmpDir, { recursive: true, force: true })
   }
@@ -367,7 +428,7 @@ test('setup fails on an unsupported shell', async () => {
 
 test.each(['REG_READ', 'FAILED_SET_ENV'])('setup prints PowerShell instructions on %s', async (code) => {
   jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError(code, 'Registry access denied.'))
-  const output = await setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' })
+  const output = await withPlatform('win32', () => setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' }))
   expect(output).toBe(`Registry access denied.
 
 pnpm is installed, but its environment could not be saved in the registry.
@@ -380,7 +441,7 @@ Add these lines to your PowerShell profile to use pnpm in future sessions.`)
 
 test.each(["'", '\u2018', '\u2019', '\u201a', '\u201b'])('setup escapes %s in PowerShell instructions', async (quote) => {
   jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError('REG_READ', 'Registry access denied.'))
-  const output = await setup.handler({ pnpmHomeDir: `C:\\Users\\o${quote}neil\\$(Write-Error injected)` })
+  const output = await withPlatform('win32', () => setup.handler({ pnpmHomeDir: `C:\\Users\\o${quote}neil\\$(Write-Error injected)` }))
   expect(output).toContain(`\n$env:PNPM_HOME = 'C:\\Users\\o${quote}${quote}neil\\$(Write-Error injected)'\n`)
 })
 
