@@ -272,3 +272,23 @@ impl NpmResolutionVerifier {
             .cloned()
     }
 }
+
+impl super::ReleaseAgeCheck {
+    pub(super) fn new(
+        opts: super::VerificationReleaseAgeOptions,
+        now: Option<DateTime<Utc>>,
+    ) -> Self {
+        let cutoff = super::policy_snapshot::minimum_release_age_cutoff(&opts, now);
+        let sorted_excludes = super::policy_snapshot::sorted_unique(&opts.exclude_patterns);
+        Self {
+            minimum_minutes: opts.minimum_minutes,
+            cutoff,
+            exclude: opts.exclude,
+            sorted_excludes,
+        }
+    }
+
+    pub(super) fn age_check_active(&self) -> bool {
+        self.minimum_minutes.is_some_and(|minutes| minutes > 0)
+    }
+}

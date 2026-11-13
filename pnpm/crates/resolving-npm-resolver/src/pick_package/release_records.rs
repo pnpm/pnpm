@@ -223,7 +223,7 @@ pub(super) async fn with_release_record<Cache: PackageMetaCache>(
     if !serves_pnpr_format(ctx, registry) {
         return Ok(version);
     }
-    let Some(revision) = record_revision(&version, requested) else {
+    let Some(revision) = record_revision(&version, registry, requested)? else {
         return Ok(version);
     };
     let record = release_record(ctx, registry, &version, revision).await?;
@@ -244,18 +244,54 @@ pub(super) async fn with_release_record<Cache: PackageMetaCache>(
 /// override naming another one is left for the revision check to reject.
 fn record_revision(
     version: &PackageVersion,
+    registry: &str,
     requested: Option<&RegistryRevisionSelector>,
-) -> Option<u64> {
-    let entry = version.dist.install_v2_entry()?;
-    let selected = version.dist.revision.as_ref().and_then(serde_json::Value::as_u64);
+) -> Result<Option<u64>, crate::InvalidTarballRevisionMetadataError> {
+    let Some(entry) = version.dist.install_v2_entry() else {
+        return Ok(None);
+    };
+    let selected = parse_selected_revision(version, registry)?;
     if let Some(RegistryRevisionSelector::Valid(requested)) = requested {
         match selected {
-            Some(selected) if selected != *requested => return Some(*requested),
-            None if *requested != 0 => return None,
+            Some(selected) if selected != *requested => return Ok(Some(*requested)),
+            None if *requested != 0 => return Ok(None),
             _ => {}
         }
     }
-    (entry == InstallV2Entry::External).then(|| selected.unwrap_or(0))
+    Ok((entry == InstallV2Entry::External).then(|| selected.unwrap_or(0)))
+}
+
+fn parse_selected_revision(
+    version: &PackageVersion,
+    registry: &str,
+) -> Result<Option<u64>, crate::InvalidTarballRevisionMetadataError> {
+    version.dist.revision
+        .as_ref()
+        .map(|raw| {
+            raw.as_u64()
+                .ok_or_else(|| "the revision is not a nonnegative safe integer".to_string())
+                .and_then(|num| {
+                    pnpm_lockfile::TarballRevision::try_from(num)
+                        .map(pnpm_lockfile::TarballRevision::get)
+                        .map_err(|error| error.to_string())
+                })
+        })
+        .transpose()
+        .map_err(|reason| {
+            let tarball = if version.dist.tarball.is_empty() {
+                pnpm_lockfile::npm_tarball_url(
+                    &version.name,
+                    &version.version.to_string(),
+                    pnpm_lockfile::TarballUrlOptions {
+                        registry,
+                        server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+                    },
+                )
+            } else {
+                version.dist.tarball.clone()
+            };
+            crate::InvalidTarballRevisionMetadataError::new(&tarball, reason)
+        })
 }
 
 async fn release_record<Cache: PackageMetaCache>(

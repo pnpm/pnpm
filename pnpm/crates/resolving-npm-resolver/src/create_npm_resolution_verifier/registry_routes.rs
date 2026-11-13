@@ -21,6 +21,18 @@ pub(super) struct VerificationRegistryRoutes {
 }
 
 impl VerificationRegistryRoutes {
+    pub(super) fn new(
+        registries: HashMap<String, String>,
+        registries_by_prefix: HashMap<String, String>,
+        registry_options_by_url: Option<
+            std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>,
+        >,
+    ) -> Self {
+        let named_registry_prefixes =
+            crate::named_registry::named_registry_tarball_prefixes(&registries_by_prefix);
+        Self { registries, named_registry_prefixes, registries_by_prefix, registry_options_by_url }
+    }
+
     pub(super) fn supports_time_field(&self, registry: &str, default: bool) -> bool {
         self.registry_options_by_url
             .as_ref()

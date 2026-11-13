@@ -55,21 +55,31 @@ export interface MovedRegistryKey {
 }
 
 /**
- * Whether a locked package's plain semver key resolved from a registry its
- * scope no longer routes to. `false` without `lockedRegistriesByScope`, for
- * non-semver resolutions, and for registry-qualified keys (which name their
- * registry).
+ * Matches plain semver lockfile entries whose scope route moved since the
+ * lockfile was resolved. Returns `undefined` when `lockedRegistriesByScope` is
+ * absent or every scope still routes to the same registry, avoiding any
+ * `lockfile.packages` scan on warm-cache installs.
  */
-export function hasMovedRegistryRoute (
-  registries: RegistryContext,
-  { name, nonSemverVersion, registryName }: { name: string, nonSemverVersion?: string, registryName?: string }
-): boolean {
-  if (registries.lockedRegistriesByScope == null || nonSemverVersion != null || registryName != null) {
-    return false
+export function createMovedRegistryRouteMatcher (
+  registries: RegistryContext
+): ((entry: { name: string, nonSemverVersion?: string, registryName?: string }) => boolean) | undefined {
+  if (registries.lockedRegistriesByScope == null) return undefined
+  const locked = lockedRegistriesByScope(registries)
+  const current = registries.registriesByScope
+  const scopes = new Set([
+    ...Object.keys(registries.lockedRegistriesByScope),
+    ...Object.keys(current),
+  ])
+  scopes.delete('default')
+  const anyScopeMoved = [...scopes].some((scope) => !isSameRegistry(
+    Object.hasOwn(locked, scope) ? locked[scope] : current.default,
+    Object.hasOwn(current, scope) ? current[scope] : current.default
+  ))
+  if (!anyScopeMoved) return undefined
+  return ({ name, nonSemverVersion, registryName }) => {
+    if (nonSemverVersion != null || registryName != null) return false
+    return !isSameRegistry(pickRegistryForPackage(locked, name), pickRegistryForPackage(current, name))
   }
-  const from = pickRegistryForPackage(lockedRegistriesByScope(registries), name)
-  const to = pickRegistryForPackage(registries.registriesByScope, name)
-  return !isSameRegistry(from, to)
 }
 
 /**

@@ -10,6 +10,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
+import { matchReplacedLockfileEntries } from '../../src/install/installPredicates.js'
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 import { testDefaults } from '../utils/index.js'
 
@@ -749,6 +750,49 @@ test('isReplaced distinguishes plain semver keys from registry-qualified keys', 
   })).resolves.toBeUndefined()
 
   expect(seen).toStrictEqual([{ name: '@corp/foo', registryName: 'legacy' }])
+})
+
+test('matchReplacedLockfileEntries covers uninstallSome when a scope route moved and returns undefined when routes match', () => {
+  const rootDir = '/workspace' as import('@pnpm/types').ProjectRootDir
+  const ctx = {
+    existsNonEmptyWantedLockfile: true,
+    projects: { [rootDir]: { id: '.' as import('@pnpm/types').ProjectId } } as never,
+    wantedLockfile: {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: { '.': {} },
+    } as unknown as LockfileObject,
+  }
+  const baseOpts = {
+    depth: 0,
+    fixLockfile: false,
+    frozenLockfile: false,
+    frozenLockfileIfExists: false,
+    ignorePackageManifest: false,
+    registriesByPrefix: { legacy: 'https://old.example/' },
+    registriesByScope: {
+      default: 'https://registry.npmjs.org/',
+      '@corp': 'https://new.example/',
+    },
+    useLockfile: true,
+  }
+  const uninstallMutation = [{
+    mutation: 'uninstallSome' as const,
+    dependencyNames: ['bar'],
+    rootDir,
+  }]
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, ctx, {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://new.example/' },
+  })).toBeUndefined()
+
+  const isReplaced = matchReplacedLockfileEntries(uninstallMutation, ctx, {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })
+  expect(isReplaced).toBeDefined()
+  expect(isReplaced!('@corp/foo', '1.0.0')).toBe(true)
+  expect(isReplaced!('@corp/foo', '1.0.0', { registryName: 'legacy' })).toBe(false)
 })
 
 test('invalidates lockfile-verified.jsonl when default or scoped registry changes', async () => {

@@ -259,6 +259,42 @@ fn can_trust_past_check_rejects_missing_registries_routing() {
 }
 
 #[test]
+fn can_trust_past_check_tracks_registry_options_and_time_field_support() {
+    let registry = "https://registry.example/";
+    let plain = create_npm_resolution_verifier(default_opts(registry));
+
+    let mut empty_map_opts = default_opts(registry);
+    empty_map_opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry.to_string(),
+        pnpm_lockfile::RegistryOptions::default(),
+    )]));
+    let empty_map = create_npm_resolution_verifier(empty_map_opts);
+    assert!(plain.can_trust_past_check(empty_map.policy()));
+
+    let mut pnpr_opts = default_opts(registry);
+    pnpr_opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry.to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]));
+    let pnpr = create_npm_resolution_verifier(pnpr_opts);
+    assert!(!pnpr.can_trust_past_check(plain.policy()));
+    assert!(!plain.can_trust_past_check(pnpr.policy()));
+
+    let mut time_opts = default_opts(registry);
+    time_opts.metadata.registry_supports_time_field = true;
+    let time_supported = create_npm_resolution_verifier(time_opts);
+    assert!(!time_supported.can_trust_past_check(plain.policy()));
+    assert!(!plain.can_trust_past_check(time_supported.policy()));
+
+    let mut missing_options = plain.policy().clone();
+    missing_options.remove("registryOptions");
+    assert!(!plain.can_trust_past_check(&missing_options));
+}
+
+#[test]
 fn can_trust_past_check_normalizes_registry_urls_and_matches_v11_digest() {
     let bare = create_npm_resolution_verifier(default_opts("https://registry.example"));
     let slash = create_npm_resolution_verifier(default_opts("https://registry.example/"));

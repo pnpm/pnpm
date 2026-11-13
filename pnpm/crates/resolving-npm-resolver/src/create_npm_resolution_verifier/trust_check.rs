@@ -23,7 +23,7 @@ impl NpmResolutionVerifier {
             return false;
         }
 
-        ["namedRegistriesRouting", "registriesRouting"]
+        ["namedRegistriesRouting", "registriesRouting", "registryOptions"]
             .into_iter()
             .all(|key| cached_policy.get(key) == self.policy_snapshot.get(key))
     }
@@ -60,6 +60,16 @@ impl NpmResolutionVerifier {
 }
 
 impl super::TrustCheck {
+    pub(super) fn new(opts: super::VerificationTrustOptions) -> Self {
+        let sorted_excludes = super::policy_snapshot::sorted_unique(&opts.exclude_patterns);
+        Self {
+            policy: opts.policy,
+            exclude: opts.exclude,
+            ignore_after: opts.ignore_after,
+            sorted_excludes,
+        }
+    }
+
     pub(super) fn trust_check_active(&self) -> bool {
         matches!(self.policy, Some(TrustPolicy::NoDowngrade))
     }

@@ -226,18 +226,11 @@ impl NpmResolutionVerifier {
             if let Some(projection) = self.shared_trust_projection(registry, &key) {
                 return Ok(Arc::new(projection));
             }
-            let trust_window_fits_pnpr_doc = self.trust.ignore_after.is_none_or(|minutes| {
-                minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
-            });
             if self.routing.is_pnpr_registry(registry)
-                && trust_window_fits_pnpr_doc
-                && let Ok(projection) = self.metadata.fetch_abbreviated_meta_projected(
-                    registry,
-                    name,
-                    true,
-                    project_trust_meta,
-                )
-                .await
+                && self.trust_window_fits_pnpr_doc()
+                && let Ok(projection) =
+                    self.metadata.fetch_pnpr_meta_projected(registry, name, project_trust_meta)
+                        .await
                 && projection.time.is_some()
             {
                 return Ok(Arc::new(projection));
@@ -262,16 +255,23 @@ impl NpmResolutionVerifier {
         self.routing.supports_time_field(registry, self.metadata.registry_supports_time_field)
     }
 
+    /// `install-v2` clamps dates older than `timesSince` to `timesSince`:
+    /// unbounded checks order clamped versions by semver (`published_before`),
+    /// while `trustPolicyIgnoreAfter > MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`
+    /// needs exact publish dates from the full packument.
+    fn trust_window_fits_pnpr_doc(&self) -> bool {
+        self.trust.ignore_after.is_none_or(|minutes| {
+            minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+        })
+    }
+
     fn shared_trust_projection(&self, registry: &str, key: &str) -> Option<TrustHistoryProjection> {
         let cache = self.metadata.meta_cache.as_ref()?;
         let cached = cache
             .get(&format!("{key}:full"))
             .or_else(|| cache.get(&format!("{key}:full:filtered")))
             .or_else(|| {
-                let trust_window_fits_pnpr_doc = self.trust.ignore_after.is_none_or(|minutes| {
-                    minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
-                });
-                (self.routing.is_pnpr_registry(registry) && trust_window_fits_pnpr_doc)
+                (self.routing.is_pnpr_registry(registry) && self.trust_window_fits_pnpr_doc())
                     .then(|| cache.get(key))?
                     .filter(|entry| entry.meta.time.is_some())
             })?;
@@ -280,15 +280,24 @@ impl NpmResolutionVerifier {
     }
 }
 
+#[derive(Clone, Copy)]
+enum MetadataDocument {
+    Full,
+    PnprInstallV2,
+}
+
 impl super::VerificationMetadataClient {
     pub(super) async fn fetch_full_meta(
         &self,
         registry: &str,
         name: &PkgName,
     ) -> Result<Package, String> {
-        fetch_full_metadata_cached(&name.to_string(), &self.meta_options(registry, true, false))
-            .await
-            .map_err(|error| render_fetch_metadata_error(&error))
+        fetch_full_metadata_cached(
+            &name.to_string(),
+            &self.meta_options(registry, MetadataDocument::Full),
+        )
+        .await
+        .map_err(|error| render_fetch_metadata_error(&error))
     }
 
     pub(super) async fn fetch_full_meta_projected<Projection>(
@@ -297,19 +306,18 @@ impl super::VerificationMetadataClient {
         name: &PkgName,
         project: impl Fn(&Package) -> Projection,
     ) -> Result<Projection, String> {
-        let opts = self.meta_options(registry, true, false);
+        let opts = self.meta_options(registry, MetadataDocument::Full);
         fetch_full_metadata_projected(&name.to_string(), &opts, project).await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
 
-    pub(super) async fn fetch_abbreviated_meta_projected<Projection>(
+    pub(super) async fn fetch_pnpr_meta_projected<Projection>(
         &self,
         registry: &str,
         name: &PkgName,
-        pnpr_format: bool,
         project: impl Fn(&Package) -> Projection,
     ) -> Result<Projection, String> {
-        let opts = self.meta_options(registry, false, pnpr_format);
+        let opts = self.meta_options(registry, MetadataDocument::PnprInstallV2);
         fetch_full_metadata_projected(&name.to_string(), &opts, project).await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
@@ -317,14 +325,13 @@ impl super::VerificationMetadataClient {
     fn meta_options<'a>(
         &'a self,
         registry: &'a str,
-        full_metadata: bool,
-        pnpr_format: bool,
+        document: MetadataDocument,
     ) -> FetchFullMetadataCachedOptions<'a> {
         FetchFullMetadataCachedOptions {
-            pnpr_format: !full_metadata && pnpr_format,
+            pnpr_format: matches!(document, MetadataDocument::PnprInstallV2),
             registry,
             cache_dir: self.cache_dir.as_deref(),
-            full_metadata,
+            full_metadata: matches!(document, MetadataDocument::Full),
             filter_metadata: false,
             offline: self.offline,
             priority: pnpm_network::BACKGROUND,

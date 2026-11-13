@@ -3,7 +3,7 @@ import type { PnpmContext } from '@pnpm/installing.context'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ChangedField, ChangedSettingsField } from '@pnpm/lockfile.settings-checker'
-import { findMovedRegistryKey, hasMovedRegistryRoute } from '@pnpm/lockfile.utils'
+import { createMovedRegistryRouteMatcher } from '@pnpm/lockfile.utils'
 import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -195,14 +195,13 @@ function matchMovedRegistryEntries (
   if (
     opts.lockedRegistriesByScope == null ||
     !resolvesFromManifests ||
-    hasUninstallMutations(projects) ||
     !coversEveryRecordedImporter(projects, ctx)
   ) {
     return undefined
   }
-  const registries = pickRegistryContext(opts)
-  if (findMovedRegistryKey(ctx.wantedLockfile, registries) == null) return undefined
-  return (name, _version, candidate) => hasMovedRegistryRoute(registries, {
+  const matchesMovedRoute = createMovedRegistryRouteMatcher(pickRegistryContext(opts))
+  if (matchesMovedRoute == null) return undefined
+  return (name, _version, candidate) => matchesMovedRoute({
     name,
     nonSemverVersion: candidate?.nonSemverVersion,
     registryName: candidate?.registryName,
