@@ -1096,7 +1096,7 @@ pub struct Config {
 
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`](crate::WorkspaceSettings::apply_to) when yaml was found, so
-    /// later install-time code (notably [`pnpm_patching::resolve_and_group`] for
+    /// later install-time code (notably [`pnpm_patching_config::resolve_and_group`] for
     /// `patchedDependencies`) can resolve relative paths against the
     /// same dir pnpm does. `None` when no `pnpm-workspace.yaml` exists
     /// anywhere up the tree — in that case there are no patches /
@@ -1867,12 +1867,6 @@ pub struct Config {
 }
 
 impl Config {
-    /// The decoded-output budget archives are extracted under.
-    #[must_use]
-    pub fn tar_limits(&self) -> pnpm_tarball::TarLimits {
-        pnpm_tarball::TarLimits::new(self.max_tarball_unpacked_size)
-    }
-
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
     /// under [`force_ignores_platform`](Self::force_ignores_platform).

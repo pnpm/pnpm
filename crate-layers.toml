@@ -221,7 +221,6 @@ crates = [
   "pnpr",
   "pnpr-fixtures",
   "pnpr-package-name",
-  "pnpr-registry",
 ]
 
 # The accepted size of each crate's largest cycle among its top-level
@@ -278,7 +277,7 @@ pnpm-catalogs-protocol-parser = 1
 pnpm-catalogs-resolver = 3
 pnpm-cli = 78
 pnpm-cmd-shim = 2
-pnpm-config = 21
+pnpm-config = 20
 pnpm-config-parse-overrides = 3
 pnpm-crypto-shasums-file = 4
 pnpm-default-reporter = 4
@@ -388,7 +387,7 @@ pnpm-auth-commands = 4
 pnpm-catalogs-config = 2
 pnpm-catalogs-resolver = 1
 pnpm-cmd-shim = 1
-pnpm-config = 9
+pnpm-config = 8
 pnpm-config-parse-overrides = 1
 pnpm-crypto-shasums-file = 2
 pnpm-default-reporter = 2

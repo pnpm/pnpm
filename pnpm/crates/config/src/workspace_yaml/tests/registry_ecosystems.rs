@@ -312,6 +312,17 @@ fn invalid_python_package_patterns_are_rejected() {
 }
 
 #[test]
+fn an_invalid_python_package_pattern_names_why() {
+    for (pattern, reason) in [
+        ("a*b", r#"unsupported pypi registry pattern "a*b""#),
+        ("-a", r#"registry pattern "-a" is not a valid package name"#),
+    ] {
+        let error = load(&format!("registries:\n  https://private.example.com/:\n    ecosystem: pypi\n    packages: ['{pattern}']\n")).unwrap_err();
+        assert!(error.contains(reason), "{pattern}: {error}");
+    }
+}
+
+#[test]
 fn multiple_python_defaults_require_explicit_package_routes() {
     let error = load("registries:\n  https://one.example.com/:\n    ecosystem: pypi\n  https://two.example.com/:\n    ecosystem: pypi\n").unwrap_err();
     assert!(error.contains("routed to two registries"), "{error}");

@@ -1,6 +1,8 @@
 //! The decoded-output budget: how much a tar may make pnpm decode before
 //! its hash is known to match.
 
+pub use pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE;
+
 use super::{MAX_UNTRUSTED_PREALLOC_BYTES, Read, TarballError};
 use std::{cell::Cell, io};
 
@@ -23,9 +25,6 @@ pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
         OversizedManifestError { file_size },
     ))
 }
-
-/// Default of the payload ceiling a [`TarLimits`] starts from.
-pub const DEFAULT_MAX_TARBALL_UNPACKED_SIZE: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Ceiling on the tar bytes that are not regular-file payload: entry
 /// headers, extension headers, padding, the end-of-archive marker, and the

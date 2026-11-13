@@ -5022,17 +5022,16 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
- "pnpm-patching",
+ "pnpm-package-name",
+ "pnpm-patching-config",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
- "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-version-policy",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-state",
  "pnpm-workspace-task-scheduler",
- "pnpr-registry",
  "pretty_assertions",
  "same-file",
  "serde",
@@ -6171,6 +6170,10 @@ dependencies = [
 [[package]]
 name = "pnpm-package-name"
 version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pep508_rs",
+]
 
 [[package]]
 name = "pnpm-patching"
@@ -6188,7 +6191,6 @@ dependencies = [
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
- "sha2 0.10.9",
  "tempfile",
  "text-block-macros",
 ]
@@ -6198,9 +6200,12 @@ name = "pnpm-patching-config"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "indexmap 2.14.2",
  "miette 7.6.0",
  "node-semver",
  "pretty_assertions",
+ "sha2 0.10.9",
+ "tempfile",
 ]
 
 [[package]]
@@ -7333,7 +7338,6 @@ name = "pnpr-package-name"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "pep508_rs",
  "pnpm-package-name",
  "pnpr-error",
  "serde",

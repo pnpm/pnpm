@@ -295,7 +295,7 @@ impl ResolverChainInputs<'_> {
             store_index_writer: Some(Arc::clone(self.store.index_writer)),
             auth_headers: Arc::clone(self.fetching.auth_headers),
             retry_opts: self.retry_opts(),
-            tar_limits: self.config.tar_limits(),
+            tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
             git_shallow_hosts: self.config.git_shallow_hosts.clone(),
         })
     }
@@ -315,7 +315,7 @@ impl ResolverChainInputs<'_> {
                 mem_cache: Some(Arc::clone(self.fetching.tarballs)),
                 auth_headers: Arc::clone(self.fetching.auth_headers),
                 retry_opts: self.retry_opts(),
-                tar_limits: self.config.tar_limits(),
+                tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
                 prior_tarball_entries: Arc::new(prior_tarball_entries(
                     self.project.lockfile,
                     self.config.lockfile_integrity_target,

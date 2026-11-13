@@ -304,7 +304,7 @@ pub struct WorkspaceSettings {
     /// Map of `name[@version]` → patch-file path (relative to the
     /// workspace dir or absolute). Read verbatim; relative-path
     /// resolution, file hashing, and grouping are deferred to
-    /// [`pnpm_patching::resolve_and_group`] so the yaml layer
+    /// [`pnpm_patching_config::resolve_and_group`] so the yaml layer
     /// stays pure data.
     ///
     /// pnpm 10+ moved `patchedDependencies` out of

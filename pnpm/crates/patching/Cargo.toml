@@ -23,7 +23,6 @@ miette = { workspace = true }
 node-semver = { workspace = true }
 pnpm-process = { path = "../process" }
 serde_json = { workspace = true }
-sha2 = { workspace = true }
 
 [dev-dependencies]
 pnpm-fs = { workspace = true, features = ["test"] }

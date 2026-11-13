@@ -103,7 +103,7 @@ use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_branches_containing_head, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, SymlinkedLockfile, WantedLockfileSelection};
 use pnpm_matcher::create_matcher;
-use pnpm_patching::{
+use pnpm_patching_config::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
     create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
