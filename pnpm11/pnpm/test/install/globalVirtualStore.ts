@@ -130,7 +130,7 @@ test('frozenStore does not fail while a global virtual store bin shim needs repa
     storeDir,
   })
 
-  await expect(execPnpm(['install', '--frozen-lockfile'])).resolves.toBeDefined()
+  await expect(execPnpm(['install', '--frozen-lockfile'])).resolves.toBeUndefined()
   expect(fs.readFileSync(shimPath, 'utf8')).toBe(staleShim)
 })
 

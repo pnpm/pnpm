@@ -107,7 +107,9 @@ async function repairSlot (opts: {
   if (!await pathExists(packageDir)) return
 
   const packages = await readPackageBins(modulesDir, packageDir)
-  await linkBinsOfPackages(packages, path.join(packageDir, 'node_modules/.bin'), {
+  const binsDir = path.join(packageDir, 'node_modules/.bin')
+  await fs.promises.rm(binsDir, { recursive: true, force: true })
+  await linkBinsOfPackages(packages, binsDir, {
     ...opts.slotShimNodePathOptions,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
