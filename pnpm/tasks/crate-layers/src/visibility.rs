@@ -3,6 +3,7 @@
 //! included, in a module that is itself reachable.
 
 use crate::{
+    item::Namespace,
     modules::{CrateModules, ModulePath},
     surface::{Exposure, Surface},
     use_tree::UsePath,
@@ -111,7 +112,8 @@ impl Exported {
 
     /// Whether the signature `exposure`, read in `module`, is reachable: its
     /// owner is an exported item, or it has no owner and the module is
-    /// exported.
+    /// exported. An owner that is a private type is never reachable, even
+    /// when a value of the same name is exported.
     pub fn exposes(
         &self,
         scopes: &BTreeMap<ModulePath, Scope<'_>>,
@@ -127,6 +129,18 @@ impl Exported {
         let Some(owner) = declaration(scopes, owner_module, name.clone()) else {
             return false;
         };
+        let owner_type = || {
+            scopes
+                .get(&owner.0)?
+                .surface
+                .types
+                .iter()
+                .find(|declared| declared.name == owner.1)
+        };
+        let owner_type = (exposure.owner_namespace == Namespace::Type).then(owner_type).flatten();
+        if owner_type.is_some_and(|declared| !declared.is_public) {
+            return false;
+        }
         let is_public_item = || {
             scopes
                 .get(&owner.0)
@@ -159,7 +173,10 @@ fn declaration(
     let mut visited = BTreeSet::new();
     while visited.insert((module.clone(), name.clone())) {
         let surface = scopes.get(&module)?.surface;
-        if surface.declared_types.contains(&name) || surface.public_items.contains(&name) {
+        let declares_type = surface.types
+            .iter()
+            .any(|declared| declared.name == name);
+        if declares_type || surface.public_items.contains(&name) {
             break;
         }
         let reexport = surface.reexported

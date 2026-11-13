@@ -19,9 +19,8 @@ pub struct Surface {
     pub exposed: Vec<Exposure>,
     /// The names of the `pub` items at the scope's top level.
     pub public_items: Vec<String>,
-    /// The names of the types declared at the scope's top level, `pub` or
-    /// not.
-    pub declared_types: Vec<String>,
+    /// The types declared at the scope's top level, `pub` or not.
+    pub types: Vec<TypeDeclaration>,
     /// The paths of `pub use` items.
     pub reexported: Vec<UsePath>,
     /// `extern crate name as alias;` items. An alias binds in its own module,
@@ -40,6 +39,14 @@ pub struct Exposure {
     /// the scope: the item's own name, or the self type of an `impl`. Empty
     /// when the signature is outside any item.
     pub owner: Vec<String>,
+    /// The namespace the owner's name binds in: a type for an `impl`.
+    pub owner_namespace: Namespace,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TypeDeclaration {
+    pub name: String,
+    pub is_public: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -80,8 +87,9 @@ struct Scope<'tokens> {
     tokens: &'tokens [Token],
     surface: Surface,
     imports: Vec<UsePath>,
-    /// The top-level item the scan is in.
-    owner: Vec<String>,
+    /// The top-level item the scan is in, and the namespace its name binds
+    /// in.
+    owner: (Vec<String>, Namespace),
     /// The depth of `{` blocks: a `use` inside a function body or another
     /// block is not one of the scope's imports.
     braces: usize,
@@ -121,7 +129,11 @@ impl Scope<'_> {
         let next = scan_at(tokens, pos, &mut exposed);
         let owned = exposed
             .into_iter()
-            .map(|path| Exposure { path, owner: self.owner.clone() });
+            .map(|path| Exposure {
+                path,
+                owner: self.owner.0.clone(),
+                owner_namespace: self.owner.1,
+            });
         self.surface.exposed.extend(owned);
         next
     }
@@ -153,12 +165,13 @@ impl Scope<'_> {
                 self.surface.public_items.push(name.clone());
             }
             if *namespace == Namespace::Type {
-                self.surface.declared_types.push(name.clone());
+                let declaration = TypeDeclaration { name: name.clone(), is_public: *is_public };
+                self.surface.types.push(declaration);
             }
         }
         self.owner = match header {
-            ItemHeader::Named { name, .. } => vec![name],
-            ItemHeader::Impl { self_type } => self_type,
+            ItemHeader::Named { name, namespace, .. } => (vec![name], namespace),
+            ItemHeader::Impl { self_type } => (self_type, Namespace::Type),
         };
     }
 

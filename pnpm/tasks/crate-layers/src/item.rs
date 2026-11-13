@@ -18,9 +18,11 @@ pub enum ItemHeader {
 
 /// The namespace a named item's name binds in. A type and a function or
 /// constant of the same name can coexist in one module.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Namespace {
     Type,
+    /// The default for a signature outside any item, whose owner is empty.
+    #[default]
     Value,
 }
 

@@ -427,3 +427,27 @@ fn an_owner_is_followed_through_any_number_of_reexports() {
     let leaked = leaked_items(&[("api/src/lib.rs", lib)]);
     assert_eq!(leaked, ["base::Input"]);
 }
+
+#[test]
+fn a_private_type_stays_unreachable_when_a_value_of_its_name_is_exported() {
+    let lib = concat!("mod facade;\n", "pub mod same;\n", "pub use facade::Config;\n");
+    let facade = concat!(
+        "mod hidden;\n",
+        "struct Config {}\n",
+        "pub use hidden::Config;\n",
+        "impl self::Config { pub fn make(_: base::Input) {} }\n",
+    );
+    let leaked = leaked_items(&[
+        ("api/src/lib.rs", lib),
+        ("api/src/facade.rs", facade),
+        (
+            "api/src/facade/hidden.rs",
+            "#[allow(non_snake_case)]\npub fn Config(_: base::Function) {}\n",
+        ),
+        (
+            "api/src/same.rs",
+            "struct Same {}\n#[allow(non_snake_case)]\npub fn Same(_: base::SameFunction) {}\nimpl Same { pub fn make(_: base::SameInput) {} }\n",
+        ),
+    ]);
+    assert_eq!(leaked, ["base::Function", "base::SameFunction"]);
+}
