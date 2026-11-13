@@ -33,13 +33,6 @@ impl VerificationRegistryRoutes {
         Self { registries, named_registry_prefixes, registries_by_prefix, registry_options_by_url }
     }
 
-    pub(super) fn supports_time_field(&self, registry: &str, default: bool) -> bool {
-        self.registry_options_by_url
-            .as_ref()
-            .and_then(|options| pnpm_lockfile::registry_supports_time_field(options, registry))
-            .unwrap_or(default)
-    }
-
     pub(super) fn is_pnpr_registry(&self, registry: &str) -> bool {
         self.registry_options_by_url
             .as_ref()

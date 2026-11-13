@@ -20,6 +20,7 @@ extern crate pnpm_http as reqwest;
 
 pub mod mirror;
 
+pub use attested_time::ATTESTED_TIME_DIR;
 pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
 pub use calc_specifier_for_workspace_dep::{
     DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
@@ -85,6 +86,7 @@ pub use trust_checks::{
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};
 
+mod attested_time;
 mod calc_specifier;
 mod calc_specifier_for_workspace_dep;
 mod create_npm_resolution_verifier;

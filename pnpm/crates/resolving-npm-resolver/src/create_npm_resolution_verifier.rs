@@ -44,7 +44,9 @@ use artifact_binding::{
 mod metadata_projection;
 
 mod variations;
-use metadata_projection::{load_local_meta_time, project_abbreviated_meta, project_trust_meta};
+use metadata_projection::{
+    attested_time_path, load_local_meta_time, project_abbreviated_meta, project_trust_meta,
+};
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -73,7 +75,9 @@ use tokio::sync::OnceCell;
 
 use crate::{
     FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
-    TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
+    TrustHistory, TrustViolation,
+    attested_time::append_attested_time,
+    fetch_attestation_published_at, fetch_full_metadata_cached,
     fetch_full_metadata_cached::fetch_full_metadata_projected,
     lookup_context::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
@@ -178,13 +182,6 @@ pub struct VerificationMetadataClient {
     /// is saying it never published this pin, which fails closed either
     /// way. Default `false`.
     pub ignore_missing_time_field: bool,
-    /// Backs `registrySupportsTimeField`: the registry serves the
-    /// per-version `time` map in abbreviated metadata (Verdaccio
-    /// 5.15.1+, pnpr), so the verifier can take a version's publish
-    /// timestamp from the document it already fetched instead of
-    /// paying an attestation round-trip and a full-packument download
-    /// per cold-cache package. Default `false`.
-    pub registry_supports_time_field: bool,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
@@ -268,7 +265,6 @@ impl std::fmt::Debug for NpmResolutionVerifier {
             .field("minimum_release_age_minutes", &self.release_age.minimum_minutes)
             .field("cutoff", &self.release_age.cutoff)
             .field("ignore_missing_time_field", &self.metadata.ignore_missing_time_field)
-            .field("registry_supports_time_field", &self.metadata.registry_supports_time_field)
             .field("trust_policy", &self.trust.policy)
             .field("trust_policy_ignore_after", &self.trust.ignore_after)
             .field("offline", &self.metadata.offline)

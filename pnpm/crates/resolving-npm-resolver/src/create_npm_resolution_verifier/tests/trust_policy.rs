@@ -283,12 +283,6 @@ fn can_trust_past_check_tracks_registry_options_and_time_field_support() {
     assert!(!pnpr.can_trust_past_check(plain.policy()));
     assert!(!plain.can_trust_past_check(pnpr.policy()));
 
-    let mut time_opts = default_opts(registry);
-    time_opts.metadata.registry_supports_time_field = true;
-    let time_supported = create_npm_resolution_verifier(time_opts);
-    assert!(!time_supported.can_trust_past_check(plain.policy()));
-    assert!(!plain.can_trust_past_check(time_supported.policy()));
-
     let mut missing_options = plain.policy().clone();
     missing_options.remove("registryOptions");
     assert!(!plain.can_trust_past_check(&missing_options));

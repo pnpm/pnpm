@@ -1,9 +1,9 @@
 use super::{
     Arc, FetchAttestationOptions, FetchFullMetadataCachedOptions, NpmResolutionVerifier, OnceCell,
-    Package, Pipe, PkgName, PublishedAtTimeMap, TrustHistoryProjection,
-    fetch_attestation_published_at, fetch_full_metadata_cached, fetch_full_metadata_projected,
-    load_local_meta_time, package_key, project_abbreviated_meta, project_trust_meta,
-    redact_url_credentials, render_fetch_metadata_error,
+    Package, Pipe, PkgName, PublishedAtTimeMap, TrustHistoryProjection, append_attested_time,
+    attested_time_path, fetch_attestation_published_at, fetch_full_metadata_cached,
+    fetch_full_metadata_projected, load_local_meta_time, package_key, project_abbreviated_meta,
+    project_trust_meta, redact_url_credentials, render_fetch_metadata_error,
 };
 
 impl NpmResolutionVerifier {
@@ -49,22 +49,22 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
-        let supports_time_field = self.supports_time_field(registry);
+        let include_time = self.release_age_window_fits_pnpr_doc(registry);
         // A shared packument that turns out to hold a damaged mirror
         // fragment falls through to the fetch below, which repairs it.
         if let Some(shared) = self.read_shared_meta(registry, name)
             && !shared.versions.corrupt_mirror_fragment_found()
         {
-            return Ok(project_abbreviated_meta(&shared, supports_time_field));
+            return Ok(project_abbreviated_meta(&shared, include_time));
         }
-        self.fetch_abbreviated_meta_uncached(registry, &name.to_string(), supports_time_field).await
+        self.fetch_abbreviated_meta_uncached(registry, &name.to_string(), include_time).await
     }
 
     async fn fetch_abbreviated_meta_uncached(
         &self,
         registry: &str,
         name: &str,
-        supports_time_field: bool,
+        include_time: bool,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         let pnpr_format = self.routing.is_pnpr_registry(registry);
         let opts = FetchFullMetadataCachedOptions {
@@ -87,13 +87,13 @@ impl NpmResolutionVerifier {
         // from a version genuinely absent from the metadata, otherwise
         // it reports a 403 as a tampering-style mismatch.
         let result = fetch_full_metadata_projected(name, &opts, |meta| {
-            project_abbreviated_meta(meta, supports_time_field)
+            project_abbreviated_meta(meta, include_time)
         })
         .await;
         if result.is_err() && pnpr_format && self.metadata.offline {
             let fallback = FetchFullMetadataCachedOptions { pnpr_format: false, ..opts };
             if let Ok(projection) = fetch_full_metadata_projected(name, &fallback, |meta| {
-                project_abbreviated_meta(meta, supports_time_field)
+                project_abbreviated_meta(meta, include_time)
             })
             .await
             {
@@ -124,11 +124,10 @@ impl NpmResolutionVerifier {
             .filter(|meta| meta.name == name_str)
     }
 
-    /// Per-`(registry, name)` on-disk mirror read of the full
-    /// packument's per-version `time` map. Returns `None` when no
-    /// mirror exists yet, no `cache_dir` was supplied, or the mirror
-    /// has no `time` payload — the caller then falls through to the
-    /// next layer of [`Self::resolve_published_at`].
+    /// Per-`(registry, name)` read of the publish times the cache holds
+    /// (see [`load_local_meta_time`]). Returns `None` when it holds none
+    /// or no `cache_dir` was supplied — the caller then falls through to
+    /// the next layer of [`Self::resolve_published_at`].
     pub(super) async fn read_local_meta_time(
         &self,
         registry: &str,
@@ -171,8 +170,45 @@ impl NpmResolutionVerifier {
             http_client: &self.metadata.http_client,
             auth_headers: &self.metadata.auth_headers,
         };
-        fetch_attestation_published_at(&name.to_string(), version, &opts).await
-            .map_err(|err| redact_url_credentials(&err.to_string()))
+        let published_at = fetch_attestation_published_at(&name.to_string(), version, &opts)
+            .await
+            .map_err(|err| redact_url_credentials(&err.to_string()))?;
+        if let Some(published_at) = &published_at {
+            self.record_attested_time(registry, name, version, published_at).await;
+        }
+        Ok(published_at)
+    }
+
+    /// Keep an attested publish time for the verifications that cannot
+    /// reach the attestation endpoint. A failed write costs only that.
+    async fn record_attested_time(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        version: &str,
+        published_at: &str,
+    ) {
+        let Some(cache_dir) = self.metadata.cache_dir.as_deref() else {
+            return;
+        };
+        let name = name.to_string();
+        let url = crate::registry_url::to_registry_url(registry, &name);
+        let scope = self.metadata.auth_headers.metadata_scope(&url, Some(&name));
+        let Some(path) = attested_time_path(cache_dir, &scope, registry, &name) else {
+            return;
+        };
+        let (version, published_at) = (version.to_string(), published_at.to_string());
+        let written = tokio::task::spawn_blocking(move || {
+            append_attested_time(&path, &version, &published_at)
+        })
+        .await;
+        if let Ok(Err(error)) = written {
+            tracing::debug!(
+                target: "pnpm_resolving_npm_resolver::attestation",
+                ?error,
+                "failed to record an attested publish time",
+            );
+        }
     }
 
     pub(super) async fn fetch_full_meta_time(
@@ -244,21 +280,19 @@ impl NpmResolutionVerifier {
         .clone()
     }
 
-    pub(super) fn supports_time_field(&self, registry: &str) -> bool {
-        let pnpr_window_exceeded = self.routing.is_pnpr_registry(registry)
-            && self.release_age.minimum_minutes.is_some_and(|minutes| {
-                minutes > crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
-            });
-        if pnpr_window_exceeded {
-            return false;
-        }
-        self.routing.supports_time_field(registry, self.metadata.registry_supports_time_field)
-    }
-
     /// `install-v2` clamps dates older than `timesSince` to `timesSince`:
     /// unbounded checks order clamped versions by semver (`published_before`),
-    /// while `trustPolicyIgnoreAfter > MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`
+    /// while a window past [`crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`]
     /// needs exact publish dates from the full packument.
+    fn release_age_window_fits_pnpr_doc(&self, registry: &str) -> bool {
+        !self.routing.is_pnpr_registry(registry)
+            || self.release_age.minimum_minutes.is_none_or(|minutes| {
+                minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+            })
+    }
+
+    /// The `trustPolicyIgnoreAfter` counterpart of
+    /// [`Self::release_age_window_fits_pnpr_doc`].
     fn trust_window_fits_pnpr_doc(&self) -> bool {
         self.trust.ignore_after.is_none_or(|minutes| {
             minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
