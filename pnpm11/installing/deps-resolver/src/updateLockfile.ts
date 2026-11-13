@@ -126,6 +126,7 @@ function toLockfileDependency (
 function addChildDependencies (
   result: PackageSnapshot,
   opts: {
+    depPath: string
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
