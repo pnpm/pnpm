@@ -7,6 +7,7 @@ import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
 
 import { isSafeBundleName, type PackBoundaries, type ResolvedDependency, resolveDependency } from './bundleDependencyResolver.js'
+import { VanishedEntriesWalker } from './VanishedEntriesWalker.js'
 
 interface Edge {
   to: TreeNode
@@ -36,7 +37,7 @@ const ALTERNATE_MANIFEST_NAMES = ['package.yaml', 'package.json5']
  * symlinks named in `files`, and leaves it to packlistWithSources to exclude the
  * ones that point outside the package.
  */
-class PackWalker extends npmPacklist.Walker {
+class PackWalker extends VanishedEntriesWalker {
   override onReaddir (entries: string[]): void {
     if (this.isPackage) {
       entries = entries.filter((entry) => !isLockfileStagingFile(entry))

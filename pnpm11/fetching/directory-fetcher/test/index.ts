@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, describe, expect, jest, test } from '@jest/globals'
+import { afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -353,4 +353,100 @@ test.each([true, false])('listFilesFromDir skips a lockfile staging file at the 
   } finally {
     rimrafSync(pkgDir)
   }
+})
+
+describe('listFilesFromDir with entries removed while the package is walked', () => {
+  type ReaddirCallback = (err: NodeJS.ErrnoException | null, entries: string[]) => void
+  const readdir = fs.readdir
+  let pkgDir: string
+
+  beforeEach(() => {
+    pkgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg', version: '1.0.0' }))
+    fs.writeFileSync(path.join(pkgDir, 'index.js'), '')
+    fs.mkdirSync(path.join(pkgDir, 'lib'))
+    fs.writeFileSync(path.join(pkgDir, 'lib/a.js'), '')
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+    rimrafSync(pkgDir)
+  })
+
+  function mockReaddir (implementation: (dir: string, callback: ReaddirCallback) => void): void {
+    jest.spyOn(fs, 'readdir').mockImplementation(implementation as unknown as typeof fs.readdir)
+  }
+
+  async function listPackageFiles (): Promise<string[]> {
+    const { filesMap } = await listFilesFromDir(pkgDir, { includeOnlyPackageFiles: true })
+    return Array.from(filesMap.keys()).sort(lexCompare)
+  }
+
+  test('a listing that fails with ENOENT is read again', async () => {
+    let failed = false
+    mockReaddir((dir, callback) => {
+      if (path.resolve(dir) === pkgDir && !failed) {
+        failed = true
+        callback(Object.assign(new Error(`ENOENT: no such file or directory, '${dir}'`), { code: 'ENOENT' }), [])
+        return
+      }
+      readdir(dir, callback)
+    })
+
+    expect(await listPackageFiles()).toStrictEqual(['index.js', 'lib/a.js', 'package.json'])
+    expect(failed).toBe(true)
+  })
+
+  test('a file removed after its directory is listed is skipped', async () => {
+    mockReaddir((dir, callback) => {
+      readdir(dir, (err, entries) => {
+        fs.rmSync(path.join(pkgDir, 'index.js'), { force: true })
+        callback(err, entries)
+      })
+    })
+
+    expect(await listPackageFiles()).toStrictEqual(['lib/a.js', 'package.json'])
+  })
+
+  test('a directory removed before the walk enters it is skipped', async () => {
+    const lib = path.join(pkgDir, 'lib')
+    mockReaddir((dir, callback) => {
+      if (path.resolve(dir) === lib) fs.rmSync(lib, { force: true, recursive: true })
+      readdir(dir, callback)
+    })
+
+    expect(await listPackageFiles()).toStrictEqual(['index.js', 'package.json'])
+  })
+
+  test.each([
+    ['package root', () => pkgDir],
+    ['subdirectory', () => path.join(pkgDir, 'lib')],
+  ])('a %s listing that keeps failing with ENOENT fails the walk', async (_, failingDir) => {
+    let attempts = 0
+    mockReaddir((dir, callback) => {
+      if (path.resolve(dir) !== failingDir()) {
+        readdir(dir, callback)
+        return
+      }
+      attempts++
+      callback(Object.assign(new Error(`ENOENT: no such file or directory, '${dir}'`), { code: 'ENOENT' }), [])
+    })
+
+    await expect(listPackageFiles()).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(attempts).toBe(8)
+  })
+
+  test('an .npmignore removed before it is read falls back to the .gitignore', async () => {
+    fs.writeFileSync(path.join(pkgDir, 'lib/secret.js'), '')
+    fs.writeFileSync(path.join(pkgDir, 'lib/other.js'), '')
+    fs.writeFileSync(path.join(pkgDir, 'lib/.npmignore'), 'other.js\n')
+    fs.writeFileSync(path.join(pkgDir, 'lib/.gitignore'), 'secret.js\n')
+    const readFile = fs.readFile
+    jest.spyOn(fs, 'readFile').mockImplementation(((file: string, ...args: unknown[]) => {
+      if (path.basename(file) === '.npmignore') fs.rmSync(file, { force: true })
+      return (readFile as (...readArgs: unknown[]) => void)(file, ...args)
+    }) as unknown as typeof fs.readFile)
+
+    expect(await listPackageFiles()).toStrictEqual(['index.js', 'lib/a.js', 'lib/other.js', 'package.json'])
+  })
 })
