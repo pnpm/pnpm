@@ -2,7 +2,7 @@ use super::{GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER, LinkVirtualStoreBinsError};
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
     FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    link_bins_of_packages,
+    link_bins, link_bins_of_packages,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
@@ -117,7 +117,7 @@ fn repair_slot(
                     });
                 }
             }
-            link_bins_excluding::<Host>(&modules_dir, &bins_dir, &package_dir, link_options)
+            link_bins::<Host>(&modules_dir, &bins_dir, link_options)
                 .map_err(LinkVirtualStoreBinsError::LinkBins)
         }
         Err(error) if is_missing_directory_error(&error) => Ok(()),

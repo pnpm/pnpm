@@ -113,7 +113,7 @@ async function repairSlot (opts: {
     : path.join(modulesDir, packageName)
   if (!await pathExists(packageDir)) return
 
-  const packages = await readPackageBins(modulesDir, packageDir)
+  const packages = await readPackageBins(modulesDir)
   const binsDir = path.join(packageDir, 'node_modules/.bin')
   await fs.promises.rm(binsDir, { recursive: true, force: true })
   await linkBinsOfPackages(packages, binsDir, {
@@ -122,13 +122,9 @@ async function repairSlot (opts: {
   })
 }
 
-async function readPackageBins (
-  modulesDir: string,
-  ownPackageDir: string
-): Promise<Array<{ location: string, manifest: DependencyManifest }>> {
+async function readPackageBins (modulesDir: string): Promise<Array<{ location: string, manifest: DependencyManifest }>> {
   const childPaths = await packageDirectories(modulesDir)
-  const candidates = childPaths.filter((childPath) => path.resolve(childPath) !== path.resolve(ownPackageDir))
-  const packages = await Promise.all(candidates.map(async (location) => ({
+  const packages = await Promise.all(childPaths.map(async (location) => ({
     location,
     manifest: await readPackageManifest(location),
   })))
