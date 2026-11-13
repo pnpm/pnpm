@@ -523,6 +523,26 @@ async fn a_stored_public_route_must_parse() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
 }
 
+#[tokio::test]
+async fn a_stored_public_route_on_the_own_host_must_be_at_its_public_origin() {
+    let dir = TempDir::new().unwrap();
+    let replica = Replica::new(load_config(dir.path()).await).await;
+    let (_, document, _) = replica.send("GET", DOCUMENT, Some(&replica.root), None).await;
+    let cases = [
+        ("http://example.test:9000/", StatusCode::BAD_REQUEST),
+        ("//example.test:9000/", StatusCode::BAD_REQUEST),
+        ("http://127.0.0.1:9000/", StatusCode::BAD_REQUEST),
+        ("http://10.0.0.5:9000/", StatusCode::OK),
+        ("http://example.test/", StatusCode::OK),
+    ];
+    for (registry, expected) in cases {
+        let mut document = document.clone();
+        document["routes"] = json!({ "public": [{ "registry": registry }] });
+        let (status, body) = replica.as_root("PUT", DOCUMENT, Some(document)).await;
+        assert_eq!(status, expected, "{registry}: {body}");
+    }
+}
+
 /// A server that counts the requests it answers.
 async fn counting_server() -> (SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHandle<()>) {
     let hits = Arc::new(AtomicUsize::new(0));
@@ -612,6 +632,55 @@ async fn the_own_public_host_is_no_exception_for_a_stored_upstream() {
         let rewrite = Some(upstream(&format!("{own_url}/other/")));
         let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
+    }
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+    server.abort();
+}
+
+#[tokio::test]
+async fn a_stored_upstream_at_the_own_public_origin_is_refused_on_an_allowed_network() {
+    let (address, hits, server) = counting_server().await;
+    let port = address.port();
+    let allowed = "['10.0.0.0/8', '127.0.0.0/8', '::1/128']";
+    for host in ["127.0.0.1", "localhost"] {
+        let dir = TempDir::new().unwrap();
+        let own_url = format!("http://{host}:{port}");
+        let yaml = format!("storage: {}\n{CONFIG}", storage_dir(dir.path()).display()).replace(
+            "['10.0.0.0/8']",
+            allowed,
+        );
+        let config = crate::managed_registries::managed_config(
+            &config_path(dir.path()),
+            &yaml,
+            listen(),
+            Some(own_url.clone()),
+        )
+        .await;
+        let storage = Storage::from_config(&config.storage).unwrap();
+        let document =
+            json!({ "registries": { "up": upstream(&format!("{own_url}/")) } }).to_string();
+        let revision = NewRegistryGraph {
+            document: &document,
+            actor_id: "-",
+            restored_from: None,
+            vacated: &[],
+            bound: &[],
+        };
+        storage
+            .write_registry_graph(Some(1), revision)
+            .await
+            .unwrap();
+        let replica = Replica::new(config).await;
+
+        let (status, _, _) =
+            replica.send("GET", "/npm/~up/example", Some(&replica.bob), None).await;
+        assert_ne!(status, StatusCode::OK, "{host}");
+        let rewrite = Some(upstream(&format!("{own_url}/other/")));
+        let (status, error) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), rewrite).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{host}: {error}");
+        let elsewhere = Some(upstream("http://127.0.0.1:1/"));
+        let (status, body) = replica.as_root("PUT", &format!("{DOCUMENT}/up"), elsewhere).await;
+        assert_eq!(status, StatusCode::OK, "{host}: an allowed address at another origin {body}");
     }
     assert_eq!(hits.load(Ordering::SeqCst), 0);
     server.abort();

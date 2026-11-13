@@ -1,6 +1,6 @@
 use super::{
     Config, StartupGraph, Storage, adopt_startup_graph, current_routing_of, load_startup_auth,
-    may_stage_archives, spawn_periodic_archive_temp_sweep, state_and_router,
+    load_stored_graph, may_stage_archives, spawn_periodic_archive_temp_sweep, state_and_router,
     sweep_abandoned_archive_temps, sweep_current_archive_temps,
 };
 use object_store::memory::InMemory;
@@ -921,4 +921,37 @@ async fn a_graph_loaded_at_startup_counts_its_stale_limit_from_startup() {
     assert!(graph.is_available());
     tokio::time::advance(Duration::from_secs(2)).await;
     assert!(!graph.is_available());
+}
+
+#[tokio::test]
+async fn a_graph_loaded_at_startup_that_lacks_what_the_config_names_is_served_with_a_warning() {
+    let tmp = TempDir::new().unwrap();
+    let config_path = tmp.path().join("config.yaml");
+    let yaml = format!(
+        "storage: {}\nsecret: test-secret-key-32-chars-long-12\nregistriesManagedBy: api\n\
+         auth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
+         audience: pnpr\n      login:\n        groups:\n          teams:\n            \
+         - group: eng\n              registry: local\n              teamId: platform\n",
+        tmp.path().join("storage").display(),
+    );
+    std::fs::write(&config_path, yaml).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let mut config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let log = tmp.path().join("startup.log");
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .with_ansi(false)
+        .with_writer(std::fs::File::create(&log).unwrap())
+        .finish();
+    let graph = {
+        let _default = tracing::subscriber::set_default(subscriber);
+        load_stored_graph(&mut config).await
+    };
+    assert_eq!(graph, StartupGraph::Stored { generation: None });
+    let output = std::fs::read_to_string(&log).unwrap();
+    assert!(
+        output.contains("the stored registry graph lacks what the config file names"),
+        "{output}",
+    );
+    assert!(output.contains(r#"OIDC group "eng""#), "{output}");
 }

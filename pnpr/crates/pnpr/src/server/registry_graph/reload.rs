@@ -6,7 +6,7 @@
 use super::{
     super::{AppState, RegistryError, managed_state::read_with_deadline},
     RoutingSnapshot, build_snapshot,
-    stored::{Credentials, check_file_references, stored_document, stored_routing},
+    stored::{Credentials, served_routing, stored_document},
 };
 use pnpr_config::RoutingConfig;
 use pnpr_storage::metadata::StoredRegistryGraph;
@@ -135,18 +135,11 @@ async fn poll_graph(state: &AppState, loaded: Option<Option<u64>>) -> Result<Pol
     Ok(Poll::Changed(storage.read_registry_graph().await?))
 }
 
-/// The routing of a stored revision. A config-file reference the graph no
-/// longer satisfies is logged, not refused: writes refuse it, so only a
-/// config change can cause it, and the replica should keep serving.
+/// The routing of a stored revision: see [`served_routing`].
 fn load_routing(
     state: &AppState,
     stored: Option<&StoredRegistryGraph>,
 ) -> Result<RoutingConfig, RegistryError> {
-    let config = &state.inner.config;
     let document = stored_document(stored)?;
-    let routing = stored_routing(config, &document, Credentials::Resolve)?;
-    if let Err(err) = check_file_references(config, &routing) {
-        tracing::warn!(error = %err, "the stored registry graph lacks what the config file names");
-    }
-    Ok(routing)
+    served_routing(&state.inner.config, &document, Credentials::Resolve)
 }

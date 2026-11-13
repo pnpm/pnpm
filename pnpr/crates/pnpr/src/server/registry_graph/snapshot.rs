@@ -110,7 +110,7 @@ pub(crate) fn build_snapshot(
         .collect();
     let route_context = RouteContext::from_routing(&routing, &config.http.public_url);
     let route_context = Arc::new(match config.registries_managed_by {
-        Management::Api => route_context.with_stored_upstreams(&routing),
+        Management::Api => route_context.with_registries_in_database(),
         Management::Config => route_context,
     });
     RoutingSnapshot {
@@ -163,7 +163,8 @@ fn upstream_clients(
 /// The client of an upstream the database stores. An API-written URL must not
 /// reach loopback, private, or link-local addresses outside
 /// `routes.allowedPrivateNetworks`, whether it names them by IP literal or by
-/// a hostname that resolves to them, including this server's own host.
+/// a hostname that resolves to them, including this server's own host, nor
+/// this server's own `public_url` origin.
 fn stored_upstream(
     name: &str,
     upstream: &UpstreamConfig,
@@ -173,7 +174,7 @@ fn stored_upstream(
     let literal_context = Arc::clone(guard_context);
     let guard: RedirectGuard = Arc::new(move |url| {
         fetch_guard(url)
-            && current_context(&literal_context).allows_stored_upstream_literal_host(url.as_str())
+            && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
     });
     let connect_context = Arc::clone(guard_context);
     let connect_guard: AddressGuard = Arc::new(move |_host, address| {

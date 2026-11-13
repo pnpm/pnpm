@@ -124,6 +124,11 @@ impl RegistryGraphDocument {
         }
     }
 
+    /// The `registry` of each `routes.public` entry that names one.
+    pub fn public_route_registries(&self) -> impl Iterator<Item = &str> {
+        self.routes.public.iter().filter_map(|route| route.registry.as_deref())
+    }
+
     /// The `url` of the upstream registry `name`, as the document writes it.
     #[must_use]
     pub fn upstream_url(&self, name: &str) -> Option<&str> {

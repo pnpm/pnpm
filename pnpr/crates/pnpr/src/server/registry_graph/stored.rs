@@ -121,6 +121,7 @@ pub(crate) async fn check_revision(
         .map_err(|reason| RegistryError::BadRequest { reason })?;
     check_file_references(config, &routing).map_err(refused_change)?;
     check_upstream_hosts(config, &routing, previous, next)?;
+    check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
     let bound = next
         .registry_names()
@@ -140,8 +141,9 @@ pub(crate) fn occupied_namespace_error(occupied: &HostedNamespace) -> RegistryEr
     }
 }
 
-/// An upstream URL the admin API writes must not name loopback, private, or
-/// link-local addresses that `routes.allowedPrivateNetworks` does not allow.
+/// An upstream URL the admin API writes must not name this server's own
+/// `public_url` origin, nor loopback, private, or link-local addresses that
+/// `routes.allowedPrivateNetworks` does not allow.
 /// Hostnames are checked again on every connection, when they resolve.
 fn check_upstream_hosts(
     config: &Config,
@@ -161,11 +163,49 @@ fn check_upstream_hosts(
             .ok_or_else(|| RegistryError::BadRequest {
                 reason: format!("upstream registry {name:?} has `url` {url:?}, not an http(s) URL"),
             })?;
+        if context.is_own_origin(url) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("upstream registry {name:?} points at this server's own {url:?}"),
+            });
+        }
         if !upstream_host_allowed(&context, &parsed) {
             return Err(RegistryError::BadRequest {
                 reason: format!(
                     "upstream registry {name:?} points at {url:?}, a loopback, private, or \
                      link-local address that `routes.allowedPrivateNetworks` does not allow",
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// A `routes.public` registry the admin API writes must not name an address
+/// the resolver refuses to fetch from: see
+/// [`RouteContext::allows_route_host`].
+fn check_public_route_hosts(
+    config: &Config,
+    routing: &RoutingConfig,
+    previous: &RegistryGraphDocument,
+    next: &RegistryGraphDocument,
+) -> Result<(), RegistryError> {
+    let context =
+        RouteContext::from_routing(routing, &config.http.public_url).with_registries_in_database();
+    let unchanged = previous.public_route_registries().collect::<Vec<_>>();
+    for registry in next.public_route_registries() {
+        if unchanged.contains(&registry) {
+            continue;
+        }
+        let url = match registry.strip_prefix("//") {
+            Some(rest) => format!("http://{rest}"),
+            None => registry.to_string(),
+        };
+        if !context.allows_route_host(&url) {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "routes.public registry {registry:?} is a loopback, private, or link-local \
+                     address that `routes.allowedPrivateNetworks` does not allow, or this \
+                     server's own host at another origin than its public URL",
                 ),
             });
         }
@@ -251,6 +291,22 @@ pub(crate) async fn load_stored_routing(
     let storage = Storage::from_config(&config.storage)?;
     let stored = storage.read_registry_graph().await?;
     let document = stored_document(stored.as_ref())?;
-    let routing = stored_routing(config, &document, credentials)?;
+    let routing = served_routing(config, &document, credentials)?;
     Ok((routing, stored.map(|stored| stored.generation)))
+}
+
+/// The routing a replica serves from the stored `document`, at startup and on
+/// every reload. A config-file reference the graph does not satisfy is
+/// logged, not refused: writes refuse it, so only a config change can cause
+/// it, and the replica should keep serving.
+pub(super) fn served_routing(
+    config: &Config,
+    document: &RegistryGraphDocument,
+    credentials: Credentials,
+) -> Result<RoutingConfig, RegistryError> {
+    let routing = stored_routing(config, document, credentials)?;
+    if let Err(err) = check_file_references(config, &routing) {
+        tracing::warn!(error = %err, "the stored registry graph lacks what the config file names");
+    }
+    Ok(routing)
 }
