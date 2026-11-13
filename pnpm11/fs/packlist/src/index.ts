@@ -54,12 +54,22 @@ class PackWalker extends VanishedEntriesWalker {
   // directories above it unless the walk read an .npmignore in its root.
   override filterEntries (): void {
     if (this.workspace != null && this.ignoreRules['.npmignore'] == null) {
-      // The constructor injects only the default rules, which include the
-      // workspace's ignore files when given prefix and workspaces.
-      const workspaceWalker = new npmPacklist.Walker(this.tree, { ...this.workspace, path: this.path, isPackage: true })
-      Object.assign(this.ignoreRules, workspaceWalker.ignoreRules)
+      try {
+        this.inheritWorkspaceRules(this.workspace)
+      } catch (err: unknown) {
+        this.emit('error', err)
+        return
+      }
     }
     super.filterEntries()
+  }
+
+  // npm-packlist's constructor injects only the default rules, which include
+  // the workspace's ignore files when given prefix and workspaces. It reads
+  // them synchronously and throws on a read error other than ENOENT.
+  private inheritWorkspaceRules (workspace: WorkspaceContext): void {
+    const workspaceWalker = new npmPacklist.Walker(this.tree, { ...workspace, path: this.path, isPackage: true })
+    Object.assign(this.ignoreRules, workspaceWalker.ignoreRules)
   }
 
   override onReaddir (entries: string[]): void {

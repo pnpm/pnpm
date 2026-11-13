@@ -890,6 +890,31 @@ test.each([
   }
 })
 
+test('pack: an unreadable workspace root gitignore fails the pack', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.mkdirSync('.gitignore')
+
+  process.chdir('project')
+  fs.writeFileSync('index.js', 'source', 'utf8')
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    workspaceDir,
+  })).rejects.toMatchObject({ code: 'EISDIR' })
+})
+
 // A symlinked workspace-root LICENSE must not be injected: following it would
 // leak the target's bytes — potentially a file outside the workspace — into
 // the published tarball.
