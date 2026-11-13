@@ -4,24 +4,17 @@
 
 use crate::{
     item::Namespace,
-    modules::{CrateModules, ModulePath},
-    surface::{Exposure, Surface},
+    modules::{CrateModules, ModulePath, Scope},
+    surface::Exposure,
     use_tree::UsePath,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-/// A module of the crate, read from its own file or inline in another.
-pub struct Scope<'surface> {
-    /// Whether the parent declares it `pub mod`.
-    pub is_public: bool,
-    pub surface: &'surface Surface,
-}
-
 /// Every module of a crate, inline modules included, by path.
 pub fn scopes(modules: &CrateModules) -> BTreeMap<ModulePath, Scope<'_>> {
     let mut scopes = BTreeMap::new();
-    for (path, is_public, surface) in modules.surfaces() {
-        insert_scope(&mut scopes, path.clone(), Scope { is_public, surface });
+    for (path, scope) in modules.surfaces() {
+        insert_scope(&mut scopes, path.clone(), scope);
     }
     scopes
 }
@@ -120,7 +113,9 @@ impl Exported {
         module: &ModulePath,
         exposure: &Exposure,
     ) -> bool {
-        let Some((name, prefix)) = exposure.owner.split_last() else {
+        let Some((name, prefix)) =
+            exposure.owner.as_ref().and_then(|owner| owner.path.split_last())
+        else {
             return self.modules.contains(module);
         };
         let Some(owner_module) = resolve_module(scopes, module, prefix) else {
@@ -137,7 +132,10 @@ impl Exported {
                 .iter()
                 .find(|declared| declared.name == owner.1)
         };
-        let owner_type = (exposure.owner_namespace == Namespace::Type).then(owner_type).flatten();
+        let names_type = exposure.owner
+            .as_ref()
+            .is_some_and(|owner| owner.namespace == Namespace::Type);
+        let owner_type = names_type.then(owner_type).flatten();
         if owner_type.is_some_and(|declared| !declared.is_public) {
             return false;
         }

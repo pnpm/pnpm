@@ -35,12 +35,19 @@ pub struct Surface {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Exposure {
     pub path: Vec<String>,
-    /// The top-level item the signature belongs to, written as a path from
-    /// the scope: the item's own name, or the self type of an `impl`. Empty
-    /// when the signature is outside any item.
-    pub owner: Vec<String>,
-    /// The namespace the owner's name binds in: a type for an `impl`.
-    pub owner_namespace: Namespace,
+    /// The top-level item the signature belongs to, or `None` when the
+    /// signature is outside any item.
+    pub owner: Option<Owner>,
+}
+
+/// The top-level item a signature belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Owner {
+    /// The item's own name, or the self type of an `impl`, written as a path
+    /// from the scope.
+    pub path: Vec<String>,
+    /// The namespace the name binds in: a type for an `impl`.
+    pub namespace: Namespace,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -87,9 +94,8 @@ struct Scope<'tokens> {
     tokens: &'tokens [Token],
     surface: Surface,
     imports: Vec<UsePath>,
-    /// The top-level item the scan is in, and the namespace its name binds
-    /// in.
-    owner: (Vec<String>, Namespace),
+    /// The top-level item the scan is in.
+    owner: Option<Owner>,
     /// The depth of `{` blocks: a `use` inside a function body or another
     /// block is not one of the scope's imports.
     braces: usize,
@@ -129,11 +135,7 @@ impl Scope<'_> {
         let next = scan_at(tokens, pos, &mut exposed);
         let owned = exposed
             .into_iter()
-            .map(|path| Exposure {
-                path,
-                owner: self.owner.0.clone(),
-                owner_namespace: self.owner.1,
-            });
+            .map(|path| Exposure { path, owner: self.owner.clone() });
         self.surface.exposed.extend(owned);
         next
     }
@@ -169,10 +171,10 @@ impl Scope<'_> {
                 self.surface.types.push(declaration);
             }
         }
-        self.owner = match header {
-            ItemHeader::Named { name, namespace, .. } => (vec![name], namespace),
-            ItemHeader::Impl { self_type } => (self_type, Namespace::Type),
-        };
+        self.owner = Some(match header {
+            ItemHeader::Named { name, namespace, .. } => Owner { path: vec![name], namespace },
+            ItemHeader::Impl { self_type } => Owner { path: self_type, namespace: Namespace::Type },
+        });
     }
 
     /// Scans the inline module `mod name { … }` at `pos` as its own scope.
@@ -218,8 +220,9 @@ impl Scope<'_> {
         let types = &self.surface.types;
         for exposure in &mut self.surface.exposed {
             expand(&mut exposure.path, &self.imports);
-            let names_local_type = exposure.owner_namespace == Namespace::Type
-                && exposure.owner
+            let Some(owner) = &mut exposure.owner else { continue };
+            let names_local_type = owner.namespace == Namespace::Type
+                && owner.path
                     .first()
                     .is_some_and(|first| {
                         types
@@ -227,7 +230,7 @@ impl Scope<'_> {
                             .any(|declared| &declared.name == first)
                     });
             if !names_local_type {
-                expand(&mut exposure.owner, &self.imports);
+                expand(&mut owner.path, &self.imports);
             }
         }
         self.surface

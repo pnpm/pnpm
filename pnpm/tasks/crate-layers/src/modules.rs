@@ -35,6 +35,13 @@ pub struct CrateModules {
     modules: BTreeMap<ModulePath, Module>,
 }
 
+/// A module of the crate, read from its own file or inline in another.
+pub struct Scope<'surface> {
+    /// Whether the parent declares it `pub mod`.
+    pub is_public: bool,
+    pub surface: &'surface Surface,
+}
+
 /// The top-level modules of a crate, their sizes, and how often each one
 /// names another.
 #[derive(Debug, Default)]
@@ -100,12 +107,13 @@ impl CrateModules {
         Ok(())
     }
 
-    /// The path, `pub mod` declaration, and public surface of each non-test
-    /// module read from its own file.
-    pub fn surfaces(&self) -> impl Iterator<Item = (&ModulePath, bool, &Surface)> {
+    /// Each non-test module read from its own file, by path.
+    pub fn surfaces(&self) -> impl Iterator<Item = (&ModulePath, Scope<'_>)> {
         self.modules
             .iter()
-            .map(|(path, module)| (path, module.is_public, &module.surface))
+            .map(|(path, module)| {
+                (path, Scope { is_public: module.is_public, surface: &module.surface })
+            })
     }
 
     /// The surface of the crate root, whose `extern crate` aliases bind in
