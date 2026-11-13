@@ -431,7 +431,7 @@ pub struct WorkspaceSettings {
     /// [`Config::skip_runtimes`](crate::settings::Config::skip_runtimes).
     pub runtime: Option<bool>,
 
-    /// `runtimeOnFail` from `pnpm-workspace.yaml`.
+    /// `runtimeOnFail` from `pnpm-workspace.yaml` / global `config.yaml`.
     pub runtime_on_fail: Option<RuntimeOnFail>,
 
     /// Per-release-channel Node.js download mirrors.
@@ -624,7 +624,7 @@ pub struct WorkspaceSettings {
     /// [`Config::init_version`]: crate::Config::init_version
     pub init_version: Option<String>,
 
-    /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
+    /// `pmOnFail` from `pnpm-workspace.yaml` / global `config.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
 
     /// `verifyDepsBeforeRun` from `pnpm-workspace.yaml` /

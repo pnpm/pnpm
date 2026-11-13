@@ -91,8 +91,6 @@ define_workspace_only_groups! {
         lockfile_include_tarball_url,
         strict_store_pkg_content_check,
         runtime,
-        runtime_on_fail,
-        pm_on_fail,
     }
     clear_workspace_resolution_fields {
         auto_install_peers,

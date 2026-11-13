@@ -162,6 +162,38 @@ fn global_block_exotic_subdeps_and_exclude_links_from_lockfile_round_trip() {
 }
 
 #[test]
+fn global_pm_on_fail_and_runtime_on_fail_round_trip() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    config_set(&config, tmp.path(), flags(true, None, false), "pm-on-fail", Some("ignore".into()))
+        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "runtime-on-fail",
+        Some("error".into()),
+    )
+    .unwrap();
+
+    let loaded_global = load_global_only_config(&config_dir);
+    assert_eq!(
+        config_get(&loaded_global, flags(true, None, false), "pm-on-fail").unwrap(),
+        "ignore",
+    );
+    assert_eq!(
+        config_get(&loaded_global, flags(true, None, false), "runtimeOnFail").unwrap(),
+        "error",
+    );
+
+    let project_runtime = load_isolated_project_config(config, tmp.path());
+    assert_eq!(project_runtime.pm_on_fail, Some(pnpm_config::PmOnFail::Ignore));
+    assert_eq!(project_runtime.runtime_on_fail, Some(pnpm_config::RuntimeOnFail::Error));
+}
+
+#[test]
 fn max_sockets_coerces_to_number_and_round_trips_in_both_spellings() {
     let tmp = TempDir::new().unwrap();
     let config_dir = tmp.path().join("global-config");

@@ -554,12 +554,17 @@ fn global_tools_and_resolution_keys_round_trip_through_cli() {
         "https://mirror.example.com/node/download",
     );
 
-    for key in ["blockExoticSubdeps", "excludeLinksFromLockfile"] {
-        let set_out = run(&["config", "set", "--global", key, "true"]);
+    for (key, value) in [
+        ("blockExoticSubdeps", "true"),
+        ("excludeLinksFromLockfile", "true"),
+        ("pm-on-fail", "ignore"),
+        ("runtime-on-fail", "error"),
+    ] {
+        let set_out = run(&["config", "set", "--global", key, value]);
         assert!(set_out.status.success(), "stderr={}", String::from_utf8_lossy(&set_out.stderr));
         let get_out = run(&["config", "get", "--global", key]);
         assert!(get_out.status.success(), "stderr={}", String::from_utf8_lossy(&get_out.stderr));
-        assert_eq!(String::from_utf8_lossy(&get_out.stdout).trim_end(), "true", "{key}");
+        assert_eq!(String::from_utf8_lossy(&get_out.stdout).trim_end(), value, "{key}");
     }
 
     drop(root);
