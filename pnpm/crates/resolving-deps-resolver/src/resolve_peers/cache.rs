@@ -107,6 +107,7 @@ struct EdgeRealization<'a> {
 pub(super) struct CacheHitContext<'a> {
     pub(super) node_id: &'a NodeId,
     pub(super) tree_node_depth: i32,
+    pub(super) parent_refs: &'a ParentRefs,
     pub(super) parent_chain_names: &'a SharedChain<Arc<str>>,
     pub(super) parent_pkg_ids_chain: &'a SharedChain<Arc<str>>,
     pub(super) preview_undo: Option<UndoRealize>,
@@ -181,10 +182,8 @@ impl Walker<'_> {
         if !reuse_peer_subtrees(&self.opts) {
             return None;
         }
-        let cache_items = self.caches.peers_cache.get(pkg_id)?;
-        cache_items
-            .iter()
-            .find(|item| self.item_matches(item, parent_refs))
+        let mut cache_items = self.caches.peers_cache.get(pkg_id)?;
+        cache_items.find(|item| self.item_matches(item, parent_refs))
     }
 
     fn item_matches(&self, item: &PeersCacheItem, parent_refs: &ParentRefs) -> bool {
@@ -211,6 +210,7 @@ impl Walker<'_> {
         let CacheHitContext {
             node_id,
             tree_node_depth,
+            parent_refs,
             parent_chain_names,
             parent_pkg_ids_chain,
             preview_undo,
@@ -221,6 +221,7 @@ impl Walker<'_> {
             missing_peers_of_children,
         } = cached;
         self.undo_realize(node_id, preview_undo, None);
+        self.remap_discovery_cached_peers(&mut output.external_resolved_peers, parent_refs);
 
         self.record_cache_hit_missing_issues(
             node_id,
@@ -367,6 +368,48 @@ impl Walker<'_> {
         }
         self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(&output.missing_peers));
         self.nodes.children_missing_peers.insert(node_id.clone(), missing_peers_of_children);
+    }
+
+    pub(super) fn remap_discovery_cached_peers(
+        &self,
+        peers: &mut Arc<HashMap<String, NodeId>>,
+        parent_refs: &ParentRefs,
+    ) {
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {}
+            PeerWalkMode::Final => return,
+        }
+        let needs_remap = peers
+            .iter()
+            .any(|(name, cached_id)| {
+                self.scoped_peer_remap_target(parent_refs, name)
+                    .is_some_and(|scoped_id| scoped_id != cached_id)
+            });
+        if !needs_remap {
+            return;
+        }
+        let remapped = peers
+            .iter()
+            .map(|(name, cached_id)| {
+                let scoped_id =
+                    self.scoped_peer_remap_target(parent_refs, name).unwrap_or(cached_id);
+                (name.clone(), scoped_id.clone())
+            })
+            .collect();
+        *peers = Arc::new(remapped);
+    }
+
+    fn scoped_peer_remap_target<'a>(
+        &self,
+        parent_refs: &'a ParentRefs,
+        name: &str,
+    ) -> Option<&'a NodeId> {
+        let scoped_id = parent_refs.get(name)?.node_id.as_ref()?;
+        let is_live = match scoped_id {
+            NodeId::Leaf(_) => true,
+            NodeId::Counter(_) => self.tree.dependencies_tree.contains_key(scoped_id),
+        };
+        is_live.then_some(scoped_id)
     }
 }
 

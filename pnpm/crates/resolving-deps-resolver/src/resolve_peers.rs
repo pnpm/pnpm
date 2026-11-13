@@ -165,7 +165,7 @@ impl Default for ResolvePeersOptions {
 
 /// The workspace-wide settings [`fn@resolve_peers_workspace`] takes as one
 /// parameter.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct WorkspacePeerSettings {
     /// `true` enables the cross-importer dedupe pass:
     /// `dependenciesMeta[<alias>].injected: true` workspace edges collapse
@@ -183,6 +183,8 @@ pub struct WorkspacePeerSettings {
     pub resolve_peers_from_workspace_root: bool,
     /// Optional cap on distinct peer-resolved snapshots in the workspace graph.
     pub max_snapshots: Option<usize>,
+    /// Optional cooperative cancellation probe polled during the peer walk.
+    pub cancel: crate::ResolutionCancel,
 }
 
 /// See [`crate::PeerResolutionScope::hoist_missing_scope`].
@@ -293,6 +295,15 @@ pub struct ImporterPeerInput {
     pub rejected_optional_peers: HashSet<String>,
 }
 
+/// Reason a workspace or discovery peer walk stopped early.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerWalkAbort {
+    /// Distinct peer-resolved snapshots exceeded [`WorkspacePeerSettings::max_snapshots`].
+    SnapshotLimitExceeded,
+    /// Cooperative cancellation was signalled via [`WorkspacePeerSettings::cancel`].
+    Cancelled,
+}
+
 /// Output of [`fn@resolve_peers_workspace`] — the cross-importer
 /// dedupe map plus per-importer `direct_dependencies_by_alias` slices.
 #[derive(Debug, Default)]
@@ -303,9 +314,8 @@ pub struct WorkspaceResolvePeersResult {
     /// Final `DepPath` of every walked node — the upstream
     /// `pathsByNodeId`. See [`ResolvePeersResult::paths_by_node_id`].
     pub paths_by_node_id: HashMap<NodeId, DepPath>,
-    /// Set when the peer walk aborted because distinct snapshots exceeded
-    /// [`WorkspacePeerSettings::max_snapshots`].
-    pub snapshots_exceeded: bool,
+    /// Early-stop outcome when the peer walk hit a snapshot limit or cancellation.
+    pub abort: Option<PeerWalkAbort>,
 }
 
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
@@ -370,52 +380,78 @@ pub fn resolve_peers_workspace(
         PeerWalkMode::Final,
     );
     walker.traversal.snapshot_budget.max_snapshots = settings.max_snapshots;
+    walker.traversal.snapshot_budget.cancel.set_probe(settings.cancel);
     let importers = sorted_importer_inputs(importers);
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, settings.resolve_peers_from_workspace_root);
-    if walker.traversal.snapshot_budget.exceeded {
-        return WorkspaceResolvePeersResult { snapshots_exceeded: true, ..Default::default() };
+    let _ = walker.traversal.snapshot_budget.poll_cancelled();
+    if let Some(abort) = walker.traversal.snapshot_budget.abort {
+        return WorkspaceResolvePeersResult { abort: Some(abort), ..Default::default() };
     }
     finish_resolved_workspace_peers(
         walker,
         &importers,
         lockfile_dir,
-        settings,
+        FinishDedupeSettings {
+            peer_dependents: settings.dedupe_peer_dependents,
+            injected_deps: settings.dedupe_injected_deps,
+        },
         peer_dependency_issues_by_importer,
     )
+}
+
+#[derive(Clone, Copy)]
+struct FinishDedupeSettings {
+    peer_dependents: crate::PeerDependentsDedupe,
+    injected_deps: bool,
 }
 
 fn finish_resolved_workspace_peers(
     mut walker: Walker<'_>,
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
-    settings: WorkspacePeerSettings,
+    dedupe: FinishDedupeSettings,
     peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues>,
 ) -> WorkspaceResolvePeersResult {
     walker.patch_pending_peer_edges();
-    let mut finished = finish_workspace_graph(
-        &mut walker,
-        importers,
-        lockfile_dir,
-        settings.dedupe_peer_dependents,
-    );
-    if settings.max_snapshots.is_some_and(|max| finished.graph.len() > max) {
-        return WorkspaceResolvePeersResult { snapshots_exceeded: true, ..Default::default() };
+    let mut finished =
+        finish_workspace_graph(&mut walker, importers, lockfile_dir, dedupe.peer_dependents);
+    if walker.traversal.snapshot_budget.poll_cancelled() {
+        return WorkspaceResolvePeersResult {
+            abort: Some(PeerWalkAbort::Cancelled),
+            ..Default::default()
+        };
+    }
+    if walker.traversal.snapshot_budget.max_snapshots.is_some_and(|max| {
+        finished.graph.len() > max
+    }) {
+        return WorkspaceResolvePeersResult {
+            abort: Some(PeerWalkAbort::SnapshotLimitExceeded),
+            ..Default::default()
+        };
     }
     finished.dedupe_peer_dependents(
         walker.opts.peers_suffix_max_length,
-        settings.dedupe_peer_dependents,
+        dedupe.peer_dependents,
         importers,
     );
-    if settings.dedupe_injected_deps {
+    if walker.traversal.snapshot_budget.poll_cancelled() {
+        return WorkspaceResolvePeersResult {
+            abort: Some(PeerWalkAbort::Cancelled),
+            ..Default::default()
+        };
+    }
+    if dedupe.injected_deps {
         finished.dedupe_injected_deps(importers);
     }
+    let abort =
+        walker.traversal.snapshot_budget.poll_cancelled().then_some(PeerWalkAbort::Cancelled);
     WorkspaceResolvePeersResult {
         graph: finished.graph,
         direct_dependencies_by_importer: finished.direct_dependencies_by_importer,
         peer_dependency_issues_by_importer,
         paths_by_node_id: finished.paths_by_node_id,
-        snapshots_exceeded: false,
+        abort,
     }
 }
 
@@ -456,7 +492,9 @@ fn walk_importers(
     });
     let mut issues_by_importer = BTreeMap::new();
     for importer in importers {
-        if walker.traversal.snapshot_budget.exceeded {
+        if walker.traversal.snapshot_budget.poll_cancelled()
+            || walker.traversal.snapshot_budget.is_stopped()
+        {
             break;
         }
         let issues = walk_importer(walker, importer, root_importer, root_parents.as_ref());
@@ -507,7 +545,9 @@ fn walk_importer(
         );
     }
     for dep in &own_direct {
-        if walker.traversal.snapshot_budget.exceeded {
+        if walker.traversal.snapshot_budget.poll_cancelled()
+            || walker.traversal.snapshot_budget.is_stopped()
+        {
             return std::mem::take(&mut walker.output.issues);
         }
         walker.resolve_importer_dep(dep, &walk);

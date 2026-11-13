@@ -2,6 +2,8 @@
 //! hoist loop runs between rounds, plus the persistent tree view and
 //! walker caches shared across those rounds.
 
+mod peers_cache;
+
 use crate::{
     dependencies_graph::PeerDependencyIssues,
     node_id::NodeId,
@@ -17,6 +19,7 @@ use crate::{
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
+use peers_cache::PeersCache;
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
@@ -29,6 +32,7 @@ use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
 pub(crate) struct PeerHoistDiscovery {
     tree: ResolvedTree,
     caches: PeerDiscoveryCaches,
+    external_peers: HashMap<NodeId, Arc<HashMap<String, NodeId>>>,
     snapshot_budget: SnapshotBudget,
     synced_revision: Option<u64>,
     synced_children_rewrites: Option<u64>,
@@ -43,10 +47,18 @@ impl PeerHoistDiscovery {
     }
 
     pub(crate) fn with_max_snapshots(max_snapshots: Option<usize>) -> Self {
+        Self::with_limits(max_snapshots, crate::ResolutionCancel::default())
+    }
+
+    pub(crate) fn with_limits(
+        max_snapshots: Option<usize>,
+        cancel: crate::ResolutionCancel,
+    ) -> Self {
         PeerHoistDiscovery {
             tree: ResolvedTree::default(),
             caches: PeerDiscoveryCaches::default(),
-            snapshot_budget: SnapshotBudget::new(max_snapshots),
+            external_peers: HashMap::default(),
+            snapshot_budget: SnapshotBudget::with_limits(max_snapshots, cancel),
             synced_revision: None,
             synced_children_rewrites: None,
             cursor: SyncCursor::default(),
@@ -54,16 +66,20 @@ impl PeerHoistDiscovery {
     }
 
     pub(crate) fn check_snapshot_limit(&self) -> Result<(), crate::ResolveImporterError> {
-        if let Some(max_snapshots) = self.snapshot_budget.max_snapshots
-            && self.snapshot_budget.exceeded
-        {
-            return Err(crate::ResolveImporterError::Resolve(
-                crate::resolve_dependency_tree::ResolveDependencyTreeError::SnapshotLimitExceeded {
-                    max_snapshots,
-                },
-            ));
+        match self.snapshot_budget.abort {
+            None => Ok(()),
+            Some(crate::PeerWalkAbort::Cancelled) => Err(crate::ResolveImporterError::Resolve(
+                crate::resolve_dependency_tree::ResolveDependencyTreeError::ResolutionCancelled,
+            )),
+            Some(crate::PeerWalkAbort::SnapshotLimitExceeded) => {
+                let max_snapshots = self.snapshot_budget.max_snapshots.unwrap_or(0);
+                Err(crate::ResolveImporterError::Resolve(
+                    crate::resolve_dependency_tree::ResolveDependencyTreeError::SnapshotLimitExceeded {
+                        max_snapshots,
+                    },
+                ))
+            }
         }
-        Ok(())
     }
 
     /// Run one discovery pass over `direct` (an importer's current
@@ -88,7 +104,7 @@ impl PeerHoistDiscovery {
         walk_direct: &[DirectDep],
         opts: ResolvePeersOptions,
     ) -> PeerDiscoveryResult {
-        if self.snapshot_budget.exceeded {
+        if self.snapshot_budget.poll_cancelled() || self.snapshot_budget.is_stopped() {
             return PeerDiscoveryResult::default();
         }
         let revision = workspace.tree.revision();
@@ -102,6 +118,7 @@ impl PeerHoistDiscovery {
                     view_generation: self.caches.view_generation,
                     ..PeerDiscoveryCaches::default()
                 };
+                self.external_peers.clear();
                 self.snapshot_budget.reset_for_view();
                 workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
@@ -128,7 +145,7 @@ impl PeerHoistDiscovery {
 pub(crate) struct PeerDiscoveryCaches {
     pub(super) node_dep_paths: HashMap<NodeId, DepPath>,
     pub(super) pure_pkgs: HashMap<Arc<str>, DepPath>,
-    pub(super) peers_cache: HashMap<Arc<str>, Vec<PeersCacheItem>>,
+    pub(super) peers_cache: PeersCache,
     pub(super) parent_pkgs_of_node: HashMap<NodeId, Arc<HashMap<String, ParentPkgInfo>>>,
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
     pub(super) peer_providers: PeerProviderIndex,
@@ -139,17 +156,6 @@ pub(crate) struct PeerDiscoveryCaches {
 impl PeerDiscoveryCaches {
     pub(super) fn view_generation(&self) -> ViewGeneration {
         self.view_generation
-    }
-
-    pub(super) fn evict_peers_referencing(&mut self, changed_node_id: &NodeId) {
-        self.peers_cache.retain(|_, items| {
-            items.retain(|item| {
-                !item.resolved_peers
-                    .values()
-                    .any(|bound| bound == changed_node_id)
-            });
-            !items.is_empty()
-        });
     }
 }
 
@@ -272,12 +278,14 @@ impl PeerHoistDiscovery {
             std::mem::take(&mut self.caches),
             PeerWalkMode::Discovery,
         );
+        walker.nodes.external_peers = std::mem::take(&mut self.external_peers);
         walker.traversal.snapshot_budget = std::mem::take(&mut self.snapshot_budget);
         let root = RootWalk::of(&walker, parents_direct);
         let evicted =
             walker.evict_stale_scope_budget(parents_direct, walk_direct, &root.importer_parents);
         let result = walk_discovery_direct(&mut walker, walk_direct, &root);
-        walker.refresh_unwalked_scope_budget(parents_direct, evicted, &root);
+        walker.refresh_unwalked_scope_budget(evicted, &root);
+        self.external_peers = std::mem::take(&mut walker.nodes.external_peers);
         (self.caches, self.snapshot_budget) = walker.into_discovery_state();
         result
     }
@@ -290,8 +298,10 @@ fn resolve_discovery_dep(
     result: &mut PeerDiscoveryResult,
 ) {
     let output = walker.resolve_node(&dep.node_id, &root.context());
-    if !walker.traversal.snapshot_budget.exceeded {
-        walker.record_direct_dep_budget(&dep.node_id, &output, &root.importer_parents);
+    if walker.traversal.snapshot_budget.is_stopped() {
+        walker.traversal.snapshot_budget.clear_in_flight();
+    } else {
+        walker.record_direct_dep_budget(dep, &output, &root.importer_parents);
     }
     result.fold(output);
 }
@@ -313,14 +323,33 @@ fn walk_discovery_direct(
         );
     }
     for dep in &own_direct {
-        if walker.traversal.snapshot_budget.exceeded {
+        if walker.traversal.snapshot_budget.poll_cancelled()
+            || walker.traversal.snapshot_budget.is_stopped()
+        {
             return result;
         }
         resolve_discovery_dep(walker, dep, root, &mut result);
     }
-    for dep in &provider_direct {
-        if walker.traversal.snapshot_budget.exceeded {
-            return result;
+    if !walk_provider_discovery_deps(walker, &provider_direct, root, &mut result) {
+        return result;
+    }
+    walker.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
+    result.peer_dependency_issues = std::mem::take(&mut walker.output.issues);
+    result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.output.missing_ancestor_pkg_ids);
+    result
+}
+
+fn walk_provider_discovery_deps(
+    walker: &mut Walker<'_>,
+    provider_direct: &[&DirectDep],
+    root: &RootWalk,
+    result: &mut PeerDiscoveryResult,
+) -> bool {
+    for dep in provider_direct {
+        if walker.traversal.snapshot_budget.poll_cancelled()
+            || walker.traversal.snapshot_budget.is_stopped()
+        {
+            return false;
         }
         if walker.traversal.visited_this_call.contains(&dep.node_id) {
             continue;
@@ -330,12 +359,9 @@ fn walk_discovery_direct(
             &dep.node_id,
             &root.parent_dep_paths,
         );
-        resolve_discovery_dep(walker, dep, root, &mut result);
+        resolve_discovery_dep(walker, dep, root, result);
     }
-    walker.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
-    result.peer_dependency_issues = std::mem::take(&mut walker.output.issues);
-    result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.output.missing_ancestor_pkg_ids);
-    result
+    true
 }
 
 impl PeerDiscoveryResult {

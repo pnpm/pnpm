@@ -75,6 +75,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         package_version_guard: Some(Arc::new(AllowAllVersions)),
         tarball_router: tarball_router(&registry, Identity::Anonymous),
         graph_limit: super::super::limits::GraphLimitTracker::new(16),
+        cancel: super::super::limits::CancelToken::never(),
     };
 
     let hint = |unpacked_size, file_count, revision, requires_build| ResolvedPackageHint {

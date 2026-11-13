@@ -16,6 +16,8 @@ mod bounds_review_round2;
 
 mod bounds_review_round3;
 
+mod refresh_bounds;
+
 mod configuration_cache;
 
 use axum::http::StatusCode;

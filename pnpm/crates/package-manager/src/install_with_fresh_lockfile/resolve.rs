@@ -270,6 +270,7 @@ impl WorkspaceWalk {
                     pnpmfile_hook: self.hooks.pnpmfile,
                 },
                 max_snapshots: self.hooks.max_snapshots,
+                cancel: self.hooks.cancel,
             },
             reuse: self.reuse,
             version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution {

@@ -100,6 +100,11 @@ pub trait ResolutionObserver: Send + Sync {
     fn max_snapshots(&self) -> Option<usize> {
         None
     }
+
+    /// Cooperative cancellation probe polled during synchronous resolution passes.
+    fn cancellation_check(&self) -> Option<Arc<dyn Fn() -> bool + Send + Sync>> {
+        None
+    }
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to

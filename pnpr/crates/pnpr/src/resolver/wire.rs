@@ -30,7 +30,7 @@ use pnpr_upstream::{
 };
 
 use super::{
-    limits::{GRAPH_TOO_LARGE_CODE, GraphLimitTracker},
+    limits::{CancelToken, GRAPH_TOO_LARGE_CODE, GraphLimitTracker},
     protocol::LockfileFormat,
 };
 
@@ -57,6 +57,7 @@ pub(super) struct StreamObserver {
     pub(super) package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
     pub(super) tarball_router: TarballRouter,
     pub(super) graph_limit: Arc<GraphLimitTracker>,
+    pub(super) cancel: CancelToken,
 }
 
 impl pnpm_package_manager::ResolutionObserver for StreamObserver {
@@ -79,6 +80,13 @@ impl pnpm_package_manager::ResolutionObserver for StreamObserver {
 
     fn max_snapshots(&self) -> Option<usize> {
         Some(self.graph_limit.max_snapshots())
+    }
+
+    fn cancellation_check(&self) -> Option<Arc<dyn Fn() -> bool + Send + Sync>> {
+        let cancel = self.cancel.clone();
+        let tx = self.tx.clone();
+        let graph_limit = Arc::clone(&self.graph_limit);
+        Some(Arc::new(move || cancel.is_cancelled() || tx.is_closed() || graph_limit.is_exceeded()))
     }
 }
 

@@ -170,7 +170,8 @@ pub(super) fn resolve_with_cache_oracle(
     let mut full_tree = tree.clone();
     let mut full_opts = opts.clone();
     full_opts.cache_mode = PeerCacheMode::Bypass;
-    let cached = super::resolve_peers_workspace(tree, importers, lockfile_dir, settings, opts);
+    let cached =
+        super::resolve_peers_workspace(tree, importers, lockfile_dir, settings.clone(), opts);
     let full = super::resolve_peers_workspace(
         &mut full_tree,
         importers,

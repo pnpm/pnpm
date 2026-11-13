@@ -1,5 +1,5 @@
 pub use catalogs::{ChildCatalogs, local_directory_child_specs};
-pub use failure::{DependencyResolutionError, ResolveDependencyTreeError};
+pub use failure::{DependencyResolutionError, ResolutionCancel, ResolveDependencyTreeError};
 pub use manifest::{declared_specifiers, manifest_child_specs};
 
 pub use update_scope::{

@@ -74,6 +74,7 @@ pub(super) struct ObserverSettings {
     minimum_release_age_exclude_override: Option<Vec<String>>,
     pub(super) can_fast_update_overrides: bool,
     pub(super) max_snapshots: Option<usize>,
+    pub(super) cancel: pnpm_resolving_deps_resolver::ResolutionCancel,
 }
 impl ObserverSettings {
     fn of(observer: Option<&Arc<dyn crate::ResolutionObserver>>) -> Self {
@@ -84,6 +85,9 @@ impl ObserverSettings {
             }),
             can_fast_update_overrides: observer.is_none(),
             max_snapshots: observer.and_then(|observer| observer.max_snapshots()),
+            cancel: pnpm_resolving_deps_resolver::ResolutionCancel::from_option(observer.and_then(
+                |observer| observer.cancellation_check(),
+            )),
         }
     }
 }

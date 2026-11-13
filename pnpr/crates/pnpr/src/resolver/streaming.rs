@@ -6,8 +6,8 @@ use super::{
     Response, StoreCandidate, StreamObserver, TarballRouter, ThrottledClient,
     error_frame_with_code,
     limits::{
-        CancelToken, GRAPH_TOO_LARGE_CODE, GraphLimitTracker, RESOLVE_TIMEOUT_CODE, ResolvePermit,
-        STREAM_CHANNEL_CAPACITY, lockfile_exceeds_graph_limit,
+        CancelOnDrop, CancelToken, GRAPH_TOO_LARGE_CODE, GraphLimitTracker, RESOLVE_TIMEOUT_CODE,
+        ResolvePermit, STREAM_CHANNEL_CAPACITY, lockfile_exceeds_graph_limit,
     },
     ndjson_stream_response, osv_violations_for_lockfile_until, progress_frame, resolve,
     store_resolution_candidate, try_done_frame_until, violations_frame,
@@ -17,19 +17,43 @@ use super::{
 pub(super) struct TerminalSender {
     tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     slot: tokio::sync::mpsc::OwnedPermit<Vec<u8>>,
+    cancel: CancelToken,
+    _cancel_on_drop: CancelOnDrop,
 }
 
 impl TerminalSender {
-    pub(super) fn reserve(tx: tokio::sync::mpsc::Sender<Vec<u8>>) -> Self {
+    pub(super) fn reserve_until(
+        tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+        deadline: Instant,
+    ) -> (Self, CancelToken) {
         let slot = tx
             .clone()
             .try_reserve_owned()
             .expect("stream channel must reserve one slot for the terminal frame");
-        Self { tx, slot }
+        let (cancel, cancel_on_drop) = CancelToken::new(deadline);
+        let observer_cancel = cancel.clone();
+        (Self { tx, slot, cancel, _cancel_on_drop: cancel_on_drop }, observer_cancel)
+    }
+
+    #[cfg(test)]
+    pub(super) fn reserve(tx: tokio::sync::mpsc::Sender<Vec<u8>>) -> Self {
+        Self::reserve_until(tx, Instant::now() + Duration::from_secs(3600)).0
     }
 
     async fn closed(&self) {
         self.tx.closed().await;
+    }
+
+    fn is_closed(&self) -> bool {
+        self.tx.is_closed()
+    }
+
+    fn cancel(&self) {
+        self.cancel.cancel();
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
     }
 
     fn send_frame(self, frame: Vec<u8>) {
@@ -64,7 +88,7 @@ pub(super) fn stream_resolve_response(
         .as_ref()
         .map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
     let (tx, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(STREAM_CHANNEL_CAPACITY);
-    let terminal = TerminalSender::reserve(tx.clone());
+    let (terminal, cancel) = TerminalSender::reserve_until(tx.clone(), inputs.deadline);
     let max_npm_packages = runtime.limits.max_npm_packages;
     let graph_limit = GraphLimitTracker::new(max_npm_packages);
     let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
@@ -72,6 +96,7 @@ pub(super) fn stream_resolve_response(
         package_version_guard,
         tarball_router: inputs.tarball_router.clone(),
         graph_limit: Arc::clone(&graph_limit),
+        cancel,
     });
     let keepalive = tx;
     let task = StreamedResolve {
@@ -152,19 +177,42 @@ async fn run_bounded_resolve(task: &StreamedResolve) -> BoundedResolveOutcome {
     }
     tokio::select! {
         biased;
-        () = task.terminal.closed() => BoundedResolveOutcome::Disconnected,
+        () = task.terminal.closed() => {
+            task.terminal.cancel();
+            BoundedResolveOutcome::Disconnected
+        }
         () = &mut graph_exceeded => {
+            task.terminal.cancel();
             BoundedResolveOutcome::GraphTooLarge(task.graph_limit.error_message())
         }
-        () = tokio::time::sleep_until(task.inputs.deadline) => BoundedResolveOutcome::TimedOut,
-        resolved = &mut resolve_fut => {
-            if task.graph_limit.is_exceeded() {
-                BoundedResolveOutcome::GraphTooLarge(task.graph_limit.error_message())
-            } else {
-                BoundedResolveOutcome::Completed(Box::new(resolved))
-            }
+        () = tokio::time::sleep_until(task.inputs.deadline) => {
+            task.terminal.cancel();
+            BoundedResolveOutcome::TimedOut
         }
+        resolved = &mut resolve_fut => classify_completed_resolve(task, resolved),
     }
+}
+
+fn classify_completed_resolve(
+    task: &StreamedResolve,
+    resolved: Result<Lockfile, super::resolve::ResolveError>,
+) -> BoundedResolveOutcome {
+    if task.terminal.is_closed() {
+        return BoundedResolveOutcome::Disconnected;
+    }
+    if task.graph_limit.is_exceeded() {
+        return BoundedResolveOutcome::GraphTooLarge(task.graph_limit.error_message());
+    }
+    let timed_out = task.terminal.is_cancelled()
+        || matches!(
+            &resolved,
+            Err(super::resolve::ResolveError::Install { code: Some(code), .. })
+                if code == RESOLVE_TIMEOUT_CODE,
+        );
+    if timed_out {
+        return BoundedResolveOutcome::TimedOut;
+    }
+    BoundedResolveOutcome::Completed(Box::new(resolved))
 }
 
 fn send_timeout_frame(terminal: TerminalSender) {

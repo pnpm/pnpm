@@ -185,7 +185,12 @@ impl Walker<'_> {
     ///    `node_dep_paths` lookup, emitted as [`PeerId::DepPath`].
     /// 4. **Cycle fallback** — `name@version` from the resolved package,
     ///    emitted as [`PeerId::Pair`].
-    pub(super) fn build_peer_id(&self, peer_alias: &str, peer_node_id: &NodeId) -> PeerId {
+    pub(super) fn build_peer_id(
+        &self,
+        node_id: &NodeId,
+        peer_alias: &str,
+        peer_node_id: &NodeId,
+    ) -> PeerId {
         if let NodeId::Leaf(id) = peer_node_id
             && let Some(rel) = id.strip_prefix("link:")
         {
@@ -194,7 +199,7 @@ impl Walker<'_> {
                 version: link_path_to_peer_version(rel),
             };
         }
-        if self.opts.dedupe_peers
+        if self.collapses_peer_to_pair(node_id, peer_node_id)
             && let Some(tree_node) = self.tree.dependencies_tree.get(peer_node_id)
             && let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id)
         {
@@ -206,6 +211,12 @@ impl Walker<'_> {
         let tree_node = &self.tree.dependencies_tree[peer_node_id];
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
         peer_id_pair(pkg.result())
+    }
+
+    fn collapses_peer_to_pair(&self, node_id: &NodeId, peer_node_id: &NodeId) -> bool {
+        self.opts.dedupe_peers
+            || (matches!(self.traversal.mode, PeerWalkMode::Discovery)
+                && self.traversal.snapshot_budget.is_cyclic_peer_pair(node_id, peer_node_id))
     }
 
     /// Resolve `node_id` to the depPath computed during the main walk.
@@ -249,8 +260,17 @@ impl Walker<'_> {
         node_id: &NodeId,
         peers: &Arc<HashMap<String, NodeId>>,
     ) {
-        if self.caches.node_dep_paths.contains_key(node_id) {
-            self.nodes.external_peers.insert(node_id.clone(), Arc::clone(peers));
+        if !self.caches.node_dep_paths.contains_key(node_id) {
+            return;
+        }
+        let changed = self.nodes.external_peers
+            .insert(node_id.clone(), Arc::clone(peers))
+            .is_none_or(|prev| prev.as_ref() != peers.as_ref());
+        match self.traversal.mode {
+            PeerWalkMode::Discovery if changed => {
+                self.traversal.snapshot_budget.mark_dirty_provider(node_id);
+            }
+            PeerWalkMode::Discovery | PeerWalkMode::Final => {}
         }
     }
 
@@ -269,11 +289,39 @@ impl Walker<'_> {
         if !retain {
             return;
         }
-        if let Some(prev) = self.caches.node_dep_paths.insert(node_id.clone(), dep_path.clone())
-            && &prev != dep_path
-        {
-            self.caches.evict_peers_referencing(node_id);
+        let previous = self.caches.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                if previous.as_ref() != Some(dep_path) {
+                    self.traversal.snapshot_budget.mark_dirty_provider(node_id);
+                }
+                if self.discovery_path_invalidates_cache(previous.as_ref(), dep_path) {
+                    self.caches.peers_cache.evict_referencing(node_id);
+                }
+            }
+            PeerWalkMode::Final => {}
         }
         self.traversal.visited_this_call.insert(node_id.clone());
+        let has_ancestor = self.traversal.in_progress.len()
+            > usize::from(self.traversal.in_progress.contains(node_id));
+        if self.traversal.in_canonical_drain || has_ancestor {
+            self.traversal.visited_in_tree.insert(node_id.clone());
+        }
     }
+
+    fn discovery_path_invalidates_cache(
+        &self,
+        previous: Option<&DepPath>,
+        current: &DepPath,
+    ) -> bool {
+        match previous {
+            Some(prev) => prev != current,
+            None => !self.opts.dedupe_peers && has_non_bare_peer_id(current),
+        }
+    }
+}
+
+fn has_non_bare_peer_id(dep_path: &DepPath) -> bool {
+    let suffix = pnpm_deps_path::index_of_dep_path_suffix(dep_path.as_str());
+    suffix.peers_index.is_some() || suffix.patch_hash_index.is_some()
 }

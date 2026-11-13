@@ -266,6 +266,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                     .as_ref()
                     .map(crate::early_materializer::EarlyMaterializer::hook),
                 max_snapshots: self.setup.observer.max_snapshots,
+                cancel: self.setup.observer.cancel.clone(),
             },
             reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
                 lockfile: lockfile_reuse_seed

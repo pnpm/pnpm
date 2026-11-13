@@ -162,14 +162,22 @@ impl AdmittedResolve<'_> {
 #[derive(Clone)]
 pub(super) struct CancelToken {
     cancelled: Arc<AtomicBool>,
-    deadline: std::time::Instant,
+    deadline: Instant,
 }
 
 impl CancelToken {
     pub(super) fn new(deadline: Instant) -> (Self, CancelOnDrop) {
         let cancelled = Arc::new(AtomicBool::new(false));
         let guard = CancelOnDrop(Arc::clone(&cancelled));
-        (Self { cancelled, deadline: deadline.into_std() }, guard)
+        (Self { cancelled, deadline }, guard)
+    }
+
+    #[cfg(test)]
+    pub(super) fn never() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            deadline: Instant::now() + Duration::from_secs(3600),
+        }
     }
 
     pub(super) fn cancel(&self) {
@@ -177,7 +185,7 @@ impl CancelToken {
     }
 
     pub(super) fn deadline_expired(&self) -> bool {
-        std::time::Instant::now() >= self.deadline
+        Instant::now() >= self.deadline
     }
 
     pub(super) fn is_cancelled(&self) -> bool {
