@@ -79,3 +79,41 @@ test('a dependency named after an Object.prototype member is no peer', () => {
   } as unknown as LockfileObject['packages'], { a: '1.0.0(0123456789abcdef0123456789abcdef)' })
   expect(getImporterLockedPeerVersions(lockfile, '.' as ProjectId)).toStrictEqual(new Map())
 })
+
+test.each([undefined, '1.0.0', '3.0.0'])('recovers a truncated transitive provider without replacing an encoded pin: %s', (encodedNested) => {
+  const suffix = `(peer@2.0.0)${encodedNested ? `(nested@${encodedNested})` : ''}`
+  const lockfile = lockfileOf({
+    [`a@1.0.0${suffix}`]: {
+      resolution: { integrity: '' },
+      dependencies: { child: '1.0.0(peer@2.0.0)' },
+      transitivePeerDependencies: ['peer'],
+    },
+    'child@1.0.0(peer@2.0.0)': {
+      resolution: { integrity: '' },
+      dependencies: { peer: '2.0.0(nested@1.0.0)' },
+      peerDependencies: { peer: '*' },
+    },
+    'peer@2.0.0(nested@1.0.0)': {
+      resolution: { integrity: '' },
+      dependencies: { nested: '1.0.0(deep@4.0.0)' },
+      peerDependencies: { nested: '*' },
+    },
+  } as unknown as LockfileObject['packages'], { a: `1.0.0${suffix}` })
+  expect(getImporterLockedPeerVersions(lockfile, '.' as ProjectId)).toStrictEqual(new Map([
+    ['peer', new Set(['2.0.0'])],
+    ['nested', new Set([encodedNested ?? '1.0.0'])],
+    ...(encodedNested === '3.0.0' ? [] : [['deep', new Set(['4.0.0'])] as [string, Set<string>]]),
+  ]))
+})
+
+test.each(['dependencies', 'optionalDependencies'])('ignores inherited references in %s when recovering explicit peers', (field) => {
+  const lockfile = lockfileOf({
+    'a@1.0.0(toString@1.0.0)': {
+      resolution: { integrity: '' },
+      [field]: {},
+    },
+  } as unknown as LockfileObject['packages'], { a: '1.0.0(toString@1.0.0)' })
+  expect(getImporterLockedPeerVersions(lockfile, '.' as ProjectId)).toStrictEqual(new Map([
+    ['toString', new Set(['1.0.0'])],
+  ]))
+})

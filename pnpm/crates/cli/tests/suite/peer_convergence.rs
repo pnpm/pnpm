@@ -23,6 +23,7 @@
 //! v12-only `autoDedupe`, and each row's fresh v11 lockfile has to equal the
 //! v12 one.
 
+mod cyclic_locked_contexts;
 mod fast_update;
 mod harness;
 mod moving_providers;
@@ -315,3 +316,5 @@ fn peer_provided_by_another_projects_direct_dependency_moves() {
 }
 
 mod retargeted_provider_removal;
+
+mod locked_provider_contexts;

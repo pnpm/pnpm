@@ -119,14 +119,17 @@ fn locked_peer_versions_for_key_cached<'lockfile>(
         versions: Vec::new(),
         recovered: Vec::new(),
     };
-    traversal.collect_pins(vec![(key.clone(), snapshot)], &HashSet::default());
-    let encoded_names = traversal.versions
-        .iter()
-        .map(|(name, _)| name.clone())
-        .collect();
+    traversal.collect_pins(vec![(key.clone(), snapshot)], &HashMap::default());
+    let mut encoded_versions = HashMap::<String, HashSet<String>>::default();
+    for (name, version) in &traversal.versions {
+        encoded_versions
+            .entry(name.clone())
+            .or_default()
+            .insert(version.clone());
+    }
     while !traversal.recovered.is_empty() {
         let pending = std::mem::take(&mut traversal.recovered);
-        traversal.collect_pins(pending, &encoded_names);
+        traversal.collect_pins(pending, &encoded_versions);
     }
     traversal.versions
 }
@@ -147,25 +150,72 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
             pnpm_lockfile::PkgNameVerPeer,
             Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
         )>,
-        encoded_names: &HashSet<String>,
+        encoded_versions: &HashMap<String, HashSet<String>>,
     ) {
         while let Some((key, snapshot)) = pending.pop() {
             if !self.visited.insert(key.clone()) {
                 continue;
             }
-            for (name, peer) in locked_peer_keys(self.lockfile, &key, snapshot, self.bound_cache) {
-                let version = peer.suffix.without_peer().to_string();
-                let recovered = snapshot
-                    .filter(|_| !encoded_names.contains(&name))
-                    .and_then(|snapshot| snapshot_peer_provider(snapshot, &name, &peer))
-                    .and_then(|provider| provider_with_peers(self.lockfile, provider));
+            pending.extend(self.collect_key(&key, snapshot, encoded_versions));
+        }
+    }
+
+    fn collect_key(
+        &mut self,
+        key: &pnpm_lockfile::PkgNameVerPeer,
+        snapshot: Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
+        encoded_versions: &HashMap<String, HashSet<String>>,
+    ) -> Vec<(pnpm_lockfile::PkgNameVerPeer, Option<&'lockfile pnpm_lockfile::SnapshotEntry>)> {
+        let mut pending = Vec::new();
+        let peers = locked_peer_keys(self.lockfile, key, snapshot, self.bound_cache);
+        let verified_context =
+            !self.bound_cache.get(key).is_some_and(pnpm_lockfile::BoundProviders::is_hashed);
+        let retained_hash = matches!(PeerBindings::from_key(key), Some(PeerBindings::Hashed))
+            && snapshot.is_some_and(|snapshot| snapshot.recorded_peer_bindings.is_some());
+        let recover_context = verified_context && !retained_hash;
+        for (name, peer) in peers {
+            let version = peer.suffix.without_peer().to_string();
+            let encoded = encoded_versions.get(&name);
+            if recover_context && encoded.is_none_or(|versions| versions.contains(&version)) {
+                let recovered = self.recover_providers(snapshot, &name, &peer);
                 self.recovered.extend(recovered);
+            }
+            if verified_context {
                 pending.extend(provider_with_peers(self.lockfile, peer));
-                if !encoded_names.contains(&name) {
-                    self.versions.push((name, version));
-                }
+            }
+            if encoded.is_none() {
+                self.versions.push((name, version));
             }
         }
+        pending
+    }
+
+    fn recover_providers(
+        &mut self,
+        snapshot: Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
+        name: &str,
+        peer: &pnpm_lockfile::PkgNameVerPeer,
+    ) -> Vec<(pnpm_lockfile::PkgNameVerPeer, Option<&'lockfile pnpm_lockfile::SnapshotEntry>)> {
+        let Some(snapshot) = snapshot else { return Vec::new() };
+        let providers = match snapshot_peer_provider(snapshot, name, peer) {
+            Some(provider) => vec![provider],
+            None if snapshot.transitive_peer_dependencies
+                .as_ref()
+                .is_some_and(|names| {
+                    names
+                        .iter()
+                        .any(|candidate| candidate == name)
+                }) =>
+            {
+                hashed_suffix::transitive_peer_keys(self.lockfile, snapshot, name, self.bound_cache)
+            }
+            None => Vec::new(),
+        };
+        providers
+            .into_iter()
+            .filter(|provider| provider.without_peer() == peer.without_peer())
+            .filter_map(|provider| provider_with_peers(self.lockfile, provider))
+            .collect()
     }
 }
 

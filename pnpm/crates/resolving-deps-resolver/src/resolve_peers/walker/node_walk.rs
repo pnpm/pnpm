@@ -320,8 +320,7 @@ impl Walker<'_> {
 
         let cached = {
             let tree_node = &self.tree.dependencies_tree[node_id];
-            tree_node
-                .has_no_locked_peer_context()
+            (!self.needs_locked_peer_context(node_id))
                 .then(|| self.find_fast_hit(node_id, parent_refs, &tree_node.resolved_package_id))
                 .flatten()
                 .map(PeersCacheItem::to_cached_node_output)

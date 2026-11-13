@@ -61,7 +61,7 @@ use crate::{
 
 use super::{
     DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
-    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::SubtreeReuseCache, tree_ctx::TreeCtx,
+    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::LockfileReuseCache, tree_ctx::TreeCtx,
 };
 
 /// An importer's resolved direct-dependency versions, keyed by package
@@ -263,8 +263,8 @@ pub(super) struct WorkspaceResolutionCache {
     pub(super) in_flight_by_wanted: Mutex<HashMap<WantedKey, Arc<tokio::sync::Mutex<()>>>>,
     /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     pub(super) share_workspace_resolutions: bool,
-    /// See [`SubtreeReuseCache`].
-    pub(super) subtree: SubtreeReuseCache,
+    /// See [`LockfileReuseCache`].
+    pub(super) lockfile_reuse: LockfileReuseCache,
 
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its

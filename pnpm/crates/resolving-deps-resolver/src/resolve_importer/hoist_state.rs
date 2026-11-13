@@ -82,6 +82,26 @@ pub(super) struct ImporterHoistSelection {
 }
 
 impl super::ImporterHoistState {
+    pub(super) fn requested_direct_dependencies(&self) -> HashSet<String> {
+        let lockfile = self.ctx.workspace().wanted_lockfile();
+        self.dependencies.wanted_specifier_by_alias
+            .iter()
+            .filter(|(alias, specifier)| {
+                self.ctx.direct_dependency_is_updated(alias, specifier)
+                    || lockfile.is_none_or(|lockfile| {
+                        !crate::resolve_dependency_tree::direct_dep_specifier_unchanged(
+                            lockfile,
+                            lockfile.importers.get(&self.importer_id),
+                            alias,
+                            specifier,
+                        )
+                    })
+            })
+            .map(|(alias, _)| alias.clone())
+            .chain(self.policy.peers.explicitly_requested_direct_dependencies.iter().cloned())
+            .collect()
+    }
+
     /// With auto-install disabled, only manifest preferences and current providers may hoist.
     pub(super) fn required_peer_preferred_versions<'name>(
         &self,

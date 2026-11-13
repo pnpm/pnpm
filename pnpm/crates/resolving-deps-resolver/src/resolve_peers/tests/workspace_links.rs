@@ -12,6 +12,8 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
     let consumer = NodeId::next();
 
     let importer = ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: ".".to_string(),
         direct: vec![
             DirectDep {

@@ -1,10 +1,10 @@
 //! Recovery of the peers a hashed peer suffix stands for.
 
-use super::{HashSet, dependency_edges};
-use pnpm_lockfile::PkgName;
+pub(super) use crate::lockfile_reuse::BoundCache;
 
-pub(super) type BoundCache =
-    super::HashMap<pnpm_lockfile::PkgNameVerPeer, pnpm_lockfile::BoundProviders>;
+use super::{HashSet, dependency_edges};
+use crate::lockfile_reuse::cached_bound_providers;
+use pnpm_lockfile::PkgName;
 
 /// The peers a hashed suffix stands for, preserving recovered provider keys.
 /// Includes the package's declared peers, read from its own edges,
@@ -68,7 +68,7 @@ fn restore_bound_provider_keys(
 ///
 /// Descends only into children that bind the peer, which hold the
 /// edge, or that list it as a transitive peer themselves.
-fn transitive_peer_keys(
+pub(super) fn transitive_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     peer_name: &str,
@@ -112,21 +112,6 @@ fn bound_peer_providers(
         .map(|(_, provider)| provider)
         .filter(|provider| bound.binds(provider))
         .collect()
-}
-
-fn cached_bound_providers(
-    lockfile: &pnpm_lockfile::Lockfile,
-    key: &pnpm_lockfile::PkgNameVerPeer,
-    bound_cache: &mut BoundCache,
-) -> pnpm_lockfile::BoundProviders {
-    let providers = pnpm_lockfile::BoundProviders::from_key(key);
-    if !providers.is_hashed() {
-        return providers;
-    }
-    bound_cache
-        .entry(key.clone())
-        .or_insert_with(|| pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), key))
-        .clone()
 }
 
 fn child_snapshots<'a>(

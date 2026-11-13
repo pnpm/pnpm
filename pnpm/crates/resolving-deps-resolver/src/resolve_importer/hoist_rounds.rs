@@ -211,7 +211,7 @@ impl ImporterHoistState {
             &self.ctx,
             resolver,
             new_wanted,
-            &self.importer_id,
+            None,
             &ParentPkgAliases::root(self.dependencies.parent_pkg_aliases.clone()),
         )
         .await?;
@@ -371,7 +371,7 @@ impl ImporterHoistState {
             &self.ctx,
             resolver,
             new_wanted,
-            &self.importer_id,
+            None,
             &ParentPkgAliases::root(self.dependencies.parent_pkg_aliases.clone()),
         )
         .await?;

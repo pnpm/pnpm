@@ -407,6 +407,8 @@ fn discovery_and_workspace_peer_walks_honor_cancellation() {
     // Final workspace peer walk also honors `WorkspacePeerSettings::cancel`.
     let mut final_tree = base_tree;
     let importer = ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: ".".to_string(),
         direct: direct_round2,
         root_dir: Path::new("/workspace").to_path_buf(),

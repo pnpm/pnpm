@@ -336,6 +336,10 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         resolve::ImporterInputs {
             hooks: self.prep.transforms.hooks.with_pnpmfile(None),
             versions: crate::install_with_fresh_lockfile::resolution_inputs::ImporterVersionSeeds {
+                requested_direct_dependencies: self.owned.resolution
+                    .preferred_versions_override
+                    .as_ref()
+                    .map(|overrides| &overrides.requested_direct_dependencies),
                 shared: preferred_versions_seed,
                 by_importer: preferred_versions_seeds_by_importer,
                 own_manifest_specifiers,

@@ -52,13 +52,13 @@ pub(crate) fn dedupe_peer_dependents(
     peer_suffixes: &PeerSuffixes<'_>,
     dedupe: PeerDependentsDedupe,
     mut unbound_optional_peers: UnboundOptionalPeers,
-) {
+) -> HashMap<DepPath, DepPath> {
     if !dedupe.dedupes() {
-        return;
+        return HashMap::default();
     }
     let duplicates = collect_duplicates(graph);
     if duplicates.is_empty() {
-        return;
+        return HashMap::default();
     }
     let dep_paths_map = deduplicate_all(
         graph,
@@ -67,7 +67,7 @@ pub(crate) fn dedupe_peer_dependents(
         &mut unbound_optional_peers,
     );
     if dep_paths_map.is_empty() {
-        return;
+        return HashMap::default();
     }
     for direct in direct_by_importer.values_mut() {
         for dep_path in direct.values_mut() {
@@ -80,7 +80,24 @@ pub(crate) fn dedupe_peer_dependents(
     // edge and importer direct dep was rewritten above). Drop them so they
     // don't surface in the lockfile as orphans.
     prune_unreachable(graph, direct_by_importer);
-    rename_survivors(graph, direct_by_importer, &dep_paths_map, peer_suffixes);
+    let renames: HashMap<_, _> =
+        rename_survivors(graph, direct_by_importer, &dep_paths_map, peer_suffixes)
+            .into_iter()
+            .collect();
+    merge_renames(dep_paths_map, renames)
+}
+
+fn merge_renames(
+    mut dep_paths_map: HashMap<DepPath, DepPath>,
+    renames: HashMap<DepPath, DepPath>,
+) -> HashMap<DepPath, DepPath> {
+    for target in dep_paths_map.values_mut() {
+        if let Some(renamed) = renames.get(target) {
+            *target = renamed.clone();
+        }
+    }
+    dep_paths_map.extend(renames);
+    dep_paths_map
 }
 
 /// Group the graph's depPaths by their `pkgIdWithPatchHash` and keep the

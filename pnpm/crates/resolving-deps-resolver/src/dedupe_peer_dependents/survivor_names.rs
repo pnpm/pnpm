@@ -29,10 +29,10 @@ pub(super) fn rename_survivors(
     direct_by_importer: &mut DirectByImporter,
     collapsed: &HashMap<DepPath, DepPath>,
     peer_suffixes: &PeerSuffixes<'_>,
-) {
+) -> Vec<(DepPath, DepPath)> {
     let RenamedSurvivors { renames, bindings } = survivor_renames(graph, collapsed, peer_suffixes);
     if renames.is_empty() {
-        return;
+        return renames;
     }
     let names: HashMap<&DepPath, &DepPath> = renames
         .iter()
@@ -55,6 +55,7 @@ pub(super) fn rename_survivors(
             node.recorded_peer_bindings = Some(bindings);
         }
     }
+    renames
 }
 
 struct RenamedSurvivors {

@@ -13,6 +13,8 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
     let consumer_v2 = NodeId::next();
     let importers = [
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: "project-a".to_string(),
             direct: vec![
                 DirectDep {
@@ -31,6 +33,8 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
             rejected_optional_peers: HashSet::default(),
         },
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: "project-b".to_string(),
             direct: vec![
                 DirectDep {
@@ -98,6 +102,8 @@ fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
 
     let importers = [
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: ".".to_string(),
             direct: vec![
                 DirectDep {
@@ -121,6 +127,8 @@ fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
             rejected_optional_peers: HashSet::default(),
         },
         ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: "app".to_string(),
             direct: vec![
                 DirectDep {
@@ -225,6 +233,8 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     let peer = NodeId::leaf("link:packages/peer");
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: "apps/nested/app".to_string(),
         direct: vec![
             DirectDep {
@@ -299,6 +309,8 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
     let peer = NodeId::leaf("link:packages/peer");
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: "apps/app".to_string(),
         direct: vec![
             DirectDep {

@@ -25,6 +25,7 @@ mod finish;
 use finish::{finish_selected_add, finish_single_add};
 
 mod manifest;
+mod prepared_manifest;
 use manifest::{prepare_selected_add, prepare_single_add};
 
 mod source;
@@ -254,7 +255,7 @@ where
             &owned,
             manifest,
             (selected.projects, &selected_indices),
-            &prepared.picked_versions,
+            (&prepared.picked_versions, &prepared.requested_aliases),
             prepared.catalogs_override,
             &prepared.catalogs,
         );

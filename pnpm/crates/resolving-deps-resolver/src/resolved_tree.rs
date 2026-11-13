@@ -155,34 +155,22 @@ pub struct PeerDep {
 }
 
 /// The wanted-lockfile carry-over a [`DependenciesTreeNode`] may hold.
-///
-/// Split out of the node so the common case — a fresh resolution, with
-/// none of these set — costs one null pointer instead of four `Option`s.
 #[derive(Debug, Default, Clone)]
 pub struct LockedResolution {
     /// `DepPath` this occurrence's package resolved to in the wanted
     /// lockfile, when its resolution was reused from it. Feeds the
     /// reverse index that locked-peer-provider reuse looks providers
     /// up by. `None` for fresh resolutions.
-    ///
-    /// TODO: the resolver does not capture this from the wanted
-    /// lockfile yet; only `resolve_peers` consumes it.
     pub previous_dep_path: Option<DepPath>,
     /// `peer name → provider DepPath` bindings the wanted lockfile
     /// recorded for this package's snapshot. A second peer-resolution
     /// pass ([`crate::PeerResolutionScope::resolved_peer_provider_paths`])
     /// re-pins a still-compatible locked provider so re-installs keep
     /// the provider choice stable.
-    ///
-    /// TODO: the resolver does not capture this from the wanted
-    /// lockfile yet; only `resolve_peers` consumes it.
     pub locked_peer_context: Option<BTreeMap<String, DepPath>>,
     /// Child aliases whose resolution changed against the wanted
     /// lockfile. A locked peer provider reachable through one of these
     /// aliases loses to the current provider.
-    ///
-    /// TODO: the resolver does not compute this yet; only
-    /// `resolve_peers` consumes it.
     pub dependency_names_whose_current_provider_must_win: Option<HashSet<String>>,
 }
 

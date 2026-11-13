@@ -69,6 +69,8 @@ fn active_ancestors_unwind_without_growing_graph_past_max_snapshots() {
 fn resolve_peers_workspace_aborts_on_deep_chain_with_max_snapshots() {
     let mut tree = deep_chain_tree(6);
     let importers = [ImporterPeerInput {
+        declared_direct_dependencies: HashSet::default(),
+        explicitly_requested_direct_dependencies: HashSet::default(),
         id: ".".to_string(),
         direct: tree.direct.clone(),
         root_dir: Path::new("/workspace").to_path_buf(),

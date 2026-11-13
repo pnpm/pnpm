@@ -72,9 +72,13 @@ fn consumer_lockfile(consumer_version: &str) -> pnpm_lockfile::Lockfile {
 /// (pnpm/pnpm#16331).
 #[test]
 fn hashed_and_explicit_suffixes_pin_the_same_peers() {
-    let explicit =
-        consumer_lockfile("1.0.0(deep@4.0.0)(peer@1.0.0(nested@3.0.0))(transitive@2.0.0)");
-    let hashed = consumer_lockfile("1.0.0(0123456789abcdef0123456789abcdef)");
+    let suffix = "(deep@4.0.0)(peer@1.0.0(nested@3.0.0))(transitive@2.0.0)";
+    let explicit = consumer_lockfile(&format!("1.0.0{suffix}"));
+    let hashed_suffix = pnpm_lockfile::PeerBindings::from_suffix(suffix)
+        .unwrap()
+        .to_suffix(20)
+        .unwrap();
+    let hashed = consumer_lockfile(&format!("1.0.0{hashed_suffix}"));
 
     let expected = HashMap::from_iter(
         [("peer", "1.0.0"), ("nested", "3.0.0"), ("transitive", "2.0.0"), ("deep", "4.0.0")].map(

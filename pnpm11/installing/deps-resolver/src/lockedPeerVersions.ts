@@ -10,6 +10,7 @@ type LockedPeer = [peerName: string, provider: DepPath]
  * lockfile does not list.
  */
 export function getImporterLockedPeerVersions (lockfile: LockfileObject, importerId: ProjectId): Map<string, Set<string>> {
+  const lookup: SnapshotLookup = { lockfile, children: new WeakMap() }
   const versions = new Map<string, Set<string>>()
   const importer = lockfile.importers != null && Object.hasOwn(lockfile.importers, importerId)
     ? lockfile.importers[importerId]
@@ -21,7 +22,7 @@ export function getImporterLockedPeerVersions (lockfile: LockfileObject, importe
       .map(([alias, ref]) => refToRelative(ref, alias))
       .filter((depPath): depPath is DepPath => depPath != null)
   for (const depPath of depPaths) {
-    for (const [name, version] of getLockedPeerVersionsOfKey(lockfile, depPath)) {
+    for (const [name, version] of getLockedPeerVersionsOfKey(lookup, depPath)) {
       let bucket = versions.get(name)
       if (bucket == null) {
         bucket = new Set()
@@ -39,28 +40,86 @@ export function getImporterLockedPeerVersions (lockfile: LockfileObject, importe
  * spells them out, save for the names an npm alias renamed. A hashed suffix
  * spells out nothing, so the pairs are recovered from the snapshots.
  */
-function getLockedPeerVersionsOfKey (lockfile: LockfileObject, depPath: DepPath): Array<[string, string]> {
-  const versions: Array<[string, string]> = []
-  const visited = new Set<DepPath>()
-  const pending = [depPath]
-  while (pending.length > 0) {
-    const key = pending.pop()!
-    if (visited.has(key)) continue
-    visited.add(key)
-    for (const [name, provider] of getLockedPeerKeys(lockfile, key)) {
-      const providerWithoutPeers = removePeersSuffix(provider)
-      versions.push([name, providerWithoutPeers.substring(providerWithoutPeers.indexOf('@', 1) + 1)])
-      if (providerWithoutPeers !== provider) pending.push(provider)
-    }
+function getLockedPeerVersionsOfKey (lookup: SnapshotLookup, depPath: DepPath): Array<[string, string]> {
+  const traversal: LockedPeerTraversal = { ...lookup, versions: [], visited: new Set(), recovered: [] }
+  collectLockedPeerPins(traversal, [depPath], new Map())
+  const encodedVersions = new Map<string, Set<string>>()
+  for (const [name, version] of traversal.versions) {
+    const versions = encodedVersions.get(name) ?? new Set<string>()
+    versions.add(version)
+    encodedVersions.set(name, versions)
   }
-  return versions
+  while (traversal.recovered.length > 0) {
+    const pending = traversal.recovered
+    traversal.recovered = []
+    collectLockedPeerPins(traversal, pending, encodedVersions)
+  }
+  return traversal.versions
 }
 
-function getLockedPeerKeys (lockfile: LockfileObject, depPath: DepPath): LockedPeer[] {
+interface SnapshotLookup {
+  lockfile: LockfileObject
+  children: WeakMap<PackageSnapshot, Array<[DepPath, PackageSnapshot]>>
+}
+
+interface LockedPeerTraversal extends SnapshotLookup {
+  versions: Array<[string, string]>
+  visited: Set<DepPath>
+  recovered: DepPath[]
+}
+
+function collectLockedPeerPins (traversal: LockedPeerTraversal, pending: DepPath[], encodedVersions: Map<string, Set<string>>): void {
+  while (pending.length > 0) {
+    const key = pending.pop()!
+    if (traversal.visited.has(key)) continue
+    traversal.visited.add(key)
+    collectLockedPeerKey(traversal, { key, pending }, encodedVersions)
+  }
+}
+
+function collectLockedPeerKey (
+  traversal: LockedPeerTraversal,
+  { key, pending }: { key: DepPath, pending: DepPath[] },
+  encodedVersions: Map<string, Set<string>>
+): void {
+  const recoverContext = parsePeerBindings(key)?.kind !== 'hashed'
+  for (const [name, provider] of getLockedPeerKeys(traversal, key)) {
+    const providerWithoutPeers = removePeersSuffix(provider)
+    if (providerWithoutPeers !== provider) pending.push(provider)
+    const version = providerWithoutPeers.substring(providerWithoutPeers.indexOf('@', 1) + 1)
+    const encoded = encodedVersions.get(name)
+    if (encoded == null) traversal.versions.push([name, version])
+    if (recoverContext && (encoded == null || encoded.has(version))) {
+      traversal.recovered.push(...getSnapshotPeerProviders(traversal, key, { name, provider }))
+    }
+  }
+}
+
+function getSnapshotPeerProviders (
+  lookup: SnapshotLookup,
+  key: DepPath,
+  { name, provider }: { name: string, provider: DepPath }
+): DepPath[] {
+  if (removePeersSuffix(provider) !== provider) return []
+  const snapshot = lookup.lockfile.packages?.[key]
+  if (snapshot == null) return []
+  const reference = [snapshot.dependencies, snapshot.optionalDependencies]
+    .find((dependencies) => dependencies != null && Object.hasOwn(dependencies, name))?.[name]
+  const direct = reference == null ? null : refToRelative(reference, name)
+  const providers = direct != null
+    ? [direct]
+    : snapshot.transitivePeerDependencies?.includes(name)
+      ? getTransitivePeerProviders(lookup, snapshot, name)
+      : []
+  const base = removePeersSuffix(provider)
+  return providers.filter((candidate) => candidate !== base && removePeersSuffix(candidate) === base)
+}
+
+function getLockedPeerKeys (lookup: SnapshotLookup, depPath: DepPath): LockedPeer[] {
   const bindings = parsePeerBindings(depPath)
   if (bindings == null) return []
-  const snapshot = lockfile.packages?.[depPath]
-  if (bindings.kind === 'hashed') return getHashedPeerKeys(lockfile, snapshot)
+  const snapshot = lookup.lockfile.packages?.[depPath]
+  if (bindings.kind === 'hashed') return getHashedPeerKeys(lookup, snapshot)
   const providers = getPeerBindingProviders(bindings)
   const names = providers.map((provider) => provider.substring(0, provider.indexOf('@', 1)))
   if (snapshot != null) restoreAliasedPeerNames(snapshot, providers, names)
@@ -134,23 +193,23 @@ function claimProviderAlias (aliases: ProviderAliases): string | undefined {
  * from its own edges, and its `transitivePeerDependencies`, read from the
  * descendants that declare them.
  */
-function getHashedPeerKeys (lockfile: LockfileObject, snapshot: PackageSnapshot | undefined): LockedPeer[] {
+function getHashedPeerKeys (lookup: SnapshotLookup, snapshot: PackageSnapshot | undefined): LockedPeer[] {
   if (snapshot == null) return []
   const keys: LockedPeer[] = getPeerEdgeKeys(snapshot, (name) => declaresPeer(snapshot, name))
   for (const peerName of snapshot.transitivePeerDependencies ?? []) {
-    for (const provider of getTransitivePeerProviders(lockfile, snapshot, peerName)) {
+    for (const provider of getTransitivePeerProviders(lookup, snapshot, peerName)) {
       keys.push([peerName, provider])
     }
   }
   return keys
 }
 
-function getTransitivePeerProviders (lockfile: LockfileObject, snapshot: PackageSnapshot, peerName: string): DepPath[] {
+function getTransitivePeerProviders (lookup: SnapshotLookup, snapshot: PackageSnapshot, peerName: string): DepPath[] {
   const providers: DepPath[] = []
   const visited = new Set<DepPath>()
   const pending = [snapshot]
   while (pending.length > 0) {
-    for (const child of getUnvisitedChildSnapshots(lockfile, pending.pop()!, visited)) {
+    for (const child of getUnvisitedChildSnapshots(lookup, pending.pop()!, visited)) {
       visitTransitivePeerChild(child, { peerName, pending, providers })
     }
   }
@@ -180,14 +239,25 @@ function getBoundPeerEdgeProviders (childKey: DepPath, child: PackageSnapshot, p
     .filter((provider) => bound == null || bound.has(removePeersSuffix(provider)))
 }
 
-function getUnvisitedChildSnapshots (lockfile: LockfileObject, snapshot: PackageSnapshot, visited: Set<DepPath>): Array<[DepPath, PackageSnapshot]> {
-  const children: Array<[DepPath, PackageSnapshot]> = []
-  for (const [edgeName, ref] of getDependencyEdges(snapshot)) {
-    const childKey = refToRelative(ref, edgeName)
-    const child = childKey == null ? undefined : lockfile.packages?.[childKey]
-    if (childKey == null || child == null || visited.has(childKey)) continue
+function getUnvisitedChildSnapshots (lookup: SnapshotLookup, snapshot: PackageSnapshot, visited: Set<DepPath>): Array<[DepPath, PackageSnapshot]> {
+  const children = getChildSnapshots(lookup, snapshot)
+  return children.filter(([childKey]) => {
+    if (visited.has(childKey)) return false
     visited.add(childKey)
-    children.push([childKey, child])
+    return true
+  })
+}
+
+function getChildSnapshots (lookup: SnapshotLookup, snapshot: PackageSnapshot): Array<[DepPath, PackageSnapshot]> {
+  let children = lookup.children.get(snapshot)
+  if (children == null) {
+    children = []
+    for (const [edgeName, ref] of getDependencyEdges(snapshot)) {
+      const childKey = refToRelative(ref, edgeName)
+      const child = childKey == null ? undefined : lookup.lockfile.packages?.[childKey]
+      if (childKey != null && child != null) children.push([childKey, child])
+    }
+    lookup.children.set(snapshot, children)
   }
   return children
 }

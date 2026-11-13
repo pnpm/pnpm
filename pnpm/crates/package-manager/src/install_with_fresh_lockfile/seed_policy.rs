@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-/// Caller-supplied version preferences layered onto the resolution seed.
+/// Caller-supplied version preferences and direct requests layered onto the resolution seed.
 ///
 /// `shared` applies to every importer. `by_importer` replaces the concrete
 /// version selectors of one importer for the package names it lists, which
@@ -15,11 +15,13 @@ use std::{
 pub struct PreferredVersionsOverride {
     pub shared: PreferredVersions,
     pub by_importer: BTreeMap<String, PreferredVersions>,
+    /// Explicitly added aliases, scoped to the importers the command selected.
+    pub requested_direct_dependencies: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl From<PreferredVersions> for PreferredVersionsOverride {
     fn from(shared: PreferredVersions) -> Self {
-        Self { shared, by_importer: BTreeMap::new() }
+        Self { shared, ..Default::default() }
     }
 }
 

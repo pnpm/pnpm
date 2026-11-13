@@ -133,6 +133,8 @@ fn full_walk_keeps_peer_cycle_handling() {
     {
         let mut tree = cyclic_alias_peer_tree(aliases);
         let importers = [ImporterPeerInput {
+            declared_direct_dependencies: HashSet::default(),
+            explicitly_requested_direct_dependencies: HashSet::default(),
             id: ".".into(),
             direct: tree.direct.clone(),
             root_dir: "/repo".into(),
