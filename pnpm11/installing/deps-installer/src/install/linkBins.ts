@@ -68,7 +68,7 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
   if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
   await repairGlobalVirtualStoreBinShims({
     extraNodePaths: ctx.extraNodePaths,
-    virtualStoreDir: opts.globalVirtualStoreDir,
+    virtualStoreDir: path.join(ctx.storeDir, 'links'),
   }, opts)
 }
 

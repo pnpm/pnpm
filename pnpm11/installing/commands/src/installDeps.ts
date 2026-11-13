@@ -99,7 +99,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'tag'
 | 'trustLockfile'
 | 'allowBuilds'
-| 'virtualStoreDir'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -257,9 +256,9 @@ async function globalVirtualStoreBinShimsArePending (opts: InstallDepsOptions): 
   const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
   const modules = await readModulesManifest(modulesDir)
   if (modules?.virtualStoreDir == null) return true
-  const globalVirtualStoreDir = opts.virtualStoreDir == null
+  const globalVirtualStoreDir = path.resolve(modules.virtualStoreDir) === path.join(modulesDir, '.pnpm')
     ? path.join(modules.storeDir, 'links')
-    : path.resolve(opts.lockfileDir ?? opts.dir, opts.virtualStoreDir)
+    : modules.virtualStoreDir
   return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)
 }
 
