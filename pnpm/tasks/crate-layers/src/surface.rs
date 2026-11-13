@@ -1,66 +1,70 @@
 //! The paths a file's public items name in their signatures, read from the
-//! token stream. Visibility is taken from the `pub` keyword alone: a `pub`
-//! item inside a private module counts as public.
+//! token stream. Each path records the item that owns it, so
+//! [`crate::visibility`] can keep only the items reachable from outside the
+//! crate.
 
 use crate::{
     cfg,
     extent::{Nesting, Stop, closing_brace, item_end},
+    item::{
+        ItemHeader, Namespace, is_ident, item_header, paths_in, skip_qualifiers, skip_visibility,
+    },
     lexer::Token,
     use_tree::{self, UsePath},
 };
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Surface {
-    /// Paths named in public signatures, with a first segment that a `use`
-    /// in the same scope imports replaced by the imported path.
-    pub exposed: Vec<Vec<String>>,
+    /// Paths named in public signatures.
+    pub exposed: Vec<Exposure>,
+    /// The names of the `pub` items at the scope's top level.
+    pub public_items: Vec<String>,
+    /// The types declared at the scope's top level, `pub` or not.
+    pub types: Vec<TypeDeclaration>,
     /// The paths of `pub use` items.
     pub reexported: Vec<UsePath>,
     /// `extern crate name as alias;` items. An alias binds in its own module,
     /// and in the whole crate when the crate root declares it.
     pub crate_aliases: Vec<UsePath>,
-    /// Exposed and re-exported paths whose first segment an inline module's
-    /// own `extern crate` alias already replaced. No outer alias applies to
-    /// them.
-    pub resolved: Resolved,
+    /// The inline modules `mod name { … }`, each a scope of its own.
+    pub inline_modules: Vec<InlineModule>,
 }
 
-impl Surface {
-    /// Moves the paths that an inline module's own `extern crate` aliases
-    /// bind into `resolved`, with each alias replaced, and drops the aliases.
-    /// The other paths stay for the enclosing scopes' aliases.
-    fn resolve_own_aliases(&mut self) {
-        let owned = std::mem::take(&mut self.crate_aliases);
-        let aliases = owned.iter().collect::<Vec<_>>();
-        let binds = |path: &[String]| {
-            aliases
-                .iter()
-                .any(|alias| alias.binding.as_ref() == path.first())
-        };
-        let (aliased, plain) = std::mem::take(&mut self.exposed)
-            .into_iter()
-            .partition::<Vec<_>, _>(|path| binds(path));
-        self.exposed = plain;
-        let resolved = aliased.iter().map(|path| dealias(path, &aliases));
-        self.resolved.exposed.extend(resolved);
-        let (aliased, plain) = std::mem::take(&mut self.reexported)
-            .into_iter()
-            .partition::<Vec<_>, _>(|reexport| binds(&reexport.segments));
-        self.reexported = plain;
-        let resolved = aliased.iter().map(|reexport| dealias(&reexport.segments, &aliases));
-        self.resolved.reexported.extend(resolved);
-    }
+/// A path named in a public signature, with a first segment that a `use` in
+/// the same scope imports replaced by the imported path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Exposure {
+    pub path: Vec<String>,
+    /// The top-level item the signature belongs to, or `None` when the
+    /// signature is outside any item.
+    pub owner: Option<Owner>,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct Resolved {
-    pub exposed: Vec<Vec<String>>,
-    pub reexported: Vec<Vec<String>>,
+/// The top-level item a signature belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Owner {
+    /// The item's own name, or the self type of an `impl`, written as a path
+    /// from the scope.
+    pub path: Vec<String>,
+    /// The namespace the name binds in: a type for an `impl`.
+    pub namespace: Namespace,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TypeDeclaration {
+    pub name: String,
+    pub is_public: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct InlineModule {
+    pub name: String,
+    pub is_public: bool,
+    pub surface: Surface,
 }
 
 /// The surface of one file. Test-only items, including their imports, are
-/// left out. An inline `mod name { … }` is a scope of its own: its imports
-/// and aliases apply only inside it.
+/// left out.
 pub fn scan(tokens: &[Token]) -> Surface {
     let mut scope = Scope { tokens, ..Scope::default() };
     let mut pos = 0;
@@ -90,12 +94,14 @@ struct Scope<'tokens> {
     tokens: &'tokens [Token],
     surface: Surface,
     imports: Vec<UsePath>,
-    /// The surfaces of inline modules, already expanded through their own
-    /// imports and aliases.
-    nested: Vec<Surface>,
+    /// The top-level item the scan is in.
+    owner: Option<Owner>,
     /// The depth of `{` blocks: a `use` inside a function body or another
     /// block is not one of the scope's imports.
     braces: usize,
+    /// The `}` of the foreign block `extern "ABI" { … }` the scan is in. Its
+    /// items belong to the scope, so its braces do not count.
+    foreign_block_close: Option<usize>,
 }
 
 impl Scope<'_> {
@@ -111,6 +117,12 @@ impl Scope<'_> {
         if let Some(alias) = extern_crate_alias(tokens, pos) {
             self.surface.crate_aliases.push(alias);
         }
+        if self.braces == 0 {
+            if let Some(next) = self.foreign_block(pos) {
+                return next;
+            }
+            self.enter_item(pos);
+        }
         match tokens[pos] {
             Token::Punct('{') => self.braces += 1,
             Token::Punct('}') => self.braces = self.braces.saturating_sub(1),
@@ -119,25 +131,68 @@ impl Scope<'_> {
         if let Some(item) = use_item(tokens, pos) {
             return self.record_use(item);
         }
-        scan_at(tokens, pos, &mut self.surface)
+        let mut exposed = Vec::new();
+        let next = scan_at(tokens, pos, &mut exposed);
+        let owned = exposed
+            .into_iter()
+            .map(|path| Exposure { path, owner: self.owner.clone() });
+        self.surface.exposed.extend(owned);
+        next
+    }
+
+    /// Steps over the `extern {` that opens a foreign block, or the `}` that
+    /// closes the one the scan is in.
+    fn foreign_block(&mut self, pos: usize) -> Option<usize> {
+        let tokens = self.tokens;
+        if self.foreign_block_close == Some(pos) {
+            self.foreign_block_close = None;
+            return Some(pos + 1);
+        }
+        let opens =
+            is_ident(tokens.get(pos), "extern") && tokens.get(pos + 1) == Some(&Token::Punct('{'));
+        if !opens {
+            return None;
+        }
+        self.foreign_block_close = Some(closing_brace(tokens, pos + 1) - 1);
+        Some(pos + 2)
+    }
+
+    /// Makes the item that starts at `pos`, if one does, the owner of the
+    /// signatures that follow, and records its name when it is `pub` or a
+    /// type.
+    fn enter_item(&mut self, pos: usize) {
+        let Some(header) = item_header(self.tokens, pos) else { return };
+        if let ItemHeader::Named { name, is_public, namespace } = &header {
+            if *is_public {
+                self.surface.public_items.push(name.clone());
+            }
+            if *namespace == Namespace::Type {
+                let declaration = TypeDeclaration { name: name.clone(), is_public: *is_public };
+                self.surface.types.push(declaration);
+            }
+        }
+        self.owner = Some(match header {
+            ItemHeader::Named { name, namespace, .. } => Owner { path: vec![name], namespace },
+            ItemHeader::Impl { self_type } => Owner { path: self_type, namespace: Namespace::Type },
+        });
     }
 
     /// Scans the inline module `mod name { … }` at `pos` as its own scope.
     fn inline_module(&mut self, pos: usize) -> Option<usize> {
         let tokens = self.tokens;
-        let opens = is_ident(tokens.get(pos), "mod")
-            && matches!(tokens.get(pos + 1), Some(Token::Ident(_)))
-            && tokens.get(pos + 2) == Some(&Token::Punct('{'));
+        let Some(Token::Ident(name)) = tokens.get(pos + 1) else { return None };
+        let opens =
+            is_ident(tokens.get(pos), "mod") && tokens.get(pos + 2) == Some(&Token::Punct('{'));
         if !opens {
             return None;
         }
+        let is_public = pos > 0 && is_ident(tokens.get(pos - 1), "pub");
         let end = closing_brace(tokens, pos + 2);
         let body = tokens
             .get(pos + 3..end.saturating_sub(1))
             .unwrap_or_default();
-        let mut inner = scan(body);
-        inner.resolve_own_aliases();
-        self.nested.push(inner);
+        let surface = scan(body);
+        self.surface.inline_modules.push(InlineModule { name: name.clone(), is_public, surface });
         Some(end)
     }
 
@@ -158,15 +213,25 @@ impl Scope<'_> {
         item.next
     }
 
+    /// Expands every exposed path and owner through the scope's imports. A
+    /// type the scope declares shadows an import of a value of the same name,
+    /// so an owner that names one stays local.
     fn finish(mut self) -> Surface {
-        for path in &mut self.surface.exposed {
-            expand(path, &self.imports);
-        }
-        for inner in self.nested {
-            self.surface.exposed.extend(inner.exposed);
-            self.surface.reexported.extend(inner.reexported);
-            self.surface.resolved.exposed.extend(inner.resolved.exposed);
-            self.surface.resolved.reexported.extend(inner.resolved.reexported);
+        let types = &self.surface.types;
+        for exposure in &mut self.surface.exposed {
+            expand(&mut exposure.path, &self.imports);
+            let Some(owner) = &mut exposure.owner else { continue };
+            let names_local_type = owner.namespace == Namespace::Type
+                && owner.path
+                    .first()
+                    .is_some_and(|first| {
+                        types
+                            .iter()
+                            .any(|declared| &declared.name == first)
+                    });
+            if !names_local_type {
+                expand(&mut owner.path, &self.imports);
+            }
         }
         self.surface
     }
@@ -193,23 +258,6 @@ fn test_only_item_end(tokens: &[Token], pos: usize) -> Option<usize> {
         Stop::Extent
     };
     Some(item_end(tokens, pos, stop))
-}
-
-/// The index after `pub` or `pub(…)` at `pos`, or `pos` when there is none.
-fn skip_visibility(tokens: &[Token], pos: usize) -> usize {
-    if !is_ident(tokens.get(pos), "pub") {
-        return pos;
-    }
-    if tokens.get(pos + 1) != Some(&Token::Punct('(')) {
-        return pos + 1;
-    }
-    let close = tokens
-        .iter()
-        .skip(pos + 1)
-        .position(|token| *token == Token::Punct(')'));
-    close
-        .map(|offset| pos + offset + 2)
-        .unwrap_or(pos + 1)
 }
 
 /// A `use` item: its paths, whether it is `pub use`, and the index after it.
@@ -249,43 +297,43 @@ fn extern_crate_alias(tokens: &[Token], pos: usize) -> Option<UsePath> {
 /// Reads the public item at `pos`, if one starts there, and returns where
 /// scanning continues. A `pub mod` returns the index of `mod`, so the scope
 /// sees an inline module.
-fn scan_at(tokens: &[Token], pos: usize, surface: &mut Surface) -> usize {
+fn scan_at(tokens: &[Token], pos: usize, exposed: &mut Vec<Vec<String>>) -> usize {
     if !is_ident(tokens.get(pos), "pub") || tokens.get(pos + 1) == Some(&Token::Punct('(')) {
         return pos + 1;
     }
     let item = skip_qualifiers(tokens, pos + 1);
     let Some(Token::Ident(keyword)) = tokens.get(item) else {
         // A tuple field such as `pub String` or `pub Vec<T>`.
-        return collect(tokens, item, Stop::FieldEnd, surface);
+        return collect(tokens, item, Stop::FieldEnd, exposed);
     };
     match keyword.as_str() {
         "mod" => item,
         "macro_rules" | "crate" | "extern" => item + 1,
-        "fn" => collect(tokens, item, Stop::Signature, surface),
-        "struct" | "union" => collect(tokens, item, Stop::Body, surface),
-        "type" => collect(tokens, item, Stop::Signature, surface),
-        "const" | "static" => collect(tokens, item, Stop::Value, surface),
-        "enum" => collect(tokens, item, Stop::ItemEnd, surface),
-        "trait" => collect_trait(tokens, item, surface),
+        "fn" => collect(tokens, item, Stop::Signature, exposed),
+        "struct" | "union" => collect(tokens, item, Stop::Body, exposed),
+        "type" => collect(tokens, item, Stop::Signature, exposed),
+        "const" | "static" => collect(tokens, item, Stop::Value, exposed),
+        "enum" => collect(tokens, item, Stop::ItemEnd, exposed),
+        "trait" => collect_trait(tokens, item, exposed),
         _ if tokens.get(item + 1) == Some(&Token::Punct(':')) => {
-            collect(tokens, item + 2, Stop::FieldEnd, surface)
+            collect(tokens, item + 2, Stop::FieldEnd, exposed)
         }
-        _ => collect(tokens, item, Stop::FieldEnd, surface),
+        _ => collect(tokens, item, Stop::FieldEnd, exposed),
     }
 }
 
 /// Records the paths in `tokens[start..]` up to `stop` and returns where the
 /// public part ends.
-fn collect(tokens: &[Token], start: usize, stop: Stop, surface: &mut Surface) -> usize {
+fn collect(tokens: &[Token], start: usize, stop: Stop, exposed: &mut Vec<Vec<String>>) -> usize {
     let end = item_end(tokens, start, stop);
-    surface.exposed.extend(paths_in(&tokens[start..end]));
+    exposed.extend(paths_in(&tokens[start..end]));
     end
 }
 
 /// A trait's header and the signatures of its items, without test-only
 /// items, the bodies of its provided methods, or the default values of its
 /// constants and types.
-fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize {
+fn collect_trait(tokens: &[Token], start: usize, exposed: &mut Vec<Vec<String>>) -> usize {
     let end = item_end(tokens, start, Stop::ItemEnd);
     let mut filter = TraitFilter::default();
     let mut kept = Vec::new();
@@ -301,7 +349,7 @@ fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize
         }
         pos += 1;
     }
-    surface.exposed.extend(paths_in(&kept));
+    exposed.extend(paths_in(&kept));
     end
 }
 
@@ -342,59 +390,6 @@ impl TraitFilter {
     }
 }
 
-/// Skips `const`, `async`, `unsafe`, and `extern "ABI"` before `fn`. A
-/// `const` counts only when the qualifiers after it end in `fn name`, so
-/// `pub const r#unsafe: T` stays a constant.
-fn skip_qualifiers(tokens: &[Token], pos: usize) -> usize {
-    let after = skip_fn_qualifiers(tokens, pos + 1);
-    let starts_fn =
-        is_ident(tokens.get(after), "fn") && matches!(tokens.get(after + 1), Some(Token::Ident(_)));
-    if is_ident(tokens.get(pos), "const") && starts_fn {
-        return after;
-    }
-    skip_fn_qualifiers(tokens, pos)
-}
-
-/// Skips `async`, `unsafe`, and `extern` (the lexer drops the ABI string).
-fn skip_fn_qualifiers(tokens: &[Token], mut pos: usize) -> usize {
-    while ["async", "unsafe", "extern"]
-        .iter()
-        .any(|word| is_ident(tokens.get(pos), word))
-    {
-        pos += 1;
-    }
-    pos
-}
-
-/// Every `ident (:: ident)*` path in `tokens`, including single names.
-fn paths_in(tokens: &[Token]) -> Vec<Vec<String>> {
-    let mut paths = Vec::new();
-    let mut current: Vec<String> = Vec::new();
-    let mut after_separator = false;
-    for token in tokens {
-        match token {
-            Token::Ident(name) if after_separator || current.is_empty() => {
-                current.push(name.clone());
-                after_separator = false;
-            }
-            Token::Ident(name) => {
-                paths.push(std::mem::replace(&mut current, vec![name.clone()]));
-            }
-            Token::PathSep => after_separator = true,
-            Token::Punct(_) => {
-                after_separator = false;
-                if !current.is_empty() {
-                    paths.push(std::mem::take(&mut current));
-                }
-            }
-        }
-    }
-    if !current.is_empty() {
-        paths.push(current);
-    }
-    paths
-}
-
 /// Replaces a first segment that an import binds with the imported path.
 fn expand(path: &mut Vec<String>, imports: &[UsePath]) {
     let Some(first) = path.first() else { return };
@@ -404,8 +399,4 @@ fn expand(path: &mut Vec<String>, imports: &[UsePath]) {
     if let Some(import) = import {
         path.splice(0..1, import.segments.iter().cloned());
     }
-}
-
-fn is_ident(token: Option<&Token>, word: &str) -> bool {
-    matches!(token, Some(Token::Ident(name)) if name == word)
 }

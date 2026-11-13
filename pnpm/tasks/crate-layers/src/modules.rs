@@ -21,6 +21,9 @@ const MAX_REEXPORT_DEPTH: u8 = 4;
 
 #[derive(Debug, Default)]
 struct Module {
+    /// Whether the parent declares it `pub mod`. The crate root counts as
+    /// public.
+    is_public: bool,
     code_lines: usize,
     imports: Vec<UsePath>,
     references: Vec<Vec<String>>,
@@ -30,6 +33,13 @@ struct Module {
 #[derive(Debug, Default)]
 pub struct CrateModules {
     modules: BTreeMap<ModulePath, Module>,
+}
+
+/// A module of the crate, read from its own file or inline in another.
+pub struct Scope<'surface> {
+    /// Whether the parent declares it `pub mod`.
+    pub is_public: bool,
+    pub surface: &'surface Surface,
 }
 
 /// The top-level modules of a crate, their sizes, and how often each one
@@ -59,7 +69,7 @@ impl CrateModules {
         for root in ["src/lib.rs", "src/main.rs"] {
             let file = format!("{dir}/{root}");
             if let Some(source) = tree.read(&file)? {
-                crate_modules.visit(tree, Vec::new(), &file, &source)?;
+                crate_modules.visit(tree, Declared::root(), &file, &source)?;
                 break;
             }
         }
@@ -69,7 +79,7 @@ impl CrateModules {
     fn visit(
         &mut self,
         tree: &dyn Tree,
-        path: ModulePath,
+        Declared { path, is_public }: Declared,
         file: &str,
         source: &str,
     ) -> Result<(), String> {
@@ -77,14 +87,17 @@ impl CrateModules {
         let scan = scan(&lexed.tokens);
         let child_dir = child_dir(file);
         for child in &scan.children {
-            let (child_file, child_source) = read_child(tree, &child_dir, child)?.ok_or_else(|| {
-                format!("{file} declares `mod {child};`, but neither {child_dir}/{child}.rs nor {child_dir}/{child}/mod.rs exists")
+            let (child_file, child_source) = read_child(tree, &child_dir, &child.name)?.ok_or_else(|| {
+                let name = &child.name;
+                format!("{file} declares `mod {name};`, but neither {child_dir}/{name}.rs nor {child_dir}/{name}/mod.rs exists")
             })?;
             let mut child_path = path.clone();
-            child_path.push(child.clone());
-            self.visit(tree, child_path, &child_file, &child_source)?;
+            child_path.push(child.name.clone());
+            let declared = Declared { path: child_path, is_public: child.is_public };
+            self.visit(tree, declared, &child_file, &child_source)?;
         }
         let module = Module {
+            is_public,
             code_lines: lexed.code_lines,
             surface: surface::scan(&lexed.tokens),
             imports: scan.imports,
@@ -94,9 +107,13 @@ impl CrateModules {
         Ok(())
     }
 
-    /// The public surface of each non-test module.
-    pub fn surfaces(&self) -> impl Iterator<Item = &Surface> {
-        self.modules.values().map(|module| &module.surface)
+    /// Each non-test module read from its own file, by path.
+    pub fn surfaces(&self) -> impl Iterator<Item = (&ModulePath, Scope<'_>)> {
+        self.modules
+            .iter()
+            .map(|(path, module)| {
+                (path, Scope { is_public: module.is_public, surface: &module.surface })
+            })
     }
 
     /// The surface of the crate root, whose `extern crate` aliases bind in
@@ -195,9 +212,29 @@ fn module_references(module: &Module) -> impl Iterator<Item = &[String]> {
 
 #[derive(Debug, Default)]
 struct Scan {
-    children: Vec<String>,
+    children: Vec<Child>,
     imports: Vec<UsePath>,
     references: Vec<Vec<String>>,
+}
+
+/// A module about to be read, as its parent declares it.
+struct Declared {
+    path: ModulePath,
+    is_public: bool,
+}
+
+impl Declared {
+    /// The crate root, which every caller of the crate reaches.
+    const fn root() -> Self {
+        Self { path: Vec::new(), is_public: true }
+    }
+}
+
+/// A `mod name;` declaration.
+#[derive(Debug)]
+struct Child {
+    name: String,
+    is_public: bool,
 }
 
 /// Collects the non-test `mod name;` declarations, the `use` items, and the
@@ -221,9 +258,14 @@ fn scan_at(tokens: &[Token], pos: usize, scan: &mut Scan) -> usize {
         return next;
     }
     if word == "mod" {
-        let name = declared_child(tokens, pos);
-        if let Some(name) = name.filter(|name| !scan.children.contains(name)) {
-            scan.children.push(name);
+        let child = declared_child(tokens, pos);
+        let is_new = |child: &Child| {
+            !scan.children
+                .iter()
+                .any(|known| known.name == child.name)
+        };
+        if let Some(child) = child.filter(is_new) {
+            scan.children.push(child);
         }
         return pos + 1;
     }
@@ -239,12 +281,13 @@ fn scan_at(tokens: &[Token], pos: usize, scan: &mut Scan) -> usize {
 
 /// The name in `mod name;` at `tokens[pos]`, unless a `#[cfg(test)]`-like
 /// attribute right before it makes the module test-only.
-fn declared_child(tokens: &[Token], pos: usize) -> Option<String> {
+fn declared_child(tokens: &[Token], pos: usize) -> Option<Child> {
     let Some(Token::Ident(name)) = tokens.get(pos + 1) else { return None };
     if tokens.get(pos + 2) != Some(&Token::Punct(';')) || cfg::is_test_only(tokens, pos) {
         return None;
     }
-    Some(name.clone())
+    let is_public = pos > 0 && tokens[pos - 1] == Token::Ident("pub".to_owned());
+    Some(Child { name: name.clone(), is_public })
 }
 
 /// The segments of the path `ident (:: ident)*` that starts at `start`.
