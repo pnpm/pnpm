@@ -24,7 +24,6 @@ export interface AllProjectsAreUpToDateOptions {
   wantedLockfile: LockfileObject
   workspacePackages: WorkspacePackages
   lockfileDir: string
-  childLinkLockfileDir?: string
   workspaceDir?: string
   readPackageHook?: ReadPackageHook
   /** See `LocalDirectoryResolution.registries`. */
@@ -90,7 +89,6 @@ function createLinkedPackagesContext (
     workspacePackages: opts.workspacePackages,
     lockfilePackages: opts.wantedLockfile.packages,
     lockfileDir: opts.lockfileDir,
-    childLinkLockfileDir: opts.childLinkLockfileDir,
     workspaceDir: opts.workspaceDir,
     injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
     includedDependencies: opts.includedDependencies,

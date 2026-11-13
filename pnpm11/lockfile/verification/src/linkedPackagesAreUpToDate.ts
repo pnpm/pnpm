@@ -44,7 +44,6 @@ export interface LinkedPackagesContext {
   workspacePackages?: WorkspacePackages
   lockfilePackages?: PackageSnapshots
   lockfileDir: string
-  childLinkLockfileDir?: string
   workspaceDir?: string
   injectWorkspacePackages?: boolean
   /**

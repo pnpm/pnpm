@@ -196,7 +196,6 @@ export function upToDateCheckOptions (
     wantedLockfile,
     workspacePackages: ctx.workspacePackages,
     lockfileDir: opts.lockfileDir,
-    childLinkLockfileDir: opts.sharedWorkspaceLockfile === false ? opts.virtualStoreDir : opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
     readPackageHook: opts.readPackageHook,
     registries: pickRegistryContext(opts),
