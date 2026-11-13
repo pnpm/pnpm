@@ -40,7 +40,8 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
   for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peers.taken)) {
     const peerVersionRange = getPeerVersionRange(version)
 
-    const pick = providerFor(version, { inherited: ctx.parentPkgs[peerName], inheritedMustWin: () => false })
+    const inherited = Object.hasOwn(ctx.parentPkgs, peerName) ? ctx.parentPkgs[peerName] : undefined
+    const pick = providerFor(version, { inherited, inheritedMustWin: () => false })
     const optionalPeer = optional === true
 
     if (pick.kind === 'missing') {
@@ -69,7 +70,7 @@ function reportMissingPeer<Pkg> (
   { optional, wantedRange }: { optional: boolean, wantedRange: string }
 ): void {
   const location = getLocationFromParentNodeIds(ctx)
-  if (!ctx.peerDependencyIssues.missing[peerName]) {
+  if (!Object.hasOwn(ctx.peerDependencyIssues.missing, peerName)) {
     ctx.peerDependencyIssues.missing[peerName] = []
   }
   ctx.peerDependencyIssues.missing[peerName].push({
@@ -90,7 +91,7 @@ function reportBadPeer<Pkg extends PartialResolvedPackage> (
 ): void {
   const { peerName, resolved } = opts
   const location = getLocationFromParentNodeIds(ctx)
-  if (!ctx.peerDependencyIssues.bad[peerName]) {
+  if (!Object.hasOwn(ctx.peerDependencyIssues.bad, peerName)) {
     ctx.peerDependencyIssues.bad[peerName] = []
   }
   const peerLocation = resolved.nodeId == null
