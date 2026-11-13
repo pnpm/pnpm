@@ -108,6 +108,7 @@ testOnPosix.each([
   { count: 1, mode: 'relative-path' },
   { count: 1, mode: 'extended' },
   { count: 1, mode: 'bash' },
+  { count: 1, mode: 'exported-printf' },
 ])('$count $mode scripts and their descendants are watched before the spawn returns', async ({ count, mode }) => {
   const directory = temporaryDirectory()
   if (mode === 'relative') fs.symlinkSync('/bin/sh', path.join(directory, 'script-shell'))
@@ -115,12 +116,23 @@ testOnPosix.each([
     fs.mkdirSync(path.join(directory, 'runner', 'bin'), { recursive: true })
     fs.symlinkSync('/bin/sh', path.join(directory, 'runner', 'bin', 'sh'))
   }
+  if (mode === 'exported-printf') {
+    fs.mkdirSync(path.join(directory, 'bin'))
+    fs.symlinkSync('/bin/bash', path.join(directory, 'bin', 'sh'))
+  }
   const runner = spawn(process.execPath, [startupScript, directory, String(count), mode], {
     detached: true,
     stdio: ['ignore', 'pipe', 'inherit'],
     ...(mode === 'relative-path' ? {
       cwd: path.join(directory, 'runner'),
       env: { ...process.env, PATH: `bin${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}` },
+    } : {}),
+    ...(mode === 'exported-printf' ? {
+      env: {
+        ...process.env,
+        PATH: `${path.join(directory, 'bin')}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        'BASH_FUNC_printf%%': '() { :; }',
+      },
     } : {}),
   })
   let leaders: number[] = []

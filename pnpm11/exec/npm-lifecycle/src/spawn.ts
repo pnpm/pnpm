@@ -125,13 +125,14 @@ function planLaunch (cmd: string, args: string[], options: SpawnOptions): Launch
   return command == null ? undefined : { shell: launcher.shell, flags: ['-p', '-c'], command }
 }
 
+/** `command` keeps exported functions, which Bash imports even as sh, from replacing the builtins. */
 function registrationScript (descriptor: number, receipt: number): string {
   return [
     "trap '' PIPE",
-    `if ! printf '+%s\\n' "$$" >&${descriptor} 2>/dev/null; then`,
-    `  printf 'retry\\n' >&${receipt} || exit $?`,
-    `  read -r registered <&${receipt} || exit 125`,
-    '  [ "$registered" = registered ] || exit 125',
+    `if ! command printf '+%s\\n' "$$" >&${descriptor} 2>/dev/null; then`,
+    `  command printf 'retry\\n' >&${receipt} || exit $?`,
+    `  command read -r registered <&${receipt} || exit 125`,
+    '  case $registered in registered) ;; *) exit 125 ;; esac',
     'fi',
     `exec ${descriptor}>&- ${receipt}>&-`,
     'trap - PIPE',
