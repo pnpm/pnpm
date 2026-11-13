@@ -49,6 +49,11 @@ export function addDepPathOrDeferCalculation<Pkg extends PartialResolvedPackage>
     addDepPathToGraph(ctx, resolvedNode, pkgIdWithPatchHash as unknown as DepPath)
     return undefined
   }
+  ctx.peerNodes.set(resolvedNode.nodeId, {
+    resolvedNode: { ...resolvedNode, allResolvedPeers: new Map(resolvedNode.allResolvedPeers) },
+    parentNodeIds: ctx.parentNodeIds,
+    parentDepPathsChain: ctx.parentDepPathsChain,
+  })
   const peerIds: PeerId[] = []
   const pendingPeers: PendingPeer[] = []
   for (const [alias, peerNodeId] of resolvedNode.allResolvedPeers.entries()) {
@@ -142,8 +147,14 @@ async function getPendingPeerId<Pkg extends PartialResolvedPackage> (
   return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
 }
 
-function addDepPathToGraph<Pkg extends PartialResolvedPackage> (
-  ctx: ResolveNodePeersContext<Pkg>,
+export type AddDepPathContext<Pkg extends PartialResolvedPackage> = Pick<ResolveNodePeersContext<Pkg>,
+| 'pathsByNodeId' | 'pathsByNodeIdPromises' | 'depPathsByPkgId' | 'depGraph'
+| 'virtualStoreDir' | 'virtualStoreDirMaxLength' | 'dependenciesTree'
+| 'parentNodeIds' | 'parentDepPathsChain'
+>
+
+export function addDepPathToGraph<Pkg extends PartialResolvedPackage> (
+  ctx: AddDepPathContext<Pkg>,
   resolvedNode: NodeWithResolvedPeers<Pkg>,
   depPath: DepPath
 ): void {
@@ -241,7 +252,7 @@ function getPreviouslyResolvedChildren<Pkg extends PartialResolvedPackage> (
  * registries produce one suffix, so two variants of the dependent — each
  * bound to a different peer artifact — would collapse onto a single depPath.
  */
-function peerIdOfResolvedPackage (
+export function peerIdOfResolvedPackage (
   resolvedPackage: { name: string, version: string, id?: PkgResolutionId }
 ): { name: string, version: string } {
   // Importer and link nodes carry no resolution id and can never be

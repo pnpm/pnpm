@@ -117,14 +117,19 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     peersSuffixMaxLength: 1000,
     workspaceProjectIds: new Set(),
   })
-  expect(Object.keys(dependenciesGraph)).toStrictEqual([
+  expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+    'bar/1.0.0(foo@1.0.0)',
+    'bar/1.0.0(foo@1.0.0)(zoo@1.0.0)',
     'foo/1.0.0',
-    'bar/1.0.0(foo/1.0.0)',
-    'qar/1.0.0(bar/1.0.0(foo/1.0.0))(foo/1.0.0)',
-    'zoo/1.0.0(qar/1.0.0(bar/1.0.0(foo/1.0.0))(foo/1.0.0))',
-    'foo/1.0.0(qar/1.0.0(bar/1.0.0(foo/1.0.0))(foo/1.0.0))(zoo/1.0.0(qar/1.0.0(bar/1.0.0(foo/1.0.0))(foo/1.0.0)))',
-    'bar/1.0.0(foo/1.0.0)(zoo/1.0.0(qar/1.0.0(bar/1.0.0(foo/1.0.0))(foo/1.0.0)))',
+    'foo/1.0.0(qar@1.0.0)(zoo@1.0.0)',
+    'qar/1.0.0(bar@1.0.0)(foo@1.0.0)',
+    'zoo/1.0.0(qar@1.0.0)',
   ])
+  expect(dependenciesGraph['zoo/1.0.0(qar@1.0.0)' as DepPath].children).toStrictEqual({
+    foo: 'foo/1.0.0(qar@1.0.0)(zoo@1.0.0)',
+    bar: 'bar/1.0.0(foo@1.0.0)(zoo@1.0.0)',
+    qar: 'qar/1.0.0(bar@1.0.0)(foo@1.0.0)',
+  })
 })
 
 test('transitive pending peer uses provider final suffix', async () => {

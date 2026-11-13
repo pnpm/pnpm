@@ -11,6 +11,7 @@ import { breakDepPathAwaitCycles } from './breakDepPathAwaitCycles.js'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
 import { deduplicateAll } from './deduplicateDepPaths.js'
 import type { UnboundOptionalPeers } from './depPathCompatibility.js'
+import { finalizePeerContexts } from './finalizePeerContexts.js'
 import { getNodeIdsByPreviousDepPath } from './lockedPeerProviders.js'
 import { mergePeers } from './mergePeers.js'
 import type { NodeId } from './nextNodeId.js'
@@ -99,6 +100,7 @@ export async function resolvePeers<Pkg extends PartialResolvedPackage> (
   }
   breakDepPathAwaitCycles(sharedCtx)
   await Promise.all(finishingList)
+  finalizePeerContexts(sharedCtx)
 
   const depGraphWithResolvedChildren = resolveChildren(sharedCtx.depGraph, sharedCtx.pathsByNodeId)
   const dependenciesByProjectId = getDependenciesByProjectId(opts.projects, sharedCtx.pathsByNodeId)
@@ -132,6 +134,7 @@ function createSharedPeersContext<Pkg extends PartialResolvedPackage> (opts: Res
     allPeerDepNames: opts.allPeerDepNames,
     dependenciesTree: opts.dependenciesTree,
     depGraph: {},
+    peerNodes: new Map(),
     lockfileDir: opts.lockfileDir,
     pathsByNodeId: new Map<NodeId, DepPath>(),
     pathsByNodeIdPromises: new Map<NodeId, DeferredPromise<DepPath>>(),
