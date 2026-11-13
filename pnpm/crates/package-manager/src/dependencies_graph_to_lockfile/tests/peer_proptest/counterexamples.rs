@@ -836,3 +836,56 @@ fn required_peer_fallback_cycle_is_stable_without_auto_install() {
     dbg!(&expected, &actual);
     assert_eq!(expected, actual);
 }
+
+#[test]
+fn reinstall_preserves_injected_peer_dependency_classification() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: direct(1, 1),
+                    peers: vec![peer(3, 2, false, false)],
+                },
+                leaf(),
+            ],
+            vec![depending_on(3, 1), peer_of(2, 1)],
+            vec![leaf(), leaf()],
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(4, 2, true, false)] },
+                depending_on(4, 2),
+            ],
+            vec![
+                leaf(),
+                PackageVersion { dependencies: vec![], peers: vec![peer(2, 1, false, true)] },
+            ],
+        ],
+        importers: vec![
+            direct(2, 2),
+            vec![Edge { target: 3, major: 2 }, Edge { target: 1, major: 2 }],
+        ],
+    };
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        for peers_suffix_max_length in [20, 1000] {
+            for catalogs in [false, true] {
+                let settings = super::Settings {
+                    auto_install_peers: false,
+                    injected: true,
+                    format,
+                    peers_suffix_max_length,
+                    catalogs,
+                };
+                let order = in_order(&workspace);
+                let fresh =
+                    super::resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+                let lockfile = super::lockfile_with_settings(&fresh, &workspace, settings);
+                let expected = outcome_of(&fresh, &workspace);
+                assert_eq!(expected.graph["p4@2.0.0"]["p2"], "p2@1.0.0");
+                let reused =
+                    super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
+                        .unwrap();
+                assert_eq!(&expected, &outcome_of(&reused, &workspace), "{settings:?}");
+                assert_eq!(lockfile, super::lockfile_with_settings(&reused, &workspace, settings));
+            }
+        }
+    }
+}

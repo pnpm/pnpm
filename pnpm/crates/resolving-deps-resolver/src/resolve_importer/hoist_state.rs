@@ -17,6 +17,7 @@ impl ImporterHoistPolicy {
 
 #[derive(Default)]
 pub(super) struct ImporterHoistProgress {
+    allow_locked_peer_fallbacks: bool,
     /// Whether the last required round converged with no missing
     /// required peers left. A converged importer's next required round
     /// is a no-op unless its inputs changed since: an optional hoist
@@ -82,8 +83,26 @@ pub(super) struct ImporterHoistSelection {
 }
 
 impl super::ImporterHoistState {
+    /// Enable lockfile-only required providers after current-graph hoists settle.
+    pub(crate) fn enable_locked_peer_fallbacks(&mut self) -> bool {
+        if self.progress.allow_locked_peer_fallbacks
+            || !self.policy.should_hoist_peers()
+            || self.policy.peers.auto_install_peers
+            || self.ctx
+                .workspace()
+                .wanted_lockfile()
+                .is_none()
+            || (self.progress.discovery_converged
+                && self.dependencies.all_missing_optional_peers.is_empty())
+        {
+            return false;
+        }
+        self.progress.allow_locked_peer_fallbacks = true;
+        true
+    }
+
     /// With auto-install disabled, retain manifest preferences, current providers,
-    /// and peer pins recorded for this importer.
+    /// then admit this importer's recorded pins once current-graph hoists settle.
     pub(super) fn required_peer_preferred_versions<'name>(
         &self,
         names: impl Iterator<Item = &'name str>,
@@ -97,9 +116,9 @@ impl super::ImporterHoistState {
         let Some(lockfile) = self.ctx.workspace().wanted_lockfile() else {
             return preferred;
         };
-        let locked = lockfile.importers
-            .contains_key(&self.importer_id)
-            .then_some(&self.selection.locked_versions);
+        let locked = (self.progress.allow_locked_peer_fallbacks
+            && lockfile.importers.contains_key(&self.importer_id))
+        .then_some(&self.selection.locked_versions);
         preferred.retain(|name, versions| {
             versions.retain(|version, entry| {
                 entry.weight() >= DIRECT_DEP_SELECTOR_WEIGHT
