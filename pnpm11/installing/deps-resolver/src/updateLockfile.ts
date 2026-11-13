@@ -284,7 +284,9 @@ function updateResolvedDeps (
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
           if (lockfileDir == null || parentResolution.type !== 'directory') return [alias, depPath]
-          const linkTarget = localSpecPath(depPath.slice(5), parentResolution.directory)
+          const linkSpec = depPath.slice(5)
+          if (!linkSpec.startsWith('../') && !linkSpec.startsWith('./')) return [alias, depPath]
+          const linkTarget = localSpecPath(linkSpec, parentResolution.directory)
           return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, linkTarget) as string]
         }
         const depNode = depGraph[depPath]
