@@ -357,7 +357,7 @@ where
 }
 
 mod chosen_bins;
-pub(super) use chosen_bins::link_chosen_bins;
+use chosen_bins::link_chosen_bins;
 #[cfg(test)]
 mod tests;
 
