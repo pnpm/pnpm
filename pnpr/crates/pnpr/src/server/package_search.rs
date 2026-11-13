@@ -33,13 +33,9 @@ impl<Item> SearchPage<Item> {
 
     pub(super) fn push_name(&mut self, name: &str) -> bool {
         let position = self.names.len();
-        if self.names.insert(name.to_string())
+        self.names.insert(name.to_string())
             && position >= self.from
             && position < self.from.saturating_add(self.size)
-        {
-            return true;
-        }
-        false
     }
 
     pub(super) fn total(&self) -> usize {

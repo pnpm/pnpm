@@ -243,7 +243,7 @@ pub(super) fn add_hoisted_linked_dependencies<Reference>(
         let id = graph_package_id(&target.dir, opts.modules_dir);
         add_external_link_package(
             packages,
-            &LinkTarget { id: id.clone(), dir: target.dir.clone() },
+            &LinkTarget { id: id.clone(), dir: target.dir },
             opts.modules_dir,
         );
         dependencies.insert(alias.to_string(), id.clone());

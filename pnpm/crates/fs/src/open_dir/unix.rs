@@ -161,10 +161,15 @@ fn lstat_at(parent: BorrowedFd<'_>, name: &CStr) -> io::Result<Option<libc::stat
 }
 
 fn child_file_stat(stat: &libc::stat) -> ChildFileStat {
+    // NetBSD is the only Unix whose `stat` spells these `st_*timensec`.
+    #[cfg(target_os = "netbsd")]
+    let (mtime_nsec, atime_nsec) = (stat.st_mtimensec, stat.st_atimensec);
+    #[cfg(not(target_os = "netbsd"))]
+    let (mtime_nsec, atime_nsec) = (stat.st_mtime_nsec, stat.st_atime_nsec);
     ChildFileStat {
         len: u64::try_from(stat.st_size).unwrap_or(0),
-        modified: unix_system_time(stat.st_mtime, stat.st_mtime_nsec),
-        accessed: unix_system_time(stat.st_atime, stat.st_atime_nsec),
+        modified: unix_system_time(stat.st_mtime, mtime_nsec),
+        accessed: unix_system_time(stat.st_atime, atime_nsec),
     }
 }
 
