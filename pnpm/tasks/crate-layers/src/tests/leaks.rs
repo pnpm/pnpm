@@ -394,3 +394,16 @@ fn an_owner_named_through_a_reexport_or_a_raw_identifier_keeps_its_leaks() {
     let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
     assert_eq!(leaked, ["base::Input", "base::Value"]);
 }
+
+#[test]
+fn a_private_type_shadows_a_reexported_function_of_the_same_name() {
+    let lib = concat!(
+        "mod hidden;\n",
+        "struct Config {}\n",
+        "pub use hidden::Config;\n",
+        "impl crate::Config { pub fn make(_: base::Input) {} }\n",
+    );
+    let hidden = "#[allow(non_snake_case)]\npub fn Config(_: base::Function) {}\n";
+    let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
+    assert_eq!(leaked, ["base::Function"]);
+}

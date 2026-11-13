@@ -8,11 +8,20 @@ pub enum ItemHeader {
     Named {
         name: String,
         is_public: bool,
+        namespace: Namespace,
     },
     /// An `impl` block, owned by its self type.
     Impl {
         self_type: Vec<String>,
     },
+}
+
+/// The namespace a named item's name binds in. A type and a function or
+/// constant of the same name can coexist in one module.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Namespace {
+    Type,
+    Value,
 }
 
 /// The keywords of the items that [`ItemHeader::Named`] reads.
@@ -44,7 +53,12 @@ pub fn item_header(tokens: &[Token], pos: usize) -> Option<ItemHeader> {
     let name_at = if is_static_mut { item + 2 } else { item + 1 };
     let Some(Token::Ident(name)) = tokens.get(name_at) else { return None };
     let is_public = after_visibility == pos + 1;
-    Some(ItemHeader::Named { name: name.clone(), is_public })
+    let namespace = if ["fn", "const", "static"].contains(&keyword.as_str()) {
+        Namespace::Value
+    } else {
+        Namespace::Type
+    };
+    Some(ItemHeader::Named { name: name.clone(), is_public, namespace })
 }
 
 /// The path of the self type of the `impl` whose generics or type start at

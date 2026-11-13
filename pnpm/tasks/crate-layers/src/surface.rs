@@ -6,7 +6,9 @@
 use crate::{
     cfg,
     extent::{Nesting, Stop, closing_brace, item_end},
-    item::{ItemHeader, is_ident, item_header, paths_in, skip_qualifiers, skip_visibility},
+    item::{
+        ItemHeader, Namespace, is_ident, item_header, paths_in, skip_qualifiers, skip_visibility,
+    },
     lexer::Token,
     use_tree::{self, UsePath},
 };
@@ -17,6 +19,9 @@ pub struct Surface {
     pub exposed: Vec<Exposure>,
     /// The names of the `pub` items at the scope's top level.
     pub public_items: Vec<String>,
+    /// The names of the types declared at the scope's top level, `pub` or
+    /// not.
+    pub declared_types: Vec<String>,
     /// The paths of `pub use` items.
     pub reexported: Vec<UsePath>,
     /// `extern crate name as alias;` items. An alias binds in its own module,
@@ -139,11 +144,17 @@ impl Scope<'_> {
     }
 
     /// Makes the item that starts at `pos`, if one does, the owner of the
-    /// signatures that follow, and records its name when it is `pub`.
+    /// signatures that follow, and records its name when it is `pub` or a
+    /// type.
     fn enter_item(&mut self, pos: usize) {
         let Some(header) = item_header(self.tokens, pos) else { return };
-        if let ItemHeader::Named { name, is_public: true } = &header {
-            self.surface.public_items.push(name.clone());
+        if let ItemHeader::Named { name, is_public, namespace } = &header {
+            if *is_public {
+                self.surface.public_items.push(name.clone());
+            }
+            if *namespace == Namespace::Type {
+                self.surface.declared_types.push(name.clone());
+            }
         }
         self.owner = match header {
             ItemHeader::Named { name, .. } => vec![name],

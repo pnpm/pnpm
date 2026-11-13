@@ -150,8 +150,9 @@ impl Exported {
     }
 }
 
-/// The module that declares the item `name` of `module`, and its name there,
-/// following the `pub use` items that bind it.
+/// The module that declares the type `name` of `module`, and its name there,
+/// following the `pub use` items that bind it. A type declared in a module
+/// shadows a re-export of a function of the same name.
 fn declaration(
     scopes: &BTreeMap<ModulePath, Scope<'_>>,
     mut module: ModulePath,
@@ -159,7 +160,7 @@ fn declaration(
 ) -> Option<(ModulePath, String)> {
     for _ in 0..MAX_REEXPORT_DEPTH {
         let surface = scopes.get(&module)?.surface;
-        if surface.public_items.contains(&name) {
+        if surface.declared_types.contains(&name) || surface.public_items.contains(&name) {
             break;
         }
         let reexport = surface.reexported
