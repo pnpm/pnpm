@@ -1,11 +1,9 @@
 use super::{
-    BaseCasPaths, artifact_platform, decoded_trusted_keys, dependency_package,
-    insert_side_effects_map, non_empty, planning::CandidateGroup, quarantine_remote_side_effects,
-    store_holds,
+    BaseCasPaths, artifact_platform, artifact_store_options, decoded_trusted_keys,
+    dependency_package, insert_side_effects_map, non_empty, planning::CandidateGroup,
+    quarantine_remote_side_effects, store_holds,
 };
-use crate::{
-    RemoteSideEffectsQuarantineBySnapshot, SideEffectsMapsBySnapshot, artifact_store_options,
-};
+use crate::{RemoteSideEffectsQuarantineBySnapshot, SideEffectsMapsBySnapshot};
 use pnpm_config::Config;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_pnpr_client::{

@@ -14,7 +14,7 @@ pub struct ArtifactSigner {
 
 /// The `remoteCache` fields that describe an [`ArtifactSigner`], named after
 /// them.
-#[derive(Clone, Copy, Default)]
+#[derive(Default, Clone, Copy)]
 pub struct ArtifactSignerSettings<'a> {
     pub private_key: Option<&'a str>,
     pub key_id: Option<&'a str>,
