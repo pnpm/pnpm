@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Reduced the work needed to retain peer versions when reinstalling projects with hashed peer suffixes.
+`pnpm install` now uses package manifests when retaining peer versions from lockfiles with hashed peer suffixes.
