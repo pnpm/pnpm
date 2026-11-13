@@ -99,6 +99,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'tag'
 | 'trustLockfile'
 | 'allowBuilds'
+| 'virtualStoreDir'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -256,7 +257,10 @@ async function globalVirtualStoreBinShimsArePending (opts: InstallDepsOptions): 
   const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
   const modules = await readModulesManifest(modulesDir)
   if (modules?.virtualStoreDir == null) return true
-  return globalVirtualStoreBinShimsNeedRepair(modules.virtualStoreDir, opts)
+  const globalVirtualStoreDir = opts.virtualStoreDir == null
+    ? path.join(modules.storeDir, 'links')
+    : path.resolve(opts.lockfileDir ?? opts.dir, opts.virtualStoreDir)
+  return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)
 }
 
 function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
