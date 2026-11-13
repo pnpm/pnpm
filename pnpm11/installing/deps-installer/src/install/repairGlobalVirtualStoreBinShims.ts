@@ -3,8 +3,8 @@ import path from 'node:path'
 
 import { getSlotShimNodePathOptions, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { isError } from '@pnpm/error'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
+import { loadJsonFile } from 'load-json-file'
 
 const markerName = '.pnpm-gvs-bin-shims-v1'
 
@@ -121,9 +121,18 @@ async function readPackageBins (
   const candidates = childPaths.filter((childPath) => path.resolve(childPath) !== path.resolve(ownPackageDir))
   const packages = await Promise.all(candidates.map(async (location) => ({
     location,
-    manifest: await safeReadPackageJsonFromDir(location),
+    manifest: await readPackageManifest(location),
   })))
   return packages.filter((pkg): pkg is { location: string, manifest: DependencyManifest } => pkg.manifest != null)
+}
+
+async function readPackageManifest (location: string): Promise<DependencyManifest | null> {
+  try {
+    return await loadJsonFile<DependencyManifest>(path.join(location, 'package.json'))
+  } catch (error: unknown) {
+    if (isMissingPath(error)) return null
+    throw error
+  }
 }
 
 async function readDirectories (directory: string): Promise<string[] | undefined> {
