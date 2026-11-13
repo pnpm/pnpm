@@ -168,7 +168,7 @@ function fetchPlacedDep (
   // We also verify that the package that is present has the expected version.
   // This check is required because there is no guarantee the modules manifest and current lockfile were
   // successfully saved after node_modules was changed during installation.
-  if (!opts.currentHoistedLocations?.[placedDep.depPath]?.includes(placedDep.depLocation)) {
+  if (opts.virtualStoreOnly === true || !opts.currentHoistedLocations?.[placedDep.depPath]?.includes(placedDep.depLocation)) {
     return requestPackage(opts, placedDep)
   }
   return reuseOrRequestPackage(opts, placedDep)

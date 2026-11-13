@@ -212,9 +212,15 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     }
 
     // Everything below writes into the project that `virtual_store_only`
-    // exists to leave alone.
+    // exists to leave alone. Under the hoisted linker there is no virtual
+    // store either, so an empty root map and build list keep downstream
+    // phases from mistaking the run for an isolated one.
     if inputs.ctx.config.virtual_store_only {
-        return Ok(LinkPhaseOutput::empty());
+        return Ok(LinkPhaseOutput {
+            hoisted_pkg_roots_by_key: (!has_virtual_store).then(HashMap::new),
+            hoisted_build_snapshots: (!has_virtual_store).then(Vec::new),
+            ..LinkPhaseOutput::empty()
+        });
     }
     write_project_links::<Reporter>(inputs, skipped, hoist.plan, claimed_importer_bins)
 }

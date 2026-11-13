@@ -130,9 +130,7 @@ pub(super) fn recorded_virtual_store_name(
 /// What decides whether direct links excluded by this run have to be pruned.
 pub(super) struct ExcludedGroupPrune<'a> {
     pub(crate) eligibility: crate::install::state_options::PruneEligibility,
-    pub(super) config: &'a Config,
-    pub(super) workspace_root: &'a Path,
-    pub(super) included: IncludedDependencies,
+    pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
@@ -150,11 +148,15 @@ pub(super) struct ManifestLinkProjects<'a> {
 pub(super) fn prune_excluded_direct_deps(
     context: &ExcludedGroupPrune<'_>,
 ) -> Result<(), InstallError> {
-    if context.eligibility.resolve_only || context.eligibility.is_inconsistent {
+    if context.eligibility.resolve_only
+        || context.eligibility.is_inconsistent
+        || (context.tree.config.virtual_store_only
+            && context.tree.node_linker == NodeLinker::Hoisted)
+    {
         return Ok(());
     }
     let Some(modules) = context.modules_manifest else { return Ok(()) };
-    if !context.eligibility.filtered_install && modules.included == context.included {
+    if !context.eligibility.filtered_install && modules.included == context.tree.included {
         return Ok(());
     }
     let selected_prune_importer_ids = selected_prune_importer_ids(context);
@@ -163,23 +165,23 @@ pub(super) fn prune_excluded_direct_deps(
         crate::prune_direct_deps_excluded_by_groups(
             current,
             previously_included,
-            context.included,
-            context.workspace_root,
-            context.config,
+            context.tree.included,
+            context.tree.workspace_root,
+            context.tree.config,
             selected_prune_importer_ids.as_ref(),
         )
         .map_err(InstallError::PruneDirectDeps)?;
     }
     crate::prune_manifest_link_deps(&crate::PruneManifestLinkDeps {
         modules_dirs: &pnpm_deps_restorer::ImporterModulesDirs::from_config(
-            context.config,
-            context.workspace_root,
+            context.tree.config,
+            context.tree.workspace_root,
         ),
         project_manifests: context.manifest_links.manifests,
         importers: context.current_lockfile.map(|current| &current.importers),
         workspace_links: context.manifest_links.workspace_links,
         previously_included,
-        new_included: context.included,
+        new_included: context.tree.included,
         prunable_importer_ids: selected_prune_importer_ids.as_ref(),
     })
     .map_err(InstallError::PruneDirectDeps)
@@ -206,9 +208,9 @@ fn selected_prune_importer_ids(context: &ExcludedGroupPrune<'_>) -> Option<HashS
         Some(current) => {
             crate::materialization_closure(
                 current,
-                context.workspace_root,
+                context.tree.workspace_root,
                 requested,
-                &crate::GroupSelection::following_every_edge(context.included),
+                &crate::GroupSelection::following_every_edge(context.tree.included),
                 &crate::SkippedSnapshots::new(),
             )
             .importer_ids

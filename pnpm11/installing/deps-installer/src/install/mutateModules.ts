@@ -297,24 +297,15 @@ async function validateModulesAndReopenContext (
   }
   const isPrune = projects.some((project) => 'pruneDirectDependencies' in project && Boolean(project.pruneDirectDependencies))
   const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
+    ...opts,
     forceNewModules: installsOnly,
     include: isPrune ? undefined : opts.include,
-    lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
-    nodeLinker: opts.nodeLinker,
     mutatesEveryProject: mutatesEveryProject(projects, ctx),
-    registriesByScope: opts.registriesByScope,
-    storeDir: opts.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     confirmModulesPurge: opts.confirmModulesPurge && !opts.ci,
-
-    hoistPattern: opts.hoistPattern,
     currentHoistPattern: ctx.currentHoistPattern,
-
-    publicHoistPattern: opts.publicHoistPattern,
     currentPublicHoistPattern: ctx.currentPublicHoistPattern,
-    global: opts.global,
   })
   const nextCtx = purged ? await getContext(opts) : ctx
   applyProjectPruneFlags(nextCtx, projects)
