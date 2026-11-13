@@ -10,6 +10,7 @@ use crate::{
 use pretty_assertions::assert_eq;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod boundary;
 mod leaks;
 mod modules;
 
