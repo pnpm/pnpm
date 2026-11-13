@@ -170,12 +170,15 @@ impl Grid<'_> {
                 commits(together),
             );
         }
-        let symbol = dependency.map_or("", |dependency| {
-            let (symbol, class) = mark_symbol(dependency.mark);
-            classes.extend(class.map(str::to_owned));
-            title.push_str(&describe(dependency));
-            symbol
-        });
+        let symbol = match dependency {
+            Some(dependency) => {
+                let (symbol, class) = mark_symbol(dependency.mark);
+                classes.extend(class.map(str::to_owned));
+                title.push_str(&describe(dependency));
+                symbol
+            }
+            None => "",
+        };
         push_cell_tag(page, &classes, &title, symbol);
     }
 }

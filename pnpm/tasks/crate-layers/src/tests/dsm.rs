@@ -87,8 +87,6 @@ fn maps_a_path_to_its_top_level_module() {
     );
 }
 
-/// `base` and `stray` in the bottom layer and no layer, `mid` and `top`
-/// in the top layer.
 fn layered_graph() -> CrateGraph {
     let mut graph = workspace("[package]\nname = \"top\"\n");
     graph.crates.extend(["mid".to_owned(), "stray".to_owned()]);

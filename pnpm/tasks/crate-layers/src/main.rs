@@ -280,9 +280,7 @@ fn dsm(root: &Path, args: &DsmArgs) -> Result<ExitCode, String> {
         let dir = graph.dirs
             .get(name)
             .ok_or_else(|| format!("{name} is not a workspace crate"))?;
-        let modules = modules::CrateModules::read(&working_tree, dir)?;
-        let co_change = CoChange::count(&log, cochange::module_of(dir), args.max_changed);
-        dsm::modules(name, &modules.top_level_graph(), co_change)
+        module_matrix(&working_tree, (name, dir), &log, args.max_changed)?
     } else {
         let unit_of = cochange::crate_of(&graph.dirs);
         let co_change = CoChange::count(&log, unit_of, args.max_changed);
@@ -296,6 +294,22 @@ fn dsm(root: &Path, args: &DsmArgs) -> Result<ExitCode, String> {
         None => print!("{html}"),
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// The matrix of a crate's top-level modules. Paths in modules the graph
+/// leaves out, such as test-only ones, do not count toward `max_changed`.
+fn module_matrix(
+    tree: &dyn Tree,
+    (name, dir): (&str, &str),
+    log: &str,
+    max_changed: usize,
+) -> Result<dsm::Matrix, String> {
+    let module_graph = modules::CrateModules::read(tree, dir)?.top_level_graph();
+    let module_of = cochange::module_of(dir);
+    let shown_module_of =
+        |path: &str| module_of(path).filter(|module| module_graph.code_lines.contains_key(module));
+    let co_change = CoChange::count(log, shown_module_of, max_changed);
+    Ok(dsm::modules(name, &module_graph, co_change))
 }
 
 fn load_layers(tree: &dyn Tree) -> Result<Layers, String> {

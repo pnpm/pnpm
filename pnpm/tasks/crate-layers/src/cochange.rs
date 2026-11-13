@@ -4,6 +4,7 @@
 use crate::tree::git;
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fs, io,
     path::Path,
 };
 
@@ -77,7 +78,6 @@ impl CoChange {
             .unwrap_or_default()
     }
 
-    /// How many commits touched the unit.
     pub fn changes_of(&self, unit: &str) -> usize {
         self.changes
             .get(unit)
@@ -88,10 +88,40 @@ impl CoChange {
 
 /// The paths each of the latest `commits` non-merge commits before `HEAD`
 /// changed, with each commit's date, in the form [`CoChange::count`] reads.
+/// A move counts as a change to both paths. In a shallow clone, the commits
+/// at the shallow boundary are left out: `git` lists every file of a commit
+/// without parents as changed.
 pub fn read_log(root: &Path, commits: usize) -> Result<String, String> {
     let max_count = format!("--max-count={commits}");
     let format = format!("--format={RECORD_START}%cs");
-    git(root, &["log", "--no-merges", "--name-only", &max_count, &format, "HEAD"])
+    let mut args = ["log", "--no-merges", "--no-renames", "--name-only", &max_count, &format]
+        .map(str::to_owned)
+        .to_vec();
+    args.push("HEAD".to_owned());
+    args.extend(
+        shallow_boundary(root)?
+            .into_iter()
+            .map(|commit| format!("^{commit}")),
+    );
+    let args = args
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    git(root, &args)
+}
+
+/// The commits whose parents a shallow clone lacks, none in a full clone.
+fn shallow_boundary(root: &Path) -> Result<Vec<String>, String> {
+    let path = git(root, &["rev-parse", "--git-path", "shallow"])?;
+    let path = root.join(path.trim_end());
+    match fs::read_to_string(&path) {
+        Ok(text) => Ok(text
+            .lines()
+            .map(str::to_owned)
+            .collect()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(error) => Err(format!("read {path:?}: {error}")),
+    }
 }
 
 /// Maps a path to the crate whose directory contains it.
