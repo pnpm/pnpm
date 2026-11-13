@@ -270,22 +270,7 @@ fn a_prefixed_wrapper_over_a_suffixed_one_absorbs_both() {
 }
 
 #[test]
-fn redirected_output_does_not_wrap_long_messages() {
-    let message =
-        "https://example.com/merge#%7B%22destination%22%3A%22MyVersionSet%2Fdevelopment%22%7D";
-    let diagnostic = Leaf { message, source: None };
-    let handler = CollapsingHandler { inner: handler_options().width(40).build() };
-
-    let rendered = render(&handler, &diagnostic);
-
-    assert!(
-        rendered.contains(message),
-        "the complete message must stay on one line, got:\n{rendered}",
-    );
-}
-
-#[test]
-fn terminal_output_does_not_wrap_long_messages() {
+fn long_messages_are_not_wrapped_at_the_output_width() {
     let message =
         "https://example.com/merge#%7B%22destination%22%3A%22MyVersionSet%2Fdevelopment%22%7D";
     let diagnostic = Leaf { message, source: None };
@@ -293,8 +278,5 @@ fn terminal_output_does_not_wrap_long_messages() {
 
     let rendered = render(&handler, &diagnostic);
 
-    assert!(
-        rendered.contains(message),
-        "expected the complete URL to remain intact in the rendered output:\n{rendered}",
-    );
+    assert!(rendered.contains(message), "the message must stay on one line, got:\n{rendered}");
 }
