@@ -1,12 +1,11 @@
 mod line_limits;
 
 use super::{
-    PnprClient, PnprClientError, ResolveOutcome, ResolveProject, ResolveProjectsOptions,
-    ResolvedPackage, VerifyError, build_verify_error,
+    PackageExtension, PnprClient, PnprClientError, ResolutionMode, ResolveOutcome, ResolveProject,
+    ResolveProjectsOptions, ResolvedPackage, TrustPolicy, VerifyError, build_verify_error,
     resolve::{Frame, parse_frame},
 };
 use indexmap::IndexMap;
-use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
@@ -659,7 +658,7 @@ async fn fails_when_server_ignores_trust_policy() {
     let mut server = mockito::Server::new_async().await;
     let _handshake = mock_transform_handshake(&mut server, true).await;
     let mut opts = resolve_projects_options();
-    opts.verification.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
+    opts.verification.trust_policy = TrustPolicy::NoDowngrade;
 
     let mut mismatched_policies = matching_applied_policies(&opts);
     mismatched_policies["trustPolicy"] = json!("off");

@@ -1,3 +1,4 @@
+pub use pnpm_resolving_resolver_base::{PackageExtension, PeerDependencyMeta};
 pub use remote::{RemoteCacheSettings, RemoteSideEffectsCacheSettings};
 
 use super::{AuditLevel, BTreeMap, Deserialize, Deserializer, HashMap, IndexMap, overlay_some};
@@ -517,31 +518,6 @@ pub struct PeerDependencyRules {
     pub allow_any: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_versions: Option<BTreeMap<String, String>>,
-}
-
-/// One `packageExtensions` entry: a subset of a manifest's dependency
-/// groups, merged onto every matching manifest at install time. The
-/// fields are `dependencies`, `optionalDependencies`,
-/// `peerDependencies`, and `peerDependenciesMeta`.
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct PackageExtension {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dependencies: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub optional_dependencies: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_dependencies: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_dependencies_meta: Option<BTreeMap<String, PeerDependencyMeta>>,
-}
-
-/// `peerDependenciesMeta` entry shape: a single `optional` flag.
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct PeerDependencyMeta {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub optional: Option<bool>,
 }
 
 /// Refuse `channels` for a tool that publishes one line of builds, where

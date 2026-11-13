@@ -1,7 +1,7 @@
 use super::{
-    BaseCasPaths, artifact_platform, decoded_trusted_keys, dependency_package,
-    insert_side_effects_map, non_empty, planning::CandidateGroup, quarantine_remote_side_effects,
-    store_holds,
+    BaseCasPaths, artifact_platform, artifact_store_options, decoded_trusted_keys,
+    dependency_package, insert_side_effects_map, non_empty, planning::CandidateGroup,
+    quarantine_remote_side_effects, store_holds,
 };
 use crate::{RemoteSideEffectsQuarantineBySnapshot, SideEffectsMapsBySnapshot};
 use pnpm_config::Config;
@@ -78,7 +78,7 @@ pub(super) fn remote_cache_setup(
     }
     let eligible_packages = &config.remote_side_effects_cache.as_ref()?.packages;
     let settings = config.remote_cache_settings();
-    let store = match ArtifactStore::from_config(config, &settings) {
+    let store = match ArtifactStore::from_options(artifact_store_options(config, &settings)) {
         Ok(store) => store?,
         Err(error) => {
             tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache is unusable");

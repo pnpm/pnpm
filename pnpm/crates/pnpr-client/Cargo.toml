@@ -13,11 +13,11 @@ path = "src/lib.rs"
 [dependencies]
 base64 = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
-pnpm-config = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-graph-hasher = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-python-resolver = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 pnpm-lockfile-verification = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }

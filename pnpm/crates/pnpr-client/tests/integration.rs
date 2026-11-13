@@ -26,13 +26,12 @@ use p256::{
     ecdsa::{SigningKey, signature::Signer as _},
     pkcs8::EncodePublicKey as _,
 };
-use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobSource, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
     ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSubject, BuilderProfile,
     CompatibilityConstraints, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
-    PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions, ResolveProject,
-    ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
+    PublishArtifactRequest, RegistryDeclaration, ResolveArtifactsOptions, ResolveOptions,
+    ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
 use sha2::{Digest as _, Sha512};
@@ -290,7 +289,7 @@ fn options(
             exclude_links_from_lockfile: None,
             add_missing_peer_types: None,
             project_scoped_optional_peers: None,
-            resolution_mode: pnpm_config::ResolutionMode::default(),
+            resolution_mode: pnpm_pnpr_client::ResolutionMode::default(),
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {
             lockfile: None,
@@ -304,7 +303,7 @@ fn options(
             minimum_release_age: None,
             minimum_release_age_exclude: None,
             minimum_release_age_ignore_missing_time: true,
-            trust_policy: pnpm_config::TrustPolicy::Off,
+            trust_policy: pnpm_pnpr_client::TrustPolicy::Off,
             trust_policy_exclude: None,
             trust_policy_ignore_after: None,
         },
