@@ -463,3 +463,20 @@ fn sentinel_prefix_avoids_colliding_with_document_or_environment_text() {
     assert_eq!(settings.shamefully_hoist, Some(true));
     assert_eq!(settings.store_dir.as_deref(), Some("pnpmplaceholder0_/${COLLIDE}"));
 }
+
+#[test]
+fn quoted_escapes_and_multiline_comments_survive_placeholder_probing() {
+    let mut settings = parse_settings::<Env, WorkspaceSettings>(
+        "{\n  shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS},\n  storeDir: \"${PNPM_TEST_UNSET:-a\\\"b}\",\n  registry: 'https://example.com/${PNPM_TEST_UNSET:-x''y}/' # ${unclosed\n}\n",
+    )
+    .unwrap();
+    assert_eq!(settings.shamefully_hoist, Some(true));
+    assert_eq!(settings.store_dir.as_deref(), Some(r#"${PNPM_TEST_UNSET:-a"b}"#));
+    assert_eq!(settings.registry.as_deref(), Some("https://example.com/${PNPM_TEST_UNSET:-x'y}/"));
+
+    let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
+    assert!(matches!(
+        &error,
+        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
+    ));
+}

@@ -50,12 +50,9 @@ pub(super) struct DocumentPlaceholders {
 /// `${...}` (such as `{`, `}`, or `: `) do not prevent a free-text setting
 /// from parsing with its placeholder left unexpanded.
 pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentPlaceholders> {
-    let ranges = placeholder_ranges(text);
-    if ranges.is_empty() {
-        return None;
-    }
-    let raw_items: Vec<(Range<usize>, Option<String>)> = ranges
+    let raw_items: Vec<(Range<usize>, Option<String>)> = placeholder_ranges(text)
         .into_iter()
+        .filter(|range| !text[range.clone()].contains(['\r', '\n']))
         .map(|range| {
             let resolved = (!text[..range.start].ends_with(['&', '*']))
                 .then(|| env_replace_lossy::<Sys>(&text[range.clone()]))
@@ -65,6 +62,9 @@ pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentP
             (range, resolved)
         })
         .collect();
+    if raw_items.is_empty() {
+        return None;
+    }
     let sentinel_prefix = unique_sentinel_prefix(text, &raw_items);
     let mut items = Vec::with_capacity(raw_items.len());
     let mut resolvable = Vec::new();
