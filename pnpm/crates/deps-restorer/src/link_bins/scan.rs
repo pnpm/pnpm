@@ -1,5 +1,4 @@
-use super::GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER;
-use super::LinkVirtualStoreBinsError;
+use super::{GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER, LinkVirtualStoreBinsError};
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
     FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
@@ -14,123 +13,111 @@ use std::{
     sync::Arc,
 };
 
-pub(super) fn repair_global_virtual_store_bin_shims<Sys>(
+pub(super) fn repair_global_virtual_store_bin_shims(
     virtual_store_dir: &Path,
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkVirtualStoreBinsError>
-where
-    Sys: FsReadDir
-        + FsReadFile
-        + FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
+) -> Result<(), LinkVirtualStoreBinsError> {
     let marker = virtual_store_dir.join(GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER);
-    match Sys::read_file(&marker) {
-        Ok(contents) if contents == b"1" => return Ok(()),
-        Ok(_) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: marker, error });
-        }
+    if marker_is_complete(&marker)? {
+        return Ok(());
     }
-
-    let package_paths: Vec<PathBuf> = match Sys::read_dir(virtual_store_dir) {
-        Ok(entries) => entries.collect(),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(LinkVirtualStoreBinsError::ReadVirtualStore {
-                dir: virtual_store_dir.to_path_buf(),
-                error,
-            });
-        }
+    let Some(package_paths) = read_root_entries(virtual_store_dir)? else {
+        return Ok(());
     };
     for package_path in package_paths {
-        if package_path
-            .file_name()
-            .is_some_and(|name| name == "node_modules")
-        {
-            continue;
-        }
-        let package_dir_name = package_path.file_name().expect("store entry has a name");
-        if package_dir_name == "@" {
-            for unscoped_package_path in read_entries::<Sys>(&package_path)? {
-                repair_package_slots::<Sys>(
-                    &unscoped_package_path,
-                    std::ffi::OsStr::new(""),
-                    link_options,
-                )?;
-            }
-        } else if package_dir_name.to_string_lossy().starts_with('@') {
-            for scoped_package_path in read_entries::<Sys>(&package_path)? {
-                repair_package_slots::<Sys>(&scoped_package_path, package_dir_name, link_options)?;
-            }
-        } else {
-            repair_package_slots::<Sys>(&package_path, std::ffi::OsStr::new(""), link_options)?;
-        }
+        repair_root_entry(&package_path, link_options)?;
     }
-
-    Sys::write(&marker, b"1")
+    Host::write(&marker, b"1")
         .map_err(|error| LinkVirtualStoreBinsError::WriteVirtualStore { path: marker, error })
 }
 
-fn repair_package_slots<Sys>(
+fn marker_is_complete(marker: &Path) -> Result<bool, LinkVirtualStoreBinsError> {
+    match Host::read_file(marker) {
+        Ok(contents) => Ok(contents == b"1"),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => {
+            Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: marker.to_path_buf(), error })
+        }
+    }
+}
+
+fn read_root_entries(path: &Path) -> Result<Option<Vec<PathBuf>>, LinkVirtualStoreBinsError> {
+    match Host::read_dir(path) {
+        Ok(entries) => Ok(Some(entries.collect())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => {
+            Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: path.to_path_buf(), error })
+        }
+    }
+}
+
+fn repair_root_entry(
+    path: &Path,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkVirtualStoreBinsError> {
+    let name = path.file_name().expect("store entry has a name");
+    match name.to_str() {
+        Some("node_modules") => Ok(()),
+        Some("@") => repair_packages(path, std::ffi::OsStr::new(""), link_options),
+        _ if name.to_string_lossy().starts_with('@') => repair_packages(path, name, link_options),
+        _ => repair_package_slots(path, std::ffi::OsStr::new(""), link_options),
+    }
+}
+
+fn repair_packages(
+    path: &Path,
+    scope: &std::ffi::OsStr,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkVirtualStoreBinsError> {
+    for package_path in read_entries(path)? {
+        repair_package_slots(&package_path, scope, link_options)?;
+    }
+    Ok(())
+}
+
+fn repair_package_slots(
     package_path: &Path,
     scope: &std::ffi::OsStr,
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkVirtualStoreBinsError>
-where
-    Sys: FsReadDir
-        + FsReadFile
-        + FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    for version_path in read_entries::<Sys>(package_path)? {
-        for slot_path in read_entries::<Sys>(&version_path)? {
-            let modules_dir = slot_path.join("node_modules");
-            let package_name = package_path.file_name().expect("package path has a name");
-            let package_dir = if scope.is_empty() {
-                modules_dir.join(package_name)
-            } else {
-                modules_dir.join(scope).join(package_name)
-            };
-            match Sys::read_dir(&package_dir) {
-                Ok(_) => {
-                    let bins_dir = package_dir.join("node_modules/.bin");
-                    link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &package_dir, link_options)
-                        .map_err(LinkVirtualStoreBinsError::LinkBins)?;
-                }
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
-                    ) => {}
-                Err(error) => {
-                    return Err(LinkVirtualStoreBinsError::ReadVirtualStore {
-                        dir: package_dir.clone(),
-                        error,
-                    });
-                }
-            }
+) -> Result<(), LinkVirtualStoreBinsError> {
+    let package_name = package_path.file_name().expect("package path has a name");
+    for version_path in read_entries(package_path)? {
+        for slot_path in read_entries(&version_path)? {
+            repair_slot(&slot_path, scope, package_name, link_options)?;
         }
     }
     Ok(())
 }
 
-fn read_entries<Sys>(path: &Path) -> Result<Vec<PathBuf>, LinkVirtualStoreBinsError>
-where
-    Sys: FsReadDir,
-{
-    match Sys::read_dir(path) {
+fn repair_slot(
+    slot_path: &Path,
+    scope: &std::ffi::OsStr,
+    package_name: &std::ffi::OsStr,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkVirtualStoreBinsError> {
+    let modules_dir = slot_path.join("node_modules");
+    let package_dir = if scope.is_empty() {
+        modules_dir.join(package_name)
+    } else {
+        modules_dir.join(scope).join(package_name)
+    };
+    match Host::read_dir(&package_dir) {
+        Ok(_) => {
+            let bins_dir = package_dir.join("node_modules/.bin");
+            link_bins_excluding::<Host>(&modules_dir, &bins_dir, &package_dir, link_options)
+                .map_err(LinkVirtualStoreBinsError::LinkBins)
+        }
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: package_dir, error }),
+    }
+}
+
+fn read_entries(path: &Path) -> Result<Vec<PathBuf>, LinkVirtualStoreBinsError> {
+    match Host::read_dir(path) {
         Ok(entries) => Ok(entries.collect()),
         Err(error)
             if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>

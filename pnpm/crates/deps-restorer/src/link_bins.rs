@@ -236,7 +236,7 @@ pub fn repair_global_virtual_store_bin_shims(
     virtual_store_dir: &Path,
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkVirtualStoreBinsError> {
-    scan::repair_global_virtual_store_bin_shims::<Host>(
+    scan::repair_global_virtual_store_bin_shims(
         virtual_store_dir,
         &global_slot_link_options(link_options),
     )
