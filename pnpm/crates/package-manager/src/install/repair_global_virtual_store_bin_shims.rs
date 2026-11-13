@@ -3,7 +3,7 @@ use pnpm_config::{Config, NodeLinker};
 
 pub(super) fn repair_global_virtual_store_bin_shims(
     config: &Config,
-    execution: &InstallExecution,
+    execution: InstallExecution,
 ) -> Result<(), InstallError> {
     if !config.enable_global_virtual_store
         || config.frozen_store

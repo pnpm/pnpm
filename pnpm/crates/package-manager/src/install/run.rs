@@ -74,7 +74,7 @@ where
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
         let store_lock = lock_store(self.context.config)?;
-        repair_global_virtual_store_bin_shims(self.context.config, &self.execution)?;
+        repair_global_virtual_store_bin_shims(self.context.config, self.execution)?;
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
