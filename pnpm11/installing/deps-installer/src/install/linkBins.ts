@@ -84,8 +84,8 @@ async function getPackagesToLink (
   if (opts.enableGlobalVirtualStore) {
     const results = await Promise.all((Object.entries(dependenciesGraph) as Array<[DepPath, DependenciesGraphNode]>).map(async ([depPath, node]) => ({
       node,
-      hasBins: (!opts.skipped.has(depPath) && hasBinsToLink(node, dependenciesGraph, opts.optional)) ||
-        await pathExists(path.join(node.dir, 'node_modules/.bin')),
+      hasBins: hasBinsToLink(node, dependenciesGraph, opts.optional) ||
+        (!opts.skipped.has(depPath) && await pathExists(path.join(node.dir, 'node_modules/.bin'))),
     })))
     return results
       .filter(({ hasBins }) => hasBins)
