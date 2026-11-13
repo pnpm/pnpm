@@ -569,8 +569,8 @@ registries:
   reference. A literal value is refused, so put a header that is not a
   secret in a variable too.
 - No other field takes `${NAME}` references.
-- An upstream `url` or a `routes.public` registry with a user name or password
-  in it is refused.
+- An upstream `url` or a `routes.public` registry with a user name, password,
+  or query string in it is refused.
 - Every replica needs every variable a stored upstream names. A replica
   without one keeps serving the registries it loaded before and logs an error,
   and a change it takes is refused.
@@ -583,6 +583,8 @@ one, or `localhost`, is refused, and a hostname that resolves to one is not
 connected to. To use an upstream on an internal network, list its addresses in
 [`routes.allowedPrivateNetworks`](#routes). An upstream on pnpr's own
 `publicUrl` host is refused at any port, even when that host is a public IP.
+When `publicUrl` names a hostname, pnpr does not look up its address, so an
+upstream written as that address is checked by the rules above.
 
 ### Changes pnpr refuses
 

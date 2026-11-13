@@ -370,7 +370,11 @@ fn changes_name_the_registries_that_differ() {
 
 #[test]
 fn a_stored_url_must_not_carry_credentials() {
-    for url in ["https://user:hunter2@npm.corp.example/", "https://token@npm.corp.example/"] {
+    for url in [
+        "https://user:hunter2@npm.corp.example/",
+        "https://token@npm.corp.example/",
+        "https://npm.corp.example/?token=hunter2",
+    ] {
         let yaml = format!(
             "registries:\n  corp:\n    type: upstream\n    url: {url}\n    access: $authenticated\n",
         );
@@ -388,6 +392,12 @@ fn a_stored_url_must_not_carry_credentials() {
         .expect_err("credentials in a public route are refused");
     assert!(error.to_string().contains("routes.public"), "{error}");
     assert!(error.to_string().contains("mirror.example"), "{error}");
+    assert!(!error.to_string().contains("hunter2"), "{error}");
+    let query_route = "routes:\n  public:\n    - registry: https://mirror.example/?token=hunter2\n";
+    let error = RegistryGraphDocument::from_yaml(query_route)
+        .unwrap()
+        .check_stored(&[])
+        .expect_err("a query string in a public route is refused");
     assert!(!error.to_string().contains("hunter2"), "{error}");
     upstream_document("")
         .check_stored(&[])

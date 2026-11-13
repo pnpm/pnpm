@@ -12,7 +12,7 @@ impl RegistryGraphDocument {
     /// Check the rules a stored document is held to, so the database holds no
     /// credential: an upstream `auth.token` and every `headers` value are
     /// exactly one `${VAR}` reference, no upstream `url` or `routes.public`
-    /// registry carries a user name or password, and every variable an
+    /// registry carries a user name, password, or query string, and every variable an
     /// upstream's `auth.token`, `auth.tokenEnv`, or `headers` reference is
     /// listed in `registry_env` (`registryEnv` in the config file).
     pub fn check_stored(&self, registry_env: &[String]) -> Result<(), RegistryError> {
@@ -21,11 +21,12 @@ impl RegistryGraphDocument {
                 check_stored_upstream(name, upstream, registry_env)?;
             }
         }
-        if let Some(registry) = self.public_route_registries().find(|url| has_user_info(url)) {
+        if let Some(registry) = self.public_route_registries().find(|url| carries_credentials(url))
+        {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
-                    "routes.public registry {:?} must not carry a user name or password",
-                    redact_url_credentials(registry),
+                    "routes.public registry {:?} must not carry a user name, password, or query string",
+                    redact_url_credentials(without_query(registry)),
                 ),
             });
         }
@@ -59,10 +60,10 @@ fn check_stored_upstream(
     upstream: &UpstreamFile,
     registry_env: &[String],
 ) -> Result<(), RegistryError> {
-    if has_user_info(&upstream.url) {
+    if carries_credentials(&upstream.url) {
         return Err(invalid_stored(
             name,
-            "`url` must not carry a user name or password; use `auth` with a `${VAR}` reference",
+            "`url` must not carry a user name, password, or query string; use `auth` or `headers` with a `${VAR}` reference",
         ));
     }
     if let Some(auth) = &upstream.auth {
@@ -153,7 +154,16 @@ fn invalid_stored(name: &str, reason: &str) -> RegistryError {
     RegistryError::InvalidConfig { reason: format!("upstream registry {name:?}: {reason}") }
 }
 
-/// Whether `url` parses with a user name or password.
-fn has_user_info(url: &str) -> bool {
-    url::Url::parse(url).is_ok_and(|url| !url.username().is_empty() || url.password().is_some())
+/// Whether `url` parses with a user name, a password, or a query string, the
+/// places a URL can carry a credential that the stored graph would keep.
+fn carries_credentials(url: &str) -> bool {
+    url::Url::parse(url)
+        .is_ok_and(|url| {
+            !url.username().is_empty() || url.password().is_some() || url.query().is_some()
+        })
+}
+
+/// `url` up to its query string, so an error naming it does not echo a token.
+fn without_query(url: &str) -> &str {
+    url.split_once('?').map_or(url, |(base, _)| base)
 }
