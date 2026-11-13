@@ -1,7 +1,6 @@
 use super::{
-    RevisionMockLaunch, cold_mock_config_yaml, cold_mock_registries_yaml,
-    pnpr_benchmark_config_yaml, pnpr_benchmark_public_url, pnpr_benchmark_registries_yaml,
-    write_pnpr_benchmark_config,
+    cold_mock_config_yaml, cold_mock_registries_yaml, pnpr_benchmark_config_yaml,
+    pnpr_benchmark_public_url, pnpr_benchmark_registries_yaml, write_pnpr_benchmark_config,
 };
 use crate::work_env::{
     registries_home::{RegistriesHome, fixture_registries, revision_source},
@@ -178,7 +177,7 @@ fn database_cold_mock_command_imports_its_registries_first() {
     let directory = tempfile::tempdir().unwrap();
     let binary = recording_binary(directory.path());
     let command = super::cold_revision_mock_command(
-        &RevisionMockLaunch {
+        &super::RevisionMockLaunch {
             revision: "HEAD",
             binary: &binary,
             bench_dir: directory.path(),
