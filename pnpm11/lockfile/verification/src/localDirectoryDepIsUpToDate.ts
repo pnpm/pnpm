@@ -17,7 +17,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
-import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -365,7 +365,7 @@ async function localChildIsUpToDate (
 }
 
 function isLocalSpec (spec: string): boolean {
-  return isLocalFilesystemSpecifier(spec) || spec.startsWith('workspace:')
+  return spec.startsWith('link:') || spec.startsWith('file:') || barePathIsUnambiguous(spec) || spec.startsWith('workspace:')
 }
 
 /**
@@ -439,7 +439,7 @@ async function localSpecIsUpToDate (
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
-  if (!currentSpec.includes(':') && isLocalFilesystemSpecifier(currentSpec)) {
+  if (!currentSpec.includes(':') && barePathIsUnambiguous(currentSpec)) {
     if (lockfileDep.startsWith('link:')) {
       return linkPathMatches(localDep, currentSpec, lockfileDep)
     }
@@ -454,8 +454,7 @@ async function localSpecIsUpToDate (
 function linkPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfileDep: string): boolean {
   const currentPath = localSpecPath(currentSpec, localDep.localDepDir)
   const lockfilePath = lockfileDep.slice(5)
-  return currentPath === recordedLocalPath(lockfilePath, localDep.lockfileDir) ||
-    currentPath === recordedLocalPath(lockfilePath, localDep.localDepDir)
+  return currentPath === recordedLocalPath(lockfilePath, localDep.lockfileDir)
 }
 
 function localPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfilePath: string | null): boolean {

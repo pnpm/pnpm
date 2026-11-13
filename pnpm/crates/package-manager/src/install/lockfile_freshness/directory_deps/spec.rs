@@ -4,7 +4,7 @@ use super::{
         publishing_project_manifest, target_manifest, workspace_path_matches_target,
     },
 };
-use pnpm_local_spec::is_filespec;
+use pnpm_local_spec::bare_path_is_unambiguous;
 use pnpm_resolving_deps_resolver::locked_child_admits;
 use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
 use pnpm_workspace_spec::is_workspace_path_specifier;
@@ -105,16 +105,9 @@ fn file_or_link_spec_satisfies(
                 == recorded_local_path(lockfile_target, lockfile_dir),
         );
     }
-    if is_filespec(spec) {
-        let Some(lockfile_target) = lockfile_dep.as_link_target() else {
-            return Some(false);
-        };
-        return Some(
-            local_spec_path(spec, local_dep_dir)
-                == recorded_local_path(lockfile_target, lockfile_dir),
-        );
-    }
-    let path = spec.strip_prefix("file:")?;
+    let path = spec
+        .strip_prefix("file:")
+        .or_else(|| bare_path_is_unambiguous(spec).then_some(spec))?;
     if let Some(target) = lockfile_dep.as_link_target() {
         return Some(
             local_spec_path(spec, local_dep_dir) == recorded_local_path(target, lockfile_dir),

@@ -362,6 +362,7 @@ function createNewLockfile (
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,
+    lockfileDir: opts.lockfileDir,
     ...pickRegistryContext(opts),
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
