@@ -80,6 +80,9 @@ struct Scope<'tokens> {
     /// The depth of `{` blocks: a `use` inside a function body or another
     /// block is not one of the scope's imports.
     braces: usize,
+    /// The `}` of the foreign block `extern "ABI" { … }` the scan is in. Its
+    /// items belong to the scope, so its braces do not count.
+    foreign_block_close: Option<usize>,
 }
 
 impl Scope<'_> {
@@ -96,6 +99,9 @@ impl Scope<'_> {
             self.surface.crate_aliases.push(alias);
         }
         if self.braces == 0 {
+            if let Some(next) = self.foreign_block(pos) {
+                return next;
+            }
             self.enter_item(pos);
         }
         match tokens[pos] {
@@ -113,6 +119,23 @@ impl Scope<'_> {
             .map(|path| Exposure { path, owner: self.owner.clone() });
         self.surface.exposed.extend(owned);
         next
+    }
+
+    /// Steps over the `extern {` that opens a foreign block, or the `}` that
+    /// closes the one the scan is in.
+    fn foreign_block(&mut self, pos: usize) -> Option<usize> {
+        let tokens = self.tokens;
+        if self.foreign_block_close == Some(pos) {
+            self.foreign_block_close = None;
+            return Some(pos + 1);
+        }
+        let opens =
+            is_ident(tokens.get(pos), "extern") && tokens.get(pos + 1) == Some(&Token::Punct('{'));
+        if !opens {
+            return None;
+        }
+        self.foreign_block_close = Some(closing_brace(tokens, pos + 1) - 1);
+        Some(pos + 2)
     }
 
     /// Makes the item that starts at `pos`, if one does, the owner of the

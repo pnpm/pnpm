@@ -364,3 +364,17 @@ fn only_a_reachable_pub_use_covers_a_leak() {
     ]);
     assert_eq!(leaked, ["base::Uncovered"]);
 }
+
+#[test]
+fn a_signature_belongs_to_its_item_through_generics_foreign_blocks_and_static_mut() {
+    let lib = concat!("mod hidden;\n", "pub use hidden::{Client, VALUE, call};\n");
+    let hidden = concat!(
+        "pub struct Client<const N: usize>;\n",
+        "impl<const N: usize> Client<N> { pub fn send(_: base::Request) {} }\n",
+        "pub static mut VALUE: base::Value = base::Value;\n",
+        "unsafe extern \"C\" { pub fn call(_: *mut base::Foreign); }\n",
+        "pub fn unexported(_: base::Unexported) {}\n",
+    );
+    let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
+    assert_eq!(leaked, ["base::Foreign", "base::Request", "base::Value"]);
+}

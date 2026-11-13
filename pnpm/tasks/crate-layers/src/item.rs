@@ -19,28 +19,31 @@ pub enum ItemHeader {
 const NAMED_ITEM_KEYWORDS: [&str; 8] =
     ["fn", "struct", "enum", "union", "trait", "type", "const", "static"];
 
-/// The header of the item that starts at `pos`, if one does. An `impl`
-/// counts only after the end of another item, so `impl Trait` in a type
-/// is not one.
+/// The header of the item that starts at `pos`, if one does. An item starts
+/// only after the end of another item, an attribute, or the `{` of a foreign
+/// block, so `impl Trait` in a type and `const N` in generics are not items.
 pub fn item_header(tokens: &[Token], pos: usize) -> Option<ItemHeader> {
+    let starts_item = pos
+        .checked_sub(1)
+        .is_none_or(|before| matches!(tokens[before], Token::Punct(';' | '{' | '}' | ']')));
+    if !starts_item {
+        return None;
+    }
     let after_visibility = skip_visibility(tokens, pos);
     let item = skip_qualifiers(tokens, after_visibility);
     let Some(Token::Ident(keyword)) = tokens.get(item) else { return None };
     if keyword == "impl" {
-        let starts_item = item
-            .checked_sub(1)
-            .and_then(|before| tokens.get(before))
-            .is_none_or(|before| {
-                matches!(before, Token::Punct(';' | '}' | ']')) || is_ident(Some(before), "unsafe")
-            });
-        return starts_item.then(|| ItemHeader::Impl {
-            self_type: impl_self_type(tokens, item + 1),
-        });
+        return Some(ItemHeader::Impl { self_type: impl_self_type(tokens, item + 1) });
     }
     if !NAMED_ITEM_KEYWORDS.contains(&keyword.as_str()) {
         return None;
     }
-    let Some(Token::Ident(name)) = tokens.get(item + 1) else { return None };
+    let name_at = if keyword == "static" && is_ident(tokens.get(item + 1), "mut") {
+        item + 2
+    } else {
+        item + 1
+    };
+    let Some(Token::Ident(name)) = tokens.get(name_at) else { return None };
     let is_public = after_visibility == pos + 1;
     Some(ItemHeader::Named { name: name.clone(), is_public })
 }
