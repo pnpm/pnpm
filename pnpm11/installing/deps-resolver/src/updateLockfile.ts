@@ -283,14 +283,7 @@ function updateResolvedDeps (
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          const depNode = depGraph[depPath]
-          if (lockfileDir == null) return [alias, depPath]
-          if (depNode?.resolution.type === 'directory') {
-            return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string]
-          }
-          if (parentResolution.type !== 'directory') return [alias, depPath]
-          const linkTarget = localSpecPath(depPath.slice(5), parentResolution.directory)
-          return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, linkTarget) as string]
+          return [alias, getLinkedPackageRef(depPath, depGraph, lockfileDir, parentResolution)]
         }
         const depNode = depGraph[depPath]
         return [
@@ -302,4 +295,21 @@ function updateResolvedDeps (
         ]
       })
   )
+}
+
+function getLinkedPackageRef (
+  depPath: DepPath,
+  depGraph: DependenciesGraph,
+  lockfileDir: string | undefined,
+  parentResolution: ResolvedPackage['resolution']
+): string {
+  if (lockfileDir == null) return depPath
+  const depNode = depGraph[depPath]
+  if (depNode?.resolution.type === 'directory') {
+    return createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string
+  }
+  const linkSpec = depPath.slice(5)
+  if (parentResolution.type !== 'directory' || (!linkSpec.startsWith('../') && !linkSpec.startsWith('./'))) return depPath
+  const linkTarget = localSpecPath(linkSpec, parentResolution.directory)
+  return createNodeIdForLinkedLocalPkg(lockfileDir, linkTarget) as string
 }
