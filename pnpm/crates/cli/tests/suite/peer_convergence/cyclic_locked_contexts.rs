@@ -1,9 +1,63 @@
-use super::moving_providers::{install_lockfile, registry_from_manifests};
+use super::moving_providers::{
+    install_lockfile, normalize_registry_origin, registry_from_manifests,
+};
 use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path};
 use pnpm_lockfile::Lockfile;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::fs;
+
+#[test]
+fn new_ancestor_does_not_reuse_another_occurrences_peer_context() {
+    let bundle = read_v11_bundle_path();
+    let mut fresh_by_settings = std::collections::HashMap::new();
+    for (bundle, format, dedupe, suffix_length) in bundle
+        .as_deref()
+        .map(|bundle| (Some(bundle), "v9"))
+        .into_iter()
+        .chain([(None, "v9"), (None, "v13")])
+        .flat_map(|(bundle, format)| [false, true].map(move |dedupe| (bundle, format, dedupe)))
+        .flat_map(|(bundle, format, dedupe)| {
+            [1, 1000].map(move |suffix_length| (bundle, format, dedupe, suffix_length))
+        })
+    {
+        let registry_dir = tempfile::tempdir().unwrap();
+        let mut fixture = WorkspaceFixture::new();
+        fixture.registry.mock_instance = registry_from_manifests(
+            registry_dir.path(),
+            [
+                json!({"name":"p0","version":"1.0.0","dependencies":{"p4":"1.0.0"}}),
+                json!({"name":"p0","version":"2.0.0"}),
+                json!({"name":"p1","version":"1.0.0","dependencies":{"p2":"2.0.0"}}),
+                json!({"name":"p1","version":"2.0.0","dependencies":{"p4":"2.0.0"},"peerDependencies":{"p4":"^1"}}),
+                json!({"name":"p2","version":"1.0.0","peerDependencies":{"p0":"^2"}}),
+                json!({"name":"p2","version":"2.0.0"}),
+                json!({"name":"p3","version":"1.0.0","dependencies":{"p0":"2.0.0","p1":"2.0.0"}}),
+                json!({"name":"p3","version":"2.0.0"}),
+                json!({"name":"p4","version":"1.0.0","dependencies":{"p3":"1.0.0"},"peerDependencies":{"p1":"*"}}),
+                json!({"name":"p4","version":"2.0.0","dependencies":{"p2":"1.0.0"}}),
+            ],
+        );
+        fixture.append_workspace_yaml(&format!("autoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: {dedupe}\npeersSuffixMaxLength: {suffix_length}\nlockfile:\n  format: {format}\n"));
+        fixture.write_root_manifest(
+            "root",
+            ManifestDeps { prod: &[("p0", "1.0.0")], ..Default::default() },
+        );
+        install_lockfile(&fixture, bundle);
+        let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+        install_lockfile(&fixture, bundle);
+        let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+        assert_eq!(fresh, reused, "{bundle:?} {format} {dedupe} {suffix_length}");
+        if format == "v9" {
+            let normalized = normalize_registry_origin(fresh, &fixture);
+            if let Some(previous) =
+                fresh_by_settings.insert((dedupe, suffix_length), normalized.clone())
+            {
+                assert_eq!(previous, normalized, "fresh parity, {dedupe} {suffix_length}");
+            }
+        }
+    }
+}
 
 #[test]
 fn retained_leaf_provider_keeps_a_hashed_cycle_context() {

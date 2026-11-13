@@ -93,7 +93,7 @@ impl Walker<'_> {
             return pins;
         };
         if !self.needs_locked_peer_context(node_id)
-            || self.ancestor_reresolved_provider(node_id, parent_node_ids)
+            || self.ancestor_path_was_reresolved(node_id, parent_node_ids)
         {
             return pins;
         }
@@ -228,6 +228,24 @@ impl Walker<'_> {
                     .is_none_or(|node| node.previous_dep_path().is_none()))
     }
 
+    fn ancestor_path_was_reresolved(
+        &self,
+        node_id: &NodeId,
+        parent_node_ids: &SharedChain<NodeId>,
+    ) -> bool {
+        let mut child_id = node_id;
+        for parent_id in parent_node_ids.iter() {
+            let changed = self.tree.dependencies_tree
+                .get(parent_id)
+                .is_some_and(|parent| child_was_reresolved(parent, child_id));
+            if changed {
+                return true;
+            }
+            child_id = parent_id;
+        }
+        false
+    }
+
     /// A new ancestor provider or an ancestor's re-resolved child keeps its current binding.
     pub(super) fn ancestor_reresolved_provider(
         &self,
@@ -241,20 +259,23 @@ impl Walker<'_> {
             if parent_node_id == peer_node_id && parent_node.previous_dep_path().is_none() {
                 return true;
             }
-            let Some(must_win) = parent_node.must_win_dependency_names() else {
-                continue;
-            };
-            // Ancestors on the walk path always have realized children.
-            let TreeChildren::Realized(children) = &parent_node.children else { continue };
-            if must_win
-                .iter()
-                .any(|alias| children.get(alias) == Some(peer_node_id))
-            {
+            if child_was_reresolved(parent_node, peer_node_id) {
                 return true;
             }
         }
         false
     }
+}
+
+fn child_was_reresolved(
+    parent: &crate::resolved_tree::DependenciesTreeNode,
+    child_id: &NodeId,
+) -> bool {
+    let Some(names) = parent.must_win_dependency_names() else { return false };
+    let TreeChildren::Realized(children) = &parent.children else { return false };
+    names
+        .iter()
+        .any(|name| children.get(name) == Some(child_id))
 }
 
 /// What one node's locked peer pins are checked against.
