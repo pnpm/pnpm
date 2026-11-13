@@ -29,7 +29,7 @@ mod trust_check;
 mod policy_snapshot;
 use policy_snapshot::{
     BuildPolicySnapshot, build_policy_snapshot, cached_policy_patterns, minimum_release_age_cutoff,
-    named_registries_routing_digest, sorted_unique,
+    sorted_unique,
 };
 
 mod registry_artifact;
@@ -61,7 +61,7 @@ use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{
     LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
-    is_git_hosted_tarball_url, is_revision_registry_tarball_url,
+    is_git_hosted_tarball_url, is_revision_registry_tarball_url, normalized_registry_key,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pnpm_registry::Package;
@@ -298,7 +298,6 @@ pub fn create_npm_resolution_verifier(
 
     let sorted_min_age_excludes = sorted_unique(&opts.release_age.exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust.exclude_patterns);
-    let named_registries_routing = named_registries_routing_digest(&opts.registries_by_prefix);
 
     let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {
         minimum_release_age: opts.release_age.minimum_minutes.unwrap_or(0),
@@ -307,7 +306,8 @@ pub fn create_npm_resolution_verifier(
         trust_policy: opts.trust.policy,
         sorted_trust_excludes: &sorted_trust_excludes,
         trust_policy_ignore_after: opts.trust.ignore_after,
-        named_registries_routing: &named_registries_routing,
+        registries: &opts.registries,
+        registries_by_prefix: &opts.registries_by_prefix,
     });
 
     NpmResolutionVerifier {

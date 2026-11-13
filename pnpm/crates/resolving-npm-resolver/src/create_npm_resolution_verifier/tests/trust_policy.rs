@@ -214,6 +214,82 @@ fn can_trust_past_check_rejects_changed_named_registry_mapping() {
     assert!(!changed.can_trust_past_check(&cached));
 }
 
+#[test]
+fn can_trust_past_check_rejects_changed_default_registry() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let cached = verifier.policy().clone();
+    let changed = create_npm_resolution_verifier(default_opts("https://other.example/"));
+
+    assert!(verifier.can_trust_past_check(&cached));
+    assert!(!changed.can_trust_past_check(&cached));
+}
+
+#[test]
+fn can_trust_past_check_rejects_changed_scoped_registry() {
+    let mut opts = default_opts("https://registry.example/");
+    opts.registries.insert("@corp".to_string(), "https://npm.corp.example/".to_string());
+    let verifier = create_npm_resolution_verifier(opts);
+    let cached = verifier.policy().clone();
+
+    let mut repointed_opts = default_opts("https://registry.example/");
+    repointed_opts.registries.insert("@corp".to_string(), "https://evil.example/".to_string());
+    let repointed = create_npm_resolution_verifier(repointed_opts);
+
+    let removed = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+
+    let mut added_opts = default_opts("https://registry.example/");
+    added_opts.registries.insert("@corp".to_string(), "https://npm.corp.example/".to_string());
+    added_opts.registries.insert("@extra".to_string(), "https://extra.example/".to_string());
+    let added = create_npm_resolution_verifier(added_opts);
+
+    assert!(verifier.can_trust_past_check(&cached));
+    assert!(!repointed.can_trust_past_check(&cached));
+    assert!(!removed.can_trust_past_check(&cached));
+    assert!(!added.can_trust_past_check(&cached));
+}
+
+#[test]
+fn can_trust_past_check_rejects_missing_registries_routing() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let mut cached = verifier.policy().clone();
+    assert!(verifier.can_trust_past_check(&cached));
+
+    cached.remove("registriesRouting");
+    assert!(!verifier.can_trust_past_check(&cached));
+}
+
+#[test]
+fn can_trust_past_check_normalizes_registry_urls_and_matches_v11_digest() {
+    let bare = create_npm_resolution_verifier(default_opts("https://registry.example"));
+    let slash = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let default_port =
+        create_npm_resolution_verifier(default_opts("https://REGISTRY.example:443/"));
+
+    assert_eq!(bare.policy().get("registriesRouting"), slash.policy().get("registriesRouting"));
+    assert_eq!(
+        slash.policy().get("registriesRouting"),
+        default_port.policy().get("registriesRouting"),
+    );
+    assert!(slash.can_trust_past_check(bare.policy()));
+    assert!(default_port.can_trust_past_check(slash.policy()));
+
+    let mut cross_stack_opts = default_opts("https://registry.npmjs.org");
+    cross_stack_opts.registries.insert("@jsr".to_string(), "https://npm.jsr.io/".to_string());
+    cross_stack_opts.registries.insert(
+        "@foo".to_string(),
+        "https://npm.corp.example:443/subpath".to_string(),
+    );
+    cross_stack_opts.registries.insert("@Foo".to_string(), "https://UPPER.example".to_string());
+    let cross_stack = create_npm_resolution_verifier(cross_stack_opts);
+    assert_eq!(
+        cross_stack
+            .policy()
+            .get("registriesRouting")
+            .and_then(serde_json::Value::as_str),
+        Some("f0d898eb155ba369da30037757894816c7c572b33d75d2ea8196ca26bef3d559"),
+    );
+}
+
 /// A cache record that predates the tarball-URL binding rule (no
 /// `tarballUrlBinding` marker) can't be trusted to have enforced it,
 /// so it's rejected and forces a re-verification.

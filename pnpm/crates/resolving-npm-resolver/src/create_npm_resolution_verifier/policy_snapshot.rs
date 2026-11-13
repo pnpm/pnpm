@@ -1,6 +1,6 @@
 use super::{
     BTreeMap, DateTime, Digest, HashMap, JsonValue, Sha256, TrustPolicy, Utc,
-    VerificationReleaseAgeOptions,
+    VerificationReleaseAgeOptions, normalized_registry_key,
 };
 
 pub(super) fn sorted_unique(values: &[String]) -> Vec<String> {
@@ -10,15 +10,30 @@ pub(super) fn sorted_unique(values: &[String]) -> Vec<String> {
     deduped
 }
 
-pub(super) fn named_registries_routing_digest(
-    registries_by_prefix: &HashMap<String, String>,
-) -> String {
+fn named_registries_routing_digest(registries_by_prefix: &HashMap<String, String>) -> String {
     let sorted: BTreeMap<&str, &str> = registries_by_prefix
         .iter()
         .map(|(alias, registry)| (alias.as_str(), registry.as_str()))
         .collect();
     let encoded = serde_json::to_vec(&sorted).expect("named registry mappings are serializable");
     format!("{:x}", Sha256::digest(encoded))
+}
+
+fn registries_routing_digest(registries: &HashMap<String, String>) -> String {
+    let sorted: BTreeMap<&str, String> = registries
+        .iter()
+        .map(|(scope, registry)| (scope.as_str(), canonical_registry_url(registry)))
+        .collect();
+    let encoded = serde_json::to_vec(&sorted).expect("registry mappings are serializable");
+    format!("{:x}", Sha256::digest(encoded))
+}
+
+fn canonical_registry_url(registry: &str) -> String {
+    normalized_registry_key(registry)
+        .filter(|key| !key.starts_with("null/"))
+        .unwrap_or_else(|| {
+            if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+        })
 }
 
 /// Argument bundle for [`build_policy_snapshot`].
@@ -30,7 +45,8 @@ pub(super) struct BuildPolicySnapshot<'a> {
     pub(super) trust_policy: Option<TrustPolicy>,
     pub(super) sorted_trust_excludes: &'a [String],
     pub(super) trust_policy_ignore_after: Option<u64>,
-    pub(super) named_registries_routing: &'a str,
+    pub(super) registries: &'a HashMap<String, String>,
+    pub(super) registries_by_prefix: &'a HashMap<String, String>,
 }
 
 pub(super) fn build_policy_snapshot(
@@ -46,7 +62,11 @@ pub(super) fn build_policy_snapshot(
     map.insert("variationResolutionsVerified".to_string(), JsonValue::Bool(true));
     map.insert(
         "namedRegistriesRouting".to_string(),
-        JsonValue::String(opts.named_registries_routing.to_string()),
+        JsonValue::String(named_registries_routing_digest(opts.registries_by_prefix)),
+    );
+    map.insert(
+        "registriesRouting".to_string(),
+        JsonValue::String(registries_routing_digest(opts.registries)),
     );
     map.insert("minimumReleaseAge".to_string(), JsonValue::from(opts.minimum_release_age));
     map.insert(

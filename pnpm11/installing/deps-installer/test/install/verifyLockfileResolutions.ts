@@ -731,3 +731,68 @@ test('registry-qualified entries are verified separately, each with its own regi
   expect(new Set(seen.map((entry) => entry.registryName)))
     .toStrictEqual(new Set([undefined, 'work', 'gh']))
 })
+
+test('invalidates lockfile-verified.jsonl when default or scoped registry changes', async () => {
+  prepareEmpty()
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-reg-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+
+    const mockRegistry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
+    const integrity = getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+    const lockfile = makeLockfile({
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+        resolution: {
+          integrity,
+          tarball: `${mockRegistry}@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0`,
+        },
+      },
+    })
+
+    const initialVerifiers = testDefaults({
+      registriesByScope: { default: mockRegistry },
+    }).resolutionVerifiers
+    await verifyLockfileResolutions(lockfile, initialVerifiers, { cacheDir, lockfilePath })
+
+    // Repeat run with equivalent registry URL spelling hits the cache without touching the network.
+    const sameRegistryVerifiers = testDefaults({
+      registriesByScope: { default: mockRegistry.replace(/\/$/, '') },
+    }).resolutionVerifiers
+    const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
+    try {
+      await verifyLockfileResolutions(lockfile, sameRegistryVerifiers, { cacheDir, lockfilePath })
+      expect(debugSpy).toHaveBeenCalledWith(expect.objectContaining({ status: 'cached', lockfilePath }))
+    } finally {
+      debugSpy.mockRestore()
+    }
+
+    // Changing default registry must miss the cache and attempt verification against the new registry.
+    const changedDefaultVerifiers = testDefaults(
+      { registriesByScope: { default: 'http://127.0.0.1:1/' } },
+      undefined,
+      { retry: { retries: 0 } }
+    ).resolutionVerifiers
+    await expect(
+      verifyLockfileResolutions(lockfile, changedDefaultVerifiers, { cacheDir, lockfilePath })
+    ).rejects.toThrow()
+
+    // Changing @pnpm.e2e scope registry must also miss the cache and re-verify against the scoped registry.
+    const changedScopeVerifiers = testDefaults(
+      {
+        registriesByScope: {
+          default: mockRegistry,
+          '@pnpm.e2e': 'http://127.0.0.1:1/',
+        },
+      },
+      undefined,
+      { retry: { retries: 0 } }
+    ).resolutionVerifiers
+    await expect(
+      verifyLockfileResolutions(lockfile, changedScopeVerifiers, { cacheDir, lockfilePath })
+    ).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
