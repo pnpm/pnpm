@@ -211,10 +211,24 @@ impl Scope<'_> {
         item.next
     }
 
+    /// Expands every exposed path and owner through the scope's imports. A
+    /// type the scope declares shadows an import of a value of the same name,
+    /// so an owner that names one stays local.
     fn finish(mut self) -> Surface {
+        let types = &self.surface.types;
         for exposure in &mut self.surface.exposed {
             expand(&mut exposure.path, &self.imports);
-            expand(&mut exposure.owner, &self.imports);
+            let names_local_type = exposure.owner_namespace == Namespace::Type
+                && exposure.owner
+                    .first()
+                    .is_some_and(|first| {
+                        types
+                            .iter()
+                            .any(|declared| &declared.name == first)
+                    });
+            if !names_local_type {
+                expand(&mut exposure.owner, &self.imports);
+            }
         }
         self.surface
     }

@@ -436,6 +436,7 @@ fn a_private_type_stays_unreachable_when_a_value_of_its_name_is_exported() {
         "struct Config {}\n",
         "pub use hidden::Config;\n",
         "impl self::Config { pub fn make(_: base::Input) {} }\n",
+        "impl Config { pub fn unqualified(_: base::Unqualified) {} }\n",
     );
     let leaked = leaked_items(&[
         ("api/src/lib.rs", lib),
