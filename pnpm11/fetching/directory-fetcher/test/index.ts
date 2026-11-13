@@ -385,7 +385,7 @@ describe('listFilesFromDir with entries removed while the package is walked', ()
   test('a listing that fails with ENOENT is read again', async () => {
     let failed = false
     mockReaddir((dir, callback) => {
-      if (dir === pkgDir && !failed) {
+      if (path.resolve(dir) === pkgDir && !failed) {
         failed = true
         callback(Object.assign(new Error(`ENOENT: no such file or directory, '${dir}'`), { code: 'ENOENT' }), [])
         return
@@ -394,6 +394,7 @@ describe('listFilesFromDir with entries removed while the package is walked', ()
     })
 
     expect(await listPackageFiles()).toStrictEqual(['index.js', 'lib/a.js', 'package.json'])
+    expect(failed).toBe(true)
   })
 
   test('a file removed after its directory is listed is skipped', async () => {
@@ -410,7 +411,7 @@ describe('listFilesFromDir with entries removed while the package is walked', ()
   test('a directory removed before the walk enters it is skipped', async () => {
     const lib = path.join(pkgDir, 'lib')
     mockReaddir((dir, callback) => {
-      if (dir === lib) fs.rmSync(lib, { force: true, recursive: true })
+      if (path.resolve(dir) === lib) fs.rmSync(lib, { force: true, recursive: true })
       readdir(dir, callback)
     })
 
