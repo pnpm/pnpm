@@ -10,7 +10,7 @@ use std::{
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
 /// looks like an installed package that `clean` must remove.
-fn seed_package(node_modules: &Path, name: &str) {
+pub(super) fn seed_package(node_modules: &Path, name: &str) {
     let pkg_dir = node_modules.join(name);
     fs::create_dir_all(&pkg_dir).expect("create package dir");
     fs::write(pkg_dir.join("package.json"), "{}").expect("write package manifest");
@@ -748,3 +748,5 @@ fn clean_removes_the_enclosing_npm_projects_modules() {
         }
     }
 }
+
+mod containment;

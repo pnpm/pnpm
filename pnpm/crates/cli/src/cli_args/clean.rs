@@ -1,9 +1,15 @@
 use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
+use pnpm_fs::{
+    is_subdir, is_symlink_metadata, relative_path, remove_dirent, resolve_path_with_symlinks,
+    symlink_metadata_with_retry, to_native_separators,
+};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or every project in the workspace)
@@ -38,11 +44,17 @@ pub(super) fn run(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> m
     // would send every project back to that one directory. Take the
     // configured leaf instead; an absolute setting survives `join`, as it
     // does pnpm's `pathAbsolute`.
-    let modules_leaf = config.explicit_settings
-        .get("modulesDir")
-        .and_then(Value::as_str)
-        .map_or_else(|| Path::new("node_modules"), Path::new);
+    let modules_leaf = to_native_separators(
+        config.explicit_settings
+            .get("modulesDir")
+            .and_then(Value::as_str)
+            .map(Path::new)
+            .unwrap_or_else(|| Path::new("node_modules")),
+    );
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.locations.dir);
+    let Ok(real_root_dir) = dunce::canonicalize(root_dir) else {
+        return Ok(());
+    };
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
         projects
@@ -53,33 +65,32 @@ pub(super) fn run(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> m
         vec![ctx.locations.dir.to_path_buf()]
     };
     for dir in &dirs {
-        let full_modules_dir = dir.join(modules_leaf);
-        if has_contents_to_remove(&full_modules_dir) {
-            print_removing(&cwd, &full_modules_dir);
-            remove_modules_dir_contents(&full_modules_dir)?;
+        if let Some(modules_in_project) =
+            resolve_project_modules_dir(&real_root_dir, dir, &modules_leaf)
+        {
+            clean_modules_dir(&cwd, &modules_in_project)?;
         }
     }
     if remove_lockfile {
-        remove_workspace_lockfile(&cwd, root_dir)?;
+        remove_workspace_lockfile(&cwd, &real_root_dir, root_dir)?;
     }
-    remove_external_virtual_store(&cwd, config, root_dir, modules_leaf)
+    remove_external_virtual_store(&cwd, config, &real_root_dir, &modules_leaf)
 }
 
-fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> {
-    let lockfile_path = root_dir.join("pnpm-lock.yaml");
-    if !lockfile_path.exists() {
+fn remove_workspace_lockfile(
+    cwd: &Path,
+    real_root_dir: &Path,
+    root_dir: &Path,
+) -> miette::Result<()> {
+    let Some(lockfile_path) = resolve_inside(real_root_dir, &root_dir.join("pnpm-lock.yaml"))
+    else {
+        return Ok(());
+    };
+    if symlink_metadata_with_retry(&lockfile_path).is_err() {
         return Ok(());
     }
     print_removing(cwd, &lockfile_path);
-    // A concurrent remover is not an error: the file is gone either way.
-    std::fs::remove_file(&lockfile_path)
-        .or_else(
-            |error| {
-                if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
-            },
-        )
-        .into_diagnostic()
-        .wrap_err_with(|| format!("removing {}", lockfile_path.display()))
+    remove_path(&lockfile_path)
 }
 
 /// A virtual store dir configured outside `node_modules` (e.g. a custom
@@ -91,9 +102,10 @@ fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> 
 fn remove_external_virtual_store(
     cwd: &Path,
     config: &Config,
-    root_dir: &Path,
+    real_root_dir: &Path,
     modules_leaf: &Path,
 ) -> miette::Result<()> {
+    let root_dir = config.workspace_dir.as_deref().unwrap_or(real_root_dir);
     let virtual_store_dir = if ["virtualStoreDir", "globalVirtualStoreDir"]
         .iter()
         .any(|setting| config.explicit_settings.contains_key(*setting))
@@ -107,67 +119,95 @@ fn remove_external_virtual_store(
     } else {
         root_dir.join(virtual_store_dir)
     };
-    let root_modules_dir = root_dir.join(modules_leaf);
-    if is_subdir(&root_modules_dir, &resolved_virtual_store_dir) {
-        return Ok(());
-    }
-    let Some(virtual_store_in_project) = resolve_inside(root_dir, &resolved_virtual_store_dir)
+    let Some(virtual_store_in_project) = resolve_inside(real_root_dir, &resolved_virtual_store_dir)
     else {
         return Ok(());
     };
-    if virtual_store_in_project.exists() {
+    if resolve_inside(real_root_dir, &root_dir.join(modules_leaf))
+        .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
+    {
+        return Ok(());
+    }
+    if symlink_metadata_with_retry(&virtual_store_in_project).is_ok() {
         print_removing(cwd, &virtual_store_in_project);
         remove_path(&virtual_store_in_project)?;
     }
     Ok(())
 }
 
+fn resolve_project_modules_dir(
+    real_root_dir: &Path,
+    project_dir: &Path,
+    modules_leaf: &Path,
+) -> Option<PathBuf> {
+    let real_project_dir = dunce::canonicalize(project_dir).ok()?;
+    let resolved = resolve_inside(&real_project_dir, &project_dir.join(modules_leaf))?;
+    (resolved.starts_with(real_root_dir) && resolved != real_root_dir).then_some(resolved)
+}
+
 /// `path` with its parent resolved through symlinks, when it names an entry
-/// strictly inside `root`. A symlinked ancestor cannot carry the removal out
-/// of the project, and the last component stays unresolved so a symlinked
-/// store is unlinked rather than followed. `None` when either path cannot be
-/// resolved.
-fn resolve_inside(root: &Path, path: &Path) -> Option<PathBuf> {
-    let root = dunce::canonicalize(root).ok()?;
-    let path = lexical_normalize(path);
-    let resolved = dunce::canonicalize(path.parent()?)
+/// strictly inside canonical `real_root`. A symlinked ancestor cannot carry
+/// the removal out of the project, and the last component stays unresolved so
+/// a symlinked target is unlinked rather than followed. `None` when the path
+/// cannot be resolved.
+fn resolve_inside(real_root: &Path, path: &Path) -> Option<PathBuf> {
+    let path = to_native_separators(path);
+    let resolved = resolve_path_with_symlinks(path.parent()?)
+        .and_then(dunce::canonicalize)
         .ok()?
         .join(path.file_name()?);
-    (resolved.starts_with(&root) && resolved != root).then_some(resolved)
+    (resolved.starts_with(real_root) && resolved != real_root).then_some(resolved)
 }
 
-/// Whether `modules_dir` holds anything `clean` removes: a regular
-/// package directory or one of the pnpm hidden entries. Other dotfiles
-/// (e.g. `.cache`) mean "nothing to clean" on their own.
-fn has_contents_to_remove(modules_dir: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(modules_dir) else {
-        return false;
-    };
-    entries
-        .filter_map(Result::ok)
-        .any(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
-}
-
-fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
-    let Ok(entries) = std::fs::read_dir(modules_dir) else {
-        return Ok(());
-    };
-    for entry in entries.filter_map(Result::ok) {
-        if !is_pnpm_entry(&entry.file_name().to_string_lossy()) {
-            continue;
+fn clean_modules_dir(cwd: &Path, modules_dir: &Path) -> miette::Result<()> {
+    let metadata = match symlink_metadata_with_retry(modules_dir) {
+        Ok(metadata) => metadata,
+        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            return Ok(());
         }
-        remove_path(&entry.path())?;
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("inspecting {}", modules_dir.display()));
+        }
+    };
+    if is_symlink_metadata(&metadata) {
+        print_removing(cwd, modules_dir);
+        return remove_path(modules_dir);
+    }
+    if !metadata.is_dir() {
+        return Ok(());
+    }
+    let entries = removable_modules_entries(modules_dir)?;
+    if !entries.is_empty() {
+        print_removing(cwd, modules_dir);
+        for entry in entries {
+            remove_path(&entry)?;
+        }
     }
     Ok(())
 }
 
+fn removable_modules_entries(modules_dir: &Path) -> miette::Result<Vec<PathBuf>> {
+    let entries = match std::fs::read_dir(modules_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("reading {}", modules_dir.display()));
+        }
+    };
+    Ok(entries
+        .filter_map(Result::ok)
+        .filter(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
+        .map(|entry| entry.path())
+        .collect())
+}
+
 fn remove_path(path: &Path) -> miette::Result<()> {
     remove_dirent(path)
-        .or_else(
-            |error| {
-                if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
-            },
-        )
+        .or_else(|error| if error.kind() == ErrorKind::NotFound { Ok(()) } else { Err(error) })
         .into_diagnostic()
         .wrap_err_with(|| format!("removing {}", path.display()))
 }

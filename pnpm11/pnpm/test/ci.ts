@@ -132,3 +132,55 @@ test.each([
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
   expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
 })
+
+test('pnpm ci does not delete files in external modulesDir', () => {
+  for (const useAbsolute of [false, true]) {
+    prepare({
+      name: 'test-ci-external-modules-dir',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+    expect(execPnpmSync(['install', '--lockfile-only']).status).toBe(0)
+
+    const externalTarget = path.resolve('..', 'external-target')
+    fs.mkdirSync(path.join(externalTarget, 'existing-pkg'), { recursive: true })
+    fs.writeFileSync(path.join(externalTarget, 'keep.txt'), 'keep')
+    fs.writeFileSync(path.join(externalTarget, 'existing-pkg', 'package.json'), '{}')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      modulesDir: useAbsolute ? externalTarget : '../external-target',
+    })
+
+    execPnpmSync(['ci'])
+    expect(fs.existsSync(path.join(externalTarget, 'keep.txt'))).toBe(true)
+    expect(fs.existsSync(path.join(externalTarget, 'existing-pkg', 'package.json'))).toBe(true)
+  }
+})
+
+test('pnpm ci unlinks symlinked node_modules without deleting target contents and installs into a real directory', () => {
+  prepare({
+    name: 'test-ci-symlinked-node-modules',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  expect(execPnpmSync(['install', '--lockfile-only']).status).toBe(0)
+
+  const externalTarget = path.resolve('..', 'external-target')
+  fs.mkdirSync(path.join(externalTarget, '.pnpm'), { recursive: true })
+  fs.mkdirSync(path.join(externalTarget, 'lodash'), { recursive: true })
+  fs.writeFileSync(path.join(externalTarget, 'keep.txt'), 'keep')
+  fs.writeFileSync(path.join(externalTarget, 'lodash', 'package.json'), '{}')
+  fs.symlinkSync(externalTarget, 'node_modules', process.platform === 'win32' ? 'junction' : 'dir')
+
+  const result = execPnpmSync(['ci'])
+  expect(result.status).toBe(0)
+  expect(fs.existsSync(path.join(externalTarget, 'keep.txt'))).toBe(true)
+  expect(fs.existsSync(path.join(externalTarget, '.pnpm'))).toBe(true)
+  expect(fs.existsSync(path.join(externalTarget, 'lodash', 'package.json'))).toBe(true)
+  expect(fs.lstatSync('node_modules').isSymbolicLink()).toBe(false)
+  expect(fs.lstatSync('node_modules').isDirectory()).toBe(true)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
+})
