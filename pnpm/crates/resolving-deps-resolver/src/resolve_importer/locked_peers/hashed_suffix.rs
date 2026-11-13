@@ -1,52 +1,45 @@
-//! Recovery of the peers a hashed peer suffix stands for.
+//! Peer-provider candidates from recorded edges and resolved manifests.
 
 use super::{HashSet, dependency_edges};
-use crate::lockfile_reuse::{BoundCache, cached_bound_providers};
-use pnpm_lockfile::PkgName;
+use pnpm_lockfile::{BoundProviders, Lockfile, PkgName, PkgNameVerPeer};
 use std::sync::Arc;
 
-#[derive(Default)]
-pub(super) struct ProviderContexts {
-    workspace: Option<Arc<crate::WorkspaceTreeCtx>>,
-    cache: BoundCache,
+pub(super) enum ProviderContexts {
+    Workspace(Arc<crate::WorkspaceTreeCtx>),
+    #[cfg(test)]
+    Legacy(std::cell::RefCell<super::test_utils::legacy_bindings::BoundCache>),
 }
 
 impl ProviderContexts {
-    pub(super) fn from_workspace(workspace: Arc<crate::WorkspaceTreeCtx>) -> Self {
-        Self { workspace: Some(workspace), cache: BoundCache::default() }
-    }
-
-    pub(super) fn bound(
-        &mut self,
-        lockfile: &pnpm_lockfile::Lockfile,
-        key: &pnpm_lockfile::PkgNameVerPeer,
-    ) -> pnpm_lockfile::BoundProviders {
-        if self.workspace.is_some() {
-            pnpm_lockfile::BoundProviders::from_recorded_snapshot(lockfile.into(), key)
-        } else {
-            cached_bound_providers(lockfile, key, &mut self.cache)
+    pub(super) fn bound(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> BoundProviders {
+        match self {
+            Self::Workspace(_) => BoundProviders::from_recorded_snapshot(lockfile.into(), key),
+            #[cfg(test)]
+            Self::Legacy(cache) => super::test_utils::legacy_bindings::cached_bound_providers(
+                lockfile,
+                key,
+                &mut cache.borrow_mut(),
+            ),
         }
     }
 
-    pub(super) fn has_verified_context(
-        &self,
-        lockfile: &pnpm_lockfile::Lockfile,
-        key: &pnpm_lockfile::PkgNameVerPeer,
-    ) -> bool {
-        if self.workspace.is_some() {
-            !pnpm_lockfile::BoundProviders::from_recorded_snapshot(lockfile.into(), key).is_hashed()
-        } else {
-            !self.cache.get(key).is_some_and(pnpm_lockfile::BoundProviders::is_hashed)
+    pub(super) fn has_verified_context(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> bool {
+        match self {
+            Self::Workspace(_) => {
+                !BoundProviders::from_recorded_snapshot(lockfile.into(), key).is_hashed()
+            }
+            #[cfg(test)]
+            Self::Legacy(cache) => !cache
+                .borrow()
+                .get(key)
+                .is_some_and(BoundProviders::is_hashed),
         }
     }
 
-    fn peer_names(
-        &self,
-        lockfile: &pnpm_lockfile::Lockfile,
-        key: &pnpm_lockfile::PkgNameVerPeer,
-    ) -> HashSet<PkgName> {
-        if let Some(workspace) = &self.workspace {
-            return workspace
+    fn peer_names(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> HashSet<PkgName> {
+        let _ = lockfile;
+        match self {
+            Self::Workspace(workspace) => workspace
                 .inspect_package(&key.without_peer().to_string(), |package| {
                     package.peer_set
                         .taken()
@@ -54,29 +47,27 @@ impl ProviderContexts {
                         .filter_map(|name| name.parse().ok())
                         .collect()
                 })
-                .unwrap_or_default();
+                .unwrap_or_default(),
+            #[cfg(test)]
+            Self::Legacy(_) => lockfile.packages
+                .as_ref()
+                .and_then(|packages| packages.get(&key.without_peer()))
+                .and_then(|metadata| metadata.peer_dependencies.as_ref())
+                .into_iter()
+                .flatten()
+                .filter_map(|(name, _)| name.parse().ok())
+                .collect(),
         }
-        lockfile.packages
-            .as_ref()
-            .and_then(|packages| packages.get(&key.without_peer()))
-            .and_then(|metadata| metadata.peer_dependencies.as_ref())
-            .into_iter()
-            .flatten()
-            .filter_map(|(name, _)| name.parse().ok())
-            .collect()
     }
 }
 
-/// The peers a hashed suffix stands for, preserving recovered provider keys.
-/// Includes the package's declared peers, read from its own edges,
-/// and the peers its subtree resolved, listed as its
-/// `transitivePeerDependencies` and read from the descendants that
-/// declare them.
+/// Candidate providers for the package's taken peers and its transitive peers.
+/// Explicit or recorded bindings constrain the candidates when available.
 pub(super) fn hashed_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
-    contexts: &mut ProviderContexts,
+    contexts: &ProviderContexts,
 ) -> Vec<(String, pnpm_lockfile::PkgNameVerPeer)> {
     let Some(snapshot) = snapshot else {
         return Vec::new();
@@ -126,7 +117,7 @@ pub(super) fn transitive_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     peer_name: &str,
-    contexts: &mut ProviderContexts,
+    contexts: &ProviderContexts,
 ) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
     let Ok(peer) = peer_name.parse::<PkgName>() else {
         return Vec::new();
@@ -156,7 +147,7 @@ fn bound_peer_providers(
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     peer: &PkgName,
-    contexts: &mut ProviderContexts,
+    contexts: &ProviderContexts,
 ) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
     if !contexts.peer_names(lockfile, key).contains(peer) {
         return Vec::new();

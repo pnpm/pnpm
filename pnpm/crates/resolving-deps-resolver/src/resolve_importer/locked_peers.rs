@@ -10,7 +10,7 @@ mod hashed_suffix;
 
 /// The peer versions the prior lockfile locked for the importer.
 pub(super) struct LockedPeers {
-    pub(super) versions: Arc<HashMap<String, HashSet<String>>>,
+    versions: std::sync::OnceLock<Arc<HashMap<String, HashSet<String>>>>,
 }
 
 impl LockedPeers {
@@ -20,24 +20,34 @@ impl LockedPeers {
         retained: &HashSet<PkgName>,
     ) -> Self {
         let Some(lockfile) = ctx.workspace().wanted_lockfile() else {
-            return Self { versions: Arc::default() };
+            return Self { versions: std::sync::OnceLock::from(Arc::default()) };
         };
         if !lockfile.importers.contains_key(importer_id) {
-            return Self {
-                versions: ctx
-                    .workspace()
-                    .unlisted_importer_locked_peers(|| all_locked_peer_versions(lockfile)),
-            };
+            return Self { versions: std::sync::OnceLock::new() };
         }
-        let mut contexts =
-            hashed_suffix::ProviderContexts::from_workspace(Arc::clone(ctx.workspace()));
+        let contexts = hashed_suffix::ProviderContexts::Workspace(Arc::clone(ctx.workspace()));
         let versions = retained_peer_versions(
             lockfile,
             &lockfile.importers[importer_id],
             |name| retained.contains(name),
-            &mut contexts,
+            &contexts,
         );
-        Self { versions: Arc::new(versions) }
+        Self { versions: std::sync::OnceLock::from(Arc::new(versions)) }
+    }
+    /// Read after every importer has completed its initial dependency wave.
+    pub(super) fn versions(
+        &self,
+        workspace: &Arc<crate::WorkspaceTreeCtx>,
+    ) -> &Arc<HashMap<String, HashSet<String>>> {
+        self.versions.get_or_init(|| {
+            workspace.unlisted_importer_locked_peers(|| {
+                let Some(lockfile) = workspace.wanted_lockfile() else { return HashMap::default() };
+                all_peer_versions(
+                    lockfile,
+                    &hashed_suffix::ProviderContexts::Workspace(Arc::clone(workspace)),
+                )
+            })
+        })
     }
 }
 
@@ -60,7 +70,7 @@ fn retained_peer_versions(
     lockfile: &pnpm_lockfile::Lockfile,
     importer: &pnpm_lockfile::ProjectSnapshot,
     is_retained: impl Fn(&PkgName) -> bool,
-    contexts: &mut hashed_suffix::ProviderContexts,
+    contexts: &hashed_suffix::ProviderContexts,
 ) -> HashMap<String, HashSet<String>> {
     let mut versions = HashMap::<String, HashSet<String>>::default();
     for (alias, dependency) in importer.dependencies_by_groups([
@@ -87,16 +97,13 @@ fn retained_peer_versions(
     versions
 }
 
-/// Every peer version the lockfile pins anywhere, for an importer it does not
-/// list.
-pub(super) fn all_locked_peer_versions(
+fn all_peer_versions(
     lockfile: &pnpm_lockfile::Lockfile,
+    contexts: &hashed_suffix::ProviderContexts,
 ) -> HashMap<String, HashSet<String>> {
     let mut versions = HashMap::<String, HashSet<String>>::default();
-    let mut contexts = hashed_suffix::ProviderContexts::default();
     for (key, snapshot) in lockfile.snapshots.iter().flatten() {
-        for (name, version) in
-            locked_peer_versions_for_key(lockfile, key, Some(snapshot), &mut contexts)
+        for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot), contexts)
         {
             versions
                 .entry(name)
@@ -113,7 +120,7 @@ fn locked_peer_versions_for_key<'lockfile>(
     lockfile: &'lockfile pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
-    contexts: &mut hashed_suffix::ProviderContexts,
+    contexts: &hashed_suffix::ProviderContexts,
 ) -> Vec<(String, String)> {
     let mut traversal = LockedPeerTraversal {
         lockfile,
@@ -139,7 +146,7 @@ fn locked_peer_versions_for_key<'lockfile>(
 
 struct LockedPeerTraversal<'lockfile, 'cache> {
     lockfile: &'lockfile pnpm_lockfile::Lockfile,
-    contexts: &'cache mut hashed_suffix::ProviderContexts,
+    contexts: &'cache hashed_suffix::ProviderContexts,
     visited: HashSet<pnpm_lockfile::PkgNameVerPeer>,
     versions: Vec<(String, String)>,
     recovered:
@@ -193,7 +200,7 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
     }
 
     fn recover_providers(
-        &mut self,
+        &self,
         snapshot: Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
         name: &str,
         peer: &pnpm_lockfile::PkgNameVerPeer,
@@ -242,7 +249,7 @@ fn locked_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
-    contexts: &mut hashed_suffix::ProviderContexts,
+    contexts: &hashed_suffix::ProviderContexts,
 ) -> Vec<(String, pnpm_lockfile::PkgNameVerPeer)> {
     let metadata = lockfile.packages
         .as_ref()

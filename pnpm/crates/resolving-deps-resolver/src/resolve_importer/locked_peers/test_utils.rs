@@ -1,6 +1,6 @@
-use super::{
-    HashMap, HashSet, PkgName, all_locked_peer_versions, hashed_suffix, retained_peer_versions,
-};
+pub(super) mod legacy_bindings;
+
+use super::{HashMap, HashSet, PkgName, all_peer_versions, hashed_suffix, retained_peer_versions};
 
 pub(in crate::resolve_importer) fn importer_locked_peer_versions(
     wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
@@ -17,6 +17,20 @@ pub(in crate::resolve_importer) fn importer_locked_peer_versions(
         lockfile,
         importer,
         is_retained,
-        &mut hashed_suffix::ProviderContexts::default(),
+        &hashed_suffix::ProviderContexts::default(),
     )
+}
+
+/// Every peer version the lockfile pins anywhere, for an importer it does not
+/// list.
+pub(in crate::resolve_importer) fn all_locked_peer_versions(
+    lockfile: &pnpm_lockfile::Lockfile,
+) -> HashMap<String, HashSet<String>> {
+    all_peer_versions(lockfile, &hashed_suffix::ProviderContexts::default())
+}
+
+impl Default for hashed_suffix::ProviderContexts {
+    fn default() -> Self {
+        Self::Legacy(std::cell::RefCell::default())
+    }
 }
