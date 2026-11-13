@@ -13,6 +13,7 @@ use crate::include::{IncludeError, read_workspace_manifest_document};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_env_replace::SentinelPlaceholders;
 use serde::Deserialize;
 use std::{
     io,
@@ -134,12 +135,15 @@ pub fn parse_workspace_manifest(
         return Ok(WorkspaceManifest::default());
     }
 
-    let manifest: WorkspaceManifest = serde_saphyr::from_str::<Option<WorkspaceManifest>>(text)
-        .map_err(|source| ReadWorkspaceManifestError::ParseYaml {
-            path: path.to_path_buf(),
-            source: Box::new(source),
-        })?
-        .unwrap_or_default();
+    let manifest: WorkspaceManifest =
+        match serde_saphyr::from_str::<Option<WorkspaceManifest>>(text) {
+            Ok(manifest) => manifest.unwrap_or_default(),
+            Err(raw_error) => parse_manifest_preserving_placeholders(text)
+                .ok_or_else(|| ReadWorkspaceManifestError::ParseYaml {
+                    path: path.to_path_buf(),
+                    source: Box::new(raw_error),
+                })?,
+        };
 
     // serde_saphyr already enforces the array shape and string type
     // for `packages:` at deserialization. The remaining invariant —
@@ -156,6 +160,69 @@ pub fn parse_workspace_manifest(
     }
 
     Ok(manifest)
+}
+
+fn parse_manifest_preserving_placeholders(text: &str) -> Option<WorkspaceManifest> {
+    let sentinels = SentinelPlaceholders::new(text)?;
+    let replaced = sentinels.replace_minimal(text, |candidate| {
+        serde_saphyr::from_str::<Option<WorkspaceManifest>>(candidate).is_ok()
+    })?;
+    let mut manifest =
+        serde_saphyr::from_str::<Option<WorkspaceManifest>>(&replaced).ok()?.unwrap_or_default();
+    restore_manifest_placeholders(&sentinels, text, &mut manifest).then_some(manifest)
+}
+
+fn restore_manifest_placeholders(
+    sentinels: &SentinelPlaceholders,
+    original_text: &str,
+    manifest: &mut WorkspaceManifest,
+) -> bool {
+    for entry in manifest.packages.iter_mut().flatten() {
+        sentinels.restore_in_place(original_text, entry);
+    }
+    manifest.catalog
+        .as_mut()
+        .is_none_or(|catalog| restore_catalog_placeholders(sentinels, original_text, catalog))
+        && manifest.catalogs
+            .as_mut()
+            .is_none_or(|catalogs| {
+                restore_catalogs_placeholders(sentinels, original_text, catalogs)
+            })
+}
+
+fn restore_catalogs_placeholders(
+    sentinels: &SentinelPlaceholders,
+    original_text: &str,
+    catalogs: &mut Catalogs,
+) -> bool {
+    let mut restored = Catalogs::new();
+    for (mut name, mut catalog) in std::mem::take(catalogs) {
+        sentinels.restore_in_place(original_text, &mut name);
+        if !restore_catalog_placeholders(sentinels, original_text, &mut catalog)
+            || restored.insert(name, catalog).is_some()
+        {
+            return false;
+        }
+    }
+    *catalogs = restored;
+    true
+}
+
+fn restore_catalog_placeholders(
+    sentinels: &SentinelPlaceholders,
+    original_text: &str,
+    catalog: &mut Catalog,
+) -> bool {
+    let mut restored = Catalog::new();
+    for (mut name, mut specifier) in std::mem::take(catalog) {
+        sentinels.restore_in_place(original_text, &mut name);
+        sentinels.restore_in_place(original_text, &mut specifier);
+        if restored.insert(name, specifier).is_some() {
+            return false;
+        }
+    }
+    *catalog = restored;
+    true
 }
 
 #[cfg(test)]

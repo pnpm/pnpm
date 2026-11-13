@@ -417,26 +417,15 @@ fn config_dependency_and_local_include_refuse_flow_registry_placeholders() {
     ));
 
     let dir = tempfile::tempdir().unwrap();
+    let reg_path = dir.path().join("reg.yaml");
     std::fs::write(
         dir.path().join("pnpm-workspace.yaml"),
         "include:\n  ./reg.yaml:\n    - shamefullyHoist\n    - registry\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("reg.yaml"),
-        "{registry: https://example.com/${PNPM_TEST_HOST}/}\n",
-    )
-    .unwrap();
-    let unquoted_error = pnpm_workspace::read_workspace_manifest_document(dir.path()).unwrap_err();
-    assert!(matches!(
-        &unquoted_error,
-        pnpm_workspace::IncludeError::ParseFragment { spec, .. } if spec == "./reg.yaml"
-    ));
-
-    let reg_path = dir.path().join("reg.yaml");
-    std::fs::write(
         &reg_path,
-        "shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS}\nregistry: 'https://example.com/${PNPM_TEST_UNSET:-x''y}/'\n",
+        "{shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS}, registry: https://example.com/${PNPM_TEST_HOST}/}\n",
     )
     .unwrap();
     let document = pnpm_workspace::read_workspace_manifest_document(dir.path()).unwrap().unwrap();
@@ -466,6 +455,35 @@ fn config_dependency_and_local_include_refuse_flow_registry_placeholders() {
         LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, file }
             if setting == "registry" && Path::new(file) == reg_path
     ));
+}
+
+#[test]
+fn root_include_and_key_issues_survive_flow_placeholders() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "{include: {'./shared.yaml': [shamefullyHoist]}, userAgent: agent/${PNPM_TEST_UNSET}, hooks: ./evil.mjs}\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("shared.yaml"), "shamefullyHoist: true\n").unwrap();
+
+    let document = pnpm_workspace::read_workspace_manifest_document(dir.path()).unwrap().unwrap();
+    assert!(document.includes.is_some());
+    let mut settings =
+        WorkspaceSettings::read_document(document, SettingsRead::All, |text, path| {
+            parse_settings::<Env, WorkspaceSettings>(text)
+                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                    path: path.to_path_buf(),
+                    source,
+                })
+        })
+        .unwrap();
+    let warnings = settings.substitute_env_untrusted::<Env>().unwrap();
+    assert_eq!(settings.shamefully_hoist, Some(true));
+    assert_eq!(settings.user_agent, None);
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("userAgent"));
+    assert_eq!(settings.key_issues.refused, vec!["hooks".to_owned()]);
 }
 
 #[test]
@@ -507,14 +525,30 @@ fn yaml_anchors_and_aliases_do_not_expand_environment_placeholders() {
     for yaml in [
         "t: &true https://attacker.example/\nregistry: *${PNPM_TEST_IGNORE_SCRIPTS}\n",
         "t: &env_true https://attacker.example/\nregistry: *env_${PNPM_TEST_IGNORE_SCRIPTS}\n",
+        "t: &env_pkg.example.com_true https://attacker.example/\nregistry: *env_${PNPM_TEST_HOST}_${PNPM_TEST_IGNORE_SCRIPTS}\n",
         "t: &${PNPM_TEST_IGNORE_SCRIPTS} https://attacker.example/\nregistry: *true\n",
         "t: &env_${PNPM_TEST_IGNORE_SCRIPTS} https://attacker.example/\nregistry: *env_true\n",
+        "t: &env_${PNPM_TEST_HOST}_${PNPM_TEST_IGNORE_SCRIPTS} https://attacker.example/\nregistry: *env_pkg.example.com_true\n",
+        "{overrides: {pkg-${PNPM_TEST_HOST}: 1.0.0, pkg-${PNPM_TEST_HOST}: 2.0.0}}\n",
+        r#"{overrides: {"pkg-${PNPM_TEST_HOST}": 1.0.0, pkg-${PNPM_TEST_HOST}: 2.0.0}}"#,
     ] {
         assert!(
             parse_settings::<Env, WorkspaceSettings>(yaml).is_err(),
             "expected error on {yaml}",
         );
     }
+}
+
+#[test]
+fn adjacent_placeholder_chains_parse_in_linear_time() {
+    let touching = "${A}".repeat(50_000);
+    let interleaved = "x${A}".repeat(50_000);
+    let yaml = format!(
+        "# {touching}\n# {interleaved}\n{{shamefullyHoist: ${{PNPM_TEST_IGNORE_SCRIPTS}}, cacheDir: ${{PNPM_TEST_UNSET:-cache}}}}\n",
+    );
+    let settings = parse_settings::<Env, WorkspaceSettings>(&yaml).unwrap();
+    assert_eq!(settings.shamefully_hoist, Some(true));
+    assert_eq!(settings.cache_dir.as_deref(), Some("${PNPM_TEST_UNSET:-cache}"));
 }
 
 #[test]

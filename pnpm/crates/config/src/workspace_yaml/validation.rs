@@ -1,8 +1,9 @@
 use super::{
     IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_SETTINGS, Path,
-    RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings,
-    UnrecognizedSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
-    is_known_setting_key, is_refused_by_a_project_manifest, registries,
+    RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SentinelPlaceholders,
+    SideEffectsCacheSetting, TaskSettings, UnrecognizedSettings, WorkspaceKeyIssues,
+    WorkspaceSettings, is_camel_case, is_known_setting_key, is_refused_by_a_project_manifest,
+    registries,
 };
 
 impl WorkspaceSettings {
@@ -237,24 +238,19 @@ impl WorkspaceSettings {
         if !Self::may_have_key_issues(text) {
             return issues;
         }
-        let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
-        else {
+        let Some(keys) = parse_present_top_level_keys(text) else {
             return issues;
         };
-        for key in document
-            .iter()
-            .filter(|(_, value)| value.is_some())
-            .map(|(key, _)| key)
-        {
+        for key in keys {
             if key == SCHEMA_DIRECTIVE_KEY {
                 continue;
             }
-            if is_refused_by_a_project_manifest(key) {
-                issues.refused.push(key.clone());
-            } else if !is_known_setting_key(key) {
-                issues.unrecognized.push(key.clone());
-            } else if !is_camel_case(key) {
-                issues.non_camel_case.push(key.clone());
+            if is_refused_by_a_project_manifest(&key) {
+                issues.refused.push(key);
+            } else if !is_known_setting_key(&key) {
+                issues.unrecognized.push(key);
+            } else if !is_camel_case(&key) {
+                issues.non_camel_case.push(key);
             }
         }
         issues
@@ -342,4 +338,31 @@ fn is_windows_device_name(stem: &str) -> bool {
         || (stem.len() == 4
             && (stem.starts_with("COM") || stem.starts_with("LPT"))
             && stem.ends_with(|char: char| char.is_ascii_digit() && char != '0'))
+}
+
+fn parse_present_top_level_keys(text: &str) -> Option<Vec<String>> {
+    if let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text) {
+        return Some(
+            document
+                .into_iter()
+                .filter_map(|(key, value)| value.map(|_| key))
+                .collect(),
+        );
+    }
+    let sentinels = SentinelPlaceholders::new(text)?;
+    let replaced = sentinels.replace_all(text);
+    let document = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(&replaced).ok()?;
+    Some(
+        document
+            .into_iter()
+            .filter_map(|(key, value)| {
+                let restored = if sentinels.may_contain_sentinel(&key) {
+                    sentinels.restore(text, &key)
+                } else {
+                    key
+                };
+                value.map(|_| restored)
+            })
+            .collect(),
+    )
 }

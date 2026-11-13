@@ -439,5 +439,59 @@ fn flow_mapping_workspace_yaml_rejects_registry_env_and_drops_proxy_env() {
         "https://example.invalid/subpath/",
     );
 
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "{include: {'./shared.yaml': [shamefullyHoist]}, userAgent: agent/${DEMO_UNSET_VAR}}\n",
+    )
+    .expect("write root include flow pnpm-workspace.yaml");
+    fs::write(workspace.join("shared.yaml"), "shamefullyHoist: true\n").expect("write shared.yaml");
+    let include_get = pacquet_in(&workspace)
+        .with_args(["config", "get", "shamefully-hoist"])
+        .output()
+        .expect("run config get shamefully-hoist with include");
+    assert!(
+        include_get.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&include_get.stderr),
+    );
+    assert_eq!(String::from_utf8_lossy(&include_get.stdout).trim_end(), "true");
+
+    let include_list = pacquet_in(&workspace)
+        .with_args(["config", "list"])
+        .output()
+        .expect("run config list with include");
+    let include_list_stderr = String::from_utf8_lossy(&include_list.stderr);
+    let include_list_stdout = String::from_utf8_lossy(&include_list.stdout);
+    assert!(include_list.status.success(), "stderr={include_list_stderr}");
+    assert!(include_list_stderr.contains(r#"Ignored "userAgent""#), "stderr={include_list_stderr}");
+    assert!(
+        include_list_stdout.contains(r#""shamefullyHoist": true"#),
+        "stdout={include_list_stdout}",
+    );
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "include:\n  ./shared.yaml: [registry]\n")
+        .expect("write include registry pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("shared.yaml"),
+        "{registry: https://example.invalid/${DEMO_REG_VAR}/}\n",
+    )
+    .expect("write flow registry shared.yaml");
+    let include_reg = pacquet_in(&workspace)
+        .with_env("DEMO_REG_VAR", "subpath")
+        .with_args(["config", "get", "registry"])
+        .output()
+        .expect("run config get registry with included flow placeholder");
+    let include_reg_stderr = String::from_utf8_lossy(&include_reg.stderr);
+    let include_reg_stdout = String::from_utf8_lossy(&include_reg.stdout);
+    assert!(
+        !include_reg.status.success(),
+        "stdout={include_reg_stdout}, stderr={include_reg_stderr}",
+    );
+    assert!(
+        include_reg_stderr.contains("ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED"),
+        "stderr={include_reg_stderr}",
+    );
+    assert!(!include_reg_stdout.contains("subpath") && !include_reg_stderr.contains("subpath"));
+
     drop(root);
 }
