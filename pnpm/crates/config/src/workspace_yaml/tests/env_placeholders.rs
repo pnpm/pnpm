@@ -611,6 +611,7 @@ fn yaml_distinct_keys_preserve_placeholders_and_restoration_failures_fail_closed
         "{registry: 'https://${PNPM_TEST_HOST:-a'b}.attacker.example/'}\n",
         r#"{registry: "https://\x4${PNPM_TEST_HEX}.attacker.example/", storeDir: ${PNPM_TEST_UNSET:-x}}"#,
         r#"{overrides: {a: ${PNPM_TEST_UNSET:-1.0.0}}, storeDir: "${PNPM_TEST_UNSET:-a"b}"}"#,
+        r#"{overrides: {a: ${PNPM_TEST_UNSET:-1.0.0}}, storeDir: "${PNPM_TEST_UNSET:-a" # b}"}"#,
         r#"{overrides: {a: ${PNPM_TEST_UNSET:-1.0.0}}, storeDir: "${PNPM_TEST_UNSET:-a\qb}"}"#,
     ] {
         assert!(
@@ -618,4 +619,20 @@ fn yaml_distinct_keys_preserve_placeholders_and_restoration_failures_fail_closed
             "expected error on {invalid_yaml}",
         );
     }
+}
+
+#[test]
+fn quoted_placeholder_unescaping_matches_serde_saphyr_across_yaml_1_2_escapes() {
+    let double_escaped = "\"${PNPM_TEST_UNSET:-\\0\\a\\b\\t\\\t\\n\\v\\f\\r\\e\\ \\\"\\/\\\\\\N\\_\\L\\P\\x41\\u0042\\U0001F600}\"";
+    let single_escaped = r"'${PNPM_TEST_UNSET:-a''b\nc}'";
+    let direct: WorkspaceSettings = serde_saphyr::from_str(&format!(
+        "storeDir: {double_escaped}\ncacheDir: {single_escaped}\n",
+    ))
+    .unwrap();
+    let via_sentinel = parse_settings::<Env, WorkspaceSettings>(&format!(
+        "{{shamefullyHoist: ${{PNPM_TEST_IGNORE_SCRIPTS}}, storeDir: {double_escaped}, cacheDir: {single_escaped}}}\n",
+    ))
+    .unwrap();
+    assert_eq!(via_sentinel.store_dir, direct.store_dir);
+    assert_eq!(via_sentinel.cache_dir, direct.cache_dir);
 }

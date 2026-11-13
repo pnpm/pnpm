@@ -1,3 +1,10 @@
+//! YAML 1.2 quote-escape decoders for single-line `${...}` placeholder slices.
+//!
+//! `pnpm-env-replace` stays dependency-free at the base crate layer, and
+//! wrapping a raw placeholder slice in quotes for a full YAML parser would let
+//! an unescaped quote followed by ` #` truncate the scalar into a YAML comment
+//! rather than rejecting it.
+
 /// Decode YAML 1.2 single-quoted scalar escapes (`''` -> `'`), returning
 /// `None` if an unescaped lone `'` appears inside `raw`.
 pub(super) fn unescape_yaml_single_quoted_strict(raw: &str) -> Option<String> {

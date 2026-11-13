@@ -1,5 +1,5 @@
 use super::{
-    DocumentPlaceholders, RestoringDeserializer, SeenKeys,
+    DocumentPlaceholders, KeyOrigin, RestoringDeserializer, SeenKeys,
     access::{RestoringAccess, RestoringMapAccess},
 };
 use serde::{
@@ -19,10 +19,10 @@ impl<Inner> RestoringVisitor<'_, '_, Inner> {
     fn record_key<Err: serde::de::Error>(
         &mut self,
         key: &str,
-        was_restored: bool,
+        origin: KeyOrigin,
     ) -> Result<(), Err> {
         if let Some(seen_keys) = self.seen_keys.as_deref_mut()
-            && !seen_keys.record(key, was_restored)
+            && !seen_keys.record(key, origin)
         {
             return Err(Err::custom(format!("duplicate mapping key: {key}")));
         }
@@ -31,13 +31,13 @@ impl<Inner> RestoringVisitor<'_, '_, Inner> {
 
     fn restore_str<Err: serde::de::Error>(&mut self, value: &str) -> Result<Option<String>, Err> {
         if !self.placeholders.may_contain_sentinel(value) {
-            self.record_key(value, false)?;
+            self.record_key(value, KeyOrigin::Raw)?;
             return Ok(None);
         }
         let restored = self.placeholders
             .try_restore(self.original_text, value)
             .ok_or_else(|| Err::custom("invalid escape or quote in placeholder"))?;
-        self.record_key(&restored, true)?;
+        self.record_key(&restored, KeyOrigin::Restored)?;
         Ok(Some(restored))
     }
 }

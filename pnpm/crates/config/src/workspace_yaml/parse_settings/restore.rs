@@ -9,6 +9,12 @@ use serde::{
 };
 use std::collections::HashSet;
 
+#[derive(Clone, Copy)]
+pub(super) enum KeyOrigin {
+    Raw,
+    Restored,
+}
+
 /// Keys seen so far in one YAML mapping. Collisions are rejected only when at
 /// least one side had a sentinel restored, so YAML-distinct raw keys that
 /// stringify alike (`"1"` and `1`) behave identically whether placeholders
@@ -20,14 +26,14 @@ pub(super) struct SeenKeys {
 }
 
 impl SeenKeys {
-    pub(super) fn record(&mut self, key: &str, was_restored: bool) -> bool {
-        if was_restored {
-            !self.raw.contains(key) && self.restored.insert(key.to_owned())
-        } else if self.restored.contains(key) {
-            false
-        } else {
-            self.raw.insert(key.to_owned());
-            true
+    pub(super) fn record(&mut self, key: &str, origin: KeyOrigin) -> bool {
+        match origin {
+            KeyOrigin::Restored => !self.raw.contains(key) && self.restored.insert(key.to_owned()),
+            KeyOrigin::Raw if self.restored.contains(key) => false,
+            KeyOrigin::Raw => {
+                self.raw.insert(key.to_owned());
+                true
+            }
         }
     }
 }
