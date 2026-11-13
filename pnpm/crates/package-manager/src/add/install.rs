@@ -1,6 +1,7 @@
 use super::{
     AddOptions, AddOwned,
-    manifest::{PickedVersion, catalog_version_requests, merge_catalogs},
+    manifest::{catalog_version_requests, merge_catalogs},
+    prepared_manifest::PickedVersion,
 };
 use crate::{
     ImporterUpdateSeedPolicy, Install, PolicyExcludes, ProjectMutation, UpdateSeedPolicy,
@@ -56,11 +57,12 @@ pub(super) fn selected_add_seed(
     owned: &AddOwned,
     manifest: &PackageManifest,
     selected: (&[pnpm_workspace::Project], &[usize]),
-    picked_versions: &[Vec<PickedVersion>],
+    prepared: (&[Vec<PickedVersion>], &[BTreeSet<String>]),
     catalogs_override: Option<Catalogs>,
     catalogs: &Catalogs,
 ) -> AddSeed {
     let (projects, selected_indices) = selected;
+    let (picked_versions, requested_aliases) = prepared;
     let manifest_dir = manifest
         .path()
         .parent()
@@ -70,7 +72,7 @@ pub(super) fn selected_add_seed(
         requested_direct_dependencies: selected_requests(
             selected,
             importer_root,
-            add.package_names,
+            requested_aliases,
         ),
         catalogs_override,
         ..Default::default()
@@ -131,7 +133,7 @@ pub(super) fn single_add_seed(
                 add.config.lockfile_dir_for(manifest_dir),
                 manifest_dir,
             ),
-            requested_aliases(add.package_names),
+            prepared.requested_aliases,
         )]),
         seed_policies: project_seed_policy(add.config, manifest, dropped_pins),
         preferred_versions_override,
@@ -340,15 +342,6 @@ pub(super) fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
         .collect()
 }
 
-fn requested_aliases(selectors: &[String]) -> BTreeSet<String> {
-    selectors
-        .iter()
-        .filter_map(|selector| {
-            pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(selector).alias
-        })
-        .collect()
-}
-
 fn requests_peer_provider(
     lockfile: Option<&Lockfile>,
     requests: &BTreeMap<String, BTreeSet<String>>,
@@ -372,12 +365,12 @@ fn requests_peer_provider(
 fn selected_requests(
     (projects, indices): (&[pnpm_workspace::Project], &[usize]),
     importer_root: &std::path::Path,
-    selectors: &[String],
+    aliases: &[BTreeSet<String>],
 ) -> BTreeMap<String, BTreeSet<String>> {
-    let aliases = requested_aliases(selectors);
     indices
         .iter()
-        .map(|&index| {
+        .zip(aliases)
+        .map(|(&index, aliases)| {
             (
                 pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
                 aliases.clone(),

@@ -178,11 +178,10 @@ mod known_failures {
     use crate::peer_convergence::moving_providers::normalize_registry_origin;
 
     #[test]
+    #[ignore = "requires PNPM_V11_BUNDLE; run by the peer convergence CI job"]
     fn fresh_hashed_cycle_parity_remains_tracked_by_task_221() {
-        let Some(bundle) = read_v11_bundle_path() else {
-            eprintln!("PNPM_V11_BUNDLE is unset; skipping the tracked v11/v12 cycle comparison");
-            return;
-        };
+        let bundle =
+            read_v11_bundle_path().expect("PNPM_V11_BUNDLE is required for the cycle comparison");
         let mut outputs = Vec::new();
         for cli in [Some(bundle.as_os_str()), None] {
             let (_registry_dir, fixture) = retained_cycle_fixture("v9");

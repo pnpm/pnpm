@@ -4,21 +4,32 @@ use pnpm_lockfile::Lockfile;
 use serde_json::json;
 use std::{ffi::OsStr, fs};
 
+#[derive(Clone, Copy)]
+enum ConsumerLayout {
+    Nested,
+    Direct,
+}
+
 #[test]
 fn unchanged_install_retains_a_reachable_locked_peer_provider() {
-    for direct in [false, true] {
+    for layout in [ConsumerLayout::Nested, ConsumerLayout::Direct] {
         for length in [20, 1000] {
             for format in ["v9", "v13"] {
-                check_locked_provider(None, format, length, direct);
+                check_locked_provider(None, format, length, layout);
             }
             if let Some(bundle) = read_v11_bundle_path() {
-                check_locked_provider(Some(&bundle), "v9", length, direct);
+                check_locked_provider(Some(&bundle), "v9", length, layout);
             }
         }
     }
 }
 
-fn check_locked_provider(bundle: Option<&OsStr>, format: &str, length: usize, direct: bool) {
+fn check_locked_provider(
+    bundle: Option<&OsStr>,
+    format: &str,
+    length: usize,
+    layout: ConsumerLayout,
+) {
     let registry_dir = tempfile::tempdir().unwrap();
     let mut fixture = WorkspaceFixture::new();
     fixture.registry.mock_instance = registry_from_manifests(
@@ -36,7 +47,7 @@ fn check_locked_provider(bundle: Option<&OsStr>, format: &str, length: usize, di
     fixture.write_root_manifest(
         "root",
         ManifestDeps {
-            prod: if direct {
+            prod: if matches!(layout, ConsumerLayout::Direct) {
                 &[("retainer", "1.0.0"), ("peer", "1.0.0"), ("consumer", "1.0.0")]
             } else {
                 &[("retainer", "1.0.0"), ("holder", "1.0.0"), ("wrapper", "1.0.0")]
@@ -55,7 +66,7 @@ fn check_locked_provider(bundle: Option<&OsStr>, format: &str, length: usize, di
         .unwrap()
         .insert("peer".parse().unwrap(), "2.0.0".parse().unwrap());
     snapshots.insert("consumer@1.0.0(peer@2.0.0)".parse().unwrap(), consumer);
-    if direct {
+    if matches!(layout, ConsumerLayout::Direct) {
         lockfile.importers
             .get_mut(".")
             .unwrap()
@@ -82,8 +93,11 @@ fn check_locked_provider(bundle: Option<&OsStr>, format: &str, length: usize, di
         assert_consumer_provider(&actual, "2.0.0");
     }
     install(&fixture, bundle, &["install", "--frozen-lockfile"]);
-    if direct {
+    if matches!(layout, ConsumerLayout::Direct) {
         let retained = fs::read(fixture.workspace.join("pnpm-lock.yaml")).unwrap();
+        if bundle.is_none() {
+            check_protocol_adds(&fixture, &retained);
+        }
         install(&fixture, bundle, &["update", "peer", "--lockfile-only"]);
         let updated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
         assert_consumer_provider(&updated, "1.0.0");
@@ -96,6 +110,20 @@ fn check_locked_provider(bundle: Option<&OsStr>, format: &str, length: usize, di
     );
     let updated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     assert_consumer_provider(&updated, "1.0.0");
+}
+
+fn check_protocol_adds(fixture: &WorkspaceFixture, retained: &[u8]) {
+    for selection in [None, Some("root")] {
+        let mut args =
+            vec!["add", "npm:peer@1.0.0", "--lockfile-only", "--ignore-workspace-root-check"];
+        if let Some(name) = selection {
+            args.extend(["--filter", name]);
+        }
+        install(fixture, None, &args);
+        let updated = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+        assert_consumer_provider(&updated, "1.0.0");
+        fs::write(fixture.workspace.join("pnpm-lock.yaml"), retained).unwrap();
+    }
 }
 
 fn assert_consumer_provider(lockfile: &Lockfile, version: &str) {
