@@ -127,6 +127,8 @@ fn a_git_ssh_package_is_named_up_to_its_first_at() {
     for (dep_path, segment) in [
         ("foo@git+ssh://git@github.com/org/foo.git#abc123", "foo"),
         ("@scope/foo@git+ssh://git@github.com/org/foo.git#abc123", "@scope+foo"),
+        ("ä@git+ssh://git@github.com/org/foo.git#abc123", "ä"),
+        ("ä@1.0.0", "ä"),
     ] {
         let source = super::skill_source((Vec::new(), PathBuf::from("pkg")), dep_path, "alias");
         assert_eq!(source.link_segment, segment, "{dep_path}");

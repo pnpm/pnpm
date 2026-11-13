@@ -216,12 +216,13 @@ fn allow_build_key_package_name(key: &str) -> Option<&str> {
     if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
         return None;
     }
-    let name = match key
-        .get(1..)
-        .and_then(|rest| rest.find('@'))
-    {
+    let separator = match key.strip_prefix('@') {
+        Some(rest) => rest.find('@').map(|offset| offset + 1),
+        None => key.find('@'),
+    };
+    let name = match separator {
         // The version part after the `@` separator must be non-empty.
-        Some(off) if off + 2 < key.len() => &key[..=off],
+        Some(at) if at + 1 < key.len() => &key[..at],
         Some(_) => return None,
         None => key,
     };
@@ -240,3 +241,6 @@ fn allow_builds_keys_in_text(text: &str) -> Vec<String> {
         .map(|map| map.into_keys().collect())
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests;

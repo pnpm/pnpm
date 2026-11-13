@@ -11,11 +11,9 @@ pub struct ParsedSelector {
 }
 #[must_use]
 pub fn parse_update_param(input: &str) -> ParsedSelector {
-    let search_start = if input.starts_with('!') { 2 } else { 1 };
-    let at_index = input
-        .get(search_start..)
-        .and_then(|rest| rest.find('@'))
-        .map(|offset| offset + search_start);
+    let body = input.strip_prefix('!').unwrap_or(input);
+    let prefix_len = input.len() - body.len();
+    let at_index = pnpm_deps_path::version_separator_index(body).map(|offset| prefix_len + offset);
     match at_index {
         Some(idx) => ParsedSelector {
             pattern: input[..idx].to_string(),
@@ -229,3 +227,6 @@ pub(super) fn update_target_name(
 pub(super) fn matcher_one(pattern: &str) -> pnpm_matcher::Matcher {
     create_matcher(std::slice::from_ref(&pattern.to_string()))
 }
+
+#[cfg(test)]
+mod tests;

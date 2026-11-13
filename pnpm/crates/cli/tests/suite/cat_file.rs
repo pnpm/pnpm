@@ -114,6 +114,37 @@ fn should_fail_on_invalid_hash_format() {
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
 
     assert!(stderr.contains("Invalid hash format"));
+    assert!(stderr.contains("ERR_PNPM_INVALID_HASH"), "{stderr}");
+}
+
+#[test]
+fn should_fail_on_empty_or_short_digest() {
+    use pnpm_testing_utils::command_env::CommandTestExt;
+
+    let CommandTempCwd {
+        pacquet: _,
+        root: _root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    // Create the `61` shard directory so a 1-byte digest (`"YQ=="` -> `"61"`)
+    // would resolve to an existing directory if the tail were allowed to be empty.
+    fs::create_dir_all(npmrc_info.store_dir.join("v11/files/61")).unwrap();
+
+    for invalid in ["sha512-", "-MJ7MSJwS", "sha512-YQ=="] {
+        let output = std::process::Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .current_dir(&workspace)
+            .args(["cat-file", "--", invalid])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        assert!(stderr.contains("ERR_PNPM_INVALID_HASH"), "for {invalid}: {stderr}");
+        assert!(stderr.contains("Invalid hash format"), "for {invalid}: {stderr}");
+        assert!(!stderr.contains("panicked"), "for {invalid}: {stderr}");
+    }
 }
 
 #[test]
