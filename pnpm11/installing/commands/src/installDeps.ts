@@ -6,6 +6,7 @@ import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { checkDepsStatus, findDanglingDirectDependencyLink } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { globalVirtualStoreBinShimsNeedRepair } from '@pnpm/installing.deps-installer'
 import {
   type DryRunInstallResult,
   IgnoredBuildsError,
@@ -17,6 +18,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import { getStorePath } from '@pnpm/store.path'
 import type {
   IncludedDependencies,
   PackageVulnerabilityAudit,
@@ -52,6 +54,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'depth'
 | 'dev'
 | 'enableGlobalVirtualStore'
+| 'frozenStore'
 | 'virtualStoreOnly'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
@@ -109,6 +112,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'packageExtensions'
 | 'updateConfig'
 | 'virtualStoreDirMaxLength'
+| 'virtualStoreDir'
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'allProjectsGraph'
@@ -220,6 +224,16 @@ export async function installDeps (
  */
 async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): Promise<boolean> {
   if (!canReportAlreadyUpToDate(opts, params)) return false
+  if (opts.enableGlobalVirtualStore && !opts.frozenStore) {
+    const globalVirtualStoreDir = opts.virtualStoreDir == null
+      ? path.join(await getStorePath({
+        pkgRoot: opts.workspaceDir ?? opts.dir,
+        storePath: opts.storeDir,
+        pnpmHomeDir: opts.pnpmHomeDir,
+      }), 'links')
+      : path.resolve(opts.lockfileDir ?? opts.dir, opts.virtualStoreDir)
+    if (await globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)) return false
+  }
   if (opts.nodeLinker === 'hoisted' && (opts.hooks?.customFetchers?.length ?? 0) > 0) return false
   const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
     ...opts,

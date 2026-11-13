@@ -8,6 +8,14 @@ import { loadJsonFile } from 'load-json-file'
 
 const markerName = '.pnpm-gvs-bin-shims-v1'
 
+export async function globalVirtualStoreBinShimsNeedRepair (
+  virtualStoreDir: string,
+  opts: { enableGlobalVirtualStore?: boolean, frozenStore?: boolean }
+): Promise<boolean> {
+  if (!opts.enableGlobalVirtualStore || opts.frozenStore) return false
+  return !await markerExists(path.join(virtualStoreDir, markerName))
+}
+
 export async function repairGlobalVirtualStoreBinShims (
   ctx: { extraNodePaths: string[], virtualStoreDir: string },
   opts: {
@@ -16,10 +24,9 @@ export async function repairGlobalVirtualStoreBinShims (
     preferSymlinkedExecutables?: boolean
   }
 ): Promise<void> {
-  if (!opts.enableGlobalVirtualStore || opts.frozenStore) return
+  if (!await globalVirtualStoreBinShimsNeedRepair(ctx.virtualStoreDir, opts)) return
 
   const markerPath = path.join(ctx.virtualStoreDir, markerName)
-  if (await markerExists(markerPath)) return
   const rootEntries = await readDirectories(ctx.virtualStoreDir)
   if (rootEntries == null) return
 

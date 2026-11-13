@@ -82,6 +82,7 @@
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
