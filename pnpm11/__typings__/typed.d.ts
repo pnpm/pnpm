@@ -93,10 +93,15 @@ declare module 'npm-packlist' {
     class Walker {
       constructor (tree: PacklistTree, options?: Record<string, unknown>)
       isPackage: boolean
+      parent: Walker | null
       path: string
       requiredFiles: string[]
       tree: PacklistTree
+      addIgnoreFile (file: string, callback: () => void): void
+      emit (event: 'error', err: unknown): boolean
+      onReadIgnoreFile (file: string, data: string, callback: () => void): void
       onstat (opts: StatOptions, callback: () => void): void
+      stat (opts: Omit<StatOptions, 'st' | 'isSymbolicLink'>, callback: () => void): void
       walker (entry: string, opts: Record<string, unknown>, callback: () => void): void
       walkerOpt (entry: string, opts: Record<string, unknown>): Record<string, unknown>
       on (event: 'done', listener: (files: string[]) => void): this

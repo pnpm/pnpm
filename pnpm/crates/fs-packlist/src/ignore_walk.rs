@@ -17,8 +17,26 @@ use rule::IgnoreRule;
 use std::{
     collections::BTreeSet,
     fs, io,
+    marker::PhantomData,
     path::{Component, Path},
 };
+
+/// Lists the entries of a directory, like [`fs::read_dir`].
+pub(crate) trait FsReadDir {
+    fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>>;
+}
+
+pub(crate) struct Host;
+
+impl FsReadDir for Host {
+    fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>> {
+        fs::read_dir(path)
+    }
+}
+
+/// How many times [`list_dir`] reads a directory whose listing keeps failing
+/// with `NotFound`.
+const LISTING_ATTEMPTS: usize = 8;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PackageRules<'a> {
@@ -31,7 +49,10 @@ pub(crate) struct PackageRules<'a> {
 /// Calls `on_file` with every non-directory entry under `pkg_dir` that the
 /// ignore rules keep. It does not descend into a top-level `node_modules` or
 /// into a version-control directory, and does not follow symlinks.
-pub(crate) fn walk_files(
+///
+/// An entry below `pkg_dir` that is removed while the walk reads it is not
+/// part of the package and is skipped. A missing `pkg_dir` is an error.
+pub(crate) fn walk_files<Sys: FsReadDir>(
     pkg_dir: &Path,
     options: PackageRules<'_>,
     on_file: &mut dyn FnMut(&Path, fs::FileType),
@@ -48,9 +69,10 @@ pub(crate) fn walk_files(
         rules: root_rules,
         exact: false,
     };
-    let mut walker = Walker {
+    let mut walker = Walker::<Sys> {
         named_files: (!matcher.named_files.is_empty()).then_some(&matcher.named_files),
         on_file,
+        sys: PhantomData,
     };
     walker.walk_dir(pkg_dir, &root, 0)
 }
@@ -80,15 +102,20 @@ fn root_rules(pkg_dir: &Path, options: PackageRules<'_>) -> io::Result<files_fie
     Ok(matcher)
 }
 
-struct Walker<'a> {
+struct Walker<'a, Sys> {
     named_files: Option<&'a BTreeSet<String>>,
     on_file: &'a mut dyn FnMut(&Path, fs::FileType),
+    sys: PhantomData<Sys>,
 }
 
-impl Walker<'_> {
+impl<Sys: FsReadDir> Walker<'_, Sys> {
     fn walk_dir(&mut self, dir: &Path, rules: &DirRules<'_>, depth: usize) -> io::Result<()> {
-        for entry in fs::read_dir(dir)? {
-            self.visit_entry(&entry?, rules, depth)?;
+        let entries = match list_dir::<Sys>(dir) {
+            Err(error) if depth > 0 && pnpm_fs::is_not_found(&error) => return Ok(()),
+            entries => entries?,
+        };
+        for entry in &entries {
+            self.visit_entry(entry, rules, depth)?;
         }
         Ok(())
     }
@@ -111,7 +138,10 @@ impl Walker<'_> {
         if !kept.as_file && !kept.as_dir {
             return Ok(());
         }
-        let file_type = entry.file_type()?;
+        let file_type = match entry.file_type() {
+            Err(error) if pnpm_fs::is_not_found(&error) => return Ok(()),
+            file_type => file_type?,
+        };
         if !file_type.is_dir() {
             if kept.as_file {
                 (self.on_file)(&entry.path(), file_type);
@@ -193,6 +223,22 @@ enum Named {
     File,
     /// A directory that holds a named file.
     Ancestor,
+}
+
+/// The entries of `dir`, all read before any is visited. A listing that fails
+/// with `NotFound` part-way is read again: on macOS, listings of a directory
+/// that still exists have failed that way while another process renamed one
+/// of its entries. Opening a missing `dir` fails without a retry.
+fn list_dir<Sys: FsReadDir>(dir: &Path) -> io::Result<Vec<fs::DirEntry>> {
+    let mut attempt = 1;
+    loop {
+        match Sys::read_dir(dir)?.collect::<io::Result<Vec<_>>>() {
+            Err(error) if pnpm_fs::is_not_found(&error) && attempt < LISTING_ATTEMPTS => {
+                attempt += 1;
+            }
+            entries => return entries,
+        }
+    }
 }
 
 fn is_pruned(name: &str, depth: usize) -> bool {
@@ -326,18 +372,31 @@ fn matches_as_dir(rule: &IgnoreRule, entry: &str) -> bool {
 /// The rules of `dir`'s `.npmignore`, or of its `.gitignore` when it has no
 /// `.npmignore`.
 fn read_dir_rules(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
-    let npmignore = dir.join(".npmignore");
-    let ignore_file = if npmignore.is_file() { npmignore } else { dir.join(".gitignore") };
-    if !ignore_file.is_file() {
-        return Ok(Vec::new());
-    }
-    let content = fs::read(&ignore_file)?;
+    let content = match read_ignore_file(&dir.join(".npmignore"))? {
+        Some(content) => content,
+        None => match read_ignore_file(&dir.join(".gitignore"))? {
+            Some(content) => content,
+            None => return Ok(Vec::new()),
+        },
+    };
     Ok(String::from_utf8_lossy(&content)
         .lines()
         .map(trim_ignore_line)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(IgnoreRule::parse)
         .collect())
+}
+
+/// The contents of the ignore file at `path`, or `None` when it is not a file,
+/// including when it is removed before it is read.
+fn read_ignore_file(path: &Path) -> io::Result<Option<Vec<u8>>> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+    match fs::read(path) {
+        Err(error) if pnpm_fs::is_not_found(&error) => Ok(None),
+        content => content.map(Some),
+    }
 }
 
 /// Trims a line the way ignore-walk's `String.prototype.trim` does: unlike
