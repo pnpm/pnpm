@@ -354,7 +354,8 @@ async function localChildIsUpToDate (
     // snapshot of its own; the workspace verifies it through its importer
     // entry. A file: child with no snapshot has an incomplete lockfile
     // entry: its own dependencies cannot be validated, so it is stale.
-    return currentSpec.startsWith('workspace:')
+    return currentSpec.startsWith('workspace:') ||
+      (lockfileDep.startsWith('link:') && isLocalFilesystemSpecifier(currentSpec))
   }
   return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, {
     ...walk,
