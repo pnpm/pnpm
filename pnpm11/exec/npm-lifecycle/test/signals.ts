@@ -12,15 +12,17 @@ import { relaySignals, reserveSignalRelay, waitForProcessGroup, watchProcessGrou
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 const testOnPosix = process.platform === 'win32' ? test.skip : test
+const bash = process.platform === 'win32' ? null : which.sync('bash', { nothrow: true })
+const testWithBash = bash == null ? test.skip : test
 const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
 const startupScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'startup.mjs')
 
-testOnPosix.each([
-  { scriptShell: '/bin/bash', exportedOptions: false },
+testWithBash.each([
+  { scriptShell: bash!, exportedOptions: false },
   { scriptShell: 'bash', exportedOptions: false },
   { scriptShell: './bash', exportedOptions: false },
-  { scriptShell: '/bin/bash', exportedOptions: true },
-  { scriptShell: '/bin/bash', exportedOptions: false, withoutSh: true },
+  { scriptShell: bash!, exportedOptions: true },
+  { scriptShell: bash!, exportedOptions: false, withoutSh: true },
 ])('a $scriptShell script keeps exported functions and loads BASH_ENV once (options: $exportedOptions, without sh: $withoutSh)', ({ scriptShell, exportedOptions, withoutSh = false }) => {
   const directory = temporaryDirectory()
   const startupFile = path.join(directory, 'bash-env')
@@ -28,7 +30,7 @@ testOnPosix.each([
   const functionMarker = path.join(directory, 'greeted')
   try {
     if (!withoutSh) fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
-    fs.symlinkSync('/bin/bash', path.join(directory, 'bash'))
+    fs.symlinkSync(bash!, path.join(directory, 'bash'))
     fs.writeFileSync(startupFile, 'printf "loaded\\n" >> "$BASH_ENV_MARKER"\n')
     const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, scriptShell, String(exportedOptions)], {
       cwd: directory,
@@ -52,11 +54,11 @@ testOnPosix.each([
   }
 }, 15_000)
 
-testOnPosix('a script run by a shell other than sh keeps environment variables that are not identifiers', () => {
+testWithBash('a script run by a shell other than sh keeps environment variables that are not identifiers', () => {
   const directory = temporaryDirectory()
   try {
     fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
-    fs.symlinkSync('/bin/bash', path.join(directory, 'other-shell'))
+    fs.symlinkSync(bash!, path.join(directory, 'other-shell'))
     const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, path.join(directory, 'other-shell'), 'non-identifier'], {
       cwd: directory,
       env: {
@@ -107,8 +109,7 @@ testOnPosix.each([
   { count: 1, mode: 'relative' },
   { count: 1, mode: 'relative-path' },
   { count: 1, mode: 'extended' },
-  { count: 1, mode: 'bash' },
-  { count: 1, mode: 'exported-printf' },
+  ...bash == null ? [] : [{ count: 1, mode: 'bash' }, { count: 1, mode: 'exported-printf' }],
 ])('$count $mode scripts and their descendants are watched before the spawn returns', async ({ count, mode }) => {
   const directory = temporaryDirectory()
   if (mode === 'relative') fs.symlinkSync('/bin/sh', path.join(directory, 'script-shell'))
@@ -118,7 +119,7 @@ testOnPosix.each([
   }
   if (mode === 'exported-printf') {
     fs.mkdirSync(path.join(directory, 'bin'))
-    fs.symlinkSync('/bin/bash', path.join(directory, 'bin', 'sh'))
+    fs.symlinkSync(bash!, path.join(directory, 'bin', 'sh'))
   }
   const runner = spawn(process.execPath, [startupScript, directory, String(count), mode], {
     detached: true,
