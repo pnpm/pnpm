@@ -9,15 +9,21 @@ use assert_cmd::assert::OutputAssertExt;
 /// resolution of that peer, so the synthesized snapshot can bind it.
 #[test]
 fn shared_lockfile_deploy_binds_a_singleton_peer_of_a_linked_workspace_package() {
-    check_linked_workspace_peer(false);
+    check_linked_workspace_peer(PeerDeclaration::Explicit);
 }
 
 #[test]
 fn shared_lockfile_deploy_binds_a_metadata_only_optional_peer() {
-    check_linked_workspace_peer(true);
+    check_linked_workspace_peer(PeerDeclaration::MetadataOnly);
 }
 
-fn check_linked_workspace_peer(metadata_only: bool) {
+#[derive(Clone, Copy)]
+enum PeerDeclaration {
+    Explicit,
+    MetadataOnly,
+}
+
+fn check_linked_workspace_peer(declaration: PeerDeclaration) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -27,7 +33,7 @@ fn check_linked_workspace_peer(metadata_only: bool) {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_workspace(&workspace);
-    if metadata_only {
+    if matches!(declaration, PeerDeclaration::MetadataOnly) {
         let manifest_path = workspace.join("packages/lib/package.json");
         let mut manifest: serde_json::Value =
             serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();

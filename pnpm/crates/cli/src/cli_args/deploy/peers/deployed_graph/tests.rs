@@ -175,19 +175,16 @@ fn an_unshadowed_own_dependency_declared_as_a_peer_remains_a_parent_edge() {
     let peer: PkgName = "peer".parse().unwrap();
     let linked = HashMap::from([(
         lib_key.clone(),
-        super::super::LinkedWorkspaceProject {
-            project: crate::cli_args::deploy::ProjectInfo {
-                root_dir: std::path::PathBuf::from("/workspace/packages/lib"),
-                linked_publish_dir: None,
-                name: Some("lib".to_string()),
-                has_bin: false,
-                peer_set: pnpm_resolving_deps_resolver::PeerSet::from_manifest(
-                    &serde_json::json!({"peerDependencies": {"peer": "*"}}),
-                    |_| false,
-                ),
-            },
-            deduped_peer_resolutions: None,
-        },
+        super::super::LinkedWorkspaceProject::from_project(crate::cli_args::deploy::ProjectInfo {
+            root_dir: std::path::PathBuf::from("/workspace/packages/lib"),
+            linked_publish_dir: None,
+            name: Some("lib".to_string()),
+            has_bin: false,
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::from_manifest(
+                &serde_json::json!({"peerDependencies": {"peer": "*"}}),
+                |_| false,
+            ),
+        }),
     )]);
 
     super::super::bind_singleton_peers(&mut lockfile, &linked).unwrap();
@@ -237,7 +234,7 @@ fn linked_projects_bind_optional_peers_declared_only_in_metadata() {
         Some(HashMap::from([(lib_key.clone(), snapshot(&[])), (key("peer@1.0.0"), snapshot(&[]))]));
     let linked = HashMap::from([(
         lib_key.clone(),
-        super::super::LinkedWorkspaceProject { project, deduped_peer_resolutions: None },
+        super::super::LinkedWorkspaceProject::from_project(project),
     )]);
     super::super::bind_singleton_peers(&mut lockfile, &linked).unwrap();
     let bound = lockfile.snapshots.as_ref().unwrap()[&lib_key].dependencies

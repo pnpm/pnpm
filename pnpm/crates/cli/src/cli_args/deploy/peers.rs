@@ -5,6 +5,8 @@ use super::{
     convert_importer_version_to_snapshot_ref, convert_package_key,
 };
 
+use indexmap::IndexSet;
+
 mod deployed_graph;
 
 use deployed_graph::{
@@ -14,7 +16,8 @@ use deployed_graph::{
 
 /// A workspace package the deployed graph links rather than injects.
 pub(super) struct LinkedWorkspaceProject {
-    project: ProjectInfo,
+    name: Option<String>,
+    peer_names: IndexSet<PkgName>,
     /// The project's dev dependencies that are also its peers, recorded only
     /// in an injected workspace. There a workspace package is linked rather
     /// than injected only when its injected resolution matched its own
@@ -31,10 +34,11 @@ impl LinkedWorkspaceProject {
         ctx: &ConvertCtx<'_>,
         bases: &ResolveBases,
     ) -> Self {
+        let mut linked = Self::from_project(project);
         let injected_workspace =
             lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
         if !injected_workspace {
-            return LinkedWorkspaceProject { project, deduped_peer_resolutions: None };
+            return linked;
         }
         // A reference the conversion rejects, such as a link outside the
         // workspace, cannot name a deployed snapshot, since every snapshot key
@@ -43,18 +47,27 @@ impl LinkedWorkspaceProject {
         let deduped_peer_resolutions = importer.dev_dependencies
             .iter()
             .flatten()
-            .filter(|(name, _)| {
-                project.peer_set
-                    .taken()
-                    .contains_key(&name.to_string())
-            })
+            .filter(|(name, _)| linked.peer_names.contains(*name))
             .filter_map(|(name, spec)| {
                 convert_importer_version_to_snapshot_ref(name, &spec.version, ctx, bases)
                     .ok()
                     .map(|reference| (name.clone(), reference))
             })
             .collect::<HashMap<_, _>>();
-        LinkedWorkspaceProject { project, deduped_peer_resolutions: Some(deduped_peer_resolutions) }
+        linked.deduped_peer_resolutions = Some(deduped_peer_resolutions);
+        linked
+    }
+
+    fn from_project(project: ProjectInfo) -> Self {
+        Self {
+            name: project.name,
+            peer_names: project.peer_set
+                .taken()
+                .keys()
+                .filter_map(|name| name.parse().ok())
+                .collect(),
+            deduped_peer_resolutions: None,
+        }
     }
 
     /// The reference `peer` binds to through the deduped resolutions, if the
@@ -124,9 +137,7 @@ fn is_peer_edge(
     child: &PkgNameVerPeer,
 ) -> bool {
     if let Some(linked) = linked_workspace_projects.get(parent) {
-        return linked.project.peer_set
-            .taken()
-            .contains_key(&alias.to_string());
+        return linked.peer_names.contains(alias);
     }
     let declares_peer = lockfile.packages
         .as_ref()
@@ -171,11 +182,10 @@ fn collect_peer_bindings(
         if !graph.snapshots.contains_key(package_key) {
             continue;
         }
-        for name in linked.project.peer_set.taken().keys() {
-            let Ok(peer) = name.parse() else { continue };
-            let site = LinkedPeer { package_key, linked, peer: &peer };
+        for peer in &linked.peer_names {
+            let site = LinkedPeer { package_key, linked, peer };
             if let Some(binding) = singleton_peer_binding(graph, &site)? {
-                bindings.push((package_key.clone(), peer, binding));
+                bindings.push((package_key.clone(), peer.clone(), binding));
             }
         }
     }
@@ -202,9 +212,7 @@ impl LinkedPeer<'_> {
         let mut versions = versions.collect::<Vec<_>>();
         versions.sort();
         DeployError::AmbiguousPeer {
-            package: self.linked.project.name
-                .clone()
-                .unwrap_or_else(|| self.package_key.to_string()),
+            package: self.linked.name.clone().unwrap_or_else(|| self.package_key.to_string()),
             peer: self.peer.to_string(),
             versions: versions.join(", "),
         }
