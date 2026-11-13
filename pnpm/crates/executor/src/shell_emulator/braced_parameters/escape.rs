@@ -13,16 +13,15 @@ pub(super) enum DoubleQuoteScope {
 
 /// Emit the sequence for a `\` inside double quotes, given `rest` starting
 /// immediately after the `\`, and return how many bytes of `rest` were consumed.
-///
-/// `deno_task_shell` does not pair `\\` inside double quotes (it leaves
-/// `was_escape` set so `"a\\"` fails to close and `"a\\$VAR"` suppresses
-/// `$VAR`). Splicing `"'\'"` keeps the entire run inside one quoted word
-/// while handing the parser a single literal backslash.
 pub(super) fn push_double_quoted_backslash(
     expanded: &mut String,
     rest: &str,
     scope: DoubleQuoteScope,
 ) -> usize {
+    // `deno_task_shell` does not pair `\\` inside double quotes (it leaves
+    // `was_escape` set so `"a\\"` fails to close and `"a\\$VAR"` suppresses
+    // `$VAR`). Splicing `"'\'"` keeps the entire run inside one quoted word
+    // while handing the parser a single literal backslash.
     if rest.starts_with("\r\n") {
         expanded.push_str("\\\r\n");
         return 2;
@@ -77,16 +76,15 @@ pub(super) fn push_unquoted_word_backslash(expanded: &mut String, rest: &str) ->
 /// Emit the sequence for an unquoted `\` in script text, given `rest` starting
 /// immediately after the `\`, updating `at_word_boundary` and returning how
 /// many bytes of `rest` were consumed.
-///
-/// `deno_task_shell` neither collapses unquoted `\\` before `$`/ordinary text
-/// nor accepts unquoted `\'`, so `\\` and `\'` are rewritten into quoted
-/// single-character segments while other `\x` pairs pass through intact
-/// without triggering quotes, comments, or expansions.
 pub(super) fn push_unquoted_script_backslash(
     expanded: &mut String,
     rest: &str,
     at_word_boundary: &mut bool,
 ) -> usize {
+    // `deno_task_shell` neither collapses unquoted `\\` before `$`/ordinary
+    // text nor accepts unquoted `\'`, so `\\` and `\'` are rewritten into
+    // quoted single-character segments while other `\x` pairs pass through
+    // intact without triggering quotes, comments, or expansions.
     if rest.starts_with("\r\n") {
         expanded.push_str("\\\r\n");
         return 2;
@@ -123,11 +121,10 @@ pub(super) fn push_unquoted_script_backslash(
 /// Append a character of an unquoted `word` that carries no meaning of its
 /// own, escaping shell operators so the parser reads them as the text POSIX
 /// says they are.
-///
-/// Parentheses are not escaped: command substitution `$(…)` is handled before
-/// reaching here, and a stray literal `(` in a `word` fails loudly at parse
-/// time rather than quietly running something.
 pub(super) fn push_bare_word_char(expanded: &mut String, character: char) {
+    // Parentheses are not escaped: command substitution `$(...)` is handled
+    // before reaching here, and a stray literal `(` in a `word` fails loudly
+    // at parse time rather than quietly running something.
     match character {
         // A newline ends a command, where POSIX only splits the word on it.
         // The character itself does not survive the split, so a space stands
@@ -149,9 +146,9 @@ pub(super) fn push_bare_word_char(expanded: &mut String, character: char) {
 }
 
 /// Quote a single character so the parser reads it as literal word text.
-/// Single quotes are the one form the parser reads as literal whatever it
-/// holds; the apostrophe itself is quoted with double quotes instead.
 fn push_single_quoted_char(expanded: &mut String, escaped: char) {
+    // Single quotes are the form the parser reads as literal whatever it holds;
+    // the apostrophe itself is quoted with double quotes instead.
     if escaped == '\'' {
         expanded.push_str(r#""'""#);
         return;

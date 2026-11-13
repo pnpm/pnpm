@@ -34,7 +34,7 @@ pub(super) fn expand(script: &str, env: &HashMap<String, String>) -> String {
     expanded
 }
 
-/// A script is free to nest `${NAME:-${NAME:-…}}` or `$(…)` as deeply as it
+/// A script is free to nest `${NAME:-${NAME:-...}}` or `$(...)` as deeply as it
 /// likes, and the rewrite follows one level per recursion, so a lifecycle
 /// script could otherwise overflow the stack and abort the process. No real
 /// script comes near this; past it an expansion is left verbatim.
@@ -135,10 +135,13 @@ enum Mode {
 
 impl Mode {
     fn is_double_quoted(self) -> bool {
-        matches!(
-            self,
-            Mode::Script(Quote::Double) | Mode::UnquotedWord(Quote::Double) | Mode::QuotedWord,
-        )
+        match self {
+            Mode::Script(Quote::Double) | Mode::UnquotedWord(Quote::Double) | Mode::QuotedWord => {
+                true
+            }
+            Mode::Script(Quote::Unquoted | Quote::Single)
+            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single) => false,
+        }
     }
 
     fn with_quote(self, quote: Quote) -> Self {
@@ -150,10 +153,9 @@ impl Mode {
     }
 
     fn double_quote_scope(self) -> DoubleQuoteScope {
-        if self == Mode::QuotedWord {
-            DoubleQuoteScope::ParameterWord
-        } else {
-            DoubleQuoteScope::Literal
+        match self {
+            Mode::QuotedWord => DoubleQuoteScope::ParameterWord,
+            Mode::Script(_) | Mode::UnquotedWord(_) => DoubleQuoteScope::Literal,
         }
     }
 }
@@ -218,10 +220,11 @@ impl Cursor<'_, '_> {
                     self.mode.double_quote_scope(),
                 );
             }
-            // Within `"${NAME:-"word"}"`, nested quotes delimit `word` and are
-            // removed by POSIX quote removal while the outer double quotes
-            // stay open across the whole expansion.
-            '"' if self.mode == Mode::QuotedWord => {}
+            // Within `"${NAME:-"word"}"`, nested quotes delimit `word` while
+            // the outer double quotes stay open across the whole expansion.
+            // Splicing `""` closes and reopens the quoted run so `$FOO` in
+            // `"${MISSING:-"$FOO"suffix}"` does not merge with `suffix`.
+            '"' if self.mode == Mode::QuotedWord => self.expanded.push_str(r#""""#),
             '"' => {
                 self.mode = self.mode.with_quote(Quote::Unquoted);
                 self.at_word_boundary = false;

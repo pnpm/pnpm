@@ -364,14 +364,17 @@ fn handles_escaped_backslashes_inside_double_quotes() {
         (r#"echo "dist\\\${OUT_DIR:-app}""#, &set, r"dist\${OUT_DIR:-app}"),
     ] {
         let (code, lines) = run(script, dir.path(), env);
+        dbg!(&lines);
         assert_eq!(code, 0, "`{script}` must exit zero");
         assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
     }
 
     let (code, _) = run(r#"mkdir -p "dist\\${OUT_DIR:-app}""#, dir.path(), &set);
     assert_eq!(code, 0);
+    let split_dir = dir.path().join("words");
+    dbg!(&split_dir, split_dir.exists());
     assert!(
-        !dir.path().join("words").exists(),
+        !split_dir.exists(),
         r"double-quoted `\\${{...}}` must stay one argument rather than splitting on spaces",
     );
 }
@@ -397,6 +400,7 @@ fn handles_unquoted_backslash_escapes_and_single_quotes() {
         (r"echo 'a\' ${OUT_DIR:-app}", r"a\ custom"),
     ] {
         let (code, lines) = run(script, dir.path(), &env);
+        dbg!(&lines);
         assert_eq!(code, 0, "`{script}` must exit zero");
         assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
     }
@@ -405,7 +409,7 @@ fn handles_unquoted_backslash_escapes_and_single_quotes() {
 #[test]
 fn handles_nested_quotes_and_escapes_inside_parameter_defaults() {
     let dir = tempdir().expect("create a temp dir");
-    let env = HashMap::new();
+    let env = HashMap::from([("FOO".to_string(), "hello".to_string())]);
 
     for (script, expected) in [
         (r#"echo ${MISSING:-"a\\"}"#, r"a\"),
@@ -414,12 +418,16 @@ fn handles_nested_quotes_and_escapes_inside_parameter_defaults() {
         (r#"echo "${MISSING:-"a\\"}""#, r"a\"),
         (r#"echo "${MISSING:-"a   b"}""#, "a   b"),
         (r#"echo "${MISSING:-"it's"}""#, "it's"),
+        (r#"echo "${MISSING:-"$FOO"suffix}""#, "hellosuffix"),
+        (r#"echo "${MISSING:-"${FOO}"suffix}""#, "hellosuffix"),
+        (r#"echo ${MISSING:-"$FOO"suffix}"#, "hellosuffix"),
         (r#"echo "${MISSING:-a\}b}""#, "a}b"),
         (r"echo ${MISSING:-'a\'}!", r"a\!"),
         (r"echo ${MISSING:-a\'b}", "a'b"),
         (r"echo ${MISSING:-a\\}", r"a\"),
     ] {
         let (code, lines) = run(script, dir.path(), &env);
+        dbg!(&lines);
         assert_eq!(code, 0, "`{script}` must exit zero");
         assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
     }
@@ -444,6 +452,7 @@ fn tracks_quotes_across_command_substitutions_and_comments() {
         ("# don't\necho ${OUT_DIR:-app}", "custom"),
     ] {
         let (code, lines) = run(script, dir.path(), &env);
+        dbg!(&lines);
         assert_eq!(code, 0, "`{script}` must exit zero");
         assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
     }

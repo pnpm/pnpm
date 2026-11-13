@@ -20,7 +20,8 @@ pub(super) fn is_name_byte(byte: u8) -> bool {
 pub(super) fn comment_end(script: &str, body_start: usize) -> usize {
     script[body_start..]
         .find(['\n', '\r'])
-        .map_or(script.len(), |offset| body_start + offset)
+        .map(|offset| body_start + offset)
+        .unwrap_or(script.len())
 }
 
 /// Byte index of the `` ` `` closing the backtick substitution at `start`, or

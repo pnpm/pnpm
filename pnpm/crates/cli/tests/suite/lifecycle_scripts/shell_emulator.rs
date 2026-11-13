@@ -168,6 +168,7 @@ fn preserves_quoting_after_escaped_backslashes_and_single_quotes() {
     let recorded: Vec<String> =
         serde_json::from_slice(&fs::read(workspace.join("args.json")).expect("read args.json"))
             .expect("parse args.json");
+    dbg!(&recorded);
     assert_eq!(recorded, vec![r"a\", "${UNSET_VAR:-expanded_by_mistake}", r"dist\app", "'", "app"]);
 
     drop((root, mock_instance));
