@@ -102,10 +102,9 @@ export function getResolvedPackage (
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
-    localLinkedDependencyAliases: new Set(
+    localLinkedDependencies: Object.fromEntries(
       Object.entries({ ...options.pkg.dependencies, ...options.pkg.optionalDependencies })
         .filter(([, specifier]) => specifier.startsWith('link:') || barePathIsUnambiguous(specifier))
-        .map(([alias]) => alias)
     ),
     name: options.pkg.name,
     optional: options.optional,

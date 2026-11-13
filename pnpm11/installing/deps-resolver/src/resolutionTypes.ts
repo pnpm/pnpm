@@ -255,7 +255,7 @@ export interface ResolvedPackage {
   resolution: Resolution
   /** Which resolver produced this package; see `detectNamedRegistryCollision`. */
   resolvedVia?: string
-  localLinkedDependencyAliases?: Set<string>
+  localLinkedDependencies?: Record<string, string>
   prod: boolean
   dev: boolean
   optional: boolean

@@ -282,8 +282,8 @@ function updateResolvedDeps ({
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          const shouldRebaseLink = parentPkg.localLinkedDependencyAliases?.has(alias) === true
-          return [alias, shouldRebaseLink ? linkedDependencyRef({ depPath, lockfileDir, parentPkg, parentDepPath }) : depPath]
+          const localSpec = parentPkg.localLinkedDependencies?.[alias]
+          return [alias, localSpec == null ? depPath : linkedDependencyRef({ depPath, lockfileDir, localSpec, parentPkg, parentDepPath })]
         }
         const depNode = depGraph[depPath]
         return [
@@ -297,9 +297,10 @@ function updateResolvedDeps ({
   )
 }
 
-function linkedDependencyRef ({ depPath, lockfileDir, parentPkg, parentDepPath }: {
+function linkedDependencyRef ({ depPath, lockfileDir, localSpec, parentPkg, parentDepPath }: {
   depPath: DepPath
   lockfileDir: string | undefined
+  localSpec: string
   parentPkg: ResolvedPackage
   parentDepPath: string
 }): string {
@@ -310,5 +311,7 @@ function linkedDependencyRef ({ depPath, lockfileDir, parentPkg, parentDepPath }
   ) return depPath
   const linkSpec = depPath.slice('link:'.length)
   if (!linkSpec.startsWith('../') && !linkSpec.startsWith('./')) return depPath
-  return createNodeIdForLinkedLocalPkg(lockfileDir, localSpecPath(linkSpec, parentPkg.resolution.directory)) as string
+  const resolvedChildPath = localSpecPath(localSpec, parentPkg.resolution.directory)
+  if (localSpecPath(depPath, lockfileDir) === resolvedChildPath) return depPath
+  return createNodeIdForLinkedLocalPkg(lockfileDir, resolvedChildPath) as string
 }
