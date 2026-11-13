@@ -3,7 +3,7 @@
 
 use super::{
     AccessList, AccessSpec, ArtifactQuotaFile, ByteSize, HostedConfig, IndexMap, RegistryError,
-    StorageAccessFile, TeamDirectory, validate_registry_name,
+    StorageAccessFile, TeamDirectory, validate_artifact_owner_name,
 };
 use crate::byte_size::parse_positive_byte_size;
 
@@ -52,7 +52,7 @@ pub(super) fn parse_storage_access(
     policies
         .into_iter()
         .map(|(name, policy)| {
-            validate_registry_name(&name)?;
+            validate_artifact_owner_name(&name)?;
             let parse = |field: &str, spec: &AccessSpec| {
                 let list = spec
                     .to_access_list_resolving(|reference| artifact_team(reference, hosted))

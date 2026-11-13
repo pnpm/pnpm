@@ -138,10 +138,14 @@ keep them in the metadata database. See
 `https://<pnpr>/npm/`, aliases. This is usually a router. When omitted, the base serves
 no registry and clients must address a `/~<name>/` URL under it.
 
-A registry name is served as the single URL path segment `/~<name>/`, so it
-must be one URL-safe segment: it cannot be empty, `.` or `..`, start with `.`,
-or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
-`~` must arrive unencoded: `%7E` does not select the named registry.
+A registry name is served as the URL path segment `/~<name>/`. It must start
+with a letter and contain only letters, digits, `.`, `_`, and `-`. It cannot be
+one of pnpm's
+[reserved prefix names](https://pnpm.io/settings/dependency-resolution#reserved-alias-names), such as
+`npm`, `git`, `github`, or `workspace`. These are the rules for a pnpm
+[registry prefix](https://pnpm.io/registries#prefix), so a registry name can be
+used as one. The `~` must arrive unencoded: `%7E` does not select the named
+registry.
 
 A registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).

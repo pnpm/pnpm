@@ -1,6 +1,6 @@
 pub(super) use namespace::{
-    ecosystem_package_keys, namespace_collision_error, validate_namespace, validate_registry_key,
-    validate_registry_name,
+    ecosystem_package_keys, namespace_collision_error, validate_artifact_owner_name,
+    validate_namespace, validate_registry_key, validate_registry_name,
 };
 
 mod namespace;
