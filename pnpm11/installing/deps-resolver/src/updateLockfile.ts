@@ -101,7 +101,7 @@ function toLockfileDependency (
   if (shouldRecordVersion(pkg.version, { depPath: opts.depPath, registryName: opts.registryName, lockfileResolution })) {
     result['version'] = pkg.version
   }
-  addChildDependencies(result, opts, lockfileResolution)
+  addChildDependencies(result, opts, pkg.resolution)
   if (pkg.optional) {
     result['optional'] = true
   }
@@ -131,7 +131,7 @@ function addChildDependencies (
     depGraph: DependenciesGraph
     lockfileDir?: string
   },
-  parentResolution: LockfileResolution
+  parentResolution: ResolvedPackage['resolution']
 ): void {
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
@@ -277,7 +277,7 @@ function updateResolvedDeps (
   updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph,
   lockfileDir: string | undefined,
-  parentResolution: LockfileResolution
+  parentResolution: ResolvedPackage['resolution']
 ): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
@@ -301,7 +301,7 @@ function getLinkedPackageRef (
   depPath: DepPath,
   depGraph: DependenciesGraph,
   lockfileDir: string | undefined,
-  parentResolution: LockfileResolution
+  parentResolution: ResolvedPackage['resolution']
 ): string {
   if (lockfileDir == null) return depPath
   const linkSpec = depPath.slice(5)
