@@ -94,7 +94,7 @@ function getPackagesToLink (
 }
 
 function hasBinsToLink (node: DependenciesGraphNode, dependenciesGraph: DependenciesGraph, optional: boolean): boolean {
-  return node.hasBin || Object.entries(node.children).some(([alias, childDepPath]) =>
+  return node.hasBin || node.hasBundledDependencies || Object.entries(node.children).some(([alias, childDepPath]) =>
     (optional || !node.optionalDependencies.has(alias)) && dependenciesGraph[childDepPath]?.hasBin
   )
 }
