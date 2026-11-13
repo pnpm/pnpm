@@ -298,12 +298,18 @@ export async function handler (
 
 function validatePnpmHomeDir (pnpmHomeDir: string): void {
   const unsafeCharacters = process.platform === 'win32' ? ';%\n\r' : ':\n\r\0'
-  const character = [...pnpmHomeDir].find(character => unsafeCharacters.includes(character))
-  if (character == null) return
+  const unsafeCharacter = [...pnpmHomeDir].find(character => unsafeCharacters.includes(character))
+  if (unsafeCharacter == null) return
   throw new PnpmError(
     'INVALID_PNPM_HOME',
-    `The pnpm home directory "${pnpmHomeDir}" contains a character (${JSON.stringify(character)}) that is unsafe for the PATH`
+    `The pnpm home directory "${pnpmHomeDir}" contains a character ('${CONTROL_CHARACTER_ESCAPES[unsafeCharacter] ?? unsafeCharacter}') that is unsafe for the PATH`
   )
+}
+
+const CONTROL_CHARACTER_ESCAPES: Record<string, string> = {
+  '\n': '\\n',
+  '\r': '\\r',
+  '\0': '\\0',
 }
 
 /**
