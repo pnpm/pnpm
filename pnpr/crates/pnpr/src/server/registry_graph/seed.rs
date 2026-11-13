@@ -44,3 +44,6 @@ pub(crate) async fn seed_default_graph(storage: &Storage) -> Result<(), Registry
 fn default_graph() -> Result<RegistryGraphDocument, RegistryError> {
     RegistryGraphDocument::from_yaml(DEFAULT_REGISTRIES_YAML)
 }
+
+#[cfg(test)]
+mod tests;

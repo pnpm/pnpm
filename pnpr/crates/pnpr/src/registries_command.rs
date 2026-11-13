@@ -34,9 +34,7 @@ pub(crate) async fn run(config: &Config, action: RegistriesSubcommand) -> miette
     };
     match result {
         Ok(Imported::Done) => Ok(()),
-        Ok(Imported::Differs) => {
-            Err(miette::miette!("the stored registries differ from the file",))
-        }
+        Ok(Imported::Differs) => Err(miette::miette!("the stored registries differ from the file")),
         Err(err) => {
             let message = err.log_message();
             Err(miette::miette!("{message}"))

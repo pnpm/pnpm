@@ -954,6 +954,44 @@ async fn a_registry_admin_repairs_a_graph_the_replica_cannot_serve() {
 }
 
 #[tokio::test]
+async fn import_check_exits_with_code_1_while_the_file_differs() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let exported = dir.path().join("registries.yaml");
+    let export = pnpr::RegistriesSubcommand::Export { out: Some(exported.clone()) };
+    pnpr::run_command(&config, pnpr::Command::Registries { action: export })
+        .await
+        .unwrap();
+    let check = |file: &Path| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_pnpr"))
+            .arg("--config")
+            .arg(config_path(dir.path()))
+            .args(["registries", "import", "--check"])
+            .arg(file)
+            .env_remove("PNPR_CONFIG")
+            .output()
+            .unwrap()
+    };
+    let same = check(&exported);
+    assert_eq!(same.status.code(), Some(0), "{same:?}");
+    let stdout = String::from_utf8_lossy(&same.stdout);
+    assert_eq!(stdout.lines().last(), Some("Version 1 already holds these registries."));
+
+    let changed = dir.path().join("changed.yaml");
+    let yaml = std::fs::read_to_string(&exported).unwrap();
+    std::fs::write(&changed, yaml.replace("main", "primary")).unwrap();
+    let drift = check(&changed);
+    assert_eq!(drift.status.code(), Some(1), "{drift:?}");
+    let stdout = String::from_utf8_lossy(&drift.stdout);
+    let report = "Would change: added primary; removed main; changed defaultRegistry";
+    assert_eq!(stdout.lines().last(), Some(report));
+    let stderr = String::from_utf8_lossy(&drift.stderr);
+    assert!(stderr.contains("the stored registries differ from the file"), "{stderr}");
+    let storage = Storage::from_config(&config.storage).unwrap();
+    assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(1));
+}
+
+#[tokio::test]
 async fn an_exported_graph_imports_as_no_change() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path()).await;
