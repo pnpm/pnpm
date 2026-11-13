@@ -378,3 +378,19 @@ fn a_signature_belongs_to_its_item_through_generics_foreign_blocks_and_static_mu
     let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
     assert_eq!(leaked, ["base::Foreign", "base::Request", "base::Value"]);
 }
+
+#[test]
+fn an_owner_named_through_a_reexport_or_a_raw_identifier_keeps_its_leaks() {
+    let lib = concat!(
+        "mod hidden;\n",
+        "pub use hidden::{Config, r#mut};\n",
+        "impl crate::Config { pub fn make(_: base::Input) {} }\n",
+    );
+    let hidden = concat!(
+        "pub struct Config;\n",
+        "struct Private;\n",
+        "pub static r#mut: base::Value = base::Value;\n",
+    );
+    let leaked = leaked_items(&[("api/src/lib.rs", lib), ("api/src/hidden.rs", hidden)]);
+    assert_eq!(leaked, ["base::Input", "base::Value"]);
+}

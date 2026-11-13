@@ -38,11 +38,10 @@ pub fn item_header(tokens: &[Token], pos: usize) -> Option<ItemHeader> {
     if !NAMED_ITEM_KEYWORDS.contains(&keyword.as_str()) {
         return None;
     }
-    let name_at = if keyword == "static" && is_ident(tokens.get(item + 1), "mut") {
-        item + 2
-    } else {
-        item + 1
-    };
+    let is_static_mut = keyword == "static"
+        && is_ident(tokens.get(item + 1), "mut")
+        && matches!(tokens.get(item + 2), Some(Token::Ident(_)));
+    let name_at = if is_static_mut { item + 2 } else { item + 1 };
     let Some(Token::Ident(name)) = tokens.get(name_at) else { return None };
     let is_public = after_visibility == pos + 1;
     Some(ItemHeader::Named { name: name.clone(), is_public })

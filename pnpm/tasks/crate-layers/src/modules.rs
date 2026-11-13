@@ -62,7 +62,7 @@ impl CrateModules {
         for root in ["src/lib.rs", "src/main.rs"] {
             let file = format!("{dir}/{root}");
             if let Some(source) = tree.read(&file)? {
-                crate_modules.visit(tree, (Vec::new(), true), &file, &source)?;
+                crate_modules.visit(tree, Declared::root(), &file, &source)?;
                 break;
             }
         }
@@ -72,7 +72,7 @@ impl CrateModules {
     fn visit(
         &mut self,
         tree: &dyn Tree,
-        (path, is_public): (ModulePath, bool),
+        Declared { path, is_public }: Declared,
         file: &str,
         source: &str,
     ) -> Result<(), String> {
@@ -86,7 +86,8 @@ impl CrateModules {
             })?;
             let mut child_path = path.clone();
             child_path.push(child.name.clone());
-            self.visit(tree, (child_path, child.is_public), &child_file, &child_source)?;
+            let declared = Declared { path: child_path, is_public: child.is_public };
+            self.visit(tree, declared, &child_file, &child_source)?;
         }
         let module = Module {
             is_public,
@@ -206,6 +207,19 @@ struct Scan {
     children: Vec<Child>,
     imports: Vec<UsePath>,
     references: Vec<Vec<String>>,
+}
+
+/// A module about to be read, as its parent declares it.
+struct Declared {
+    path: ModulePath,
+    is_public: bool,
+}
+
+impl Declared {
+    /// The crate root, which every caller of the crate reaches.
+    const fn root() -> Self {
+        Self { path: Vec::new(), is_public: true }
+    }
 }
 
 /// A `mod name;` declaration.

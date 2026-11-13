@@ -9,6 +9,9 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// How many `pub use` items an owner's name is followed through.
+const MAX_REEXPORT_DEPTH: u8 = 4;
+
 /// A module of the crate, read from its own file or inline in another.
 pub struct Scope<'surface> {
     /// Whether the parent declares it `pub mod`.
@@ -124,13 +127,15 @@ impl Exported {
         let Some(owner_module) = resolve_module(scopes, module, prefix) else {
             return self.modules.contains(module);
         };
+        let Some(owner) = declaration(scopes, owner_module, name.clone()) else {
+            return false;
+        };
         let is_public_item = || {
             scopes
-                .get(&owner_module)
-                .is_some_and(|scope| scope.surface.public_items.contains(name))
+                .get(&owner.0)
+                .is_some_and(|scope| scope.surface.public_items.contains(&owner.1))
         };
-        self.items.contains(&(owner_module.clone(), name.clone()))
-            || self.modules.contains(&owner_module) && is_public_item()
+        self.items.contains(&owner) || self.modules.contains(&owner.0) && is_public_item()
     }
 
     /// Whether `reexport`, a `pub use` in `module`, is reachable from outside
@@ -143,6 +148,31 @@ impl Exported {
         };
         self.modules.contains(module) || named()
     }
+}
+
+/// The module that declares the item `name` of `module`, and its name there,
+/// following the `pub use` items that bind it.
+fn declaration(
+    scopes: &BTreeMap<ModulePath, Scope<'_>>,
+    mut module: ModulePath,
+    mut name: String,
+) -> Option<(ModulePath, String)> {
+    for _ in 0..MAX_REEXPORT_DEPTH {
+        let surface = scopes.get(&module)?.surface;
+        if surface.public_items.contains(&name) {
+            break;
+        }
+        let reexport = surface.reexported
+            .iter()
+            .find(|reexport| reexport.binding.as_ref() == Some(&name));
+        let Some(Export::Item(next_module, next_name)) =
+            reexport.and_then(|reexport| target(scopes, &module, reexport))
+        else {
+            break;
+        };
+        (module, name) = (next_module, next_name);
+    }
+    Some((module, name))
 }
 
 /// What the `pub use` `reexport` in `from` makes reachable, if it points into
