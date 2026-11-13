@@ -162,8 +162,10 @@ pub struct LockedResolution {
     /// reverse index that locked-peer-provider reuse looks providers
     /// up by. `None` for fresh resolutions.
     pub previous_dep_path: Option<DepPath>,
-    /// `peer name → provider DepPath` bindings the wanted lockfile
-    /// recorded for this package's snapshot. A second peer-resolution
+    /// `peer name → provider DepPath` candidates from the wanted snapshot.
+    /// Unrecorded hashed suffixes admit every declared peer edge; the
+    /// current manifest and provider scope decide which candidates bind.
+    /// A second peer-resolution
     /// pass ([`crate::PeerResolutionScope::resolved_peer_provider_paths`])
     /// re-pins a still-compatible locked provider so re-installs keep
     /// the provider choice stable.

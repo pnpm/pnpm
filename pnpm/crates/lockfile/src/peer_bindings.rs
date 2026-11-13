@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::PkgNameVerPeer;
+use crate::{LockfileEntries, PkgNameVerPeer};
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
 
 /// Providers recorded before a snapshot's peer suffix was hashed.
@@ -73,6 +73,24 @@ impl BoundProviders {
             Some(bindings) => Self::of(&bindings),
             None => Self::from_providers([]),
         }
+    }
+
+    /// The providers named by `key` or recorded for that exact snapshot key.
+    /// An unrecorded hashed suffix stays opaque.
+    #[must_use]
+    pub fn from_recorded_snapshot(entries: LockfileEntries<'_>, key: &PkgNameVerPeer) -> Self {
+        let providers = Self::from_key(key);
+        if !providers.is_hashed() {
+            return providers;
+        }
+        if let Some(providers) = entries.snapshots
+            .and_then(|snapshots| snapshots.get(key))
+            .and_then(|snapshot| snapshot.recorded_peer_bindings.as_ref())
+            .and_then(|bindings| bindings.providers_for(key))
+        {
+            return providers.clone();
+        }
+        providers
     }
 
     /// The providers `bindings` name.
