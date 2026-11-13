@@ -362,9 +362,9 @@ pub fn default_fetch_min_speed_ki_bps() -> u64 {
 
 /// Returns the shared `maxTarballUnpackedSize` default in bytes.
 ///
-/// See [`pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
+/// See [`pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
 pub fn default_max_tarball_unpacked_size() -> u64 {
-    pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
+    pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
 }
 
 /// Default `User-Agent`, in the format
