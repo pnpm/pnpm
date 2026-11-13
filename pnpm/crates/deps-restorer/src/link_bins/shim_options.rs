@@ -1,4 +1,4 @@
-use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_cmd_shim::{BinLinkMode, LinkBinsOptions};
 use pnpm_config::{Config, NodeLinker};
 use std::path::Path;
 
@@ -19,7 +19,7 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
         installed_modules_dir: (config.modules_dir_name() != "node_modules").then(|| {
             config.modules_dir.clone()
         }),
-        read_only: false,
+        mode: BinLinkMode::Write,
         store_frozen: config.frozen_store,
     }
 }

@@ -1,5 +1,12 @@
 use std::{ffi::OsString, path::PathBuf};
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum BinLinkMode {
+    #[default]
+    Write,
+    Verify,
+}
+
 /// Options shared by every bin one linking call writes — pnpm's
 /// `LinkBinOptions`.
 #[derive(Debug, Default, Clone)]
@@ -30,6 +37,6 @@ pub struct LinkBinsOptions {
     /// hoisted linker. Bin targets inside it get their executable bits the
     /// way targets under `node_modules` do.
     pub installed_modules_dir: Option<PathBuf>,
-    pub read_only: bool,
+    pub mode: BinLinkMode,
     pub store_frozen: bool,
 }

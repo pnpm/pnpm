@@ -1,5 +1,5 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
+    Arc, BinLinkMode, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
 };
 #[cfg(unix)]
@@ -77,7 +77,7 @@ fn frozen_relink_accepts_a_node_symlink_without_reading_binary_contents() {
     link_bins_of_packages::<Host>(
         &[package],
         &bins_dir,
-        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
     )
     .unwrap();
 }
@@ -105,7 +105,7 @@ fn frozen_relink_accepts_a_preferred_executable_symlink_without_reading_binary_c
     link_bins_of_packages::<Host>(
         &[package],
         &bins_dir,
-        &LinkBinsOptions { read_only: true, ..options },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..options },
     )
     .unwrap();
 }
@@ -134,7 +134,7 @@ fn frozen_relink_rejects_a_stale_node_shim_without_replacing_it() {
     let result = link_bins_of_packages::<Host>(
         &[package],
         &bins_dir,
-        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
     );
 
     assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
@@ -162,7 +162,7 @@ fn frozen_relink_does_not_create_a_missing_bin_directory() {
     let result = link_bins_of_packages::<Host>(
         &[package],
         &bins_dir,
-        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
     );
 
     assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
@@ -193,11 +193,34 @@ fn frozen_relink_does_not_remove_bins_waiting_for_a_build() {
     let result = link_bins_of_packages::<Host>(
         &[package],
         &bins_dir,
-        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
     );
 
     assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));
     assert_eq!(read_to_string(stale_shim).unwrap(), "stale shim");
+}
+
+#[test]
+fn frozen_relink_skips_bins_waiting_for_a_build_when_no_shim_exists() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    let package_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&package_dir).unwrap();
+    let package = PackageBinSource::new(
+        package_dir,
+        Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": {"foo": "generated.js"}})),
+    )
+    .with_build_pending(true);
+
+    link_bins_of_packages::<Host>(
+        &[package],
+        &bins_dir,
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+
+    assert!(!bins_dir.join("foo").exists());
 }
 
 #[cfg(unix)]
@@ -239,7 +262,7 @@ fn preferred_executable_relinks_a_shim_with_stale_node_path() {
     let result = link_bins_of_packages::<Host>(
         std::slice::from_ref(&package),
         &bins_dir,
-        &LinkBinsOptions { read_only: true, ..preferred_options.clone() },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..preferred_options.clone() },
     );
 
     assert!(matches!(result, Err(LinkBinsError::FrozenStoreWrite { .. })));

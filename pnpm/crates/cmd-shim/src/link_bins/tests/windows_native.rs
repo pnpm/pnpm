@@ -1,6 +1,8 @@
 use crate::{
     capabilities::Host,
-    link_bins::{LinkBinsOptions, PackageBinSource, link_bins_of_packages, remove_bin},
+    link_bins::{
+        BinLinkMode, LinkBinsOptions, PackageBinSource, link_bins_of_packages, remove_bin,
+    },
     shim::is_shim_pointing_at,
 };
 use pnpm_fs::test_support::with_retry_observer;
@@ -152,10 +154,37 @@ fn frozen_relink_accepts_a_current_node_exe_without_a_canonical_shim() {
     link_bins_of_packages::<Host>(
         &packages,
         &bins,
-        &LinkBinsOptions { read_only: true, ..LinkBinsOptions::default() },
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
     )
     .unwrap();
 
     assert_eq!(fs::read_to_string(bins.join("node.exe")).unwrap(), "node binary");
     assert!(!bins.join("node").exists());
+}
+
+#[test]
+fn frozen_relink_accepts_a_current_node_script_wrapper() {
+    let root = tempdir().unwrap();
+    let package = root.path().join("node");
+    fs::create_dir(&package).unwrap();
+    let target = package.join("bin/node");
+    fs::create_dir(target.parent().unwrap()).unwrap();
+    fs::write(&target, "#!/usr/bin/env node\nconsole.log(1)\n").unwrap();
+    let bins = root.path().join(".bin");
+    fs::create_dir(&bins).unwrap();
+    let packages = [PackageBinSource::new(
+        package,
+        Arc::new(json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}})),
+    )];
+
+    link_bins_of_packages::<Host>(&packages, &bins, &LinkBinsOptions::default()).unwrap();
+    link_bins_of_packages::<Host>(
+        &packages,
+        &bins,
+        &LinkBinsOptions { mode: BinLinkMode::Verify, ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+
+    assert!(bins.join("node").exists());
+    assert!(bins.join("node.cmd").exists());
 }

@@ -1,4 +1,7 @@
-use super::{FsReadHead, LinkBinsError, ShimSpec, symlink_already_points_at, target_requires_shim};
+use super::{
+    BinLinkMode, FsReadHead, LinkBinsError, ShimSpec, symlink_already_points_at,
+    target_requires_shim,
+};
 #[cfg(windows)]
 use super::{executable::is_same_file, is_node_bin_name, shim_writer::with_extension_appended};
 use std::path::Path;
@@ -19,7 +22,7 @@ where
         && is_same_file(&with_extension_appended(spec.shim_path, "exe"), spec.target_path);
     #[cfg(not(windows))]
     let current_windows_node_executable = false;
-    if !spec.options.read_only
+    if spec.options.mode != BinLinkMode::Verify
         || spec.options.force
         || !(symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
             || current_windows_node_executable)

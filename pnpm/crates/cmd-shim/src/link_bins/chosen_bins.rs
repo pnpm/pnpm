@@ -1,10 +1,12 @@
 use super::{
-    DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimSpec,
-    ShimTargetCache, WindowsShimPolicy,
-    linking_paths::{LinkingPaths, remove_bins_awaiting_target, shim_node_path, target_probe_path},
+    BinLinkMode, DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadHead,
+    FsReadToString, FsSetExecutable, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource,
+    ShimSpec, ShimTargetCache, WindowsShimPolicy,
+    linking_paths::{
+        LinkingPaths, awaits_target, remove_bins_awaiting_target, shim_node_path, target_probe_path,
+    },
     package_name,
-    shim_writer::write_shim,
+    shim_writer::{with_extension_appended, write_shim},
 };
 use crate::bin_resolver::Command;
 use rayon::prelude::*;
@@ -43,7 +45,7 @@ fn prepare_bin_dir<Sys>(
 where
     Sys: FsReadDir + FsCreateDirAll,
 {
-    if options.read_only {
+    if options.mode == BinLinkMode::Verify {
         match Sys::read_dir(bins_dir) {
             Ok(entries) => {
                 drop(entries);
@@ -69,21 +71,39 @@ fn select_bins_to_link<'packages, Sys>(
 where
     Sys: FsReadHead,
 {
-    if options.read_only {
-        let pending = chosen
-            .iter()
-            .find(|(command, pkg)| {
-                super::linking_paths::awaits_target::<Sys>(pkg, bins_dir, command)
-            });
-        if let Some((command, _)) = pending {
-            return Err(LinkBinsError::FrozenStoreWrite {
-                path: paths.bins_dir.join(&command.name),
-            });
-        }
-        Ok(chosen)
-    } else {
-        remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)
+    if options.mode != BinLinkMode::Verify {
+        return remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir);
     }
+    let (awaiting, to_link): (Vec<_>, Vec<_>) =
+        chosen.into_iter().partition(|(command, pkg)| awaits_target::<Sys>(pkg, bins_dir, command));
+    for (command, _) in awaiting {
+        let shim_path = paths.bins_dir.join(&command.name);
+        if bin_shim_exists::<Sys>(&shim_path)? {
+            return Err(LinkBinsError::FrozenStoreWrite { path: shim_path });
+        }
+    }
+    Ok(to_link)
+}
+
+fn bin_shim_exists<Sys: FsReadHead>(shim_path: &Path) -> Result<bool, LinkBinsError> {
+    let mut paths = vec![shim_path.to_path_buf()];
+    if cfg!(windows) {
+        paths.extend(["cmd", "ps1", "exe"].map(|extension| {
+            with_extension_appended(shim_path, extension)
+        }));
+    }
+    for path in paths {
+        match Sys::read_head(&path, 0, &mut []) {
+            Ok(_) => return Ok(true),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                ) => {}
+            Err(error) => return Err(LinkBinsError::ProbeShimSource { path, error }),
+        }
+    }
+    Ok(false)
 }
 
 fn link_selected_bins<Sys>(

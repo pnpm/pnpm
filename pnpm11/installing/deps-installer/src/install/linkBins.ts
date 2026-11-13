@@ -42,8 +42,8 @@ export interface BuiltBinContext {
 }
 
 /**
- * Links the bins of the newly added packages into their dependents, and the
- * bins of each project's direct dependencies into the project.
+ * Links dependency package bins into their dependents, and each project's
+ * direct dependency bins into the project.
  */
 export async function linkBinsOfResolvedProjects (step: LinkContext, built: BuiltBinContext): Promise<void> {
   const { ctx, opts, projects, resolution } = step

@@ -16,9 +16,10 @@ use crate::{PackageBins, PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages_cached,
+    BinLinkMode, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
+    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions,
+    PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir,
+    link_bins_of_packages_cached,
 };
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
@@ -137,7 +138,8 @@ impl LinkVirtualStoreBins<'_> {
         let link_options = if self.layout.enable_global_virtual_store() {
             let mut options = self.link_options.clone();
             options.extra_node_paths.clear();
-            options.read_only = options.store_frozen;
+            options.mode =
+                if options.store_frozen { BinLinkMode::Verify } else { BinLinkMode::Write };
             Cow::Owned(options)
         } else {
             Cow::Borrowed(self.link_options)
