@@ -43,7 +43,11 @@ impl LinkedWorkspaceProject {
         let deduped_peer_resolutions = importer.dev_dependencies
             .iter()
             .flatten()
-            .filter(|(name, _)| project.peer_dependencies.contains(name))
+            .filter(|(name, _)| {
+                project.peer_set
+                    .taken()
+                    .contains_key(&name.to_string())
+            })
             .filter_map(|(name, spec)| {
                 convert_importer_version_to_snapshot_ref(name, &spec.version, ctx, bases)
                     .ok()
@@ -120,8 +124,9 @@ fn is_peer_edge(
     child: &PkgNameVerPeer,
 ) -> bool {
     if let Some(linked) = linked_workspace_projects.get(parent) {
-        return linked.project.peer_dependencies.contains(alias)
-            && !linked.project.declared_dependencies.contains(alias);
+        return linked.project.peer_set
+            .taken()
+            .contains_key(&alias.to_string());
     }
     let declares_peer = lockfile.packages
         .as_ref()
@@ -166,10 +171,11 @@ fn collect_peer_bindings(
         if !graph.snapshots.contains_key(package_key) {
             continue;
         }
-        for peer in &linked.project.peer_dependencies {
-            let site = LinkedPeer { package_key, linked, peer };
+        for name in linked.project.peer_set.taken().keys() {
+            let Ok(peer) = name.parse() else { continue };
+            let site = LinkedPeer { package_key, linked, peer: &peer };
             if let Some(binding) = singleton_peer_binding(graph, &site)? {
-                bindings.push((package_key.clone(), peer.clone(), binding));
+                bindings.push((package_key.clone(), peer, binding));
             }
         }
     }
@@ -184,22 +190,12 @@ struct LinkedPeer<'a> {
 }
 
 impl LinkedPeer<'_> {
-    /// Whether the package already binds the peer, or declares it as a
-    /// dependency.
-    ///
-    /// Either map already binding the peer counts: re-binding one the package
-    /// declares as an optional dependency would copy it into the required map
-    /// and quietly promote it. The graph prune clears the optional map before
-    /// this runs, so a peer the package depends on optionally is invisible in
-    /// the snapshot under `--no-optional`. Binding it there would resurrect a
-    /// dependency the flag excluded.
     fn is_bound(&self, graph: &DeployedGraph<'_>) -> bool {
-        self.linked.project.declared_dependencies.contains(self.peer)
-            || graph.snapshots
-                .get(self.package_key)
-                .is_some_and(|snapshot| {
-                    snapshot_dependencies(snapshot).any(|(alias, _)| alias == self.peer)
-                })
+        graph.snapshots
+            .get(self.package_key)
+            .is_some_and(|snapshot| {
+                snapshot_dependencies(snapshot).any(|(alias, _)| alias == self.peer)
+            })
     }
 
     fn ambiguous(&self, versions: impl Iterator<Item = String>) -> miette::Report {

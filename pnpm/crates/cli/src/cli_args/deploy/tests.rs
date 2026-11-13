@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
 };
 #[cfg(unix)]
@@ -147,9 +147,7 @@ fn create_file_url_key_prefers_workspace_project_name() {
             linked_publish_dir: None,
             name: Some("workspace-name".to_string()),
             has_bin: false,
-            peer_dependencies: Vec::new(),
-            peer_blocks: (None, None),
-            declared_dependencies: HashSet::default(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
         },
     );
     let lockfile_name = "lockfile-name".parse().expect("parse package name");

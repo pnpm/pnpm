@@ -181,9 +181,10 @@ fn an_unshadowed_own_dependency_declared_as_a_peer_remains_a_parent_edge() {
                 linked_publish_dir: None,
                 name: Some("lib".to_string()),
                 has_bin: false,
-                peer_dependencies: vec![peer.clone()],
-                peer_blocks: (None, None),
-                declared_dependencies: std::collections::HashSet::new(),
+                peer_set: pnpm_resolving_deps_resolver::PeerSet::from_manifest(
+                    &serde_json::json!({"peerDependencies": {"peer": "*"}}),
+                    |_| false,
+                ),
             },
             deduped_peer_resolutions: None,
         },
@@ -196,4 +197,51 @@ fn an_unshadowed_own_dependency_declared_as_a_peer_remains_a_parent_edge() {
         .unwrap()
         .get(&peer);
     assert_eq!(bound, Some(&reference("1.0.1")));
+}
+
+#[test]
+fn linked_projects_bind_optional_peers_declared_only_in_metadata() {
+    use pnpm_package_manifest::PackageManifest;
+    use pnpm_workspace::Project;
+    use serde_json::json;
+    let root_dir = std::path::PathBuf::from("/workspace/packages/lib");
+    let project = Project {
+        manifest: PackageManifest::from_value(
+            root_dir.join("package.json"),
+            json!({
+                "name": "lib", "version": "1.0.0",
+                "peerDependenciesMeta": { "peer": { "optional": true } },
+            }),
+        ),
+        root_dir,
+        dependency_manifest: None,
+    };
+    let project = crate::cli_args::deploy::index_projects(&[project])
+        .into_values()
+        .next()
+        .unwrap();
+    let lib_key = key("lib@file:lib");
+    let mut lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").unwrap();
+    lockfile.importers.insert(
+        ".".to_string(),
+        serde_json::from_value(json!({
+            "dependencies": {
+                "lib": { "specifier": "file:lib", "version": "file:lib" },
+                "peer": { "specifier": "1.0.0", "version": "1.0.0" },
+            },
+        }))
+        .unwrap(),
+    );
+    lockfile.snapshots =
+        Some(HashMap::from([(lib_key.clone(), snapshot(&[])), (key("peer@1.0.0"), snapshot(&[]))]));
+    let linked = HashMap::from([(
+        lib_key.clone(),
+        super::super::LinkedWorkspaceProject { project, deduped_peer_resolutions: None },
+    )]);
+    super::super::bind_singleton_peers(&mut lockfile, &linked).unwrap();
+    let bound = lockfile.snapshots.as_ref().unwrap()[&lib_key].dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&"peer".parse().unwrap()));
+    assert_eq!(bound, Some(&reference("1.0.0")));
 }

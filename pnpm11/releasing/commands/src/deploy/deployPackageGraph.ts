@@ -1,5 +1,6 @@
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import { getPeerSet } from '@pnpm/installing.deps-resolver'
 import {
   isPeerSatisfactionEdge,
   type PeerSatisfactionEdges,
@@ -151,12 +152,7 @@ interface BindPeersContext {
 
 function bindPeersOfLinkedProject (snapshot: PackageSnapshot, ctx: BindPeersContext): void {
   const { manifest } = ctx.linkedProject
-  for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
-    // Consult the manifest, not just the snapshot: the graph prune clears the
-    // optional map before this runs, so a peer the package depends on
-    // optionally is invisible in the snapshot under `--no-optional`, and
-    // binding it there would resurrect a dependency the flag excluded.
-    if (declaresDependency(manifest, peerName)) continue
+  for (const peerName of Object.keys(getPeerSet(manifest).taken)) {
     if (declaresDependency(snapshot, peerName)) continue
     const reference = pickPeerReference(peerName, ctx)
     if (reference == null) continue
@@ -302,8 +298,8 @@ function createPeerEdgeMatcher (
   manifest: ProjectManifest | undefined
 ): (alias: string, child: DepPath) => boolean {
   if (manifest != null) {
-    const peers = manifest.peerDependencies ?? {}
-    return alias => Object.hasOwn(peers, alias) && !declaresDependency(manifest, alias)
+    const peers = getPeerSet(manifest).taken
+    return alias => Object.hasOwn(peers, alias)
   }
   const peers = snapshot.peerDependencies
   if (peers == null) return () => false

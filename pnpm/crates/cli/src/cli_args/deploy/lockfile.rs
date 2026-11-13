@@ -36,19 +36,6 @@ pub(super) enum ReferenceLocation {
     Deploy,
 }
 
-pub(super) fn manifest_dependency_names(
-    manifest: &PackageManifest,
-    groups: &[&str],
-) -> Vec<PkgName> {
-    groups
-        .iter()
-        .filter_map(|group| manifest.value().get(group))
-        .filter_map(Value::as_object)
-        .flat_map(|dependencies| dependencies.keys())
-        .filter_map(|name| name.parse().ok())
-        .collect()
-}
-
 pub(super) fn create_deploy_files(
     lockfile: &Lockfile,
     selected: &SelectedProject,
@@ -249,7 +236,9 @@ fn workspace_project_package_metadata(
 ) -> PackageMetadata {
     let (peer_dependencies, peer_dependencies_meta) = selected
         .project_info(project_root)
-        .map(|project| project.peer_blocks.clone())
+        .map(|project| {
+            pnpm_resolving_deps_resolver::lockfile_peer_blocks(project.peer_set.declared())
+        })
         .unwrap_or_default();
     PackageMetadata {
         specifiers: None,
