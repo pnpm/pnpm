@@ -201,7 +201,7 @@ pub(crate) struct SeededImporter {
     importer_id: String,
     ctx: TreeCtx,
     seeds: DirectSeeds,
-    locked: LockedPeers,
+    retained: HashSet<pnpm_lockfile::PkgName>,
     settings: HoistSettings,
 }
 
@@ -219,9 +219,19 @@ impl SeededImporter {
     {
         let seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
         let (ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
-        let locked = LockedPeers::of(&ctx, importer_id, &seeds.initial_wanted);
+        let retained = ctx
+            .workspace()
+            .wanted_lockfile()
+            .map(|lockfile| {
+                locked_peers::retained_dependency_names(
+                    lockfile,
+                    importer_id,
+                    &seeds.initial_wanted,
+                )
+            })
+            .unwrap_or_default();
         record_changed_direct_deps(&ctx, importer_id, &seeds.initial_wanted);
-        Ok(Self { importer_id: importer_id.to_string(), ctx, seeds, locked, settings })
+        Ok(Self { importer_id: importer_id.to_string(), ctx, seeds, retained, settings })
     }
 
     pub(crate) async fn seed_changed_direct<Chain>(
@@ -266,12 +276,13 @@ impl SeededImporter {
         .await?;
         self.seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         self.ctx.resolve_new_direct_deps_as_subdeps();
+        let locked = LockedPeers::from_resolved(&self.ctx, &self.importer_id, &self.retained);
         Ok(ImporterHoistState::assemble(
             &self.importer_id,
             self.ctx,
             direct,
             self.seeds,
-            self.locked,
+            locked,
             self.settings,
         ))
     }

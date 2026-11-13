@@ -1,4 +1,4 @@
-use super::{locked_peers::importer_locked_peer_versions, missing_peers::merge_ranges};
+use super::{locked_peers::test_utils::importer_locked_peer_versions, missing_peers::merge_ranges};
 mod workspace_links;
 
 mod resolution_order;

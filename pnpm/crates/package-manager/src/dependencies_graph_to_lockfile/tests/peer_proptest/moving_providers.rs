@@ -1177,3 +1177,121 @@ fn adding_a_direct_provider_keeps_injected_peer_bindings_stable() {
     )
     .unwrap();
 }
+
+#[test]
+fn new_parent_keeps_optional_provider_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Major(1),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 1, major: 2 }, Edge { target: 0, major: 2 }],
+                    peers: vec![],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 2 }], vec![Edge { target: 1, major: 1 }]],
+    };
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        for peers_suffix_max_length in [1, 1000] {
+            check_changes(
+                workspace.clone(),
+                Settings {
+                    auto_install_peers: false,
+                    peers_suffix_max_length,
+                    format,
+                    ..Default::default()
+                },
+                vec![DependencyChange { importer: 0, target: 2, major: Some(1) }],
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn removing_injected_root_preserves_nested_cycle_context() {
+    use model::{
+        Edge, PackageVersion, Peer,
+        PeerRange::{Any, Major},
+        Settings, Workspace,
+    };
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let peer = |target, range, optional, also_dependency| Peer {
+        target,
+        range,
+        optional,
+        also_dependency,
+    };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 2 }],
+                    peers: vec![peer(1, Major(1), false, false)],
+                },
+                PackageVersion {
+                    dependencies: vec![Edge { target: 1, major: 1 }, Edge { target: 2, major: 1 }],
+                    peers: vec![],
+                },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 3, major: 2 }],
+                    peers: vec![peer(2, Any, true, false)],
+                },
+                leaf(),
+            ],
+            vec![
+                leaf(),
+                PackageVersion { dependencies: vec![], peers: vec![peer(0, Major(2), true, true)] },
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![peer(0, Major(2), false, false)],
+                },
+            ],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 1 }]],
+    };
+    check_changes(
+        workspace,
+        Settings {
+            peers_suffix_max_length: 1000,
+            auto_install_peers: true,
+            catalogs: false,
+            injected: true,
+            format: pnpm_lockfile::LockfileFormat::V9,
+        },
+        vec![DependencyChange { importer: 0, target: 0, major: None }],
+    )
+    .unwrap();
+}
