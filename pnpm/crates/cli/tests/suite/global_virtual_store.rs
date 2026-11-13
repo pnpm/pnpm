@@ -238,6 +238,103 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
     drop((root, mock_instance));
 }
 
+#[test]
+fn reused_global_virtual_store_bin_shims_are_repaired_once_per_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
+    let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
+    let shim_path = package.join("node_modules/.bin/hello-world-js-bin");
+    let shim = fs::read_to_string(&shim_path).expect("read dependency bin shim");
+    let project_hoisted_dir = workspace.join("node_modules/.pnpm/node_modules");
+    let legacy_path = project_hoisted_dir.to_string_lossy();
+    let path_assignment = if cfg!(windows) { "new_node_path='" } else { "export NODE_PATH='" };
+    let stale_shim = shim.replacen(path_assignment, &format!("{path_assignment}{legacy_path};"), 1);
+    assert_ne!(stale_shim, shim, "the fixture contains a shim path assignment");
+    fs::write(&shim_path, stale_shim).expect("write a legacy shim");
+    fs::write(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1"), "0")
+        .expect("write an incomplete migration marker");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let repaired = fs::read_to_string(&shim_path).expect("read repaired dependency bin shim");
+    _utils::assert_shim_omits_path(&repaired, &project_hoisted_dir);
+    assert!(
+        gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1").is_file(),
+        "the global virtual store records the completed shim repair",
+    );
+    let output = pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(output).expect("install output is UTF-8");
+    assert!(
+        stdout.contains("Already up to date"),
+        "the repeat-install fast path remains available: {stdout}"
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    set_gvs_workspace_yaml(&workspace, "frozenStore: true\n");
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
+    let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
+    let shim_path = package.join("node_modules/.bin/hello-world-js-bin");
+    let shim = fs::read_to_string(&shim_path).expect("read dependency bin shim");
+    let legacy_path = workspace.join("node_modules/.pnpm/node_modules");
+    let path_assignment = if cfg!(windows) { "new_node_path='" } else { "export NODE_PATH='" };
+    let stale_shim = shim.replacen(
+        path_assignment,
+        &format!("{path_assignment}{};", legacy_path.to_string_lossy()),
+        1,
+    );
+    assert_ne!(stale_shim, shim, "the fixture contains a shim path assignment");
+    fs::write(&shim_path, &stale_shim).expect("write a legacy shim");
+    fs::remove_file(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1")).ok();
+
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&shim_path).expect("read dependency bin shim"), stale_shim);
+    drop((root, mock_instance));
+}
+
 /// TS: `reinstall from warm global virtual store after deleting
 /// node_modules` (`globalVirtualStore.ts:63`) and the CLI-level `warm GVS
 /// reinstall skips internal linking` (`pnpm/test/install/globalVirtualStore.ts:80`).

@@ -1,3 +1,4 @@
+use super::GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER;
 use super::LinkVirtualStoreBinsError;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
@@ -12,6 +13,135 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+pub(super) fn repair_global_virtual_store_bin_shims<Sys>(
+    virtual_store_dir: &Path,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkVirtualStoreBinsError>
+where
+    Sys: FsReadDir
+        + FsReadFile
+        + FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    let marker = virtual_store_dir.join(GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER);
+    match Sys::read_file(&marker) {
+        Ok(contents) if contents == b"1" => return Ok(()),
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: marker, error });
+        }
+    }
+
+    let package_paths = match Sys::read_dir(virtual_store_dir) {
+        Ok(entries) => entries.collect(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(LinkVirtualStoreBinsError::ReadVirtualStore {
+                dir: virtual_store_dir.to_path_buf(),
+                error,
+            });
+        }
+    };
+    for package_path in package_paths {
+        if package_path
+            .file_name()
+            .is_some_and(|name| name == "node_modules")
+        {
+            continue;
+        }
+        let package_dir_name = package_path.file_name().expect("store entry has a name");
+        if package_dir_name == "@" {
+            for unscoped_package_path in read_entries::<Sys>(&package_path)? {
+                repair_package_slots::<Sys>(
+                    &unscoped_package_path,
+                    std::ffi::OsStr::new(""),
+                    link_options,
+                )?;
+            }
+        } else if package_dir_name.to_string_lossy().starts_with('@') {
+            for scoped_package_path in read_entries::<Sys>(&package_path)? {
+                repair_package_slots::<Sys>(&scoped_package_path, package_dir_name, link_options)?;
+            }
+        } else {
+            repair_package_slots::<Sys>(&package_path, std::ffi::OsStr::new(""), link_options)?;
+        }
+    }
+
+    Sys::write(&marker, b"1")
+        .map_err(|error| LinkVirtualStoreBinsError::WriteVirtualStore { path: marker, error })
+}
+
+fn repair_package_slots<Sys>(
+    package_path: &Path,
+    scope: &std::ffi::OsStr,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkVirtualStoreBinsError>
+where
+    Sys: FsReadDir
+        + FsReadFile
+        + FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    for version_path in read_entries::<Sys>(package_path)? {
+        for slot_path in read_entries::<Sys>(&version_path)? {
+            let modules_dir = slot_path.join("node_modules");
+            let package_name = package_path.file_name().expect("package path has a name");
+            let package_dir = if scope.is_empty() {
+                modules_dir.join(package_name)
+            } else {
+                modules_dir.join(scope).join(package_name)
+            };
+            match Sys::read_dir(&package_dir) {
+                Ok(_) => {
+                    let bins_dir = package_dir.join("node_modules/.bin");
+                    link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &package_dir, link_options)
+                        .map_err(LinkVirtualStoreBinsError::LinkBins)?;
+                }
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                    ) => {}
+                Err(error) => {
+                    return Err(LinkVirtualStoreBinsError::ReadVirtualStore {
+                        dir: package_dir,
+                        error,
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_entries<Sys>(path: &Path) -> Result<Vec<PathBuf>, LinkVirtualStoreBinsError>
+where
+    Sys: FsReadDir,
+{
+    match Sys::read_dir(path) {
+        Ok(entries) => Ok(entries.collect()),
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            Ok(Vec::new())
+        }
+        Err(error) => {
+            Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: path.to_path_buf(), error })
+        }
+    }
+}
 
 /// Fallback (non-lockfile) path: enumerate slots via `read_dir`,
 /// then walk each slot's `node_modules` to discover children. Used

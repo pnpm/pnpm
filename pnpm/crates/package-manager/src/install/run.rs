@@ -73,6 +73,21 @@ where
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
         let store_lock = lock_store(self.context.config)?;
+        if self.context.config.enable_global_virtual_store
+            && !self.context.config.frozen_store
+            && self.execution.node_linker == pnpm_config::NodeLinker::Isolated
+            && !self.execution.lockfile_only
+            && !self.execution.dry_run
+        {
+            pnpm_deps_restorer::repair_global_virtual_store_bin_shims(
+                self.context.config.virtual_store_dir(),
+                &pnpm_deps_restorer::shim_link_options(
+                    self.context.config,
+                    self.execution.node_linker,
+                ),
+            )
+            .map_err(InstallError::RepairGlobalVirtualStoreBins)?;
+        }
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a

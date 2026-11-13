@@ -11,6 +11,7 @@ import { props } from 'ramda'
 
 import type { LinkContext } from './linkResolvedProjects.js'
 import type { ImporterToUpdate } from './mutationTypes.js'
+import { repairGlobalVirtualStoreBinShims } from './repairGlobalVirtualStoreBinShims.js'
 
 const limitLinking = pLimit(16)
 
@@ -48,6 +49,7 @@ export interface BuiltBinContext {
 export async function linkBinsOfResolvedProjects (step: LinkContext, built: BuiltBinContext): Promise<void> {
   const { ctx, opts, projects, resolution } = step
   const { builtDepPaths, builtPackageDirs, newDepPaths } = built
+  await repairGlobalVirtualStoreBinShims(ctx, opts)
   if (newDepPaths?.length && !opts.virtualStoreOnly) {
     const newPkgs = selectPackagesToLink(resolution.dependenciesGraph, {
       builtDepPaths,

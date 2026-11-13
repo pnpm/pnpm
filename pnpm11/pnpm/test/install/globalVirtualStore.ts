@@ -59,6 +59,81 @@ test('shared global virtual store bin shims do not capture the installing projec
   expect(shimContent).toMatch(/(?:export NODE_PATH|new_node_path)='[^']*[\\/]v11[\\/]links[\\/]/)
 })
 
+test('reused global virtual store bin shims are repaired once per store', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin-parent': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+  })
+  await execPnpm(['install'])
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/hello-world-js-bin-parent/1.0.0')
+  const [hash] = fs.readdirSync(versionDir)
+  const shimPath = path.join(
+    versionDir,
+    hash!,
+    'node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin/hello-world-js-bin'
+  )
+  const markerPath = path.join(globalVirtualStoreDir, '.pnpm-gvs-bin-shims-v1')
+  fs.writeFileSync(markerPath, '0')
+  const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
+  const shim = fs.readFileSync(shimPath, 'utf8')
+  const assignment = process.platform === 'win32' ? "new_node_path='" : "export NODE_PATH='"
+  const staleShim = shim.replace(assignment, `${assignment}${projectHoistedModulesDir}${path.delimiter}`)
+  expect(staleShim).not.toBe(shim)
+  fs.writeFileSync(shimPath, staleShim)
+
+  await execPnpm(['install'])
+
+  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
+  expect(fs.readFileSync(markerPath, 'utf8')).toBe('1')
+})
+
+test('frozenStore does not fail while a global virtual store bin shim needs repair', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin-parent': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+  })
+  await execPnpm(['install'])
+
+  const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/hello-world-js-bin-parent/1.0.0')
+  const [hash] = fs.readdirSync(versionDir)
+  const shimPath = path.join(
+    versionDir,
+    hash!,
+    'node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin/hello-world-js-bin'
+  )
+  const markerPath = path.join(globalVirtualStoreDir, '.pnpm-gvs-bin-shims-v1')
+  fs.rmSync(markerPath, { force: true })
+  const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
+  const shim = fs.readFileSync(shimPath, 'utf8')
+  const assignment = process.platform === 'win32' ? "new_node_path='" : "export NODE_PATH='"
+  const staleShim = shim.replace(assignment, `${assignment}${projectHoistedModulesDir}${path.delimiter}`)
+  expect(staleShim).not.toBe(shim)
+  fs.writeFileSync(shimPath, staleShim)
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    frozenStore: true,
+    storeDir,
+  })
+
+  await expect(execPnpm(['install', '--frozen-lockfile'])).resolves.toBeDefined()
+  expect(fs.readFileSync(shimPath, 'utf8')).toBe(staleShim)
+})
+
 test('builds and rebuilds keep shared global virtual store bin shims free of project paths', async () => {
   prepare({
     dependencies: {

@@ -12,6 +12,8 @@ mod bins_dir;
 mod direct;
 mod shim_options;
 
+pub const GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER: &str = ".pnpm-gvs-bin-shims-v1";
+
 use crate::{PackageBins, PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -38,6 +40,14 @@ pub enum LinkVirtualStoreBinsError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_VIRTUAL_STORE))]
     ReadVirtualStore {
         dir: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to write global virtual store marker at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_VIRTUAL_STORE))]
+    WriteVirtualStore {
+        path: PathBuf,
         #[error(source)]
         error: io::Error,
     },
@@ -162,12 +172,7 @@ impl LinkVirtualStoreBins<'_> {
         if !self.layout.enable_global_virtual_store() {
             return Cow::Borrowed(self.link_options);
         }
-        let mut options = self.link_options.clone();
-        if !options.extra_node_paths.is_empty() {
-            options.own_node_paths = OwnNodePaths::Always;
-        }
-        options.extra_node_paths.clear();
-        Cow::Owned(options)
+        Cow::Owned(global_slot_link_options(self.link_options))
     }
 
     /// Walk the lockfile's `snapshots:` map, build each slot's bin output
@@ -225,6 +230,25 @@ impl LinkVirtualStoreBins<'_> {
                 link_slot_bins::<Sys>(&context, slot_key, snapshot)
             })
     }
+}
+
+pub fn repair_global_virtual_store_bin_shims(
+    virtual_store_dir: &Path,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkVirtualStoreBinsError> {
+    scan::repair_global_virtual_store_bin_shims::<Host>(
+        virtual_store_dir,
+        &global_slot_link_options(link_options),
+    )
+}
+
+fn global_slot_link_options(link_options: &LinkBinsOptions) -> LinkBinsOptions {
+    let mut options = link_options.clone();
+    if !options.extra_node_paths.is_empty() {
+        options.own_node_paths = OwnNodePaths::Always;
+    }
+    options.extra_node_paths.clear();
+    options
 }
 
 /// Pre-compute the set of package keys whose lockfile metadata says they
