@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Reduced peer-context lookup work when reusing a lockfile with hashed peer suffixes.
+`pnpm install` now checks peer dependencies against package manifests when reusing a lockfile with hashed peer suffixes.
