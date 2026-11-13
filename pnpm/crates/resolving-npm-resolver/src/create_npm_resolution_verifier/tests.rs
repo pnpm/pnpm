@@ -10,6 +10,8 @@ mod behavior;
 
 mod artifact_binding;
 
+mod pnpr_documents;
+
 use super::{
     CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
 };

@@ -13,7 +13,6 @@ use pnpm_network::{
     LocalResponse, read_limited_body, retry_async, send_with_retry, should_retry_status,
 };
 use pnpm_registry::{InstallV2Entry, PackageVersion};
-use pnpm_resolving_resolver_base::ResolveError;
 use reqwest::header;
 use tokio::sync::OnceCell;
 
@@ -31,6 +30,184 @@ const RELEASE_RECORD_BODY_LIMIT: usize = 8 * 1024 * 1024;
 
 /// The in-flight and fetched records of one install, keyed by URL.
 pub(super) type ReleaseRecords = dashmap::DashMap<String, Arc<OnceCell<Arc<PackageVersion>>>>;
+
+/// One release record to read, from disk or from the registry.
+pub(crate) struct ReleaseRecordRequest<'ctx> {
+    pub cache_dir: Option<&'ctx std::path::Path>,
+    pub forbids_registry: bool,
+    pub http: crate::MetadataHttpClient<'ctx>,
+    pub registry: &'ctx str,
+    pub url: &'ctx str,
+    pub name: &'ctx str,
+    pub version: &'ctx str,
+    pub revision: u64,
+}
+
+#[derive(Debug)]
+pub(crate) enum ReleaseRecordError {
+    NotFound(String),
+    Other(String),
+}
+
+impl ReleaseRecordError {
+    pub(crate) fn into_message(self) -> String {
+        match self {
+            Self::NotFound(message) | Self::Other(message) => message,
+        }
+    }
+}
+
+impl ReleaseRecordRequest<'_> {
+    pub(crate) async fn run(&self) -> Result<Arc<PackageVersion>, ReleaseRecordError> {
+        let path = self.disk_path();
+        let cached = match path.as_deref() {
+            Some(path) => tokio::fs::read(path).await.ok(),
+            None => None,
+        };
+        if let Some(record) = cached.and_then(|body| self.parse(&body).ok()) {
+            return Ok(record);
+        }
+        if self.forbids_registry {
+            return Err(ReleaseRecordError::Other(
+                "it is not in the metadata cache, and the registry may not be reached".into(),
+            ));
+        }
+        let (body, lasting) = self.download().await?;
+        let record = self.parse(&body).map_err(ReleaseRecordError::Other)?;
+        if let Some(path) = path.filter(|_| lasting) {
+            // A record that fails to persist is fetched again next time.
+            let _ = save_meta(&path, &body);
+        }
+        Ok(record)
+    }
+
+    /// Where the record is cached, in the same metadata scope as its
+    /// package document, so a caller-gated record stays with its caller.
+    fn disk_path(&self) -> Option<PathBuf> {
+        let cache_dir = self.cache_dir?;
+        let auth_headers = self.http.auth_headers;
+        let scope = auth_headers.metadata_scope(self.url, Some(self.name));
+        let meta_dir = scoped_meta_dir(&scope, RELEASE_RECORDS_DIR);
+        let address = (self.version, self.revision);
+        release_record_path(cache_dir, &meta_dir, self.registry, self.name, address).ok()
+    }
+
+    async fn retry_local_response(
+        &self,
+        first: LocalResponse,
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        let http = self.http;
+        let mut first = Some(first);
+        retry_async(
+            self.url,
+            http.retry_opts,
+            |error: &reqwest::Error| error.status().is_some_and(should_retry_status),
+            || {
+                let response = first
+                    .take()
+                    .or_else(|| {
+                        http.auth_headers.fetch_local(
+                            self.url,
+                            Some(self.name),
+                            header::HeaderMap::new(),
+                        )
+                    })
+                    .expect("local route remains available during a resolve");
+                async move { response.await.error_for_status() }
+            },
+        )
+        .await
+    }
+
+    /// The record's body, and whether it may be kept on disk with no
+    /// expiry: pnpr serves a record `immutable` once it has derived every
+    /// fact about the archive. A caller-gated package's records are
+    /// `private, no-store`, so they are read once per install and never
+    /// kept.
+    async fn download(&self) -> Result<(Vec<u8>, bool), ReleaseRecordError> {
+        let local =
+            self.http.auth_headers.fetch_local(self.url, Some(self.name), header::HeaderMap::new());
+        if let Some(response) = local {
+            let response = self.download_local(response).await?;
+            return read_release_record_response(response).await;
+        }
+        let (_guard, response) = self.download_remote().await?;
+        read_release_record_response(response).await
+    }
+
+    async fn download_local(
+        &self,
+        response: LocalResponse,
+    ) -> Result<reqwest::Response, ReleaseRecordError> {
+        self.retry_local_response(response).await
+            .map_err(|error| {
+                if error.status() == Some(reqwest::StatusCode::NOT_FOUND) {
+                    ReleaseRecordError::NotFound(error.to_string())
+                } else {
+                    ReleaseRecordError::Other(error.to_string())
+                }
+            })
+    }
+
+    async fn download_remote(
+        &self,
+    ) -> Result<(pnpm_network::ThrottledClientGuard<'_>, reqwest::Response), ReleaseRecordError>
+    {
+        let http = self.http;
+        let name = self.name;
+        send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
+            let request = client.get(self.url).header(header::ACCEPT, "application/json");
+            match http.auth_headers.for_url_with_package(self.url, Some(name)) {
+                Some(value) => request.header(header::AUTHORIZATION, value),
+                None => request,
+            }
+        })
+        .await
+        .map_err(|error| ReleaseRecordError::Other(error.to_string()))
+    }
+
+    /// The record in `body`, checked to name the picked version.
+    fn parse(&self, body: &[u8]) -> Result<Arc<PackageVersion>, String> {
+        let record = pnpm_registry::parse_release_record(body).map_err(|error| error.to_string())?;
+        if record.name != self.name || record.version.to_string() != self.version {
+            return Err(format!("it describes {}@{}", record.name, record.version));
+        }
+        Ok(Arc::new(record))
+    }
+}
+
+async fn read_release_record_response(
+    response: reqwest::Response,
+) -> Result<(Vec<u8>, bool), ReleaseRecordError> {
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        let error = response.error_for_status().expect_err("404 is an error status");
+        return Err(ReleaseRecordError::NotFound(error.to_string()));
+    }
+    let response = response
+        .error_for_status()
+        .map_err(|error| ReleaseRecordError::Other(error.to_string()))?;
+    let lasting = is_immutable_cache_control(response.headers());
+    let body = read_limited_body(response, RELEASE_RECORD_BODY_LIMIT).await
+        .map_err(|error| ReleaseRecordError::Other(error.to_string()))?;
+    if body.truncated {
+        return Err(ReleaseRecordError::Other(format!(
+            "it is larger than {RELEASE_RECORD_BODY_LIMIT} bytes",
+        )));
+    }
+    Ok((body.bytes, lasting))
+}
+
+fn is_immutable_cache_control(headers: &header::HeaderMap) -> bool {
+    headers
+        .get(header::CACHE_CONTROL)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .any(|directive| directive == "immutable")
+        })
+}
 
 /// The picked `version`, read from the release record it needs: the
 /// requested revision's when a `+r<N>` override names a revision other than
@@ -87,141 +264,28 @@ async fn release_record<Cache: PackageMetaCache>(
     version: &PackageVersion,
     revision: u64,
 ) -> Result<Arc<PackageVersion>, PickPackageError> {
-    let url =
-        format!("{}/{}+r{revision}", to_registry_url(registry, &version.name), version.version);
+    let version_str = version.version.to_string();
+    let url = format!("{}/{version_str}+r{revision}", to_registry_url(registry, &version.name));
     let cell = Arc::clone(
         ctx.metadata.fetch_locker.release_records
             .entry(url.clone())
             .or_default()
             .value(),
     );
-    let fetch = RecordFetch { ctx, registry, url: &url, version, revision };
-    cell.get_or_try_init(|| fetch.run()).await
+    let fetch = ReleaseRecordRequest {
+        cache_dir: ctx.metadata.cache_dir,
+        forbids_registry: ctx.cache_policy.network.forbids_registry(),
+        http: ctx.metadata.http,
+        registry,
+        url: &url,
+        name: &version.name,
+        version: &version_str,
+        revision,
+    };
+    cell.get_or_try_init(|| async { fetch.run().await.map_err(ReleaseRecordError::into_message) })
+        .await
         .cloned()
         .map_err(|error| PickPackageError::ReleaseRecord { url: url.clone(), error })
-}
-
-/// One release record to read, from disk or from the registry.
-struct RecordFetch<'ctx, Cache: PackageMetaCache> {
-    ctx: &'ctx PickPackageContext<'ctx, Cache>,
-    registry: &'ctx str,
-    url: &'ctx str,
-    version: &'ctx PackageVersion,
-    revision: u64,
-}
-
-impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
-    async fn run(&self) -> Result<Arc<PackageVersion>, String> {
-        let path = self.disk_path();
-        let cached = match path.as_deref() {
-            Some(path) => tokio::fs::read(path).await.ok(),
-            None => None,
-        };
-        if let Some(record) = cached.and_then(|body| self.parse(&body).ok()) {
-            return Ok(record);
-        }
-        if self.ctx.cache_policy.network.forbids_registry() {
-            return Err(
-                "it is not in the metadata cache, and the registry may not be reached".into()
-            );
-        }
-        let (body, lasting) = self.download().await.map_err(|error| error.to_string())?;
-        let record = self.parse(&body)?;
-        if let Some(path) = path.filter(|_| lasting) {
-            // A record that fails to persist is fetched again next time.
-            let _ = save_meta(&path, &body);
-        }
-        Ok(record)
-    }
-
-    /// Where the record is cached, in the same metadata scope as its
-    /// package document, so a caller-gated record stays with its caller.
-    fn disk_path(&self) -> Option<PathBuf> {
-        let cache_dir = self.ctx.metadata.cache_dir?;
-        let auth_headers = self.ctx.metadata.http.auth_headers;
-        let scope = auth_headers.metadata_scope(self.url, Some(&self.version.name));
-        let meta_dir = scoped_meta_dir(&scope, RELEASE_RECORDS_DIR);
-        let version = self.version.version.to_string();
-        let address = (version.as_str(), self.revision);
-        release_record_path(cache_dir, &meta_dir, self.registry, &self.version.name, address).ok()
-    }
-
-    async fn retry_local_response(
-        &self,
-        first: LocalResponse,
-    ) -> Result<reqwest::Response, reqwest::Error> {
-        let http = self.ctx.metadata.http;
-        let mut first = Some(first);
-        retry_async(
-            self.url,
-            http.retry_opts,
-            |error: &reqwest::Error| error.status().is_some_and(should_retry_status),
-            || {
-                let response = first
-                    .take()
-                    .or_else(|| {
-                        http.auth_headers.fetch_local(
-                            self.url,
-                            Some(&self.version.name),
-                            header::HeaderMap::new(),
-                        )
-                    })
-                    .expect("local route remains available during a resolve");
-                async move { response.await.error_for_status() }
-            },
-        )
-        .await
-    }
-
-    /// The record's body, and whether it may be kept on disk with no
-    /// expiry: pnpr serves a record `immutable` once it has derived every
-    /// fact about the archive. A caller-gated package's records are
-    /// `private, no-store`, so they are read once per install and never
-    /// kept.
-    async fn download(&self) -> Result<(Vec<u8>, bool), ResolveError> {
-        let http = self.ctx.metadata.http;
-        let name = &self.version.name;
-        let local = http.auth_headers.fetch_local(self.url, Some(name), header::HeaderMap::new());
-        let (_guard, response) = if let Some(response) = local {
-            (None, self.retry_local_response(response).await?)
-        } else {
-            let (guard, response) =
-                send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
-                    let request = client.get(self.url).header(header::ACCEPT, "application/json");
-                    match http.auth_headers.for_url_with_package(self.url, Some(name)) {
-                        Some(value) => request.header(header::AUTHORIZATION, value),
-                        None => request,
-                    }
-                })
-                .await?;
-            (Some(guard), response)
-        };
-        let response = response.error_for_status()?;
-        let lasting = response
-            .headers()
-            .get(header::CACHE_CONTROL)
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| {
-                value
-                    .split(',')
-                    .map(str::trim)
-                    .any(|directive| directive == "immutable")
-            });
-        let body = read_limited_body(response, RELEASE_RECORD_BODY_LIMIT).await?;
-        if body.truncated {
-            return Err(format!("it is larger than {RELEASE_RECORD_BODY_LIMIT} bytes").into());
-        }
-        Ok((body.bytes, lasting))
-    }
-
-    /// The record in `body`, checked to name the picked version.
-    fn parse(&self, body: &[u8]) -> Result<Arc<PackageVersion>, String> {
-        let record = pnpm_registry::parse_release_record(body).map_err(|error| error.to_string())?;
-        if record.name != self.version.name || record.version != self.version.version {
-            return Err(format!("it describes {}@{}", record.name, record.version));
-        }
-        Ok(Arc::new(record))
-    }
 }
 
 #[cfg(test)]

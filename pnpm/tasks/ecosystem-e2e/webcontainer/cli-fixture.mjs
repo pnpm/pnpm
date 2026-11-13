@@ -13,7 +13,7 @@ async function installWithMatchingPin (entry) {
   const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`
   let metadataRequested = false
   // A matching pin records integrity even when the running build is unpublished.
-  const server = createServer(async (request, response) => {
+  const server = createServer((request, response) => {
     if (request.url === '/pnpm') {
       metadataRequested = true
       response.setHeader('content-type', 'application/json')
@@ -30,23 +30,12 @@ async function installWithMatchingPin (entry) {
       }))
       return
     }
-    try {
-      const upstream = await fetch(`https://registry.npmjs.org${request.url}`, {
-        method: request.method,
-        headers: request.headers.accept ? { accept: request.headers.accept } : undefined,
-      })
-      const body = new Uint8Array(await upstream.arrayBuffer())
-      const contentType = upstream.headers.get('content-type')
-      if (contentType) response.setHeader('content-type', contentType)
-      response.writeHead(upstream.status)
-      response.end(body)
-    } catch (error) {
-      response.destroy(error)
-    }
+    response.writeHead(404)
+    response.end('Fixture package not found')
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
-    const child = spawn(process.execPath, [entry, 'install'], {
+    const child = spawn(process.execPath, [entry, 'install', '--trust-lockfile'], {
       stdio: 'inherit',
       env: { ...process.env, PNPM_CONFIG_REGISTRY: `http://127.0.0.1:${server.address().port}/` },
     })

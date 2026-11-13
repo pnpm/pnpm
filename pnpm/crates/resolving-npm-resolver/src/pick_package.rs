@@ -42,8 +42,6 @@ pub use options::{
     PnprFormatPolicy,
 };
 
-pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
-
 pub use metadata_cache::{
     CachedPackument, InMemoryPackageMetaCache, PackageMetaCache, PackumentFetchLocker,
     PackumentSource, PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
@@ -51,6 +49,9 @@ pub use metadata_cache::{
 };
 
 pub use offline_store::OfflineStoreView;
+
+pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
+pub(crate) use release_records::{ReleaseRecordError, ReleaseRecordRequest};
 
 mod cache_hit;
 
