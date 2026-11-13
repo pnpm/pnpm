@@ -224,16 +224,7 @@ export async function installDeps (
  */
 async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): Promise<boolean> {
   if (!canReportAlreadyUpToDate(opts, params)) return false
-  if (opts.enableGlobalVirtualStore && !opts.frozenStore) {
-    const globalVirtualStoreDir = opts.virtualStoreDir == null
-      ? path.join(await getStorePath({
-        pkgRoot: opts.workspaceDir ?? opts.dir,
-        storePath: opts.storeDir,
-        pnpmHomeDir: opts.pnpmHomeDir,
-      }), 'links')
-      : path.resolve(opts.lockfileDir ?? opts.dir, opts.virtualStoreDir)
-    if (await globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)) return false
-  }
+  if (await globalVirtualStoreBinShimsArePending(opts)) return false
   if (opts.nodeLinker === 'hoisted' && (opts.hooks?.customFetchers?.length ?? 0) > 0) return false
   const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
     ...opts,
@@ -260,6 +251,18 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
   }
   globalInfo('Already up to date')
   return true
+}
+
+async function globalVirtualStoreBinShimsArePending (opts: InstallDepsOptions): Promise<boolean> {
+  if (!opts.enableGlobalVirtualStore || opts.frozenStore) return false
+  const globalVirtualStoreDir = opts.virtualStoreDir == null
+    ? path.join(await getStorePath({
+      pkgRoot: opts.workspaceDir ?? opts.dir,
+      storePath: opts.storeDir,
+      pnpmHomeDir: opts.pnpmHomeDir,
+    }), 'links')
+    : path.resolve(opts.lockfileDir ?? opts.dir, opts.virtualStoreDir)
+  return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)
 }
 
 function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
