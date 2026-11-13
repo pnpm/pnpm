@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, fmt::Write as _};
 fn log(commits: &[(&str, &[&str])]) -> String {
     let mut log = String::new();
     for (date, paths) in commits {
-        write!(log, "\u{1e}{date}\0\n{}\0", paths.join("\0")).unwrap();
+        write!(log, "\0{date}\0\n{}\0", paths.join("\0")).unwrap();
     }
     log
 }
@@ -47,6 +47,20 @@ fn dirs() -> BTreeMap<String, String> {
 
 fn pair(left: &str, right: &str, count: usize) -> ((String, String), usize) {
     ((left.to_owned(), right.to_owned()), count)
+}
+
+#[test]
+fn a_path_with_control_characters_stays_in_its_commit() {
+    let log = log(&[
+        ("2026-11-02", &["crates/base/\u{1e}2026<b>\n.rs", "crates/top/a.rs"]),
+        ("2026-11-01", &["\ncrates/mid/a.rs"]),
+    ]);
+    let co_change = CoChange::count(&log, cochange::crate_of(&dirs()), 10);
+    dbg!(&co_change);
+    assert_eq!(co_change.commits, 2);
+    assert_eq!(co_change.span, Some(("2026-11-01".to_owned(), "2026-11-02".to_owned())));
+    assert_eq!(co_change.pairs, BTreeMap::from([pair("base", "top", 1)]));
+    assert_eq!(co_change.changes_of("mid"), 0);
 }
 
 #[test]

@@ -1,18 +1,12 @@
 //! How often parts of the workspace change in the same commit, read from
 //! `git log`.
 
-use crate::tree::git;
+use crate::tree::{git, git_bytes};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io,
     path::Path,
 };
-
-/// Starts each commit's record in the `git log` output that [`read_log`]
-/// asks for. The record holds the commit date and the changed paths, each
-/// followed by a NUL, and `git` prints a newline before the first path.
-/// A path that holds this control character splits its record.
-const RECORD_START: char = '\u{1e}';
 
 /// The co-change counts of the commits in one `git log` output.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -40,14 +34,10 @@ impl CoChange {
     pub fn count(log: &str, unit_of: impl Fn(&str) -> Option<String>, max_units: usize) -> Self {
         let mut co_change = Self { max_units, ..Self::default() };
         let mut dates = Vec::new();
-        for record in log.split(RECORD_START).skip(1) {
-            let (date, paths) = record
-                .split_once('\0')
-                .unwrap_or((record, ""));
+        for (date, paths) in records(log) {
             dates.push(date.to_owned());
-            let paths = paths.strip_prefix('\n').unwrap_or(paths);
             let units = paths
-                .split('\0')
+                .into_iter()
                 .filter_map(&unit_of)
                 .collect::<BTreeSet<_>>();
             co_change.add_commit(&units);
@@ -94,17 +84,41 @@ impl CoChange {
     }
 }
 
+/// Each commit's date and changed paths in a [`read_log`] output. The
+/// output is a list of fields, each followed by a NUL. A commit starts with
+/// an empty field, which no path is, then its date, then its paths, the
+/// first one after a newline.
+fn records(log: &str) -> Vec<(&str, Vec<&str>)> {
+    let mut records = Vec::<(&str, Vec<&str>)>::new();
+    let mut fields = log.split('\0');
+    while let Some(field) = fields.next() {
+        if field.is_empty() {
+            records.extend(
+                fields
+                    .next()
+                    .map(|date| (date, Vec::new())),
+            );
+            continue;
+        }
+        let Some((_, paths)) = records.last_mut() else { continue };
+        let path = if paths.is_empty() { field.strip_prefix('\n').unwrap_or(field) } else { field };
+        paths.push(path);
+    }
+    records
+}
+
 /// The paths each of the latest `commits` non-merge commits before `HEAD`
 /// changed, with each commit's date, in the form [`CoChange::count`] reads.
-/// A move counts as a change to both paths. In a shallow clone, the commits
-/// at the shallow boundary are left out: `git` lists every file of a commit
+/// A move counts as a change to both paths. A path that is not UTF-8 holds
+/// U+FFFD in place of each invalid byte. In a shallow clone, the commits at
+/// the shallow boundary are left out: `git` lists every file of a commit
 /// without parents as changed.
 pub fn read_log(root: &Path, commits: usize) -> Result<String, String> {
     let max_count = format!("--max-count={commits}");
-    let format = format!("--format={RECORD_START}%cs");
-    let mut args = ["log", "-z", "--no-merges", "--no-renames", "--name-only", &max_count, &format]
-        .map(str::to_owned)
-        .to_vec();
+    let mut args =
+        ["log", "-z", "--no-merges", "--no-renames", "--name-only", "--format=%x00%cs", &max_count]
+            .map(str::to_owned)
+            .to_vec();
     args.push("HEAD".to_owned());
     args.extend(
         shallow_boundary(root)?
@@ -115,7 +129,8 @@ pub fn read_log(root: &Path, commits: usize) -> Result<String, String> {
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>();
-    git(root, &args)
+    let log = git_bytes(root, &args)?;
+    Ok(String::from_utf8_lossy(&log).into_owned())
 }
 
 /// The commits whose parents a shallow clone lacks, none in a full clone.

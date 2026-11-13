@@ -70,3 +70,32 @@ fn reads_moves_and_unusual_paths_and_stops_before_a_shallow_boundary() {
     assert_eq!(co_change.changes, expected);
     assert_eq!(co_change.together("base", "top"), 2);
 }
+
+#[cfg(unix)]
+#[test]
+fn reads_a_path_that_is_not_utf8() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    let temp = tempfile::tempdir().unwrap();
+    let repo = temp.path();
+    run_git(repo, &["init", "--quiet"]);
+    fs::create_dir_all(repo.join("crates/base")).unwrap();
+    fs::write(
+        repo.join("crates/base")
+            .join(OsStr::from_bytes(b"\xff.rs")),
+        "",
+    )
+    .unwrap();
+    fs::write(repo.join(OsStr::from_bytes(b"\xfe")), "").unwrap();
+    write(repo, "crates/top/a.rs");
+    commit(repo, "paths that are not UTF-8");
+
+    let log = cochange::read_log(repo, 100).unwrap();
+    dbg!(&log);
+    let dirs = ["base", "top"]
+        .map(|name| (name.to_owned(), format!("crates/{name}")))
+        .into_iter()
+        .collect();
+    let co_change = CoChange::count(&log, cochange::crate_of(&dirs), 10);
+    assert_eq!(co_change.together("base", "top"), 1);
+}

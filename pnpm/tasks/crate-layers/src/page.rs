@@ -44,7 +44,7 @@ fn push_summary(page: &mut String, matrix: &Matrix) {
     let co_change = &matrix.co_change;
     let span = co_change.span
         .as_ref()
-        .map(|(oldest, newest)| format!(", from {oldest} to {newest},"))
+        .map(|(oldest, newest)| format!(", from {} to {},", escape(oldest), escape(newest)))
         .unwrap_or_default();
     let marks = matrix.dependencies
         .values()
