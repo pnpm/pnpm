@@ -309,5 +309,5 @@ function linkedDependencyRef ({ depPath, depGraph, lockfileDir, parentPkg, paren
   ) return depPath
   const childPkg = depGraph[depPath]
   if (childPkg == null || childPkg.resolution.type !== 'directory') return depPath
-  return createNodeIdForLinkedLocalPkg(lockfileDir, childPkg.resolution.directory)
+  return createNodeIdForLinkedLocalPkg(lockfileDir, childPkg.resolution.directory) as string
 }
