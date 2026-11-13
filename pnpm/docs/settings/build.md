@@ -324,12 +324,18 @@ A map of package matchers to explicitly allow (`true`) or disallow (`false`) scr
 ```yaml title="pnpm-workspace.yaml"
 allowBuilds:
   esbuild: true
+  '@parcel/*': false
   core-js: false
   # nx versions with build scripts not listed below will
   # fail by default with ERR_PNPM_IGNORED_BUILDS
   nx@21.6.4 || 21.6.5: true
   nx@21.6.0: false
 ```
+
+Entries of the form `@scope/*` match every package in that exact scope.
+For example, `'@parcel/*': false` blocks build scripts for the `@parcel` scope.
+Other package-name wildcards and wildcard versions are not supported.
+Explicit denials take precedence over allowances.
 
 **Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency, because the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or by its repository URL:
 

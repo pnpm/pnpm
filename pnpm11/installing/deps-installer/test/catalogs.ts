@@ -534,6 +534,8 @@ test('dedupe-peer-dependents=false with --filter does not erase catalog snapshot
     dedupePeerDependents: false,
     catalogs: {
       default: {
+        // Modify the original specifier above from "1.0.0" to "^1.0.0"
+        // to force a resolution instead of a frozen install.
         'is-positive': '^1.0.0',
       },
     },
