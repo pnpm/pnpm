@@ -46,7 +46,6 @@ pub(super) fn subtree_fully_reusable(
 /// Memoized decisions about the wanted lockfile, shared across importers.
 #[derive(Default)]
 pub(crate) struct LockfileReuseCache {
-    pub(crate) bound_providers: Mutex<crate::lockfile_reuse::BoundCache>,
     /// Per snapshot key: `true` means the package and its entire transitive
     /// subtree can be synthesized from the prior lockfile. Whether a
     /// `pacquet update` reaches a target inside the subtree is settled

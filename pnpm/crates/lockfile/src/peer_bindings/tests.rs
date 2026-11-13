@@ -59,6 +59,9 @@ snapshots:
     assert!(!providers.is_hashed());
     assert!(providers.binds(&key("bound@1.0.0")));
     assert!(!providers.binds(&key("own@2.0.0")));
+    let recorded = BoundProviders::from_recorded_snapshot((&lockfile).into(), &pkg_key);
+    assert!(recorded.is_hashed());
+    assert!(recorded.binds(&key("own@2.0.0")));
 }
 
 #[test]
@@ -399,14 +402,14 @@ fn recorded_bindings_only_describe_the_key_that_created_them() {
         };
         let snapshots = [(original.clone(), entry.clone()), (renamed.clone(), entry)].into();
         let entries = crate::LockfileEntries { snapshots: Some(&snapshots), packages: None };
-        let providers = super::BoundProviders::of_snapshot(entries, &original);
+        let providers = super::BoundProviders::from_recorded_snapshot(entries, &original);
         assert_eq!(
             providers
                 .provider_keys(&"provider@1.0.0".parse().unwrap())
                 .unwrap(),
             &["provider@1.0.0(nested@2.0.0)".parse().unwrap()].into(),
         );
-        assert!(super::BoundProviders::of_snapshot(entries, &renamed).is_hashed());
+        assert!(super::BoundProviders::from_recorded_snapshot(entries, &renamed).is_hashed());
     }
 }
 

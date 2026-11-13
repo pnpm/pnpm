@@ -378,20 +378,13 @@ fn subset_matches_hash(chosen: &[&PkgNameVerPeer], mode: PeerGroups, hash_hex: &
 }
 
 impl BoundProviders {
-    /// The providers recorded for `key`, falling back to its suffix and hashed
-    /// recovery when the snapshot has no recorded bindings for that key.
+    /// The providers recorded for `key`, falling back to hashed recovery
+    /// when the snapshot has no recorded bindings for that key.
     #[must_use]
     pub fn of_snapshot(entries: LockfileEntries<'_>, key: &PkgNameVerPeer) -> Self {
-        let providers = Self::from_key(key);
+        let providers = Self::from_recorded_snapshot(entries, key);
         if !providers.is_hashed() {
             return providers;
-        }
-        if let Some(providers) = entries.snapshots
-            .and_then(|snapshots| snapshots.get(key))
-            .and_then(|snapshot| snapshot.recorded_peer_bindings.as_ref())
-            .and_then(|bindings| bindings.providers_for(key))
-        {
-            return providers.clone();
         }
         match recover_hashed_providers(entries, key) {
             Some(recovered) => Self::from_providers(recovered),

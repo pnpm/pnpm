@@ -1,11 +1,11 @@
-use super::{TreeCtx, lock_recoverable};
+use super::TreeCtx;
 use crate::{NodeId, resolved_tree::LockedResolution};
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{BoundProviders, PkgNameVerPeer};
 use std::collections::BTreeMap;
 
 pub(super) fn from_prior(ctx: &TreeCtx, key: &PkgNameVerPeer) -> Option<Box<LockedResolution>> {
-    let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
+    let lockfile = ctx.workspace.reuse.lockfile.as_deref()?;
     let snapshot = lockfile.snapshots.as_ref()?.get(key)?;
     let metadata = lockfile.packages
         .as_ref()?
@@ -13,7 +13,7 @@ pub(super) fn from_prior(ctx: &TreeCtx, key: &PkgNameVerPeer) -> Option<Box<Lock
     let bound = metadata.peer_dependencies
         .as_ref()
         .filter(|peers| !peers.is_empty())
-        .map(|_| bound_providers(ctx, lockfile, key));
+        .map(|_| BoundProviders::from_recorded_snapshot(lockfile.into(), key));
     let peers: BTreeMap<_, _> = metadata.peer_dependencies
         .iter()
         .flatten()
@@ -39,25 +39,4 @@ pub(super) fn from_prior(ctx: &TreeCtx, key: &PkgNameVerPeer) -> Option<Box<Lock
 
 pub(super) fn record(ctx: &TreeCtx, node_id: &NodeId, locked: Option<Box<LockedResolution>>) {
     ctx.workspace.record_locked_resolution(node_id, locked);
-}
-
-fn bound_providers(
-    ctx: &TreeCtx,
-    lockfile: &pnpm_lockfile::Lockfile,
-    key: &PkgNameVerPeer,
-) -> BoundProviders {
-    let bound = BoundProviders::from_key(key);
-    if !bound.is_hashed() {
-        return bound;
-    }
-    let cache = &ctx.workspace.cache.lockfile_reuse.bound_providers;
-    let cached = lock_recoverable(cache).get(key).cloned();
-    if let Some(bound) = cached {
-        return bound;
-    }
-    let bound = BoundProviders::of_snapshot(lockfile.into(), key);
-    lock_recoverable(cache)
-        .entry(key.clone())
-        .or_insert(bound)
-        .clone()
 }
