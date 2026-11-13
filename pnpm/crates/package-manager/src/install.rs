@@ -24,6 +24,7 @@ pub(crate) use modules_state::{
     modules_layout_consistent_with, moved_tree_is_reusable, project_requires_lifecycle_scripts,
     tree_may_move,
 };
+pub use repair_global_virtual_store_bin_shims::ensure_global_virtual_store_bin_shims;
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub(crate) use run::{
     check_strict_dep_builds_for_fast_path, hook_one_manifest, register_workspace_in_store,
@@ -120,7 +121,6 @@ pub(super) fn project_dependency_groups(mut groups: Vec<DependencyGroup>) -> Vec
     groups
 }
 
-pub use repair_global_virtual_store_bin_shims::ensure_global_virtual_store_bin_shims;
 mod repair_global_virtual_store_bin_shims;
 mod run;
 mod workspace_state;
