@@ -432,9 +432,9 @@ use env::expand_home_prefix;
 
 mod environment_values;
 use environment_values::{
-    Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar, resolvable_placeholders,
-    resolve_placeholders, substitute_json_string, substitute_optional_inner_string,
-    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
+    DocumentPlaceholders, Placeholder, document_placeholders, has_env_placeholder, no_proxy_scalar,
+    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
+    substitute_optional_string_map, substitute_registry_entries,
 };
 
 mod apply;

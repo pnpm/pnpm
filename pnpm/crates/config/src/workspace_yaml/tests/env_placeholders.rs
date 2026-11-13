@@ -1,5 +1,8 @@
-use super::{AuditLevel, ColorMode, EnvVar, NodeLinker, assert_eq};
-use crate::{WorkspaceSettings, workspace_yaml::parse_settings};
+use super::{
+    AuditLevel, ColorMode, Config, EnvVar, LoadWorkspaceYamlError, NodeLinker, Path,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq,
+};
+use crate::{SettingsRead, workspace_yaml::parse_settings};
 use std::fmt::Write as _;
 
 struct Env;
@@ -301,4 +304,162 @@ fn every_placeholder_of_a_document_driven_from_the_environment_resolves() {
 
     assert_eq!(settings.bail, Some(true));
     assert_eq!(settings.auto_install_peers, Some(true));
+}
+
+#[test]
+fn flow_and_fallback_registry_placeholders_are_refused_in_untrusted_settings() {
+    for (yaml, expected_setting) in [
+        ("{registry: https://example.com/${PNPM_TEST_HOST}/}\n", "registry"),
+        ("{registry: https://example.com/${PNPM_TEST_UNSET}/}\n", "registry"),
+        ("{registry: https://example.com/${PNPM_TEST_REGISTRY}/}\n", "registry"),
+        ("{registry: https://example.com/${PNPM_TEST_UNSET:-a}/}\n", "registry"),
+        ("registry: ${PNPM_TEST_HOST:-http://a: b}\n", "registry"),
+        ("registry: ${PNPM_TEST_UNSET:-http://a:b}\n", "registry"),
+        (
+            "{registries: {default: https://example.com/${PNPM_TEST_HOST}/}}\n",
+            "registries['default']",
+        ),
+        (
+            "{registries: {'@work': https://example.com/${PNPM_TEST_HOST}/}}\n",
+            "registries['@work']",
+        ),
+        (
+            "{registries: {https://${PNPM_TEST_HOST}/: {scopes: ['@work']}}}\n",
+            "registries['https://${PNPM_TEST_HOST}/']",
+        ),
+        (
+            "{registries: {https://${PNPM_TEST_HOST}/: {serverType: artifactory}}}\n",
+            "registries['https://${PNPM_TEST_HOST}/']",
+        ),
+        (
+            "{namedRegistries: {work: https://example.com/${PNPM_TEST_HOST}/}}\n",
+            "namedRegistries['work']",
+        ),
+    ] {
+        let mut settings = parse_settings::<Env, WorkspaceSettings>(yaml).unwrap();
+        let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
+        assert!(
+            matches!(
+                &error,
+                LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, file }
+                    if setting == expected_setting && file == WORKSPACE_MANIFEST_FILENAME
+            ),
+            "yaml={yaml:?} produced {error:?}",
+        );
+    }
+}
+
+#[test]
+fn flow_proxy_and_request_header_placeholders_are_dropped_in_untrusted_settings() {
+    let mut settings = parse_settings::<Env, WorkspaceSettings>(
+        "{pnprServer: https://${PNPM_TEST_HOST}/pnpr/, httpsProxy: http://${PNPM_TEST_HOST}:8080/, httpProxy: http://${PNPM_TEST_HOST}:8081/, proxy: http://${PNPM_TEST_HOST}:8082/, userAgent: agent/${PNPM_TEST_TOKEN}, noProxy: ${PNPM_TEST_IGNORE_SCRIPTS}, noproxy: ${PNPM_TEST_HOST}}\n",
+    )
+    .unwrap();
+
+    let warnings = settings.substitute_env_untrusted::<Env>().unwrap();
+    let ignored: Vec<&str> = warnings
+        .iter()
+        .filter_map(|warning| warning.strip_prefix(r#"Ignored ""#)?.split_once('"'))
+        .map(|(setting, _)| setting)
+        .collect();
+
+    assert_eq!(
+        ignored,
+        ["pnprServer", "httpsProxy", "httpProxy", "proxy", "userAgent", "noProxy", "noproxy"],
+    );
+    assert_eq!(settings.pnpr_server, None);
+    assert_eq!(settings.https_proxy, None);
+    assert_eq!(settings.http_proxy, None);
+    assert_eq!(settings.proxy, None);
+    assert_eq!(settings.user_agent, None);
+    assert_eq!(settings.no_proxy, None);
+    assert_eq!(settings.noproxy, None);
+}
+
+#[test]
+fn flow_placeholders_expand_in_trusted_settings_and_allowed_workspace_fields() {
+    let mut trusted = parse_settings::<Env, WorkspaceSettings>(
+        "{registry: https://${PNPM_TEST_HOST}/npm/, httpsProxy: http://${PNPM_TEST_HOST}:8080/, shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS}}\n",
+    )
+    .unwrap();
+    trusted.substitute_env_trusted::<Env>();
+    assert_eq!(trusted.registry.as_deref(), Some("https://internal.example.com/npm/"));
+    assert_eq!(trusted.https_proxy.as_deref(), Some("http://internal.example.com:8080/"));
+    assert_eq!(trusted.shamefully_hoist, Some(true));
+
+    let mut untrusted = parse_settings::<Env, WorkspaceSettings>(
+        "{shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS}, nodeLinker: ${PNPM_TEST_LINKER:-isolated}, storeDir: ${PNPM_TEST_HOST}/store}\n",
+    )
+    .unwrap();
+    let warnings = untrusted.substitute_env_untrusted::<Env>().unwrap();
+    assert!(warnings.is_empty());
+    assert_eq!(untrusted.shamefully_hoist, Some(true));
+    assert_eq!(untrusted.node_linker, Some(NodeLinker::Hoisted.into()));
+    assert_eq!(untrusted.store_dir.as_deref(), Some("internal.example.com/store"));
+
+    let mut config = Config::new();
+    untrusted.apply_to(&mut config, Path::new("/workspace"));
+    assert!(config.shamefully_hoist);
+}
+
+#[test]
+fn config_dependency_and_local_include_refuse_flow_registry_placeholders() {
+    let dep_path = Path::new("/store/config-dep/pnpm-config.yaml");
+    let dep_error = WorkspaceSettings::read_config_dependency_entry::<Env>(
+        "{registry: https://example.com/${PNPM_TEST_HOST}/}\n",
+        dep_path,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        &dep_error,
+        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, file }
+            if setting == "registry" && file == &dep_path.display().to_string()
+    ));
+
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./reg.yaml:\n    - registry\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("reg.yaml"),
+        "{registry: \"https://example.com/${PNPM_TEST_HOST}/\"}\n",
+    )
+    .unwrap();
+    let document = pnpm_workspace::read_workspace_manifest_document(dir.path()).unwrap().unwrap();
+    let mut merged = WorkspaceSettings::read_document(document, SettingsRead::All, |text, path| {
+        parse_settings::<Env, WorkspaceSettings>(text)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                path: path.to_path_buf(),
+                source,
+            })
+    })
+    .unwrap();
+    let error = merged.substitute_env_untrusted::<Env>().unwrap_err();
+    assert!(matches!(
+        &error,
+        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
+    ));
+}
+
+#[test]
+fn sentinel_prefix_avoids_colliding_with_document_or_environment_text() {
+    struct CollidingEnv;
+    impl EnvVar for CollidingEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "HOIST" => Some("true".to_owned()),
+                "COLLIDE" => Some("pnpmplaceholder0_value".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let settings = parse_settings::<CollidingEnv, WorkspaceSettings>(
+        "{shamefullyHoist: ${HOIST}, storeDir: pnpmplaceholder0_/${COLLIDE}}\n",
+    )
+    .unwrap();
+    assert_eq!(settings.shamefully_hoist, Some(true));
+    assert_eq!(settings.store_dir.as_deref(), Some("pnpmplaceholder0_/${COLLIDE}"));
 }

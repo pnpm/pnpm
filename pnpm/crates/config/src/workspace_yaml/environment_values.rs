@@ -1,4 +1,5 @@
 use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, env_replace_lossy, placeholder_ranges};
+use std::ops::Range;
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
 /// spelling of the key would carry. `true` becomes the literal token the
@@ -22,68 +23,133 @@ pub(super) fn has_env_placeholder(value: &str) -> bool {
         })
 }
 
-/// A `${VAR}` / `${VAR:-fallback}` placeholder of a document, and the text
-/// resolving it puts in its place.
+/// A `${VAR}` / `${VAR:-fallback}` placeholder in a YAML document, its
+/// bare-token expansion when it has one, and a unique bare-token sentinel used
+/// while probing whether the target setting accepts free text.
 pub(super) struct Placeholder {
-    pub(super) range: std::ops::Range<usize>,
-    pub(super) resolved: String,
+    pub(super) range: Range<usize>,
+    pub(super) resolved: Option<String>,
+    pub(super) sentinel: String,
 }
 
-/// The placeholders of `text` that may stand in for what a setting is written
-/// as, in the order they appear.
+/// All unescaped `${...}` placeholders in a YAML document, paired with a
+/// sentinel prefix absent from both the source text and every resolved value.
+pub(super) struct DocumentPlaceholders {
+    sentinel_prefix: String,
+    pub(super) items: Vec<Placeholder>,
+    pub(super) resolvable: Vec<usize>,
+}
+
+/// Collect the `${...}` placeholders of `text` in source order, returning
+/// `None` when `text` contains none.
 ///
-/// A placeholder qualifies only when it resolves to a bare token — ASCII
-/// letters, digits, `-`, `_`, and `.`. A variant name, a boolean, and a
-/// number each are one; a URL, a path, an unresolved placeholder, and an
-/// empty expansion are not. That bounds what resolving one can do twice over:
-/// the text put back cannot spell yaml of its own, and it cannot name a
-/// request destination.
-pub(super) fn resolvable_placeholders<Sys: EnvVar>(text: &str) -> Vec<Placeholder> {
-    placeholder_ranges(text)
-        .into_iter()
-        .filter_map(|range| {
-            let (resolved, unresolved) = env_replace_lossy::<Sys>(&text[range.clone()]);
-            (unresolved.is_empty() && is_bare_token(&resolved)).then_some(Placeholder {
-                range,
-                resolved,
-            })
-        })
-        .collect()
-}
-
-/// `text` with the `selected` placeholders resolved and every other byte of
-/// it left alone, so a scalar this did not resolve reaches the reader as the
-/// file spells it.
-pub(super) fn resolve_placeholders(
-    text: &str,
-    placeholders: &[Placeholder],
-    selected: impl Fn(usize) -> bool,
-) -> String {
-    let mut resolved = String::with_capacity(text.len());
-    let mut copied = 0;
-    for (index, placeholder) in placeholders.iter().enumerate() {
-        if !selected(index) {
-            continue;
-        }
-        resolved.push_str(&text[copied..placeholder.range.start]);
-        resolved.push_str(&placeholder.resolved);
-        copied = placeholder.range.end;
+/// Only a placeholder that resolves without missing variables to a bare token
+/// (`[A-Za-z0-9_.-]+`) and is not preceded by a YAML anchor/alias sigil (`&`
+/// or `*`) receives `resolved: Some(...)`. Every placeholder also receives a
+/// bare-token `sentinel` (`{prefix}{index}_`) so YAML syntax indicators inside
+/// `${...}` (such as `{`, `}`, or `: `) do not prevent a free-text setting
+/// from parsing with its placeholder left unexpanded.
+pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentPlaceholders> {
+    let ranges = placeholder_ranges(text);
+    if ranges.is_empty() {
+        return None;
     }
-    resolved.push_str(&text[copied..]);
-    resolved
-}
-
-/// `text` with every placeholder replaced by `null`, leaving the document the
-/// file describes apart from the settings a placeholder decides.
-pub(super) fn drop_placeholders(text: &str, placeholders: &[Placeholder]) -> String {
-    let dropped: Vec<Placeholder> = placeholders
-        .iter()
-        .map(|placeholder| Placeholder {
-            range: placeholder.range.clone(),
-            resolved: "null".to_string(),
+    let raw_items: Vec<(Range<usize>, Option<String>)> = ranges
+        .into_iter()
+        .map(|range| {
+            let resolved = (!text[..range.start].ends_with(['&', '*']))
+                .then(|| env_replace_lossy::<Sys>(&text[range.clone()]))
+                .and_then(|(expanded, unresolved)| {
+                    (unresolved.is_empty() && is_bare_token(&expanded)).then_some(expanded)
+                });
+            (range, resolved)
         })
         .collect();
-    resolve_placeholders(text, &dropped, |_| true)
+    let sentinel_prefix = unique_sentinel_prefix(text, &raw_items);
+    let mut items = Vec::with_capacity(raw_items.len());
+    let mut resolvable = Vec::new();
+    for (index, (range, resolved)) in raw_items.into_iter().enumerate() {
+        if resolved.is_some() {
+            resolvable.push(index);
+        }
+        let sentinel = format!("{sentinel_prefix}{index}_");
+        items.push(Placeholder { range, resolved, sentinel });
+    }
+    Some(DocumentPlaceholders { sentinel_prefix, items, resolvable })
+}
+
+impl DocumentPlaceholders {
+    /// Render `text` replacing each placeholder with `replacement(index, item)`.
+    pub(super) fn render<'out>(
+        &'out self,
+        text: &'out str,
+        replacement: impl Fn(usize, &'out Placeholder) -> &'out str,
+    ) -> String {
+        let mut rendered = String::with_capacity(text.len());
+        let mut copied = 0;
+        for (index, placeholder) in self.items.iter().enumerate() {
+            rendered.push_str(&text[copied..placeholder.range.start]);
+            rendered.push_str(replacement(index, placeholder));
+            copied = placeholder.range.end;
+        }
+        rendered.push_str(&text[copied..]);
+        rendered
+    }
+
+    pub(super) fn may_contain_sentinel(&self, value: &str) -> bool {
+        value.contains(&self.sentinel_prefix)
+    }
+
+    /// Replace every `{sentinel_prefix}{index}_` token in `value` back with
+    /// the original `&original_text[range]` slice.
+    pub(super) fn restore(&self, original_text: &str, value: &str) -> String {
+        let mut restored = String::with_capacity(value.len());
+        let mut cursor = 0;
+        while let Some(offset) = value[cursor..].find(&self.sentinel_prefix) {
+            let start = cursor + offset;
+            restored.push_str(&value[cursor..start]);
+            let after_prefix = start + self.sentinel_prefix.len();
+            if let Some((raw_placeholder, end)) =
+                self.parse_sentinel_at(original_text, value, after_prefix)
+            {
+                restored.push_str(raw_placeholder);
+                cursor = end;
+            } else {
+                restored.push_str(&self.sentinel_prefix);
+                cursor = after_prefix;
+            }
+        }
+        restored.push_str(&value[cursor..]);
+        restored
+    }
+
+    fn parse_sentinel_at<'text>(
+        &self,
+        original_text: &'text str,
+        value: &str,
+        after_prefix: usize,
+    ) -> Option<(&'text str, usize)> {
+        let digits_len = value[after_prefix..].find('_')?;
+        let index: usize = value[after_prefix..after_prefix + digits_len].parse().ok()?;
+        let placeholder = self.items.get(index)?;
+        Some((&original_text[placeholder.range.clone()], after_prefix + digits_len + 1))
+    }
+}
+
+fn unique_sentinel_prefix(text: &str, raw_items: &[(Range<usize>, Option<String>)]) -> String {
+    let mut counter = 0_u32;
+    loop {
+        let candidate = format!("pnpmplaceholder{counter}_");
+        let collides = text.contains(&candidate)
+            || raw_items
+                .iter()
+                .filter_map(|(_, resolved)| resolved.as_deref())
+                .any(|resolved| resolved.contains(&candidate));
+        if !collides {
+            return candidate;
+        }
+        counter += 1;
+    }
 }
 
 fn is_bare_token(value: &str) -> bool {

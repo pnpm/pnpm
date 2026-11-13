@@ -367,3 +367,77 @@ fn global_get_and_list_ignore_the_project_settings() {
 
     drop(root);
 }
+
+#[test]
+fn flow_mapping_workspace_yaml_rejects_registry_env_and_drops_proxy_env() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name": "demo-app", "version": "1.0.0"}"#)
+        .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "{registry: https://example.invalid/${DEMO_REG_VAR}/}\n",
+    )
+    .expect("write flow pnpm-workspace.yaml");
+
+    let registry_out = pacquet_in(&workspace)
+        .with_env("DEMO_REG_VAR", "subpath")
+        .with_args(["config", "get", "registry"])
+        .output()
+        .expect("run pacquet config get registry");
+    let stderr = String::from_utf8_lossy(&registry_out.stderr);
+    let stdout = String::from_utf8_lossy(&registry_out.stdout);
+    assert!(!registry_out.status.success(), "expected failure, stdout={stdout}, stderr={stderr}");
+    assert!(stderr.contains("ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED"), "stderr={stderr}");
+    assert!(!stdout.contains("subpath") && !stderr.contains("subpath"), "leaked env value");
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "{httpsProxy: http://127.0.0.1:8080/${DEMO_REG_VAR}, shamefullyHoist: ${DEMO_HOIST}}\n",
+    )
+    .expect("write flow proxy pnpm-workspace.yaml");
+    let proxy_get = pacquet_in(&workspace)
+        .with_env("DEMO_REG_VAR", "subpath")
+        .with_env("DEMO_HOIST", "true")
+        .with_args(["config", "get", "httpsProxy"])
+        .output()
+        .expect("run pacquet config get httpsProxy");
+    assert!(proxy_get.status.success(), "stderr={}", String::from_utf8_lossy(&proxy_get.stderr));
+    assert_eq!(String::from_utf8_lossy(&proxy_get.stdout).trim_end(), "undefined");
+
+    let proxy_list = pacquet_in(&workspace)
+        .with_env("DEMO_REG_VAR", "subpath")
+        .with_env("DEMO_HOIST", "true")
+        .with_args(["config", "list"])
+        .output()
+        .expect("run pacquet config list");
+    let list_stderr = String::from_utf8_lossy(&proxy_list.stderr);
+    let list_stdout = String::from_utf8_lossy(&proxy_list.stdout);
+    assert!(proxy_list.status.success(), "stderr={list_stderr}");
+    assert!(list_stderr.contains(r#"Ignored "httpsProxy""#), "stderr={list_stderr}");
+    assert!(!list_stdout.contains("subpath") && !list_stderr.contains("subpath"));
+    assert!(list_stdout.contains(r#""shamefullyHoist": true"#), "stdout={list_stdout}");
+
+    let config_home = root.path().join("xdg-config");
+    fs::create_dir_all(config_home.join("pnpm")).expect("create global config directory");
+    fs::write(
+        config_home.join("pnpm/config.yaml"),
+        "{registry: https://example.invalid/${DEMO_REG_VAR}/}\n",
+    )
+    .expect("write global config.yaml");
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    let global_out = pacquet_in(&workspace)
+        .with_env("XDG_CONFIG_HOME", &config_home)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("DEMO_REG_VAR", "subpath")
+        .with_args(["config", "get", "registry", "--global"])
+        .output()
+        .expect("run global config get registry");
+    assert!(global_out.status.success(), "stderr={}", String::from_utf8_lossy(&global_out.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&global_out.stdout).trim_end(),
+        "https://example.invalid/subpath/",
+    );
+
+    drop(root);
+}
