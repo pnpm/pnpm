@@ -306,7 +306,7 @@ fn failing_custom_resolver_keeps_urls_intact_in_a_terminal() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_failing_resolver(&workspace);
-    let terminal = Terminal::open();
+    let mut terminal = Terminal::open();
     let mut child = terminal.spawn_foreground(pacquet_at(&workspace).with_arg("install"));
     let status = wait_for_child(&mut child);
     let output = terminal.captured_output();
