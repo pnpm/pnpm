@@ -101,12 +101,7 @@ function toLockfileDependency (
   if (shouldRecordVersion(pkg.version, { depPath: opts.depPath, registryName: opts.registryName, lockfileResolution })) {
     result['version'] = pkg.version
   }
-  addChildDependencies(
-    result,
-    opts,
-    pkg.resolution,
-    pkg.resolvedVia === 'workspace' && opts.depPath.includes('@file:')
-  )
+  addChildDependencies(result, opts, pkg)
   if (pkg.optional) {
     result['optional'] = true
   }
@@ -136,21 +131,21 @@ function addChildDependencies (
     depGraph: DependenciesGraph
     lockfileDir?: string
   },
-  parentResolution: ResolvedPackage['resolution'],
-  isInjectedWorkspacePackage: boolean
+  pkg: ResolvedPackage
 ): void {
+  const isInjectedWorkspacePackage = pkg.resolvedVia === 'workspace' && opts.depPath.includes('@file:')
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph,
     opts.lockfileDir,
-    parentResolution,
+    pkg.resolution,
     isInjectedWorkspacePackage
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.updatedOptionalDeps,
     opts.depGraph,
     opts.lockfileDir,
-    parentResolution,
+    pkg.resolution,
     isInjectedWorkspacePackage
   )
   if (Object.keys(newResolvedDeps).length > 0) {
