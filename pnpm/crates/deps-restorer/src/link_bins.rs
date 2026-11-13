@@ -242,6 +242,12 @@ pub fn repair_global_virtual_store_bin_shims(
     )
 }
 
+pub fn global_virtual_store_bin_shims_need_repair(
+    virtual_store_dir: &Path,
+) -> Result<bool, LinkVirtualStoreBinsError> {
+    Ok(!scan::marker_is_complete(&virtual_store_dir.join(GLOBAL_VIRTUAL_STORE_BIN_SHIMS_MARKER))?)
+}
+
 fn global_slot_link_options(link_options: &LinkBinsOptions) -> LinkBinsOptions {
     let mut options = link_options.clone();
     if !options.extra_node_paths.is_empty() {

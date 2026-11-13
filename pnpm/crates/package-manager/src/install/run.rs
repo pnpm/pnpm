@@ -3,8 +3,7 @@ pub(crate) use manifests::hook_one_manifest;
 
 mod fast_path;
 use fast_path::{
-    RepeatInstallVerdict, UpToDateCheck, lock_store, repeat_install_verdict,
-    report_already_up_to_date,
+    RepeatInstallVerdict, UpToDateCheck, repeat_install_verdict, report_already_up_to_date,
 };
 
 mod dispatch;
@@ -45,7 +44,7 @@ use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
     Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
     build_resolution_verifiers, configured_or_discovered_workspace_dir, lockfile_root_dir,
-    repair_global_virtual_store_bin_shims::repair_global_virtual_store_bin_shims,
+    repair_global_virtual_store_bin_shims::lock_store,
 };
 use pnpm_config::Config;
 
@@ -73,8 +72,7 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
-        let store_lock = lock_store(self.context.config)?;
-        repair_global_virtual_store_bin_shims(self.context.config, self.execution)?;
+        let store_lock = lock_store(self.context.config, self.execution)?;
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a

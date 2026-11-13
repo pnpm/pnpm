@@ -42,6 +42,32 @@ fn store_consumers_may_overlap() {
 }
 
 #[test]
+fn store_updates_exclude_consumers_of_that_store() {
+    let root = tempdir().unwrap();
+    let store = temp_store(&root);
+    let update = store.lock_for_update().unwrap();
+
+    assert!(matches!(
+        pnpm_fs::try_lock_file(&open_lock_file(&store), LockMode::Shared),
+        Err(TryLockError::WouldBlock)
+    ));
+
+    drop(update);
+    store.lock_for_use().unwrap();
+}
+
+#[test]
+fn store_updates_allow_consumers_of_other_stores() {
+    let root = tempdir().unwrap();
+    let store = temp_store(&root);
+    let other_store = StoreDir::new(root.path().join("store/v12"));
+    let update = store.lock_for_update().unwrap();
+    let other_consumer = other_store.lock_for_use().unwrap();
+
+    drop((update, other_consumer));
+}
+
+#[test]
 fn prune_waits_for_frozen_store_consumers() {
     let root = tempdir().unwrap();
     let store = temp_store(&root);

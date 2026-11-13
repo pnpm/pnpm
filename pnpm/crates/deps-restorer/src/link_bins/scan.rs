@@ -21,9 +21,12 @@ pub(super) fn repair_global_virtual_store_bin_shims(
     if marker_is_complete(&marker)? {
         return Ok(());
     }
-    let Some(package_paths) = read_root_entries(virtual_store_dir)? else {
-        return Ok(());
-    };
+    Host::create_dir_all(virtual_store_dir)
+        .map_err(|error| LinkVirtualStoreBinsError::UpdateVirtualStore {
+            path: virtual_store_dir.to_path_buf(),
+            error,
+        })?;
+    let package_paths = read_root_entries(virtual_store_dir)?.unwrap_or_default();
     for package_path in package_paths {
         repair_root_entry(&package_path, link_options)?;
     }
@@ -31,7 +34,7 @@ pub(super) fn repair_global_virtual_store_bin_shims(
         .map_err(|error| LinkVirtualStoreBinsError::UpdateVirtualStore { path: marker, error })
 }
 
-fn marker_is_complete(marker: &Path) -> Result<bool, LinkVirtualStoreBinsError> {
+pub(super) fn marker_is_complete(marker: &Path) -> Result<bool, LinkVirtualStoreBinsError> {
     match Host::read_file(marker) {
         Ok(contents) => Ok(contents == b"1"),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),

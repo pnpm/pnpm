@@ -50,6 +50,10 @@ impl StoreDir {
         lock_files(self, LockMode::Shared)
     }
 
+    pub fn lock_for_update(&self) -> Result<StoreOperationLock, StoreLockError> {
+        lock_files_with_modes(self, LockMode::Shared, LockMode::Exclusive)
+    }
+
     /// Keep consumers out of the store while destructive maintenance runs.
     pub fn lock_for_prune(&self) -> Result<StoreOperationLock, StoreLockError> {
         lock_files(self, LockMode::Exclusive)
@@ -61,9 +65,20 @@ fn lock_files(store_dir: &StoreDir, mode: LockMode) -> Result<StoreOperationLock
     // junction changes target after its per-store identity is resolved.
     // Consumers of every store still overlap; only destructive maintenance
     // takes this barrier exclusively.
-    let paths = [global_operation_lock_path()?, operation_lock_path(store_dir)?];
+    lock_files_with_modes(store_dir, mode, mode)
+}
+
+fn lock_files_with_modes(
+    store_dir: &StoreDir,
+    global_mode: LockMode,
+    store_mode: LockMode,
+) -> Result<StoreOperationLock, StoreLockError> {
+    let paths = [
+        (global_operation_lock_path()?, global_mode),
+        (operation_lock_path(store_dir)?, store_mode),
+    ];
     let mut files = Vec::with_capacity(paths.len());
-    for path in paths {
+    for (path, mode) in paths {
         let file = pnpm_fs::open_secure_lock_file(&path)
             .map_err(|error| StoreLockError::Open { path: path.clone(), error })?;
         pnpm_fs::lock_file(&file, mode).map_err(|error| StoreLockError::Acquire { path, error })?;
