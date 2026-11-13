@@ -1,5 +1,6 @@
 ---
 "@pnpm/lockfile.verification": patch
+"@pnpm/installing.deps-resolver": patch
 "pnpm": patch
 "pacquet": patch
 ---

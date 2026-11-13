@@ -4078,6 +4078,7 @@ snapshots:
 				"@pnpm/pkg-manifest.reader": "workspace:*",
 				"@pnpm/pkg-manifest.utils": "workspace:*",
 				"@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+				"@pnpm/resolving.local-resolver": "workspace:*",
 				"@pnpm/resolving.npm-resolver": "workspace:*",
 				"@pnpm/resolving.resolver-base": "workspace:*",
 				"@pnpm/store.controller-types": "workspace:*",

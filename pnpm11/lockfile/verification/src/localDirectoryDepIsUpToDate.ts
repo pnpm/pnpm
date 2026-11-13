@@ -433,15 +433,14 @@ async function localSpecIsUpToDate (
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
-      localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfileDep.slice(5), localDep.localDepDir)
+      linkPathMatches(localDep, currentSpec, lockfileDep)
     )
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
   if (!currentSpec.includes(':') && isLocalFilesystemSpecifier(currentSpec)) {
     if (lockfileDep.startsWith('link:')) {
-      return localSpecPath(currentSpec, localDep.localDepDir) ===
-        recordedLocalPath(lockfileDep.slice(5), localDep.localDepDir)
+      return linkPathMatches(localDep, currentSpec, lockfileDep)
     }
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
@@ -449,6 +448,13 @@ async function localSpecIsUpToDate (
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
   return workspaceDependencyIsUpToDate(localDep, { depName, currentSpec, cleanLockfileDep, lockfilePath })
+}
+
+function linkPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfileDep: string): boolean {
+  const currentPath = localSpecPath(currentSpec, localDep.localDepDir)
+  const lockfilePath = lockfileDep.slice(5)
+  return currentPath === recordedLocalPath(lockfilePath, localDep.lockfileDir) ||
+    currentPath === recordedLocalPath(lockfilePath, localDep.localDepDir)
 }
 
 function localPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfilePath: string | null): boolean {
