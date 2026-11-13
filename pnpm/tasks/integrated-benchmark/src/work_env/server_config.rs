@@ -101,7 +101,9 @@ pub(super) fn write_pnpr_benchmark_config(
     let source_dir = bench_dir.join("pacquet");
     let source = fs::read_to_string(source_dir.join("pnpr/.fixtures/config.yaml"))
         .expect("read the revision account configuration");
-    let auth = super::revision_auth::seed_auth(&source, pnpr_storage);
+    // Beside the storage: pnpr refuses a hosted store holding a directory
+    // it did not write.
+    let auth = super::revision_auth::seed_auth(&source, bench_dir);
     let home = RegistriesHome::of_source(&source_dir);
     let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries, auth, home);
     fs::write(&config, yaml).expect("write pnpr benchmark config");

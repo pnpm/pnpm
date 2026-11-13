@@ -111,6 +111,7 @@ fn pnpr_server_files_follow_the_revision() {
         let config = parse(&fs::read_to_string(&files.config).unwrap());
         let document = files.registries.map(|path| parse(&fs::read_to_string(path).unwrap()));
         dbg!(registries, &config, &document);
+        assert!(!storage.exists(), "pnpr refuses a hosted store holding foreign directories");
         match registries {
             RegistriesHome::ConfigFile => {
                 assert_eq!(config["routes"]["public"][0]["registry"], "http://localhost:4873/");
