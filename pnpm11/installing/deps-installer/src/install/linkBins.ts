@@ -6,6 +6,7 @@ import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/installing.
 import { logger } from '@pnpm/logger'
 import type { DependencyManifest, DepPath, HoistedDependencies } from '@pnpm/types'
 import { safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
+
 import { pathExists } from 'path-exists'
 import pLimit from 'p-limit'
 import { props } from 'ramda'
