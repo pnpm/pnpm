@@ -39,7 +39,7 @@ where
         }
     }
 
-    let package_paths = match Sys::read_dir(virtual_store_dir) {
+    let package_paths: Vec<PathBuf> = match Sys::read_dir(virtual_store_dir) {
         Ok(entries) => entries.collect(),
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => {
@@ -116,7 +116,7 @@ where
                     ) => {}
                 Err(error) => {
                     return Err(LinkVirtualStoreBinsError::ReadVirtualStore {
-                        dir: package_dir,
+                        dir: package_dir.clone(),
                         error,
                     });
                 }
