@@ -383,7 +383,7 @@ fn verify_unmarked_store(layout: HostedLayout, binding: StoreBinding) -> Result<
 fn pending_binding_error(store_id: &str, pending_nonce: &str) -> RegistryError {
     if marker_matches_pending_claim(store_id, pending_nonce) {
         return RegistryError::StorageUnavailable {
-            reason: format!("the database has an unconfirmed binding to hosted store {store_id}",),
+            reason: format!("the database has an unconfirmed binding to hosted store {store_id}"),
         };
     }
     store_mismatch_error(store_id, pending_nonce)
