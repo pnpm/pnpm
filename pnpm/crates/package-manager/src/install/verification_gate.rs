@@ -1,8 +1,9 @@
 use std::{path::Path, sync::Arc};
 
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
-    ReplacedEntries, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+    ReplacedCandidate, ReplacedEntries, VerifyLockfileResolutionsOptions,
+    verify_lockfile_resolutions,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
@@ -22,7 +23,7 @@ pub struct LockfileVerificationGate(
 );
 
 /// Owned form of [`ReplacedEntries`], for the spawned gate.
-pub(crate) type IsReplaced = Arc<dyn Fn(&PkgName, &str) -> bool + Send + Sync>;
+pub(crate) type IsReplaced = Arc<dyn Fn(ReplacedCandidate<'_>) -> bool + Send + Sync>;
 
 impl LockfileVerificationGate {
     /// Start the fan-out in the background, or `None` when no verifier

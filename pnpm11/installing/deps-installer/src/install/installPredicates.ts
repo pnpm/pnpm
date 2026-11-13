@@ -1,7 +1,9 @@
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import type { PnpmContext } from '@pnpm/installing.context'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ChangedField, ChangedSettingsField } from '@pnpm/lockfile.settings-checker'
+import { findMovedRegistryKey, hasMovedRegistryRoute } from '@pnpm/lockfile.utils'
 import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -15,6 +17,7 @@ import { isEmpty } from 'ramda'
 
 import type { ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
 import type { ImporterToUpdate, MutatedProject, UninstallSomeDepsMutation } from './mutationTypes.js'
+import type { ReplacedCandidate } from './verifyLockfileResolutions.js'
 
 export const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
@@ -144,18 +147,66 @@ export function matchUpdateTargetsReplacedEverywhere (
   ctx: Pick<PnpmContext, 'projects' | 'wantedLockfile'>,
   depth: number
 ): ((name: string, version: string) => boolean) | undefined {
-  if (depth !== Infinity || projects.length === 0) return undefined
+  if (depth !== Infinity || !coversEveryRecordedImporter(projects, ctx)) return undefined
   const updateMatchings = new Set<UpdateMatchingFunction>()
   for (const project of projects) {
     if (project.mutation === 'uninstallSome' || project.updateMatching == null) return undefined
     updateMatchings.add(project.updateMatching)
   }
-  const updatedImporterIds = new Set<string | undefined>(projects.map(({ rootDir }) => ctx.projects[rootDir]?.id))
-  if (Object.keys(ctx.wantedLockfile.importers ?? {}).some((importerId) => !updatedImporterIds.has(importerId))) {
-    return undefined
-  }
   const distinctUpdateMatchings = [...updateMatchings]
   return (name, version) => distinctUpdateMatchings.every((updateMatching) => updateMatching(name, version))
+}
+
+function coversEveryRecordedImporter (
+  projects: MutatedProject[],
+  ctx: Pick<PnpmContext, 'projects' | 'wantedLockfile'>
+): boolean {
+  if (projects.length === 0) return false
+  const updatedImporterIds = new Set<string | undefined>(projects.map(({ rootDir }) => ctx.projects[rootDir]?.id))
+  return Object.keys(ctx.wantedLockfile.importers ?? {}).every((importerId) => updatedImporterIds.has(importerId))
+}
+
+/**
+ * Matches lockfile entries that this install re-resolves instead of reusing:
+ * explicit update targets ({@link matchUpdateTargetsReplacedEverywhere}), plus
+ * plain semver keys whose scope route moved since the lockfile was resolved
+ * when the install resolves every recorded importer.
+ */
+export function matchReplacedLockfileEntries (
+  projects: MutatedProject[],
+  ctx: Pick<PnpmContext, 'existsNonEmptyWantedLockfile' | 'projects' | 'wantedLockfile'>,
+  opts: Pick<StrictInstallOptions, 'depth' | 'fixLockfile' | 'frozenLockfile' | 'frozenLockfileIfExists' | 'ignorePackageManifest' | 'lockedRegistriesByScope' | 'registriesByPrefix' | 'registriesByScope' | 'registryOptionsByUrl' | 'useLockfile'>
+): ((name: string, version: string, candidate?: ReplacedCandidate) => boolean) | undefined {
+  const matchUpdateTargets = matchUpdateTargetsReplacedEverywhere(projects, ctx, opts.depth)
+  const matchMovedRoutes = matchMovedRegistryEntries(projects, ctx, opts)
+  if (matchUpdateTargets != null && matchMovedRoutes != null) {
+    return (name, version, candidate) => matchUpdateTargets(name, version) || matchMovedRoutes(name, version, candidate)
+  }
+  return matchUpdateTargets ?? matchMovedRoutes
+}
+
+function matchMovedRegistryEntries (
+  projects: MutatedProject[],
+  ctx: Pick<PnpmContext, 'existsNonEmptyWantedLockfile' | 'projects' | 'wantedLockfile'>,
+  opts: Pick<StrictInstallOptions, 'fixLockfile' | 'frozenLockfile' | 'frozenLockfileIfExists' | 'ignorePackageManifest' | 'lockedRegistriesByScope' | 'registriesByPrefix' | 'registriesByScope' | 'registryOptionsByUrl' | 'useLockfile'>
+): ((name: string, version: string, candidate?: ReplacedCandidate) => boolean) | undefined {
+  const frozenLockfile = opts.frozenLockfile || (opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile)
+  const resolvesFromManifests = opts.useLockfile && !frozenLockfile && !opts.ignorePackageManifest && !opts.fixLockfile
+  if (
+    opts.lockedRegistriesByScope == null ||
+    !resolvesFromManifests ||
+    hasUninstallMutations(projects) ||
+    !coversEveryRecordedImporter(projects, ctx)
+  ) {
+    return undefined
+  }
+  const registries = pickRegistryContext(opts)
+  if (findMovedRegistryKey(ctx.wantedLockfile, registries) == null) return undefined
+  return (name, _version, candidate) => hasMovedRegistryRoute(registries, {
+    name,
+    nonSemverVersion: candidate?.nonSemverVersion,
+    registryName: candidate?.registryName,
+  })
 }
 
 export function removesAnyDependency (project: UninstallSomeDepsMutation, manifest: ProjectManifest | undefined): boolean {

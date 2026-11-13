@@ -33,13 +33,15 @@ interface OtherRegistry {
 }
 
 let other: OtherRegistry
+let mirror: OtherRegistry
 
 beforeAll(async () => {
-  other = await startRegistryWithoutVersion(CHILD, UNPUBLISHED)
+  other = await startOtherRegistry({ pkgName: CHILD, omitVersion: UNPUBLISHED })
+  mirror = await startOtherRegistry()
 })
 
 afterAll(async () => {
-  await other.close()
+  await Promise.all([other.close(), mirror.close()])
 })
 
 interface Packument {
@@ -50,13 +52,13 @@ interface Packument {
 
 /**
  * Serves the mock registry's npm endpoints under another origin, which makes
- * it another registry, with one version of one package left out of its
- * metadata. Tarball URLs in the packuments name the mock registry itself.
+ * it another registry, optionally with one version of one package left out of
+ * its metadata. Tarball URLs in the packuments name the mock registry itself.
  */
-async function startRegistryWithoutVersion (pkgName: string, version: string): Promise<OtherRegistry> {
-  const packumentPath = `/${pkgName}`
+async function startOtherRegistry (omit?: { pkgName: string, omitVersion: string }): Promise<OtherRegistry> {
+  const packumentPath = omit != null ? `/${omit.pkgName}` : undefined
   const server = http.createServer((req, res) => {
-    const isPackument = decodeURIComponent(req.url ?? '') === packumentPath
+    const isPackument = packumentPath != null && decodeURIComponent(req.url ?? '') === packumentPath
     const upstream = http.request({
       host: 'localhost',
       port: REGISTRY_MOCK_PORT,
@@ -70,7 +72,7 @@ async function startRegistryWithoutVersion (pkgName: string, version: string): P
         return
       }
       readBody(upstreamRes).then((body) => {
-        respondJson(res, withoutVersion(JSON.parse(body) as Packument, version))
+        respondJson(res, withoutVersion(JSON.parse(body) as Packument, omit!.omitVersion))
       }, (err: unknown) => {
         res.destroy(err as Error)
       })
@@ -159,7 +161,7 @@ test('a frozen install keeps the moved packages and the recorded routes', async 
   await execPnpm(['install'])
   const written = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
 
-  routeScope(other.url)
+  routeScope(mirror.url)
   await execPnpm(['install', '--frozen-lockfile'])
 
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(written)

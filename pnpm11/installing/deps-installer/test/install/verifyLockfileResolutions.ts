@@ -732,6 +732,25 @@ test('registry-qualified entries are verified separately, each with its own regi
     .toStrictEqual(new Set([undefined, 'work', 'gh']))
 })
 
+test('isReplaced distinguishes plain semver keys from registry-qualified keys', async () => {
+  const lockfile = makeLockfile({
+    '@corp/foo@1.0.0': { resolution: tarballResolution() },
+    '@corp/foo@legacy:1.0.0': { resolution: tarballResolution() },
+  }, LOCKFILE_VERSION)
+
+  const seen: Array<{ name: string, registryName?: string }> = []
+  const recordingVerifier = wrap(async (_resolution, ctx) => {
+    seen.push({ name: ctx.name, registryName: ctx.registryName })
+    return { ok: true }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [recordingVerifier], {
+    isReplaced: (name, _version, candidate) => name === '@corp/foo' && candidate?.registryName == null,
+  })).resolves.toBeUndefined()
+
+  expect(seen).toStrictEqual([{ name: '@corp/foo', registryName: 'legacy' }])
+})
+
 test('invalidates lockfile-verified.jsonl when default or scoped registry changes', async () => {
   prepareEmpty()
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-reg-'))

@@ -76,6 +76,11 @@ export function withOfflineCheckCacheIdentities (verifiers: readonly VerifierCac
   return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
 }
 
+export interface ReplacedCandidate {
+  nonSemverVersion?: string
+  registryName?: string
+}
+
 export interface VerifyLockfileResolutionsOptions {
   concurrency?: number
   /**
@@ -91,13 +96,14 @@ export interface VerifyLockfileResolutionsOptions {
   lockfilePath?: string
   /**
    * Entries the install re-resolves instead of reusing, such as the
-   * targets of `pnpm update <pkg>`. The resolver applies the policies to
-   * whatever it picks for them, so the verifiers skip their locked
-   * versions, which may no longer be served by the registry. The offline
-   * shape and alias checks still cover them. A run that skips an entry
-   * does not record the lockfile as verified.
+   * targets of `pnpm update <pkg>` or plain keys whose scope route moved.
+   * The resolver applies the policies to whatever it picks for them, so
+   * the verifiers skip their locked versions, which may no longer be
+   * served by the registry. The offline shape and alias checks still
+   * cover them. A run that skips an entry does not record the lockfile as
+   * verified.
    */
-  isReplaced?: (name: string, version: string) => boolean
+  isReplaced?: (name: string, version: string, candidate?: ReplacedCandidate) => boolean
 }
 
 /**
@@ -235,8 +241,8 @@ function dropReplacedCandidates (
 ): boolean {
   if (isReplaced == null) return false
   let dropped = false
-  for (const [key, { name, version }] of candidates) {
-    if (isReplaced(name, version)) {
+  for (const [key, { name, version, nonSemverVersion, registryName }] of candidates) {
+    if (isReplaced(name, version, { nonSemverVersion, registryName })) {
       candidates.delete(key)
       dropped = true
     }

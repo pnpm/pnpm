@@ -10,6 +10,7 @@ export { refIsLocalDirectory, refIsLocalTarball, resolveLocalTarballPath } from 
 export {
   findMovedRegistryKey,
   findOutdatedRegistryKey,
+  hasMovedRegistryRoute,
   keyPrefixForAlias,
   keyPrefixForRegistry,
   type MovedRegistryKey,

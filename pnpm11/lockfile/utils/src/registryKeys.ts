@@ -55,6 +55,24 @@ export interface MovedRegistryKey {
 }
 
 /**
+ * Whether a locked package's plain semver key resolved from a registry its
+ * scope no longer routes to. `false` without `lockedRegistriesByScope`, for
+ * non-semver resolutions, and for registry-qualified keys (which name their
+ * registry).
+ */
+export function hasMovedRegistryRoute (
+  registries: RegistryContext,
+  { name, nonSemverVersion, registryName }: { name: string, nonSemverVersion?: string, registryName?: string }
+): boolean {
+  if (registries.lockedRegistriesByScope == null || nonSemverVersion != null || registryName != null) {
+    return false
+  }
+  const from = pickRegistryForPackage(lockedRegistriesByScope(registries), name)
+  const to = pickRegistryForPackage(registries.registriesByScope, name)
+  return !isSameRegistry(from, to)
+}
+
+/**
  * The smallest plain `packages:` key whose package resolved from a registry
  * its scope no longer routes to, with that registry and the current one.
  * `undefined` without a record of the routes the lockfile was resolved under.
