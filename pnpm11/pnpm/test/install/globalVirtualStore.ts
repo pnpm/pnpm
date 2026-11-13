@@ -91,8 +91,8 @@ test('reused global virtual store bin shims are repaired once per store', async 
 
   await execPnpm(['install'])
 
-  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
   expect(fs.readFileSync(markerPath, 'utf8')).toBe('1')
+  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
 })
 
 test('frozenStore does not fail while a global virtual store bin shim needs repair', async () => {
