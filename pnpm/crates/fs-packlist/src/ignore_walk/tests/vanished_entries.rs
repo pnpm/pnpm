@@ -20,12 +20,16 @@ macro_rules! reads_from_disk {
 }
 
 fn walked_files<Sys: FsReadDir + FsRead>(pkg_dir: &Path) -> io::Result<Vec<String>> {
+    walked_workspace_files::<Sys>(pkg_dir, None)
+}
+
+fn walked_workspace_files<Sys: FsReadDir + FsRead>(
+    pkg_dir: &Path,
+    workspace_dir: Option<&Path>,
+) -> io::Result<Vec<String>> {
     let manifest = serde_json::json!({});
-    let rules = PackageRules {
-        workspace_dir: None,
-        manifest: &manifest,
-        include_alternate_manifests: true,
-    };
+    let rules =
+        PackageRules { workspace_dir, manifest: &manifest, include_alternate_manifests: true };
     let mut files = Vec::new();
     walk_files::<Sys>(pkg_dir, rules, &mut |path, _| {
         let relative = path.strip_prefix(pkg_dir).unwrap();
@@ -157,6 +161,39 @@ fn an_npmignore_removed_before_it_is_read_falls_back_to_the_gitignore() {
     let files = walked_files::<RemovesNpmignoreBeforeReading>(root.path()).unwrap();
 
     assert_eq!(files, ["index.js", "other.js", "package.json"]);
+}
+
+#[test]
+fn a_workspace_package_whose_npmignore_is_removed_before_it_is_read_inherits_workspace_rules() {
+    struct RemovesNpmignoreBeforeReading;
+    impl FsReadDir for RemovesNpmignoreBeforeReading {
+        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>> {
+            fs::read_dir(path)
+        }
+    }
+    impl FsRead for RemovesNpmignoreBeforeReading {
+        fn read(path: &Path) -> io::Result<Vec<u8>> {
+            if path.ends_with(".npmignore") {
+                fs::remove_file(path)?;
+            }
+            fs::read(path)
+        }
+    }
+    let workspace = tempfile::tempdir().unwrap();
+    fs::write(workspace.path().join(".gitignore"), "secret.js\n").unwrap();
+    let pkg_dir = workspace.path().join("packages/pkg");
+    fs::create_dir_all(&pkg_dir).unwrap();
+    for (name, contents) in
+        [("package.json", "{}"), ("index.js", ""), ("secret.js", ""), (".npmignore", "secret.js\n")]
+    {
+        fs::write(pkg_dir.join(name), contents).unwrap();
+    }
+
+    let files =
+        walked_workspace_files::<RemovesNpmignoreBeforeReading>(&pkg_dir, Some(workspace.path()))
+            .unwrap();
+
+    assert_eq!(files, ["index.js", "package.json"]);
 }
 
 #[test]

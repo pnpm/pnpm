@@ -96,8 +96,14 @@ fn root_rules<Sys: FsRead>(
     let mut matcher =
         files_field::compile_files_rules(pkg_dir, files.map_or(&[][..], Vec::as_slice));
     if files.is_none() {
-        matcher.rules = inherited_rules::<Sys>(pkg_dir, options.workspace_dir)?;
-        matcher.rules.extend(read_dir_rules::<Sys>(pkg_dir)?);
+        let own = read_dir_ignore_file::<Sys>(pkg_dir)?;
+        matcher.rules = if own.is_npmignore {
+            own.rules
+        } else {
+            let mut rules = inherited_rules::<Sys>(pkg_dir, options.workspace_dir)?;
+            rules.extend(own.rules);
+            rules
+        };
     }
     matcher.rules.extend(root_required_rules());
     matcher.rules.extend(
@@ -393,19 +399,32 @@ fn matches_as_dir(rule: &IgnoreRule, entry: &str) -> bool {
 /// The rules of `dir`'s `.npmignore`, or of its `.gitignore` when it has no
 /// `.npmignore`.
 fn read_dir_rules<Sys: FsRead>(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
-    let content = match read_ignore_file::<Sys>(&dir.join(".npmignore"))? {
-        Some(content) => content,
-        None => match read_ignore_file::<Sys>(&dir.join(".gitignore"))? {
-            Some(content) => content,
-            None => return Ok(Vec::new()),
-        },
-    };
-    Ok(String::from_utf8_lossy(&content)
+    Ok(read_dir_ignore_file::<Sys>(dir)?.rules)
+}
+
+/// The rules [`read_dir_rules`] reads, and which file they came from.
+struct DirIgnoreFile {
+    rules: Vec<IgnoreRule>,
+    /// Whether the rules are `dir`'s `.npmignore`, which replaces the
+    /// ignore files of the workspace directories above a package.
+    is_npmignore: bool,
+}
+
+fn read_dir_ignore_file<Sys: FsRead>(dir: &Path) -> io::Result<DirIgnoreFile> {
+    if let Some(content) = read_ignore_file::<Sys>(&dir.join(".npmignore"))? {
+        return Ok(DirIgnoreFile { rules: parse_ignore_rules(&content), is_npmignore: true });
+    }
+    let content = read_ignore_file::<Sys>(&dir.join(".gitignore"))?.unwrap_or_default();
+    Ok(DirIgnoreFile { rules: parse_ignore_rules(&content), is_npmignore: false })
+}
+
+fn parse_ignore_rules(content: &[u8]) -> Vec<IgnoreRule> {
+    String::from_utf8_lossy(content)
         .lines()
         .map(trim_ignore_line)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(IgnoreRule::parse)
-        .collect())
+        .collect()
 }
 
 /// The contents of the ignore file at `path`, or `None` when it is not a file,
@@ -432,9 +451,6 @@ fn inherited_rules<Sys: FsRead>(
 ) -> io::Result<Vec<IgnoreRule>> {
     let mut rules = Vec::new();
     let Some(workspace_dir) = workspace_dir else { return Ok(rules) };
-    if pkg_dir.join(".npmignore").is_file() {
-        return Ok(rules);
-    }
     let Some(parent_rel) = pkg_dir
         .parent()
         .and_then(|parent| parent.strip_prefix(workspace_dir).ok())
