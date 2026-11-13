@@ -61,4 +61,15 @@ fn invalid_or_loose_garbage_tokens_are_rejected() {
     assert!(!is_semver_subset("1.0.0 foo", "^1.0.0"));
     assert!(!is_semver_subset("1.0.0 - foo", "*"));
     assert!(!is_semver_subset("github:org/bar", "*"));
+    assert!(!is_semver_subset("0.5.0", "<1.foo"));
+    assert!(!is_semver_subset("1.0.0", "<2.garbage"));
+    assert!(!is_semver_subset("1.1.0", "<1.2.foo"));
+    assert!(!is_semver_subset("<1.foo", "*"));
+    assert!(!is_semver_subset("<1.2.foo", "*"));
+    assert!(!is_semver_subset("0.5.0", "<1."));
+    assert!(!is_semver_subset("0.5.0", "<1.2.3.4"));
+    assert!(is_semver_subset("0.5.0", "<1"));
+    assert!(is_semver_subset("0.5.0", "<1.x"));
+    assert!(is_semver_subset("1.1.0", "<1.2"));
+    assert!(is_semver_subset("1.1.0", "<1.2.x"));
 }

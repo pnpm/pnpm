@@ -182,20 +182,23 @@ pub(crate) fn npm_upper_bound(token: &str) -> Option<String> {
     if version.starts_with('=') || version.contains(['-', '+']) {
         return None;
     }
-    let version = version.trim_start_matches('v');
-    let mut components = version.split('.');
+    let mut components = version.trim_start_matches('v').split('.');
     let major: u64 = components.next()?.parse().ok()?;
-    let minor: Option<u64> = components
-        .next()
-        .and_then(|minor| minor.parse().ok());
-    let patch_is_named = components
-        .next()
-        .is_some_and(|patch| patch.parse::<u64>().is_ok())
-        && minor.is_some();
-    match (minor, patch_is_named) {
-        (_, true) => None,
-        (None, _) => Some(format!("<{major}.0.0-0")),
-        (Some(minor), _) => Some(format!("<{major}.{minor}.0-0")),
+    let minor = parse_optional_component(components.next())?;
+    let patch = parse_optional_component(components.next())?;
+    if components.next().is_some() || patch.is_some() {
+        return None;
+    }
+    match minor {
+        None => Some(format!("<{major}.0.0-0")),
+        Some(minor) => Some(format!("<{major}.{minor}.0-0")),
+    }
+}
+
+fn parse_optional_component(part: Option<&str>) -> Option<Option<u64>> {
+    match part {
+        None | Some("x" | "X" | "*") => Some(None),
+        Some(digits) => digits.parse::<u64>().ok().map(Some),
     }
 }
 

@@ -116,6 +116,25 @@ fn prerelease_specificity_respects_tuple_eligibility() {
 
     assert_eq!(apply_single_dep(broad_first, "foo", "1.0.0-alpha.1"), "1.0.0-alpha.2");
     assert_eq!(apply_single_dep(exact_first, "foo", "1.0.0-alpha.1"), "1.0.0-alpha.2");
+
+    let caret_before_union =
+        &[("foo@^1.0.0-alpha.0", "1.9.0"), ("foo@1.0.0-alpha.1 || 1.0.0", "1.0.0-alpha.2")];
+    let union_before_caret =
+        &[("foo@1.0.0-alpha.1 || 1.0.0", "1.0.0-alpha.2"), ("foo@^1.0.0-alpha.0", "1.9.0")];
+
+    assert_eq!(apply_single_dep(caret_before_union, "foo", "1.0.0-alpha.1"), "1.0.0-alpha.2");
+    assert_eq!(apply_single_dep(union_before_caret, "foo", "1.0.0-alpha.1"), "1.0.0-alpha.2");
+}
+
+#[test]
+fn upper_only_target_range_beats_star_in_both_orders() {
+    let star_first = &[("foo@*", "2.0.0"), ("foo@<1.0.0", "0.9.9")];
+    let upper_first = &[("foo@<1.0.0", "0.9.9"), ("foo@*", "2.0.0")];
+
+    assert_eq!(apply_single_dep(star_first, "foo", "0.5.0"), "0.9.9");
+    assert_eq!(apply_single_dep(upper_first, "foo", "0.5.0"), "0.9.9");
+    assert_eq!(apply_single_dep(star_first, "foo", "1.5.0"), "2.0.0");
+    assert_eq!(apply_single_dep(upper_first, "foo", "1.5.0"), "2.0.0");
 }
 
 #[test]

@@ -1508,6 +1508,41 @@ describe('createVersionsOverrider() range specificity', () => {
 
   test.each([
     [
+      'caret before tilde',
+      { 'my-lib@^1.0.0': '1.9.0', 'my-lib@~1.2.0': '1.2.5' },
+    ],
+    [
+      'tilde before caret',
+      { 'my-lib@~1.2.0': '1.2.5', 'my-lib@^1.0.0': '1.9.0' },
+    ],
+  ])('tilde target range beats enclosing caret range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { 'my-lib': '1.2.3' } })).toStrictEqual({
+      dependencies: { 'my-lib': '1.2.5' },
+    })
+  })
+
+  test.each([
+    [
+      'star before upper-only',
+      { 'foo@*': '2.0.0', 'foo@<1.0.0': '0.9.9' },
+    ],
+    [
+      'upper-only before star',
+      { 'foo@<1.0.0': '0.9.9', 'foo@*': '2.0.0' },
+    ],
+  ])('upper-only target range beats star (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '0.5.0' } })).toStrictEqual({
+      dependencies: { foo: '0.9.9' },
+    })
+    expect(overrider({ dependencies: { foo: '1.5.0' } })).toStrictEqual({
+      dependencies: { foo: '2.0.0' },
+    })
+  })
+
+  test.each([
+    [
       'unversioned first',
       { foo: '3.0.0', 'foo@*': '3.5.0', 'foo@^3.0.0': '4.0.0' },
     ],
@@ -1610,7 +1645,15 @@ describe('createVersionsOverrider() range specificity', () => {
       'exact prerelease first',
       { 'foo@1.0.0-alpha.1': '1.0.0-alpha.2', 'foo@^1.0.0-alpha.0': '1.9.0' },
     ],
-  ])('exact prerelease beats enclosing prerelease caret range (%s)', (_label, rawOverrides) => {
+    [
+      'caret before prerelease union',
+      { 'foo@^1.0.0-alpha.0': '1.9.0', 'foo@1.0.0-alpha.1 || 1.0.0': '1.0.0-alpha.2' },
+    ],
+    [
+      'prerelease union before caret',
+      { 'foo@1.0.0-alpha.1 || 1.0.0': '1.0.0-alpha.2', 'foo@^1.0.0-alpha.0': '1.9.0' },
+    ],
+  ])('exact prerelease and prerelease union beat enclosing prerelease caret range (%s)', (_label, rawOverrides) => {
     const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
     expect(overrider({ dependencies: { foo: '1.0.0-alpha.1' } })).toStrictEqual({
       dependencies: { foo: '1.0.0-alpha.2' },

@@ -172,6 +172,50 @@ fn specificity_key(entry: &ResolvedOverride) -> Specificity {
     Specificity { has_wildcard_parent, has_wildcard_target, is_untyped_target }
 }
 
+/// Precomputes strict range dominance among peers in the same specificity
+/// tier whose selector names can co-match, so per-dependency lookup never
+/// reparses override ranges.
+pub(super) fn populate_dominators(entries: &mut [ResolvedOverride]) {
+    let keys: Vec<Specificity> = entries
+        .iter()
+        .map(specificity_key)
+        .collect();
+    let dominators: Vec<Vec<usize>> =
+        (0..entries.len()).map(|idx| dominators_for_index(entries, &keys, idx)).collect();
+    for (entry, dominated_by) in entries.iter_mut().zip(dominators) {
+        entry.dominated_by = dominated_by;
+    }
+}
+
+fn dominators_for_index(
+    entries: &[ResolvedOverride],
+    keys: &[Specificity],
+    idx: usize,
+) -> Vec<usize> {
+    let candidate = &entries[idx];
+    let key = &keys[idx];
+    entries
+        .iter()
+        .enumerate()
+        .filter(|&(other_idx, other)| {
+            other_idx != idx
+                && keys[other_idx] == *key
+                && can_co_match(key, candidate, other)
+                && is_strictly_narrower(other, candidate)
+        })
+        .map(|(_, other)| other.id)
+        .collect()
+}
+
+fn can_co_match(key: &Specificity, lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> bool {
+    let targets_compatible = key.has_wildcard_target
+        || lhs.inner.target_pkg.name == rhs.inner.target_pkg.name;
+    let parents_compatible = key.has_wildcard_parent
+        || lhs.inner.parent_pkg.as_ref().map(|pkg| &pkg.name)
+            == rhs.inner.parent_pkg.as_ref().map(|pkg| &pkg.name);
+    targets_compatible && parents_compatible
+}
+
 /// Select the first most-specific override among `matching`:
 /// 1. Exact parent name before wildcard parent name.
 /// 2. Exact target name before wildcard target name.
@@ -197,7 +241,15 @@ fn pick_most_specific_match<'b>(matching: &[&'b ResolvedOverride]) -> Option<&'b
     top_tier
         .iter()
         .copied()
-        .find(|candidate| !top_tier.iter().any(|other| is_strictly_narrower(other, candidate)))
+        .find(|candidate| {
+            !candidate.dominated_by
+                .iter()
+                .any(|&dom_id| {
+                    top_tier
+                        .iter()
+                        .any(|other| other.id == dom_id)
+                })
+        })
 }
 
 fn is_strictly_narrower(lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> bool {

@@ -6,8 +6,6 @@
 //! branch of `sub`, enforces strict comparator parsing, and applies
 //! npm's prerelease eligibility rule.
 
-use std::borrow::Cow;
-
 use node_semver::{Identifier, Range, Version};
 
 use crate::{glue_operators_to_versions, npm_upper_bound};
@@ -90,8 +88,11 @@ fn parse_hyphen_comparator(left: &str, right: &str) -> Option<(Range, usize)> {
 }
 
 fn parse_single_comparator(token: &str) -> Option<Range> {
-    let text = npm_upper_bound(token).map_or(Cow::Borrowed(token), Cow::Owned);
-    text.parse::<Range>().ok()
+    let parsed = token.parse::<Range>().ok()?;
+    match npm_upper_bound(token) {
+        Some(rewritten) => rewritten.parse::<Range>().ok(),
+        None => Some(parsed),
+    }
 }
 
 fn classify_range(range: Range) -> Option<Branch> {

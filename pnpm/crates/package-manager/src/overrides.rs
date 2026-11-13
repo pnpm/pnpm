@@ -72,15 +72,18 @@ struct ConvergeOverride {
 /// Splitting once at construction time avoids re-parsing them on every
 /// manifest read.
 struct ResolvedOverride {
+    id: usize,
     inner: VersionOverride,
     parent_name_matcher: Option<WildcardMatcher>,
     target_name_matcher: WildcardMatcher,
     local_target: Option<LocalSpec>,
+    dominated_by: Vec<usize>,
 }
 
 impl ResolvedOverride {
-    fn new(override_entry: &VersionOverride, root_dir: &Path) -> Self {
+    fn new(id: usize, override_entry: &VersionOverride, root_dir: &Path) -> Self {
         Self {
+            id,
             parent_name_matcher: override_entry.parent_pkg
                 .as_ref()
                 .map(|parent| WildcardMatcher::new(&parent.name)),
@@ -90,6 +93,7 @@ impl ResolvedOverride {
                 .or_else(|| {
                     LocalSpec::parse_workspace_path(&override_entry.new_bare_specifier, root_dir)
                 }),
+            dominated_by: Vec::new(),
         }
     }
 
@@ -143,11 +147,15 @@ impl VersionsOverrider {
                     },
                 );
             } else if override_entry.parent_pkg.is_some() {
-                parent_scoped.push(ResolvedOverride::new(override_entry, root_dir));
+                let id = parent_scoped.len();
+                parent_scoped.push(ResolvedOverride::new(id, override_entry, root_dir));
             } else {
-                generic.push(ResolvedOverride::new(override_entry, root_dir));
+                let id = generic.len();
+                generic.push(ResolvedOverride::new(id, override_entry, root_dir));
             }
         }
+        selectors::populate_dominators(&mut parent_scoped);
+        selectors::populate_dominators(&mut generic);
         VersionsOverrider {
             parent_scoped,
             generic,
