@@ -48,6 +48,7 @@ fn importer_opts(id: &str, settings: Settings) -> ResolveImporterOptions {
         },
         peers_suffix_max_length: settings.peers_suffix_max_length,
         peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
+            explicitly_requested_direct_dependencies: std::collections::HashSet::default(),
             auto_install_peers: settings.auto_install_peers,
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,

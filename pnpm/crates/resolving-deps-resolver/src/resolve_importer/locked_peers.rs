@@ -119,14 +119,17 @@ fn locked_peer_versions_for_key_cached<'lockfile>(
         versions: Vec::new(),
         recovered: Vec::new(),
     };
-    traversal.collect_pins(vec![(key.clone(), snapshot)], &HashSet::default());
-    let encoded_names = traversal.versions
-        .iter()
-        .map(|(name, _)| name.clone())
-        .collect();
+    traversal.collect_pins(vec![(key.clone(), snapshot)], &HashMap::default());
+    let mut encoded_versions = HashMap::<String, HashSet<String>>::default();
+    for (name, version) in &traversal.versions {
+        encoded_versions
+            .entry(name.clone())
+            .or_default()
+            .insert(version.clone());
+    }
     while !traversal.recovered.is_empty() {
         let pending = std::mem::take(&mut traversal.recovered);
-        traversal.collect_pins(pending, &encoded_names);
+        traversal.collect_pins(pending, &encoded_versions);
     }
     traversal.versions
 }
@@ -147,13 +150,13 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
             pnpm_lockfile::PkgNameVerPeer,
             Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
         )>,
-        encoded_names: &HashSet<String>,
+        encoded_versions: &HashMap<String, HashSet<String>>,
     ) {
         while let Some((key, snapshot)) = pending.pop() {
             if !self.visited.insert(key.clone()) {
                 continue;
             }
-            pending.extend(self.collect_key(&key, snapshot, encoded_names));
+            pending.extend(self.collect_key(&key, snapshot, encoded_versions));
         }
     }
 
@@ -161,7 +164,7 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
         &mut self,
         key: &pnpm_lockfile::PkgNameVerPeer,
         snapshot: Option<&'lockfile pnpm_lockfile::SnapshotEntry>,
-        encoded_names: &HashSet<String>,
+        encoded_versions: &HashMap<String, HashSet<String>>,
     ) -> Vec<(pnpm_lockfile::PkgNameVerPeer, Option<&'lockfile pnpm_lockfile::SnapshotEntry>)> {
         let mut pending = Vec::new();
         let peers = locked_peer_keys(self.lockfile, key, snapshot, self.bound_cache);
@@ -172,14 +175,15 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
         let recover_context = verified_context && !retained_hash;
         for (name, peer) in peers {
             let version = peer.suffix.without_peer().to_string();
-            if recover_context && !encoded_names.contains(&name) {
+            let encoded = encoded_versions.get(&name);
+            if recover_context && encoded.is_none_or(|versions| versions.contains(&version)) {
                 let recovered = self.recover_providers(snapshot, &name, &peer);
                 self.recovered.extend(recovered);
             }
             if verified_context {
                 pending.extend(provider_with_peers(self.lockfile, peer));
             }
-            if !encoded_names.contains(&name) {
+            if encoded.is_none() {
                 self.versions.push((name, version));
             }
         }

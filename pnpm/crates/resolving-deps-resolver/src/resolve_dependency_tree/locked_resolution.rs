@@ -50,9 +50,14 @@ fn bound_providers(
     if !bound.is_hashed() {
         return bound;
     }
-    crate::lockfile_reuse::cached_bound_providers(
-        lockfile,
-        key,
-        &mut lock_recoverable(&ctx.workspace.cache.lockfile_reuse.bound_providers),
-    )
+    let cache = &ctx.workspace.cache.lockfile_reuse.bound_providers;
+    let cached = lock_recoverable(cache).get(key).cloned();
+    if let Some(bound) = cached {
+        return bound;
+    }
+    let bound = BoundProviders::of_snapshot(lockfile.into(), key);
+    lock_recoverable(cache)
+        .entry(key.clone())
+        .or_insert(bound)
+        .clone()
 }

@@ -402,10 +402,14 @@ impl super::WorkspaceTreeCtx {
         node_id: &NodeId,
         locked: Option<Box<crate::resolved_tree::LockedResolution>>,
     ) {
-        lock_recoverable(&self.tree.dependencies_tree)
-            .get_mut(node_id)
-            .expect("locked resolution belongs to an inserted node")
-            .locked = locked;
+        let mut nodes = lock_recoverable(&self.tree.dependencies_tree);
+        let node = nodes.get_mut(node_id).expect("locked resolution belongs to an inserted node");
+        // A shared leaf records artifact provenance; update precedence belongs to its importer.
+        if locked.is_none() && matches!(node_id, NodeId::Leaf(_)) {
+            return;
+        }
+        node.locked = locked;
+        drop(nodes);
         self.tree.record_tree_node_write(node_id);
     }
 }

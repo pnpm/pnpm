@@ -379,11 +379,7 @@ impl ImporterHoistState {
                     .keys()
                     .cloned()
                     .collect(),
-                explicitly_requested_direct_dependencies: self.dependencies
-                    .wanted_specifier_by_alias
-                    .keys()
-                    .cloned()
-                    .collect(),
+                explicitly_requested_direct_dependencies: self.requested_direct_dependencies(),
                 hoisted_peer_provider_node_ids: self.dependencies
                     .hoisted_peer_provider_node_ids
                     .clone(),
@@ -404,11 +400,7 @@ impl ImporterHoistState {
                 .keys()
                 .cloned()
                 .collect(),
-            explicitly_requested_direct_dependencies: self.dependencies
-                .wanted_specifier_by_alias
-                .keys()
-                .cloned()
-                .collect(),
+            explicitly_requested_direct_dependencies: self.requested_direct_dependencies(),
             direct: self.dependencies.direct,
             hoisted_peer_provider_node_ids: self.dependencies.hoisted_peer_provider_node_ids,
             rejected_optional_peers: self.dependencies.rejected_optional_peers,

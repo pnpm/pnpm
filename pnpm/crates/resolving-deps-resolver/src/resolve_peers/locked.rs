@@ -69,26 +69,28 @@ pub(crate) fn stable_provider_path<'a>(
     id: &NodeId,
     paths: &HashMap<NodeId, DepPath>,
 ) -> Option<&'a DepPath> {
-    let previous = tree.dependencies_tree.get(id)?.previous_dep_path()?;
+    let node = tree.dependencies_tree.get(id)?;
+    if !tree.packages.get(&node.resolved_package_id)?.is_leaf {
+        return None;
+    }
+    let previous = node.previous_dep_path()?;
     (paths.get(id) == Some(previous)
         && index_of_dep_path_suffix(previous.as_str()).peers_index.is_none())
     .then_some(previous)
 }
 
-/// The first node in deterministic id order for each recorded provider path.
+/// The first stable node in deterministic id order for each recorded provider path.
 /// Empty unless a locked-peer reuse pass was requested.
 pub(super) fn build_node_ids_by_previous_dep_path(
     tree: &ResolvedTree,
     opts: &ResolvePeersOptions,
 ) -> HashMap<DepPath, NodeId> {
     let mut map = HashMap::default();
-    if opts.scope.resolved_peer_provider_paths.is_none() {
-        return map;
-    }
+    let Some(paths) = &opts.scope.resolved_peer_provider_paths else { return map };
     let mut node_ids: Vec<&NodeId> = tree.dependencies_tree.keys().collect();
     node_ids.sort();
     for node_id in node_ids {
-        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path()
+        if let Some(previous) = stable_provider_path(tree, node_id, paths)
             && !map.contains_key(previous)
         {
             map.insert(previous.clone(), node_id.clone());

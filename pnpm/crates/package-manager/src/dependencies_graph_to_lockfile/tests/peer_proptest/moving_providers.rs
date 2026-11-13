@@ -1113,3 +1113,67 @@ fn removing_a_consumer_keeps_optional_cycle_context() {
     )
     .unwrap();
 }
+
+#[test]
+fn adding_a_direct_provider_keeps_injected_peer_bindings_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange::Major, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 1 }],
+                    peers: vec![
+                        Peer { target: 1, range: Major(2), optional: false, also_dependency: true },
+                        Peer {
+                            target: 2,
+                            range: Major(2),
+                            optional: false,
+                            also_dependency: false,
+                        },
+                    ],
+                },
+                leaf(),
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 2 }],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: Major(1),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![
+                leaf(),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: Major(1),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+        ],
+        importers: vec![vec![Edge { target: 2, major: 2 }]],
+    };
+    check_changes(
+        workspace,
+        Settings {
+            injected: true,
+            auto_install_peers: false,
+            peers_suffix_max_length: 1000,
+            ..Default::default()
+        },
+        vec![
+            DependencyChange { importer: 0, target: 1, major: Some(2) },
+            DependencyChange { importer: 0, target: 0, major: Some(1) },
+        ],
+    )
+    .unwrap();
+}

@@ -246,6 +246,7 @@ fn importer_opts(
         },
         peers_suffix_max_length: 1000,
         peers: crate::ImporterPeerOptions {
+            explicitly_requested_direct_dependencies: HashSet::default(),
             auto_install_peers: false,
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,

@@ -203,6 +203,9 @@ impl ImporterInputs<'_> {
             base_opts: self.importer_base_opts(&importer.id, project_dir, preferred_versions),
             peers_suffix_max_length: self.peers_suffix_max_length(),
             peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
+                explicitly_requested_direct_dependencies: self.versions.requested_for_importer(
+                    &importer.id,
+                ),
                 auto_install_peers: self.config.auto_install_peers,
                 auto_install_peers_from_highest_match: self.config
                     .auto_install_peers_from_highest_match,

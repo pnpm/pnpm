@@ -14,31 +14,7 @@ fn retained_leaf_provider_keeps_a_hashed_cycle_context() {
         .into_iter()
         .chain([(None, "v9"), (None, "v13")])
     {
-        let registry_dir = tempfile::tempdir().unwrap();
-        let mut fixture = WorkspaceFixture::new();
-        fixture.registry.mock_instance = registry_from_manifests(
-            registry_dir.path(),
-            [
-                json!({"name":"p0","version":"1.0.0","dependencies":{"p1":"^1.0.0"}}),
-                json!({"name":"p0","version":"2.0.0","peerDependencies":{"p2":"*"},"peerDependenciesMeta":{"p2":{"optional":true}}}),
-                json!({"name":"p1","version":"1.0.0","dependencies":{"p3":"^1.0.0"}}),
-                json!({"name":"p1","version":"2.0.0"}),
-                json!({"name":"p2","version":"1.0.0","peerDependencies":{"p3":"*"}}),
-                json!({"name":"p2","version":"2.0.0","peerDependencies":{"p0":"^2.0.0"}}),
-                json!({"name":"p3","version":"1.0.0","dependencies":{"p2":"^2.0.0"},"peerDependencies":{"p1":"*"}}),
-                json!({"name":"p3","version":"2.0.0"}),
-            ],
-        );
-        fixture.append_workspace_yaml(&format!("autoInstallPeers: true\nresolvePeersFromWorkspaceRoot: false\ndedupePeers: false\ndedupeInjectedDeps: false\ndedupePeerDependents: true\npeersSuffixMaxLength: 20\nlockfile:\n  format: {format}\n"));
-        fixture.write_root_manifest(
-            "root",
-            ManifestDeps { prod: &[("p2", "^1.0.0")], ..Default::default() },
-        );
-        fixture.project(
-            "a",
-            "app",
-            ManifestDeps { prod: &[("p3", "^1.0.0")], ..Default::default() },
-        );
+        let (_registry_dir, fixture) = retained_cycle_fixture(format);
         install_lockfile(&fixture, bundle);
         let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
         install_lockfile(&fixture, bundle);
@@ -46,6 +22,31 @@ fn retained_leaf_provider_keeps_a_hashed_cycle_context() {
         dbg!(&fresh, &reused);
         assert_eq!(fresh, reused, "{bundle:?}");
     }
+}
+
+fn retained_cycle_fixture(format: &str) -> (tempfile::TempDir, WorkspaceFixture) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        [
+            json!({"name":"p0","version":"1.0.0","dependencies":{"p1":"^1.0.0"}}),
+            json!({"name":"p0","version":"2.0.0","peerDependencies":{"p2":"*"},"peerDependenciesMeta":{"p2":{"optional":true}}}),
+            json!({"name":"p1","version":"1.0.0","dependencies":{"p3":"^1.0.0"}}),
+            json!({"name":"p1","version":"2.0.0"}),
+            json!({"name":"p2","version":"1.0.0","peerDependencies":{"p3":"*"}}),
+            json!({"name":"p2","version":"2.0.0","peerDependencies":{"p0":"^2.0.0"}}),
+            json!({"name":"p3","version":"1.0.0","dependencies":{"p2":"^2.0.0"},"peerDependencies":{"p1":"*"}}),
+            json!({"name":"p3","version":"2.0.0"}),
+        ],
+    );
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: true\nresolvePeersFromWorkspaceRoot: false\ndedupePeers: false\ndedupeInjectedDeps: false\ndedupePeerDependents: true\npeersSuffixMaxLength: 20\nlockfile:\n  format: {format}\n"));
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[("p2", "^1.0.0")], ..Default::default() },
+    );
+    fixture.project("a", "app", ManifestDeps { prod: &[("p3", "^1.0.0")], ..Default::default() });
+    (registry_dir, fixture)
 }
 
 #[test]
@@ -168,6 +169,30 @@ fn optional_cycle_peer_keeps_its_transitive_context() {
             fresh.to_yaml_string().unwrap(),
             reused.to_yaml_string().unwrap(),
             "{bundle:?} {format}",
+        );
+    }
+}
+
+mod known_failures {
+    use super::{Lockfile, install_lockfile, read_v11_bundle_path, retained_cycle_fixture};
+    use crate::peer_convergence::moving_providers::normalize_registry_origin;
+
+    #[test]
+    fn fresh_hashed_cycle_parity_remains_tracked_by_task_221() {
+        let Some(bundle) = read_v11_bundle_path() else {
+            eprintln!("PNPM_V11_BUNDLE is unset; skipping the tracked v11/v12 cycle comparison");
+            return;
+        };
+        let mut outputs = Vec::new();
+        for cli in [Some(bundle.as_os_str()), None] {
+            let (_registry_dir, fixture) = retained_cycle_fixture("v9");
+            install_lockfile(&fixture, cli);
+            let lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+            outputs.push(normalize_registry_origin(lockfile, &fixture).to_yaml_string().unwrap());
+        }
+        assert_ne!(
+            outputs[0], outputs[1],
+            "Known failure unexpectedly passed: replace this assertion with equality and remove known_failures. Tracked by https://github.com/pnpm/tasks/issues/221",
         );
     }
 }

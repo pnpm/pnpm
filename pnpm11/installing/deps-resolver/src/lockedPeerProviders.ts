@@ -20,10 +20,10 @@ interface CurrentProvidersContext<Pkg extends PartialResolvedPackage> {
   dependenciesTree: DependenciesTree<Pkg>
 }
 
-export function getNodeIdsByPreviousDepPath<Pkg> (dependenciesTree: DependenciesTree<Pkg>): Map<DepPath, NodeId> {
+export function getNodeIdsByPreviousDepPath<Pkg> (dependenciesTree: DependenciesTree<Pkg>, resolvedPaths: Map<NodeId, DepPath>): Map<DepPath, NodeId> {
   const nodeIdsByPreviousDepPath = new Map<DepPath, NodeId>()
   for (const [nodeId, node] of dependenciesTree.entries()) {
-    if (node.previousDepPath != null && !nodeIdsByPreviousDepPath.has(node.previousDepPath)) {
+    if (node.previousDepPath != null && resolvedPaths.get(nodeId) === node.previousDepPath && !nodeIdsByPreviousDepPath.has(node.previousDepPath)) {
       nodeIdsByPreviousDepPath.set(node.previousDepPath, nodeId)
     }
   }
@@ -43,8 +43,7 @@ export function pinLockedPeerProviders<Pkg extends PartialResolvedPackage> (
 ): ParentRefs {
   let { parentPkgs } = opts
   if (opts.node.lockedPeerContext == null || ctx.resolvedPeerProviderPaths == null) return parentPkgs
-  if (opts.node.previousDepPath != null && ctx.resolvedPeerProviderPaths.get(opts.nodeId) === opts.node.previousDepPath) return parentPkgs
-  if (ancestorRequiresCurrentProvider({ dependenciesTree: ctx.dependenciesTree, parentNodeIds: opts.parentNodeIds }, opts.nodeId)) return parentPkgs
+  if (!shouldRetainLockedContext(ctx, opts)) return parentPkgs
   for (const [peerName, previousPeerDepPath] of Object.entries(opts.node.lockedPeerContext)) {
     const pinnable = getPinnableLockedPeer(ctx, {
       peerName,
@@ -70,6 +69,14 @@ export function pinLockedPeerProviders<Pkg extends PartialResolvedPackage> (
     parentPkgs[peerName] = pinnable.lockedPeer
   }
   return parentPkgs
+}
+
+function shouldRetainLockedContext<Pkg extends PartialResolvedPackage> (
+  ctx: ResolveNodePeersContext<Pkg>,
+  opts: { nodeId: NodeId, node: DependenciesTreeNode<Pkg>, parentNodeIds: NodeId[] }
+): boolean {
+  if (opts.node.previousDepPath != null && ctx.resolvedPeerProviderPaths?.get(opts.nodeId) === opts.node.previousDepPath) return false
+  return !ancestorRequiresCurrentProvider({ dependenciesTree: ctx.dependenciesTree, parentNodeIds: opts.parentNodeIds }, opts.nodeId)
 }
 
 function getPinnableLockedPeer<Pkg extends PartialResolvedPackage> (
@@ -107,6 +114,7 @@ function lockedPeerProviderIsStable<Pkg extends PartialResolvedPackage> (
   previousPeerDepPath: DepPath
 ): boolean {
   if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) return false
+  if (!isContextIndependentProvider(ctx.dependenciesTree.get(peerNodeId))) return false
   // Only pin providers that have no peer context of their own. A provider
   // whose locked depPath carries a peer suffix is itself context-dependent
   // — and self-referential for cyclic peers — so reusing it can re-expand
@@ -120,6 +128,14 @@ function lockedPeerProviderIsStable<Pkg extends PartialResolvedPackage> (
   // pointing at a depPath that was never added to the graph.
   const currentPeerDepPath = ctx.pathsByNodeId.get(peerNodeId)
   return currentPeerDepPath == null || currentPeerDepPath === previousPeerDepPath
+}
+
+function isContextIndependentProvider<Pkg extends PartialResolvedPackage> (providerNode: DependenciesTreeNode<Pkg> | undefined): boolean {
+  if (providerNode == null || typeof providerNode.children === 'function' || Object.keys(providerNode.children).length > 0) return false
+  const provider = providerNode.resolvedPackage
+  if (!('peers' in provider) || Object.keys(provider.peers.taken).length > 0) return false
+  if ('isLeaf' in provider && provider.isLeaf !== true) return false
+  return true
 }
 
 export function hasCurrentPeerProviderThatMustWin<Pkg extends PartialResolvedPackage> (

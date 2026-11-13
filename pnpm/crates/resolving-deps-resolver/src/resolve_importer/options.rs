@@ -27,6 +27,8 @@ pub struct ResolveImporterOptions {
 
 #[derive(Debug, Clone)]
 pub struct ImporterPeerOptions {
+    /// Direct aliases explicitly named by the command, including unchanged specifiers.
+    pub explicitly_requested_direct_dependencies: rustc_hash::FxHashSet<String>,
     /// When true, missing required peers get installed at the importer
     /// even if no preferred version is in scope (the picker uses the
     /// peer's declared range as the specifier).

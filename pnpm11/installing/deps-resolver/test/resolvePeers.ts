@@ -904,6 +904,69 @@ describe('locked peer provider preferences', () => {
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
   })
 
+  test.each(['unbound peer', 'child'])('does not pin a bare provider with a %s', async (context) => {
+    const tree = createTree()
+    if (context === 'unbound peer') {
+      tree.get(retainedPeerNodeId)!.resolvedPackage = {
+        ...peer2Pkg,
+        peers: peerSetOf({ missing: { version: '*', optional: true } }),
+      }
+    } else {
+      tree.get(retainedPeerNodeId)!.children = { child: currentPeerNodeId }
+    }
+    const resolutionOpts = options(tree, new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    expect(initial.pathsByNodeId.get(retainedPeerNodeId)).toBe('peer/2.0.0')
+    const preferred = await resolvePeers({ ...resolutionOpts, resolvedPeerProviderPaths: initial.pathsByNodeId })
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('uses a stable occurrence when an earlier occurrence changed its locked path', async () => {
+    const tree = createTree()
+    tree.get(currentPeerNodeId)!.previousDepPath = 'peer/2.0.0' as DepPath
+    const resolutionOpts = options(tree, new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({ ...resolutionOpts, resolvedPeerProviderPaths: initial.pathsByNodeId })
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
+  })
+
+  test('keeps a consumer whose path already matches its locked context', async () => {
+    const tree = createTree()
+    tree.get(consumerNodeId)!.previousDepPath = 'consumer/1.0.0(peer/1.0.0)' as DepPath
+    const resolutionOpts = options(tree, new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({ ...resolutionOpts, resolvedPeerProviderPaths: initial.pathsByNodeId })
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('keeps the current context of a changed ancestor dependency', async () => {
+    const tree = createTree()
+    tree.get(wrapperNodeId)!.dependencyNamesWhoseCurrentProviderMustWin = new Set(['consumer'])
+    const resolutionOpts = options(tree, new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({ ...resolutionOpts, resolvedPeerProviderPaths: initial.pathsByNodeId })
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
   test('does not replace a newly resolved nested peer provider', async () => {
     const resolutionOpts = options(createTree(currentPeerNodeId), new Map([
       ['retainer', retainerNodeId],

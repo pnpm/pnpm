@@ -102,3 +102,39 @@ fn independent_explicit_provider_paths_keep_pins_at_different_depths() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "app", |_| true);
     assert_eq!(versions["peer"], HashSet::from_iter(["1.0.0".into(), "2.0.0".into()]));
 }
+
+#[test]
+fn matching_encoded_provider_recovers_deeper_context() {
+    for nested in ["1.0.0", "3.0.0"] {
+        let version = format!("1.0.0(peer@2.0.0)(nested@{nested})");
+        let key = format!("consumer@{version}");
+        let mut lockfile = peer_context_lockfile(
+            None,
+            [
+                (
+                    key.as_str(),
+                    snapshot_with_dependency("peer", plain_dependency("2.0.0(nested@1.0.0)")),
+                ),
+                (
+                    "peer@2.0.0(nested@1.0.0)",
+                    snapshot_with_dependency("nested", plain_dependency("1.0.0(deep@4.0.0)")),
+                ),
+            ],
+        );
+        lockfile.importers.insert(
+            "app".into(),
+            serde_json::from_value(serde_json::json!({
+                "dependencies": {"consumer": {"specifier":"1.0.0", "version":version}}
+            }))
+            .unwrap(),
+        );
+        let versions = importer_locked_peer_versions(Some(&lockfile), "app", |_| true);
+        assert_eq!(versions["nested"], HashSet::from_iter([nested.to_string()]));
+        assert_eq!(
+            versions.get("deep"),
+            (nested == "1.0.0")
+                .then(|| HashSet::from_iter(["4.0.0".to_string()]))
+                .as_ref(),
+        );
+    }
+}

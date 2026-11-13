@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use super::{
     Arc, BTreeMap, ChildrenOwnerClaim, ChildrenRecording, DependencySpec, DirectDep, FrontierNode,
     HashMap, HashSet, NodeId, NodeKind, NodeSeed, ParentPkgAliases, PendingNode,
@@ -144,6 +147,11 @@ fn settle_one_seed(
             &pending.identity.id,
             &pending.identity.node_id,
             &claim.owner,
+        );
+        super::super::locked_resolution::record(
+            ctx,
+            &pending.identity.node_id,
+            pending.lockfile.locked_resolution.clone(),
         );
         return None;
     }

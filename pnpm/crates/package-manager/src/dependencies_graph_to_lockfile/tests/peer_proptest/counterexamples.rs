@@ -1221,3 +1221,102 @@ fn optional_cycle_peer_keeps_its_transitive_context() {
         assert_eq!(expected, actual, "{format:?}");
     }
 }
+
+#[test]
+fn retained_direct_provider_preserves_shared_cycle_contexts() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![leaf(), depending_on(1, 2)],
+            vec![
+                depending_on(3, 2),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 3, major: 1 }],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: true,
+                    }],
+                },
+                peer_of(1, 2),
+            ],
+            vec![depending_on(2, 2), depending_on(0, 2)],
+        ],
+        importers: vec![
+            vec![Edge { target: 2, major: 1 }, Edge { target: 0, major: 1 }],
+            direct(2, 2),
+        ],
+    };
+    let order = in_order(&workspace);
+    let settings =
+        Settings { auto_install_peers: true, peers_suffix_max_length: 1000, ..Default::default() };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+}
+
+#[test]
+fn bare_non_leaf_provider_does_not_replace_an_injected_cycle_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                depending_on(3, 2),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 1, major: 2 }],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![leaf(), depending_on(2, 1)],
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 0, major: 2 }],
+                    peers: vec![Peer {
+                        target: 3,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                peer_of(0, 2),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 1 }, Edge { target: 1, major: 1 }],
+                    peers: vec![],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![direct(3, 1), direct(2, 2)],
+    };
+    let order = in_order(&workspace);
+    let settings = Settings {
+        injected: true,
+        auto_install_peers: false,
+        peers_suffix_max_length: 1000,
+        ..Default::default()
+    };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+}
