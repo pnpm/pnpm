@@ -219,3 +219,41 @@ snapshots:
     let snapshots = pruned.snapshots.as_ref().expect("snapshots");
     assert!(snapshots[&"foo@1.1.0".parse().expect("package key")].optional);
 }
+
+#[test]
+fn reconciles_importer_metadata_even_when_no_dependency_edge_was_dropped() {
+    let merged = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    publishDirectory: dist
+    linkDirectory: false
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+    dependenciesMeta:
+      foo:
+        injected: true
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+snapshots:
+  foo@1.1.0: {}
+",
+    );
+    let manifest = manifest(json!({ "dependencies": { "foo": "^1.0.0" } }));
+    let pruned = prune_merged_branch_lockfile(
+        &merged,
+        &pre_merge_without_bar(),
+        &[(".".to_string(), &manifest)],
+        true,
+    )
+    .expect("fold-introduced metadata is reconciled");
+    let root = &pruned.importers["."];
+    assert_eq!(root.publish_directory, None);
+    assert_eq!(root.link_directory, None);
+    assert_eq!(root.dependencies_meta, None);
+}

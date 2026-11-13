@@ -1,4 +1,4 @@
-use crate::{ProjectSnapshot, prune_undeclared_importer_deps};
+use crate::{ProjectSnapshot, prune_undeclared_importer_deps, reconcile_merged_importer_metadata};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;
@@ -229,4 +229,103 @@ fn keeps_an_undeclared_entry_the_fold_did_not_introduce() {
             .len(),
         2,
     );
+}
+
+#[test]
+fn drops_metadata_reinstated_by_the_fold() {
+    let pre_merge = importer(
+        r"
+dependencies:
+  foo:
+    specifier: ^1.0.0
+    version: 1.1.0
+dependenciesMeta:
+  foo:
+    injected: true
+",
+    );
+    let mut merged = importer(
+        r"
+publishDirectory: dist
+linkDirectory: false
+dependencies:
+  foo:
+    specifier: ^1.0.0
+    version: 1.1.0
+dependenciesMeta:
+  foo:
+    injected: true
+    patch: patches/stale.patch
+  removed-dep:
+    injected: true
+",
+    );
+    let changed = reconcile_merged_importer_metadata(
+        &mut merged,
+        Some(&pre_merge),
+        &manifest(json!({
+            "dependencies": { "foo": "^1.0.0" },
+            "dependenciesMeta": { "foo": { "injected": true } },
+        })),
+    );
+    assert!(changed);
+    assert_eq!(merged.publish_directory, None);
+    assert_eq!(merged.link_directory, None);
+    assert_eq!(merged.dependencies_meta, Some(json!({ "foo": { "injected": true } })));
+}
+
+#[test]
+fn restores_metadata_overwritten_by_a_stale_branch_lockfile() {
+    let pre_merge = importer(
+        r"
+publishDirectory: build
+linkDirectory: false
+dependenciesMeta:
+  foo:
+    patch: patches/current.patch
+",
+    );
+    let mut merged = importer(
+        r"
+publishDirectory: dist
+dependenciesMeta:
+  foo:
+    patch: patches/stale.patch
+",
+    );
+    let changed = reconcile_merged_importer_metadata(
+        &mut merged,
+        Some(&pre_merge),
+        &manifest(json!({
+            "publishConfig": { "directory": "build", "linkDirectory": false },
+            "dependenciesMeta": { "foo": { "patch": "patches/current.patch" } },
+        })),
+    );
+    assert!(changed);
+    assert_eq!(merged.publish_directory.as_deref(), Some("build"));
+    assert_eq!(merged.link_directory, Some(false));
+    assert_eq!(
+        merged.dependencies_meta,
+        Some(json!({ "foo": { "patch": "patches/current.patch" } })),
+    );
+}
+
+#[test]
+fn keeps_metadata_drift_the_fold_did_not_introduce() {
+    let pre_merge = importer(
+        r"
+publishDirectory: dist
+linkDirectory: false
+dependenciesMeta:
+  foo:
+    injected: true
+",
+    );
+    let mut merged = pre_merge.clone();
+    let changed =
+        reconcile_merged_importer_metadata(&mut merged, Some(&pre_merge), &manifest(json!({})));
+    assert!(!changed);
+    assert_eq!(merged.publish_directory.as_deref(), Some("dist"));
+    assert_eq!(merged.link_directory, Some(false));
+    assert_eq!(merged.dependencies_meta, Some(json!({ "foo": { "injected": true } })));
 }

@@ -695,6 +695,50 @@ test('preserves and merges importer publishDirectory, linkDirectory, and depende
   })
 })
 
+test('normalizes linkDirectory true and omits orphan linkDirectory', () => {
+  const ours: LockfileObject = JSON.parse(JSON.stringify({
+    lockfileVersion: '9.0',
+    importers: {
+      'packages/true-wins': {
+        specifiers: {},
+        publishDirectory: 'dist',
+        linkDirectory: false,
+      },
+      'packages/true-ours': {
+        specifiers: {},
+        publishDirectory: 'dist',
+        linkDirectory: true,
+      },
+      'packages/orphan-link': {
+        specifiers: {},
+        linkDirectory: false,
+      },
+    },
+  }))
+  const theirs: LockfileObject = JSON.parse(JSON.stringify({
+    lockfileVersion: '9.0',
+    importers: {
+      'packages/true-wins': {
+        specifiers: {},
+        publishDirectory: 'dist',
+        linkDirectory: true,
+      },
+      'packages/true-ours': {
+        specifiers: {},
+        publishDirectory: 'dist',
+      },
+      'packages/orphan-link': {
+        specifiers: {},
+      },
+    },
+  }))
+
+  const merged = mergeLockfileChanges(ours, theirs)
+  expect(merged.importers['packages/true-wins' as ProjectId].linkDirectory).toBeUndefined()
+  expect(merged.importers['packages/true-ours' as ProjectId].linkDirectory).toBeUndefined()
+  expect(merged.importers['packages/orphan-link' as ProjectId].linkDirectory).toBeUndefined()
+})
+
 test('handles constructor and __proto__ keys in importer dependenciesMeta', () => {
   const ours: LockfileObject = JSON.parse('{"lockfileVersion":"9.0","importers":{".":{"specifiers":{},"dependenciesMeta":{"constructor":{"injected":true},"__proto__":{"injected":true}}}}}')
   const theirs: LockfileObject = {

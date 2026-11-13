@@ -145,10 +145,10 @@ function applyImporterMetadata (
   const publishDirectory = theirImporter?.publishDirectory ?? ourImporter?.publishDirectory
   if (publishDirectory) {
     target.publishDirectory = publishDirectory
-  }
-  const linkDirectory = theirImporter?.linkDirectory ?? ourImporter?.linkDirectory
-  if (linkDirectory === false) {
-    target.linkDirectory = false
+    const linkDirectory = theirImporter?.linkDirectory ?? ourImporter?.linkDirectory
+    if (linkDirectory === false) {
+      target.linkDirectory = false
+    }
   }
 }
 

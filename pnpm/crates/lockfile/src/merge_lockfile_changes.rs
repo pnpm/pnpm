@@ -236,6 +236,19 @@ fn merge_importer(
             merge_resolved_dependency,
         )
     };
+    let publish_directory = their_importer
+        .and_then(|importer| importer.publish_directory.as_ref())
+        .or_else(|| our_importer.and_then(|importer| importer.publish_directory.as_ref()))
+        .cloned();
+    let link_directory = publish_directory
+        .is_some()
+        .then(|| {
+            their_importer
+                .and_then(|importer| importer.link_directory)
+                .or_else(|| our_importer.and_then(|importer| importer.link_directory))
+        })
+        .flatten()
+        .filter(|link_directory| !link_directory);
     ProjectSnapshot {
         specifiers: merge_dependency_group(
             our_importer.and_then(|importer| importer.specifiers.as_ref()),
@@ -249,15 +262,8 @@ fn merge_importer(
             our_importer.and_then(|importer| importer.dependencies_meta.as_ref()),
             their_importer.and_then(|importer| importer.dependencies_meta.as_ref()),
         ),
-        publish_directory: their_importer
-            .and_then(|importer| importer.publish_directory.as_ref())
-            .or_else(|| {
-                our_importer.and_then(|importer| importer.publish_directory.as_ref())
-            })
-            .cloned(),
-        link_directory: their_importer
-            .and_then(|importer| importer.link_directory)
-            .or_else(|| our_importer.and_then(|importer| importer.link_directory)),
+        publish_directory,
+        link_directory,
     }
 }
 
@@ -274,12 +280,10 @@ fn merge_dependencies_meta(
     };
     if let Some(serde_json::Value::Object(their_fields)) = theirs {
         for (dep_name, their_entry) in their_fields {
-            let entry = merged
-                .get(dep_name)
-                .map_or_else(
-                    || their_entry.clone(),
-                    |our_entry| merge_meta_entry(our_entry, their_entry),
-                );
+            let entry = match merged.get(dep_name) {
+                Some(our_entry) => merge_meta_entry(our_entry, their_entry),
+                None => their_entry.clone(),
+            };
             merged.insert(dep_name.clone(), entry);
         }
     }

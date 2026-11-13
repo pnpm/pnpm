@@ -395,6 +395,46 @@ importers:
 }
 
 #[test]
+fn merging_normalizes_link_directory_true_and_orphan_link_directory() {
+    let ours = "\
+lockfileVersion: '9.0'
+importers:
+  packages/true-wins:
+    publishDirectory: dist
+    linkDirectory: false
+  packages/true-ours:
+    publishDirectory: dist
+    linkDirectory: true
+  packages/orphan-link:
+    linkDirectory: false
+  packages/scalar-meta:
+    dependenciesMeta:
+      dep: 'ours'
+";
+    let theirs = "\
+lockfileVersion: '9.0'
+importers:
+  packages/true-wins:
+    publishDirectory: dist
+    linkDirectory: true
+  packages/true-ours:
+    publishDirectory: dist
+  packages/orphan-link: {}
+  packages/scalar-meta:
+    dependenciesMeta:
+      dep: 'theirs'
+";
+    let merged = merged(ours, theirs);
+    assert_eq!(merged.importers["packages/true-wins"].link_directory, None);
+    assert_eq!(merged.importers["packages/true-ours"].link_directory, None);
+    assert_eq!(merged.importers["packages/orphan-link"].link_directory, None);
+    assert_eq!(
+        merged.importers["packages/scalar-meta"].dependencies_meta,
+        Some(serde_json::json!({ "dep": "theirs" })),
+    );
+}
+
+#[test]
 fn merging_preserves_in_memory_importer_specifiers() {
     let mut ours = parse(OURS);
     ours.importers.get_mut(".").unwrap().specifiers = Some(std::collections::HashMap::from([

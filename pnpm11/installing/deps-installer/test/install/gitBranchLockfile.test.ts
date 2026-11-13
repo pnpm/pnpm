@@ -806,3 +806,68 @@ test('install with --merge-git-branch-lockfiles and --frozen-lockfile preserves 
     },
   })
 })
+
+test('install with --merge-git-branch-lockfiles and --frozen-lockfile drops removed publishConfig and dependenciesMeta from stale branch lockfiles', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('local-dep', { recursive: true })
+  fs.mkdirSync('dist', { recursive: true })
+  fs.writeFileSync('local-dep/package.json', JSON.stringify({ name: 'local-dep', version: '1.0.0' }))
+
+  const initialManifest: ProjectManifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    publishConfig: {
+      directory: 'dist',
+      linkDirectory: false,
+    },
+    dependencies: {
+      'local-dep': 'file:./local-dep',
+      'is-negative': '1.0.0',
+    },
+    dependenciesMeta: {
+      'local-dep': {
+        injected: true,
+      },
+      'is-negative': {
+        injected: true,
+      },
+    },
+  }
+
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main-branch'))
+  await install(initialManifest, testDefaults({ useGitBranchLockfile: false }))
+
+  const otherLockfilePath = path.resolve('pnpm-lock.feature.yaml')
+  fs.copyFileSync(WANTED_LOCKFILE, otherLockfilePath)
+
+  const updatedManifest: ProjectManifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+    dependenciesMeta: {
+      'is-negative': {
+        injected: false,
+      },
+    },
+  }
+  await install(updatedManifest, testDefaults({ useGitBranchLockfile: false }))
+
+  await install(updatedManifest, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  }))
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].publishDirectory).toBeUndefined()
+  expect(lockfile.importers['.'].linkDirectory).toBeUndefined()
+  expect(lockfile.importers['.'].dependenciesMeta).toStrictEqual({
+    'is-negative': {
+      injected: false,
+    },
+  })
+  expect(lockfile.importers['.'].dependencies).not.toHaveProperty(['local-dep'])
+})

@@ -9,15 +9,15 @@ import {
   isEmptyLockfile,
   type LockfileObject,
   type PatchedDepPathsStatus,
-  type ProjectSnapshot,
   readCurrentLockfile,
   readEnvLockfile,
   readWantedLockfileWithMergeInfo,
 } from '@pnpm/lockfile.fs'
-import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { logger } from '@pnpm/logger'
-import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
+
+import { maybePruneMergedImporters } from './pruneMergedImporters.js'
 
 export interface PnpmContext {
   currentLockfile: LockfileObject
@@ -295,25 +295,6 @@ function initWantedLockfile (opts: {
   return { wantedLockfile: prunedLockfile, wantedLockfileIsModified }
 }
 
-function maybePruneMergedImporters (
-  wantedLockfile: LockfileObject,
-  preMergeImporters: LockfileObject['importers'] | undefined,
-  projects: Array<{ id: ProjectId, manifest: ProjectManifest }>,
-  autoInstallPeers: boolean
-): LockfileObject {
-  if (preMergeImporters == null) return wantedLockfile
-  let prunedAnyImporter = false
-  for (const project of projects) {
-    prunedAnyImporter = pruneMergedDependencies({
-      importer: wantedLockfile.importers[project.id],
-      preMergeImporter: preMergeImporters[project.id],
-      manifest: project.manifest,
-      autoInstallPeers,
-    }) || prunedAnyImporter
-  }
-  return prunedAnyImporter ? pruneSharedLockfile(wantedLockfile) : wantedLockfile
-}
-
 function resolvePatchedDepPathsStatus (opts: {
   frozenLockfile: boolean
   existsWantedLockfile: boolean
@@ -329,91 +310,4 @@ function resolvePatchedDepPathsStatus (opts: {
     return checkPatchedDepPaths(opts.wantedLockfile)
   }
   return opts.initialStatus
-}
-
-function pruneMergedDependencies (
-  opts: {
-    importer: ProjectSnapshot
-    preMergeImporter: ProjectSnapshot | undefined
-    manifest: ProjectManifest
-    autoInstallPeers: boolean
-  }
-): boolean {
-  const { importer, preMergeImporter } = opts
-  const declaredDepNames = declaredDepNamesByField(opts.manifest, opts.autoInstallPeers)
-  const depsPruned = pruneDependencyFields(importer, preMergeImporter, declaredDepNames)
-  pruneSpecifiers(importer, preMergeImporter, declaredDepNames)
-  return depsPruned
-}
-
-function pruneDependencyFields (
-  importer: ProjectSnapshot,
-  preMergeImporter: ProjectSnapshot | undefined,
-  declaredDepNames: Record<DependenciesField, Set<string>>
-): boolean {
-  let pruned = false
-  for (const depField of DEPENDENCIES_FIELDS) {
-    if (pruneSingleDependencyField(importer, depField, preMergeImporter?.[depField], declaredDepNames[depField])) {
-      pruned = true
-    }
-  }
-  return pruned
-}
-
-function pruneSingleDependencyField (
-  importer: ProjectSnapshot,
-  depField: DependenciesField,
-  preMergeDeps: Record<string, string> | undefined,
-  declaredNames: Set<string>
-): boolean {
-  const deps = importer[depField]
-  if (deps == null) return false
-  let pruned = false
-  for (const depName of Object.keys(deps)) {
-    if (!declaredNames.has(depName) && preMergeDeps?.[depName] == null) {
-      delete deps[depName]
-      pruned = true
-    }
-  }
-  if (Object.keys(deps).length === 0) {
-    delete importer[depField]
-  }
-  return pruned
-}
-
-function pruneSpecifiers (
-  importer: ProjectSnapshot,
-  preMergeImporter: ProjectSnapshot | undefined,
-  declaredDepNames: Record<DependenciesField, Set<string>>
-): void {
-  for (const depName of Object.keys(importer.specifiers)) {
-    const isDeclared = DEPENDENCIES_FIELDS.some((depField) => declaredDepNames[depField].has(depName))
-    if (!isDeclared && preMergeImporter?.specifiers?.[depName] == null) {
-      delete importer.specifiers[depName]
-    }
-  }
-}
-
-// Mirrors how satisfiesPackageManifest assigns a manifest entry to a lockfile
-// field, so that pruning to the manifest hands the frozen-lockfile check the
-// same fields it derives for itself.
-function declaredDepNamesByField (
-  manifest: ProjectManifest,
-  autoInstallPeers: boolean
-): Record<DependenciesField, Set<string>> {
-  const optionalDependencies = new Set(Object.keys(manifest.optionalDependencies ?? {}))
-  const dependencies = new Set(Object.keys(manifest.dependencies ?? {})
-    .filter((depName) => !optionalDependencies.has(depName)))
-  const devDependencies = new Set(Object.keys(manifest.devDependencies ?? {})
-    .filter((depName) => !optionalDependencies.has(depName) && !dependencies.has(depName)))
-  if (autoInstallPeers) {
-    // A peer another field declares is not auto-installed, so it stays where
-    // that field puts it.
-    for (const depName of Object.keys(manifest.peerDependencies ?? {})) {
-      if (!optionalDependencies.has(depName) && !devDependencies.has(depName)) {
-        dependencies.add(depName)
-      }
-    }
-  }
-  return { dependencies, devDependencies, optionalDependencies }
 }

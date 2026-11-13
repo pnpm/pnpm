@@ -590,3 +590,86 @@ fn merging_preserves_importer_publish_config_and_dependencies_meta_on_frozen_ins
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn merging_drops_removed_importer_publish_config_and_dependencies_meta_on_frozen_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_branch(&workspace, "main");
+    fs::create_dir_all(workspace.join("local-dep")).expect("create local-dep");
+    fs::create_dir_all(workspace.join("dist")).expect("create dist");
+    fs::write(
+        workspace.join("local-dep/package.json"),
+        serde_json::json!({ "name": "local-dep", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write local-dep/package.json");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "publishConfig": {
+                "directory": "dist",
+                "linkDirectory": false,
+            },
+            "dependencies": {
+                "local-dep": "file:./local-dep",
+                "@pnpm.e2e/foo": "1.0.0",
+            },
+            "dependenciesMeta": {
+                "local-dep": {
+                    "injected": true,
+                },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let branch_lockfile = workspace.join("pnpm-lock.feature.yaml");
+    fs::copy(workspace.join("pnpm-lock.yaml"), &branch_lockfile).expect("seed branch lockfile");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/foo": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write updated package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(!branch_lockfile.exists(), "the merged branch lockfile is deleted");
+    let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(!shared.contains("publishDirectory"), "{shared}");
+    assert!(!shared.contains("linkDirectory"), "{shared}");
+    assert!(!shared.contains("dependenciesMeta"), "{shared}");
+    assert!(!shared.contains("local-dep"), "{shared}");
+
+    drop((root, mock_instance));
+}
