@@ -248,7 +248,7 @@ These belong to no single ecosystem, so they sit on the server root.
 
 ### Publication endpoints {#publication-endpoints}
 
-Served from the [database](storage.md#database), SQLite or libSQL.
+Served from the [database](storage.md#database), SQLite, libSQL, PostgreSQL, or MySQL.
 A publication is a commit that introduced packages. Its id is the namespace
 generation it committed. `<namespace>` is `-` for registries in the default namespace.
 
@@ -259,7 +259,7 @@ generation it committed. `<namespace>` is `-` for registries in the default name
 
 ### Release note endpoints {#release-note-endpoints}
 
-Served from the [database](storage.md#database), SQLite or libSQL.
+Served from the [database](storage.md#database), SQLite, libSQL, PostgreSQL, or MySQL.
 A note is Markdown of at most 64 KiB, with no control characters other than
 line feed and tab, no carriage returns, and no bidirectional overrides. A
 publish can send notes with it (see

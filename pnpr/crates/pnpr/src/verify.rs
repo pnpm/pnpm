@@ -31,10 +31,10 @@ pub async fn verify_storage(
     config: &Config,
     options: &VerifyOptions,
 ) -> miette::Result<VerifyReport> {
-    let storage = crate::export::open_hosted_storage(config).await?;
+    let storage = crate::hosted_storage::open_hosted_storage(config).await?;
 
     let mut report = VerifyReport::default();
-    let namespaces = crate::export::configured_hosted_namespaces(config);
+    let namespaces = crate::hosted_storage::configured_hosted_namespaces(config);
 
     for namespace in namespaces {
         let npm_storage = storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Npm);

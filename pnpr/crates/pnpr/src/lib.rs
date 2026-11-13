@@ -18,7 +18,7 @@ pub mod archive_gc;
 pub mod cache_maintenance;
 pub mod cli_commands;
 pub mod config_check;
-pub mod export;
+mod hosted_storage;
 pub mod htpasswd_import;
 pub mod logging;
 pub mod migrate_storage;

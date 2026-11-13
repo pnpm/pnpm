@@ -1137,15 +1137,6 @@ async fn offline_commands_read_the_stored_registries() {
         .unwrap();
     assert!(config.routing.hosted.is_empty());
 
-    let out = dir.path().join("export");
-    pnpr::run_command(&config, pnpr::Command::Export { out: out.clone() }).await.unwrap();
-    let exported: Vec<_> = walk(&out);
-    assert!(
-        exported
-            .iter()
-            .any(|path| path.contains("example")),
-        "{exported:?}",
-    );
     let gc = pnpr::Command::Gc {
         registry: vec!["local".to_string()],
         dry_run: true,
