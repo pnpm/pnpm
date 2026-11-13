@@ -50,6 +50,7 @@ export interface LinkBinOptions {
    * project but still extends `NODE_PATH`.
    */
   ownNodePaths?: boolean
+  resolveSymlinks?: boolean
   /**
    * The first `NODE_PATH` entry: the modules directory of the project whose
    * bins are linked, when Node cannot find it by walking up to `node_modules`.
@@ -163,7 +164,7 @@ async function isShimNodePathCurrent (content: string, { cmd, opts }: BinLinkCon
   const writesNodePath = writesShimNodePath(opts)
   // The shim lists every entry once, at its first position.
   const listed = new Set(opts.projectModulesDir == null ? [] : [opts.projectModulesDir])
-  const middle = takeUnlisted(writesNodePath ? await getBinNodePaths(cmd.path, opts.projectModulesDir) : [], listed)
+  const middle = takeUnlisted(writesNodePath ? await getBinNodePaths(cmd.path, opts.projectModulesDir, opts.resolveSymlinks) : [], listed)
   return isShimNodePath(content, {
     first: opts.projectModulesDir,
     middle,
@@ -261,7 +262,7 @@ async function getShimNodePath (target: string, opts: LinkBinOptions): Promise<s
   if (!writesShimNodePath(opts)) return undefined
   return Array.from(new Set([
     ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
-    ...await getBinNodePaths(target, opts.projectModulesDir),
+    ...await getBinNodePaths(target, opts.projectModulesDir, opts.resolveSymlinks),
     ...opts.extraNodePaths ?? [],
   ]))
 }

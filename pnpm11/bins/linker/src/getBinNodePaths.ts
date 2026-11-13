@@ -12,8 +12,8 @@ import path from 'node:path'
  * (used by jest, eslint, etc.) which resolve from CWD can find the correct
  * dependency versions.
  */
-export async function getBinNodePaths (target: string, modulesDirNameOrPath: string = 'node_modules'): Promise<string[]> {
-  const dir = await realpathIfExists(path.dirname(target))
+export async function getBinNodePaths (target: string, modulesDirNameOrPath: string = 'node_modules', resolveSymlinks = true): Promise<string[]> {
+  const dir = resolveSymlinks ? await realpathIfExists(path.dirname(target)) : path.dirname(target)
 
   const nodeModulesDir = findModulesDirAncestor(dir, 'node_modules', () => true)
   if (nodeModulesDir) {

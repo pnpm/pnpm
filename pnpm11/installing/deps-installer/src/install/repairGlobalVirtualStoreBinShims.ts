@@ -7,6 +7,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
 const markerName = '.pnpm-gvs-bin-shims-v1'
+type SlotShimNodePathOptions = ReturnType<typeof getSlotShimNodePathOptions> & { resolveSymlinks?: boolean }
 
 export async function globalVirtualStoreBinShimsNeedRepair (
   virtualStoreDir: string,
@@ -30,10 +31,13 @@ export async function repairGlobalVirtualStoreBinShims (
   const rootEntries = await readDirectories(ctx.virtualStoreDir)
   if (rootEntries == null) return
 
-  const slotShimNodePathOptions = getSlotShimNodePathOptions({
-    enableGlobalVirtualStore: true,
-    extraNodePaths: ctx.extraNodePaths,
-  })
+  const slotShimNodePathOptions = {
+    ...getSlotShimNodePathOptions({
+      enableGlobalVirtualStore: true,
+      extraNodePaths: ctx.extraNodePaths,
+    }),
+    resolveSymlinks: false,
+  }
   await Promise.all(rootEntries
     .filter((entry) => entry !== 'node_modules')
     .map((entry) => repairRootEntry({
@@ -48,7 +52,7 @@ export async function repairGlobalVirtualStoreBinShims (
 async function repairRootEntry (opts: {
   rootPath: string
   entry: string
-  slotShimNodePathOptions: ReturnType<typeof getSlotShimNodePathOptions>
+  slotShimNodePathOptions: SlotShimNodePathOptions
   preferSymlinkedExecutables?: boolean
 }): Promise<void> {
   if (opts.entry === '@') {
@@ -75,7 +79,7 @@ async function repairRootEntry (opts: {
 async function repairPackageSlots (opts: {
   packagePath: string
   scope: string
-  slotShimNodePathOptions: ReturnType<typeof getSlotShimNodePathOptions>
+  slotShimNodePathOptions: SlotShimNodePathOptions
   preferSymlinkedExecutables?: boolean
 }): Promise<void> {
   const versions = await readDirectories(opts.packagePath)
@@ -88,7 +92,7 @@ async function repairPackageSlots (opts: {
 async function repairVersionSlots (opts: {
   packagePath: string
   scope: string
-  slotShimNodePathOptions: ReturnType<typeof getSlotShimNodePathOptions>
+  slotShimNodePathOptions: SlotShimNodePathOptions
   preferSymlinkedExecutables?: boolean
   versionPath: string
 }): Promise<void> {
@@ -102,7 +106,7 @@ async function repairVersionSlots (opts: {
 async function repairSlot (opts: {
   packagePath: string
   scope: string
-  slotShimNodePathOptions: ReturnType<typeof getSlotShimNodePathOptions>
+  slotShimNodePathOptions: SlotShimNodePathOptions
   preferSymlinkedExecutables?: boolean
   slotPath: string
 }): Promise<void> {
