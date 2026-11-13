@@ -147,8 +147,8 @@ fn settle_one_seed(
         );
         return None;
     }
-    if pending.prior_key.is_none() && !ctx.update_scope().unpins_every_edge() {
-        pending.prior_key = recorded_prior_key(ctx, &pending.identity.id);
+    if pending.lockfile.prior_key.is_none() && !ctx.update_scope().unpins_every_edge() {
+        pending.lockfile.prior_key = recorded_prior_key(ctx, &pending.identity.id);
     }
     Some(FrontierNode {
         pending,
@@ -274,7 +274,7 @@ pub(super) fn children_context(
     RecordedChildrenContext {
         children_scope: Arc::clone(children_pkg_aliases),
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
-        prior_key: pending.prior_key
+        prior_key: pending.lockfile.prior_key
             .clone()
             .filter(|_| !ctx.update_scope().unpins_every_edge()),
         reused: false,
@@ -297,6 +297,11 @@ pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children:
         NodeKind::Leaf | NodeKind::Branch => pending.ancestry.depth,
     };
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
+    super::super::locked_resolution::record(
+        ctx,
+        &pending.identity.node_id,
+        pending.lockfile.locked_resolution.clone(),
+    );
 }
 
 /// The install aliases one resolved level contributes to its

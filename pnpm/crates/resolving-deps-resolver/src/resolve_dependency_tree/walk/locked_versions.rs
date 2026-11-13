@@ -241,3 +241,28 @@ pub(super) fn ensure_same_registry_revision(
     }
     Ok(())
 }
+
+impl super::edge_resolution::ResolvedEdge {
+    pub(super) fn locked_resolution(
+        &self,
+        ctx: &TreeCtx,
+        wanted: &WantedDependency,
+        edge: &super::ChildEdge<'_>,
+    ) -> Option<Box<crate::resolved_tree::LockedResolution>> {
+        self.prior_key
+            .as_ref()
+            .filter(|key| {
+                !super::update_unpins_edge(
+                    ctx.update_scope(),
+                    wanted,
+                    key.suffix.version_semver(),
+                    edge.depth,
+                ) && super::landed_on_prior_entry(
+                    key,
+                    &self.id,
+                    &ctx.workspace.cache.registry_context,
+                )
+            })
+            .and_then(|key| super::super::locked_resolution::from_prior(ctx, key))
+    }
+}

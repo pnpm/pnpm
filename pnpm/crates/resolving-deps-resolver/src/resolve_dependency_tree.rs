@@ -49,6 +49,7 @@ mod catalogs;
 mod failure;
 mod finalized;
 mod importer;
+mod locked_resolution;
 mod manifest;
 mod reuse;
 mod tree_ctx;
@@ -282,7 +283,7 @@ where
         &ctx,
         resolver,
         wanted,
-        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        Some(pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY),
         &parent_pkg_aliases,
     )
     .await?;
@@ -387,24 +388,24 @@ pub(crate) fn wanted_from_spec(spec: DependencySpec) -> WantedDependency {
 /// may still return `None` for any spec the cycle break gated out;
 /// those are filtered here.
 ///
+/// `reuse_importer_id` reads manifest dependencies from that importer. Pass `None`
+/// for hoisted peers, which must not inherit a removed direct dependency's resolution.
+///
 /// [`ResolvedPackage`]: crate::ResolvedPackage
 pub async fn extend_tree<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: Vec<DependencySpec>,
-    importer_id: &str,
+    reuse_importer_id: Option<&str>,
     parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     ctx.workspace.tree.bump_revision();
-    // Direct deps reuse via the importer's recorded resolution when a
-    // prior lockfile exists; without one the gate is a no-op.
-    let reuse = if ctx.workspace.reuse.lockfile.is_some() {
-        ReuseSource::Importer { importer_id: importer_id.to_string() }
-    } else {
-        ReuseSource::Off
+    let reuse = match reuse_importer_id.filter(|_| ctx.workspace.reuse.lockfile.is_some()) {
+        Some(importer_id) => ReuseSource::Importer { importer_id: importer_id.to_string() },
+        None => ReuseSource::Off,
     };
     // Phase 1: resolve every direct dep before any subtree walk, so
     // the level's resolved versions seed the children's
@@ -427,7 +428,7 @@ where
     let direct_versions = level_versions(ctx, &seeds);
     // Recorded only now the level barrier has passed, so the subtree walk
     // sees the resolved direct-dep versions.
-    record_direct_dep_versions(ctx, importer_id, &direct_versions);
+    record_direct_dep_versions(ctx, &ctx.importer.id, &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer_direct(
         ctx.options.base.version.preferred_versions_overlay.clone(),
         direct_versions,

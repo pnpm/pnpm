@@ -18,7 +18,7 @@ use super::super::{lock_recoverable, tree_ctx::TreeCtx};
 /// synthesized from `lockfile`: every node a plain-semver registry
 /// package without declared peers present in `packages:`, every snapshot child non-`link:`, no
 /// node a dedupe target, and no `pacquet update` target at a depth the
-/// update reaches. Memoised on [`SubtreeReuseCache::reusable`] so each
+/// update reaches. Memoised on [`LockfileReuseCache::reusable`] so each
 /// package is checked once.
 ///
 /// The members of a dependency cycle reach each other, so they share one
@@ -43,9 +43,10 @@ pub(super) fn subtree_fully_reusable(
     .reusable
 }
 
-/// What [`fn@subtree_fully_reusable`] memoises on the workspace.
+/// Memoized decisions about the wanted lockfile, shared across importers.
 #[derive(Default)]
-pub(crate) struct SubtreeReuseCache {
+pub(crate) struct LockfileReuseCache {
+    pub(crate) bound_providers: Mutex<crate::lockfile_reuse::BoundCache>,
     /// Per snapshot key: `true` means the package and its entire transitive
     /// subtree can be synthesized from the prior lockfile. Whether a
     /// `pacquet update` reaches a target inside the subtree is settled
@@ -101,7 +102,7 @@ impl SubtreeWalk<'_> {
             return Visit::DECIDED_FALSE;
         }
         if let Some(&reusable) =
-            lock_recoverable(&self.ctx.workspace.cache.subtree.reusable).get(key)
+            lock_recoverable(&self.ctx.workspace.cache.lockfile_reuse.reusable).get(key)
         {
             return Visit { reusable, lowest_reached: usize::MAX };
         }
@@ -207,7 +208,7 @@ impl SubtreeWalk<'_> {
     }
 
     fn decide(&mut self, key: PkgNameVerPeer, undecided_from: usize, reusable: bool) {
-        let mut memo = lock_recoverable(&self.ctx.workspace.cache.subtree.reusable);
+        let mut memo = lock_recoverable(&self.ctx.workspace.cache.lockfile_reuse.reusable);
         for member in self.undecided
             .drain(undecided_from..)
             .chain([key])

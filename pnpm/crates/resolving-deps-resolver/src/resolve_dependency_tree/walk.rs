@@ -212,12 +212,17 @@ pub(super) struct PendingNode {
     /// The claim [`fn@assign_level_owners`] settled for this
     /// occurrence, once its level has seeded in full.
     claim: Option<ChildrenOwnerClaim>,
+    lockfile: PendingNodeLockfile,
+    identity: PendingNodeIdentity,
+    ancestry: PendingNodeAncestry,
+}
+
+pub(super) struct PendingNodeLockfile {
     /// The edge's recorded snapshot key in the prior lockfile, if
     /// any — threads each child's prior ref through the walk phase
     /// via `ReuseSource::Transitive`.
     pub(super) prior_key: Option<PkgNameVerPeer>,
-    identity: PendingNodeIdentity,
-    ancestry: PendingNodeAncestry,
+    locked_resolution: Option<Box<crate::resolved_tree::LockedResolution>>,
 }
 
 pub(super) struct PendingNodeIdentity {

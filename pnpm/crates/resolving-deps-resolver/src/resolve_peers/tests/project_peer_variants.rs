@@ -54,6 +54,8 @@ fn build_projects(
                 add_lazy_direct_dep(&mut tree.dependencies_tree, &mut direct, alias, id);
             }
             ImporterPeerInput {
+                declared_direct_dependencies: HashSet::default(),
+                explicitly_requested_direct_dependencies: HashSet::default(),
                 id: index.to_string(),
                 direct,
                 root_dir: format!("/repo/{index}").into(),

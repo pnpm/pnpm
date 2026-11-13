@@ -30,6 +30,8 @@
 //! `in_progress` set, where a re-entry on the same `NodeId` falls back
 //! to `name@version` as the peer-id.
 
+pub(crate) mod locked;
+
 #[cfg(test)]
 pub(crate) mod test_support;
 
@@ -56,6 +58,7 @@ use crate::{
 };
 use context::{ChainSuffixMemo, CurrentProviderSource, ParentRefs};
 use discovery::PeerDiscoveryCaches;
+use locked::build_node_ids_by_previous_dep_path;
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -276,6 +279,8 @@ pub struct ResolvePeersResult {
 /// `modules_dir` used by the `excludeLinksFromLockfile` link-remap.
 #[derive(Debug, Clone)]
 pub struct ImporterPeerInput {
+    pub declared_direct_dependencies: HashSet<String>,
+    pub explicitly_requested_direct_dependencies: HashSet<String>,
     pub id: String,
     pub direct: Vec<DirectDep>,
     /// Absolute root of this importer. Threaded into
@@ -576,9 +581,7 @@ fn importer_parent_refs(
 
 /// The current-provider sources visible while walking `importer`: its
 /// own direct dependencies, plus the workspace root importer's when
-/// that is a different project. The workspace path carries no
-/// declared/explicitly-requested alias sets yet, so those guards stay
-/// empty here.
+/// that is a different project.
 fn importer_provider_sources(
     importer: &ImporterPeerInput,
     root_importer: Option<&ImporterPeerInput>,
@@ -588,8 +591,10 @@ fn importer_provider_sources(
             .iter()
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
-        declared_direct_dependencies: HashSet::default(),
-        explicitly_requested_direct_dependencies: HashSet::default(),
+        declared_direct_dependencies: importer.declared_direct_dependencies.clone(),
+        explicitly_requested_direct_dependencies: importer
+            .explicitly_requested_direct_dependencies
+            .clone(),
     };
     let mut sources = vec![source_of(importer)];
     if let Some(root) = root_importer
@@ -598,29 +603,6 @@ fn importer_provider_sources(
         sources.push(source_of(root));
     }
     sources
-}
-
-/// The upstream `getNodeIdsByPreviousDepPath`: first node (in
-/// deterministic id order) claiming each `previous_dep_path`. Empty
-/// unless a locked-peer reuse pass was requested.
-fn build_node_ids_by_previous_dep_path(
-    tree: &ResolvedTree,
-    opts: &ResolvePeersOptions,
-) -> HashMap<DepPath, NodeId> {
-    let mut map = HashMap::default();
-    if opts.scope.resolved_peer_provider_paths.is_none() {
-        return map;
-    }
-    let mut node_ids: Vec<&NodeId> = tree.dependencies_tree.keys().collect();
-    node_ids.sort();
-    for node_id in node_ids {
-        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path()
-            && !map.contains_key(previous)
-        {
-            map.insert(previous.clone(), node_id.clone());
-        }
-    }
-    map
 }
 
 #[cfg(test)]

@@ -59,6 +59,7 @@ export async function resolvePeersOfNode<Pkg extends PartialResolvedPackage> (
   const parentNodeIds = [...ctx.parentNodeIds, nodeId]
   const children = node.children
   const parentPkgs = pinLockedPeerProviders(ctx, {
+    nodeId,
     node,
     resolvedPackage,
     parentPkgs: addChildrenToParentPkgs(ctx, { parentParentPkgs, children, parentNodeIds }),

@@ -395,3 +395,17 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
         ctx.workspace.tree.record_children_rewrite();
     }
 }
+
+impl super::WorkspaceTreeCtx {
+    pub(in super::super) fn record_locked_resolution(
+        &self,
+        node_id: &NodeId,
+        locked: Option<Box<crate::resolved_tree::LockedResolution>>,
+    ) {
+        lock_recoverable(&self.tree.dependencies_tree)
+            .get_mut(node_id)
+            .expect("locked resolution belongs to an inserted node")
+            .locked = locked;
+        self.tree.record_tree_node_write(node_id);
+    }
+}

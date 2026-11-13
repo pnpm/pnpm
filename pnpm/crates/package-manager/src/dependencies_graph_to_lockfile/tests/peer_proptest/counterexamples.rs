@@ -932,3 +932,292 @@ fn peer_only_importer_keeps_a_provider_locked_by_a_range() {
         }
     }
 }
+
+#[test]
+fn retained_peer_context_preserves_transitive_cycle_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let any_peer = |target, also_dependency| PackageVersion {
+        dependencies: vec![],
+        peers: vec![Peer { target, range: PeerRange::Any, optional: false, also_dependency }],
+    };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                leaf(),
+                PackageVersion { dependencies: vec![], peers: vec![peer(4, 2, false, true)] },
+            ],
+            vec![depending_on(4, 2), any_peer(0, true)],
+            vec![leaf(), leaf()],
+            vec![leaf(), leaf()],
+            vec![peer_of(0, 1), any_peer(0, false)],
+        ],
+        importers: vec![
+            vec![Edge { target: 1, major: 1 }, Edge { target: 4, major: 1 }],
+            direct(0, 2),
+        ],
+    };
+    let order = in_order(&workspace);
+    let settings = Settings { auto_install_peers: false, ..Default::default() };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let expected = outcome_of(&fresh, &workspace);
+    let actual = outcome_of(&reused, &workspace);
+    dbg!(&expected, &actual);
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn cyclic_provider_keeps_its_optional_dependency_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion { dependencies: vec![], peers: vec![peer(3, 1, true, true)] },
+                peer_of(2, 1),
+            ],
+            vec![leaf(), leaf()],
+            vec![depending_on(0, 1), depending_on(0, 1)],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![
+            direct(0, 2),
+            vec![Edge { target: 3, major: 1 }, Edge { target: 2, major: 2 }],
+        ],
+    };
+    let order = in_order(&workspace);
+    let settings = Settings { auto_install_peers: true, ..Default::default() };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let expected = outcome_of(&fresh, &workspace);
+    let actual = outcome_of(&reused, &workspace);
+    dbg!(&expected, &actual);
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn unchanged_locked_cycle_keeps_transitive_peer_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                depending_on(3, 2),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 2 }],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![peer_of(0, 1), peer_of(2, 2)],
+            vec![
+                depending_on(1, 2),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 0, major: 1 }, Edge { target: 1, major: 1 }],
+                    peers: vec![],
+                },
+            ],
+            vec![
+                peer_of(0, 2),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 0, major: 2 }],
+                    peers: vec![peer(2, 1, false, false)],
+                },
+            ],
+        ],
+        importers: vec![direct(0, 2), direct(2, 1), direct(3, 1)],
+    };
+    let order = in_order(&workspace);
+    let settings = Settings { auto_install_peers: false, ..Default::default() };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let expected = outcome_of(&fresh, &workspace);
+    let actual = outcome_of(&reused, &workspace);
+    dbg!(&expected, &actual);
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn retained_leaf_provider_keeps_a_hashed_cycle_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                depending_on(1, 1),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Any,
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![depending_on(3, 1), leaf()],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 3,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                peer_of(0, 2),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 2, major: 2 }],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![direct(2, 1), direct(3, 1)],
+    };
+    let order = in_order(&workspace);
+    let settings =
+        Settings { auto_install_peers: true, peers_suffix_max_length: 20, ..Default::default() };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let expected = outcome_of(&fresh, &workspace);
+    let actual = outcome_of(&reused, &workspace);
+    dbg!(&expected, &actual);
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn shared_children_do_not_reuse_another_occurrences_peer_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 1, major: 1 }],
+                    peers: vec![Peer {
+                        target: 3,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: true,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 2,
+                        range: PeerRange::Major(2),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![peer_of(0, 1), leaf()],
+            vec![peer_of(2, 1), leaf()],
+        ],
+        importers: vec![
+            vec![Edge { target: 1, major: 1 }, Edge { target: 3, major: 1 }],
+            vec![Edge { target: 2, major: 2 }, Edge { target: 0, major: 1 }],
+        ],
+    };
+    let order = in_order(&workspace);
+    let settings = Settings { auto_install_peers: true, ..Default::default() };
+    let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+    let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let expected = outcome_of(&fresh, &workspace);
+    let actual = outcome_of(&reused, &workspace);
+    dbg!(&expected, &actual);
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn optional_cycle_peer_keeps_its_transitive_context() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                depending_on(2, 1),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![peer_of(4, 1), leaf()],
+            vec![
+                PackageVersion {
+                    dependencies: vec![Edge { target: 0, major: 2 }],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Major(1),
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Any,
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![direct(0, 1), direct(2, 1), direct(1, 1)],
+    };
+    let order = in_order(&workspace);
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        let settings = Settings {
+            auto_install_peers: true,
+            peers_suffix_max_length: 20,
+            format,
+            ..Default::default()
+        };
+        let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+        let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+        let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+        let expected = outcome_of(&fresh, &workspace);
+        let actual = outcome_of(&reused, &workspace);
+        dbg!(&expected, &actual);
+        assert_eq!(expected, actual, "{format:?}");
+    }
+}

@@ -37,13 +37,18 @@ impl FinishedWorkspaceGraph {
             return;
         }
         let unbound_optional_peers = self.unbound_optional_peers(importers);
-        dedupe_peer_dependents(
+        let remapped = dedupe_peer_dependents(
             &mut self.graph,
             &mut self.direct_dependencies_by_importer,
             &PeerSuffixes { peer_ids: &self.peer_ids, max_length: peers_suffix_max_length },
             dedupe,
             unbound_optional_peers,
         );
+        for path in self.paths_by_node_id.values_mut() {
+            if let Some(replacement) = remapped.get(path) {
+                *path = replacement.clone();
+            }
+        }
     }
 
     pub(super) fn dedupe_injected_deps(&mut self, importers: &[&ImporterPeerInput]) {

@@ -340,6 +340,7 @@ pub(super) fn seed_pending(
     );
 
     let ancestry = edge.pending_ancestry(&id, resolved.current_is_optional);
+    let locked_resolution = resolved.locked_resolution(ctx, wanted, edge);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -347,7 +348,7 @@ pub(super) fn seed_pending(
         resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
         peer_shadowed,
         claim: None,
-        prior_key: resolved.prior_key,
+        lockfile: super::PendingNodeLockfile { prior_key: resolved.prior_key, locked_resolution },
         identity: super::PendingNodeIdentity { id, alias, node_id: identity.node_id },
         ancestry,
     })))

@@ -33,6 +33,7 @@ export function getNodeIdsByPreviousDepPath<Pkg> (dependenciesTree: Dependencies
 export function pinLockedPeerProviders<Pkg extends PartialResolvedPackage> (
   ctx: ResolveNodePeersContext<Pkg>,
   opts: {
+    nodeId: NodeId
     node: DependenciesTreeNode<Pkg>
     resolvedPackage: Pkg
     parentPkgs: ParentRefs
@@ -42,6 +43,8 @@ export function pinLockedPeerProviders<Pkg extends PartialResolvedPackage> (
 ): ParentRefs {
   let { parentPkgs } = opts
   if (opts.node.lockedPeerContext == null || ctx.resolvedPeerProviderPaths == null) return parentPkgs
+  if (opts.node.previousDepPath != null && ctx.resolvedPeerProviderPaths.get(opts.nodeId) === opts.node.previousDepPath) return parentPkgs
+  if (ancestorRequiresCurrentProvider({ dependenciesTree: ctx.dependenciesTree, parentNodeIds: opts.parentNodeIds }, opts.nodeId)) return parentPkgs
   for (const [peerName, previousPeerDepPath] of Object.entries(opts.node.lockedPeerContext)) {
     const pinnable = getPinnableLockedPeer(ctx, {
       peerName,
@@ -150,7 +153,7 @@ function directDependencyProviderMustWin<Pkg> (
 }
 
 function ancestorRequiresCurrentProvider<Pkg extends PartialResolvedPackage> (
-  ctx: CurrentProvidersContext<Pkg>,
+  ctx: Pick<CurrentProvidersContext<Pkg>, 'dependenciesTree' | 'parentNodeIds'>,
   peerNodeId: NodeId
 ): boolean {
   for (const parentNodeId of ctx.parentNodeIds) {

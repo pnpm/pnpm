@@ -1,7 +1,7 @@
 use super::{
     Arc, CurrentProviderSource, DepPath, HashMap, MissingPeerInfo, NodeId, NodePeers,
     NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain, TreeChildren,
-    Walker, index_of_dep_path_suffix,
+    Walker,
 };
 
 use crate::peer_provider::{LockedProvider, PeerScope, ProviderPick, provider_for};
@@ -88,6 +88,11 @@ impl Walker<'_> {
         ) else {
             return pins;
         };
+        if !self.needs_locked_peer_context(node_id)
+            || self.ancestor_reresolved_provider(node_id, parent_node_ids)
+        {
+            return pins;
+        }
         let site = PinSite { pkg, provider_paths, parent_refs, parent_node_ids };
         pins.extend(
             locked_peer_context
@@ -97,6 +102,12 @@ impl Walker<'_> {
                 }),
         );
         pins
+    }
+
+    pub(super) fn needs_locked_peer_context(&self, node_id: &NodeId) -> bool {
+        let Some(paths) = &self.opts.scope.resolved_peer_provider_paths else { return false };
+        let Some(node) = self.tree.dependencies_tree.get(node_id) else { return false };
+        node.locked_peer_context().is_some() && node.previous_dep_path() != paths.get(node_id)
     }
 
     /// The pin one entry of the wanted lockfile's peer context puts into the
@@ -143,11 +154,12 @@ impl Walker<'_> {
         provider_paths: &HashMap<NodeId, DepPath>,
     ) -> Option<LockedProvider<'_, (&NodeId, &Arc<str>)>> {
         let peer_node_id = self.providers.node_ids_by_previous_dep_path.get(previous_dep_path)?;
-        let unchanged = provider_paths.get(peer_node_id) == Some(previous_dep_path)
-            && index_of_dep_path_suffix(previous_dep_path.as_str()).peers_index.is_none()
-            && self.caches.node_dep_paths
-                .get(peer_node_id)
-                .is_none_or(|current| current == previous_dep_path);
+        let unchanged =
+            super::super::locked::stable_provider_path(self.tree, peer_node_id, provider_paths)
+                == Some(previous_dep_path)
+                && self.caches.node_dep_paths
+                    .get(peer_node_id)
+                    .is_none_or(|current| current == previous_dep_path);
         if !unchanged {
             return None;
         }
@@ -212,8 +224,7 @@ impl Walker<'_> {
                     .is_none_or(|node| node.previous_dep_path().is_none()))
     }
 
-    /// Whether an ancestor on the walk path re-resolved this provider away
-    /// from the lockfile, which its own children must see.
+    /// A new ancestor provider or an ancestor's re-resolved child keeps its current binding.
     pub(super) fn ancestor_reresolved_provider(
         &self,
         peer_node_id: &NodeId,
@@ -223,6 +234,9 @@ impl Walker<'_> {
             let Some(parent_node) = self.tree.dependencies_tree.get(parent_node_id) else {
                 continue;
             };
+            if parent_node_id == peer_node_id && parent_node.previous_dep_path().is_none() {
+                return true;
+            }
             let Some(must_win) = parent_node.must_win_dependency_names() else {
                 continue;
             };

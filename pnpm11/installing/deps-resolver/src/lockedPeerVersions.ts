@@ -40,20 +40,66 @@ export function getImporterLockedPeerVersions (lockfile: LockfileObject, importe
  * spells out nothing, so the pairs are recovered from the snapshots.
  */
 function getLockedPeerVersionsOfKey (lockfile: LockfileObject, depPath: DepPath): Array<[string, string]> {
-  const versions: Array<[string, string]> = []
-  const visited = new Set<DepPath>()
-  const pending = [depPath]
+  const traversal: LockedPeerTraversal = { lockfile, versions: [], visited: new Set(), recovered: [] }
+  collectLockedPeerPins(traversal, [depPath], new Set())
+  const encodedNames = new Set(traversal.versions.map(([name]) => name))
+  while (traversal.recovered.length > 0) {
+    const pending = traversal.recovered
+    traversal.recovered = []
+    collectLockedPeerPins(traversal, pending, encodedNames)
+  }
+  return traversal.versions
+}
+
+interface LockedPeerTraversal {
+  lockfile: LockfileObject
+  versions: Array<[string, string]>
+  visited: Set<DepPath>
+  recovered: DepPath[]
+}
+
+function collectLockedPeerPins (traversal: LockedPeerTraversal, pending: DepPath[], encodedNames: Set<string>): void {
   while (pending.length > 0) {
     const key = pending.pop()!
-    if (visited.has(key)) continue
-    visited.add(key)
-    for (const [name, provider] of getLockedPeerKeys(lockfile, key)) {
-      const providerWithoutPeers = removePeersSuffix(provider)
-      versions.push([name, providerWithoutPeers.substring(providerWithoutPeers.indexOf('@', 1) + 1)])
-      if (providerWithoutPeers !== provider) pending.push(provider)
+    if (traversal.visited.has(key)) continue
+    traversal.visited.add(key)
+    collectLockedPeerKey(traversal, { key, pending }, encodedNames)
+  }
+}
+
+function collectLockedPeerKey (
+  traversal: LockedPeerTraversal,
+  { key, pending }: { key: DepPath, pending: DepPath[] },
+  encodedNames: Set<string>
+): void {
+  const recoverContext = parsePeerBindings(key)?.kind !== 'hashed'
+  for (const [name, provider] of getLockedPeerKeys(traversal.lockfile, key)) {
+    const providerWithoutPeers = removePeersSuffix(provider)
+    if (providerWithoutPeers !== provider) pending.push(provider)
+    if (encodedNames.has(name)) continue
+    traversal.versions.push([name, providerWithoutPeers.substring(providerWithoutPeers.indexOf('@', 1) + 1)])
+    if (recoverContext) {
+      traversal.recovered.push(...getSnapshotPeerProviders(traversal.lockfile, key, { name, provider }))
     }
   }
-  return versions
+}
+
+function getSnapshotPeerProviders (
+  lockfile: LockfileObject,
+  key: DepPath,
+  { name, provider }: { name: string, provider: DepPath }
+): DepPath[] {
+  const snapshot = lockfile.packages?.[key]
+  if (snapshot == null) return []
+  const reference = snapshot.dependencies?.[name] ?? snapshot.optionalDependencies?.[name]
+  const direct = reference == null ? null : refToRelative(reference, name)
+  const providers = direct != null
+    ? [direct]
+    : snapshot.transitivePeerDependencies?.includes(name)
+      ? getTransitivePeerProviders(lockfile, snapshot, name)
+      : []
+  const base = removePeersSuffix(provider)
+  return providers.filter((candidate) => candidate !== base && removePeersSuffix(candidate) === base)
 }
 
 function getLockedPeerKeys (lockfile: LockfileObject, depPath: DepPath): LockedPeer[] {
