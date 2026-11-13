@@ -49,11 +49,21 @@ function getComponents<Key> (edges: Map<Key, Set<Key>>): Map<Key, number> {
   return new Map(keys.map((key, index) => [key, componentOf[index]]))
 }
 
+interface PropagationState {
+  occurrences: Map<string, Set<NodeId>>
+  modifiedNodes: Set<NodeId>
+  varyingPeers: Map<Set<NodeId>, Map<string, boolean>>
+}
+
 export function propagateCyclicPeerContexts<Pkg extends PartialResolvedPackage> (
   ctx: PeerContextGraph<Pkg>,
   isCyclic: (nodeId: NodeId, alias: string, peerId: NodeId) => boolean
 ): void {
-  const occurrences = getOccurrencesByPackage(ctx)
+  const state: PropagationState = {
+    occurrences: getOccurrencesByPackage(ctx),
+    modifiedNodes: new Set(),
+    varyingPeers: new Map(),
+  }
   const candidates = [...ctx.peerNodes.keys()].sort()
   let changed: boolean
   do {
@@ -65,7 +75,7 @@ export function propagateCyclicPeerContexts<Pkg extends PartialResolvedPackage> 
         .filter(([alias, peer]) => isCyclic(nodeId, alias, peer))
         .sort(([left], [right]) => left.localeCompare(right))
       for (const [, target] of targets) {
-        changed = propagateTarget(ctx, { nodeId, target, occurrences }) || changed
+        changed = propagateTarget(ctx, { nodeId, target, state }) || changed
       }
     }
   } while (changed)
@@ -86,24 +96,42 @@ function getOccurrencesByPackage<Pkg extends PartialResolvedPackage> (ctx: PeerC
 
 function propagateTarget<Pkg extends PartialResolvedPackage> (
   ctx: PeerContextGraph<Pkg>,
-  opts: { nodeId: NodeId, target: NodeId, occurrences: Map<string, Set<NodeId>> }
+  opts: { nodeId: NodeId, target: NodeId, state: PropagationState }
 ): boolean {
   const { resolvedNode } = ctx.peerNodes.get(opts.nodeId)!
   const target = ctx.peerNodes.get(opts.target)?.resolvedNode
   if (target == null) return false
-  const occurrences = opts.occurrences.get(target.resolvedPackage.pkgIdWithPatchHash)!
+  const occurrences = opts.state.occurrences.get(target.resolvedPackage.pkgIdWithPatchHash)!
   let changed = false
   for (const [alias, peer] of target.allResolvedPeers) {
     const owner = getPeerCacheOwner(ctx.peersCacheOwnerByNodeId, peer)
     if (!canPropagatePeer(ctx, { nodeId: opts.nodeId, alias, owner })) continue
-    if (![...occurrences].some((other) => {
-      const otherPeer = ctx.peerNodes.get(other)?.resolvedNode.allResolvedPeers.get(alias)
-      return otherPeer == null || !isSamePeerOccurrence(ctx, [owner, otherPeer])
-    })) continue
+    if (!peerVariesAcrossOccurrences(ctx, { owner, alias, occurrences, cache: opts.state.varyingPeers })) continue
+    if (!opts.state.modifiedNodes.has(opts.nodeId)) {
+      resolvedNode.allResolvedPeers = new Map(resolvedNode.allResolvedPeers)
+      opts.state.modifiedNodes.add(opts.nodeId)
+    }
     resolvedNode.allResolvedPeers.set(alias, peer)
+    opts.state.varyingPeers.clear()
     changed = true
   }
   return changed
+}
+
+function peerVariesAcrossOccurrences<Pkg extends PartialResolvedPackage> (
+  ctx: PeerContextGraph<Pkg>,
+  opts: { owner: NodeId, alias: string, occurrences: Set<NodeId>, cache: PropagationState['varyingPeers'] }
+): boolean {
+  const aliases = opts.cache.get(opts.occurrences) ?? new Map<string, boolean>()
+  const cached = aliases.get(opts.alias)
+  if (cached != null) return cached
+  const varies = [...opts.occurrences].some((other) => {
+    const otherPeer = ctx.peerNodes.get(other)?.resolvedNode.allResolvedPeers.get(opts.alias)
+    return otherPeer == null || !isSamePeerOccurrence(ctx, [opts.owner, otherPeer])
+  })
+  aliases.set(opts.alias, varies)
+  opts.cache.set(opts.occurrences, aliases)
+  return varies
 }
 
 function canPropagatePeer<Pkg extends PartialResolvedPackage> (

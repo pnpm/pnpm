@@ -51,6 +51,7 @@ test('finalizes a long peer chain ending in a cycle without using the call stack
     })
   }
   finalizePeerContexts(ctx)
+  expect(ctx.peerNodes.size).toBe(0)
   expect(Object.keys(ctx.depGraph)).toHaveLength(nodeCount)
   expect(ctx.pathsByNodeId.get(0 as NodeId)).toMatch(/^provider0@1\.0\.0\([a-f0-9]{32}\)$/)
   const first = ctx.depGraph[ctx.pathsByNodeId.get(0 as NodeId)!]

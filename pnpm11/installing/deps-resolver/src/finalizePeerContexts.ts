@@ -26,9 +26,11 @@ Omit<AddDepPathContext<Pkg>, 'parentNodeIds' | 'parentDepPathsChain'> & {
 export function finalizePeerContexts<Pkg extends PartialResolvedPackage> (ctx: FinalizeContext<Pkg>): void {
   if (ctx.peerNodes.size === 0) return
   const isCyclic = getCyclicPeerPredicate(ctx)
-  if (isCyclic == null) return
-  if (!ctx.dedupePeers) propagateCyclicPeerContexts(ctx, isCyclic)
-  rebuildPeerNodes(ctx, calculateFinalPaths(ctx, isCyclic))
+  if (isCyclic != null) {
+    if (!ctx.dedupePeers) propagateCyclicPeerContexts(ctx, isCyclic)
+    rebuildPeerNodes(ctx, calculateFinalPaths(ctx, isCyclic))
+  }
+  ctx.peerNodes.clear()
 }
 
 function rebuildPeerNodes<Pkg extends PartialResolvedPackage> (ctx: FinalizeContext<Pkg>, finalPaths: Map<NodeId, DepPath>): void {
@@ -40,14 +42,22 @@ function rebuildPeerNodes<Pkg extends PartialResolvedPackage> (ctx: FinalizeCont
   for (const record of ctx.peerNodes.values()) {
     addDepPathToGraph({ ...ctx, ...record }, record.resolvedNode, finalPaths.get(record.resolvedNode.nodeId)!)
   }
-  for (const nodeId of ctx.pathsByNodeId.keys()) {
-    const finalPath = finalPaths.get(getPeerCacheOwner(ctx.peersCacheOwnerByNodeId, nodeId))
-    if (finalPath != null) ctx.pathsByNodeId.set(nodeId, finalPath)
-  }
+  updateOccurrencePaths(ctx, finalPaths)
   for (const node of Object.values(ctx.depGraph)) {
     const paths = ctx.depPathsByPkgId?.get(node.pkgIdWithPatchHash) ?? new Set<DepPath>()
     paths.add(node.depPath)
     ctx.depPathsByPkgId?.set(node.pkgIdWithPatchHash, paths)
+  }
+}
+
+function updateOccurrencePaths<Pkg extends PartialResolvedPackage> (ctx: FinalizeContext<Pkg>, finalPaths: Map<NodeId, DepPath>): void {
+  for (const nodeId of ctx.pathsByNodeId.keys()) {
+    const finalPath = finalPaths.get(getPeerCacheOwner(ctx.peersCacheOwnerByNodeId, nodeId))
+    if (finalPath != null) {
+      ctx.pathsByNodeId.set(nodeId, finalPath)
+      const node = ctx.dependenciesTree.get(nodeId)
+      if (node != null) ctx.depGraph[finalPath].depth = Math.min(ctx.depGraph[finalPath].depth, node.depth)
+    }
   }
 }
 

@@ -49,11 +49,7 @@ export function addDepPathOrDeferCalculation<Pkg extends PartialResolvedPackage>
     addDepPathToGraph(ctx, resolvedNode, pkgIdWithPatchHash as unknown as DepPath)
     return undefined
   }
-  ctx.peerNodes.set(resolvedNode.nodeId, {
-    resolvedNode: { ...resolvedNode, allResolvedPeers: new Map(resolvedNode.allResolvedPeers) },
-    parentNodeIds: ctx.parentNodeIds,
-    parentDepPathsChain: ctx.parentDepPathsChain,
-  })
+  recordPeerNode(ctx, resolvedNode)
   const peerIds: PeerId[] = []
   const pendingPeers: PendingPeer[] = []
   for (const [alias, peerNodeId] of resolvedNode.allResolvedPeers.entries()) {
@@ -70,6 +66,21 @@ export function addDepPathOrDeferCalculation<Pkg extends PartialResolvedPackage>
     return undefined
   }
   return async (cycles) => calculateDepPath(ctx, { resolvedNode, peerIds, pendingPeerNodes: pendingPeers }, cycles)
+}
+
+function recordPeerNode<Pkg extends PartialResolvedPackage> (
+  ctx: ResolveNodePeersContext<Pkg>,
+  resolvedNode: NodeWithResolvedPeers<Pkg>
+): void {
+  const { pkgIdWithPatchHash } = resolvedNode.resolvedPackage
+  const parentNodeIds = ctx.parentDepPathsChain.includes(pkgIdWithPatchHash)
+    ? ctx.parentNodeIds.filter((nodeId) => (ctx.dependenciesTree.get(nodeId)!.resolvedPackage as Pkg).pkgIdWithPatchHash === pkgIdWithPatchHash)
+    : []
+  ctx.peerNodes.set(resolvedNode.nodeId, {
+    resolvedNode: { ...resolvedNode },
+    parentNodeIds,
+    parentDepPathsChain: parentNodeIds.length > 0 ? [pkgIdWithPatchHash] : [],
+  })
 }
 
 async function calculateDepPath<Pkg extends PartialResolvedPackage> (

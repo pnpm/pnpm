@@ -2598,3 +2598,40 @@ test('a peer cycle between an own direct dependency and a hoisted peer provider 
 function peerSetOf (peers: PeerDependencies): PeerSet {
   return { declared: peers, taken: peers }
 }
+
+
+test('cycle finalization preserves a cached direct dependency depth across projects', async () => {
+  function packageOf (name: string, peers: PeerDependencies = {}): PartialResolvedPackage {
+    return {
+      name,
+      version: '1.0.0',
+      id: `${name}@1.0.0` as PkgResolutionId,
+      pkgIdWithPatchHash: `${name}@1.0.0` as PkgIdWithPatchHash,
+      peers: peerSetOf(peers),
+    }
+  }
+  const consumer = packageOf('consumer', { provider: { version: '*' } })
+  const packages = [
+    ['wrapper', packageOf('wrapper'), 0, { consumer: 'nested-consumer' as NodeId }],
+    ['nested-consumer', consumer, 1, {}],
+    ['direct-consumer', consumer, 0, {}],
+    ['provider', packageOf('provider'), 0, {}],
+    ['left', packageOf('left', { right: { version: '*' } }), 0, {}],
+    ['right', packageOf('right', { left: { version: '*' } }), 0, {}],
+  ] as const
+  const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['provider', 'left', 'right']),
+    projects: [
+      { id: 'first', directNodeIdsByAlias: new Map(['wrapper', 'provider', 'left', 'right'].map((name) => [name, name as NodeId])), topParents: [], rootDir: '' as ProjectRootDir },
+      { id: 'second', directNodeIdsByAlias: new Map([['consumer', 'direct-consumer' as NodeId], ['provider', 'provider' as NodeId]]), topParents: [], rootDir: '' as ProjectRootDir },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map(packages.map(([id, resolvedPackage, depth, children]) => [id as NodeId, { resolvedPackage, depth, children, installable: true }])),
+    virtualStoreDir: '',
+    lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+  expect(dependenciesGraph['consumer@1.0.0(provider@1.0.0)' as DepPath].depth).toBe(0)
+})
