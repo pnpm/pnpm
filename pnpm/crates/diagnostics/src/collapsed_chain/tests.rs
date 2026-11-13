@@ -293,5 +293,8 @@ fn terminal_output_does_not_wrap_long_messages() {
 
     let rendered = render(&handler, &diagnostic);
 
-    assert!(rendered.contains(message), "the complete URL must stay intact, got:\n{rendered}",);
+    assert!(
+        rendered.contains(message),
+        "expected the complete URL to remain intact in the rendered output:\n{rendered}",
+    );
 }
