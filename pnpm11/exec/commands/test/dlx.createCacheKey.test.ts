@@ -86,7 +86,7 @@ test('distinguishes and normalizes allowBuild negations', () => {
   expect(createCacheKey({ ...base, allowBuild: ['!demo-pkg', 'demo-pkg'] })).toBe(keyAllowed)
 })
 
-test('changes with active overrides and security policies while keeping inactive defaults stable', () => {
+test('changes with active overrides, packageExtensions, and security policies while keeping inactive defaults stable', () => {
   const base = {
     packages: ['a@1.0.0'],
     registriesByScope: { default: 'https://registry.npmjs.com/' },
@@ -95,24 +95,52 @@ test('changes with active overrides and security policies while keeping inactive
   expect(createCacheKey({
     ...base,
     overrides: {},
+    packageExtensions: {},
     minimumReleaseAge: 0,
-    minimumReleaseAgeStrict: true,
+    minimumReleaseAgeStrict: false,
     trustPolicy: 'off',
     trustLockfile: false,
     blockExoticSubdeps: true,
   })).toBe(defaultKey)
 
-  const overridesForward = createCacheKey({ ...base, overrides: { alpha: '1.0.0', beta: '2.0.0' } })
-  const overridesReversed = createCacheKey({ ...base, overrides: { beta: '2.0.0', alpha: '1.0.0' } })
+  const overridesForward = createCacheKey({ ...base, overrides: { 'alpha@^1.0.0': '1.0.0', 'alpha@>=1.0.0': '1.2.0' } })
+  const overridesReversed = createCacheKey({ ...base, overrides: { 'alpha@>=1.0.0': '1.2.0', 'alpha@^1.0.0': '1.0.0' } })
   expect(overridesForward).not.toBe(defaultKey)
-  expect(overridesForward).toBe(overridesReversed)
+  expect(overridesForward).not.toBe(overridesReversed)
+
+  const extensionsForward = createCacheKey({
+    ...base,
+    packageExtensions: {
+      alpha: { dependencies: { b: '^2.0.0', a: '^1.0.0' } },
+      beta: { peerDependencies: { p: '^1.0.0' } },
+    },
+  })
+  const extensionsReordered = createCacheKey({
+    ...base,
+    packageExtensions: {
+      beta: { peerDependencies: { p: '^1.0.0' } },
+      alpha: { dependencies: { a: '^1.0.0', b: '^2.0.0' } },
+    },
+  })
+  const extensionsChanged = createCacheKey({
+    ...base,
+    packageExtensions: {
+      alpha: { dependencies: { a: '^1.0.0', b: '^3.0.0' } },
+      beta: { peerDependencies: { p: '^1.0.0' } },
+    },
+  })
+  expect(extensionsForward).not.toBe(defaultKey)
+  expect(extensionsForward).toBe(extensionsReordered)
+  expect(extensionsForward).not.toBe(extensionsChanged)
 
   const ageStrict = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeStrict: true })
   const ageNonStrict = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeStrict: false })
+  const ageDefaultLoose = createCacheKey({ ...base, minimumReleaseAge: 1440 })
   const ageExcluded = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeExclude: ['b', 'a'] })
   expect(ageStrict).not.toBe(defaultKey)
   expect(ageStrict).not.toBe(ageNonStrict)
-  expect(ageExcluded).not.toBe(ageStrict)
+  expect(ageDefaultLoose).toBe(ageNonStrict)
+  expect(ageExcluded).not.toBe(ageNonStrict)
   expect(ageExcluded).toBe(createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeExclude: ['a', 'b'] }))
 
   const trust = createCacheKey({ ...base, trustPolicy: 'no-downgrade' })

@@ -674,6 +674,21 @@ test('dlx does not reuse a cached install when overrides or minimumReleaseAge ch
 
   await dlx.handler({
     ...baseOpts,
+    overrides: { shelljs: 'catalog:' },
+    catalogs: { default: { shelljs: '0.8.5' } },
+  }, ['shx@0.3.4', 'touch', 'catalog-same-run'])
+  expect(spy).not.toHaveBeenCalled()
+
+  await dlx.handler({
+    ...baseOpts,
+    overrides: { shelljs: 'catalog:' },
+    catalogs: { default: { shelljs: '0.8.4' } },
+  }, ['shx@0.3.4', 'touch', 'catalog-diff-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler({
+    ...baseOpts,
     minimumReleaseAge: 60,
   }, ['shx@0.3.4', 'touch', 'age-run'])
   expect(spy).toHaveBeenCalledTimes(1)
@@ -681,5 +696,5 @@ test('dlx does not reuse a cached install when overrides or minimumReleaseAge ch
 
   await dlx.handler(baseOpts, ['shx@0.3.4', 'touch', 'clean-hit'])
   expect(spy).not.toHaveBeenCalled()
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(3)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(4)
 })

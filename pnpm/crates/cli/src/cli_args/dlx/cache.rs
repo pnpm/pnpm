@@ -9,7 +9,7 @@ use super::{
     configured_catalogs, force_symlink_dir, fs, json, parse_catalog_protocol, parse_manifest,
     parse_overrides_iter, parse_wanted_dependency, resolve_from_catalog,
 };
-use crate::cli_args::add::parse_allow_build_selectors;
+use crate::cli_args::add::{AllowBuildSelector, parse_allow_build_selectors};
 use key::{CacheKeyInputs, CachePolicyInputs};
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 
@@ -19,7 +19,7 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
     dlx_command_cache_dir: &Path,
     cache_link: &Path,
     pkgs: &[String],
-    allow_build: &[(&str, bool)],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<PathBuf> {
@@ -54,7 +54,7 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
 async fn install_into_cache<Reporter: self::Reporter + 'static>(
     prepare_dir: &Path,
     pkgs: &[String],
-    allow_build: &[(&str, bool)],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<()> {
@@ -263,7 +263,6 @@ fn isolate_dlx_caller_settings(config: &mut Config) -> miette::Result<()> {
 /// Resolve caller catalogs before the cache install severs its workspace anchor.
 fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
     if let Some(overrides) = config.overrides.as_ref()
-        && config.workspace_dir.is_some()
         && overrides
             .values()
             .any(|spec| spec.starts_with("catalog:"))
@@ -282,7 +281,7 @@ fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
 pub(super) fn command_cache_dir(
     config: &Config,
     pkgs: &[String],
-    allow_build: &[(&str, bool)],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<PathBuf> {
     let registries = build_registries_map(config);
@@ -305,7 +304,7 @@ pub(super) fn command_cache_dir(
 pub(super) fn apply_dlx_build_policy(
     config: &mut Config,
     pkgs: &[String],
-    allow_build: &[(&str, bool)],
+    allow_build: &[AllowBuildSelector<'_>],
 ) {
     config.dangerously_allow_all_builds = false;
     config.allow_builds.clear();
@@ -315,7 +314,7 @@ pub(super) fn apply_dlx_build_policy(
             config.allow_builds.insert(alias, true);
         }
     }
-    for &(name, allowed) in allow_build {
+    for &AllowBuildSelector { name, allowed } in allow_build {
         config.allow_builds.insert(name.to_string(), allowed);
     }
 }
@@ -324,7 +323,7 @@ pub(super) fn configure_cache_install(
     config: &mut Config,
     prepare_dir: &Path,
     pkgs: &[String],
-    allow_build: &[(&str, bool)],
+    allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<()> {
     // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the

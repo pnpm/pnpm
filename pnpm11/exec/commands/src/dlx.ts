@@ -25,7 +25,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { symlinkDir } from 'symlink-dir'
 
-import { createCacheKey, type DlxCache, findCache, getValidCacheDir } from './dlxCache.js'
+import { createCacheKey, type DlxCache, findCache, getValidCacheDir, resolveDlxOverrides } from './dlxCache.js'
 import { makeEnv } from './makeEnv.js'
 import { trackedExeca, waitForTracked } from './trackedExeca.js'
 
@@ -111,16 +111,24 @@ export async function handler (
     throw new PnpmError('DLX_MISSING_COMMAND', "'pnpm dlx' requires a command to run")
   }
   const allowBuildSelectors = add.parseAllowBuildSelectors(opts)
+  const resolvedOverrides = resolveDlxOverrides(opts.overrides, opts.catalogs)
   const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(opts, opts.package ?? [command])
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
-  const cache = findDlxCache(opts, resolvedPkgs)
+  const cache = findDlxCache(opts, resolvedPkgs, resolvedOverrides)
   const allowBuilds = add.applyAllowBuildSelectors(
     Object.fromEntries(resolvedPkgAliases.map(pkg => [pkg, true])),
     allowBuildSelectors
   )
   let cachedDir = cache.cachedDir
   if (!cache.cacheExists) {
-    cachedDir = await installIntoDlxCache({ opts, commands, allowBuilds, resolvedPkgs, enableGlobalVirtualStore }, cache)
+    cachedDir = await installIntoDlxCache({
+      opts,
+      commands,
+      allowBuilds,
+      resolvedPkgs,
+      resolvedOverrides,
+      enableGlobalVirtualStore,
+    }, cache)
   } else {
     await promptApproveDlxBuilds({ cachedDir, allowBuilds, inheritedOpts: opts }, commands)
   }
@@ -135,7 +143,11 @@ export async function handler (
   })
 }
 
-function findDlxCache (opts: DlxCommandOptions, packages: string[]): DlxCache {
+function findDlxCache (
+  opts: DlxCommandOptions,
+  packages: string[],
+  overrides: Record<string, string> | undefined
+): DlxCache {
   return findCache({
     packages,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
@@ -144,7 +156,8 @@ function findDlxCache (opts: DlxCommandOptions, packages: string[]): DlxCache {
     allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion: getSystemNodeVersion(),
-    overrides: opts.overrides,
+    overrides,
+    packageExtensions: opts.packageExtensions,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
@@ -226,6 +239,7 @@ interface DlxInstallContext {
   commands?: CommandHandlerMap
   allowBuilds: Record<string, boolean | string>
   resolvedPkgs: string[]
+  resolvedOverrides?: Record<string, string>
   enableGlobalVirtualStore: boolean
 }
 
@@ -257,6 +271,7 @@ function createDlxAddOptions (ctx: DlxInstallContext, cachedDir: string): add.Ad
   return {
     ...ctx.opts,
     allowBuild: undefined,
+    overrides: ctx.resolvedOverrides,
     // Mirror the global install flow: dlx prompts via `approve-builds`
     // when transitive deps have skipped build scripts, so it must not let
     // strictDepBuilds (the v11 default) turn that into a hard error.

@@ -1,6 +1,8 @@
+use crate::cli_args::add::AllowBuildSelector;
 use indexmap::IndexMap;
-use pnpm_config::{Config, TrustPolicy};
+use pnpm_config::{Config, PackageExtension, TrustPolicy};
 use pnpm_crypto_hash::create_short_hash;
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_package_is_installable::SupportedArchitectures;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -11,7 +13,7 @@ use std::collections::BTreeMap;
 pub(in crate::cli_args::dlx) struct CacheKeyInputs<'a> {
     pub pkgs: &'a [String],
     pub registries: &'a BTreeMap<String, String>,
-    pub allow_build: &'a [(&'a str, bool)],
+    pub allow_build: &'a [AllowBuildSelector<'a>],
     pub supported_architectures: Option<&'a SupportedArchitectures>,
     pub engine: Option<&'a str>,
     pub policy: CachePolicyInputs<'a>,
@@ -22,6 +24,7 @@ pub(in crate::cli_args::dlx) struct CacheKeyInputs<'a> {
 #[derive(Clone, Copy)]
 pub(in crate::cli_args::dlx) struct CachePolicyInputs<'a> {
     pub overrides: Option<&'a IndexMap<String, String>>,
+    pub package_extensions: Option<&'a IndexMap<String, PackageExtension>>,
     pub minimum_release_age: Option<MinimumReleaseAgeInput<'a>>,
     pub trust_policy: Option<TrustPolicyInput<'a>>,
     pub trust_lockfile: bool,
@@ -32,6 +35,7 @@ impl Default for CachePolicyInputs<'_> {
     fn default() -> Self {
         Self {
             overrides: None,
+            package_extensions: None,
             minimum_release_age: None,
             trust_policy: None,
             trust_lockfile: false,
@@ -45,6 +49,9 @@ impl<'a> CachePolicyInputs<'a> {
         let overrides = config.overrides
             .as_ref()
             .filter(|overrides| !overrides.is_empty());
+        let package_extensions = config.package_extensions
+            .as_ref()
+            .filter(|extensions| !extensions.is_empty());
         let minimum_release_age = config.minimum_release_age
             .filter(|&minutes| minutes > 0)
             .map(|minutes| MinimumReleaseAgeInput {
@@ -66,6 +73,7 @@ impl<'a> CachePolicyInputs<'a> {
         };
         Self {
             overrides,
+            package_extensions,
             minimum_release_age,
             trust_policy,
             trust_lockfile: config.trust_lockfile,
@@ -124,9 +132,9 @@ pub(in crate::cli_args::dlx) fn create_cache_key(inputs: &CacheKeyInputs<'_>) ->
 /// Canonicalize `--allow-build` selectors: when the same package name is
 /// given more than once, the last verdict wins (matching `allow_builds` map
 /// insertion), and the effective entries are sorted by code unit.
-fn normalize_allow_build_selectors(allow_build: &[(&str, bool)]) -> Vec<String> {
+fn normalize_allow_build_selectors(allow_build: &[AllowBuildSelector<'_>]) -> Vec<String> {
     let mut verdicts = BTreeMap::<&str, bool>::new();
-    for &(name, allowed) in allow_build {
+    for &AllowBuildSelector { name, allowed } in allow_build {
         verdicts.insert(name, allowed);
     }
     let mut formatted: Vec<String> = verdicts
@@ -140,12 +148,19 @@ fn normalize_allow_build_selectors(allow_build: &[(&str, bool)]) -> Vec<String> 
 fn policy_key_inputs(policy: &CachePolicyInputs<'_>) -> Vec<Value> {
     let mut items = Vec::new();
     if let Some(overrides) = policy.overrides.filter(|map| !map.is_empty()) {
-        let mut pairs: Vec<(&str, &str)> = overrides
+        // Entry order breaks ties when two override selectors cover
+        // intersecting target ranges, so the cache key preserves it.
+        let pairs: Vec<(&str, &str)> = overrides
             .iter()
             .map(|(selector, spec)| (selector.as_str(), spec.as_str()))
             .collect();
-        pairs.sort_unstable_by_key(|(left, _)| *left);
         items.push(json!({ "overrides": pairs }));
+    }
+    if let Some(extensions) = policy.package_extensions.filter(|map| !map.is_empty())
+        && let Ok(value) = serde_json::to_value(extensions)
+        && let Some(checksum) = hash_object_nullable_with_prefix(&value)
+    {
+        items.push(json!({ "packageExtensions": checksum }));
     }
     if let Some(release_age) = &policy.minimum_release_age {
         items.push(minimum_release_age_json(release_age));

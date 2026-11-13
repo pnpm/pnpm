@@ -362,25 +362,34 @@ fn workspace_selectors(
         .collect()
 }
 
-/// Honor `--allow-build`: reject any package the root project explicitly
-/// disallows (`allowBuilds: false`), persist the allowed names to
-/// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
-/// install. `settings_dir` is the workspace root, or the project
-/// directory outside a workspace. Mirrors pnpm's `add` handler.
+/// One parsed `--allow-build` selector (`<pkg>` allows, `!<pkg>` denies).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AllowBuildSelector<'a> {
+    pub name: &'a str,
+    pub allowed: bool,
+}
+
+/// Parse and validate `--allow-build` selectors (`<pkg>` or `!<pkg>`),
+/// rejecting empty package names.
 pub(crate) fn parse_allow_build_selectors(
     allow_build: &[String],
-) -> Result<Vec<(&str, bool)>, AllowBuildError> {
+) -> Result<Vec<AllowBuildSelector<'_>>, AllowBuildError> {
     allow_build
         .iter()
         .map(|selector| {
             let (name, allowed) = parse_allow_build_selector(selector);
             (!name.is_empty())
-                .then_some((name, allowed))
+                .then_some(AllowBuildSelector { name, allowed })
                 .ok_or(AllowBuildError::MissingPackage)
         })
         .collect()
 }
 
+/// Honor `--allow-build`: reject any package the root project explicitly
+/// disallows (`allowBuilds: false`), persist the allowed names to
+/// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
+/// install. `settings_dir` is the workspace root, or the project
+/// directory outside a workspace. Mirrors pnpm's `add` handler.
 pub(crate) fn apply_allow_build(
     config: &mut Config,
     allow_build: &[String],
@@ -389,11 +398,11 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
-    let allow_build_map = parse_allow_build_selectors(allow_build)?;
-    let overlap: Vec<&str> = allow_build_map
+    let selectors = parse_allow_build_selectors(allow_build)?;
+    let overlap: Vec<&str> = selectors
         .iter()
-        .filter_map(|&(pkg, allowed)| {
-            (allowed && config.allow_builds.get(pkg) == Some(&false)).then_some(pkg)
+        .filter_map(|&AllowBuildSelector { name, allowed }| {
+            (allowed && config.allow_builds.get(name) == Some(&false)).then_some(name)
         })
         .collect();
     if !overlap.is_empty() {
@@ -402,9 +411,15 @@ pub(crate) fn apply_allow_build(
         }
         .into());
     }
-    set_allow_builds(settings_dir, allow_build_map.iter().copied()).into_diagnostic()?;
-    for (name, is_allow) in allow_build_map {
-        config.allow_builds.insert(name.to_string(), is_allow);
+    set_allow_builds(
+        settings_dir,
+        selectors
+            .iter()
+            .map(|&AllowBuildSelector { name, allowed }| (name, allowed)),
+    )
+    .into_diagnostic()?;
+    for AllowBuildSelector { name, allowed } in selectors {
+        config.allow_builds.insert(name.to_string(), allowed);
     }
     Ok(())
 }

@@ -1,12 +1,14 @@
 import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
 
+import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { engineName } from '@pnpm/engine.runtime.system-version'
-import { isError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/installing.commands'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { PackageExtension, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 export interface DlxCache {
   cacheLink: string
@@ -21,6 +23,7 @@ export interface DlxCacheKeyOptions {
   supportedArchitectures?: SupportedArchitectures
   nodeVersion?: string
   overrides?: Record<string, string>
+  packageExtensions?: Record<string, PackageExtension>
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean
@@ -102,11 +105,14 @@ function normalizeAllowBuild (allowBuild: string[] | undefined): string[] {
 }
 
 function appendPolicyCacheKeyInputs (args: unknown[], opts: DlxCacheKeyOptions): void {
-  const overrideEntries = opts.overrides
-    ? Object.entries(opts.overrides).sort(([k1], [k2]) => lexCompare(k1, k2))
-    : []
+  // Entry order breaks ties when two override selectors cover intersecting
+  // target ranges, so the cache key preserves it.
+  const overrideEntries = opts.overrides ? Object.entries(opts.overrides) : []
   if (overrideEntries.length) {
     args.push({ overrides: overrideEntries })
+  }
+  if (opts.packageExtensions && Object.keys(opts.packageExtensions).length > 0) {
+    args.push({ packageExtensions: canonicalizeJsonValue(opts.packageExtensions) })
   }
   const minimumReleaseAge = buildMinimumReleaseAgeInput(opts)
   if (minimumReleaseAge != null) {
@@ -124,11 +130,28 @@ function appendPolicyCacheKeyInputs (args: unknown[], opts: DlxCacheKeyOptions):
   }
 }
 
+function canonicalizeJsonValue (value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJsonValue)
+  }
+  if (value != null && typeof value === 'object') {
+    const sortedEntries: Array<[string, unknown]> = []
+    for (const key of Object.keys(value).sort(lexCompare)) {
+      const child = (value as Record<string, unknown>)[key]
+      if (child !== undefined) {
+        sortedEntries.push([key, canonicalizeJsonValue(child)])
+      }
+    }
+    return Object.fromEntries(sortedEntries)
+  }
+  return value
+}
+
 function buildMinimumReleaseAgeInput (opts: DlxCacheKeyOptions): Record<string, unknown> | undefined {
   if (opts.minimumReleaseAge == null || opts.minimumReleaseAge <= 0) return undefined
   const entry: Record<string, unknown> = {
     minutes: opts.minimumReleaseAge,
-    strict: opts.minimumReleaseAgeStrict ?? true,
+    strict: opts.minimumReleaseAgeStrict === true,
     ignoreMissingTime: Boolean(opts.minimumReleaseAgeIgnoreMissingTime),
   }
   if (opts.minimumReleaseAgeExclude?.length) {
@@ -183,4 +206,47 @@ function getPrepareDir (cachePath: string): string {
   // dlx processes and across a process's own retries of a failed install.
   const name = `${Date.now().toString(36)}-${process.pid.toString(36)}`
   return path.join(cachePath, name)
+}
+
+const OVERRIDE_PARENT_DELIMITER = /[^ |@]>/
+
+export function resolveDlxOverrides (
+  overrides: Record<string, string> | undefined,
+  catalogs: Parameters<typeof resolveFromCatalog>[0] | undefined
+): Record<string, string> | undefined {
+  if (!overrides) return undefined
+  const entries = Object.entries(overrides)
+  if (!entries.some(([, spec]) => spec.startsWith('catalog:'))) {
+    return overrides
+  }
+  const catalogResolver = resolveFromCatalog.bind(null, catalogs ?? {})
+  const resolved: Record<string, string> = {}
+  for (const [selector, newBareSpecifier] of entries) {
+    const trimmedSelector = selector.trim()
+    const targetAlias = parseOverrideTargetAlias(trimmedSelector)
+    const resolvedCatalog = matchCatalogResolveResult(catalogResolver({
+      alias: targetAlias,
+      bareSpecifier: newBareSpecifier,
+    }), {
+      found: ({ resolution }) => resolution.specifier,
+      unused: () => undefined,
+      misconfiguration: ({ error }) => {
+        throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${error.message}`)
+      },
+    })
+    resolved[trimmedSelector] = resolvedCatalog ?? newBareSpecifier
+  }
+  return resolved
+}
+
+function parseOverrideTargetAlias (selector: string): string {
+  const delimiterIndex = selector.search(OVERRIDE_PARENT_DELIMITER)
+  const targetSelector = delimiterIndex !== -1
+    ? selector.slice(delimiterIndex + 2).trim()
+    : selector
+  const wantedDep = parseWantedDependency(targetSelector)
+  if (!wantedDep.alias) {
+    throw new PnpmError('INVALID_SELECTOR', `Cannot parse the "${selector}" selector`)
+  }
+  return wantedDep.alias
 }

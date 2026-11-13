@@ -136,7 +136,7 @@ fn build_choices_distinguishes_colliding_labels() {
         "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
         "bar@1.0.0".to_string(),
     ];
-    let choices = super::build_choices(&keys);
+    let choices = super::prompt::build_choices(&keys);
     assert_eq!(
         choices,
         vec![
@@ -151,4 +151,36 @@ fn build_choices_distinguishes_colliding_labels() {
             ("bar@1.0.0".to_string(), "bar".to_string()),
         ],
     );
+}
+
+#[test]
+fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
+    let dir = tempfile::TempDir::new().expect("create temp dir");
+    let manifest_path = dir.path().join("package.json");
+    std::fs::write(&manifest_path, r#"{"name":"app","version":"1.0.0"}"#).expect("write manifest");
+
+    let mut config = pnpm_config::Config {
+        workspace_dir: Some(dir.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+    config.allow_builds.insert("denied-pkg".to_string(), false);
+
+    let mut scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        names: Some(vec!["denied-pkg".to_string(), "pending-pkg".to_string()]),
+        modules_dir: dir.path().join("node_modules"),
+        modules_manifest: None,
+    };
+    super::exclude_disallowed_builds(&mut scan, &config);
+    assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
+
+    let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .prepare_with_scan::<SilentReporter>(dir.path(), &config, &config, &manifest_path, scan)
+        .expect("prepare install approvals")
+        .expect("pending-pkg awaits rebuild");
+
+    assert_eq!(build_packages, vec!["pending-pkg".to_string()]);
+    let overlaid =
+        super::config_with_install_approvals(&config, dir.path()).expect("overlay approvals");
+    assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
+    assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
 }

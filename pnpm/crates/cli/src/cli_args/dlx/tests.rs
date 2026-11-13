@@ -1,6 +1,6 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
 use crate::cli_args::{
-    add::{AllowBuildError, parse_allow_build_selectors},
+    add::{AllowBuildError, AllowBuildSelector, parse_allow_build_selectors},
     dlx::{
         cache::{
             apply_dlx_build_policy, create_cache_key, get_prepare_dir, get_valid_cache_dir,
@@ -11,7 +11,7 @@ use crate::cli_args::{
 };
 use clap::Parser;
 use indexmap::IndexMap;
-use pnpm_config::Config;
+use pnpm_config::{Config, PackageExtension};
 use pnpm_fs::force_symlink_dir;
 use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use std::{
@@ -138,11 +138,11 @@ fn create_cache_key_changes_with_allow_build_and_negation() {
     let registries = regs("https://registry.npmjs.org/");
     let key_none = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
     let key_allowed = create_cache_key(&CacheKeyInputs {
-        allow_build: &[("cowsay", true)],
+        allow_build: &[AllowBuildSelector { name: "cowsay", allowed: true }],
         ..CacheKeyInputs::new(&pkgs, &registries)
     });
     let key_denied = create_cache_key(&CacheKeyInputs {
-        allow_build: &[("cowsay", false)],
+        allow_build: &[AllowBuildSelector { name: "cowsay", allowed: false }],
         ..CacheKeyInputs::new(&pkgs, &registries)
     });
     assert_ne!(key_none, key_allowed, "allow_build must change the key");
@@ -150,7 +150,10 @@ fn create_cache_key_changes_with_allow_build_and_negation() {
     assert_ne!(key_allowed, key_denied, "`pkg` and `!pkg` must produce different keys");
 
     let key_overridden_to_deny = create_cache_key(&CacheKeyInputs {
-        allow_build: &[("cowsay", true), ("cowsay", false)],
+        allow_build: &[
+            AllowBuildSelector { name: "cowsay", allowed: true },
+            AllowBuildSelector { name: "cowsay", allowed: false },
+        ],
         ..CacheKeyInputs::new(&pkgs, &registries)
     });
     assert_eq!(key_denied, key_overridden_to_deny, "last selector verdict wins per package");
@@ -161,33 +164,39 @@ fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
     let registries = regs("https://registry.npmjs.org/");
     let key_forward = create_cache_key(&CacheKeyInputs {
-        allow_build: &[("a", true), ("b", false)],
+        allow_build: &[
+            AllowBuildSelector { name: "a", allowed: true },
+            AllowBuildSelector { name: "b", allowed: false },
+        ],
         ..CacheKeyInputs::new(&pkgs, &registries)
     });
     let key_reversed = create_cache_key(&CacheKeyInputs {
-        allow_build: &[("b", false), ("a", true)],
+        allow_build: &[
+            AllowBuildSelector { name: "b", allowed: false },
+            AllowBuildSelector { name: "a", allowed: true },
+        ],
         ..CacheKeyInputs::new(&pkgs, &registries)
     });
     assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
 }
 
 #[test]
-fn create_cache_key_changes_with_overrides_and_ignores_entry_order() {
+fn create_cache_key_changes_with_overrides_and_preserves_entry_order() {
     let pkgs = ["cowsay".to_string()];
     let registries = regs("https://registry.npmjs.org/");
     let base = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
 
     let forward = IndexMap::from([
-        ("alpha".to_string(), "1.0.0".to_string()),
-        ("beta".to_string(), "2.0.0".to_string()),
+        ("alpha@^1.0.0".to_string(), "1.0.0".to_string()),
+        ("alpha@>=1.0.0".to_string(), "1.2.0".to_string()),
     ]);
     let reversed = IndexMap::from([
-        ("beta".to_string(), "2.0.0".to_string()),
-        ("alpha".to_string(), "1.0.0".to_string()),
+        ("alpha@>=1.0.0".to_string(), "1.2.0".to_string()),
+        ("alpha@^1.0.0".to_string(), "1.0.0".to_string()),
     ]);
     let changed = IndexMap::from([
-        ("alpha".to_string(), "1.0.1".to_string()),
-        ("beta".to_string(), "2.0.0".to_string()),
+        ("alpha@^1.0.0".to_string(), "1.0.1".to_string()),
+        ("alpha@>=1.0.0".to_string(), "1.2.0".to_string()),
     ]);
     let key_with = |overrides| {
         create_cache_key(&CacheKeyInputs {
@@ -199,8 +208,56 @@ fn create_cache_key_changes_with_overrides_and_ignores_entry_order() {
         })
     };
     assert_ne!(base, key_with(&forward), "overrides must change the cache key");
-    assert_eq!(key_with(&forward), key_with(&reversed), "override insertion order must not matter");
+    assert_ne!(
+        key_with(&forward),
+        key_with(&reversed),
+        "override entry order breaks ties on intersecting selectors and must change the key",
+    );
     assert_ne!(key_with(&forward), key_with(&changed), "different override versions must differ");
+}
+
+#[test]
+fn create_cache_key_changes_with_package_extensions() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let base = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
+    let key_with = |extensions| {
+        create_cache_key(&CacheKeyInputs {
+            policy: CachePolicyInputs {
+                package_extensions: Some(extensions),
+                ..CachePolicyInputs::default()
+            },
+            ..CacheKeyInputs::new(&pkgs, &registries)
+        })
+    };
+
+    let empty = IndexMap::new();
+    assert_eq!(base, key_with(&empty), "empty packageExtensions must leave the key unchanged");
+
+    let alpha_ext = PackageExtension {
+        dependencies: Some(BTreeMap::from([("dep-a".to_string(), "^1.0.0".to_string())])),
+        ..PackageExtension::default()
+    };
+    let beta_ext = PackageExtension {
+        peer_dependencies: Some(BTreeMap::from([("peer-b".to_string(), "^2.0.0".to_string())])),
+        ..PackageExtension::default()
+    };
+    let forward = IndexMap::from([
+        ("alpha".to_string(), alpha_ext.clone()),
+        ("beta".to_string(), beta_ext.clone()),
+    ]);
+    let reversed =
+        IndexMap::from([("beta".to_string(), beta_ext), ("alpha".to_string(), alpha_ext)]);
+    let different = IndexMap::from([(
+        "alpha".to_string(),
+        PackageExtension {
+            dependencies: Some(BTreeMap::from([("dep-a".to_string(), "^2.0.0".to_string())])),
+            ..PackageExtension::default()
+        },
+    )]);
+    assert_ne!(base, key_with(&forward), "packageExtensions must change the cache key");
+    assert_eq!(key_with(&forward), key_with(&reversed), "reordered selectors hash identically");
+    assert_ne!(key_with(&forward), key_with(&different), "different extensions must differ");
 }
 
 #[test]
