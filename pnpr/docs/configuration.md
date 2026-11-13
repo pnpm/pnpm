@@ -142,7 +142,7 @@ A registry name is served as the URL path segment `/~<name>/`. It must start
 with a letter and contain only letters, digits, `.`, `_`, and `-`. It cannot be
 one of pnpm's
 [reserved prefix names](https://pnpm.io/settings/dependency-resolution#reserved-alias-names), such as
-`npm`, `jsr`, `git`, or `workspace`. These are the rules for a pnpm
+`npm`, `git`, `github`, or `workspace`. These are the rules for a pnpm
 [registry prefix](https://pnpm.io/registries#prefix), so a registry name can be
 used as one. The `~` must arrive unencoded: `%7E` does not select the named
 registry.
