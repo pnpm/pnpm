@@ -43,3 +43,14 @@ test('a file that cannot be read holds no attested times', async () => {
 test('a missing file holds no attested times', async () => {
   expect(await loadAttestedTimes({ cacheDir: temporaryDirectory(), registry, name: 'pkg' })).toStrictEqual({})
 })
+
+test('concurrent appends keep every record', async () => {
+  const location = { cacheDir: temporaryDirectory(), registry, name: 'pkg' }
+  const versions = Array.from({ length: 200 }, (_, patch) => `1.0.${patch}`)
+
+  await Promise.all(versions.map((version) =>
+    appendAttestedTime(location, { version, publishedAt: '2025-01-01T00:00:00.000Z' })
+  ))
+
+  expect(Object.keys(await loadAttestedTimes(location)).sort()).toStrictEqual([...versions].sort())
+})
