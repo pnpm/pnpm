@@ -58,9 +58,9 @@ function getConflictingPeers<Pkg extends PartialResolvedPackage> (
   const conflictingPeers = new Set<string>()
   for (const peerName of Object.keys(opts.parentPkg.peers?.taken ?? {})) {
     if (!ctx.allPeerDepNames.has(peerName)) continue
+    if (!Object.hasOwn(opts.inheritedContext, peerName) || !Object.hasOwn(opts.parentPkgs, peerName)) continue
     const inheritedPeer = opts.inheritedContext[peerName]
     const currentPeer = opts.parentPkgs[peerName]
-    if (inheritedPeer == null || currentPeer == null) continue
     if (parentPeerDiffers(ctx.dependenciesTree, currentPeer, inheritedPeer)) {
       conflictingPeers.add(peerName)
     }
@@ -114,9 +114,9 @@ function peerDependsOnPkgAndAnyPeer (
   pkgName: string,
   peerNames: Set<string>
 ): boolean {
-  if (peerDependencies?.[pkgName] == null) return false
+  if (peerDependencies == null || !Object.hasOwn(peerDependencies, pkgName)) return false
   for (const peerName of peerNames) {
-    if (peerDependencies[peerName] != null) return true
+    if (Object.hasOwn(peerDependencies, peerName)) return true
   }
   return false
 }

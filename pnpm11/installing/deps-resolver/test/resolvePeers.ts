@@ -893,6 +893,33 @@ describe('locked peer provider preferences', () => {
     }
   }
 
+  test.each(['constructor', 'toString'])('does not pin a locked %s provider outside the parent scope', async (peerName) => {
+    const tree = createTree()
+    const consumer = tree.get(consumerNodeId)!
+    consumer.resolvedPackage = {
+      ...consumerPkg,
+      peers: peerSetOf({ [peerName]: { version: '>=1', optional: true } }),
+    }
+    consumer.lockedPeerContext = { [peerName]: 'peer/2.0.0' as DepPath }
+    tree.get(retainerNodeId)!.children = { [peerName]: retainedPeerNodeId }
+    tree.get(retainedPeerNodeId)!.resolvedPackage = { ...peer2Pkg, name: peerName }
+    const resolutionOpts = {
+      ...options(tree, new Map([
+        ['retainer', retainerNodeId],
+        ['wrapper', wrapperNodeId],
+      ])),
+      allPeerDepNames: new Set([peerName]),
+      dedupePeerDependents: false,
+    }
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+    expect(preferred.dependenciesGraph['consumer/1.0.0' as DepPath]).toBeDefined()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
   test('prefers a compatible locked provider that remains reachable in the current graph', async () => {
     const resolutionOpts = options(createTree(), new Map([
       ['peer', currentPeerNodeId],
