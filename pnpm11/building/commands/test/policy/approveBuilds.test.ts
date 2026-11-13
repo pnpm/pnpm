@@ -237,6 +237,37 @@ test('approve all builds with --all flag', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
+test('approveBuilds --all excludes packages explicitly denied in allowBuilds while positional args can still approve them', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
+  await approveBuilds.handler({
+    ...config,
+    all: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': false,
+    },
+  }, [], {})
+
+  expect(mockCheckbox).not.toHaveBeenCalled()
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+})
+
 test('approve builds via positional arguments', async () => {
   prepare({
     dependencies: {

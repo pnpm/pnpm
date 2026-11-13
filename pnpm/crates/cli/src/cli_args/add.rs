@@ -362,6 +362,29 @@ fn workspace_selectors(
         .collect()
 }
 
+/// One parsed `--allow-build` selector (`<pkg>` allows, `!<pkg>` denies).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AllowBuildSelector<'a> {
+    pub name: &'a str,
+    pub allowed: bool,
+}
+
+/// Parse and validate `--allow-build` selectors (`<pkg>` or `!<pkg>`),
+/// rejecting empty package names.
+pub(crate) fn parse_allow_build_selectors(
+    allow_build: &[String],
+) -> Result<Vec<AllowBuildSelector<'_>>, AllowBuildError> {
+    allow_build
+        .iter()
+        .map(|selector| {
+            let (name, allowed) = parse_allow_build_selector(selector);
+            (!name.is_empty())
+                .then_some(AllowBuildSelector { name, allowed })
+                .ok_or(AllowBuildError::MissingPackage)
+        })
+        .collect()
+}
+
 /// Honor `--allow-build`: reject any package the root project explicitly
 /// disallows (`allowBuilds: false`), persist the allowed names to
 /// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
@@ -375,21 +398,12 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
-    let mut allow_build_map: Vec<(&str, bool)> = Vec::with_capacity(allow_build.len());
-    let mut allowed_only: Vec<&str> = Vec::new();
-    for pkg in allow_build {
-        let (name, allowed) = parse_allow_build_selector(pkg);
-        if name.is_empty() {
-            return Err(AllowBuildError::MissingPackage.into());
-        }
-        allow_build_map.push((name, allowed));
-        if allowed {
-            allowed_only.push(name);
-        }
-    }
-    let overlap: Vec<&str> = allowed_only
-        .into_iter()
-        .filter(|pkg| config.allow_builds.get(*pkg) == Some(&false))
+    let selectors = parse_allow_build_selectors(allow_build)?;
+    let overlap: Vec<&str> = selectors
+        .iter()
+        .filter_map(|&AllowBuildSelector { name, allowed }| {
+            (allowed && config.allow_builds.get(name) == Some(&false)).then_some(name)
+        })
         .collect();
     if !overlap.is_empty() {
         return Err(AllowBuildError::OverridingIgnoredBuiltDependencies {
@@ -397,9 +411,15 @@ pub(crate) fn apply_allow_build(
         }
         .into());
     }
-    set_allow_builds(settings_dir, allow_build_map.iter().copied()).into_diagnostic()?;
-    for (name, is_allow) in allow_build_map {
-        config.allow_builds.insert(name.to_string(), is_allow);
+    set_allow_builds(
+        settings_dir,
+        selectors
+            .iter()
+            .map(|&AllowBuildSelector { name, allowed }| (name, allowed)),
+    )
+    .into_diagnostic()?;
+    for AllowBuildSelector { name, allowed } in selectors {
+        config.allow_builds.insert(name.to_string(), allowed);
     }
     Ok(())
 }
