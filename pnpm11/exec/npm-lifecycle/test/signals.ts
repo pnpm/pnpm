@@ -1,16 +1,162 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { endsWithin, killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
+import which from 'which'
 
 import { relaySignals, reserveSignalRelay, waitForProcessGroup, watchProcessGroup } from '../src/signals.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 const testOnPosix = process.platform === 'win32' ? test.skip : test
+const bash = process.platform === 'win32' ? null : which.sync('bash', { nothrow: true })
+const testWithBash = bash == null ? test.skip : test
 const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
+const startupScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'startup.mjs')
+
+testWithBash.each([
+  { scriptShell: bash!, exportedOptions: false },
+  { scriptShell: 'bash', exportedOptions: false },
+  { scriptShell: './bash', exportedOptions: false },
+  { scriptShell: bash!, exportedOptions: true },
+  { scriptShell: bash!, exportedOptions: false, withoutSh: true },
+])('a $scriptShell script keeps exported functions and loads BASH_ENV once (options: $exportedOptions, without sh: $withoutSh)', ({ scriptShell, exportedOptions, withoutSh = false }) => {
+  const directory = temporaryDirectory()
+  const startupFile = path.join(directory, 'bash-env')
+  const startupMarker = path.join(directory, 'loaded')
+  const functionMarker = path.join(directory, 'greeted')
+  try {
+    if (!withoutSh) fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
+    fs.symlinkSync(bash!, path.join(directory, 'bash'))
+    fs.writeFileSync(startupFile, 'printf "loaded\\n" >> "$BASH_ENV_MARKER"\n')
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, scriptShell, String(exportedOptions)], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        PATH: withoutSh ? directory : `${directory}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        BASH_ENV: startupFile,
+        BASH_ENV_MARKER: startupMarker,
+        FUNCTION_MARKER: functionMarker,
+        'BASH_FUNC_greet%%': '() { printf greeted > "$FUNCTION_MARKER"; }',
+        ...(exportedOptions ? { SHELLOPTS: 'pipefail', BASHOPTS: 'nullglob' } : {}),
+      },
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+    expect(fs.readFileSync(functionMarker, 'utf8')).toBe('greeted')
+    expect(fs.readFileSync(startupMarker, 'utf8')).toBe('loaded\n')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
+testWithBash('a script run by a shell other than sh keeps environment variables that are not identifiers', () => {
+  const directory = temporaryDirectory()
+  try {
+    fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
+    fs.symlinkSync(bash!, path.join(directory, 'other-shell'))
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, path.join(directory, 'other-shell'), 'non-identifier'], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        PATH: `${directory}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        'NON-IDENTIFIER': 'kept',
+      },
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
+testOnPosix.each(['none', 'destroyed'])('a script runs when the watchdog cannot be started (previous watchdog: %s)', (previous) => {
+  const directory = temporaryDirectory()
+  try {
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'unavailable.mjs'), directory, 'runner', previous], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+    expect(fs.readFileSync(path.join(directory, 'ran'), 'utf8')).toBe('ran')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
+testOnPosix.each(['observed', 'pending', 'destroyed'])('a script starts after its inherited watchdog pipe loses its reader (%s replacement)', (replacement) => {
+  const directory = temporaryDirectory()
+  try {
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'restart.mjs'), directory, 'runner', replacement], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+    expect(fs.readFileSync(path.join(directory, 'ran'), 'utf8')).toBe('ran')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
+testOnPosix.each([
+  { count: 1, mode: 'default' },
+  { count: 3, mode: 'default' },
+  { count: 1, mode: 'relative' },
+  { count: 1, mode: 'relative-path' },
+  { count: 1, mode: 'extended' },
+  ...bash == null ? [] : [{ count: 1, mode: 'bash' }, { count: 1, mode: 'exported-printf' }],
+])('$count $mode scripts and their descendants are watched before the spawn returns', async ({ count, mode }) => {
+  const directory = temporaryDirectory()
+  if (mode === 'relative') fs.symlinkSync('/bin/sh', path.join(directory, 'script-shell'))
+  if (mode === 'relative-path') {
+    fs.mkdirSync(path.join(directory, 'runner', 'bin'), { recursive: true })
+    fs.symlinkSync('/bin/sh', path.join(directory, 'runner', 'bin', 'sh'))
+  }
+  if (mode === 'exported-printf') {
+    fs.mkdirSync(path.join(directory, 'bin'))
+    fs.symlinkSync(bash!, path.join(directory, 'bin', 'sh'))
+  }
+  const runner = spawn(process.execPath, [startupScript, directory, String(count), mode], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'inherit'],
+    ...(mode === 'relative-path' ? {
+      cwd: path.join(directory, 'runner'),
+      env: { ...process.env, PATH: `bin${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}` },
+    } : {}),
+    ...(mode === 'exported-printf' ? {
+      env: {
+        ...process.env,
+        PATH: `${path.join(directory, 'bin')}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        'BASH_FUNC_printf%%': '() { :; }',
+      },
+    } : {}),
+  })
+  let leaders: number[] = []
+  try {
+    const started = await withDeadline(new Promise<number[]>((resolve) => {
+      runner.stdout.once('data', (data: Buffer) => resolve(JSON.parse(data.toString())))
+    }), 5_000)
+    if (started === 'timed out') throw new Error('The lifecycle spawn did not report its process groups')
+    leaders = started
+    const markers = Array.from({ length: count }, (_, index) => path.join(directory, `started-${index}.json`))
+    const deadline = Date.now() + 5_000
+    while (!markers.every((marker) => fs.existsSync(marker)) && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 20)) // eslint-disable-line no-await-in-loop -- wait for the spawned script's marker
+    }
+    const descendants: number[] = markers.flatMap((marker) => JSON.parse(fs.readFileSync(marker, 'utf8')))
+    killProcessGroup(runner.pid!)
+    expect(await Promise.all([...leaders, ...descendants].map(async (pid) => endsWithin(pid, 5_000)))).toStrictEqual(Array(count * 3).fill(true))
+  } finally {
+    killProcessGroup(runner.pid!)
+    for (const leader of leaders) killProcessGroup(leader)
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
 
 test('a signal is raised once after concurrent relays settle', async () => {
   const child = { kill: () => true }
@@ -153,15 +299,16 @@ testOnPosix('a released watchdog leaves the group alone', async () => {
   }
 })
 
-testOnPosix('one watchdog watches every process group', () => {
+testOnPosix('one watchdog watches every process group', async () => {
   const leaders = [spawnGroupLeader(), spawnGroupLeader(), spawnGroupLeader()]
+  const runner = spawn(process.execPath, [watchScript, ...leaders.map(({ pid }) => String(pid))], { stdio: ['ignore', 'pipe', 'inherit'] })
   try {
-    const watches = leaders.map((leader) => watchProcessGroup(leader.pid!))
-    const watchdogs = listWatchdogs(process.pid)
-    for (const watch of watches) watch.release()
+    await once(runner.stdout, 'data')
+    const watchdogs = listWatchdogs(runner.pid!)
     expect(watchdogs).toHaveLength(1)
   } finally {
     for (const leader of leaders) killProcessGroup(leader.pid!)
+    runner.kill('SIGKILL')
   }
 })
 
@@ -197,9 +344,15 @@ testOnPosix('a killed watchdog is replaced and takes over every group still watc
     expect(await waitForReplacement(runner.pid!, killed, 10_000)).toBe(true)
     runner.kill('SIGKILL')
     expect(await Promise.all(leaders.map(async (leader) => endsWithin(leader.pid!, 10_000)))).toStrictEqual([true, true])
+    await Promise.all(leaders.map(async (leader) => {
+      if (leader.exitCode == null && leader.signalCode == null) await once(leader, 'exit')
+    }))
   } finally {
     runner.kill('SIGKILL')
-    for (const leader of [released, ...leaders]) killProcessGroup(leader.pid!)
+    killProcessGroup(released.pid!)
+    for (const leader of leaders) {
+      if (leader.exitCode == null && leader.signalCode == null) killProcessGroup(leader.pid!)
+    }
   }
 })
 
