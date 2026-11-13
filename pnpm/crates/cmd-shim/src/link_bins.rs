@@ -374,8 +374,21 @@ where
         return Ok(false);
     }
     let chosen_count = chosen.len();
+    let bin_dir = prepare_bin_dir::<Sys>(bins_dir, options)?;
+    let paths = linking_paths::LinkingPaths::new(bins_dir, bin_dir, options)?;
+    let to_link = select_bins_to_link::<Sys>(chosen, bins_dir, &paths, options)?;
+    link_selected_bins::<Sys>(&to_link, options, &paths, cache)?;
+    Ok(to_link.len() < chosen_count)
+}
 
-    let bin_dir = if options.read_only {
+fn prepare_bin_dir<Sys>(
+    bins_dir: &Path,
+    options: &LinkBinsOptions,
+) -> Result<DirCreation, LinkBinsError>
+where
+    Sys: FsReadDir + FsCreateDirAll,
+{
+    if options.read_only {
         match Sys::read_dir(bins_dir) {
             Ok(entries) => {
                 drop(entries);
@@ -390,25 +403,43 @@ where
         }
     } else {
         Sys::create_dir_all_reporting(bins_dir)
-            .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?
-    };
+            .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })
+    }
+}
 
-    let paths = linking_paths::LinkingPaths::new(bins_dir, bin_dir, options)?;
-
-    let to_link = if options.read_only {
-        if let Some((command, _)) = chosen
+fn select_bins_to_link<Sys>(
+    chosen: Vec<(Command, &PackageBinSource)>,
+    bins_dir: &Path,
+    paths: &linking_paths::LinkingPaths<'_>,
+    options: &LinkBinsOptions,
+) -> Result<Vec<(Command, &PackageBinSource)>, LinkBinsError>
+where
+    Sys: FsReadHead,
+{
+    if options.read_only {
+        let pending = chosen
             .iter()
-            .find(|(command, pkg)| linking_paths::awaits_target::<Sys>(pkg, bins_dir, command))
-        {
+            .find(|(command, pkg)| linking_paths::awaits_target::<Sys>(pkg, bins_dir, command));
+        if let Some((command, _)) = pending {
             return Err(LinkBinsError::FrozenStoreWrite {
                 path: paths.bins_dir.join(&command.name),
             });
         }
-        chosen
+        Ok(chosen)
     } else {
-        remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?
-    };
+        remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)
+    }
+}
 
+fn link_selected_bins<Sys>(
+    to_link: &[(Command, &PackageBinSource)],
+    options: &LinkBinsOptions,
+    paths: &linking_paths::LinkingPaths<'_>,
+    cache: &ShimTargetCache,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
+{
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
@@ -443,7 +474,7 @@ where
             )
         })?;
 
-    Ok(to_link.len() < chosen_count)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -451,6 +482,10 @@ mod tests;
 
 mod shim_writer;
 use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+
+mod frozen_store;
+
+mod preferred_shim;
 
 mod executable;
 use executable::{
