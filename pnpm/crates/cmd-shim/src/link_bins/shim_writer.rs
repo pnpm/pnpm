@@ -131,18 +131,24 @@ where
         );
     }
 
-    let preferred_shim_is_current = if spec.options.prefer_symlinked_executables {
-        match existing_shim.as_deref() {
-            Some(existing) => {
-                let runtime = spec.resolve_runtime::<Sys>(cache)?;
-                let sh_body = spec.sh_body(runtime.as_ref())?;
-                existing_shim_is_current(Some(existing), &sh_body, &spec)
+    let preferred_shim_is_current =
+        if spec.options.prefer_symlinked_executables && !is_node_bin_name(spec.shim_path) {
+            match existing_shim.as_deref() {
+                Some(existing)
+                    if spec.node_path.is_empty() && !existing.contains("export NODE_PATH=") =>
+                {
+                    is_shim_pointing_at(existing, spec.shim_path, spec.target_path)
+                }
+                Some(existing) => {
+                    let runtime = spec.resolve_runtime::<Sys>(cache)?;
+                    let sh_body = spec.sh_body(runtime.as_ref())?;
+                    existing_shim_is_current(Some(existing), &sh_body, &spec)
+                }
+                None => false,
             }
-            None => false,
-        }
-    } else {
-        false
-    };
+        } else {
+            false
+        };
     if link_direct_executable::<Sys>(
         &spec,
         cache,
