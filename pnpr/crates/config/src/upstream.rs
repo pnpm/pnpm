@@ -3,7 +3,7 @@ use std::{fmt, time::Duration};
 use indexmap::IndexMap;
 use pnpm_env_replace::EnvVar;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use pnpr_error::RegistryError;
 use pnpr_policy::{AccessList, PackageRules};
@@ -182,6 +182,15 @@ pub(super) struct UpstreamConfigFile {
 #[derive(Debug, Clone)]
 pub(super) struct Interval(pub(super) String);
 
+impl Serialize for Interval {
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
+
 impl<'de> Deserialize<'de> for Interval {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
@@ -213,13 +222,13 @@ impl<'de> Deserialize<'de> for Interval {
 /// The YAML `auth:` block on an upstream. `token` takes priority over
 /// `tokenEnv`; either resolves to the credential placed in the
 /// `Authorization` header, encoded per [`UpstreamAuthType`].
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct UpstreamAuthFile {
     pub(super) r#type: UpstreamAuthType,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) token: Option<crate::Secret>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) token_env: Option<TokenEnv>,
 }
 
@@ -227,7 +236,7 @@ pub(super) struct UpstreamAuthFile {
 /// `bearer` → `Bearer <token>`, `basic` → `Basic <token>` (the token
 /// is used verbatim, matching verdaccio's assumption that a `basic`
 /// token is already a base64 `user:pass`).
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(super) enum UpstreamAuthType {
     Bearer,
@@ -237,7 +246,7 @@ pub(super) enum UpstreamAuthType {
 /// Verdaccio's `token_env`: either the boolean `true` (read the
 /// default `NPM_TOKEN` env var) or a string naming the env var to
 /// read. `false` reads nothing.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub(super) enum TokenEnv {
     Flag(bool),
@@ -249,7 +258,7 @@ impl TokenEnv {
     const DEFAULT_VAR: &'static str = "NPM_TOKEN";
 
     /// The env var name to read, or `None` for `token_env: false`.
-    fn var_name(&self) -> Option<&str> {
+    pub(super) fn var_name(&self) -> Option<&str> {
         match self {
             TokenEnv::Flag(true) => Some(Self::DEFAULT_VAR),
             TokenEnv::Flag(false) => None,

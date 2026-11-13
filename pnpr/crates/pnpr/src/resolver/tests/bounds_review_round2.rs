@@ -126,8 +126,8 @@ async fn http_resolve_sheds_excess_callers_before_reading_or_parsing_body() {
 
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
-    resolver.limits.set_concurrency(1, 1);
-    resolver.limits.set_admission(1, 1);
+    resolver.limits_mut().set_concurrency(1, 1);
+    resolver.limits_mut().set_admission(1, 1);
 
     let active_body = Bytes::from(
         serde_json::to_vec(&json!({
@@ -216,7 +216,7 @@ async fn cargo_deadline_expiry_inside_resolve_returns_504_timeout() {
     });
 
     let mut slow_resolver = test_resolver(&origin, &tmp);
-    slow_resolver.limits.deadline = Duration::from_millis(30);
+    slow_resolver.limits_mut().deadline = Duration::from_millis(30);
     let serde_metadata = json!({
         "packages": [{
             "id": "demo 0.1.0",

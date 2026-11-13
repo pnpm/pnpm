@@ -129,7 +129,7 @@ fn may_read(
     namespace: &str,
     member: &ArtifactMember,
 ) -> bool {
-    let routing = &state.inner.config.routing;
+    let routing = state.routing();
     routing.hosted
         .iter()
         .any(|(source, hosted)| {
@@ -332,7 +332,7 @@ async fn authorize_member_publish(
     namespace: &str,
     member: &ArtifactMember,
 ) -> Result<(), RegistryError> {
-    let routing = &state.inner.config.routing;
+    let routing = state.routing();
     let source = routing.hosted
         .iter()
         .find_map(|(source, hosted)| {

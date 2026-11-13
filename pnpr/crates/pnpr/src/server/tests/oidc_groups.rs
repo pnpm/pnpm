@@ -56,21 +56,27 @@ fn a_session_grant_admits_its_holder_to_team_rules() {
     let config = config(LOCAL);
     let rules = &config.routing.hosted["local"].rules;
 
-    let member =
-        session_identity(&config, session(vec![("local", "platform")]), "alice".to_string());
+    let member = session_identity(
+        &config.routing,
+        session(vec![("local", "platform")]),
+        "alice".to_string(),
+    );
     assert!(rules.access_admits("@secret/x", &member));
-    let other =
-        session_identity(&config, session(vec![("missing", "platform")]), "alice".to_string());
+    let other = session_identity(
+        &config.routing,
+        session(vec![("missing", "platform")]),
+        "alice".to_string(),
+    );
     assert!(!rules.access_admits("@secret/x", &other));
     assert!(!rules.access_admits(
         "@secret/x",
-        &session_identity(&config, session(Vec::new()), "alice".to_string())
+        &session_identity(&config.routing, session(Vec::new()), "alice".to_string())
     ));
 }
 
 #[test]
 fn group_grants_must_name_a_hosted_registry_and_a_declared_team() {
-    validate_group_grants(&config(LOCAL)).unwrap();
+    validate_group_grants_of(&config(LOCAL)).unwrap();
 
     let undeclared = LOCAL
         .replace(
@@ -78,15 +84,11 @@ fn group_grants_must_name_a_hosted_registry_and_a_declared_team() {
             "release: { name: release, members: [] }",
         )
         .replace("team:platform", "$authenticated");
-    let err = validate_group_grants(&config(&undeclared)).unwrap_err();
+    let err = validate_group_grants_of(&config(&undeclared)).unwrap_err();
     assert!(err.to_string().contains("does not declare the team"), "{err}");
 
-    let api_managed =
-        undeclared.replace("type: hosted\n", "type: hosted\n    teamsManagedBy: api\n");
-    validate_group_grants(&config(&api_managed)).unwrap();
-
     let renamed = LOCAL.replace("  local:", "  other:");
-    let err = validate_group_grants(&config(&renamed)).unwrap_err();
+    let err = validate_group_grants_of(&config(&renamed)).unwrap_err();
     assert!(err.to_string().contains("is not a hosted registry"), "{err}");
 }
 
@@ -107,4 +109,8 @@ async fn retired_identities_without_passwords_are_refused() {
         super::super::authentication::active_account_name(&state, &id).await,
         Err(pnpr_error::RegistryError::Unauthenticated { .. }),
     ));
+}
+
+fn validate_group_grants_of(config: &Config) -> Result<(), pnpr_error::RegistryError> {
+    validate_group_grants(config, &config.routing)
 }

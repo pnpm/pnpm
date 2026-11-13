@@ -1,5 +1,6 @@
 use super::{AppInner, AppState, AuthedCaller, routing::local_registry_router};
 use axum::{Router, body::Body, http::Request};
+use pnpr_config::RoutingConfig;
 use pnpr_policy::Identity;
 use pnpr_route::LocalFetch;
 use reqwest::ResponseBuilderExt;
@@ -18,9 +19,9 @@ impl LocalRegistry {
         Self { public_url, state: Weak::new(), router: Router::new() }
     }
 
-    pub(crate) fn attach(&mut self, state: &AppState) {
+    pub(crate) fn attach(&mut self, state: &AppState, routing: &RoutingConfig) {
         self.state = Arc::downgrade(&state.inner);
-        self.router = local_registry_router(&state.inner.config);
+        self.router = local_registry_router(&state.inner.config, routing);
     }
 
     pub(crate) fn fetcher(&self, identity: Identity) -> Arc<LocalFetch> {

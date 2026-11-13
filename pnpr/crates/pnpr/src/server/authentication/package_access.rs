@@ -15,18 +15,18 @@ use super::{Action, AppState, RegistrySource};
 /// the package. The fallback (safe defaults: reads open, publishes need
 /// ownership, destructive writes denied) only fires for a programmatically
 /// built config whose serving tables miss the graph entry.
-fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a PackageRules {
+fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
+    let routing = state.routing();
     match source {
-        RegistrySource::Hosted(name) => {
-            state.inner.config.routing.hosted.get(name).map(|hosted| &hosted.rules)
-        }
+        RegistrySource::Hosted(name) => routing.hosted.get(name).map(|hosted| &hosted.rules),
         RegistrySource::Upstream(name) => {
-            state.inner.config.routing.upstreams.get(name).map(|upstream| &upstream.rules)
+            routing.upstreams.get(name).map(|upstream| &upstream.rules)
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     }
     .unwrap_or(&SAFE_DEFAULTS)
+    .clone()
 }
 
 /// Check an already-resolved `identity` against the resolved source
@@ -270,7 +270,7 @@ async fn is_package_owner(
         return Ok(true);
     }
     let ecosystem = match source {
-        RegistrySource::Hosted(name) => state.inner.config.routing.registries.ecosystem(name),
+        RegistrySource::Hosted(name) => state.routing().registries.ecosystem(name),
         _ => None,
     };
     let ecosystem = ecosystem.unwrap_or(Ecosystem::Npm);

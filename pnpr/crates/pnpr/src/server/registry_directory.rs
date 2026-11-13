@@ -3,7 +3,7 @@ use axum::{
     extract::State,
     response::{IntoResponse as _, Response},
 };
-use pnpr_config::{Config, Management};
+use pnpr_config::RoutingConfig;
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use serde_json::{Value, json};
 
@@ -14,14 +14,14 @@ pub(super) async fn serve(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
 ) -> Response {
-    let config = &state.inner.config;
-    let registries = &config.routing.registries;
-    let visible = |key: &str| registry_is_visible(config, &identity, key);
+    let routing = state.routing();
+    let registries = &routing.registries;
+    let visible = |key: &str| registry_is_visible(&routing, &identity, key);
     let mut entries = Vec::new();
     let mut defaults = serde_json::Map::new();
     for ecosystem in Ecosystem::all() {
         for key in registries.names() {
-            let Some(entry) = directory_entry(config, key, ecosystem, &visible) else {
+            let Some(entry) = directory_entry(&routing, key, ecosystem, &visible) else {
                 continue;
             };
             entries.push(entry);
@@ -35,7 +35,9 @@ pub(super) async fn serve(
     private_no_cache(
         Json(json!({
             "registries": entries, "defaultRegistries": defaults, "ecosystems": ecosystems,
-            "admin": config.identity.is_admin(&identity),
+            "admin": state.inner.config.identity.is_admin(&identity),
+            "registryAdmin": state.inner.config.identity.is_registry_admin(&identity),
+            "registriesManagedBy": state.inner.config.registries_managed_by.as_str(),
         }))
         .into_response(),
     )
@@ -59,12 +61,12 @@ fn ecosystem_capability(entries: &[Value], ecosystem: Ecosystem) -> (String, Val
 
 /// Whether a caller can see a registry at all: it must be one whose default
 /// access admits them.
-fn registry_is_visible(config: &Config, identity: &Identity, key: &str) -> bool {
-    match config.routing.registries.get(key) {
-        Some(Registry::Hosted { .. }) => config.routing.hosted
+fn registry_is_visible(routing: &RoutingConfig, identity: &Identity, key: &str) -> bool {
+    match routing.registries.get(key) {
+        Some(Registry::Hosted { .. }) => routing.hosted
             .get(key)
             .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
-        Some(Registry::Upstream { .. }) => config.routing.upstreams
+        Some(Registry::Upstream { .. }) => routing.upstreams
             .get(key)
             .is_some_and(|upstream| {
                 upstream.access
@@ -79,12 +81,12 @@ fn registry_is_visible(config: &Config, identity: &Identity, key: &str) -> bool 
 /// One registry's directory entry, or `None` when this ecosystem does not
 /// reach it or the caller cannot see any of its sources.
 fn directory_entry(
-    config: &Config,
+    routing: &RoutingConfig,
     key: &str,
     ecosystem: Ecosystem,
     visible: &impl Fn(&str) -> bool,
 ) -> Option<Value> {
-    let registries = &config.routing.registries;
+    let registries = &routing.registries;
     if registries
         .ecosystem(key)
         .is_some_and(|declared| declared != ecosystem)
@@ -98,30 +100,18 @@ fn directory_entry(
     let registry = registries.get(key)?;
     let (kind, patterns, route_sources) = match registry {
         Registry::Hosted { patterns } => {
-            ("hosted", disclosed_patterns(&config.routing.hosted[key].rules, patterns), None)
+            ("hosted", disclosed_patterns(&routing.hosted[key].rules, patterns), None)
         }
         Registry::Upstream { patterns } => {
-            ("upstream", disclosed_patterns(&config.routing.upstreams[key].rules, patterns), None)
+            ("upstream", disclosed_patterns(&routing.upstreams[key].rules, patterns), None)
         }
         Registry::Router { .. } => ("router", None, disclosed_sources(&sources, visible)),
     };
-    let mut entry = json!({
+    Some(json!({
         "name": Registries::local_name(key), "kind": kind,
         "ecosystem": ecosystem.to_string(),
         "patterns": patterns, "sources": route_sources,
-    });
-    if let Some(hosted) = config.routing.hosted.get(key) {
-        entry["teamsManagedBy"] = json!(management_name(hosted.teams_managed_by));
-        entry["rulesManagedBy"] = json!(management_name(hosted.rules_managed_by));
-    }
-    Some(entry)
-}
-
-pub(super) fn management_name(management: Management) -> &'static str {
-    match management {
-        Management::Config => "config",
-        Management::Api => "api",
-    }
+    }))
 }
 
 /// A router's sources, disclosed only when the caller can see every one.

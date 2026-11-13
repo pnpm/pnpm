@@ -12,9 +12,15 @@ use pnpr::{Config, router_with_auth};
 use pnpr_config::{LibsqlSettings, MetadataBackend};
 use pnpr_libsql::testing::serve_primary;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{HostedDocumentVersion, Storage, metadata::NewScimUser};
+use pnpr_storage::{
+    HostedDocumentVersion, Storage,
+    metadata::{NewRegistryGraph, NewScimUser},
+};
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tempfile::TempDir;
@@ -65,24 +71,15 @@ impl Replica {
                 r"
 storage: '{storage}'
 secret: 'test-secret-key-32-chars-long-12'
+registriesManagedBy: api
+auth:
+  registryAdmins: [reader]
 {scim}
-registries:
-  local:
-    type: hosted
-    namespace: ''
-    teamsManagedBy: api
-    rulesManagedBy: api
-    teams:
-      readers: {{ name: readers, members: [reader] }}
-    packages:
-      '**':
-        access: [team:readers]
-defaultRegistry: local
 ",
                 scim = match records {
                     ManagedRecords::Registry => "",
                     ManagedRecords::RegistryAndScim => {
-                        "auth:\n  scim:\n    token: test-scim-secret-0123456789abcdef0123456789"
+                        "  scim:\n    token: test-scim-secret-0123456789abcdef0123456789"
                     }
                 },
                 storage = directory
@@ -99,6 +96,9 @@ defaultRegistry: local
             primary: format!("http://{primary_address}"),
             records: Mutex::new(Vec::new()),
             started: tokio::sync::Notify::new(),
+            holds: Mutex::new(Vec::new()),
+            release: tokio::sync::Notify::new(),
+            graph_reads: AtomicUsize::new(0),
         });
         let proxy = Router::new()
             .fallback(proxy_database)
@@ -115,6 +115,7 @@ defaultRegistry: local
             sync_interval_secs: None,
             max_connections: None,
         });
+        crate::managed_registries::store_graph(&config, &graph()).await;
         let storage = Storage::from_config(&config.storage).unwrap();
         let package = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
         storage
@@ -147,6 +148,21 @@ defaultRegistry: local
                 Request::get(path)
                     .header("authorization", format!("Bearer {}", self.token))
                     .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
+    }
+
+    async fn put(&self, path: &str, body: &serde_json::Value) -> StatusCode {
+        self.app
+            .clone()
+            .oneshot(
+                Request::put(path)
+                    .header("authorization", format!("Bearer {}", self.token))
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
                     .unwrap(),
             )
             .await
@@ -189,28 +205,71 @@ defaultRegistry: local
     }
 }
 
-#[tokio::test(start_paused = true)]
-async fn stalled_roster_denies_stale_membership_and_retries() {
-    let replica = Replica::new(ManagedRecords::Registry).await;
-    replica.start_stalled_refresh(&["team_rosters"]).await;
-    replica.expect_status("/npm/example", StatusCode::FORBIDDEN).await;
-    tokio::time::advance(Duration::from_secs(1)).await;
-    replica.expect_recovery("/npm/example", StatusCode::OK).await;
-    replica.storage
-        .replace_team_roster("npm/local", &[])
-        .await
-        .unwrap();
-    tokio::time::advance(Duration::from_secs(10)).await;
-    replica.expect_status("/npm/example", StatusCode::FORBIDDEN).await;
+/// The stored graph: one registry whose packages only the `readers` team,
+/// holding `reader`, may read.
+fn graph() -> serde_json::Value {
+    serde_json::json!({
+        "registries": {
+            "local": {
+                "type": "hosted",
+                "namespace": "",
+                "teams": { "readers": { "name": "readers", "members": ["reader"] } },
+                "packages": { "**": { "access": ["team:readers"] } },
+            },
+        },
+        "defaultRegistry": "local",
+    })
+}
+
+async fn store_unreadable_graph(storage: &Storage) {
+    let current = storage.read_registry_graph_generation().await.unwrap();
+    let unreadable = NewRegistryGraph {
+        document: "{",
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
+    };
+    storage.write_registry_graph(current, unreadable).await.unwrap();
+}
+
+async fn restore_graph(storage: &Storage) {
+    let current = storage.read_registry_graph_generation().await.unwrap();
+    let document = serde_json::to_string(&graph()).unwrap();
+    let revision = NewRegistryGraph {
+        document: &document,
+        actor_id: "-",
+        restored_from: Some(1),
+        vacated: &[],
+        bound: &[],
+    };
+    storage.write_registry_graph(current, revision).await.unwrap();
 }
 
 #[tokio::test(start_paused = true)]
-async fn stalled_rules_deny_stale_access_and_recover() {
+async fn a_stalled_graph_read_keeps_the_last_graph() {
     let replica = Replica::new(ManagedRecords::Registry).await;
-    replica.start_stalled_refresh(&["rule_override_sets"]).await;
-    replica.expect_status("/npm/example", StatusCode::NOT_FOUND).await;
+    replica.start_stalled_refresh(&["registry_graph_revisions"]).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_unbuildable_graph_keeps_the_last_graph_until_the_stale_limit() {
+    let replica = Replica::new(ManagedRecords::Registry).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+    store_unreadable_graph(&replica.storage).await;
+    tokio::time::advance(Duration::from_secs(10)).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+
+    tokio::time::advance(Duration::from_secs(61)).await;
+    replica.expect_status("/npm/example", StatusCode::SERVICE_UNAVAILABLE).await;
+    assert_eq!(replica.get("/-/ping").await, StatusCode::OK);
+    assert_eq!(replica.get("/-/ready").await, StatusCode::SERVICE_UNAVAILABLE);
+
+    restore_graph(&replica.storage).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/npm/example", StatusCode::OK).await;
+    assert_eq!(replica.get("/-/ready").await, StatusCode::OK);
 }
 
 #[tokio::test(start_paused = true)]
@@ -223,18 +282,86 @@ async fn stalled_scim_refuses_credentials_and_recovers() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn stalled_roster_does_not_delay_the_scim_deadline() {
-    let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
-    replica.start_stalled_refresh(&["team_rosters", "scim_users"]).await;
-    replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
-    tokio::time::advance(Duration::from_secs(1)).await;
-    replica.expect_recovery("/-/whoami", StatusCode::OK).await;
+async fn an_idle_replica_reloads_before_answering_past_the_stale_limit() {
+    let replica = Replica::new(ManagedRecords::Registry).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+    tokio::time::advance(Duration::from_secs(61)).await;
+    assert_eq!(replica.get("/npm/example").await, StatusCode::OK);
+    tokio::time::advance(Duration::from_secs(61)).await;
+    assert_eq!(replica.get("/-/ready").await, StatusCode::OK);
 }
 
 #[tokio::test(start_paused = true)]
-async fn stalled_rules_do_not_delay_the_scim_deadline() {
+async fn an_idle_replica_whose_reload_fails_answers_503() {
+    let replica = Replica::new(ManagedRecords::Registry).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+    replica.database.pause("registry_graph_revisions".to_string());
+    tokio::time::advance(Duration::from_secs(61)).await;
+    let request = replica.get("/npm/example");
+    tokio::pin!(request);
+    tokio::select! {
+        status = &mut request => panic!("the request did not wait for the reload: {status}"),
+        () = replica.database.started.notified() => {}
+    }
+    tokio::time::advance(Duration::from_secs(5)).await;
+    assert_eq!(request.await, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test(start_paused = true)]
+async fn concurrent_requests_on_a_stale_graph_share_one_reload() {
+    let replica = Replica::new(ManagedRecords::Registry).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+    store_unreadable_graph(&replica.storage).await;
+    tokio::time::advance(Duration::from_secs(61)).await;
+    let reads = replica.database.graph_reads.load(Ordering::SeqCst);
+
+    let requests = (0..5).map(|_| replica.get("/npm/example"));
+    let statuses = futures_util::future::join_all(requests).await;
+    assert!(
+        statuses
+            .iter()
+            .all(|status| *status == StatusCode::SERVICE_UNAVAILABLE),
+        "{statuses:?}",
+    );
+    let reloads = replica.database.graph_reads.load(Ordering::SeqCst) - reads;
+    assert!(reloads <= 2, "{reloads} graph reads for one reload");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_stalled_edit_does_not_hold_up_requests_on_a_stale_graph() {
+    let replica = Replica::new(ManagedRecords::Registry).await;
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+    store_unreadable_graph(&replica.storage).await;
+    tokio::time::advance(Duration::from_secs(61)).await;
+    replica.database.hold("INSERT INTO registry_graph_revisions".to_string());
+    let document = graph();
+    let edit = replica.put("/-/pnpr/v0/admin/registries", &document);
+    tokio::pin!(edit);
+    tokio::select! {
+        status = &mut edit => panic!("the edit finished while its write was held: {status}"),
+        () = replica.database.started.notified() => {}
+    }
+
+    tokio::time::advance(Duration::from_secs(1)).await;
+    let request = replica.get("/npm/example");
+    tokio::pin!(request);
+    tokio::select! {
+        status = &mut request => panic!("the request did not wait for the lock: {status}"),
+        () = tokio::task::yield_now() => {}
+    }
+    tokio::time::advance(Duration::from_secs(5)).await;
+    assert_eq!(request.await, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(replica.get("/-/ping").await, StatusCode::OK);
+
+    replica.database.release.notify_one();
+    assert_eq!(edit.await, StatusCode::OK);
+    replica.expect_status("/npm/example", StatusCode::OK).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_stalled_graph_does_not_delay_the_scim_deadline() {
     let replica = Replica::new(ManagedRecords::RegistryAndScim).await;
-    replica.start_stalled_refresh(&["rule_override_sets", "scim_users"]).await;
+    replica.start_stalled_refresh(&["registry_graph_revisions", "scim_users"]).await;
     replica.expect_status("/-/whoami", StatusCode::INTERNAL_SERVER_ERROR).await;
     tokio::time::advance(Duration::from_secs(1)).await;
     replica.expect_recovery("/-/whoami", StatusCode::OK).await;
@@ -276,9 +403,27 @@ struct PausingDatabase {
     primary: String,
     records: Mutex<Vec<String>>,
     started: tokio::sync::Notify,
+    /// Statements held until [`Self::release`] is notified.
+    holds: Mutex<Vec<String>>,
+    release: tokio::sync::Notify,
+    graph_reads: AtomicUsize,
 }
 
 impl PausingDatabase {
+    fn hold(&self, record: String) {
+        self.holds.lock().unwrap().push(record);
+    }
+
+    fn take_hold(&self, body: &[u8]) -> bool {
+        let body = String::from_utf8_lossy(body);
+        let mut holds = self.holds.lock().unwrap();
+        let held = holds
+            .iter()
+            .position(|record| body.contains(record));
+        held.map(|index| holds.remove(index))
+            .is_some()
+    }
+
     fn pause(&self, record: String) {
         self.records
             .lock()
@@ -307,9 +452,16 @@ async fn proxy_database(
 ) -> Response {
     let (parts, body) = request.into_parts();
     let body = to_bytes(body, usize::MAX).await.unwrap();
+    if String::from_utf8_lossy(&body).contains("FROM registry_graph_revisions") {
+        database.graph_reads.fetch_add(1, Ordering::SeqCst);
+    }
     if database.take_pause(&body) {
         database.started.notify_one();
         tokio::time::sleep(Duration::from_secs(6)).await;
+    }
+    if database.take_hold(&body) {
+        database.started.notify_one();
+        database.release.notified().await;
     }
     let response = reqwest::Client::new()
         .request(parts.method, format!("{}{}", database.primary, parts.uri))

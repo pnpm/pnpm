@@ -6,6 +6,7 @@ use super::{
     resolve_registry_source,
 };
 use axum::response::IntoResponse;
+use pnpr_config::RoutingConfig;
 
 /// `GET /-/org/{scope}/package` — the npm-compatible package-permission map.
 /// Values are useful to npm's account UI; registry UIs such as npmX consume
@@ -73,7 +74,8 @@ pub(super) async fn add_hosted_org_packages(
     scan: OrgScan<'_>,
     packages: &mut Map<String, Value>,
 ) -> Result<(), RegistryError> {
-    let Some(hosted) = state.inner.config.routing.hosted.get(scan.source) else {
+    let routing = state.routing();
+    let Some(hosted) = routing.hosted.get(scan.source) else {
         return Ok(());
     };
     if !hosted.rules.any_access_admits(identity) {
@@ -131,7 +133,8 @@ pub(super) async fn add_upstream_org_packages(
     scope: &str,
     packages: &mut Map<String, Value>,
 ) -> Result<(), RegistryError> {
-    let Some(config) = state.inner.config.routing.upstreams.get(scan.source) else {
+    let routing = state.routing();
+    let Some(config) = routing.upstreams.get(scan.source) else {
         return Ok(());
     };
     if !config.search
@@ -141,7 +144,7 @@ pub(super) async fn add_upstream_org_packages(
     {
         return Ok(());
     }
-    let Some(upstream) = state.inner.proxy.upstreams.get(scan.source) else {
+    let Some(upstream) = routing.upstream_clients.get(scan.source) else {
         return Ok(());
     };
     let upstream_packages = match upstream.fetch_org_packages(scope).await? {
@@ -190,7 +193,8 @@ pub(super) fn upstream_org_package_is_visible(
 /// existence probe for a private registry. Returns the registry's name with
 /// its config.
 pub(super) fn team_registry<'a>(
-    state: &'a AppState,
+    state: &AppState,
+    routing: &'a RoutingConfig,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
@@ -210,7 +214,7 @@ pub(super) fn team_registry<'a>(
     let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, &probe) else {
         return Err(RegistryError::NotFound);
     };
-    let Some((name, hosted)) = state.inner.config.routing.hosted.get_key_value(&source) else {
+    let Some((name, hosted)) = routing.hosted.get_key_value(&source) else {
         return Err(RegistryError::NotFound);
     };
     if !hosted.rules.default_access_admits(identity) {
@@ -220,14 +224,16 @@ pub(super) fn team_registry<'a>(
 }
 
 pub(super) fn readable_team_registry<'a>(
-    state: &'a AppState,
+    state: &AppState,
+    routing: &'a RoutingConfig,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
 ) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
-    let (name, hosted) = team_registry(state, identity, registry, scope)?;
+    let (name, hosted) = team_registry(state, routing, identity, registry, scope)?;
     super::require_caller(identity, "team listing")?;
-    if state.inner.config.identity.is_admin(identity) {
+    let auth = &state.inner.config.identity;
+    if auth.is_admin(identity) || auth.is_registry_admin(identity) {
         return Ok((name, hosted));
     }
     if !identity.belongs_to_directory(&hosted.teams) {
@@ -245,7 +251,8 @@ pub(super) fn get_org_teams(
     registry: Option<&str>,
     scope: &str,
 ) -> Response {
-    let hosted = match readable_team_registry(state, identity, registry, scope) {
+    let routing = state.routing();
+    let hosted = match readable_team_registry(state, &routing, identity, registry, scope) {
         Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };
@@ -267,7 +274,8 @@ pub(super) async fn get_team_members(
     scope: &str,
     team: &str,
 ) -> Response {
-    let hosted = match readable_team_registry(state, identity, registry, scope) {
+    let routing = state.routing();
+    let hosted = match readable_team_registry(state, &routing, identity, registry, scope) {
         Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };

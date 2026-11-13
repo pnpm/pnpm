@@ -61,6 +61,17 @@ impl fmt::Debug for Secret {
     }
 }
 
+/// The value as written. A graph document the metadata database stores holds
+/// only `${VAR}` references here, which its credential rules require.
+impl serde::Serialize for Secret {
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
+
 impl<'de> Deserialize<'de> for Secret {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where

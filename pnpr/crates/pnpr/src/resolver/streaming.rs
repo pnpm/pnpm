@@ -113,12 +113,12 @@ pub(super) fn stream_resolve_response(
         inputs,
         max_npm_packages,
     };
-    let handle = tokio::spawn(async move {
+    let handle = tokio::spawn(crate::server::carry_pinned_routing(async move {
         tokio::select! {
             () = stream_resolution(task) => {},
             () = send_keepalives(&keepalive, KEEPALIVE_INTERVAL) => {},
         }
-    });
+    }));
     ndjson_stream_response(rx, AbortOnDrop(handle.abort_handle()))
 }
 

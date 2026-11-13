@@ -25,7 +25,8 @@ pub mod migrate_storage;
 pub mod verify;
 
 pub use cli_commands::{
-    Command, ConfigSubcommand, FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval, run_command,
+    Command, ConfigSubcommand, FeatureArgs, OsvArgs, RegistriesSubcommand, ServerArgs,
+    parse_cli_interval, run_command,
 };
 pub use pnpr_auth::{
     AuthState, PasswordChange, SqliteAuth, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
@@ -50,5 +51,6 @@ pub use server::{
 
 mod audit;
 mod config_validation;
+mod registries_command;
 mod resolver;
 mod server;

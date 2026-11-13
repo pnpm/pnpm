@@ -25,6 +25,7 @@ pub use url_credentials::{
     sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
 };
 
+pub use connect_policy::normalized_host_name;
 pub use local_routes::split_package_identifier;
 pub use pnpm_network::LocalFetch;
 pub use route_hook::RouteHook;
@@ -45,6 +46,8 @@ mod alias_admission;
 mod connect_policy;
 use connect_policy::ConnectPolicy;
 
+mod stored_upstream;
+
 mod footprint;
 
 use std::{
@@ -60,7 +63,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
-use pnpr_config::{Config, PublicRoute, RoutePolicy, UpstreamConfig};
+use pnpr_config::{Config, PublicRoute, RoutePolicy, RoutingConfig, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRules};
 use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 
@@ -170,9 +173,14 @@ impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let routing = &config.routing;
-        let hosted_origin =
-            nerf_prefix(&format!("{}/", config.http.public_url.trim_end_matches('/')));
+        Self::from_routing(&config.routing, &config.http.public_url)
+    }
+
+    /// Resolve route-classification inputs from a registry graph and the
+    /// server's public URL.
+    #[must_use]
+    pub fn from_routing(routing: &RoutingConfig, public_url: &str) -> Self {
+        let hosted_origin = nerf_prefix(&format!("{}/", public_url.trim_end_matches('/')));
         let mut registries = routing.registries.clone();
         for name in routing.upstreams.keys() {
             registries.ensure_upstream(name);
@@ -206,7 +214,7 @@ impl RouteContext {
             registries,
             hosted_rules,
             upstream_rules,
-            connect_policy: ConnectPolicy::from_config(config),
+            connect_policy: ConnectPolicy::from_routing(routing, public_url),
         }
     }
 
@@ -406,11 +414,12 @@ impl RouteContext {
     }
 
     /// Whether the resolver may fetch `url`: its registry is on the
-    /// allowlist ([`Self::allows_registry`]) and, when its host is an IP
-    /// literal, [`Self::allows_address`] admits it.
+    /// allowlist ([`Self::allows_registry`]), when its host is an IP literal
+    /// [`Self::allows_address`] admits it, and when its host is this server's
+    /// own, it is at `public_url`'s origin.
     #[must_use]
     pub fn allows_fetch(&self, url: &str) -> bool {
-        self.allows_registry(url) && self.connect_policy.allows_literal_host(url)
+        self.allows_registry(url) && self.connect_policy.allows_fetched_host(url)
     }
 
     /// Whether the resolver may open a connection to `address`, resolved for

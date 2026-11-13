@@ -129,7 +129,8 @@ point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
 resolver to make the server fetch from an arbitrary internal address. An
 allowlisted host that resolves to a loopback, private, or link-local address is
-refused too, unless it is the `--public-url` host or
+refused too, unless it is the `--public-url` host (its origin, with
+`registriesManagedBy: api`) or
 [`routes.allowedPrivateNetworks`](configuration.md#routes) lists it.
 
 ## Private registries {#private-registries}

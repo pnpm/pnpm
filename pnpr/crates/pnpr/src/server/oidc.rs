@@ -260,18 +260,21 @@ pub(super) fn protect(response: Response) -> Response {
     response
 }
 
-pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), RegistryError> {
+pub(super) fn validate_workloads(
+    config: &pnpr_config::Config,
+    routing: &pnpr_config::RoutingConfig,
+) -> Result<(), RegistryError> {
     for workload in config.identity.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
-        validate_single_workload(config, workload)?;
+        validate_single_workload(routing, workload)?;
     }
     Ok(())
 }
 
 fn validate_single_workload(
-    config: &pnpr_config::Config,
+    routing: &pnpr_config::RoutingConfig,
     workload: &pnpr_config::oidc::OidcWorkload,
 ) -> Result<(), RegistryError> {
-    if !is_hosted_npm_registry(config, &workload.registry) || workload.packages.is_empty() {
+    if !is_hosted_npm_registry(routing, &workload.registry) || workload.packages.is_empty() {
         return Err(RegistryError::InvalidConfig {
             reason: "OIDC workloads require a hosted npm registry and explicit packages".to_string(
             ),
@@ -280,13 +283,12 @@ fn validate_single_workload(
     validate_workload_packages(&workload.packages)
 }
 
-fn is_hosted_npm_registry(config: &pnpr_config::Config, registry: &str) -> bool {
-    let Some(key) = config.routing.registries.addressed(registry, pnpr_registry::Ecosystem::Npm)
-    else {
+fn is_hosted_npm_registry(routing: &pnpr_config::RoutingConfig, registry: &str) -> bool {
+    let Some(key) = routing.registries.addressed(registry, pnpr_registry::Ecosystem::Npm) else {
         return false;
     };
-    matches!(config.routing.registries.get(key), Some(pnpr_registry::Registry::Hosted { .. }))
-        && config.routing.registries.ecosystem(key) == Some(pnpr_registry::Ecosystem::Npm)
+    matches!(routing.registries.get(key), Some(pnpr_registry::Registry::Hosted { .. }))
+        && routing.registries.ecosystem(key) == Some(pnpr_registry::Ecosystem::Npm)
 }
 
 fn validate_workload_packages(packages: &[String]) -> Result<(), RegistryError> {
@@ -369,10 +371,10 @@ pub(super) struct WorkloadScope {
 
 impl WorkloadScope {
     pub(super) fn new(
-        config: &pnpr_config::Config,
+        routing: &pnpr_config::RoutingConfig,
         workload: &pnpr_config::oidc::OidcWorkload,
     ) -> Self {
-        let registry = config.routing.registries
+        let registry = routing.registries
             .addressed(&workload.registry, pnpr_registry::Ecosystem::Npm)
             .unwrap_or(&workload.registry)
             .to_string();

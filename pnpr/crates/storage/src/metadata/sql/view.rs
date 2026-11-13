@@ -204,9 +204,10 @@ impl PackageMetadata {
         let key = self.key(name);
         let bytes = bytes.to_vec();
         let principal = principal.map(str::to_string);
+        let retired = self.database.retired();
         self.database.write(move |connection| {
             let principal = principal.as_deref();
-            commit::write_document(connection, &key, &bytes, &expected, principal)
+            commit::write_document(connection, &key, &bytes, &expected, principal, retired)
         })
         .await
     }

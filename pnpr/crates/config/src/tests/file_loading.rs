@@ -450,8 +450,6 @@ database:
 registries:
   npm:
     type: hosted
-    teamsManagedBy: api
-    rulesManagedBy: api
   remote:
     type: upstream
     url: https://registry.npmjs.org/
@@ -477,9 +475,7 @@ registries:
         }
         other => panic!("expected libsql, got {other:?}"),
     }
-    let hosted = &config.routing.hosted["npm"];
-    assert_eq!(hosted.teams_managed_by, crate::Management::Api);
-    assert_eq!(hosted.rules_managed_by, crate::Management::Api);
+    assert!(config.routing.hosted.contains_key("npm"));
     let upstream = &config.routing.upstreams["remote"];
     assert_eq!(upstream.requests.max_fails, 4);
     assert_eq!(upstream.requests.fail_timeout, std::time::Duration::from_secs(25));

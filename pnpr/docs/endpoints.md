@@ -43,7 +43,7 @@ produce an "Authentication required" explanation.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/-/ping` | Lightweight reachability check (`npm ping` / `pnpm ping`). Returns `{}`. |
-| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks that the server is not shutting down and that storage and auth backends are reachable, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure (`{"status": "shutting_down"}` during graceful shutdown). |
+| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks that the server is not shutting down and that storage and auth backends are reachable, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure (`{"status": "shutting_down"}` during graceful shutdown). With `registriesManagedBy: api`, the response adds `"registries": "ok"`, and the probe fails while the replica [cannot serve the stored registries](configuration.md#replica-reloads). |
 | `GET` | `/-/live` | Container / Kubernetes liveness probe. Returns `{"status": "ok"}` when the server process is alive and handling requests. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
 | `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |
@@ -758,13 +758,14 @@ consumes. Teams are [registry-scoped](configuration.md#teams).
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
 
-Changes are accepted only on a registry with
-[`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):
+Changes are accepted only with
+[`registriesManagedBy: api`](configuration.md#managing-teams-through-the-api),
+and only on npm hosted registries:
 
-- On any other registry a change returns `403` with the error code
+- Otherwise a change returns `403` with the error code
   `ERR_PNPR_TEAMS_CONFIG_MANAGED`.
-- The caller must be one of the `auth.admins`. Others get `401` when
-  anonymous and `403` when signed in.
+- The caller must be one of the `auth.admins` or `auth.registryAdmins`.
+  Others get `401` when anonymous and `403` when signed in.
 - Creating a team that exists, or destroying one a `packages:` rule names,
   returns `409`. Changing a team that does not exist returns `404`.
 
@@ -777,8 +778,9 @@ that declares no teams returns an empty array.
 ### Team package access
 
 `npm access grant`, `npm access revoke`, and `npm access list packages
-<scope:team>` edit and read the `packages:` rules of a registry with
-[`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api).
+<scope:team>` read the `packages:` rules of a hosted registry, and with
+[`registriesManagedBy: api`](configuration.md#changing-rules-through-the-api)
+edit them.
 
 The `{team}` path segment is a team name. The stored `team:<id>` token uses
 the immutable team ID returned by the team endpoints.
@@ -792,11 +794,11 @@ the immutable team ID returned by the team endpoints.
 - The package must be a `packages:` key of its own, such as `'@acme/app'`.
   A package that only a pattern such as `'@acme/*'` covers returns `400`,
   because editing the pattern would grant every package it covers.
-- A grant edits the lists that apply to the package now, and stores only the
-  lists it changes, the same way a `PUT` to the
-  [rules admin API](#admin-endpoints) does.
-- The caller must be one of the `auth.admins`, and the team must exist.
-- On a registry without `rulesManagedBy: api` a change returns `403` with
+- A grant edits the lists that apply to the package now, the same way a
+  `PUT` to the [rules admin API](#admin-endpoints) does.
+- The caller must be one of the `auth.admins` or `auth.registryAdmins`, and
+  the team must exist.
+- Without `registriesManagedBy: api` a change returns `403` with
   `ERR_PNPR_RULES_CONFIG_MANAGED`.
 
 ## User and token endpoints
@@ -825,9 +827,10 @@ resolver-only server that exposes no registry surface.
 
 ## Admin endpoints
 
-These endpoints are always mounted, on the server root only. Each requires
-one of the [`auth.admins`](configuration.md#auth). Others get `401` when
-anonymous and `403` when signed in.
+These endpoints are always mounted, on the server root only. The account
+endpoints require one of the [`auth.admins`](configuration.md#auth). The rules
+endpoints require one of the `auth.admins` or `auth.registryAdmins`. Others
+get `401` when anonymous and `403` when signed in.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -838,18 +841,18 @@ anonymous and `403` when signed in.
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}` | Delete the account and revoke its credentials. The login name becomes available; a replacement account receives a fresh ID. Returns `204`. |
 | `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
-| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `rulesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the stored changes. |
-| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the stored rule changes with the body, and return the rules that result. Only on a registry with [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api); elsewhere `403` with `ERR_PNPR_RULES_CONFIG_MANAGED`. |
-| `DELETE` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Drop the stored rule changes, so the config's rules apply again. Returns `204`. |
+| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `registriesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the [revision](#registry-admin-endpoints) of the stored registries. |
+| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the lists the body names, and return the rules that result. Only with [`registriesManagedBy: api`](configuration.md#changing-rules-through-the-api); otherwise `403` with `ERR_PNPR_RULES_CONFIG_MANAGED`. |
 
 To keep two admins from overwriting each other's changes, send the `version`
-you read as `If-Match` with a `PUT` or `DELETE`. If the stored changes have
-moved on since, the request answers `412` and changes nothing. Without
-`If-Match`, or with `If-Match: *`, the last change wins. A weak tag such as
-`W/"..."` never matches, and an `If-Match` that is not a list of quoted
-versions answers `400`.
+you read as `If-Match` with a `PUT`. If the stored registries have moved on
+since, the request answers `412` and changes nothing. Without `If-Match`, or
+with `If-Match: *`, the last change wins. A weak tag such as `W/"..."` never
+matches, and an `If-Match` that is not a list of quoted versions answers
+`400`. The same rules apply to the
+[registry admin endpoints](#registry-admin-endpoints).
 
-A rules body lists only what changes. Each list replaces the config's list of
+A rules body lists only what changes. Each list replaces the current list of
 the same place:
 
 ```json
@@ -866,6 +869,45 @@ A key the registry's `packages:` map does not declare, a malformed token, or a
 `{ecosystem}` and `{name}` are the pair the
 [registry directory](discovery.md#the-registry-directory) lists, for example
 `npm/private`.
+
+To undo a rules change, [restore](#registry-admin-endpoints) the revision
+before it.
+
+### Registry admin endpoints {#registry-admin-endpoints}
+
+With [`registriesManagedBy: api`](configuration.md#registries-in-the-database),
+these endpoints read and change the stored registries. A body or response is
+a registries document: the `registries`, `defaultRegistry`, and
+`routes.public` blocks of a config file, as JSON. A `{name}` is a key of
+`registries`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/-/pnpr/v0/admin/registries` | The stored registries document. The `ETag` names its version. |
+| `PUT` | `/-/pnpr/v0/admin/registries` | Replace the whole document. |
+| `GET` | `/-/pnpr/v0/admin/registries/{name}` | One registry's entry. The `ETag` names the version of the whole document. |
+| `PUT` | `/-/pnpr/v0/admin/registries/{name}` | Add the registry, or replace its entry. |
+| `DELETE` | `/-/pnpr/v0/admin/registries/{name}` | Remove the registry. |
+| `GET` | `/-/pnpr/v0/admin/registry-revisions` | Earlier versions, newest first, as `{"revisions": [{"version": ..., "actorId": ..., "createdAt": ..., "restoredFrom": ...}]}`. `?limit=` takes up to 500 and defaults to 50. `?before=<version>` pages back. |
+| `GET` | `/-/pnpr/v0/admin/registry-revisions/{version}` | The document of one version. |
+| `POST` | `/-/pnpr/v0/admin/registry-revisions/{version}/restore` | Store that version's document as the newest version. |
+
+- The reads require one of the `auth.admins` or `auth.registryAdmins`. The
+  changes require one of the `auth.registryAdmins`.
+- Every change returns `{"version": ..., "changes": {"added": [...],
+  "removed": [...], "changed": [...]}}`. The lists name registries, and
+  `changed` also names `defaultRegistry` or `routes` when they change. A
+  change that leaves the document as it was stores no new version.
+- With `?dryRun=true`, a change is checked and its `changes` returned, but
+  nothing is stored.
+- Every change accepts `If-Match` as the [rules endpoints](#admin-endpoints)
+  do. The version is `0` while nothing is stored.
+- A change that pnpr [refuses](configuration.md#changes-pnpr-refuses) stores
+  nothing, and the error names the reason.
+- Replacing the whole document and restoring a version work while the stored
+  document cannot be loaded, so they repair it.
+- Without `registriesManagedBy: api`, every endpoint returns `403` with
+  `ERR_PNPR_REGISTRIES_CONFIG_MANAGED`.
 
 With the default account file store, each replica keeps its own accounts, so an
 account change reaches only the replica that served it. Use a

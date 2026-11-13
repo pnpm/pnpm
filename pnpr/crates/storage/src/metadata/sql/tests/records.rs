@@ -1,37 +1,9 @@
 use super::{Db, npm, packument, storage};
 use crate::{
     DocumentWrite,
-    metadata::{
-        NewScimUser, RuleOverridesWrite, ScimUserRemoval, ScimUserWrite, StoredPackageOverride,
-        StoredRuleOverrides, StoredTeam, TeamRosterWrite,
-    },
+    metadata::{NewScimUser, ScimUserRemoval, ScimUserWrite},
 };
 use serde_json::{Map, json};
-use std::collections::{BTreeMap, BTreeSet};
-
-async fn record_keys_preserve_case(db: Db) {
-    let storage = storage(&db);
-    for key in ["npm/example", "npm/Example"] {
-        let team = StoredTeam {
-            id: format!("id-{key}"),
-            name: key.replace('/', "-"),
-            members: BTreeSet::new(),
-        };
-        storage
-            .replace_team_roster(key, &[team])
-            .await
-            .unwrap();
-    }
-    for key in ["npm/example", "npm/Example"] {
-        let roster = storage
-            .read_team_roster(key)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(roster.teams.len(), 1);
-        assert_eq!(roster.teams[0].id, format!("id-{key}"));
-    }
-}
 
 async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
     let first = storage(&db);
@@ -123,79 +95,6 @@ async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
             .await
             .unwrap()
             .is_empty(),
-    );
-}
-
-async fn team_rosters_and_rule_overrides_use_current_generations(db: Db) {
-    let first = storage(&db);
-    let second = storage(&db);
-    let seed = [StoredTeam {
-        id: "t-seed".to_string(),
-        name: "readers".to_string(),
-        members: BTreeSet::from(["u-1".to_string()]),
-    }];
-    let TeamRosterWrite::Written(created) =
-        first.create_team_in_roster("npm/local", &seed, "t-devs", "devs").await.unwrap()
-    else {
-        panic!("expected team creation");
-    };
-    assert_eq!(created.teams.len(), 2);
-    assert_eq!(
-        second.create_team_in_roster("npm/local", &seed, "t-dup", "devs").await.unwrap(),
-        TeamRosterWrite::Conflict,
-    );
-    let TeamRosterWrite::Written(with_member) =
-        second.add_member_to_team("npm/local", &seed, "devs", "u-2").await.unwrap()
-    else {
-        panic!("expected member add");
-    };
-    assert!(with_member.generation > created.generation);
-
-    let mut packages = BTreeMap::new();
-    packages.insert(
-        "@acme/*".to_string(),
-        StoredPackageOverride {
-            access: Some(vec!["team:t-devs".to_string()]),
-            ..Default::default()
-        },
-    );
-    let overrides = StoredRuleOverrides { access: Some(vec!["$all".to_string()]), packages };
-    let RuleOverridesWrite::Written(Some(gen1)) = first
-        .replace_rule_overrides("npm/local", Some(None), &overrides)
-        .await
-        .unwrap()
-    else {
-        panic!("expected initial override write");
-    };
-    assert_eq!(
-        second
-            .replace_rule_overrides("npm/local", Some(None), &overrides)
-            .await
-            .unwrap(),
-        RuleOverridesWrite::Conflict,
-    );
-    assert_eq!(
-        second
-            .read_rule_overrides("npm/local")
-            .await
-            .unwrap()
-            .unwrap()
-            .overrides,
-        overrides,
-    );
-    assert_eq!(
-        second
-            .replace_rule_overrides("npm/local", Some(Some(gen1)), &StoredRuleOverrides::default())
-            .await
-            .unwrap(),
-        RuleOverridesWrite::Written(None),
-    );
-    assert!(
-        first
-            .read_rule_overrides("npm/local")
-            .await
-            .unwrap()
-            .is_none(),
     );
 }
 
@@ -475,9 +374,7 @@ async fn unreadable_scim_attributes_identify_the_account_in_status_reads(db: Db)
 
 conformance!(
     unreadable_scim_attributes_identify_the_account_in_status_reads,
-    record_keys_preserve_case,
     scim_users_track_incremental_generations_and_deprovisions,
-    team_rosters_and_rule_overrides_use_current_generations,
     staged_records_keep_only_bodies_in_the_object_store,
     unpublish_rolls_back_ownership_and_version_bans_together,
     removing_an_owned_document_keeps_its_owners_and_remover,

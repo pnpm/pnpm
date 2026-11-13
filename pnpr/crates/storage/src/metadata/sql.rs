@@ -15,15 +15,15 @@ pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
 pub use mappings::{Mapping, Unmapping};
-pub(crate) use removed::RemovedPackage;
-pub use rule_overrides::{
-    RuleOverridesWrite, StoredPackageOverride, StoredRuleOverrideSet, StoredRuleOverrides,
+pub use registry_graph::{
+    HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision,
+    RegistryGraphWrite, StoredRegistryGraph,
 };
+pub(crate) use removed::RemovedPackage;
 pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser};
 pub(crate) use staged::{StagedEntry, StagedId};
 pub(crate) use store_binding::{StoreBinding, StoreClaim};
 pub use tags::TagHistoryEntry;
-pub use team_rosters::{StoredTeam, StoredTeamRoster, TeamRosterWrite};
 pub(crate) use view::PackageMetadata;
 
 mod batch;
@@ -44,15 +44,14 @@ mod publish;
 mod pypi_rows;
 mod reclaims;
 mod records;
+mod registry_graph;
 mod removed;
 mod render;
-mod rule_overrides;
 mod schema_monitor;
 mod scim;
 mod staged;
 mod store_binding;
 mod tags;
-mod team_rosters;
 mod transactions;
 mod versions;
 mod view;
@@ -71,7 +70,7 @@ use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_sql::DialectSql;
 use std::{
     path::Path,
-    sync::{Arc, Mutex, OnceLock, PoisonError},
+    sync::{Arc, Mutex, OnceLock, PoisonError, atomic::AtomicBool},
     time::Instant,
 };
 use transactions::Freshness;
@@ -89,6 +88,8 @@ pub struct SqlMetadata {
     schema_check: Mutex<()>,
     schema_monitor: schema_monitor::SchemaMonitor,
     cache: cache::RenderCache,
+    /// Whether publishes into a retired hosted namespace are refused.
+    refuses_retired: AtomicBool,
 }
 
 /// Which package a statement addresses.
@@ -157,9 +158,8 @@ impl SqlMetadata {
     /// that holds a newer or pre-1.0 schema is refused.
     pub const SCHEMA_VERSION: i64 = schema::SCHEMA_VERSION;
 
-    /// The statements that create the schema, so a cache of databases can
-    /// tell a layout that changed under one version apart.
-    pub const SCHEMA_TABLES: &'static str = schema::TABLES.sqlite;
+    /// See [`pnpr_sql::schema::SQLITE_STATEMENTS`].
+    pub const SCHEMA_STATEMENTS: &'static [&'static str] = schema::SQLITE_STATEMENTS;
 
     /// Open the `SQLite` database at `path`, creating it and its directory if
     /// needed.
@@ -193,6 +193,7 @@ impl SqlMetadata {
             schema_check: Mutex::new(()),
             schema_monitor: schema_monitor::SchemaMonitor::default(),
             cache: cache::RenderCache::default(),
+            refuses_retired: AtomicBool::new(false),
         }
     }
 
@@ -310,6 +311,7 @@ impl SqlMetadata {
         fence: BlobFence,
     ) -> Result<PublicationCommit> {
         let namespace = namespace.to_string();
+        let retired = self.retired();
         self.write(move |connection| {
             let submission = publish::Submission {
                 namespace: &namespace,
@@ -318,6 +320,7 @@ impl SqlMetadata {
                 notes: &notes,
                 request: request.as_ref(),
                 fence: &fence,
+                retired,
             };
             publish::commit_publication(connection, &submission)
         })

@@ -1,5 +1,5 @@
-//! Team administration through the npm team API on a registry whose teams
-//! the API manages (`teamsManagedBy: api`): who may edit the roster, how an
+//! Team administration through the npm team API on registries the metadata
+//! database stores (`registriesManagedBy: api`): who may edit a roster, how an
 //! edit reaches the `team:` rules, and that the roster persists in the metadata
 //! database.
 
@@ -25,7 +25,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    teamsManagedBy: api
     teams:
       readers: { name: readers, members: [] }
     packages:
@@ -38,17 +37,33 @@ registries:
 defaultRegistry: main
 ";
 
-fn load_config(dir: &Path) -> Config {
-    load_config_with(dir, CONFIG)
+async fn load_config(dir: &Path) -> Config {
+    load_config_with(dir, CONFIG).await
 }
 
-fn load_config_with(dir: &Path, yaml: &str) -> Config {
+async fn load_config_with(dir: &Path, yaml: &str) -> Config {
     let storage = dir.join("storage");
     std::fs::create_dir_all(&storage).unwrap();
-    let path = dir.join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{yaml}", storage.display())).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+    let yaml = format!("storage: {}\n{yaml}", storage.display());
+    crate::managed_registries::managed_config(&config_path(dir), &yaml, listen(), public_url())
+        .await
+}
+
+/// The config [`load_config`] wrote, without storing its graph again.
+fn reload_config(dir: &Path) -> Config {
+    Config::from_yaml(&config_path(dir), listen(), public_url()).unwrap()
+}
+
+fn config_path(dir: &Path) -> std::path::PathBuf {
+    dir.join("config.yaml")
+}
+
+fn listen() -> SocketAddr {
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
+}
+
+fn public_url() -> Option<String> {
+    Some("http://example.test".to_string())
 }
 
 async fn app_router(config: Config) -> axum::Router {
@@ -108,7 +123,7 @@ async fn team_names(app: &axum::Router, token: &str) -> Value {
 #[tokio::test]
 async fn admin_edits_reach_team_rules_at_once() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
 
@@ -139,7 +154,7 @@ async fn admin_edits_reach_team_rules_at_once() {
 #[tokio::test]
 async fn only_admins_edit_the_roster() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let bob = add_user(&app, "bob").await;
     let create = json!({ "name": "ops" });
 
@@ -157,7 +172,7 @@ async fn only_admins_edit_the_roster() {
 #[tokio::test]
 async fn roster_edits_refuse_conflicting_state() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let create = json!({ "name": "ops" });
 
@@ -185,7 +200,7 @@ async fn roster_edits_refuse_conflicting_state() {
 #[tokio::test]
 async fn a_new_process_serves_the_stored_roster() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let create = json!({ "name": "ops" });
     assert_eq!(
@@ -195,7 +210,7 @@ async fn a_new_process_serves_the_stored_roster() {
         StatusCode::CREATED,
     );
 
-    let restarted = app_router(load_config(dir.path())).await;
+    let restarted = app_router(reload_config(dir.path())).await;
     let root = add_user(&restarted, "root").await;
     assert_eq!(
         team_names(&restarted, &root).await,
@@ -204,21 +219,16 @@ async fn a_new_process_serves_the_stored_roster() {
 }
 
 #[tokio::test]
-async fn directory_reports_admin_and_team_management() {
+async fn directory_reports_admin_and_registry_management() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
 
     let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&root), None).await;
     assert_eq!(directory["admin"], json!(true));
-    let local = directory["registries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|entry| entry["name"] == "local")
-        .expect("local is listed");
-    assert_eq!(local["teamsManagedBy"], json!("api"));
+    assert_eq!(directory["registryAdmin"], json!(false));
+    assert_eq!(directory["registriesManagedBy"], json!("api"));
     let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&bob), None).await;
     assert_eq!(directory["admin"], json!(false));
 }
@@ -226,7 +236,7 @@ async fn directory_reports_admin_and_team_management() {
 #[tokio::test]
 async fn team_edits_refuse_oversized_bodies() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let body = json!({ "name": "x".repeat(100 * 1024) });
 
     let (status, _) = send(&app, "PUT", "/npm/-/org/acme/team", None, Some(body)).await;
@@ -234,42 +244,42 @@ async fn team_edits_refuse_oversized_bodies() {
 }
 
 #[tokio::test]
-async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
+async fn a_replica_that_cannot_read_the_graph_serves_no_registry() {
     let dir = TempDir::new().unwrap();
     let auth = pnpr::AuthState::in_memory();
     let (_, bob_id) = auth.users.add_or_login("bob", "secret123").await.unwrap();
     let yaml = CONFIG.replace("members: []", &format!("members: [{bob_id}]"));
     assert_ne!(yaml, CONFIG);
-    let config = load_config_with(dir.path(), &yaml);
+    let config = load_config_with(dir.path(), &yaml).await;
     let app = router_with_auth(config.clone(), auth.clone());
     let bob = add_user(&app, "bob").await;
     assert_eq!(
         send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await.0,
         StatusCode::NOT_FOUND,
     );
-    let _storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
-        unreachable!();
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let current = storage.read_registry_graph_generation().await.unwrap();
+    let unreadable = pnpr_storage::metadata::NewRegistryGraph {
+        document: "{",
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &[],
     };
-    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
-    conn.execute_batch(
-        "INSERT INTO team_rosters (registry, generation) VALUES ('npm/local', 1);
-         INSERT INTO team_members (registry, team_id, user_id) VALUES ('npm/local', 'missing', 'u-1');",
-    )
-    .unwrap();
-    drop(conn);
+    storage.write_registry_graph(current, unreadable).await.unwrap();
     let app = router_with_auth(config, auth);
 
-    let (status, _) = send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, _) = send(&app, "GET", "/npm/lodash", Some(&bob), None).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    for path in ["/npm/@secret/thing", "/npm/lodash"] {
+        let (status, error) = send(&app, "GET", path, Some(&bob), None).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{path}");
+        assert_eq!(error["code"], "ERR_PNPR_REGISTRIES_UNAVAILABLE");
+    }
 }
 
 #[tokio::test]
 async fn deleting_a_member_prevents_reclaiming_its_team_access() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let former = add_user(&app, "former-member").await;
     let former_id = crate::tokens::account_id(&app, "former-member", Some(&root))
@@ -311,7 +321,7 @@ async fn deleting_a_member_prevents_reclaiming_its_team_access() {
 #[tokio::test]
 async fn deleted_members_can_be_removed_by_id_after_their_name_is_reused() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     add_user(&app, "member").await;
     let former_id = crate::tokens::account_id(&app, "member", Some(&root)).await.unwrap();
@@ -358,7 +368,7 @@ async fn deleted_members_can_be_removed_by_id_after_their_name_is_reused() {
 #[tokio::test]
 async fn only_members_and_admins_can_read_teams() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let member = add_user(&app, "member").await;
     let outsider = add_user(&app, "outsider").await;
@@ -396,30 +406,4 @@ async fn only_members_and_admins_can_read_teams() {
         send(&app, "GET", "/npm/-/org/acme/team", Some(&member), None).await.0,
         StatusCode::NOT_FOUND,
     );
-}
-
-#[tokio::test]
-async fn artifact_references_block_team_deletion_only_in_their_registry() {
-    for field in ["access", "publish"] {
-        let dir = TempDir::new().unwrap();
-        let yaml = CONFIG.replace("access: [team:readers]", "access: $authenticated")
-            .replace("  main:\n", "  other:\n    type: hosted\n    namespace: other\n    teamsManagedBy: api\n    teams:\n      readers: { name: readers, members: [] }\n  main:\n");
-        let (access, publish) = if field == "access" {
-            ("team:local:readers", "$authenticated")
-        } else {
-            ("$authenticated", "team:local:readers")
-        };
-        let yaml = format!(
-            "{yaml}artifacts:\n  owners:\n    example:\n      access: {access}\n      publish: {publish}\n",
-        );
-        let app = app_router(load_config_with(dir.path(), &yaml)).await;
-        let root = add_user(&app, "root").await;
-        let (status, _) =
-            send(&app, "DELETE", "/npm/~other/-/team/acme/readers", Some(&root), None).await;
-        assert_eq!(status, StatusCode::OK);
-        let (status, error) =
-            send(&app, "DELETE", "/npm/~local/-/team/acme/readers", Some(&root), None).await;
-        assert_eq!(status, StatusCode::CONFLICT);
-        assert!(error.to_string().contains("artifacts.owners"));
-    }
 }

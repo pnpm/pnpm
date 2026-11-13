@@ -213,7 +213,7 @@ async fn shared_upstream_readers_admit_sources_before_waiting_for_workers() {
             crate::server::load_upstream_packument(
                 &state,
                 &namespace,
-                state.inner.proxy.upstreams.get("npmjs").unwrap(),
+                &state.routing().upstream_clients["npmjs"],
                 &name,
                 std::time::Duration::from_mins(5),
             )
@@ -314,7 +314,7 @@ async fn read_upstream(state: &AppState, name: &str) -> Option<Vec<u8>> {
     crate::server::load_upstream_packument(
         state,
         &namespace,
-        state.inner.proxy.upstreams.get("npmjs").unwrap(),
+        &state.routing().upstream_clients["npmjs"],
         &name,
         std::time::Duration::from_mins(5),
     )

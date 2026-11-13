@@ -75,7 +75,7 @@ impl RegistryError {
 
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
-        if let Some(kind) = self.package_log_kind() {
+        if let Some(kind) = self.package_log_kind().or_else(|| self.admin_log_kind()) {
             return kind;
         }
         match self {
@@ -93,10 +93,6 @@ impl RegistryError {
             RegistryError::NotFound => "not_found",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
-            RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
-            RegistryError::RulesConfigManaged => "rules_config_managed",
-            RegistryError::PreconditionFailed { .. } => "precondition_failed",
-            RegistryError::AdminConflict { .. } => "admin_conflict",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::PublishRejected { .. } => "publish_rejected",
@@ -113,6 +109,18 @@ impl RegistryError {
             RegistryError::Shared(inner) => inner.log_kind(),
             RegistryError::PasswordChangeCommitted { source, .. } => source.log_kind(),
             _ => self.storage_log_kind(),
+        }
+    }
+
+    fn admin_log_kind(&self) -> Option<&'static str> {
+        match self {
+            RegistryError::TeamsConfigManaged { .. } => Some("teams_config_managed"),
+            RegistryError::RulesConfigManaged => Some("rules_config_managed"),
+            RegistryError::RegistriesConfigManaged => Some("registries_config_managed"),
+            RegistryError::RegistriesUnavailable => Some("registries_unavailable"),
+            RegistryError::PreconditionFailed { .. } => Some("precondition_failed"),
+            RegistryError::AdminConflict { .. } => Some("admin_conflict"),
+            _ => None,
         }
     }
 
@@ -238,7 +246,9 @@ impl RegistryError {
             RegistryError::UpstreamStatus { .. }
             | RegistryError::UpstreamResponse { .. }
             | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
-            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::UpstreamUnavailable { .. } | RegistryError::RegistriesUnavailable => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
             | RegistryError::ArchiveReclaimed { .. }
@@ -270,6 +280,7 @@ impl RegistryError {
             | RegistryError::PublishRejected { .. }
             | RegistryError::TeamsConfigManaged { .. }
             | RegistryError::RulesConfigManaged
+            | RegistryError::RegistriesConfigManaged
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. }

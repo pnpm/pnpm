@@ -144,7 +144,7 @@ async fn disconnect_aborts_streaming_resolve_and_releases_permits() {
     let (origin, upstream) = spawn_stalled_upstream(Arc::clone(&entered)).await;
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
-    resolver.limits.set_concurrency(2, 1);
+    resolver.limits_mut().set_concurrency(2, 1);
 
     let caller = identity_with_id("u-1", "caller-one");
     let body = Bytes::from(
@@ -187,7 +187,7 @@ async fn overall_deadline_aborts_streaming_resolve_after_headers_are_sent() {
     let (origin, upstream) = spawn_stalled_upstream(entered).await;
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
-    resolver.limits.deadline = Duration::from_millis(250);
+    resolver.limits_mut().deadline = Duration::from_millis(250);
 
     let body = Bytes::from(
         serde_json::to_vec(&json!({
@@ -252,7 +252,7 @@ async fn per_identity_semaphore_prevents_one_caller_from_starving_others() {
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
     // 2 instance permits, 1 per identity: noisy caller can hold at most 1 of the 2.
-    resolver.limits.set_concurrency(2, 1);
+    resolver.limits_mut().set_concurrency(2, 1);
     let resolver = Arc::new(resolver);
 
     let noisy = identity_with_id("u-noisy", "noisy");
@@ -329,7 +329,7 @@ async fn live_graph_limit_aborts_optional_dependencies_walk() {
 
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
-    resolver.limits.max_npm_packages = 2;
+    resolver.limits_mut().max_npm_packages = 2;
 
     // `optionalDependencies` swallow individual `Resolver::resolve` errors in
     // the tree walker, so only task-level cancellation via `GraphLimitTracker`
@@ -371,7 +371,7 @@ async fn live_graph_limit_aborts_optional_dependencies_walk() {
 async fn upfront_graph_limit_rejects_oversized_input_lockfile_on_resolve_and_verify() {
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver("http://127.0.0.1:1", &tmp);
-    resolver.limits.max_npm_packages = 1;
+    resolver.limits_mut().max_npm_packages = 1;
 
     let mut oversized = package_lockfile("pkg-a", "1.0.0");
     let extra = package_lockfile("pkg-b", "1.0.0");

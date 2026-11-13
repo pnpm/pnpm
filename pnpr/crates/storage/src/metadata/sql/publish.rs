@@ -4,7 +4,7 @@
 use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
-    batch::Batch,
+    batch::{Batch, Retired},
     commit::StoredPackage,
     fence::{FenceCheck, FenceRead},
     notes, publications,
@@ -27,6 +27,7 @@ pub(super) struct Submission<'input> {
     pub(super) request: Option<&'input PublicationRequest>,
     /// The files the commit maps, and the blobs it depends on.
     pub(super) fence: &'input BlobFence,
+    pub(super) retired: Retired,
 }
 
 /// Commit every document of `submission` under one new generation of its
@@ -42,8 +43,12 @@ pub(super) fn commit_publication(
     submission: &Submission<'_>,
 ) -> Result<PublicationCommit> {
     let reads = Reads::new(submission)?;
-    let (mut batch, results) =
-        Batch::begin_with(connection, submission.namespace, &reads.queries(connection.dialect()))?;
+    let (mut batch, results) = Batch::begin_with(
+        connection,
+        submission.namespace,
+        submission.retired,
+        &reads.queries(connection.dialect()),
+    )?;
     let read = match reads.answer(&batch, results)? {
         Answer::Replayed(outcome) => return Ok(replayed(submission.namespace, &outcome)),
         Answer::Read(read) => read,

@@ -16,6 +16,8 @@ pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username>
 pnpr gc [OPTIONS]
 pnpr cache-gc [OPTIONS]
+pnpr registries export [OPTIONS]
+pnpr registries import <file> [OPTIONS]
 ```
 
 ## Options
@@ -64,7 +66,7 @@ Validates the YAML configuration file and prints diagnostic details, including c
 pnpr config check
 ```
 
-Database validation checks the connection URL and options, token transport security, and whether this build supports the configured database driver. It does not connect to the database.
+Database validation checks the connection URL and options, token transport security, and whether this build supports the configured database driver. It does not connect to the database, except with [`registriesManagedBy: api`](configuration.md#registries-in-the-database), where it reads and checks the stored registries.
 
 ### verify
 
@@ -244,6 +246,17 @@ timeouts are disabled).
 | `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
 | `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. |
 | `--orphans-only` | Only prune orphaned upstream namespaces without sweeping publish staging files or evicting active cache entries. |
+
+### registries
+
+Reads and stores the registries kept in the metadata database with
+[`registriesManagedBy: api`](configuration.md#registries-in-the-database).
+`pnpr registries export` writes them as YAML, in the shape of the
+`registries`, `defaultRegistry`, and `routes.public` blocks of a config file.
+`pnpr registries import` stores such a file as a new revision, after the same
+checks the [registry admin endpoints](endpoints.md#registry-admin-endpoints)
+apply. Both connect to the configured database directly. Run
+`pnpr registries --help` for their options.
 
 ## Logging
 

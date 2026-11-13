@@ -92,7 +92,8 @@ async fn run_maintenance(
     apply_storage_overrides(&mut config, &mut args.paths);
 
     if matches!(cmd, Command::Config { action: ConfigSubcommand::Check }) {
-        let report = pnpr::config_check::check_resolved_config(&mut config, &source)
+        let report = pnpr::config_check::check_config_and_stored_registries(&mut config, &source)
+            .await
             .map_err(|error| redacted_report(&error))?;
         println!("{}", pnpr::config_check::format_report(&report));
         return Ok(());

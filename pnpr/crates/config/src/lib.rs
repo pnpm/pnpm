@@ -14,6 +14,10 @@ pub use backend_config::{
 pub use byte_size::{ByteSize, parse_byte_size};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
+pub use graph_document::{
+    DocumentOrigin, HostedStorage, PackageLists, RegistryGraphChanges, RegistryGraphDocument,
+    RoutingOptions, RuleLists,
+};
 pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
@@ -55,12 +59,14 @@ mod cdn;
 mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile,
+    PublicRouteFile, RegistryFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
 mod gc;
 use gc::{GcFile, build_gc_config};
+
+mod graph_document;
 
 mod hosted;
 mod http_config;
@@ -82,8 +88,8 @@ use release_records::{ReleaseRecordsFile, build_release_records_config};
 
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, namespace_collision_error, registry_err, resolve_file_registries,
-    validate_namespace, validate_registry_key, validate_registry_name,
+    namespace_collision_error, registry_err, resolve_file_registries, validate_namespace,
+    validate_registry_key, validate_registry_name,
 };
 
 mod s3;
@@ -110,7 +116,7 @@ use pnpm_env_replace::{EnvVar, SystemEnv};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
     fmt,
@@ -181,6 +187,14 @@ pub struct Config {
     pub identity: IdentityConfig,
     pub features: Features,
     pub routing: RoutingConfig,
+    /// Whether the config file or the metadata database holds the registry
+    /// graph. With [`Management::Api`], [`Self::routing`] is the empty graph and
+    /// the server serves the stored one.
+    pub registries_managed_by: Management,
+    /// The environment variables a stored registry graph may reference
+    /// (`registryEnv`). Empty unless [`Self::registries_managed_by`] is
+    /// [`Management::Api`].
+    pub registry_env: Vec<String>,
     /// How the release records of hosted versions are logged.
     pub release_records: ReleaseRecordsConfig,
     /// How `pnpr gc` reclaims unreferenced archives. Sourced from the YAML
@@ -202,6 +216,8 @@ impl std::fmt::Debug for Config {
             .field("identity", &self.identity)
             .field("features", &self.features)
             .field("routing", &self.routing)
+            .field("registries_managed_by", &self.registries_managed_by)
+            .field("registry_env", &self.registry_env)
             .field("release_records", &self.release_records)
             .field("gc", &self.gc)
             .finish()
@@ -276,7 +292,7 @@ impl HttpConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct RoutingConfig {
     /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
     /// `upstream` entries and consumed by the `/~<name>/` serving and route
@@ -305,7 +321,7 @@ pub struct RoutingConfig {
 }
 
 /// The format a registry serves tarballs in at its own URL.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TarballFormat {
     /// The published `.tgz`, as npm serves it.
@@ -500,18 +516,11 @@ fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
     Ok(parsed.origin().ascii_serialization())
 }
 
-fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryError> {
-    let Some(file) = file else { return Ok(RoutePolicy::default()) };
-    Ok(RoutePolicy {
-        public: file.public
-            .into_iter()
-            .map(|route| PublicRoute { registry: route.registry, package: route.package })
-            .collect(),
-        allowed_private_networks: file.allowed_private_networks
-            .iter()
-            .map(|network| IpNetwork::parse(network))
-            .collect::<Result<_, _>>()?,
-    })
+fn parse_allowed_private_networks(networks: &[String]) -> Result<Vec<IpNetwork>, RegistryError> {
+    networks
+        .iter()
+        .map(|network| IpNetwork::parse(network))
+        .collect()
 }
 
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {

@@ -377,30 +377,18 @@ registries:
 }
 
 #[test]
-fn teams_managed_by_is_hosted_only() {
-    let hosted = "storage: ./s\nregistries:\n  local:\n    type: hosted\n    teamsManagedBy: api\n";
-    let config = Config::from_yaml_str(hosted, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.routing.hosted["local"].teams_managed_by, super::super::Management::Api);
-
-    let upstream = "storage: ./s\nregistries:\n  up:\n    type: upstream\n    \
-                    url: https://registry.npmjs.org/\n    public: true\n    teamsManagedBy: api\n";
-    Config::from_yaml_str(upstream, Path::new("/x"), listen(), None)
-        .expect_err("an upstream has no roster to manage");
-
-    for eco in ["cargo", "pypi", "oci"] {
-        let yaml = format!(
-            "storage: ./s\nregistries:\n  local:\n    type: hosted\n    ecosystem: {eco}\n    teamsManagedBy: api\n",
-        );
+fn removed_managed_by_keys_are_unknown_fields() {
+    for key in ["teamsManagedBy", "rulesManagedBy"] {
+        let yaml =
+            format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n    {key}: api\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("teamsManagedBy: api is only valid for npm");
+            .expect_err("the overlay switches were removed");
         match err {
             RegistryError::InvalidConfig { reason } => {
-                assert!(
-                    reason.contains("only available for npm registries"),
-                    "unexpected error for {eco}: {reason}",
-                );
+                assert!(reason.contains("unknown field"), "unexpected error for {key}: {reason}");
+                assert!(reason.contains(key), "unexpected error for {key}: {reason}");
             }
-            other => panic!("expected InvalidConfig for {eco}, got {other:?}"),
+            other => panic!("expected InvalidConfig for {key}, got {other:?}"),
         }
     }
 }

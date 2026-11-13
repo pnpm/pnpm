@@ -3,7 +3,7 @@
 use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
-    batch::Batch,
+    batch::{Batch, Retired},
     commit::{Commit, PackageRow, package_row_from, package_row_query},
     packument::{PackumentRows, TIME},
     to_column,
@@ -124,7 +124,9 @@ pub(super) fn change_tag(
     }
     validate_dist_tag(&change.tag)?;
     let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
-    let (mut batch, results) = Batch::begin_with(connection, &key.namespace, &reads)?;
+    // A tag moves only within a stored package, and a retired namespace holds none.
+    let (mut batch, results) =
+        Batch::begin_with(connection, &key.namespace, Retired::Allowed, &reads)?;
     let mut results = results.into_iter();
     let Some(package) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);

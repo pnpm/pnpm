@@ -41,7 +41,7 @@ pub(super) async fn serve_tarball_via_upstream(
     };
     serve_authorized_upstream_tarball(
         state,
-        upstream,
+        &upstream,
         &namespace,
         &name,
         &filename,

@@ -25,10 +25,10 @@ pub use publication::{
 };
 pub(crate) use sql::PackageMetadata;
 pub use sql::{
-    CdnInvalidation, Mapping, NewScimUser, RenderStats, RuleOverridesWrite, ScimStatus,
-    ScimUserRemoval, ScimUserWrite, SqlMetadata, StoredPackageOverride, StoredRuleOverrideSet,
-    StoredRuleOverrides, StoredScimUser, StoredTeam, StoredTeamRoster, TagHistoryEntry,
-    TeamRosterWrite, Unmapping,
+    CdnInvalidation, HostedNamespace, Mapping, NewRegistryGraph, NewScimUser,
+    REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision, RegistryGraphWrite, RenderStats,
+    ScimStatus, ScimUserRemoval, ScimUserWrite, SqlMetadata, StoredRegistryGraph, StoredScimUser,
+    TagHistoryEntry, Unmapping,
 };
 pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};

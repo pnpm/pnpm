@@ -137,8 +137,8 @@ async fn queue_admission_sheds_excess_requests_with_503_and_recovers() {
     let tmp = TempDir::new().unwrap();
     let mut resolver = test_resolver(&origin, &tmp);
     // 1 running slot, 2 total admitted (1 running + 1 queued), 2 per identity.
-    resolver.limits.set_concurrency(1, 1);
-    resolver.limits.set_admission(2, 2);
+    resolver.limits_mut().set_concurrency(1, 1);
+    resolver.limits_mut().set_admission(2, 2);
     let resolver = Arc::new(resolver);
 
     let slow_body = Bytes::from(
@@ -277,7 +277,7 @@ async fn reused_lockfile_packages_count_toward_live_graph_limit() {
     let mut resolver = test_resolver(&origin, &tmp);
     // Input lockfile has 2 packages (`<= max_npm_packages`), so upfront check passes;
     // adding `fresh-c` brings the live total to 3 (`> 2`), which `on_reused` catches.
-    resolver.limits.max_npm_packages = 2;
+    resolver.limits_mut().max_npm_packages = 2;
 
     let prior_lockfile = json!({
         "lockfileVersion": "9.0",
@@ -406,7 +406,7 @@ async fn peer_variant_snapshots_exceeding_max_snapshots_fail_during_peer_walk() 
     let mut resolver = test_resolver(&origin, &tmp);
     // 9 distinct packages (`p@1..3`, `q@1..2`, `r@1..2`, `leaf@1`, `mid@1`) fit within
     // `max_npm_packages = 9`, while 12 peer combinations produce 31 snapshots (`> 18`).
-    resolver.limits.max_npm_packages = 9;
+    resolver.limits_mut().max_npm_packages = 9;
 
     let projects: Vec<Value> = (0..12)
         .map(|idx| {

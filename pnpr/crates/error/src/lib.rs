@@ -148,11 +148,11 @@ pub enum RegistryError {
         resource: String,
     },
 
-    /// A team mutation (create/destroy/add/rm) hit the npm team API on a
-    /// registry whose teams are declared in the configuration. Maps to 403.
+    /// A team mutation (create/destroy/add/rm) hit the npm team API while the
+    /// configuration file declares the registries. Maps to 403.
     #[display(
         "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
-         registry operator to update the config"
+         registry operator to update the config or set `registriesManagedBy: api`"
     )]
     #[from(skip)]
     TeamsConfigManaged { action: &'static str },
@@ -167,14 +167,31 @@ pub enum RegistryError {
         expected: String,
     },
 
-    /// A rules edit hit the admin API on a registry whose rules are declared
-    /// in the configuration. Maps to 403.
+    /// A rules edit hit the admin API while the configuration file declares
+    /// the registries. Maps to 403.
     #[display(
         "The package rules of this registry are declared in the pnpr configuration; to change \
-         them, ask the registry operator to update the config"
+         them, ask the registry operator to update the config or set `registriesManagedBy: api`"
     )]
     #[from(skip)]
     RulesConfigManaged,
+
+    /// A registry admin endpoint was called while the configuration file
+    /// declares the registries. Maps to 403.
+    #[display(
+        "The registries are declared in the pnpr configuration; set `registriesManagedBy: api` \
+         to manage them through the admin API"
+    )]
+    #[from(skip)]
+    RegistriesConfigManaged,
+
+    /// This replica has no registry graph it may serve: the stored graph was
+    /// never loaded, or could not be read for longer than the stale limit.
+    /// Also a publish into a hosted namespace that the stored graph retired,
+    /// from a replica that has not loaded that graph yet. Maps to 503.
+    #[display("The registries are temporarily unavailable")]
+    #[from(skip)]
+    RegistriesUnavailable,
 
     /// An admin edit that the current state refuses. Maps to 409.
     #[from(skip)]

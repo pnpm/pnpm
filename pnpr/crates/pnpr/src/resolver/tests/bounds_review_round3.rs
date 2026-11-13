@@ -71,9 +71,9 @@ fn resolver_with_osv(origin: &str, dir: &TempDir) -> Resolver {
 async fn trusted_verify_lockfile_enforces_active_concurrency_and_deadline_for_osv_scan() {
     let tmp = TempDir::new().unwrap();
     let mut resolver = resolver_with_osv("http://127.0.0.1:9", &tmp);
-    resolver.limits.set_concurrency(1, 1);
-    resolver.limits.set_admission(4, 4);
-    resolver.limits.deadline = Duration::from_millis(25);
+    resolver.limits_mut().set_concurrency(1, 1);
+    resolver.limits_mut().set_admission(4, 4);
+    resolver.limits_mut().deadline = Duration::from_millis(25);
 
     let integrity = ssri::Integrity::from(b"vuln-pkg").to_string();
     let payload = Bytes::from(
@@ -111,7 +111,7 @@ async fn trusted_verify_lockfile_enforces_active_concurrency_and_deadline_for_os
 
     // Once the active slot is free, trusted verification runs the OSV scan on the
     // blocking pool and reports the vulnerability violation.
-    resolver.limits.deadline = Duration::from_secs(5);
+    resolver.limits_mut().deadline = Duration::from_secs(5);
     let ok = handle_verify_lockfile(&resolver, caller("u-1", "one"), payload).await;
     assert_eq!(ok.status(), StatusCode::OK);
     let line: Value =
@@ -142,9 +142,9 @@ fn osv_violations_for_lockfile_until_stops_when_cancelled() {
 async fn pypi_invalid_requirement_fails_before_waiting_for_running_slot() {
     let tmp = TempDir::new().unwrap();
     let mut resolver = resolver_with_osv("http://127.0.0.1:9", &tmp);
-    resolver.limits.set_concurrency(1, 1);
-    resolver.limits.set_admission(4, 4);
-    resolver.limits.deadline = Duration::from_millis(25);
+    resolver.limits_mut().set_concurrency(1, 1);
+    resolver.limits_mut().set_admission(4, 4);
+    resolver.limits_mut().deadline = Duration::from_millis(25);
 
     let _held_permit = resolver.limits
         .admit(&caller("holder", "holder"))
@@ -253,12 +253,12 @@ async fn untrusted_verify_lockfile_scans_osv_with_deadline_and_caches_clean_verd
         .unwrap(),
     );
 
-    resolver.limits.deadline = Duration::ZERO;
+    resolver.limits_mut().deadline = Duration::ZERO;
     let timed_out =
         handle_verify_lockfile(&resolver, caller("u-1", "one"), vuln_payload.clone()).await;
     assert_eq!(timed_out.status(), StatusCode::GATEWAY_TIMEOUT);
 
-    resolver.limits.deadline = Duration::from_secs(5);
+    resolver.limits_mut().deadline = Duration::from_secs(5);
     let flagged = handle_verify_lockfile(&resolver, caller("u-1", "one"), vuln_payload).await;
     assert_eq!(flagged.status(), StatusCode::OK);
     let flagged_json: Value =

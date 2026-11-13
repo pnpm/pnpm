@@ -56,23 +56,36 @@ async fn serve_registry_version_manifest(
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_ref());
-    let manifest = match view.revision_registry {
-        Some(source_registry) => extract_upstream_version_manifest(
-            &packument,
-            &name,
-            version_or_tag,
-            source_registry,
-            tarball_base,
-        ),
-        None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
-    };
+    let routing = state.routing();
+    let view = dist_view(state, &routing, registry, &resolved_source, tar_integrities.as_ref());
+    let manifest =
+        version_manifest(&packument, &name, (version_or_tag, view.revision_registry), tarball_base);
     let Some(manifest) = manifest.filter(|manifest| addresses(manifest, version_or_tag, revision))
     else {
         return not_found();
     };
     let tars = view.tar_integrities.map(|table| (table.as_ref(), view.tar_registry));
     super::super::split_packuments::version_document_response(manifest, revision, tars)
+}
+
+/// The manifest of `version_or_tag`, with revision tarballs linked on
+/// `revision_registry` when an upstream serves the package.
+fn version_manifest(
+    packument: &serde_json::Value,
+    name: &CanonicalPackageName,
+    (version_or_tag, revision_registry): (&str, Option<&str>),
+    tarball_base: &str,
+) -> Option<serde_json::Value> {
+    match revision_registry {
+        Some(source_registry) => extract_upstream_version_manifest(
+            packument,
+            name,
+            version_or_tag,
+            source_registry,
+            tarball_base,
+        ),
+        None => extract_version_manifest(packument, name, version_or_tag, tarball_base),
+    }
 }
 
 /// The release record a hosted version was accepted with, served as the

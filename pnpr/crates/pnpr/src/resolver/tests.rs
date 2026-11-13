@@ -20,6 +20,8 @@ mod refresh_bounds;
 
 mod configuration_cache;
 
+mod graph_swap;
+
 use axum::http::StatusCode;
 use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, ResolutionMode};
 use pnpm_lockfile::Lockfile;

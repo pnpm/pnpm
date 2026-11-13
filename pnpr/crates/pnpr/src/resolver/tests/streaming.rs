@@ -32,7 +32,7 @@ async fn dropping_a_stream_cancels_pending_resolution_and_releases_admission() {
     config.routing.route_policy.allowed_private_networks =
         vec![pnpr_config::IpNetwork::parse("127.0.0.1").unwrap()];
     let mut runtime = Resolver::build(&config, None);
-    runtime.cache.configs.admission = Arc::new(tokio::sync::Semaphore::new(1));
+    runtime.cache_mut().configs.admission = Arc::new(tokio::sync::Semaphore::new(1));
     let request = ResolveRequest {
         registry: Some(registry),
         dependencies: Some(deps(&[("example-package", "1.0.0")])),

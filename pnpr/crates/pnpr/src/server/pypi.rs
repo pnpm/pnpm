@@ -181,7 +181,8 @@ async fn visible_project_names(
 ) -> Result<BTreeSet<String>, RegistryError> {
     let mut names = BTreeSet::new();
     for source in hosted_sources(state, target, ECOSYSTEM) {
-        let Some(hosted) = state.inner.config.routing.hosted.get(&source) else { continue };
+        let routing = state.routing();
+        let Some(hosted) = routing.hosted.get(&source) else { continue };
         let listed = state.inner.storage
             .for_hosted(&hosted.namespace, ECOSYSTEM)
             .hosted_package_names()
@@ -279,7 +280,7 @@ async fn load_upstream_page(
         accept: Some(JSON_CONTENT_TYPE),
         limit: PAGE_LIMIT,
     };
-    let Some(bytes) = load_upstream_document(state, upstream, &namespace, request, |document| {
+    let Some(bytes) = load_upstream_document(state, &upstream, &namespace, request, |document| {
         let body = serde_json::from_slice::<Box<RawValue>>(&document.bytes)
             .map_err(|_| RegistryError::UpstreamResponse {
                 url: document.url.clone(),
@@ -367,12 +368,12 @@ async fn file_via_upstream(
         _ => return bad_entry(format!("file {filename} has no fetchable HTTP(S) URL")),
     };
     if filename.ends_with(".metadata") {
-        return metadata::serve(state, upstream, &namespace, key, entry, &url).await;
+        return metadata::serve(state, &upstream, &namespace, key, entry, &url).await;
     }
     let Some(integrity) = entry.sha256().and_then(sha256_integrity) else {
         return bad_entry(format!("file {filename} has no SHA-256 hash"));
     };
-    serve_upstream_artifact(state, upstream, &namespace, key, filename, url.as_str(), &integrity)
+    serve_upstream_artifact(state, &upstream, &namespace, key, filename, url.as_str(), &integrity)
         .await
 }
 

@@ -1,6 +1,6 @@
 //! npm's team package access endpoints (`npm access grant`, `revoke`, and
 //! `list packages <scope:team>`), mapped onto the `packages:` rules of a
-//! registry whose rules the admin API manages.
+//! hosted registry in the stored registry graph.
 //!
 //! A grant edits the rule of the package's own pattern: `read-write` puts
 //! `team:<team>` in its `access` and `publish` lists, `read-only` in `access`
@@ -11,14 +11,15 @@
 use super::{
     AppState, Identity, RegistryError, Response, StatusCode, json,
     organizations::team_registry,
-    parse_json_body, require_admin,
-    rule_overrides::{RuleChanges, update_rules},
+    parse_json_body,
+    registry_graph::{GraphEdit, edit_graph},
+    request_access::require_access_admin,
     team_mutations::{TeamScope, respond},
 };
 use axum::body::Bytes;
-use pnpr_config::{HostedConfig, Management};
-use pnpr_policy::{AccessList, PackageRule, RuleTable};
-use pnpr_registry::PackagePattern;
+use pnpr_config::{HostedConfig, Management, RegistryGraphDocument, RuleLists};
+use pnpr_policy::{PackageRule, RuleTable};
+use pnpr_registry::{Ecosystem, PackagePattern};
 use serde::Deserialize;
 
 /// The body of `npm access grant`.
@@ -52,10 +53,9 @@ pub(super) async fn grant_team_access(
     let result = async {
         let registry = managed_team(state, identity, &target, team, "grant access to")?;
         let grant: Grant = parse_json_body(body)?;
-        let id = super::team_mutations::team_id(state, registry, team)?;
-        let token = format!("team:{id}");
-        update_rules(state, registry, |changes, base| {
-            edit_team_lists(changes, base, &grant.package, |lists| {
+        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
+            let token = team_token(document, &registry, team)?;
+            edit_team_lists(document, &registry, &grant.package, |lists| {
                 grant_lists(lists, &token, grant.permissions);
             })
         })
@@ -91,10 +91,9 @@ pub(super) async fn revoke_team_access(
     let result = async {
         let registry = managed_team(state, identity, &target, team, "revoke access from")?;
         let revoke: Revoke = parse_json_body(body)?;
-        let id = super::team_mutations::team_id(state, registry, team)?;
-        let token = format!("team:{id}");
-        update_rules(state, registry, |changes, base| {
-            edit_team_lists(changes, base, &revoke.package, |lists| {
+        edit_graph(state, GraphEdit::latest(crate::audit::Actor::of(identity)), |document| {
+            let token = team_token(document, &registry, team)?;
+            edit_team_lists(document, &registry, &revoke.package, |lists| {
                 for list in lists {
                     remove(list, &token);
                 }
@@ -126,8 +125,10 @@ pub(super) fn list_team_packages(
     team: &str,
 ) -> Response {
     let result = (|| {
+        let routing = state.routing();
         let (registry, hosted) = super::organizations::readable_team_registry(
             state,
+            &routing,
             identity,
             target.registry,
             target.scope,
@@ -160,23 +161,25 @@ fn team_permission(
 }
 
 /// The registry whose rules an admin may edit for `team`.
-fn managed_team<'a>(
-    state: &'a AppState,
+fn managed_team(
+    state: &AppState,
     identity: &Identity,
     target: &TeamScope<'_>,
     team: &str,
     action: &'static str,
-) -> Result<&'a str, RegistryError> {
-    let (registry, hosted) = team_registry(state, identity, target.registry, target.scope)?;
-    if hosted.rules_managed_by == Management::Config {
+) -> Result<String, RegistryError> {
+    let routing = state.routing();
+    let (registry, hosted) =
+        team_registry(state, &routing, identity, target.registry, target.scope)?;
+    if state.inner.config.registries_managed_by == Management::Config {
         return Err(RegistryError::RulesConfigManaged);
     }
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
-    require_admin(state, identity, action, format!("@{scope}:{team}"))?;
+    require_access_admin(state, identity, action, format!("@{scope}:{team}"))?;
     if !holds_team(hosted, team) {
         return Err(RegistryError::NotFound);
     }
-    Ok(registry)
+    Ok(registry.to_string())
 }
 
 fn holds_team(hosted: &HostedConfig, team: &str) -> bool {
@@ -188,33 +191,31 @@ fn holds_team(hosted: &HostedConfig, team: &str) -> bool {
 
 /// Apply `edit` to the `access`, `publish`, and `unpublish` lists that apply
 /// to `package`'s own pattern now, and store each list the edit changed.
-/// Lists it left alone stay unstored, so they keep following the YAML.
+/// Lists it left alone keep falling back to the registry defaults. The lists an
+/// omitted one falls back to come from `document`, the one being edited, so a
+/// retry against a newer document uses its defaults.
 fn edit_team_lists(
-    changes: &mut RuleChanges,
-    base: &RuleTable,
+    document: &mut RegistryGraphDocument,
+    registry: &str,
     package: &str,
     edit: impl FnOnce(&mut [Vec<String>; 3]),
 ) -> Result<(), RegistryError> {
-    let rule = own_rule(base, package)?;
+    let mut lists = document.rule_lists(registry).ok_or(RegistryError::NotFound)?;
+    let key = own_key(&lists, package)?;
+    let built_in = RuleTable::new(Vec::new(), None);
     let defaults = [
-        changes.access
+        lists.access
             .clone()
-            .unwrap_or_else(|| base.default_access().token_strings()),
-        base.default_publish().token_strings(),
-        base.default_unpublish().token_strings(),
+            .unwrap_or_else(|| built_in.default_access().token_strings()),
+        built_in.default_publish().token_strings(),
+        built_in.default_unpublish().token_strings(),
     ];
-    let stored = changes.packages.entry(package.to_string()).or_default();
-    let fields = [&mut stored.access, &mut stored.publish, &mut stored.unpublish];
-    let declared = [&rule.access, &rule.publish, &rule.unpublish];
+    let entry = lists.packages.get_mut(&key).ok_or(RegistryError::NotFound)?;
+    let fields = [&mut entry.access, &mut entry.publish, &mut entry.unpublish];
     let before: [Vec<String>; 3] = std::array::from_fn(|index| {
         fields[index]
             .clone()
-            .unwrap_or_else(|| {
-                declared[index]
-                    .as_ref()
-                    .map(AccessList::token_strings)
-                    .unwrap_or_else(|| defaults[index].clone())
-            })
+            .unwrap_or_else(|| defaults[index].clone())
     });
     let mut after = before.clone();
     edit(&mut after);
@@ -227,15 +228,31 @@ fn edit_team_lists(
             *field = Some(after);
         }
     }
-    Ok(())
+    document.set_rule_lists(registry, lists)
 }
 
-/// The rule `packages:` declares for `package` by name. A pattern covering
-/// other packages too is refused.
-fn own_rule<'a>(base: &'a RuleTable, package: &str) -> Result<&'a PackageRule, RegistryError> {
-    base.rules()
-        .iter()
-        .find(|rule| matches!(&rule.pattern, PackagePattern::Exact(name) if name == package))
+/// The access token of the team named `team` in `document`.
+fn team_token(
+    document: &RegistryGraphDocument,
+    registry: &str,
+    team: &str,
+) -> Result<String, RegistryError> {
+    let id = document.team_id(registry, team).ok_or(RegistryError::NotFound)?;
+    Ok(format!("team:{id}"))
+}
+
+/// The `packages:` key that names `package` exactly. A pattern covering other
+/// packages too is refused.
+fn own_key(lists: &RuleLists, package: &str) -> Result<String, RegistryError> {
+    lists.packages
+        .keys()
+        .find(|key| {
+            matches!(
+                PackagePattern::parse(key, Ecosystem::Npm),
+                Ok(PackagePattern::Exact(name)) if name == package,
+            )
+        })
+        .cloned()
         .ok_or_else(|| RegistryError::BadRequest {
             reason: format!(
                 "{package:?} has no rule of its own in this registry's `packages:` map; pnpr grants \

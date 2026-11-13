@@ -98,9 +98,10 @@ pub(super) async fn serve_resolve(
     // it selects which pnpr-managed upstream credentials and hosted
     // packages the resolve may use, and gates which cached resolutions
     // it may receive.
+    let routing = state.routing();
     let runtime = crate::resolver::Resolver::get_or_init(
-        &state.inner.resolver,
-        &state.inner.config,
+        &routing,
+        &state.inner.resolver_shared,
         state.inner.osv_index.clone(),
         &state,
     );
@@ -112,9 +113,10 @@ pub(super) async fn serve_verify_lockfile(
     AuthedCaller(identity): AuthedCaller,
     request: axum::extract::Request,
 ) -> Response {
+    let routing = state.routing();
     let runtime = crate::resolver::Resolver::get_or_init(
-        &state.inner.resolver,
-        &state.inner.config,
+        &routing,
+        &state.inner.resolver_shared,
         state.inner.osv_index.clone(),
         &state,
     );

@@ -8,8 +8,11 @@ use futures_util::FutureExt as _;
 
 use super::{
     AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, Storage,
-    metrics_listener_router, shutdown_signal, state_and_router,
+    metrics_listener_router,
+    registry_graph::{Credentials, FileReferences},
+    shutdown_signal, state_and_router,
 };
+use pnpr_config::{Management, RoutingConfig};
 
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
 /// tier skips the database because artifact requests do not use OSV data.
@@ -28,12 +31,37 @@ pub(super) fn load_active_osv_index(
 /// [`serve`] and [`serve_listener`] call this before binding; an embedder that
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
+///
+/// With `registriesManagedBy: api`, a stored graph that cannot be loaded does
+/// not stop it: the store is bound all the same, and only the log reconcile,
+/// which walks the hosted registries, is skipped.
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
     crate::config_validation::validate_cache_secret_for_claim(config)?;
     let storage = Storage::from_config(&config.storage)?;
-    if !config.routing.hosted.is_empty() {
-        storage.ensure_hosted_layout().await?;
-        super::release_record_logs::reconcile_configured_logs(&storage, config).await?;
+    match super::registry_graph::with_stored_routing(
+        config,
+        Credentials::Skip,
+        FileReferences::Warn,
+    )
+    .await
+    {
+        Ok(loaded) => {
+            // A stored graph can gain a hosted registry while this replica
+            // runs, so the store is bound to the database even while it
+            // declares none.
+            let may_host = loaded.registries_managed_by == Management::Api;
+            if may_host || !loaded.routing.hosted.is_empty() {
+                storage.ensure_hosted_layout().await?;
+                super::release_record_logs::reconcile_configured_logs(&storage, &loaded).await?;
+            }
+        }
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "could not load the stored registry graph; skipping the transparency log reconcile",
+            );
+            storage.ensure_hosted_layout().await?;
+        }
     }
     claim_ephemeral_cache_dir(config).await?;
     storage.reset_cache_from_other_layout().await?;
@@ -68,33 +96,51 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
 }
 
 /// Remove the archive staging files a process left behind when it stopped
-/// between writing an archive and storing it, in every hosted namespace, now
-/// and periodically while the server runs.
+/// between writing an archive and storing it, in every hosted namespace.
+/// [`spawn_periodic_archive_temp_sweep`] repeats it while the server runs.
 async fn sweep_abandoned_archive_temps(config: &Config) -> pnpr_error::Result<()> {
+    let bases = pnpr_storage::archive_temp_bases(
+        &config.storage,
+        &hosted_archive_namespaces(&config.routing),
+    );
     let max_age = crate::cache_maintenance::archive_staging_max_age(config);
-    let namespaces = hosted_archive_namespaces(config);
-    let bases = pnpr_storage::archive_temp_bases(&config.storage, &namespaces);
-    sweep_archive_temp_bases(&bases, max_age).await?;
+    sweep_archive_temp_bases(&bases, max_age).await
+}
+
+/// Sweep abandoned archive staging files periodically, in the hosted
+/// namespaces of the graph the server serves at each pass.
+fn spawn_periodic_archive_temp_sweep(inner: &Arc<super::AppInner>) {
+    let max_age = crate::cache_maintenance::archive_staging_max_age(&inner.config);
     let period =
         max_age.clamp(std::time::Duration::from_secs(30), std::time::Duration::from_mins(5));
+    let inner = Arc::downgrade(inner);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(period);
         interval.tick().await;
         loop {
             interval.tick().await;
-            if let Err(err) = sweep_archive_temp_bases(&bases, max_age).await {
+            let Some(inner) = inner.upgrade() else { break };
+            if let Err(err) = sweep_current_archive_temps(&inner).await {
                 tracing::warn!(error = %err, "sweeping abandoned archive staging files failed");
             }
         }
     });
-    Ok(())
 }
 
-fn hosted_archive_namespaces(config: &Config) -> Vec<(String, Ecosystem)> {
-    let mut namespaces: Vec<(String, Ecosystem)> = config.routing.hosted
+/// One periodic pass of [`spawn_periodic_archive_temp_sweep`].
+async fn sweep_current_archive_temps(inner: &super::AppInner) -> pnpr_error::Result<()> {
+    let routing = inner.current_routing();
+    let namespaces = hosted_archive_namespaces(&routing);
+    let bases = pnpr_storage::archive_temp_bases(&inner.config.storage, &namespaces);
+    let max_age = crate::cache_maintenance::archive_staging_max_age(&inner.config);
+    sweep_archive_temp_bases(&bases, max_age).await
+}
+
+fn hosted_archive_namespaces(routing: &RoutingConfig) -> Vec<(String, Ecosystem)> {
+    let mut namespaces: Vec<(String, Ecosystem)> = routing.hosted
         .iter()
         .filter_map(|(name, hosted)| {
-            Some((hosted.namespace.clone(), config.routing.registries.ecosystem(name)?))
+            Some((hosted.namespace.clone(), routing.registries.ecosystem(name)?))
         })
         .collect();
     namespaces.sort_unstable();
@@ -122,7 +168,7 @@ async fn sweep_archive_temp_bases(
 /// Remove release archives staged for a publish that never claimed them
 /// before they expired, now and then every hour while the server runs.
 async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
-    if config.routing.hosted.is_empty() {
+    if !may_stage_archives(config) {
         return Ok(());
     }
     let storage = Storage::from_config(&config.storage)?;
@@ -139,6 +185,13 @@ async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()
         }
     });
     Ok(())
+}
+
+/// Whether this server can receive staged release archives: it hosts a
+/// registry, or its stored graph can gain one at any time. An upstream-only
+/// proxy sharing the store leaves the archives to the replicas that host.
+fn may_stage_archives(config: &Config) -> bool {
+    config.registries_managed_by == Management::Api || !config.routing.hosted.is_empty()
 }
 
 fn report_staged_archive_sweep(swept: usize) {
@@ -184,7 +237,7 @@ fn report_expired_token_sweep(swept: usize) {
 /// prepares its storage; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
 /// and every mounted surface consults caller identity.
-async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
+async fn load_startup_auth(config: &Config, graph: StartupGraph) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         prepare_storage(config).await?;
         sweep_abandoned_uploads(config).await?;
@@ -193,7 +246,12 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     } else {
         claim_ephemeral_cache_dir(config).await?;
     }
-    if config.features.registry.enabled || config.features.resolver.enabled {
+    if graph == StartupGraph::Unavailable {
+        tracing::warn!(
+            "skipping the startup cache pruning: without the stored registry graph every upstream \
+             cache would look orphaned",
+        );
+    } else if config.features.registry.enabled || config.features.resolver.enabled {
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     } else {
         crate::cache_maintenance::sync_cache_secret_on_startup(config).await?;
@@ -201,6 +259,52 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await?;
     sweep_expired_tokens(&auth).await;
     Ok(auth)
+}
+
+/// With `registriesManagedBy: api`, start from the stored graph, so the
+/// startup work over the hosted registries sees them. A graph that cannot be
+/// loaded leaves the replica serving none until a reload succeeds.
+async fn load_stored_graph(config: &mut Config) -> StartupGraph {
+    if config.registries_managed_by != Management::Api {
+        return StartupGraph::File;
+    }
+    match super::registry_graph::load_stored_routing(
+        config,
+        Credentials::Resolve,
+        FileReferences::Warn,
+    )
+    .await
+    {
+        Ok((routing, generation)) => {
+            config.routing = routing;
+            StartupGraph::Stored { generation }
+        }
+        Err(err) => {
+            tracing::error!(error = %err, "could not load the stored registry graph");
+            StartupGraph::Unavailable
+        }
+    }
+}
+
+/// Serve the stored graph startup loaded as the confirmed one, so the stale
+/// limit counts from startup instead of from the first reload.
+fn adopt_startup_graph(state: &AppState, graph: StartupGraph) {
+    if let StartupGraph::Stored { generation } = graph {
+        let routing = RoutingConfig::clone(&state.inner.current_routing());
+        drop(super::registry_graph::publish_routing(state, routing, generation));
+    }
+}
+
+/// Whether startup holds the registry graph the server will serve.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StartupGraph {
+    /// The config file declares the graph.
+    File,
+    /// The stored graph of `generation` loaded.
+    Stored { generation: Option<u64> },
+    /// The stored graph could not be loaded; startup work that walks the
+    /// registries skips what it would get wrong without them.
+    Unavailable,
 }
 
 /// Bind to `config.http.listen` and serve forever. Loads auth state before
@@ -213,19 +317,42 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // rather than start a server that only answers `/-/ping`.
     crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
+    let graph = load_stored_graph(&mut config).await;
     let osv_index = load_active_osv_index(&config)?;
-    let auth = load_startup_auth(&config).await?;
+    let auth = load_startup_auth(&config, graph).await?;
     let listen = config.http.listen;
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    adopt_startup_graph(&state, graph);
     let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state.clone()).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
-    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
+    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(
+        &inner.config,
+        current_routing_of(&inner),
+    );
+    if inner.config.features.registry.enabled {
+        spawn_periodic_archive_temp_sweep(&inner);
+    }
     tracing::info!(listen = %listener.local_addr()?, "pnpr listening");
     serve_until_shutdown(state, listener, app, metrics).await
+}
+
+/// The registry graph `inner` serves at each call: the routing a periodic
+/// cache pass protects. `inner.config.routing` holds none of it. `None` while
+/// the server cannot serve its stored graph.
+fn current_routing_of(
+    inner: &Arc<super::AppInner>,
+) -> impl Fn() -> Option<RoutingConfig> + Send + 'static {
+    let inner = Arc::clone(inner);
+    move || {
+        let available = inner.identity.managed.graph
+            .as_ref()
+            .is_none_or(super::registry_graph::GraphState::is_available);
+        available.then(|| RoutingConfig::clone(&inner.current_routing()))
+    }
 }
 
 /// The listener `metrics.listen` names, with the router it serves.
@@ -350,15 +477,23 @@ pub async fn serve_listener_with(
     let listen = listener.local_addr()?;
     crate::config_validation::validate_serving_startup_config(&mut config)?;
     log_enabled_surfaces(&config);
+    let graph = load_stored_graph(&mut config).await;
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
-    let auth = load_startup_auth(&config).await?;
+    let auth = load_startup_auth(&config, graph).await?;
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    adopt_startup_graph(&state, graph);
     let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state.clone()).await?;
-    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(&inner.config);
+    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(
+        &inner.config,
+        current_routing_of(&inner),
+    );
+    if inner.config.features.registry.enabled {
+        spawn_periodic_archive_temp_sweep(&inner);
+    }
     tracing::info!(%listen, "pnpr listening");
     serve_until_shutdown(state, listener, wrap(app), metrics).await
 }

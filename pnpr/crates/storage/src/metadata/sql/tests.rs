@@ -20,6 +20,7 @@ mod postgres_schemas;
 mod publications;
 mod reclaims;
 mod records;
+mod registry_graph;
 mod schema;
 mod schema_monitor;
 mod staged_failure;

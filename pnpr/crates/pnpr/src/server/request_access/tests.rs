@@ -1,4 +1,5 @@
-use super::{Config, compute_upstream_cache_namespace};
+use super::compute_upstream_cache_namespace;
+use pnpr_config::Config;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use tempfile::TempDir;
 
@@ -54,16 +55,40 @@ registries:
     );
 
     assert_ne!(
-        compute_upstream_cache_namespace(&top_level, "npmjs"),
-        compute_upstream_cache_namespace(&renamed, "public-npm"),
+        compute_upstream_cache_namespace(
+            &top_level.routing,
+            &top_level.resolution_cache_secret,
+            "npmjs"
+        ),
+        compute_upstream_cache_namespace(
+            &renamed.routing,
+            &renamed.resolution_cache_secret,
+            "public-npm"
+        ),
     );
     assert_ne!(
-        compute_upstream_cache_namespace(&top_level, "private-npm"),
-        compute_upstream_cache_namespace(&renamed, "private"),
+        compute_upstream_cache_namespace(
+            &top_level.routing,
+            &top_level.resolution_cache_secret,
+            "private-npm"
+        ),
+        compute_upstream_cache_namespace(
+            &renamed.routing,
+            &renamed.resolution_cache_secret,
+            "private"
+        ),
     );
     assert_ne!(
-        compute_upstream_cache_namespace(&top_level, "crates"),
-        compute_upstream_cache_namespace(&renamed, "cratesio"),
+        compute_upstream_cache_namespace(
+            &top_level.routing,
+            &top_level.resolution_cache_secret,
+            "crates"
+        ),
+        compute_upstream_cache_namespace(
+            &renamed.routing,
+            &renamed.resolution_cache_secret,
+            "cratesio"
+        ),
     );
 }
 

@@ -1,16 +1,15 @@
 use super::{
-    AppState, Config, IndexMap, RegistryError,
-    rule_overrides::reload_rules,
+    AppState, Config, RegistryError,
+    registry_graph::{GraphState, reload_graph},
     scim::{ScimState, reload_directory},
-    team_rosters::reload_roster,
 };
-use futures_util::future::join_all;
-use pnpr_config::{Management, Teams};
-use pnpr_policy::RuleTable;
+use pnpr_config::Management;
 use std::{
-    collections::HashMap,
     future::Future,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use tokio::{sync::OwnedMutexGuard, time::Instant};
@@ -27,23 +26,14 @@ const STATE_RETRY: Duration = Duration::from_secs(1);
 /// first.
 pub(super) const WRITE_ATTEMPTS: usize = 5;
 
-/// The state admins and identity providers manage at runtime: team rosters
-/// (`teamsManagedBy: api`), package rules (`rulesManagedBy: api`), and the
-/// SCIM directory (`auth.scim`).
+/// The state admins and identity providers manage at runtime: the registry
+/// graph (`registriesManagedBy: api`) and the SCIM directory (`auth.scim`).
 ///
-/// The metadata database holds each one in normalized SQL tables, so every
-/// replica sees the same state. A registry with no stored rows yet serves its
-/// YAML.
+/// The metadata database holds both, so every replica sees the same state.
 pub(super) struct ManagedState {
-    /// Each roster-managed registry's `teams:` map, keyed by registry name.
-    pub(super) roster_seeds: IndexMap<String, Teams>,
-    /// Each rules-managed registry's rules as the YAML declares them, keyed
-    /// by registry name. Stored changes apply on top of these.
-    pub(super) rule_bases: IndexMap<String, Arc<RuleTable>>,
-    /// Last loaded generation of each roster-managed registry.
-    pub(super) roster_generations: Mutex<HashMap<String, Option<u64>>>,
-    /// Last loaded generation of each rules-managed registry.
-    pub(super) rule_generations: Mutex<HashMap<String, Option<u64>>>,
+    /// The stored registry graph this replica follows. `None` when the config
+    /// file declares the registries.
+    pub(super) graph: Option<GraphState>,
     /// The account IDs the SCIM directory marks inactive. `None` without
     /// `auth.scim`.
     pub(super) scim: Option<ScimState>,
@@ -52,35 +42,32 @@ pub(super) struct ManagedState {
     /// Held by a reload and by every edit, so a reload that read the store
     /// before an edit cannot publish its older copy after it.
     pub(super) reload: Arc<tokio::sync::Mutex<()>>,
+    /// How many reloads have finished, so a request that waited for one does
+    /// not start another.
+    completed_reloads: AtomicU64,
 }
 
 impl ManagedState {
     pub(super) fn new(config: &Config) -> Self {
-        let managed = |by: fn(&pnpr_config::HostedConfig) -> Management| {
-            config.routing.hosted
-                .iter()
-                .filter(move |(_, hosted)| by(hosted) == Management::Api)
-        };
-        let roster_seeds = managed(|hosted| hosted.teams_managed_by)
-            .map(|(name, hosted)| (name.clone(), Teams::clone(&hosted.teams.snapshot())))
-            .collect();
-        let rule_bases = managed(|hosted| hosted.rules_managed_by)
-            .map(|(name, hosted)| (name.clone(), hosted.rules.snapshot()))
-            .collect();
+        let graph = (config.registries_managed_by == Management::Api).then(GraphState::new);
         let scim = config.identity.auth.scim.as_ref().map(|_| ScimState::default());
         Self {
-            roster_seeds,
-            rule_bases,
-            roster_generations: Mutex::default(),
-            rule_generations: Mutex::default(),
+            graph,
             scim,
             due_at: Mutex::new(None),
             reload: Arc::default(),
+            completed_reloads: AtomicU64::new(0),
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.roster_seeds.is_empty() && self.rule_bases.is_empty() && self.scim.is_none()
+        self.graph.is_none() && self.scim.is_none()
+    }
+
+    fn graph_is_stale(&self) -> bool {
+        self.graph
+            .as_ref()
+            .is_some_and(|graph| !graph.is_available())
     }
 
     fn due_at(&self) -> Option<Instant> {
@@ -100,13 +87,19 @@ impl ManagedState {
 /// holds up the request, so no request is authorized against state this
 /// replica has not read. Later reloads run in the background while requests
 /// keep the current state.
-pub(super) async fn refresh_managed_state(state: &AppState) {
+pub(super) async fn refresh_managed_state(state: &AppState, patience: Patience) {
     let managed = &state.inner.identity.managed;
     if managed.is_empty() {
         return;
     }
     match managed.due_at() {
         Some(due_at) if Instant::now() < due_at => {}
+        // Past the stale limit the request could not be served from the
+        // current state, so it reloads before going on, as the first one
+        // does.
+        Some(_) if managed.graph_is_stale() => {
+            reload_stale_graph(state, patience).await;
+        }
         Some(_) => {
             if let Ok(guard) = Arc::clone(&managed.reload).try_lock_owned() {
                 tokio::spawn(reload_managed_state(state.clone(), guard));
@@ -121,8 +114,38 @@ pub(super) async fn refresh_managed_state(state: &AppState) {
     }
 }
 
-/// Reload SCIM alongside registry rosters and rules, publishing each record
-/// as its read finishes. Rosters load before rules, because a rule can name a team.
+/// How long a request waits for a reload or an edit holding the reload lock
+/// when the registry graph is stale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Patience {
+    /// Up to [`READ_DEADLINE`]; the request then answers with the stale state.
+    Bounded,
+    /// Not at all: the probes and the endpoints that repair the graph must
+    /// answer while an edit holds the lock.
+    None,
+}
+
+/// Reload a stale graph, unless a reload finished while this request waited
+/// for the lock: its outcome stands until the next retry is due, so many
+/// requests on a stale graph cause one read, not one each.
+async fn reload_stale_graph(state: &AppState, patience: Patience) {
+    let managed = &state.inner.identity.managed;
+    let completed = managed.completed_reloads.load(Ordering::Acquire);
+    let lock = Arc::clone(&managed.reload);
+    let guard = match patience {
+        Patience::Bounded => {
+            tokio::time::timeout(READ_DEADLINE, lock.lock_owned()).await.ok()
+        }
+        Patience::None => lock.try_lock_owned().ok(),
+    };
+    let Some(guard) = guard else { return };
+    if managed.completed_reloads.load(Ordering::Acquire) != completed || !managed.graph_is_stale() {
+        return;
+    }
+    reload_managed_state(state.clone(), guard).await;
+}
+
+/// Reload the registry graph alongside the SCIM directory.
 async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     let managed = &state.inner.identity.managed;
     let directory = async {
@@ -131,21 +154,16 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
             None => true,
         }
     };
-    let registries = reload_registries(&state);
+    let registries = async {
+        match &managed.graph {
+            Some(graph) => reload_graph(&state, graph).await,
+            None => true,
+        }
+    };
     let (registries_read, scim_read) = tokio::join!(registries, directory);
     let all_read = registries_read && scim_read;
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
-}
-
-async fn reload_registries(state: &AppState) -> bool {
-    let managed = &state.inner.identity.managed;
-    let rosters =
-        managed.roster_seeds.iter().map(|(registry, seed)| reload_roster(state, registry, seed));
-    let rosters_read = join_all(rosters).await.into_iter().all(|read| read);
-    let rules =
-        managed.rule_bases.iter().map(|(registry, base)| reload_rules(state, registry, base));
-    let rules_read = join_all(rules).await.into_iter().all(|read| read);
-    rosters_read && rules_read
+    managed.completed_reloads.fetch_add(1, Ordering::Release);
 }
 
 /// Bound refresh reads without cancelling writes whose commit outcome could be unknown.
@@ -156,11 +174,4 @@ pub(super) async fn read_with_deadline<Output>(
         .map_err(|_| RegistryError::Internal {
             reason: "the managed authorization record read exceeded its deadline".to_string(),
         })?
-}
-
-/// Canonicalize a registry key as `<ecosystem>/<local_name>`.
-pub(super) fn canonical_registry_key(state: &AppState, registry: &str) -> String {
-    let ecosystem = state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
-    let local_name = pnpr_registry::Registries::local_name(registry);
-    format!("{ecosystem}/{local_name}")
 }

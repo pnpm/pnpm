@@ -1,6 +1,7 @@
-//! The admin API for package rules (`/-/pnpr/v0/admin/rules/{registry}`) on a
-//! registry with `rulesManagedBy: api`: what a change does to requests, who
-//! may make one, and that changes live in the hosted store.
+//! The admin API for package rules (`/-/pnpr/v0/admin/rules/{registry}`) on
+//! registries the metadata database stores (`registriesManagedBy: api`): what a
+//! change does to requests, who may make one, and that changes live in the
+//! metadata database.
 
 use axum::{
     body::{Body, to_bytes},
@@ -24,7 +25,6 @@ registries:
   local:
     type: hosted
     namespace: \"\"
-    rulesManagedBy: api
     teams:
       readers: { name: readers, members: [carol] }
     packages:
@@ -44,13 +44,44 @@ defaultRegistry: main
 
 const RULES: &str = "/-/pnpr/v0/admin/rules/npm/local";
 
-fn load_config(dir: &Path) -> Config {
+async fn load_config(dir: &Path) -> Config {
+    load_config_with(dir, CONFIG).await
+}
+
+async fn load_config_with(dir: &Path, yaml: &str) -> Config {
+    let yaml = format!("storage: {}\n{yaml}", storage_dir(dir).display());
+    crate::managed_registries::managed_config(&config_path(dir), &yaml, listen(), public_url())
+        .await
+}
+
+/// The config [`load_config`] wrote, without storing its graph again.
+fn reload_config(dir: &Path) -> Config {
+    Config::from_yaml(&config_path(dir), listen(), public_url()).unwrap()
+}
+
+/// [`CONFIG`] with the registries in the config file.
+fn load_file_config(dir: &Path) -> Config {
+    let path = config_path(dir);
+    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage_dir(dir).display())).unwrap();
+    Config::from_yaml(&path, listen(), public_url()).unwrap()
+}
+
+fn config_path(dir: &Path) -> std::path::PathBuf {
+    dir.join("config.yaml")
+}
+
+fn storage_dir(dir: &Path) -> std::path::PathBuf {
     let storage = dir.join("storage");
     std::fs::create_dir_all(&storage).unwrap();
-    let path = dir.join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage.display())).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+    storage
+}
+
+fn listen() -> SocketAddr {
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
+}
+
+fn public_url() -> Option<String> {
+    Some("http://example.test".to_string())
 }
 
 async fn app_router(config: Config) -> axum::Router {
@@ -113,9 +144,9 @@ async fn read_secret(app: &axum::Router, token: &str) -> StatusCode {
 }
 
 #[tokio::test]
-async fn a_change_applies_at_once_and_a_reset_undoes_it() {
+async fn a_change_applies_at_once_and_another_change_undoes_it() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
     assert_eq!(read_secret(&app, &bob).await, StatusCode::NOT_FOUND);
@@ -128,18 +159,19 @@ async fn a_change_applies_at_once_and_a_reset_undoes_it() {
     let carol = add_user(&app, "carol").await;
     assert_eq!(read_secret(&app, &carol).await, StatusCode::NOT_FOUND);
 
-    assert_eq!(send(&app, "DELETE", RULES, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    let undo = json!({ "packages": { "@secret/*": { "access": ["$authenticated"] } } });
+    assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(undo)).await.0, StatusCode::OK);
     assert_eq!(read_secret(&app, &bob).await, StatusCode::NOT_FOUND);
     let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
     assert_eq!(rules["packages"]["@secret/*"]["access"], json!(["$authenticated"]));
-    assert_eq!(rules["rulesManagedBy"], json!("api"));
-    assert_eq!(rules["version"], json!("config"));
+    assert_eq!(rules["registriesManagedBy"], json!("api"));
+    assert_eq!(rules["version"], json!("3"));
 }
 
 #[tokio::test]
 async fn changes_must_fit_the_declared_rules() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let refused = [
         json!({ "packages": { "@other/*": { "access": ["$all"] } } }),
@@ -154,9 +186,39 @@ async fn changes_must_fit_the_declared_rules() {
 }
 
 #[tokio::test]
-async fn only_admins_change_rules_and_only_where_the_api_manages_them() {
+async fn a_pattern_written_another_way_addresses_the_declared_key() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let yaml = "\
+auth:
+  admins: [root]
+  users:
+    maxUsers: 100
+registries:
+  wheels:
+    type: hosted
+    ecosystem: pypi
+    packages:
+      'Foo_Bar': {}
+      '**': {}
+";
+    let app = app_router(load_config_with(dir.path(), yaml).await).await;
+    let root = add_user(&app, "root").await;
+    let rules_path = "/-/pnpr/v0/admin/rules/pypi/wheels";
+    let (_, rules) = send(&app, "GET", rules_path, Some(&root), None).await;
+    assert!(rules["packages"].get("foo-bar").is_some(), "{rules}");
+
+    let change = json!({ "packages": { "foo-bar": { "access": ["root"] } } });
+    assert_eq!(send(&app, "PUT", rules_path, Some(&root), Some(change)).await.0, StatusCode::OK);
+    let (_, document) = send(&app, "GET", "/-/pnpr/v0/admin/registries", Some(&root), None).await;
+    let packages = document["registries"]["wheels"]["packages"].as_object().unwrap();
+    assert_eq!(packages.len(), 2, "{packages:?}");
+    assert_eq!(packages["Foo_Bar"]["access"], json!(["root"]));
+}
+
+#[tokio::test]
+async fn only_admins_change_rules() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
     let change = json!({ "access": ["$authenticated"] });
@@ -167,60 +229,45 @@ async fn only_admins_change_rules_and_only_where_the_api_manages_them() {
     );
     assert_eq!(send(&app, "GET", RULES, None, None).await.0, StatusCode::UNAUTHORIZED);
     let fixed = "/-/pnpr/v0/admin/rules/npm/fixed";
-    assert_eq!(
-        send(&app, "PUT", fixed, Some(&root), Some(change.clone())).await.0,
-        StatusCode::FORBIDDEN,
-    );
-    let (status, rules) = send(&app, "GET", fixed, Some(&root), None).await;
-    assert_eq!((status, &rules["rulesManagedBy"]), (StatusCode::OK, &json!("config")));
+    assert_eq!(send(&app, "PUT", fixed, Some(&root), Some(change.clone())).await.0, StatusCode::OK);
     let missing = "/-/pnpr/v0/admin/rules/npm/missing";
     assert_eq!(
         send(&app, "PUT", missing, Some(&root), Some(change)).await.0,
         StatusCode::NOT_FOUND,
     );
+    assert_eq!(
+        send(&app, "DELETE", RULES, Some(&root), None).await.0,
+        StatusCode::METHOD_NOT_ALLOWED,
+    );
+}
+
+#[tokio::test]
+async fn rules_the_config_file_declares_are_read_only() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_file_config(dir.path())).await;
+    let root = add_user(&app, "root").await;
+
+    let (status, error) =
+        send(&app, "PUT", RULES, Some(&root), Some(json!({ "access": ["root"] }))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(error["code"], "ERR_PNPR_RULES_CONFIG_MANAGED");
+    let (status, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(rules["registriesManagedBy"], json!("config"));
+    assert_eq!(rules["version"], json!("config"));
 }
 
 #[tokio::test]
 async fn a_new_process_applies_the_stored_changes() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let change = json!({ "packages": { "@secret/*": { "access": ["root"] } } });
     assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
 
-    let restarted = app_router(load_config(dir.path())).await;
+    let restarted = app_router(reload_config(dir.path())).await;
     let bob = add_user(&restarted, "bob").await;
     assert_eq!(read_secret(&restarted, &bob).await, StatusCode::FORBIDDEN);
-}
-
-#[tokio::test]
-async fn unreadable_stored_changes_close_the_registry() {
-    let dir = TempDir::new().unwrap();
-    let config = load_config(dir.path());
-    let _storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
-        unreachable!();
-    };
-    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
-    conn.execute_batch(
-        "INSERT INTO rule_override_sets (registry, generation) VALUES ('npm/local', 1);
-         INSERT INTO rule_override_grants (registry, pattern, action, position, principal)
-         VALUES ('npm/local', '@secret/*', 'access', 0, 'root');",
-    )
-    .unwrap();
-    drop(conn);
-    let app = app_router(load_config(dir.path())).await;
-    let bob = add_user(&app, "bob").await;
-
-    let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&bob), None).await;
-    let names: Vec<&str> = directory["registries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|entry| entry["name"].as_str())
-        .collect();
-    assert!(!names.contains(&"local"), "{names:?}");
-    assert!(names.contains(&"fixed"), "{names:?}");
 }
 
 /// A rules request carrying `If-Match: "<version>"`. Returns the status and
@@ -260,41 +307,33 @@ async fn send_if_match(
 #[tokio::test]
 async fn a_change_based_on_a_stale_version_is_refused() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
     let loaded = rules["version"]
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(loaded, "config");
+    assert_eq!(loaded, "1");
 
     let mine = json!({ "access": ["$authenticated"] });
-    let (status, saved) = send_if_match(&app, "PUT", &root, &loaded, Some(mine.clone())).await;
+    let (status, saved) = send_if_match(&app, "PUT", &root, &loaded, Some(mine)).await;
     assert_eq!(status, StatusCode::OK);
-    let saved = saved.unwrap();
-    assert_ne!(saved, loaded);
+    assert_eq!(saved.as_deref(), Some("2"));
 
+    let theirs = json!({ "access": ["root"] });
     assert_eq!(
-        send_if_match(&app, "PUT", &root, &loaded, Some(mine)).await.0,
-        StatusCode::PRECONDITION_FAILED,
-    );
-    assert_eq!(
-        send_if_match(&app, "DELETE", &root, &loaded, None).await.0,
+        send_if_match(&app, "PUT", &root, &loaded, Some(theirs)).await.0,
         StatusCode::PRECONDITION_FAILED,
     );
     let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
     assert_eq!(rules["access"], json!(["$authenticated"]));
-
-    assert_eq!(send_if_match(&app, "DELETE", &root, &saved, None).await.0, StatusCode::NO_CONTENT);
-    let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
-    assert_eq!(rules["access"], json!(["$all"]));
 }
 
 #[tokio::test]
 async fn a_change_without_if_match_replaces_whatever_is_stored() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let first = json!({ "access": ["$authenticated"] });
     assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(first)).await.0, StatusCode::OK);
@@ -324,14 +363,14 @@ async fn send_raw_if_match(app: &axum::Router, token: &str, value: &[u8]) -> Sta
 #[tokio::test]
 async fn if_match_compares_strongly_and_refuses_what_it_cannot_read() {
     let dir = TempDir::new().unwrap();
-    let app = app_router(load_config(dir.path())).await;
+    let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
     let cases: [(&[u8], StatusCode); 6] = [
         (b"\xff", StatusCode::BAD_REQUEST),
-        (b"config", StatusCode::BAD_REQUEST),
-        (br#"W/"config""#, StatusCode::PRECONDITION_FAILED),
+        (b"1", StatusCode::BAD_REQUEST),
+        (br#"W/"1""#, StatusCode::PRECONDITION_FAILED),
         (br#""other""#, StatusCode::PRECONDITION_FAILED),
-        (br#""other", "config""#, StatusCode::OK),
+        (br#""other", "1""#, StatusCode::OK),
         (b"*", StatusCode::OK),
     ];
     for (value, expected) in cases {
@@ -343,8 +382,8 @@ async fn if_match_compares_strongly_and_refuses_what_it_cannot_read() {
 #[tokio::test]
 async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version() {
     let dir = TempDir::new().unwrap();
-    let writer = app_router(load_config(dir.path())).await;
-    let reader = app_router(load_config(dir.path())).await;
+    let writer = app_router(load_config(dir.path()).await).await;
+    let reader = app_router(reload_config(dir.path())).await;
     let root = add_user(&writer, "root").await;
     let reader_root = add_user(&reader, "root").await;
     let (_, before) = send(&reader, "GET", RULES, Some(&reader_root), None).await;
@@ -357,105 +396,9 @@ async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version()
 }
 
 #[tokio::test]
-async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
-    let dir = TempDir::new().unwrap();
-    let config = load_config(dir.path());
-    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
-    let mut packages = std::collections::BTreeMap::new();
-    packages.insert(
-        "@secret/*".to_string(),
-        pnpr_storage::metadata::StoredPackageOverride {
-            access: Some(vec!["root".to_string()]),
-            ..Default::default()
-        },
-    );
-    storage
-        .replace_rule_overrides(
-            "npm/local",
-            None,
-            &pnpr_storage::metadata::StoredRuleOverrides {
-                access: Some(vec!["$authenticated".to_string()]),
-                packages,
-            },
-        )
-        .await
-        .unwrap();
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
-        unreachable!();
-    };
-    let conn = rusqlite::Connection::open(sqlite_path).unwrap();
-    conn.execute_batch(
-        "INSERT INTO rule_overrides (registry, pattern, action)
-         VALUES ('npm/local', '@secret/*', 'future_action');
-         INSERT INTO rule_override_grants (registry, pattern, action, position, principal)
-         VALUES ('npm/local', '@secret/*', 'future_action', 0, 'someone');",
-    )
-    .unwrap();
-    drop(conn);
-
-    let app = app_router(load_config(dir.path())).await;
-    let root = add_user(&app, "root").await;
-    let (status, rules) = send(&app, "GET", RULES, Some(&root), None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(rules["access"], json!(["$authenticated"]));
-    assert_eq!(rules["packages"]["@secret/*"]["access"], json!(["root"]));
-}
-
-#[tokio::test]
-async fn making_default_ecosystem_and_namespace_explicit_preserves_rules() {
-    let dir = TempDir::new().unwrap();
-    let app1 = app_router(load_config(dir.path())).await;
-    let root = add_user(&app1, "root").await;
-    let change = json!({ "access": ["$authenticated"] });
-    assert_eq!(send(&app1, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
-
-    let explicit_config_yaml = "\
-auth:
-  admins: [root]
-  users:
-    maxUsers: 100
-registries:
-  local:
-    type: hosted
-    ecosystem: npm
-    namespace: \"\"
-    rulesManagedBy: api
-    teams:
-      readers: { name: readers, members: [carol] }
-    packages:
-      '@secret/*':
-        access: [$authenticated]
-      '**': {}
-  fixed:
-    type: hosted
-    namespace: fixed
-    packages:
-      '@fixed/*': {}
-  main:
-    type: router
-    sources: [fixed, local]
-defaultRegistry: main
-";
-    let storage = dir.path().join("storage");
-    let path = dir.path().join("config_explicit.yaml");
-    std::fs::write(&path, format!("storage: {}\n{explicit_config_yaml}", storage.display()))
-        .unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let config2 =
-        Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
-    let app2 = app_router(config2).await;
-    let root2 = add_user(&app2, "root").await;
-
-    let (status, rules) =
-        send(&app2, "GET", "/-/pnpr/v0/admin/rules/npm/local", Some(&root2), None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(rules["access"], json!(["$authenticated"]));
-}
-
-#[tokio::test]
 async fn cargo_and_pypi_hosted_registries_reject_unpublish_rules() {
     let dir = TempDir::new().unwrap();
-    let config_yaml = "\
+    let yaml = "\
 auth:
   admins: [root]
   users:
@@ -464,13 +407,11 @@ registries:
   crates:
     type: hosted
     ecosystem: cargo
-    rulesManagedBy: api
     packages:
       'foo': {}
   wheels:
     type: hosted
     ecosystem: pypi
-    rulesManagedBy: api
     packages:
       'bar': {}
   main:
@@ -478,105 +419,20 @@ registries:
     sources: [crates]
 defaultRegistry: main
 ";
-    let storage = dir.path().join("storage");
-    std::fs::create_dir_all(&storage).unwrap();
-    let path = dir.path().join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
-    let app = app_router(config).await;
+    let app = app_router(load_config_with(dir.path(), yaml).await).await;
     let root = add_user(&app, "root").await;
 
-    let unpublish_body = json!({
-        "packages": {
-            "foo": {
-                "unpublish": ["root"],
-            },
-        },
-    });
-    let (status, bytes) = send_raw(
-        &app,
-        "PUT",
-        "/-/pnpr/v0/admin/rules/cargo/crates",
-        Some(&root),
-        Some(unpublish_body),
-    )
-    .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    let msg = String::from_utf8_lossy(&bytes);
-    assert!(
-        msg.contains("serves cargo, which does not support unpublishing"),
-        "expected unpublish error, got: {msg}",
-    );
-
-    let pypi_body = json!({
-        "packages": {
-            "bar": {
-                "unpublish": ["root"],
-            },
-        },
-    });
-    let (status, bytes) =
-        send_raw(&app, "PUT", "/-/pnpr/v0/admin/rules/pypi/wheels", Some(&root), Some(pypi_body))
-            .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    let msg = String::from_utf8_lossy(&bytes);
-    assert!(
-        msg.contains("serves pypi, which does not support unpublishing"),
-        "expected unpublish error, got: {msg}",
-    );
-}
-
-#[tokio::test]
-async fn pre_upgrade_stored_unpublish_override_on_cargo_does_not_lock_out_registry() {
-    let dir = TempDir::new().unwrap();
-    let config_yaml = "\
-auth:
-  admins: [root]
-  users:
-    maxUsers: 100
-registries:
-  crates:
-    type: hosted
-    ecosystem: cargo
-    rulesManagedBy: api
-    packages:
-      'foo': {}
-  main:
-    type: router
-    sources: [crates]
-defaultRegistry: main
-";
-    let storage = dir.path().join("storage");
-    let path = dir.path().join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
-    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
-    let mut packages = std::collections::BTreeMap::new();
-    packages.insert(
-        "foo".to_string(),
-        pnpr_storage::metadata::StoredPackageOverride {
-            access: Some(vec!["$authenticated".to_string()]),
-            publish: None,
-            unpublish: Some(vec!["root".to_string()]),
-        },
-    );
-    storage
-        .replace_rule_overrides(
-            "cargo/crates",
-            None,
-            &pnpr_storage::metadata::StoredRuleOverrides { access: None, packages },
-        )
-        .await
-        .unwrap();
-
-    let app = app_router(config).await;
-    let root = add_user(&app, "root").await;
-
-    let (status, rules) =
-        send(&app, "GET", "/-/pnpr/v0/admin/rules/cargo/crates", Some(&root), None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(rules["packages"]["foo"]["access"], json!(["$authenticated"]));
-    assert_eq!(rules["packages"]["foo"]["unpublish"], serde_json::Value::Null);
+    for (path, package, ecosystem) in [
+        ("/-/pnpr/v0/admin/rules/cargo/crates", "foo", "cargo"),
+        ("/-/pnpr/v0/admin/rules/pypi/wheels", "bar", "pypi"),
+    ] {
+        let body = json!({ "packages": { package: { "unpublish": ["root"] } } });
+        let (status, bytes) = send_raw(&app, "PUT", path, Some(&root), Some(body)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let msg = String::from_utf8_lossy(&bytes);
+        assert!(
+            msg.contains(&format!("serves {ecosystem}, which does not support unpublishing")),
+            "expected unpublish error, got: {msg}",
+        );
+    }
 }

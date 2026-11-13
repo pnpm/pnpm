@@ -320,7 +320,8 @@ A login answers with a new token and is marked only `no-cache`. With
 [CORS](configuration.md#cors) on, pnpr's answer depends on the request's
 `Origin`, so keep requests with an `Origin` header out of a cache that does
 not key on it. A cache also outlives
-[rule changes](configuration.md#changing-rules-through-the-api).
+[rule changes](configuration.md#changing-rules-through-the-api) and other
+[changes to the stored registries](configuration.md#registries-in-the-database).
 
 Metadata at one URL has several representations, selected by `Accept`. Keep
 full JSON and `application/vnd.npm.install-v1+json` in separate cache entries.

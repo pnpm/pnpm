@@ -76,9 +76,10 @@ auth:
 - The membership lasts as long as the session. Removing someone from a group
   takes effect at their next sign-in, within an hour. It never applies to the
   user's password logins or `npm token`s.
-- On a registry whose teams are the config's, the team must be declared in its
-  `teams:`. With [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api),
-  it may name a team the admin API creates later.
+- The registry must declare the team. With
+  [`registriesManagedBy: api`](configuration.md#registries-in-the-database),
+  pnpr refuses a change to the stored registries that removes a team or
+  registry a grant names.
 
 Configure the provider to issue the claim, and use the values it emits as
 `group`. Entra ID emits group object IDs under `groups` once group claims are

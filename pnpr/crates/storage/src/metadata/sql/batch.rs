@@ -13,6 +13,15 @@ use crate::metadata::ArtifactMember;
 use pnpr_error::{RegistryError, Result};
 use std::cell::RefCell;
 
+/// Whether a batch refuses to change a package of a hosted namespace that the
+/// stored registry graph retired (see
+/// [`crate::metadata::NewRegistryGraph::vacated`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Retired {
+    Refused,
+    Allowed,
+}
+
 /// A write transaction that commits every package it changes under one new
 /// generation of its namespace, or nothing.
 pub(super) struct Batch<'conn> {
@@ -24,6 +33,8 @@ pub(super) struct Batch<'conn> {
     touched: Vec<PackageKey>,
     /// The npm versions the batch accepted.
     accepted: RefCell<Vec<ArtifactMember>>,
+    /// The ecosystems of the namespace that the batch must not change.
+    retired: Vec<String>,
 }
 
 impl<'conn> Batch<'conn> {
@@ -34,6 +45,7 @@ impl<'conn> Batch<'conn> {
     pub(super) fn begin_with(
         connection: &'conn dyn Connection,
         namespace: &str,
+        retired: Retired,
         reads: &[Query<'_>],
     ) -> Result<(Self, Vec<Vec<Row>>)> {
         let transaction = WriteTransaction::begin(connection)?;
@@ -42,6 +54,9 @@ impl<'conn> Batch<'conn> {
              EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)",
             params![namespace],
         )];
+        if retired == Retired::Refused {
+            queries.push(Query::new(RETIRED_ECOSYSTEMS, params![namespace]));
+        }
         queries.extend_from_slice(reads);
         let mut results = transaction.query_all(&queries)?.into_iter();
         let (current, cdn_enabled) = results
@@ -52,6 +67,10 @@ impl<'conn> Batch<'conn> {
             })
             .transpose()?
             .unwrap_or((0, false));
+        let retired = match retired {
+            Retired::Refused => ecosystems_from(results.next().unwrap_or_default())?,
+            Retired::Allowed => Vec::new(),
+        };
         let results: Vec<Vec<Row>> = results.collect();
         if results.len() != reads.len() {
             return Err(RegistryError::Internal {
@@ -65,6 +84,7 @@ impl<'conn> Batch<'conn> {
             cdn_enabled,
             touched: Vec::new(),
             accepted: RefCell::new(Vec::new()),
+            retired,
         };
         Ok((batch, results))
     }
@@ -123,6 +143,19 @@ impl<'conn> Batch<'conn> {
         if self.touched.is_empty() {
             return Ok(None);
         }
+        if self.touched
+            .iter()
+            .any(|key| {
+                self.retired
+                    .iter()
+                    .any(|retired| retired == key.ecosystem.as_str())
+            })
+        {
+            // A replica that has not loaded the registry graph retiring the
+            // namespace still routes publishes to it. Once it has, the
+            // retried request no longer reaches the namespace.
+            return Err(RegistryError::RegistriesUnavailable);
+        }
         let generation = to_column(self.generation);
         for key in &self.touched {
             if self.cdn_enabled && key.ecosystem == pnpr_package_name::Ecosystem::Npm {
@@ -139,4 +172,14 @@ impl<'conn> Batch<'conn> {
         self.transaction.commit()?;
         Ok(Some(self.generation))
     }
+}
+
+/// The ecosystems of a namespace (`?1`) that a batch must not change.
+const RETIRED_ECOSYSTEMS: &str =
+    "SELECT ecosystem FROM retired_hosted_namespaces WHERE namespace = ?1";
+
+fn ecosystems_from(rows: Vec<Row>) -> Result<Vec<String>> {
+    rows.into_iter()
+        .map(|mut row| row.get::<String>(0))
+        .collect()
 }

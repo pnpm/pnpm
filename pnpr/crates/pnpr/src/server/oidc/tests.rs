@@ -47,7 +47,7 @@ fn config(yaml: &str) -> (Config, tempfile::TempDir) {
 #[test]
 fn workload_credentials_only_permit_named_package_publication() {
     let (config, _config_dir) = config(CONFIG);
-    validate_workloads(&config).unwrap();
+    validate_workloads(&config, &config.routing).unwrap();
     let workload = &config.identity.auth.oidc[0].workloads[0];
     for path in ["/npm/~private/@org/pkg", "/npm/~private/@org%2fpkg", "/npm/~private/%40org%2Fpkg"]
     {
@@ -101,7 +101,7 @@ fn workload_credentials_permit_staging_and_publish_commits() {
             assert!(check_workload_request(workload, &method, &path).is_err(), "{method} {path}");
         }
     }
-    let scope = WorkloadScope::new(&config, workload);
+    let scope = WorkloadScope::new(&config.routing, workload);
     scope.check_ecosystem(pnpr_registry::Ecosystem::Npm).unwrap();
     assert!(scope.check_ecosystem(pnpr_registry::Ecosystem::Cargo).is_err());
     let private =
@@ -118,7 +118,7 @@ async fn a_workload_batch_is_scoped_to_its_packages() {
     let (mut config, _config_dir) = config(CONFIG);
     let storage = tempfile::TempDir::new().unwrap();
     config.storage.hosted_dir = storage.path().to_path_buf();
-    let scope = WorkloadScope::new(&config, &config.identity.auth.oidc[0].workloads[0]);
+    let scope = WorkloadScope::new(&config.routing, &config.identity.auth.oidc[0].workloads[0]);
     let record = pnpr_auth::TokenRecord::new("ci", 1, 1);
     let app = super::super::tests::app_with_config_and_token(config, "tok", record)
         .layer(axum::Extension(scope));
@@ -218,12 +218,12 @@ async fn archives_are_staged_under_a_registry_address() {
 fn workload_targets_validate_at_startup() {
     let (mut config, _config_dir) = config(CONFIG);
     config.identity.auth.oidc[0].workloads[0].registry = "unknown".to_string();
-    assert!(validate_workloads(&config).is_err());
+    assert!(validate_workloads(&config, &config.routing).is_err());
     config.identity.auth.oidc[0].workloads[0].registry = "private".to_string();
     config.identity.auth.oidc[0].workloads[0].packages = vec!["@org/*".to_string()];
-    assert!(validate_workloads(&config).is_err());
+    assert!(validate_workloads(&config, &config.routing).is_err());
     config.identity.auth.oidc[0].workloads[0].packages.clear();
-    assert!(validate_workloads(&config).is_err());
+    assert!(validate_workloads(&config, &config.routing).is_err());
 }
 
 #[test]

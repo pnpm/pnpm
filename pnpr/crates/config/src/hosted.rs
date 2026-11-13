@@ -1,4 +1,4 @@
-use super::{Deserialize, PackageRules, TeamDirectory};
+use super::{Deserialize, PackageRules, Serialize, TeamDirectory};
 
 /// A resolved hosted registry: the storage `namespace` it serves and its
 /// `packages:` rules — the package patterns it claims plus the per-package
@@ -18,33 +18,34 @@ pub struct HostedConfig {
     /// [`Self::rules`] and served by the npm team API
     /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`).
     pub teams: TeamDirectory,
-    pub teams_managed_by: Management,
-    pub rules_managed_by: Management,
 }
 
 impl HostedConfig {
     /// A registry without teams.
     #[must_use]
     pub fn new(namespace: impl Into<String>, rules: PackageRules) -> Self {
-        Self {
-            namespace: namespace.into(),
-            rules,
-            teams: TeamDirectory::default(),
-            teams_managed_by: Management::Config,
-            rules_managed_by: Management::Config,
-        }
+        Self { namespace: namespace.into(), rules, teams: TeamDirectory::default() }
     }
 }
 
-/// Who owns a part of a hosted registry's configuration: its team roster
-/// (`teamsManagedBy`) or its package rules (`rulesManagedBy`).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// Who owns the registry graph (`registriesManagedBy`).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Management {
-    /// The YAML is the only source, and the admin API rejects writes.
+    /// The config file declares the graph, and the admin API rejects writes.
     #[default]
     Config,
-    /// The hosted store holds what admins change through the admin API. The
-    /// YAML is the starting point until the first change is stored.
+    /// The metadata database stores the graph, and the admin API changes it.
     Api,
+}
+
+impl Management {
+    /// The value as pnpr.yaml spells it.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Management::Config => "config",
+            Management::Api => "api",
+        }
+    }
 }
