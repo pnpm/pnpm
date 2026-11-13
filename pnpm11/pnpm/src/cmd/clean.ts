@@ -1,5 +1,5 @@
 import { promises as fs, type Stats } from 'node:fs'
-import path from 'node:path'
+import path, { type ParsedPath } from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { isError } from '@pnpm/error'
@@ -182,28 +182,65 @@ async function removeExternalVirtualStore (
 }
 
 async function resolveInside (rootDir: string, targetSpec: string): Promise<string | undefined> {
-  const candidatePath = normalizeTargetSpec(rootDir, targetSpec)
+  const realRoot = await tryRealpath(rootDir)
+  if (realRoot == null) {
+    return undefined
+  }
+  const candidatePath = normalizeTargetSpec(realRoot, targetSpec)
   const parsed = path.parse(candidatePath)
   if (parsed.base === '' || parsed.base === '.' || parsed.base === '..') {
     return undefined
   }
-  const [realRoot, realParent] = await Promise.all([
-    tryRealpath(rootDir),
-    tryRealpath(parsed.dir),
-  ])
-  if (realRoot == null || realParent == null) {
+  const realParent = await resolveParentDir(realRoot, parsed)
+  if (realParent == null) {
     return undefined
   }
   const resolved = path.join(realParent, parsed.base)
   return isStrictSubdir(realRoot, resolved) ? resolved : undefined
 }
 
-function normalizeTargetSpec (rootDir: string, targetSpec: string): string {
+async function resolveParentDir (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
+  if (parsed.dir === realRoot) {
+    return realRoot
+  }
+  if (!parsed.dir.split(path.sep).includes('..')) {
+    return tryRealpath(parsed.dir)
+  }
+  return resolveParentSegments(realRoot, parsed)
+}
+
+async function resolveParentSegments (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
+  const rootPrefix = appendPathSep(realRoot)
+  const underRealRoot = parsed.dir.startsWith(rootPrefix)
+  const anchor = underRealRoot ? realRoot : await tryRealpath(parsed.root)
+  if (anchor == null) {
+    return undefined
+  }
+  const tail = underRealRoot ? parsed.dir.slice(rootPrefix.length) : parsed.dir.slice(parsed.root.length)
+  const segments = tail.split(path.sep).filter((segment) => segment !== '' && segment !== '.')
+  return segments.reduce<Promise<string | undefined>>(
+    async (currentPromise, segment) => stepParentSegment(await currentPromise, segment),
+    Promise.resolve(anchor)
+  )
+}
+
+async function stepParentSegment (current: string | undefined, segment: string): Promise<string | undefined> {
+  if (current == null) {
+    return undefined
+  }
+  return segment === '..' ? path.dirname(current) : tryRealpath(path.join(current, segment))
+}
+
+function normalizeTargetSpec (realRoot: string, targetSpec: string): string {
   const nativeSpec = path.sep === '\\' ? targetSpec.replaceAll('/', '\\') : targetSpec
   if (path.parse(nativeSpec).root === '') {
-    return `${rootDir}${path.sep}${nativeSpec}`
+    return `${appendPathSep(realRoot)}${nativeSpec}`
   }
   return path.isAbsolute(nativeSpec) ? nativeSpec : path.resolve(nativeSpec)
+}
+
+function appendPathSep (dirPath: string): string {
+  return dirPath.endsWith(path.sep) ? dirPath : `${dirPath}${path.sep}`
 }
 
 async function tryRealpath (targetPath: string): Promise<string | undefined> {
