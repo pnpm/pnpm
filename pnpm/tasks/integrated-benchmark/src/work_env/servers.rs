@@ -74,7 +74,7 @@ impl WorkEnv {
         let bench_dir = self.bench_dir(BenchId::PnprRevision(revision));
         let cold = self.options.selection.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
         let registries = RegistriesHome::of_source(&self.pnpr_source_dir(revision));
-        let public_url = served_revision_mock_origin(&registry, cold, registries);
+        let public_url = served_revision_mock_origin(&registry, cold);
         let launch = RevisionMockLaunch {
             revision,
             binary: &binary,

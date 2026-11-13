@@ -107,12 +107,14 @@ pub(super) fn write_pnpr_benchmark_config(
     let home = RegistriesHome::of_source(&source_dir);
     let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries, auth, home);
     fs::write(&config, yaml).expect("write pnpr benchmark config");
-    let registries = (home == RegistriesHome::Database).then(|| {
-        let path = bench_dir.join("pnpr-registries.yaml");
-        fs::write(&path, pnpr_benchmark_registries_yaml(public_route_registries))
-            .expect("write pnpr benchmark registries");
-        path
-    });
+    let registries = home
+        .in_database()
+        .then(|| {
+            let path = bench_dir.join("pnpr-registries.yaml");
+            fs::write(&path, pnpr_benchmark_registries_yaml(public_route_registries))
+                .expect("write pnpr benchmark registries");
+            path
+        });
     PnprBenchmarkFiles { config, registries }
 }
 /// The `--public-url` of a benchmark pnpr server whose registries live in
@@ -155,9 +157,9 @@ pub(super) fn cold_mock_config_yaml(
             .to_string(),
         registries: graph.as_ref().map(|graph| &graph.registries),
         default_registry: graph.as_ref().map(|graph| graph.default_registry),
-        routes: (registries == RegistriesHome::Database).then_some(LoopbackRoutes {
-            allowed_private_networks: LOOPBACK_NETWORKS,
-        }),
+        routes: registries
+            .in_database()
+            .then_some(LoopbackRoutes { allowed_private_networks: LOOPBACK_NETWORKS }),
         log: ColdMockLog { format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
@@ -200,7 +202,7 @@ pub(super) fn cold_revision_mock_command(
         .arg(mock.public_url)
         .arg("--packument-ttl")
         .arg("31536000");
-    if mock.registries == RegistriesHome::Database {
+    if mock.registries.in_database() {
         let document = mock.bench_dir.join("cold-mock-registries.yaml");
         fs::write(&document, cold_mock_registries_yaml(origin_url))
             .expect("write cold mock registries");

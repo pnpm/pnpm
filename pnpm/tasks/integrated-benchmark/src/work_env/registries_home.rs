@@ -27,6 +27,14 @@ impl RegistriesHome {
     pub(super) fn of_source(source: &Path) -> Self {
         if fixture_registries(source).is_some() { Self::Database } else { Self::ConfigFile }
     }
+
+    /// Whether the revision's registries live in the metadata database.
+    pub(super) fn in_database(self) -> bool {
+        match self {
+            Self::ConfigFile => false,
+            Self::Database => true,
+        }
+    }
 }
 
 /// The registry-mock registries document of the checkout at `source`, when

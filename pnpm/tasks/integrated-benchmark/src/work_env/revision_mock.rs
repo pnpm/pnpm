@@ -13,14 +13,11 @@ use std::{
 
 /// The origin a revision's mock advertises in its packuments. A cold mock
 /// whose registries live in the database may not proxy its warm origin on
-/// its own host, so it advertises `localhost` while the origin is reached at
-/// `127.0.0.1`.
-pub(super) fn served_revision_mock_origin(
-    registry: &RevisionMockRegistry,
-    cold: bool,
-    registries: RegistriesHome,
-) -> String {
-    if !cold || registries == RegistriesHome::ConfigFile {
+/// its own host, so every cold mock advertises `localhost` while the origin
+/// is reached at `127.0.0.1`. Revisions that read their registries from the
+/// config file get the same name, so both sides of a comparison resolve it.
+pub(super) fn served_revision_mock_origin(registry: &RevisionMockRegistry, cold: bool) -> String {
+    if !cold {
         return registry.origin.clone();
     }
     let port = registry.listener
@@ -80,8 +77,8 @@ pub(super) fn cold_origin_public_url(
     latency_proxy
         .map(|proxy| format!("http://{}", proxy.addr))
         .or_else(|| {
-            (registries == RegistriesHome::Database).then(|| {
-                format!("http://127.0.0.1:{origin_port}")
-            })
+            registries
+                .in_database()
+                .then(|| format!("http://127.0.0.1:{origin_port}"))
         })
 }
