@@ -159,7 +159,7 @@ function isShimRelativeTargetCurrent (content: string, { cmd, shShimDir }: BinLi
  * real path, which moves when a link on the way to it is re-pointed.
  */
 async function isShimNodePathCurrent (content: string, { cmd, opts }: BinLinkContext): Promise<boolean> {
-  if (opts.extraNodePaths == null && opts.projectModulesDir == null) return true
+  if (opts.extraNodePaths == null && opts.projectModulesDir == null && !opts.ownNodePaths) return true
   const writesNodePath = writesShimNodePath(opts)
   // The shim lists every entry once, at its first position.
   const listed = new Set(opts.projectModulesDir == null ? [] : [opts.projectModulesDir])

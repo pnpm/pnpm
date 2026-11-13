@@ -180,6 +180,11 @@ test('linkBins() with ownNodePaths writes only the bin\'s own directories to NOD
   fs.appendFileSync(binLocation, '# sentinel\n')
   await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [], ownNodePaths: true })
   expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [] })
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).toStrictEqual([])
+  await linkBins(modulesDir, binTarget, { warn, ownNodePaths: true })
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).toStrictEqual(entries)
 })
 
 test('linkBins() rewrites a bin whose NODE_PATH lists a former real location of its package', async () => {
