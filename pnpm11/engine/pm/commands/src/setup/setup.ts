@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
@@ -281,6 +282,7 @@ export async function handler (
     pnpmHomeDir: string
   }
 ): Promise<string> {
+  validatePnpmHomeDir(opts.pnpmHomeDir)
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
   validateGHActionsEnvFileValues(opts.pnpmHomeDir, binDir)
@@ -292,6 +294,16 @@ export async function handler (
   writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
   removeLegacyHomeDirShims(opts.pnpmHomeDir)
   return output
+}
+
+function validatePnpmHomeDir (pnpmHomeDir: string): void {
+  const unsafeCharacters = process.platform === 'win32' ? ';%\n\r' : ':\n\r\0'
+  const character = [...pnpmHomeDir].find(character => unsafeCharacters.includes(character))
+  if (character == null) return
+  throw new PnpmError(
+    'INVALID_PNPM_HOME',
+    `The pnpm home directory "${pnpmHomeDir}" contains a character (${JSON.stringify(character)}) that is unsafe for the PATH`
+  )
 }
 
 /**

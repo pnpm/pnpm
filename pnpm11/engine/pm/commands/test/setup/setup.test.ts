@@ -73,6 +73,23 @@ test('setup makes no changes', async () => {
   expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
 })
 
+const unsafePnpmHomeCharacters = process.platform === 'win32'
+  ? [';', '%', '\n', '\r']
+  : [':', '\n', '\r', '\0']
+
+test.each(unsafePnpmHomeCharacters)(
+  'setup rejects an unsafe PNPM_HOME containing %j before making changes',
+  async (character) => {
+    jest.mocked(addDirToEnvPath).mockClear()
+    jest.mocked(spawnSync).mockClear()
+    await expect(setup.handler({ pnpmHomeDir: `/pnpm${character}home` })).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_PNPM_HOME',
+    })
+    expect(addDirToEnvPath).not.toHaveBeenCalled()
+    expect(spawnSync).not.toHaveBeenCalled()
+  }
+)
+
 test('setup names the shell config file when it makes no changes', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     configFile: {
