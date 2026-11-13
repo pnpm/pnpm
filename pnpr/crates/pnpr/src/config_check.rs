@@ -55,7 +55,12 @@ pub async fn check_config_and_stored_registries(
     config: &mut Config,
     source: &ConfigSource,
 ) -> pnpr_error::Result<ConfigCheckReport> {
-    *config = crate::server::with_stored_routing(config, crate::server::Credentials::Skip).await?;
+    *config = crate::server::with_stored_routing(
+        config,
+        crate::server::Credentials::Skip,
+        crate::server::FileReferences::Refuse,
+    )
+    .await?;
     check_resolved_config(config, source)
 }
 

@@ -196,11 +196,7 @@ fn check_public_route_hosts(
         if unchanged.contains(&registry) {
             continue;
         }
-        let url = match registry.strip_prefix("//") {
-            Some(rest) => format!("http://{rest}"),
-            None => registry.to_string(),
-        };
-        if !context.allows_route_host(&url) {
+        if !context.allows_route_host(registry) {
             return Err(RegistryError::BadRequest {
                 reason: format!(
                     "routes.public registry {registry:?} is a loopback, private, or link-local \
@@ -275,10 +271,13 @@ fn refused_change(error: RegistryError) -> RegistryError {
 pub(crate) async fn with_stored_routing(
     config: &Config,
     credentials: Credentials,
+    references: FileReferences,
 ) -> Result<Config, RegistryError> {
     let mut config = config.clone();
     if config.registries_managed_by == Management::Api {
-        config.routing = load_stored_routing(&config, credentials).await?.0;
+        config.routing = load_stored_routing(&config, credentials, references)
+            .await?
+            .0;
     }
     Ok(config)
 }
@@ -287,25 +286,39 @@ pub(crate) async fn with_stored_routing(
 pub(crate) async fn load_stored_routing(
     config: &Config,
     credentials: Credentials,
+    references: FileReferences,
 ) -> Result<(RoutingConfig, Option<u64>), RegistryError> {
     let storage = Storage::from_config(&config.storage)?;
     let stored = storage.read_registry_graph().await?;
     let document = stored_document(stored.as_ref())?;
-    let routing = served_routing(config, &document, credentials)?;
+    let routing = loaded_routing(config, &document, credentials, references)?;
     Ok((routing, stored.map(|stored| stored.generation)))
 }
 
-/// The routing a replica serves from the stored `document`, at startup and on
-/// every reload. A config-file reference the graph does not satisfy is
-/// logged, not refused: writes refuse it, so only a config change can cause
-/// it, and the replica should keep serving.
-pub(super) fn served_routing(
+/// What loading the stored graph does with a config-file reference (an OIDC
+/// workload or group grant) that the graph does not satisfy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FileReferences {
+    /// Log it and serve the graph: writes refuse such a graph, so only a
+    /// config change can cause it, and a replica should keep serving.
+    Warn,
+    /// Fail, as a check of the config does.
+    Refuse,
+}
+
+/// The routing of the stored `document`, with `references` deciding what an
+/// unsatisfied config-file reference does.
+pub(super) fn loaded_routing(
     config: &Config,
     document: &RegistryGraphDocument,
     credentials: Credentials,
+    references: FileReferences,
 ) -> Result<RoutingConfig, RegistryError> {
     let routing = stored_routing(config, document, credentials)?;
     if let Err(err) = check_file_references(config, &routing) {
+        if references == FileReferences::Refuse {
+            return Err(err);
+        }
         tracing::warn!(error = %err, "the stored registry graph lacks what the config file names");
     }
     Ok(routing)

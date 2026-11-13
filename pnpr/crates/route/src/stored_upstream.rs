@@ -2,7 +2,7 @@
 
 use std::net::IpAddr;
 
-use super::RouteContext;
+use super::{RouteContext, nerf_prefix};
 
 impl RouteContext {
     /// This context for registries the admin API wrote: the resolver
@@ -14,12 +14,16 @@ impl RouteContext {
         self
     }
 
-    /// Whether the resolver may fetch from the host of `url`, a
-    /// `routes.public` registry: see [`Self::allows_fetch`], without the
-    /// allowlist.
+    /// Whether the resolver may fetch from some URL the `routes.public`
+    /// `registry` matches: see [`Self::allows_fetch`], without the allowlist.
+    /// A route matches without its scheme, so a fetch over either scheme
+    /// counts. A `registry` that is not a registry URL matches nothing.
     #[must_use]
-    pub fn allows_route_host(&self, url: &str) -> bool {
-        self.connect_policy.allows_fetched_host(url)
+    pub fn allows_route_host(&self, registry: &str) -> bool {
+        let Some(prefix) = nerf_prefix(registry) else { return true };
+        ["http", "https"]
+            .iter()
+            .any(|scheme| self.connect_policy.allows_fetched_host(&format!("{scheme}:{prefix}")))
     }
 
     /// Whether `url` is at this server's own `public_url` origin.

@@ -4,7 +4,7 @@ pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
 use crate::{
     Config, RegistryError,
     cache_maintenance::{CacheGcEffect, CacheGcScope},
-    server::{Credentials, with_stored_routing},
+    server::{Credentials, FileReferences, with_stored_routing},
 };
 use clap::Subcommand;
 use pnpm_diagnostics::{print, println};
@@ -173,7 +173,8 @@ async fn with_registries(config: &Config, command: &Command) -> miette::Result<C
         | Command::MigrateStorage { .. } => Credentials::Skip,
         _ => return Ok(config.clone()),
     };
-    with_stored_routing(config, credentials).await.map_err(|err| redacted_report(&err))
+    with_stored_routing(config, credentials, FileReferences::Warn).await
+        .map_err(|err| redacted_report(&err))
 }
 
 async fn run_gc_command(config: &Config, command: Command) -> miette::Result<()> {

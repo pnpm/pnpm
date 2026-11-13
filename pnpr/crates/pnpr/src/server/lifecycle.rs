@@ -8,7 +8,9 @@ use futures_util::FutureExt as _;
 
 use super::{
     AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, Storage,
-    metrics_listener_router, registry_graph::Credentials, shutdown_signal, state_and_router,
+    metrics_listener_router,
+    registry_graph::{Credentials, FileReferences},
+    shutdown_signal, state_and_router,
 };
 use pnpr_config::{Management, RoutingConfig};
 
@@ -36,7 +38,13 @@ pub(super) fn load_active_osv_index(
 pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
     crate::config_validation::validate_cache_secret_for_claim(config)?;
     let storage = Storage::from_config(&config.storage)?;
-    match super::registry_graph::with_stored_routing(config, Credentials::Skip).await {
+    match super::registry_graph::with_stored_routing(
+        config,
+        Credentials::Skip,
+        FileReferences::Warn,
+    )
+    .await
+    {
         Ok(loaded) => {
             // A stored graph can gain a hosted registry while this replica
             // runs, so the store is bound to the database even while it
@@ -260,7 +268,13 @@ async fn load_stored_graph(config: &mut Config) -> StartupGraph {
     if config.registries_managed_by != Management::Api {
         return StartupGraph::File;
     }
-    match super::registry_graph::load_stored_routing(config, Credentials::Resolve).await {
+    match super::registry_graph::load_stored_routing(
+        config,
+        Credentials::Resolve,
+        FileReferences::Warn,
+    )
+    .await
+    {
         Ok((routing, generation)) => {
             config.routing = routing;
             StartupGraph::Stored { generation }

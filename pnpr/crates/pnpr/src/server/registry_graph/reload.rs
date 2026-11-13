@@ -6,7 +6,7 @@
 use super::{
     super::{AppState, RegistryError, managed_state::read_with_deadline},
     RoutingSnapshot, build_snapshot,
-    stored::{Credentials, served_routing, stored_document},
+    stored::{Credentials, FileReferences, loaded_routing, stored_document},
 };
 use pnpr_config::RoutingConfig;
 use pnpr_storage::metadata::StoredRegistryGraph;
@@ -135,11 +135,11 @@ async fn poll_graph(state: &AppState, loaded: Option<Option<u64>>) -> Result<Pol
     Ok(Poll::Changed(storage.read_registry_graph().await?))
 }
 
-/// The routing of a stored revision: see [`served_routing`].
+/// The routing of a stored revision: see [`FileReferences::Warn`].
 fn load_routing(
     state: &AppState,
     stored: Option<&StoredRegistryGraph>,
 ) -> Result<RoutingConfig, RegistryError> {
     let document = stored_document(stored)?;
-    served_routing(&state.inner.config, &document, Credentials::Resolve)
+    loaded_routing(&state.inner.config, &document, Credentials::Resolve, FileReferences::Warn)
 }

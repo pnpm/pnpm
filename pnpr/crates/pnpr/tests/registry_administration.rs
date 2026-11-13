@@ -530,7 +530,6 @@ async fn a_stored_public_route_on_the_own_host_must_be_at_its_public_origin() {
     let (_, document, _) = replica.send("GET", DOCUMENT, Some(&replica.root), None).await;
     let cases = [
         ("http://example.test:9000/", StatusCode::BAD_REQUEST),
-        ("//example.test:9000/", StatusCode::BAD_REQUEST),
         ("http://127.0.0.1:9000/", StatusCode::BAD_REQUEST),
         ("http://10.0.0.5:9000/", StatusCode::OK),
         ("http://example.test/", StatusCode::OK),
@@ -1201,4 +1200,56 @@ async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here()
     .unwrap();
     let report = pnpr::config_check::format_report(&report);
     assert!(report.contains("corp"), "{report}");
+}
+
+#[tokio::test]
+async fn config_check_fails_on_an_oidc_group_grant_the_stored_registries_lack() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!(
+        "storage: {}\nauth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
+         audience: pnpr\n      login:\n        groups:\n          teams:\n            \
+         - group: eng\n              registry: local\n              teamId: platform\n\
+         registries:\n  local:\n    type: hosted\n    namespace: ''\n    packages:\n      '**': {{}}\n",
+        storage_dir(dir.path()).display(),
+    );
+    let mut config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await;
+    let error = pnpr::config_check::check_config_and_stored_registries(
+        &mut config,
+        &pnpr::ConfigSource::Bundled,
+    )
+    .await
+    .unwrap_err();
+    assert!(error.to_string().contains("platform"), "{error}");
+}
+
+#[tokio::test]
+async fn a_public_route_is_checked_over_both_schemes() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!("storage: {}\n{CONFIG}", storage_dir(dir.path()).display());
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        Some("https://example.test".to_string()),
+    )
+    .await;
+    let replica = Replica::new(config).await;
+    let (_, document, _) = replica.send("GET", DOCUMENT, Some(&replica.root), None).await;
+    for (registry, expected) in [
+        ("http://example.test/", StatusCode::OK),
+        ("https://example.test/", StatusCode::OK),
+        ("http://example.test:9000/", StatusCode::BAD_REQUEST),
+        ("https://127.0.0.1/", StatusCode::BAD_REQUEST),
+    ] {
+        let mut document = document.clone();
+        document["routes"] = json!({ "public": [{ "registry": registry }] });
+        let (status, body) = replica.as_root("PUT", DOCUMENT, Some(document)).await;
+        assert_eq!(status, expected, "{registry}: {body}");
+    }
 }

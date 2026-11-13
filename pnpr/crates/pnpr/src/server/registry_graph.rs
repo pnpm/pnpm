@@ -10,7 +10,7 @@ pub(super) use pin::{serves_without_graph, with_pinned_routing};
 pub(crate) use reload::{GraphState, publish_routing, reload_graph};
 pub(crate) use snapshot::{RoutingSnapshot, UpstreamGuardContext, build_snapshot};
 pub(crate) use stored::{
-    Credentials, HostedChange, check_revision, graph_version, load_stored_routing,
+    Credentials, FileReferences, HostedChange, check_revision, graph_version, load_stored_routing,
     occupied_namespace_error, stored_document, stored_routing, with_stored_routing,
 };
 
