@@ -6,9 +6,12 @@ title: Container images
 Added in: v0.1.0-alpha.11
 
 pnpr serves the OCI distribution API, so `docker`, `podman`, and `skopeo` can
-push to and pull from the same server that hosts your packages.
+push to and pull from the same server that hosts your packages. Declare an
+image registry in the
+[stored registries](configuration.md#registries-in-the-database) and store it
+with [`pnpr registries import`](cli.md#registries):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   images:
     type: hosted
@@ -175,7 +178,7 @@ deletion is interrupted after the blob was unmapped, `gc` removes its bytes.
 
 ## Caching Docker Hub and GHCR
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   dockerhub:
     type: upstream

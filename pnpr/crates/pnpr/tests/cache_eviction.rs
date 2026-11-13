@@ -46,7 +46,7 @@ registries:
         cache = tmp.path().join("cache").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
-    Config::from_yaml(&config_path, listen, None).unwrap()
+    pnpr_fixtures::load_seeded_config(&config_path, listen, None)
 }
 
 fn create_file_with_age(path: &Path, content: &[u8], age: Duration) {
@@ -267,7 +267,7 @@ registries:
         cache = tmp.path().join("cache").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
-    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     assert!(!config.has_configured_secret);
 
     let cache_dir = &config.storage.cache_dir;

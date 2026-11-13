@@ -167,7 +167,10 @@ impl PnprServer {
                     .expect("pnpr runtime");
                 runtime.block_on(async move {
                     let mut config = pnpr::Config::proxy(addr, storage);
-                    config.http.public_url = format!("http://{addr}");
+                    // The registries it resolves from listen on other ports of
+                    // 127.0.0.1, which pnpr refuses as other services of its own
+                    // host when its public URL names that host too.
+                    config.http.public_url = format!("http://localhost:{}", addr.port());
                     config.routing.route_policy.allowed_private_networks = loopback_networks();
                     configure(&mut config);
                     let listener =

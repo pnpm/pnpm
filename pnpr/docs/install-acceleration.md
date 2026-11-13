@@ -120,7 +120,7 @@ would have answered locally:
 ## Which registries the server will touch {#allowlist}
 
 The resolver only fetches from origins the operator has configured: a
-**default-deny allowlist** made of the configured
+**default-deny allowlist** made of the stored
 [registries](configuration.md#registries-and-defaultregistry), the declared
 [public routes](configuration.md#routes), the built-in official npm registry
 and `npm.jsr.io`, and pnpr's own origin. A request whose `registry`/`registries` (or whose
@@ -129,8 +129,7 @@ point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
 resolver to make the server fetch from an arbitrary internal address. An
 allowlisted host that resolves to a loopback, private, or link-local address is
-refused too, unless it is the `--public-url` host (its origin, with
-`registriesManagedBy: api`) or
+refused too, unless it is the `--public-url` origin or
 [`routes.allowedPrivateNetworks`](configuration.md#routes) lists it.
 
 ## Private registries {#private-registries}

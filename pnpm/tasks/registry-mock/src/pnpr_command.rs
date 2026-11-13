@@ -8,6 +8,10 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+// The tests stand in for `pnpr` with a shell script.
+#[cfg(all(test, unix))]
+mod tests;
+
 /// Locate the `pnpr` binary built into the cargo workspace's
 /// `target/<profile>/` dir.
 ///
@@ -89,6 +93,10 @@ pub struct PnprMockConfig<'a> {
     pub home: &'a Path,
     /// Complete configuration in the revision's format, including its database URL.
     pub yaml: &'a str,
+    /// The registries document to store in the home's metadata database, for
+    /// a `pnpr` that reads its registries only from there. `None` for one
+    /// whose `yaml` declares them.
+    pub registries: Option<&'a Path>,
 }
 
 /// Like [`pnpr_command_with_binary`], keeping the hosted store and its
@@ -97,6 +105,10 @@ pub struct PnprMockConfig<'a> {
 /// layout and metadata schema, which a `pnpr` built from another revision
 /// may refuse; given a home of its own, that `pnpr` creates its own there
 /// and serves everything it proxies, sharing only the proxy cache.
+///
+/// # Panics
+///
+/// Storing [`PnprMockConfig::registries`] fails.
 #[must_use]
 pub fn pnpr_command_with_home(
     bin: &Path,
@@ -114,13 +126,7 @@ pub fn pnpr_command_with_home(
     if seeded > 0 {
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
-    let default_public_url;
-    let public_url = if let Some(public_url) = public_url {
-        public_url.trim_end_matches('/')
-    } else {
-        default_public_url = port_to_url(port);
-        default_public_url.trim_end_matches('/')
-    };
+    let public_url = public_url.map_or_else(|| port_to_url(port), str::to_string);
     let mut cmd = command_without_pnpr_env(bin);
     // Front pnpr with the registry-mock config from `pnpr/.fixtures/config.yaml`
     // (the fixture namespace served from local hosted storage, everything else
@@ -131,6 +137,7 @@ pub fn pnpr_command_with_home(
         None => (crate::runtime_hosted_storage(), Some(crate::runtime_metadata_path())),
     };
     let yaml = config.as_ref().map_or(pnpr_fixtures::MOCK_CONFIG_YAML, |config| config.yaml);
+    let registries = config.and_then(|config| config.registries);
     let config = runtime_mock_config(database.as_deref(), yaml)
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
     cmd.arg("--config")
@@ -144,8 +151,47 @@ pub fn pnpr_command_with_home(
         .arg("--listen")
         .arg(format!("127.0.0.1:{port}"))
         .arg("--public-url")
-        .arg(public_url);
+        .arg(public_url.trim_end_matches('/'));
+    if let Some(registries) = registries {
+        import_registries(&cmd, registries);
+    }
     cmd
+}
+
+/// Store the registries `document` declares in the metadata database of the
+/// `pnpr` that `serve` starts, as its next revision, by running
+/// `pnpr registries import` with `serve`'s program, arguments, and
+/// environment. A server started on a database with no stored registries
+/// stores the bundled default ones, so this runs before `serve` does.
+///
+/// # Panics
+///
+/// The import cannot be spawned or exits unsuccessfully.
+pub fn import_registries(serve: &Command, document: &Path) {
+    let mut import = Command::new(serve.get_program());
+    for (name, value) in serve.get_envs() {
+        match value {
+            Some(value) => import.env(name, value),
+            None => import.env_remove(name),
+        };
+    }
+    if let Some(dir) = serve.get_current_dir() {
+        import.current_dir(dir);
+    }
+    let output = import
+        .args(serve.get_args())
+        .arg("registries")
+        .arg("import")
+        .arg(document)
+        .output()
+        .unwrap_or_else(|err| panic!("spawn `pnpr registries import` for {document:?}: {err}"));
+    assert!(
+        output.status.success(),
+        "`pnpr registries import` of {document:?} failed with {}:\n{}{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }
 
 /// A [`Command`] of `bin` without the ambient `PNPR_*` variables. pnpr binds

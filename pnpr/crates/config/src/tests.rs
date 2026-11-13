@@ -15,10 +15,11 @@ mod server_options;
 mod graph_document;
 
 use super::{
-    ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides,
-    HostedStoreConfig, Interval, LogFormat, LogLevel, S3Settings, TeamDirectory, UpstreamAuthFile,
-    UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval,
-    resolve_relative, resolve_upstream_config,
+    ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
+    DEFAULT_REGISTRIES_YAML, FeatureOverrides, HostedStoreConfig, Interval, LogFormat, LogLevel,
+    RegistryGraphDocument, RoutingConfig, RoutingOptions, S3Settings, TeamDirectory,
+    UpstreamAuthFile, UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix,
+    parse_interval, resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;
@@ -46,9 +47,146 @@ impl EnvVar for FakeEnv {
             "NPM_TOKEN" => Some("default-env-token".to_string()),
             "CUSTOM_TOKEN" => Some("custom-env-token".to_string()),
             "EMPTY_TOKEN" => Some(String::new()),
+            "BASIC_TOKEN" => Some("dXNlcjpwYXNz".to_string()),
+            "ORG_NAME" => Some("acme".to_string()),
             _ => None,
         }
     }
+}
+
+/// Load `yaml` as a config file plus the registry graph its graph keys
+/// declare (`registries`, `defaultRegistry`, `routes.public`), as a server
+/// does with the graph stored in the metadata database: the graph is held to
+/// the stored-document rules under the file's `registryEnv`, its credentials
+/// resolve through [`FakeEnv`], and it becomes `config.routing`.
+fn load_with_graph(
+    yaml: &str,
+    base_dir: &Path,
+    listen: SocketAddr,
+    public_url: Option<String>,
+) -> Result<Config, RegistryError> {
+    load_with_graph_and_overrides(
+        yaml,
+        base_dir,
+        Some(listen),
+        public_url,
+        FeatureOverrides::default(),
+    )
+}
+
+/// [`load_with_graph`] with feature overrides.
+fn load_with_graph_and_overrides(
+    yaml: &str,
+    base_dir: &Path,
+    listen: Option<SocketAddr>,
+    public_url: Option<String>,
+    overrides: FeatureOverrides,
+) -> Result<Config, RegistryError> {
+    let (config_yaml, graph_yaml) = split_graph_keys(yaml);
+    let mut config = Config::from_yaml_str_with_overrides(
+        &config_yaml,
+        base_dir,
+        listen,
+        public_url,
+        overrides,
+    )?;
+    let document = RegistryGraphDocument::from_yaml(&graph_yaml)?;
+    let options = RoutingOptions {
+        registry_env: &config.registry_env,
+        allowed_private_networks: config.routing.route_policy
+            .allowed_private_networks
+            .clone(),
+        resolve_upstreams: !overrides.disable_registry,
+    };
+    config.routing = RoutingConfig::from_document_with_env::<FakeEnv>(&document, &options)?;
+    Ok(config)
+}
+
+/// Split block-style `yaml` by line into its config-file part and its
+/// registry graph part. A `routes:` block is split by child key: `public`
+/// goes to the graph, the rest stays in the config file.
+fn split_graph_keys(yaml: &str) -> (String, String) {
+    let mut split = GraphSplit::default();
+    for line in yaml.split_inclusive('\n') {
+        split.push(line);
+    }
+    split.finish()
+}
+
+/// The parts [`split_graph_keys`] has collected, and the keys the next line
+/// falls under.
+#[derive(Default)]
+struct GraphSplit {
+    config: String,
+    graph: String,
+    config_routes: String,
+    graph_routes: String,
+    top_key: String,
+    route_key: String,
+    route_indent: Option<usize>,
+}
+
+impl GraphSplit {
+    fn push(&mut self, line: &str) {
+        let indent = line.len() - line.trim_start().len();
+        if indent == 0 && starts_a_key(line) {
+            self.top_key = yaml_key(line);
+            self.route_key.clear();
+            self.route_indent = None;
+            if line.trim_end() == "routes:" {
+                return;
+            }
+        } else if self.top_key == "routes"
+            && starts_a_key(line)
+            && self.route_indent.is_none_or(|child| child == indent)
+        {
+            self.route_indent = Some(indent);
+            self.route_key = yaml_key(line);
+        }
+        let target = match (self.top_key.as_str(), self.route_key.as_str()) {
+            ("registries" | "defaultRegistry", _) => &mut self.graph,
+            ("routes", "public") => &mut self.graph_routes,
+            ("routes", _) if indent > 0 => &mut self.config_routes,
+            _ => &mut self.config,
+        };
+        target.push_str(line);
+    }
+
+    fn finish(mut self) -> (String, String) {
+        append_routes(&mut self.config, &self.config_routes);
+        append_routes(&mut self.graph, &self.graph_routes);
+        (self.config, self.graph)
+    }
+}
+
+fn starts_a_key(line: &str) -> bool {
+    let content = line.trim_start();
+    !content.is_empty() && !content.starts_with('#') && !content.starts_with('-')
+}
+
+fn yaml_key(line: &str) -> String {
+    line.trim_start()
+        .split_once(':')
+        .map_or("", |(key, _)| key.trim())
+        .to_string()
+}
+
+fn append_routes(part: &mut String, routes: &str) {
+    if !routes.is_empty() {
+        part.push_str("routes:\n");
+        part.push_str(routes);
+    }
+}
+
+/// The routing of the registries a server stores on first start.
+fn bundled_registries() -> RoutingConfig {
+    let document = RegistryGraphDocument::from_yaml(DEFAULT_REGISTRIES_YAML).unwrap();
+    let options = RoutingOptions {
+        registry_env: &[],
+        allowed_private_networks: Vec::new(),
+        resolve_upstreams: true,
+    };
+    RoutingConfig::from_document_with_env::<FakeEnv>(&document, &options).unwrap()
 }
 
 fn upstream_config_file(
@@ -122,7 +260,7 @@ fn hosted_rules_config(packages: &str) -> Config {
     let yaml = format!(
         "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
     );
-    Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap()
+    load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap()
 }
 
 /// The same one-hosted-registry config as [`hosted_rules_config`], for
@@ -131,7 +269,7 @@ fn hosted_rules_err(packages: &str) -> RegistryError {
     let yaml = format!(
         "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
     );
-    Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err()
+    load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err()
 }
 
 fn s3_settings_for(endpoint: Option<&str>, allow_http: Option<bool>) -> S3Settings {

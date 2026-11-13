@@ -3,7 +3,7 @@ use super::{
     registry_graph::{GraphState, reload_graph},
     scim::{ScimState, reload_directory},
 };
-use pnpr_config::Management;
+use pnpr_config::GraphSource;
 use std::{
     future::Future,
     sync::{
@@ -27,7 +27,7 @@ const STATE_RETRY: Duration = Duration::from_secs(1);
 pub(super) const WRITE_ATTEMPTS: usize = 5;
 
 /// The state admins and identity providers manage at runtime: the registry
-/// graph (`registriesManagedBy: api`) and the SCIM directory (`auth.scim`).
+/// graph and the SCIM directory (`auth.scim`).
 ///
 /// The metadata database holds both, so every replica sees the same state.
 pub(super) struct ManagedState {
@@ -49,7 +49,7 @@ pub(super) struct ManagedState {
 
 impl ManagedState {
     pub(super) fn new(config: &Config) -> Self {
-        let graph = (config.registries_managed_by == Management::Api).then(GraphState::new);
+        let graph = (config.graph_source == GraphSource::Database).then(GraphState::new);
         let scim = config.identity.auth.scim.as_ref().map(|_| ScimState::default());
         Self {
             graph,

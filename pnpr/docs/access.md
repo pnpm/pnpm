@@ -26,14 +26,13 @@ credentials are rejected even for public resources.
 
 The serving registry determines the package policy. Its most specific matching
 `packages` rule selects `access`, `publish`, or `unpublish`; omitted fields use
-the registry defaults. With
-[`registriesManagedBy: api`](configuration.md#registries-in-the-database), the
-rules are the ones stored in the metadata database.
+the registry defaults. The rules are the ones
+[stored in the metadata database](configuration.md#registries-in-the-database).
 
 An access list admits a caller when any listed entry matches. Entries can be
 account IDs, built-in groups, or `team:<teamId>` references to that registry's
-team directory. The teams live where the registry does: in the config, or in
-the metadata database with `registriesManagedBy: api`.
+team directory. The teams are stored with the registry in the metadata
+database.
 
 `$owners` is available for ownership-aware writes. For an existing package it
 matches the immutable maintainer IDs in the stored package document. On first

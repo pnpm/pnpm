@@ -128,7 +128,12 @@ enum Poll {
 
 async fn poll_graph(state: &AppState, loaded: Option<Option<u64>>) -> Result<Poll, RegistryError> {
     let storage = &state.inner.storage;
-    let current = storage.read_registry_graph_generation().await?;
+    let mut current = storage.read_registry_graph_generation().await?;
+    if current.is_none() {
+        // Startup could not seed, for example on a database error.
+        super::seed_default_graph(storage).await?;
+        current = storage.read_registry_graph_generation().await?;
+    }
     if loaded == Some(current) {
         return Ok(Poll::Unchanged(current));
     }

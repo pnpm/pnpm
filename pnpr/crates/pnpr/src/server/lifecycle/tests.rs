@@ -1,6 +1,6 @@
 use super::{
     Config, StartupGraph, Storage, adopt_startup_graph, current_routing_of, load_startup_auth,
-    load_stored_graph, may_stage_archives, spawn_periodic_archive_temp_sweep, state_and_router,
+    load_stored_graph, spawn_periodic_archive_temp_sweep, state_and_router,
     sweep_abandoned_archive_temps, sweep_current_archive_temps,
 };
 use object_store::memory::InMemory;
@@ -32,7 +32,7 @@ registries:
         cache = tmp.path().join("cache").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
-    let mut config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let mut config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     config.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::new(InMemory::new()), prefix: String::new() };
     config
@@ -114,7 +114,7 @@ registries:
         cache = tmp.path().join("cache").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
-    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     let storage = Storage::from_config(&config.storage).unwrap().for_hosted("acme", Ecosystem::Npm);
     let name = CanonicalPackageName::parse("@acme/pkg", Ecosystem::Npm).unwrap();
 
@@ -178,7 +178,7 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
     let tmp = TempDir::new().unwrap();
     let mut config = s3_config(&tmp);
     config.http.shutdown_timeout = Duration::from_millis(80);
-    let auth = load_startup_auth(&config, StartupGraph::File).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::Supplied).await.unwrap();
     let (state, app) = super::state_and_router(config, auth, None).unwrap();
     let probe_app = app.clone();
 
@@ -299,9 +299,7 @@ async fn upstream_only_proxy_startup_preserves_staged_archives_in_shared_store()
 
     let mut proxy_config = hosted_config.clone();
     proxy_config.routing.hosted.clear();
-    proxy_config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("proxy-replica.sqlite"));
-    load_startup_auth(&proxy_config, StartupGraph::File).await.unwrap();
+    load_startup_auth(&proxy_config, StartupGraph::Supplied).await.unwrap();
     tokio::time::advance(Duration::from_hours(2)).await;
     tokio::task::yield_now().await;
 
@@ -332,7 +330,7 @@ async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
     )
     .unwrap();
 
-    let first_config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let first_config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     assert!(!first_config.has_configured_secret);
     let listener = tokio::net::TcpListener::bind(listen).await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -362,7 +360,7 @@ async fn ephemeral_run_marks_cache_and_requires_secret_on_restart() {
         ),
     )
     .unwrap();
-    let configured_restart = Config::from_yaml(&config_path, listen, None).unwrap();
+    let configured_restart = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     let listener3 = tokio::net::TcpListener::bind(listen).await.unwrap();
     let addr3 = listener3.local_addr().unwrap();
     let mut serve_task3 = tokio::spawn(super::serve_listener(configured_restart, listener3));
@@ -505,7 +503,10 @@ async fn artifacts_only_startup_prunes_private_scopes_on_secret_rotation() {
     )
     .unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let overrides = pnpr_config::FeatureOverrides { disable_registry: true, ..Default::default() };
+    let (config, _) =
+        Config::resolve_with_overrides(Some(&config_path), None, Some(listen), None, overrides)
+            .unwrap();
     assert!(!config.features.registry.enabled && !config.features.resolver.enabled);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -712,7 +713,7 @@ async fn startup_and_periodic_sweeps_delete_expired_tokens() {
         .unwrap();
     drop(seeded);
 
-    let auth = load_startup_auth(&config, StartupGraph::File).await.unwrap();
+    let auth = load_startup_auth(&config, StartupGraph::Supplied).await.unwrap();
     assert!(
         auth.tokens
             .find_by_key(&crate::server::ecosystem::sha256_hex(already_expired.as_bytes()))
@@ -831,7 +832,7 @@ async fn a_periodic_cache_pass_keeps_the_cache_of_a_served_upstream() {
     );
     std::fs::write(&config_path, yaml).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
-    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&config_path, listen, None);
     let namespace = crate::cache_maintenance::active_cache_namespaces(&config)
         .into_iter()
         .find(|namespace| namespace.starts_with("~public/"))
@@ -840,6 +841,7 @@ async fn a_periodic_cache_pass_keeps_the_cache_of_a_served_upstream() {
     std::fs::create_dir_all(&cached).unwrap();
     std::fs::write(cached.join("packument.json"), b"{}").unwrap();
     let (state, _) = state_and_router(config, pnpr_auth::AuthState::in_memory(), None).unwrap();
+    adopt_startup_graph(&state, StartupGraph::Stored { generation: Some(1) });
 
     let mut pass = state.inner.config.clone();
     pass.routing = current_routing_of(&state.inner)().unwrap();
@@ -859,7 +861,7 @@ async fn a_periodic_sweep_covers_a_hosted_registry_added_while_serving() {
             cache = tmp.path().join("cache").display(),
         );
         std::fs::write(&path, yaml).unwrap();
-        Config::from_yaml(&path, listen, None).unwrap()
+        pnpr_fixtures::load_seeded_config(&path, listen, None)
     };
     let upstream =
         "  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n";
@@ -888,23 +890,12 @@ async fn a_periodic_sweep_covers_a_hosted_registry_added_while_serving() {
     assert!(!stale_path.exists());
 }
 
-#[test]
-fn a_server_whose_stored_graph_has_no_hosted_registry_sweeps_staged_archives() {
-    let tmp = TempDir::new().unwrap();
-    let mut config = s3_config(&tmp);
-    assert!(may_stage_archives(&config));
-    config.routing.hosted.clear();
-    assert!(!may_stage_archives(&config), "an upstream-only proxy leaves them alone");
-    config.registries_managed_by = pnpr_config::Management::Api;
-    assert!(may_stage_archives(&config));
-}
-
 #[tokio::test(start_paused = true)]
 async fn a_graph_loaded_at_startup_counts_its_stale_limit_from_startup() {
     let tmp = TempDir::new().unwrap();
     let config_path = tmp.path().join("config.yaml");
     let yaml = format!(
-        "storage: {}\nsecret: test-secret-key-32-chars-long-12\nregistriesManagedBy: api\n",
+        "storage: {}\nsecret: test-secret-key-32-chars-long-12\n",
         tmp.path().join("storage").display(),
     );
     std::fs::write(&config_path, yaml).unwrap();
@@ -928,7 +919,7 @@ async fn a_graph_loaded_at_startup_that_lacks_what_the_config_names_is_served_wi
     let tmp = TempDir::new().unwrap();
     let config_path = tmp.path().join("config.yaml");
     let yaml = format!(
-        "storage: {}\nsecret: test-secret-key-32-chars-long-12\nregistriesManagedBy: api\n\
+        "storage: {}\nsecret: test-secret-key-32-chars-long-12\n\
          auth:\n  oidc:\n    - name: company\n      issuer: https://issuer.example\n      \
          audience: pnpr\n      login:\n        groups:\n          teams:\n            \
          - group: eng\n              registry: local\n              teamId: platform\n",
@@ -947,7 +938,7 @@ async fn a_graph_loaded_at_startup_that_lacks_what_the_config_names_is_served_wi
         let _default = tracing::subscriber::set_default(subscriber);
         load_stored_graph(&mut config).await
     };
-    assert_eq!(graph, StartupGraph::Stored { generation: None });
+    assert_eq!(graph, StartupGraph::Stored { generation: Some(1) }, "the seeded defaults");
     let output = std::fs::read_to_string(&log).unwrap();
     assert!(
         output.contains("the stored registry graph lacks what the config file names"),

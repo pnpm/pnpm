@@ -222,21 +222,15 @@ async fn a_write_that_vacates_an_occupied_namespace_stores_nothing(db: Db) {
 
 async fn a_vacated_namespace_refuses_publishes_until_a_revision_binds_it_again(db: Db) {
     let retired = [HostedNamespace { namespace: "retired".to_string(), ecosystem: Ecosystem::Npm }];
-    let config_managed = storage(&db);
-    let first = write_graph(&config_managed, None, "{}").await;
+    let api_managed = storage(&db);
+    let first = write_graph(&api_managed, None, "{}").await;
     let vacating = NewRegistryGraph { vacated: &retired, ..revision("{}") };
-    let retiring = config_managed
+    let retiring = api_managed
         .write_registry_graph(Some(first), vacating)
         .await
         .unwrap();
     assert_eq!(retiring, RegistryGraphWrite::Written(first + 1));
-    // Without the refusal turned on, as with registries in the config file,
-    // the fence is ignored.
-    let unfenced = config_managed.for_hosted("retired", Ecosystem::Npm);
-    write(&unfenced, "allowed", &packument("allowed", &["1.0.0"])).await;
 
-    let api_managed = storage(&db);
-    api_managed.refuse_publishes_into_retired_namespaces();
     let fenced = api_managed.for_hosted("retired", Ecosystem::Npm);
     let refused = try_write(&fenced, "widget", &packument("widget", &["1.0.0"])).await;
     assert!(matches!(refused, Err(RegistryError::RegistriesUnavailable)), "{refused:?}");

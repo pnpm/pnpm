@@ -42,6 +42,7 @@ fn test_integrity() -> String {
 fn test_resolver(origin: &str, dir: &TempDir) -> Resolver {
     let mut config = registry_config();
     config.storage.cache_dir = dir.path().to_path_buf();
+    config.http.public_url = "http://example.test".into();
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(format!("{origin}/")),
         package: None,

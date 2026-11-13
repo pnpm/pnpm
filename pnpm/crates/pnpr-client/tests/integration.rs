@@ -107,7 +107,11 @@ async fn start_pnpr_inner(
             publish: pnpr::AccessList::from_tokens([&publisher_id]),
         },
     );
-    config.http.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
+    // The test registries listen on other ports of 127.0.0.1, which pnpr
+    // refuses as other services of its own host when its public URL names
+    // that host too.
+    config.http.public_url =
+        public_url.unwrap_or_else(|| format!("http://localhost:{}", addr.port()));
     config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()

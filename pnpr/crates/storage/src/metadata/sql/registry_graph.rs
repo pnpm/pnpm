@@ -3,9 +3,8 @@
 //! restore until pruning drops them.
 
 use super::{
-    SqlMetadata,
     adapter::{Connection, Row},
-    batch::{Retired, WriteTransaction},
+    batch::WriteTransaction,
     cdn, to_column, to_generation,
     transactions::Freshness,
 };
@@ -13,7 +12,6 @@ use crate::{Storage, publish::now_millis};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use std::sync::atomic::Ordering;
 
 /// How many revisions a write keeps, the one it writes included.
 pub const REGISTRY_GRAPH_REVISIONS_KEPT: u64 = 500;
@@ -95,14 +93,6 @@ const RETIRE_NAMESPACE: DialectSql = DialectSql::with_mysql(
 const REVISION_COLUMNS: &str = "generation, document, actor_id, created_at, restored_from";
 
 impl Storage {
-    /// Refuse, with [`RegistryError::RegistriesUnavailable`], every publish
-    /// into a hosted namespace that a stored registry graph revision vacated
-    /// and no later revision serves again. A server whose registries live in
-    /// the database calls this before serving.
-    pub fn refuse_publishes_into_retired_namespaces(&self) {
-        self.database.refuses_retired.store(true, Ordering::Relaxed);
-    }
-
     /// The generation of the current registry graph, `None` when none is
     /// stored.
     pub async fn read_registry_graph_generation(&self) -> Result<Option<u64>> {
@@ -235,16 +225,6 @@ impl Storage {
                 .is_some())
         })
         .await
-    }
-}
-
-impl SqlMetadata {
-    pub(super) fn retired(&self) -> Retired {
-        if self.refuses_retired.load(Ordering::Relaxed) {
-            Retired::Refused
-        } else {
-            Retired::Allowed
-        }
     }
 }
 

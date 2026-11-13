@@ -51,7 +51,7 @@ async fn sqlite_only_binary_rejects_unbuilt_database_schemes() {
     let sqlite_dir = TempDir::new().unwrap();
     let sqlite_cfg = write_config(sqlite_dir.path(), "sqlite:./metadata.sqlite", None);
     let (ok_code, stdout, stderr) =
-        run_cli(&bin, &["--config", sqlite_cfg.to_str().unwrap(), "config", "check"]).await;
+        run_cli(&bin, &["--config", sqlite_cfg.to_str().unwrap(), "config", "check"], None).await;
     assert_eq!(ok_code, Some(0), "sqlite config check failed:\nstdout: {stdout}\nstderr: {stderr}");
     assert!(stdout.contains("Configuration check: OK"), "{stdout}");
 
@@ -72,7 +72,7 @@ async fn sqlite_only_binary_rejects_unbuilt_database_schemes() {
             vec!["--config", cfg_str, "config", "check"],
             vec!["--config", cfg_str, "serve", "--listen", "127.0.0.1:0"],
         ] {
-            let (code, stdout, stderr) = run_cli(&bin, &subcommand).await;
+            let (code, stdout, stderr) = run_cli(&bin, &subcommand, None).await;
             assert_ne!(code, Some(0), "{url} unexpectedly succeeded for {subcommand:?}");
             let combined = format!("{stdout}\n{stderr}");
             assert!(
@@ -165,7 +165,8 @@ async fn exercise_scheme(bin: &Path, client: &Client, case: &SchemeCase) {
     let cfg = write_config(dir.path(), &case.url, case.auth_token);
     let cfg_str = cfg.to_str().unwrap();
 
-    let (code, stdout, stderr) = run_cli(bin, &["--config", cfg_str, "config", "check"]).await;
+    let (code, stdout, stderr) =
+        run_cli(bin, &["--config", cfg_str, "config", "check"], case.tls_ca.as_deref()).await;
     assert_eq!(
         code,
         Some(0),
@@ -232,10 +233,6 @@ fn write_config(dir: &Path, database_url: &str, auth_token: Option<&str>) -> Pat
          auth:\n\
          \x20 users:\n\
          \x20   maxUsers: 10\n\
-         registries:\n\
-         \x20 local:\n\
-         \x20   type: hosted\n\
-         defaultRegistry: local\n\
          log:\n\
          \x20 format: json\n\
          \x20 level: info\n",
@@ -245,10 +242,20 @@ fn write_config(dir: &Path, database_url: &str, auth_token: Option<&str>) -> Pat
     path
 }
 
-async fn run_cli(bin: &Path, args: &[&str]) -> (Option<i32>, String, String) {
+/// Run `bin` with `args`, trusting `tls_ca` the way [`spawn_server`] does,
+/// since `config check` reads the stored registries from the database.
+async fn run_cli(
+    bin: &Path,
+    args: &[&str],
+    tls_ca: Option<&Path>,
+) -> (Option<i32>, String, String) {
+    let mut command = Command::new(bin);
+    if let Some(ca) = tls_ca {
+        command.env("SSL_CERT_FILE", ca);
+    }
     let output = timeout(
         STARTUP_DEADLINE,
-        Command::new(bin)
+        command
             .args(args)
             .kill_on_drop(true)
             .output(),

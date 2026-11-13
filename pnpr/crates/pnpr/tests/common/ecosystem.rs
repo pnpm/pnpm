@@ -33,6 +33,7 @@ pub struct HostedSource<'spec> {
 /// `upstream.0` at `upstream.1`, both of `ecosystem`, added to the stock
 /// `main` router beside the npm registries. `/<ecosystem>/...` is then the
 /// default-target form and `/<ecosystem>/~<name>/...` the named form.
+/// Loopback is an allowed network, for the mock upstreams.
 pub fn mixed_router_config(
     storage: PathBuf,
     ecosystem: Ecosystem,
@@ -43,6 +44,7 @@ pub fn mixed_router_config(
     let mut config = Config::proxy(listen, storage);
     config.http.public_url = PUBLIC_URL.to_string();
     config.http.packument_ttl = Duration::from_mins(1);
+    config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config.routing.hosted.insert(
         hosted.name.to_string(),
         HostedConfig::new(

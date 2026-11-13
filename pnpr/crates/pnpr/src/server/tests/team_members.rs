@@ -1,6 +1,5 @@
 use super::{
-    AuthState, Config, Method, OneToken, ServiceExt, StatusCode, record, router_with_auth, signed,
-    to_bytes,
+    AuthState, Method, OneToken, ServiceExt, StatusCode, record, router_with_auth, signed, to_bytes,
 };
 use std::{
     collections::BTreeSet,
@@ -24,7 +23,7 @@ async fn a_large_roster_uses_one_targeted_bulk_account_lookup() {
     );
     let path = directory.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
-    let config = Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
     let mut accounts: BTreeSet<_> = members
         .iter()
         .filter(|id| id.as_str() != "retired")
@@ -71,7 +70,7 @@ async fn org_package_listing_does_not_render_package_views() {
     );
     let path = directory.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
-    let config = Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
     let backend = Arc::new(OneToken {
         accounts: BTreeSet::from(["alice".to_string(), "bob".to_string()]),
         raw: "session".to_string(),

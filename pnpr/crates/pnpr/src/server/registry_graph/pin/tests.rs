@@ -13,7 +13,7 @@ async fn a_pinned_request_keeps_its_snapshot_across_a_swap() {
         "storage: ./store\nregistries:\n  local:\n    type: hosted\ndefaultRegistry: local\n",
     )
     .unwrap();
-    let config = crate::Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
     let state = state_and_router(config, AuthState::in_memory(), None).unwrap().0;
     let pinned = state.routing();
 
@@ -77,7 +77,7 @@ async fn work_a_request_spawns_keeps_the_request_snapshot_across_a_swap() {
         "storage: ./store\nregistries:\n  local:\n    type: hosted\ndefaultRegistry: local\n",
     )
     .unwrap();
-    let config = crate::Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
     let state = state_and_router(config, AuthState::in_memory(), None).unwrap().0;
     let pinned = state.routing();
     let (swapped, wait_for_swap) = tokio::sync::oneshot::channel::<()>();

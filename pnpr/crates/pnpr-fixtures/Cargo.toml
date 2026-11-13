@@ -23,6 +23,7 @@ pnpr-policy = { workspace = true }
 pnpr-registry = { workspace = true }
 pnpr-storage = { workspace = true }
 reqwest = { workspace = true }
+serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tar = { workspace = true }

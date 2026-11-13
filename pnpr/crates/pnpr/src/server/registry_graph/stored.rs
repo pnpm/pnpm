@@ -1,12 +1,10 @@
-//! The registry graph the metadata database stores (`registriesManagedBy:
-//! api`): reading a stored revision, building its routing, and the checks a
-//! new revision must pass before it is written.
+//! The registry graph the metadata database stores: reading a stored
+//! revision, building its routing, and the checks a new revision must pass
+//! before it is written.
 
 use super::super::{oidc::validate_workloads, oidc_groups::validate_group_grants};
 use pnpm_env_replace::EnvVar;
-use pnpr_config::{
-    Config, DocumentOrigin, Management, RegistryGraphDocument, RoutingConfig, RoutingOptions,
-};
+use pnpr_config::{Config, GraphSource, RegistryGraphDocument, RoutingConfig, RoutingOptions};
 use pnpr_error::RegistryError;
 use pnpr_route::RouteContext;
 use pnpr_storage::{
@@ -68,7 +66,7 @@ pub(crate) fn stored_routing(
     credentials: Credentials,
 ) -> Result<RoutingConfig, RegistryError> {
     let options = RoutingOptions {
-        origin: DocumentOrigin::Stored { registry_env: &config.registry_env },
+        registry_env: &config.registry_env,
         allowed_private_networks: config.routing.route_policy
             .allowed_private_networks
             .clone(),
@@ -123,11 +121,16 @@ pub(crate) async fn check_revision(
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
-    let bound = next
+    Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound_namespaces(next) } })
+}
+
+/// Every hosted namespace `document` serves.
+pub(crate) fn bound_namespaces(document: &RegistryGraphDocument) -> Vec<HostedNamespace> {
+    document
         .registry_names()
-        .filter_map(|name| next.hosted_storage(name))
-        .map(|hosted| HostedNamespace { namespace: hosted.namespace, ecosystem: hosted.ecosystem });
-    Ok(CheckedRevision { routing, hosted: HostedChange { vacated, bound: bound.collect() } })
+        .filter_map(|name| document.hosted_storage(name))
+        .map(|hosted| HostedNamespace { namespace: hosted.namespace, ecosystem: hosted.ecosystem })
+        .collect()
 }
 
 /// The refusal of a write that would vacate `occupied`.
@@ -191,8 +194,7 @@ fn check_public_route_hosts(
     previous: &RegistryGraphDocument,
     next: &RegistryGraphDocument,
 ) -> Result<(), RegistryError> {
-    let context =
-        RouteContext::from_routing(routing, &config.http.public_url).with_registries_in_database();
+    let context = RouteContext::from_routing(routing, &config.http.public_url);
     let unchanged = previous.public_route_registries().collect::<Vec<_>>();
     for registry in next.public_route_registries() {
         if unchanged.contains(&registry) {
@@ -276,7 +278,7 @@ pub(crate) async fn with_stored_routing(
     references: FileReferences,
 ) -> Result<Config, RegistryError> {
     let mut config = config.clone();
-    if config.registries_managed_by == Management::Api {
+    if config.graph_source == GraphSource::Database {
         config.routing = load_stored_routing(&config, credentials, references)
             .await?
             .0;

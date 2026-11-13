@@ -1,4 +1,7 @@
-use super::{PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME};
+use super::{
+    PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME,
+    registries_home::{fixture_registries, revision_source},
+};
 use serde_json::{Value, json};
 use std::{fs, path::Path};
 
@@ -7,12 +10,7 @@ mod tests;
 
 /// Historical binaries read their own fixture schema and isolated credentials.
 pub(super) fn mock_config(binary: &Path, home: &Path) -> String {
-    let source = binary
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)
-        .expect("revision binary is under target/release");
-    let yaml = fs::read_to_string(source.join("pnpr/.fixtures/config.yaml"))
+    let yaml = fs::read_to_string(revision_source(binary).join("pnpr/.fixtures/config.yaml"))
         .expect("read the revision mock configuration");
     let mut config: Value =
         serde_saphyr::from_str(&yaml).expect("parse revision mock configuration");
@@ -70,10 +68,15 @@ pub(super) fn mock_command(
     home: &Path,
 ) -> std::process::Command {
     let yaml = mock_config(binary, home);
+    let registries = fixture_registries(revision_source(binary));
     pnpm_registry_mock::pnpr_command_with_home(
         binary,
         port,
         public_url,
-        Some(pnpm_registry_mock::PnprMockConfig { home, yaml: &yaml }),
+        Some(pnpm_registry_mock::PnprMockConfig {
+            home,
+            yaml: &yaml,
+            registries: registries.as_deref(),
+        }),
     )
 }

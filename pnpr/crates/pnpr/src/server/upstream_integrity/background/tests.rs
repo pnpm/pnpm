@@ -7,8 +7,12 @@ use std::time::Duration;
 
 fn state(dir: &std::path::Path, upstream: &str) -> AppState {
     let path = dir.join("pnpr.yaml");
-    std::fs::write(&path, format!("storage: ./store\nregistries:\n  mirror:\n    type: upstream\n    url: {upstream}\n    public: true\ndefaultRegistry: mirror\n")).unwrap();
-    let config = crate::Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    std::fs::write(&path, format!("storage: ./store\nroutes:\n  allowedPrivateNetworks: [127.0.0.0/8]\nregistries:\n  mirror:\n    type: upstream\n    url: {upstream}\n    public: true\ndefaultRegistry: mirror\n")).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(
+        &path,
+        "127.0.0.1:0".parse().unwrap(),
+        Some("http://example.test".to_string()),
+    );
     state_and_router(config, AuthState::in_memory(), None).unwrap().0
 }
 

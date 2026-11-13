@@ -6413,6 +6413,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "sysinfo",
+ "tempfile",
  "tokio",
  "walkdir",
 ]
@@ -7264,6 +7265,7 @@ dependencies = [
  "pnpr-registry",
  "pnpr-storage",
  "reqwest",
+ "serde-saphyr",
  "serde_json",
  "sha2 0.10.9",
  "tar",

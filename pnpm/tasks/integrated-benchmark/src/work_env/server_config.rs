@@ -1,4 +1,7 @@
-use super::{PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME};
+use super::{
+    PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME,
+    registries_home::{LOOPBACK_NETWORKS, RegistriesHome},
+};
 use crate::latency_proxy::LatencyProxy;
 use serde::Serialize;
 use serde_json::Value;
@@ -11,6 +14,9 @@ use std::{
     thread,
     time::Duration,
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Where a revision's tarball-serving mock lives: the latency proxy clients
 /// reach it through and the URL form of its port.
@@ -32,6 +38,9 @@ pub(super) struct PnprServerPaths<'a> {
     pub(super) bench_dir: &'a Path,
     pub(super) binary: &'a Path,
     pub(super) config: &'a Path,
+    /// The registries document to import before the server starts, for a
+    /// revision whose config file holds no registries.
+    pub(super) registries: Option<&'a Path>,
     pub(super) storage: &'a Path,
     pub(super) port: u16,
 }
@@ -76,55 +85,110 @@ pub(super) fn wait_for_pnpr_ready(port: u16) {
     }
     panic!("pnpr server on 127.0.0.1:{port} did not become ready");
 }
+/// The files one benchmark's pnpr server reads.
+pub(super) struct PnprBenchmarkFiles {
+    pub(super) config: PathBuf,
+    /// The `routes.public` document to import, for a revision that reads
+    /// its registries from the metadata database.
+    pub(super) registries: Option<PathBuf>,
+}
 pub(super) fn write_pnpr_benchmark_config(
     bench_dir: &Path,
     pnpr_storage: &Path,
     public_route_registries: &[&str],
-) -> PathBuf {
-    let path = bench_dir.join("pnpr-config.yaml");
-    let source = fs::read_to_string(bench_dir.join("pacquet/pnpr/.fixtures/config.yaml"))
+) -> PnprBenchmarkFiles {
+    let config = bench_dir.join("pnpr-config.yaml");
+    let source_dir = bench_dir.join("pacquet");
+    let source = fs::read_to_string(source_dir.join("pnpr/.fixtures/config.yaml"))
         .expect("read the revision account configuration");
-    let auth = super::revision_auth::seed_auth(&source, pnpr_storage);
-    let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries, auth);
-    fs::write(&path, yaml).expect("write pnpr benchmark config");
-    path
+    // Beside the storage: pnpr refuses a hosted store holding a directory
+    // it did not write.
+    let auth = super::revision_auth::seed_auth(&source, bench_dir);
+    let home = RegistriesHome::of_source(&source_dir);
+    let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries, auth, home);
+    fs::write(&config, yaml).expect("write pnpr benchmark config");
+    let registries = home
+        .in_database()
+        .then(|| {
+            let path = bench_dir.join("pnpr-registries.yaml");
+            fs::write(&path, pnpr_benchmark_registries_yaml(public_route_registries))
+                .expect("write pnpr benchmark registries");
+            path
+        });
+    PnprBenchmarkFiles { config, registries }
+}
+/// The `--public-url` of a benchmark pnpr server whose registries live in
+/// the metadata database. Its resolver reaches its own host only at this
+/// origin, and the registries it resolves from listen on `localhost` and
+/// `127.0.0.1`, so the URL names a host neither spells. Clients reach the
+/// server at `127.0.0.1`; nothing they fetch is built from this URL, since
+/// the server hosts and proxies no registry.
+pub(super) fn pnpr_benchmark_public_url(port: u16) -> String {
+    format!("http://pnpr-benchmark.localhost:{port}")
+}
+/// A revision mock to start.
+pub(super) struct RevisionMockLaunch<'a> {
+    pub(super) revision: &'a str,
+    pub(super) binary: &'a Path,
+    pub(super) bench_dir: &'a Path,
+    pub(super) port: u16,
+    pub(super) public_url: &'a str,
+    pub(super) registries: RegistriesHome,
 }
 /// A config for the cold mock: isolated storage and cache, with a public
 /// upstream at the warm origin. Only the cache is cleared between iterations.
 ///
-/// The routing is expressed with `registries:` + `defaultRegistry:`.
-pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
-    let upstream =
-        || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
+/// The routing is expressed with `registries:` + `defaultRegistry:` in the
+/// config, or in the document [`cold_mock_registries_yaml`] writes.
+pub(super) fn cold_mock_config_yaml(
+    storage: &Path,
+    origin: &str,
+    registries: RegistriesHome,
+) -> String {
+    let graph = match registries {
+        RegistriesHome::ConfigFile => Some(cold_mock_graph(origin)),
+        RegistriesHome::Database => None,
+    };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
         cache: storage
             .join("cache")
             .display()
             .to_string(),
-        registries: ColdMockUpstreamTable { npmjs: upstream() },
-        default_registry: "npmjs",
+        registries: graph.as_ref().map(|graph| &graph.registries),
+        default_registry: graph.as_ref().map(|graph| graph.default_registry),
+        routes: registries
+            .in_database()
+            .then_some(LoopbackRoutes { allowed_private_networks: LOOPBACK_NETWORKS }),
         log: ColdMockLog { format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
-/// Use an isolated cache, cleared between iterations, with the warm mock as origin.
+/// The cold mock's registries, for a revision that reads them from the
+/// metadata database.
+pub(super) fn cold_mock_registries_yaml(origin: &str) -> String {
+    serde_saphyr::to_string(&cold_mock_graph(origin)).expect("serialize cold mock registries")
+}
+fn cold_mock_graph(origin: &str) -> ColdMockGraph {
+    let npmjs = ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
+    ColdMockGraph { registries: ColdMockUpstreamTable { npmjs }, default_registry: "npmjs" }
+}
+/// Use an isolated cache, cleared between iterations, with the warm mock as
+/// origin. For [`RegistriesHome::Database`], `mock.public_url` must be on
+/// another host than `origin_url`.
 pub(super) fn cold_revision_mock_command(
-    revision: &str,
-    binary: &Path,
-    bench_dir: &Path,
-    mock_port: u16,
-    public_url: &str,
+    mock: &RevisionMockLaunch<'_>,
     origin_url: &str,
 ) -> Command {
-    let cold_storage = bench_dir.join("cold-mock-storage");
-    let config_path = bench_dir.join("cold-mock-config.yaml");
-    fs::write(&config_path, cold_mock_config_yaml(&cold_storage, origin_url))
+    let cold_storage = mock.bench_dir.join("cold-mock-storage");
+    let config_path = mock.bench_dir.join("cold-mock-config.yaml");
+    fs::write(&config_path, cold_mock_config_yaml(&cold_storage, origin_url, mock.registries))
         .expect("write cold mock config");
     eprintln!(
-        "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {origin_url})...",
+        "Serving {}'s tarballs from a COLD mock built from pnpr@{} on 127.0.0.1:{} (origin {origin_url})...",
+        mock.revision, mock.revision, mock.port,
     );
-    let mut command = Command::new(binary);
+    let mut command = Command::new(mock.binary);
     command
         .arg("--config")
         .arg(&config_path)
@@ -133,23 +197,39 @@ pub(super) fn cold_revision_mock_command(
         .arg("--cache")
         .arg(cold_storage.join("cache"))
         .arg("--listen")
-        .arg(format!("127.0.0.1:{mock_port}"))
+        .arg(format!("127.0.0.1:{}", mock.port))
         .arg("--public-url")
-        .arg(public_url)
+        .arg(mock.public_url)
         .arg("--packument-ttl")
         .arg("31536000");
+    if mock.registries.in_database() {
+        let document = mock.bench_dir.join("cold-mock-registries.yaml");
+        fs::write(&document, cold_mock_registries_yaml(origin_url))
+            .expect("write cold mock registries");
+        pnpm_registry_mock::import_registries(&command, &document);
+    }
     command
 }
 /// The cold mock config, serialized rather than string-formatted so the
 /// `storage` path and `origin` URL are escaped and the structure can't drift.
 #[derive(Serialize)]
-pub(super) struct ColdMockConfig {
+pub(super) struct ColdMockConfig<'a> {
     storage: String,
     cache: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    registries: Option<&'a ColdMockUpstreamTable>,
+    #[serde(rename = "defaultRegistry", skip_serializing_if = "Option::is_none")]
+    default_registry: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    routes: Option<LoopbackRoutes>,
+    log: ColdMockLog,
+}
+/// The cold mock's registries, in the shape of a registries document.
+#[derive(Serialize)]
+pub(super) struct ColdMockGraph {
     registries: ColdMockUpstreamTable,
     #[serde(rename = "defaultRegistry")]
     default_registry: &'static str,
-    log: ColdMockLog,
 }
 /// The `registries:` table — a single-upstream entry.
 #[derive(Serialize)]
@@ -165,6 +245,12 @@ pub(super) struct ColdMockUpstreamEntry {
     url: String,
     public: bool,
 }
+/// `routes:` with only `allowedPrivateNetworks`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct LoopbackRoutes {
+    allowed_private_networks: &'static [&'static str],
+}
 #[derive(Serialize)]
 pub(super) struct ColdMockLog {
     format: &'static str,
@@ -174,21 +260,35 @@ pub(super) fn pnpr_benchmark_config_yaml(
     pnpr_storage: &Path,
     public_route_registries: &[&str],
     auth: Value,
+    registries: RegistriesHome,
 ) -> String {
     let config = PnprBenchmarkConfig {
         storage: pnpr_storage.display().to_string(),
         secret: "pnpr-integrated-benchmark-secret",
         auth,
         routes: PnprBenchmarkRoutes {
-            public: public_route_registries
-                .iter()
-                .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
-                .collect(),
-            allowed_private_networks: &["127.0.0.0/8", "::1"],
+            public: match registries {
+                RegistriesHome::ConfigFile => Some(public_routes(public_route_registries)),
+                RegistriesHome::Database => None,
+            },
+            allowed_private_networks: LOOPBACK_NETWORKS,
         },
         log: PnprBenchmarkLog { format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize pnpr benchmark config")
+}
+/// The registries document holding only the `routes.public` entries.
+pub(super) fn pnpr_benchmark_registries_yaml(public_route_registries: &[&str]) -> String {
+    let document = PnprBenchmarkGraph {
+        routes: PnprBenchmarkGraphRoutes { public: public_routes(public_route_registries) },
+    };
+    serde_saphyr::to_string(&document).expect("serialize pnpr benchmark registries")
+}
+fn public_routes(registries: &[&str]) -> Vec<PnprBenchmarkPublicRoute> {
+    registries
+        .iter()
+        .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
+        .collect()
 }
 pub(super) fn distinct_public_route_registries<const REGISTRY_COUNT: usize>(
     registries: [&str; REGISTRY_COUNT],
@@ -212,10 +312,19 @@ pub(super) struct PnprBenchmarkConfig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct PnprBenchmarkRoutes {
-    public: Vec<PnprBenchmarkPublicRoute>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    public: Option<Vec<PnprBenchmarkPublicRoute>>,
     /// The mocks and proxies the resolver fetches from listen on loopback.
     /// A `pnpr` that predates the setting ignores it.
     allowed_private_networks: &'static [&'static str],
+}
+#[derive(Serialize)]
+pub(super) struct PnprBenchmarkGraph {
+    routes: PnprBenchmarkGraphRoutes,
+}
+#[derive(Serialize)]
+pub(super) struct PnprBenchmarkGraphRoutes {
+    public: Vec<PnprBenchmarkPublicRoute>,
 }
 #[derive(Serialize)]
 pub(super) struct PnprBenchmarkPublicRoute {

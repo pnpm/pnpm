@@ -1,7 +1,6 @@
 //! The admin API for package rules: `/-/pnpr/v0/admin/rules/{ecosystem}/{name}`.
 //! Every endpoint requires one of the `auth.admins` or `auth.registryAdmins`.
-//! Changing the rules needs `registriesManagedBy: api`; a change edits the
-//! stored registry graph.
+//! A change edits the stored registry graph.
 
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode,
@@ -20,7 +19,7 @@ use axum::{
     http::HeaderMap,
     routing::get,
 };
-use pnpr_config::{HostedConfig, Management, RegistryGraphDocument, RoutingConfig, RuleLists};
+use pnpr_config::{HostedConfig, RegistryGraphDocument, RoutingConfig, RuleLists};
 use pnpr_policy::{AccessList, RuleTable};
 use pnpr_registry::{Ecosystem, PackagePattern};
 use serde::Deserialize;
@@ -79,10 +78,7 @@ async fn get_rules(
     let result = async {
         require_access_admin(&state, &identity, "read", "the package rules".to_string())?;
         let (rules, version) = current_rules(&state, &path).await?;
-        Ok(versioned(
-            json_response(StatusCode::OK, &rules_body(&state, &rules, &version)),
-            &version,
-        ))
+        Ok(versioned(json_response(StatusCode::OK, &rules_body(&rules, &version)), &version))
     };
     private_no_cache(respond(result.await))
 }
@@ -99,9 +95,6 @@ async fn put_rules(
 ) -> Response {
     let result = async {
         require_access_admin(&state, &identity, "change", "the package rules".to_string())?;
-        if state.inner.config.registries_managed_by == Management::Config {
-            return Err(RegistryError::RulesConfigManaged);
-        }
         let registry = stored_registry_key(&state, &path).await?;
         let expected = if_match(&headers)?;
         let changes: RuleChanges = parse_json_body(&body)?;
@@ -122,24 +115,19 @@ async fn put_rules(
             "package rules replaced",
         );
         let hosted = outcome.routing.hosted.get(&registry).ok_or(RegistryError::NotFound)?;
-        let body = rules_body(&state, &hosted.rules.snapshot(), &outcome.version);
+        let body = rules_body(&hosted.rules.snapshot(), &outcome.version);
         Ok(versioned(json_response(StatusCode::OK, &body), &outcome.version))
     };
     respond(result.await)
 }
 
-/// The rules of the registry `path` names, with their version. With
-/// `registriesManagedBy: api` they come from the stored graph, so every
-/// replica answers with the version an `If-Match` is checked against.
+/// The rules of the registry `path` names, with their version. They come
+/// from the stored graph, so every replica answers with the version an
+/// `If-Match` is checked against.
 async fn current_rules(
     state: &AppState,
     path: &RegistryPath,
 ) -> Result<(Arc<RuleTable>, String), RegistryError> {
-    if state.inner.config.registries_managed_by == Management::Config {
-        let routing = state.routing();
-        let (_, hosted) = hosted_registry(&routing, path)?;
-        return Ok((hosted.rules.snapshot(), "config".to_string()));
-    }
     let (routing, version) = stored_rules_routing(state).await?;
     let (_, hosted) = hosted_registry(&routing, path)?;
     Ok((hosted.rules.snapshot(), version))
@@ -164,11 +152,9 @@ async fn stored_rules_routing(state: &AppState) -> Result<(RoutingConfig, String
     Ok((routing, version))
 }
 
-fn rules_body(state: &AppState, rules: &RuleTable, version: &str) -> serde_json::Value {
+fn rules_body(rules: &RuleTable, version: &str) -> serde_json::Value {
     let mut view = rules_view(rules);
     view["version"] = serde_json::json!(version);
-    view["registriesManagedBy"] =
-        serde_json::json!(state.inner.config.registries_managed_by.as_str());
     view
 }
 

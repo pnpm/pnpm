@@ -65,8 +65,8 @@ pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
     readiness_response(&storage_status, &auth_status, registries_status.as_ref())
 }
 
-/// Whether this replica follows the stored registry graph. `None` when the
-/// config file declares the registries.
+/// Whether this replica serves the stored registry graph. `None` when the
+/// embedder supplied the graph in code.
 async fn registries_readiness(state: &AppState) -> Option<Result<(), RegistryError>> {
     let graph = state.inner.identity.managed.graph.as_ref()?;
     super::managed_state::refresh_managed_state(state, super::managed_state::Patience::None).await;

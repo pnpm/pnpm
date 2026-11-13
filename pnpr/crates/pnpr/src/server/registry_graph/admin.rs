@@ -1,7 +1,6 @@
 //! The registry admin API: `/-/pnpr/v0/admin/registries` and
-//! `/-/pnpr/v0/admin/registry-revisions`. Only with `registriesManagedBy:
-//! api`; reads need one of the `auth.admins` or `auth.registryAdmins`, and
-//! writes one of the `auth.registryAdmins`.
+//! `/-/pnpr/v0/admin/registry-revisions`. Reads need one of the `auth.admins`
+//! or `auth.registryAdmins`, and writes one of the `auth.registryAdmins`.
 
 use super::{
     super::{
@@ -19,7 +18,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, header},
     routing::{get, post},
 };
-use pnpr_config::{Management, RegistryGraphDocument};
+use pnpr_config::RegistryGraphDocument;
 use pnpr_policy::Identity;
 use pnpr_storage::metadata::RegistryGraphRevision;
 use serde::Deserialize;
@@ -332,26 +331,15 @@ fn outcome_response(outcome: &EditOutcome) -> Response {
     versioned(json_response(StatusCode::OK, &body), &outcome.version)
 }
 
-/// One of the `auth.admins` or `auth.registryAdmins`, on a server whose
-/// database manages the registries.
+/// One of the `auth.admins` or `auth.registryAdmins`.
 fn require_reader(state: &AppState, identity: &Identity) -> Result<(), RegistryError> {
     let auth = &state.inner.config.identity;
-    require(identity, auth.is_admin(identity) || auth.is_registry_admin(identity), "read")?;
-    require_api_mode(state)
+    require(identity, auth.is_admin(identity) || auth.is_registry_admin(identity), "read")
 }
 
-/// One of the `auth.registryAdmins`, on a server whose database manages the
-/// registries.
+/// One of the `auth.registryAdmins`.
 fn require_writer(state: &AppState, identity: &Identity) -> Result<(), RegistryError> {
-    require(identity, state.inner.config.identity.is_registry_admin(identity), "change")?;
-    require_api_mode(state)
-}
-
-fn require_api_mode(state: &AppState) -> Result<(), RegistryError> {
-    match state.inner.config.registries_managed_by {
-        Management::Api => Ok(()),
-        Management::Config => Err(RegistryError::RegistriesConfigManaged),
-    }
+    require(identity, state.inner.config.identity.is_registry_admin(identity), "change")
 }
 
 fn require(identity: &Identity, allowed: bool, action: &'static str) -> Result<(), RegistryError> {

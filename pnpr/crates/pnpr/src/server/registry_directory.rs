@@ -37,7 +37,6 @@ pub(super) async fn serve(
             "registries": entries, "defaultRegistries": defaults, "ecosystems": ecosystems,
             "admin": state.inner.config.identity.is_admin(&identity),
             "registryAdmin": state.inner.config.identity.is_registry_admin(&identity),
-            "registriesManagedBy": state.inner.config.registries_managed_by.as_str(),
         }))
         .into_response(),
     )

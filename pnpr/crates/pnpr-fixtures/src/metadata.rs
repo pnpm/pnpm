@@ -326,7 +326,7 @@ fn move_tag(storage: &Path, package: &str, version: &str, tag: &str) {
     });
 }
 
-fn open(storage: &Path) -> Storage {
+pub(crate) fn open(storage: &Path) -> Storage {
     let metadata = MetadataBackend::Sqlite(default_metadata_path(storage));
     Storage::new(
         &HostedStoreConfig::Fs,
@@ -343,7 +343,7 @@ fn canonical(package: &str, ecosystem: Ecosystem) -> CanonicalPackageName {
 }
 
 /// Run `work` to completion on a thread and runtime of its own.
-fn run<Output: Send>(work: impl Future<Output = Output> + Send) -> Output {
+pub(crate) fn run<Output: Send>(work: impl Future<Output = Output> + Send) -> Output {
     std::thread::scope(|scope| {
         scope
             .spawn(|| {

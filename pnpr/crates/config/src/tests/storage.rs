@@ -1,6 +1,6 @@
 use super::{
-    BackendConfig, Config, Ecosystem, HostedStoreConfig, Path, PathBuf, RegistryError, S3Settings,
-    listen, s3_settings_for,
+    BackendConfig, Config, Ecosystem, FeatureOverrides, HostedStoreConfig, Path, PathBuf,
+    RegistryError, S3Settings, listen, load_with_graph, s3_settings_for,
 };
 use std::fmt::Write as _;
 
@@ -246,7 +246,7 @@ fn explicit_ecosystems_scope_defaults_and_hosted_storage() {
         ).unwrap();
     }
     yaml.push_str("defaultRegistry:\n  npm: npm-main\n  cargo: cargo-main\n  pypi: pypi-main\n  oci: oci-main\n");
-    let mut config = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap();
+    let mut config = load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap();
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled).unwrap();
     for ecosystem in Ecosystem::all() {
         let key = format!("{ecosystem}-internal");
@@ -326,32 +326,29 @@ fn metadata_defaults_to_sqlite_in_storage() {
 #[test]
 fn an_object_store_without_a_metadata_url_is_refused() {
     let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  local:\n    type: hosted\n";
-    let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
+    let err = load_with_graph(yaml, Path::new("/"), listen(), None).unwrap_err();
     let RegistryError::InvalidConfig { reason } = err else { panic!("{err:?}") };
     assert!(reason.contains("database.url"), "{reason}");
 }
 
-/// An artifact-only tier keeps artifacts in the bucket and reads no package
-/// metadata, so it needs no metadata URL.
+/// An artifact-only tier (`--disable-registry`) keeps artifacts in the
+/// bucket and reads no package metadata, so it needs no metadata URL.
 #[test]
 fn an_object_store_that_hosts_no_packages_needs_no_metadata_url() {
     let yaml =
         "storage: /s\ns3:\n  bucket: b\nresolver:\n  enabled: false\nartifacts:\n  enabled: true\n";
-    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
+    let config = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/"),
+        Some(listen()),
+        None,
+        FeatureOverrides { disable_registry: true, ..FeatureOverrides::default() },
+    )
+    .unwrap();
     assert_eq!(
         config.storage.metadata,
         crate::MetadataBackend::Sqlite(PathBuf::from("/s/.metadata/metadata.sqlite")),
     );
-}
-
-/// A proxy that keeps only shared artifacts in the bucket hosts no packages
-/// either.
-#[test]
-fn an_object_store_behind_upstream_registries_needs_no_metadata_url() {
-    let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  npmjs:\n    type: upstream\n    \
-                url: https://registry.npmjs.org/\n    public: true\n";
-    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
-    assert!(matches!(config.storage.metadata, crate::MetadataBackend::Sqlite(_)));
 }
 
 #[test]
@@ -377,7 +374,7 @@ fn a_sqlite_url_resolves_against_the_config_directory() {
 
 #[test]
 fn a_metadata_url_is_refused_when_it_cannot_serve() {
-    let with_s3 = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: sqlite:./m.db\nregistries:\n  local:\n    type: hosted\n";
+    let with_s3 = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: sqlite:./m.db\n";
     let no_path = "storage: /s\ndatabase:\n  url: 'sqlite:'\n";
     let unknown = "storage: /s\ndatabase:\n  url: unsupported://db/pnpr\n";
     let old_path = "storage: /s\ndatabase:\n  path: ./m.db\n";

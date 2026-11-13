@@ -1,9 +1,8 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogFormat, LogLevel,
-    Management, MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf,
-    ReleaseRecordsFile, S3Settings, ScimConfig, Serialize, TarballFormat, TrustedProxyHeader,
-    UpstreamAuthFile, access::TeamFile, default_storage_string,
-    null_default::deserialize_null_default, oidc,
+    MetricsConfig, OciFile, PackageAccess, PackageDocumentsFile, PathBuf, ReleaseRecordsFile,
+    S3Settings, ScimConfig, Serialize, TarballFormat, TrustedProxyHeader, UpstreamAuthFile,
+    access::TeamFile, default_storage_string, null_default::deserialize_null_default, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -288,17 +287,13 @@ pub(super) struct ConfigFile {
     /// of the artifact store.
     #[serde(default)]
     pub(super) pipeline: Option<PipelineFeatureFile>,
-    /// pnpr registries: hosted, upstream, and router origins, each
-    /// exposed at `/~<name>/`.
-    #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) registries: IndexMap<String, RegistryFile>,
-    /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
-    /// registry and clients must address a `/~<name>/`.
+    /// Registries belong in the metadata database; the key is read only to
+    /// refuse it with a pointer to `pnpr registries import`.
     #[serde(default)]
-    pub(super) default_registry: Option<DefaultRegistryFile>,
-    /// Whether this file or the metadata database holds the registry graph.
+    pub(super) registries: Option<serde::de::IgnoredAny>,
+    /// Refused like [`Self::registries`].
     #[serde(default)]
-    pub(super) registries_managed_by: Management,
+    pub(super) default_registry: Option<serde::de::IgnoredAny>,
     /// The environment variables a registry graph stored in the database may
     /// reference.
     #[serde(default, deserialize_with = "deserialize_null_default")]

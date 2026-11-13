@@ -1,6 +1,5 @@
-//! The admin API for package rules (`/-/pnpr/v0/admin/rules/{registry}`) on
-//! registries the metadata database stores (`registriesManagedBy: api`): what a
-//! change does to requests, who may make one, and that changes live in the
+//! The admin API for package rules (`/-/pnpr/v0/admin/rules/{registry}`): what
+//! a change does to requests, who may make one, and that changes live in the
 //! metadata database.
 
 use axum::{
@@ -57,13 +56,6 @@ async fn load_config_with(dir: &Path, yaml: &str) -> Config {
 /// The config [`load_config`] wrote, without storing its graph again.
 fn reload_config(dir: &Path) -> Config {
     Config::from_yaml(&config_path(dir), listen(), public_url()).unwrap()
-}
-
-/// [`CONFIG`] with the registries in the config file.
-fn load_file_config(dir: &Path) -> Config {
-    let path = config_path(dir);
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage_dir(dir).display())).unwrap();
-    Config::from_yaml(&path, listen(), public_url()).unwrap()
 }
 
 fn config_path(dir: &Path) -> std::path::PathBuf {
@@ -164,7 +156,6 @@ async fn a_change_applies_at_once_and_another_change_undoes_it() {
     assert_eq!(read_secret(&app, &bob).await, StatusCode::NOT_FOUND);
     let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
     assert_eq!(rules["packages"]["@secret/*"]["access"], json!(["$authenticated"]));
-    assert_eq!(rules["registriesManagedBy"], json!("api"));
     assert_eq!(rules["version"], json!("3"));
 }
 
@@ -239,22 +230,6 @@ async fn only_admins_change_rules() {
         send(&app, "DELETE", RULES, Some(&root), None).await.0,
         StatusCode::METHOD_NOT_ALLOWED,
     );
-}
-
-#[tokio::test]
-async fn rules_the_config_file_declares_are_read_only() {
-    let dir = TempDir::new().unwrap();
-    let app = app_router(load_file_config(dir.path())).await;
-    let root = add_user(&app, "root").await;
-
-    let (status, error) =
-        send(&app, "PUT", RULES, Some(&root), Some(json!({ "access": ["root"] }))).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(error["code"], "ERR_PNPR_RULES_CONFIG_MANAGED");
-    let (status, rules) = send(&app, "GET", RULES, Some(&root), None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(rules["registriesManagedBy"], json!("config"));
-    assert_eq!(rules["version"], json!("config"));
 }
 
 #[tokio::test]

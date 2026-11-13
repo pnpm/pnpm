@@ -5,15 +5,6 @@ use std::net::IpAddr;
 use super::{RouteContext, nerf_prefix};
 
 impl RouteContext {
-    /// This context for registries the admin API wrote: the resolver
-    /// fetches from this server's own host only at the `public_url` origin,
-    /// whichever route, upstream, or redirect leads there.
-    #[must_use]
-    pub fn with_registries_in_database(mut self) -> Self {
-        self.connect_policy = self.connect_policy.with_exact_own_origin();
-        self
-    }
-
     /// Whether the resolver may fetch from some URL the `routes.public`
     /// `registry` matches: see [`Self::allows_fetch`], without the allowlist.
     /// A route matches without its scheme, so a fetch over either scheme

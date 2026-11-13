@@ -107,7 +107,7 @@ alongside the hosted store for archives and staged bodies. Transparency log
 tiles and checkpoints, and pipeline run streams also stay in the hosted store.
 
 pnpr keeps metadata only in a database: an `s3:`
-block of a registry that hosts packages needs a [shared database](auth-backends.md), and pnpr refuses to start on a
+block needs a [shared database](auth-backends.md), and pnpr refuses to start on a
 `database` block that still names a `backend`. Earlier releases could keep
 each package's metadata as a document beside its archives. pnpr does not read
 those documents. A filesystem store from then starts with empty metadata. An
@@ -358,27 +358,14 @@ database:
   url: libsql://my-pnpr.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
 
-registries:
-  local:
-    type: hosted
-    packages:
-      '@mycompany/*':
-        publish: $authenticated
-
-  npmjs:
-    type: upstream
-    url: https://registry.npmjs.org/
-    public: true
-
-  main:
-    type: router
-    sources: [local, npmjs]
-
-defaultRegistry: main
-
 artifacts:
   enabled: true
 ```
+
+The registries live in the libSQL database with the package metadata. The
+first start stores the
+[default registries](configuration.md#registries-in-the-database), and
+[`pnpr registries import`](cli.md#registries) replaces them with your own.
 
 ```sh
 export AWS_ACCESS_KEY_ID="<r2-access-key-id>"

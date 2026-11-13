@@ -39,8 +39,11 @@ fn config(yaml: &str) -> (Config, tempfile::TempDir) {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
-    let config =
-        Config::from_yaml(&path, "127.0.0.1:0".parse::<SocketAddr>().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(
+        &path,
+        "127.0.0.1:0".parse::<SocketAddr>().unwrap(),
+        None,
+    );
     (config, directory)
 }
 

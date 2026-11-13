@@ -1,7 +1,7 @@
 use super::{Config, FakeEnv, FeatureOverrides, Path, RegistryError, auth_header, listen, user};
 use crate::{
-    DocumentOrigin, Management, PackageLists, RegistryGraphChanges, RegistryGraphDocument,
-    RoutingConfig, RoutingOptions, RuleLists,
+    PackageLists, RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions,
+    RuleLists,
 };
 use indexmap::IndexMap;
 use pnpr_registry::Ecosystem;
@@ -28,7 +28,7 @@ registries:
     type: upstream
     url: https://npm.corp.example/
     auth: { type: bearer, tokenEnv: CORP_TOKEN }
-    headers: { X-Trace: 'on' }
+    headers: { X-Trace: '${CORP_TRACE}' }
     packumentTtl: 120
     timeout: 30s
     maxPackumentSize: 10MiB
@@ -57,11 +57,7 @@ routes:
 ";
 
 fn stored_options(registry_env: &[String]) -> RoutingOptions<'_> {
-    RoutingOptions {
-        origin: DocumentOrigin::Stored { registry_env },
-        allowed_private_networks: Vec::new(),
-        resolve_upstreams: true,
-    }
+    RoutingOptions { registry_env, allowed_private_networks: Vec::new(), resolve_upstreams: true }
 }
 
 fn upstream_document(auth_and_headers: &str) -> RegistryGraphDocument {
@@ -78,8 +74,8 @@ fn env(names: &[&str]) -> Vec<String> {
         .collect()
 }
 
-fn api_config(yaml: &str) -> Result<Config, RegistryError> {
-    let yaml = format!("storage: ./s\nregistriesManagedBy: api\n{yaml}");
+fn file_config(yaml: &str) -> Result<Config, RegistryError> {
+    let yaml = format!("storage: ./s\n{yaml}");
     Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
 }
 
@@ -94,7 +90,7 @@ fn a_document_survives_serialization() {
     RoutingConfig::from_document_with_env::<FakeEnv>(
         &reparsed,
         &RoutingOptions {
-            origin: DocumentOrigin::File,
+            registry_env: &env(&["CORP_TOKEN", "CORP_TRACE"]),
             allowed_private_networks: Vec::new(),
             resolve_upstreams: false,
         },
@@ -211,15 +207,14 @@ fn a_tier_that_reads_no_credential_still_checks_every_upstream_setting() {
 }
 
 #[test]
-fn api_mode_serves_an_empty_graph_from_the_file() {
-    let config = api_config("routes:\n  allowedPrivateNetworks: [10.0.0.0/8]\n").unwrap();
-    assert_eq!(config.registries_managed_by, Management::Api);
+fn a_loaded_config_serves_an_empty_graph() {
+    let config = file_config("routes:\n  allowedPrivateNetworks: [10.0.0.0/8]\n").unwrap();
     assert!(config.features.registry.enabled);
     assert!(config.routing.hosted.is_empty() && config.routing.upstreams.is_empty());
     assert_eq!(config.routing.route_policy.allowed_private_networks.len(), 1);
 
     let overrides = FeatureOverrides { disable_registry: true, ..FeatureOverrides::default() };
-    let yaml = "storage: ./s\nregistriesManagedBy: api\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),
@@ -232,7 +227,7 @@ fn api_mode_serves_an_empty_graph_from_the_file() {
 }
 
 #[test]
-fn api_mode_refuses_a_graph_in_the_file() {
+fn the_config_file_refuses_a_graph() {
     for (yaml, key) in [
         (
             "registries:\n  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }\n",
@@ -241,33 +236,37 @@ fn api_mode_refuses_a_graph_in_the_file() {
         ("defaultRegistry: main\n", "defaultRegistry"),
         ("routes:\n  public:\n    - registry: https://mirror.example/\n", "routes.public"),
     ] {
-        let error = api_config(yaml).expect_err("the database holds the graph");
+        let error = file_config(yaml).expect_err("the database holds the graph");
         assert!(
             error
                 .to_string()
                 .contains(&format!("`{key}`")),
             "{key}: {error}",
         );
+        assert!(error.to_string().contains("`pnpr registries import`"), "{key}: {error}");
     }
 }
 
 #[test]
-fn api_mode_refuses_team_references_in_artifact_owners() {
+fn the_config_file_refuses_team_references_in_artifact_owners() {
     let yaml = "artifacts:\n  enabled: true\n  owners:\n    example:\n      access: $authenticated\n      publish: team:local:builders\n";
-    let error = api_config(yaml).expect_err("teams live in the database");
+    let error = file_config(yaml).expect_err("teams live in the database");
     assert!(error.to_string().contains("artifacts.owners"), "{error}");
 }
 
 #[test]
-fn registry_env_requires_api_mode_and_valid_names() {
-    let error =
-        Config::from_yaml_str("registryEnv: [CORP_TOKEN]\n", Path::new("/x"), listen(), None)
-            .expect_err("registryEnv without api mode");
-    assert!(error.to_string().contains("registriesManagedBy: api"), "{error}");
-    let error = api_config("registryEnv: ['1BAD']\n").expect_err("not a variable name");
+fn registry_env_lists_variable_names() {
+    let error = file_config("registryEnv: ['1BAD']\n").expect_err("not a variable name");
     assert!(error.to_string().contains("1BAD"), "{error}");
-    let config = api_config("registryEnv: [CORP_TOKEN]\n").unwrap();
+    let config = file_config("registryEnv: [CORP_TOKEN]\n").unwrap();
     assert_eq!(config.registry_env, ["CORP_TOKEN"]);
+}
+
+#[test]
+fn registries_managed_by_is_an_unknown_field() {
+    let error =
+        file_config("registriesManagedBy: api\n").expect_err("the database holds the graph");
+    assert!(error.to_string().contains("unknown field `registriesManagedBy`"), "{error}");
 }
 
 #[test]

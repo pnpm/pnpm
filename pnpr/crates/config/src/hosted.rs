@@ -1,4 +1,4 @@
-use super::{Deserialize, PackageRules, Serialize, TeamDirectory};
+use super::{PackageRules, TeamDirectory};
 
 /// A resolved hosted registry: the storage `namespace` it serves and its
 /// `packages:` rules — the package patterns it claims plus the per-package
@@ -28,24 +28,15 @@ impl HostedConfig {
     }
 }
 
-/// Who owns the registry graph (`registriesManagedBy`).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Management {
-    /// The config file declares the graph, and the admin API rejects writes.
+/// Where a server takes its registry graph from.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum GraphSource {
+    /// The metadata database: the server seeds it on first start and follows
+    /// every stored revision. Every config file selects this.
     #[default]
-    Config,
-    /// The metadata database stores the graph, and the admin API changes it.
-    Api,
-}
-
-impl Management {
-    /// The value as pnpr.yaml spells it.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Management::Config => "config",
-            Management::Api => "api",
-        }
-    }
+    Database,
+    /// [`crate::Config::routing`] as an embedder, such as a test, built it in
+    /// code. The server serves it without reading a graph from the database,
+    /// under the same policies. No config file selects this.
+    Supplied,
 }

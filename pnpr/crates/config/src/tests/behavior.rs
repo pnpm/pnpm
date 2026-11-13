@@ -1,8 +1,8 @@
 use super::{
     AmazonS3ConfigKey, BackendConfig, ClientConfigKey, Config, ConfigSource, Duration, Ecosystem,
     EnvGuard, FeatureOverrides, Identity, MINIMAL_YAML, Path, PathBuf, RegistryError,
-    hosted_rules_config, hosted_rules_err, listen, normalize_key_prefix, resolve_relative,
-    s3_settings_for, user, write_yaml,
+    bundled_registries, hosted_rules_config, hosted_rules_err, listen, load_with_graph,
+    normalize_key_prefix, resolve_relative, s3_settings_for, user, write_yaml,
 };
 
 #[test]
@@ -55,22 +55,18 @@ fn null_defaulted_aggregate_config_fields_use_defaults() {
     ];
 
     for yaml in configs {
-        Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        load_with_graph(yaml, Path::new("/x"), listen(), None)
             .unwrap_or_else(|error| panic!("failed to load {yaml:?}: {error}"));
     }
 
     let router_yaml = "registries:\n  router: {type: router, sources: null}\n";
-    let parsed = super::super::loading::parse_config_file(router_yaml).unwrap();
-    let super::super::config_file::RegistryFile::Router(router) = parsed
-        .registries
-        .get("router")
-        .unwrap()
-    else {
-        panic!("expected a router registry");
+    let document = crate::RegistryGraphDocument::from_yaml(router_yaml).unwrap();
+    let options = crate::RoutingOptions {
+        registry_env: &[],
+        allowed_private_networks: Vec::new(),
+        resolve_upstreams: true,
     };
-    assert!(router.sources.is_empty());
-
-    Config::from_yaml_str(router_yaml, Path::new("/x"), listen(), None)
+    crate::RoutingConfig::from_document(&document, &options)
         .expect_err("a router with no sources is invalid");
 }
 
@@ -137,24 +133,31 @@ fn artifact_override_is_independent_from_the_resolver_override() {
     .unwrap();
     assert!(enabled.features.artifacts.enabled);
 
-    let error = Config::from_yaml_str_with_overrides(
+    let disabled = Config::from_yaml_str_with_overrides(
         yaml,
         Path::new("/x"),
         Some(listen()),
         None,
         FeatureOverrides { disable_artifacts: true, ..FeatureOverrides::default() },
     )
-    .unwrap_err();
-    assert!(error.to_string().contains("nothing to serve"), "{error}");
+    .unwrap();
+    assert!(!disabled.features.artifacts.enabled);
+    assert!(!disabled.features.resolver.enabled);
 }
 
 #[test]
 fn nothing_to_serve_is_a_config_error() {
-    // No registries (⇒ no registry surface) and the resolver disabled leaves
-    // only `/-/ping` and the account endpoints — a misconfiguration.
+    // `--disable-registry` with the resolver disabled leaves only `/-/ping`
+    // and the account endpoints — a misconfiguration.
     let yaml = "resolver:\n  enabled: false\n";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("a server with no surface enabled must error");
+    let err = Config::from_yaml_str_with_overrides(
+        yaml,
+        Path::new("/x"),
+        Some(listen()),
+        None,
+        FeatureOverrides { disable_registry: true, ..FeatureOverrides::default() },
+    )
+    .expect_err("a server with no surface enabled must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
     assert!(err.to_string().contains("nothing to serve"), "unexpected error: {err}");
 }
@@ -233,8 +236,7 @@ database:
 fn resolve_bundled_when_no_path_supplied() {
     let (config, source) = Config::resolve(None, None, listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Bundled);
-    // The bundled config has the `npmjs` upstream + `**` route.
-    assert!(config.routing.upstreams.contains_key("npmjs"));
+    assert!(config.features.registry.enabled);
 }
 
 #[test]
@@ -468,17 +470,19 @@ fn typed_token_grammar_is_validated() {
 fn bundled_default_config_enforces_its_protections() {
     use pnpr_registry::{ConcreteKind, Resolved};
     // The bundled YAML provides production-safe defaults: registration disabled,
-    // default public npmjs proxy, and an empty local hosted registry.
+    // and the bundled registries are a default public npmjs proxy and an empty
+    // local hosted registry.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
-    assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
-    assert!(config.routing.hosted.contains_key("local"));
+    let routing = bundled_registries();
+    assert_eq!(routing.registries.default_registry(), Some("npmjs"));
+    assert!(routing.hosted.contains_key("local"));
     assert_eq!(
-        config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
+        routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
     assert_eq!(
-        config.routing.registries.resolve("local", Ecosystem::Npm, "private-pkg"),
+        routing.registries.resolve("local", Ecosystem::Npm, "private-pkg"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert!(!config.has_configured_secret);
@@ -557,7 +561,7 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
         let yaml = format!(
             "registries:\n  hosted:\n    type: hosted\n    ecosystem: {ecosystem}\n    packages:\n      {first}: {{ access: '$authenticated' }}\n      {second}: {{ access: '$all' }}\n",
         );
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err();
         assert!(err.to_string().contains("duplicates normalized key"), "{err}");
     }
 }

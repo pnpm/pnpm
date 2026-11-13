@@ -1,24 +1,7 @@
 use super::{
-    Config, Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config,
-    listen, user,
+    Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config, listen,
+    load_with_graph, load_with_graph_and_overrides, user,
 };
-
-#[test]
-fn registry_surface_is_derived_from_declared_registries() {
-    // No registries ⇒ nothing to serve on the npm-registry surface; declaring
-    // one turns the surface on. There is no YAML toggle in between.
-    let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
-    assert!(!config.features.registry.enabled);
-    assert!(config.features.resolver.enabled);
-
-    let yaml = "
-registries:
-  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(config.features.registry.enabled);
-    assert!(config.features.resolver.enabled);
-}
 
 /// A router registry routes each package to exactly one concrete source — the
 /// first listed source whose declared patterns claim it — the safe
@@ -42,7 +25,7 @@ registries:
     sources: [corp, npmjs]
 defaultRegistry: main
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     // Both upstream registries are exposed as upstreams for serving.
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert!(config.routing.upstreams.contains_key("corp"));
@@ -75,7 +58,7 @@ registries:
     type: router
     sources: [npmjs, acme]
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("misordered router must be rejected");
     assert!(err.to_string().contains("unreachable"), "unexpected error: {err}");
 }
@@ -89,7 +72,7 @@ storage: ./s
 registries:
   acme: { type: hosted, namespace: acme, packages: { '@acme/ba*r': {} } }
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("an unsupported registry pattern must be rejected");
     let message = err.to_string();
     assert!(message.contains("acme"), "expected the registry named, got: {message}");
@@ -106,8 +89,9 @@ storage: ./s
 registries:
   acme: { type: hosted, namespace: acme, packages: { '@acme/*': {}, '@acme/*': {} } }
 ";
-    Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("a duplicate packages key must be rejected");
+    assert!(err.to_string().contains("@acme/*"), "{err}");
 }
 
 /// `defaultRegistry` naming an undefined registry fails closed.
@@ -119,7 +103,7 @@ registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 defaultRegistry: ghost
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("undefined default target must be rejected");
     assert!(err.to_string().contains("defaultRegistry"), "unexpected error: {err}");
 }
@@ -140,7 +124,7 @@ registries:
     type: hosted
     namespace: shared
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err(
             "two hosted registries of the same ecosystem on the same namespace must be rejected",
         );
@@ -157,8 +141,7 @@ registries:
     ecosystem: cargo
     namespace: shared
 ";
-    let mut config =
-        Config::from_yaml_str(cross_ecosystem, Path::new("/x"), listen(), None).unwrap();
+    let mut config = load_with_graph(cross_ecosystem, Path::new("/x"), listen(), None).unwrap();
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled).unwrap();
     assert_eq!(config.routing.hosted["acme-npm"].namespace, "shared");
     assert_eq!(config.routing.hosted["acme-cargo"].namespace, "shared");
@@ -173,7 +156,7 @@ fn from_yaml_str_rejects_dot_prefixed_hosted_namespace() {
         let yaml = format!(
             "storage: ./s\nregistries:\n  sneaky:\n    type: hosted\n    namespace: {namespace}\n",
         );
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a dot-prefixed hosted namespace must be rejected");
         assert!(err.to_string().contains("path-safe"), "unexpected error for {namespace:?}: {err}");
     }
@@ -202,7 +185,7 @@ fn from_yaml_str_rejects_malformed_registry_names() {
         "'café'",
     ] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a malformed registry name must be rejected");
         assert!(
             err.to_string().contains("must start with a letter"),
@@ -217,7 +200,7 @@ fn from_yaml_str_rejects_malformed_registry_names() {
 fn from_yaml_str_rejects_reserved_registry_names() {
     for name in ["npm", "jsr", "workspace", "file", "git", "pkg", "PKG"] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a reserved registry name must be rejected");
         assert!(
             err.to_string().contains("reserved dependency specifier prefix"),
@@ -230,7 +213,7 @@ fn from_yaml_str_rejects_reserved_registry_names() {
 fn from_yaml_str_accepts_well_formed_registry_names() {
     for name in ["npmjs", "gh", "Team-A", "a.b_c-1"] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
-        Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .unwrap_or_else(|err| panic!("rejected {name}: {err}"));
     }
 }
@@ -254,14 +237,8 @@ registries:
         disable_artifacts: false,
         disable_pipeline: false,
     };
-    let err = Config::from_yaml_str_with_overrides(
-        yaml,
-        Path::new("/x"),
-        Some(listen()),
-        None,
-        overrides,
-    )
-    .expect_err("a broken registry graph must fail even with the registry disabled");
+    let err = load_with_graph_and_overrides(yaml, Path::new("/x"), Some(listen()), None, overrides)
+        .expect_err("a broken registry graph must fail even with the registry disabled");
     assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
 }
 
@@ -276,7 +253,7 @@ registries:
     type: mirror
     url: https://registry.npmjs.org/
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("an unknown registry `type:` must be rejected");
     let message = err.to_string();
     assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
@@ -331,7 +308,7 @@ registries:
   local:
     type: hosted
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let registries = &config.routing.registries;
     assert_eq!(registries.ecosystem("crates"), Some(Ecosystem::Cargo));
     assert_eq!(registries.ecosystem("cratesio"), Some(Ecosystem::Cargo));
@@ -358,7 +335,7 @@ registries:
   main: { type: router, sources: [crates, npmjs] }
 defaultRegistry: main
 ";
-    let config = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(mixed, Path::new("/x"), listen(), None).unwrap();
     assert!(matches!(
         config.routing.registries.resolve_default(Ecosystem::Cargo, "serde"),
         pnpr_registry::Resolved::Concrete { registry: "crates", .. }
@@ -376,7 +353,7 @@ defaultRegistry: main
 registries:
   gems: { type: hosted, ecosystem: rubygems }
 ";
-    let err = Config::from_yaml_str(unknown, Path::new("/x"), listen(), None).unwrap_err();
+    let err = load_with_graph(unknown, Path::new("/x"), listen(), None).unwrap_err();
     assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err}");
 
     let bad_crate_key = "
@@ -387,7 +364,7 @@ registries:
     packages:
       'not a crate': {}
 ";
-    let err = Config::from_yaml_str(bad_crate_key, Path::new("/x"), listen(), None).unwrap_err();
+    let err = load_with_graph(bad_crate_key, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains(r#"cargo registry "crates" `packages:` key"#), "{err}");
 }
 
@@ -413,7 +390,7 @@ registries:
 defaultRegistry: main
 ",
         );
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None).unwrap_err();
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err}");
         assert!(err.to_string().contains("packages:"), "{err}");
     }
@@ -432,7 +409,7 @@ registries:
       'library/nginx': {}
 defaultRegistry: images
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     for repository in ["acme/app", "acme/team/tool", "library/nginx"] {
         assert!(
             matches!(
@@ -459,7 +436,7 @@ registries:
       'ACME/*': {}
 defaultRegistry: images
 ";
-    let config = Config::from_yaml_str(case_folded, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(case_folded, Path::new("/x"), listen(), None).unwrap();
     assert!(matches!(
         config.routing.registries.resolve_default(Ecosystem::Oci, "acme/app"),
         pnpr_registry::Resolved::Concrete { registry: "images", .. }
@@ -474,7 +451,7 @@ registries:
       'ACME/*': {}
       'acme/*': {}
 ";
-    let err = Config::from_yaml_str(duplicate, Path::new("/x"), listen(), None).unwrap_err();
+    let err = load_with_graph(duplicate, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains("duplicates normalized key"), "{err}");
 
     let bad_key = "
@@ -485,7 +462,7 @@ registries:
     packages:
       'acme/app/*': {}
 ";
-    let err = Config::from_yaml_str(bad_key, Path::new("/x"), listen(), None).unwrap_err();
+    let err = load_with_graph(bad_key, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains(r#"oci registry "images" `packages:` key"#), "{err}");
 }
 
@@ -495,7 +472,7 @@ fn ecosystem_groups_are_rejected_even_with_an_explicit_namespace() {
         for namespace in ["", ", namespace: internal", ", namespace: ''"] {
             let yaml =
                 format!("registries:\n  {ecosystem}:\n    internal: {{type: hosted{namespace}}}\n");
-            let error = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            let error = load_with_graph(&yaml, Path::new("/x"), listen(), None)
                 .expect_err("registries must be declared directly under registries");
             assert!(error.to_string().contains("type"), "{error}");
         }
@@ -505,7 +482,7 @@ fn ecosystem_groups_are_rejected_even_with_an_explicit_namespace() {
 #[test]
 fn ecosystem_default_does_not_assign_the_registry_ecosystem() {
     let yaml = "registries:\n  local: {type: hosted}\ndefaultRegistry:\n  cargo: local\n";
-    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let error = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("a registry without ecosystem is npm, regardless of the default");
     assert!(error.to_string().contains("defaultRegistry"), "{error}");
     assert!(error.to_string().contains("local"), "{error}");
@@ -517,7 +494,7 @@ fn ecosystem_default_requires_a_router_source_for_that_ecosystem() {
         let yaml = format!(
             "registries:\n  js: {{type: hosted, namespace: js}}\n  crates: {{type: hosted, ecosystem: cargo, namespace: crates}}\n  main: {{type: router, sources: [{sources}]}}\ndefaultRegistry:\n  cargo: main\n",
         );
-        let result = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None);
+        let result = load_with_graph(&yaml, Path::new("/x"), listen(), None);
         if valid {
             let config = result.unwrap();
             assert_eq!(
@@ -548,7 +525,7 @@ registries:
     sources: [npmjs]
     tarballs: tar
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.routing.tar_registries.contains("zstd"));
     assert!(!config.routing.tar_registries.contains("npmjs"));
 }
@@ -567,14 +544,14 @@ registries:
     type: router
     sources: [local]
 ";
-    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    let error = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(
         error.to_string().contains(r#"router "main" serves `.tgz` files but lists "local""#),
         "{error}",
     );
 
     let tar_router = format!("{yaml}    tarballs: tar\n");
-    let config = Config::from_yaml_str(&tar_router, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(&tar_router, Path::new("/x"), listen(), None).unwrap();
     assert!(config.routing.tar_registries.contains("local"));
     assert!(config.routing.tar_registries.contains("main"));
 }
@@ -590,7 +567,7 @@ registries:
     public: true
     tarballs: tar
 ";
-    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    let error = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(error.to_string().contains("tarballs"), "{error}");
 }
 
@@ -605,6 +582,6 @@ registries:
       demo-crate: {}
       Demo_Crate: {}
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains("duplicates normalized key"), "{err}");
 }

@@ -57,7 +57,7 @@ use pnpr_storage::metadata::MAX_NOTE_BYTES;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;
-use pnpr_config::{Config, Management, RoutingConfig};
+use pnpr_config::{Config, RoutingConfig};
 use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
@@ -250,25 +250,19 @@ fn surface_routes(
         router = pipeline_routes(state, router);
     }
     if surfaces.registry {
-        router = registry_routes(state, router);
+        router = registry_routes(router);
     }
 
     router
 }
 
-/// Mount the npm-compatible registry surface and every other ecosystem the
-/// configuration declares.
-fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    let routing = state.routing();
-    let registries = &routing.registries;
-    // A stored graph can gain an ecosystem at any time, so every ecosystem is
-    // mounted when the database manages the registries.
-    let all_ecosystems = state.inner.config.registries_managed_by == Management::Api;
-    let serves = |ecosystem| all_ecosystems || registries.has_ecosystem(ecosystem);
+/// Mount the npm-compatible registry surface and every other ecosystem. The
+/// stored graph can gain an ecosystem at any time, so all are mounted.
+fn registry_routes(router: Router<AppState>) -> Router<AppState> {
     let npm = npm_registry_routes();
     // One publish transaction for packages of any ecosystem. It answers here
     // rather than inside the npm surface.
-    let mut router = staged_archive_routes(router, "")
+    let router = staged_archive_routes(router, "")
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
         .route("/-/publications/{namespace}", get(super::publications::serve_member_publication))
@@ -283,19 +277,11 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
                 .delete(super::publications::serve_publication_note)
                 .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         );
-    if serves(Ecosystem::Npm) {
-        router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
-    }
-    if serves(Ecosystem::Cargo) {
-        router = router.merge(cargo::routes());
-    }
-    if serves(Ecosystem::Pypi) {
-        router = router.merge(pypi::routes());
-    }
-    if serves(Ecosystem::Oci) {
-        router = router.merge(oci::routes());
-    }
     router
+        .nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm))
+        .merge(cargo::routes())
+        .merge(pypi::routes())
+        .merge(oci::routes())
 }
 
 /// The npm-registry surface: every packument/tarball read, publish,

@@ -21,7 +21,7 @@ registries:
 ";
     let path = dir.join("pnpr.yaml");
     std::fs::write(&path, yaml).unwrap();
-    let config = crate::Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
     state_and_router(config, AuthState::in_memory(), None).unwrap().0
 }
 

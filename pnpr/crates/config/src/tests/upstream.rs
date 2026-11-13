@@ -1,7 +1,7 @@
 use super::{
-    AUTHORIZATION, Config, Ecosystem, FeatureOverrides, Identity, IndexMap, Interval, Path,
-    RegistryError, TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header,
-    listen, resolve_upstream, upstream_config_file, user,
+    AUTHORIZATION, Ecosystem, FeatureOverrides, Identity, IndexMap, Interval, Path, RegistryError,
+    TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header, listen,
+    load_with_graph, load_with_graph_and_overrides, resolve_upstream, upstream_config_file, user,
 };
 
 #[test]
@@ -173,6 +173,7 @@ fn upstream_invalid_custom_header_value_is_a_config_error() {
 #[test]
 fn from_yaml_str_resolves_upstream_auth_and_headers() {
     let yaml = r"
+registryEnv: [CUSTOM_TOKEN, ORG_NAME]
 registries:
   npmjs:
     type: upstream
@@ -180,11 +181,11 @@ registries:
     access: $authenticated
     auth:
       type: bearer
-      token: secret-token
+      token: '${CUSTOM_TOKEN}'
     headers:
-      X-Org: acme
+      X-Org: '${ORG_NAME}'
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["npmjs"];
     assert_eq!(
         upstream.headers
@@ -192,7 +193,7 @@ registries:
             .unwrap()
             .to_str()
             .unwrap(),
-        "Bearer secret-token",
+        "Bearer custom-env-token",
     );
     assert_eq!(
         upstream.headers
@@ -218,7 +219,7 @@ registries:
     public: true
     search: true
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(
         config.http.cors.allowed_origins(),
         ["https://npmx.dev".to_string(), "http://localhost:3000".to_string()],
@@ -236,7 +237,7 @@ registries:
     type: upstream
     url: https://npm.corp.example/
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("private upstream without access must be rejected");
     assert!(err.to_string().contains("public: true"), "unexpected error: {err}");
 }
@@ -254,7 +255,7 @@ registries:
     public: true
     access: $authenticated
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("public upstream with access must be rejected");
     assert!(err.to_string().contains("`access`"), "unexpected error: {err}");
 }
@@ -277,7 +278,7 @@ registries:
       {header}
 ",
         );
-        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None)
             .expect_err("public upstream with a custom header must be rejected");
         assert!(err.to_string().contains("headers"), "unexpected error for {header:?}: {err}");
     }
@@ -291,6 +292,7 @@ registries:
 fn cli_disable_registry_skips_upstream_registry_credentials_but_keeps_the_graph() {
     let yaml = "\
 storage: ./s
+registryEnv: [PNPR_DEFINITELY_UNSET_TOKEN_VAR]
 registries:
   corp:
     type: upstream
@@ -309,14 +311,9 @@ registries:
         disable_artifacts: false,
         disable_pipeline: false,
     };
-    let config = Config::from_yaml_str_with_overrides(
-        yaml,
-        Path::new("/x"),
-        Some(listen()),
-        None,
-        overrides,
-    )
-    .expect("a resolver-only tier must not fail on unused upstream credentials");
+    let config =
+        load_with_graph_and_overrides(yaml, Path::new("/x"), Some(listen()), None, overrides)
+            .expect("a resolver-only tier must not fail on unused upstream credentials");
     assert!(config.routing.upstreams.is_empty(), "credentials must not be resolved or carried");
     assert!(
         config.routing.registries.get("main").is_some(),
@@ -343,9 +340,10 @@ registries:
     access: team:partners
     auth:
       type: bearer
-      token: corp-token
+      token: '${CUSTOM_TOKEN}'
+registryEnv: [CUSTOM_TOKEN]
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let alice = Identity::user("alice");
     let bob = Identity::user("bob");
     let carol = Identity::user("carol");
@@ -380,7 +378,7 @@ registries:
       '@corp/*':
         publish: $authenticated
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(
         matches!(
             &err,
@@ -408,7 +406,7 @@ registries:
         access: $authenticated
       '**': {}
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let rules = &config.routing.upstreams["npmjs"].rules;
     assert!(
         !rules
@@ -445,7 +443,7 @@ registries:
     packages:
       '@corp/*': {}
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
         config.routing.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
@@ -511,12 +509,13 @@ registries:
     access: [$authenticated, alice]
     auth:
       type: bearer
-      token: corp-token
+      token: '${CUSTOM_TOKEN}'
+registryEnv: [CUSTOM_TOKEN]
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["corp"];
     assert_eq!(upstream.url, "https://npm.corp.example/");
-    assert_eq!(auth_header(upstream), Some("Bearer corp-token"));
+    assert_eq!(auth_header(upstream), Some("Bearer custom-env-token"));
     let access = upstream.access.as_ref().expect("upstream declares access");
     assert!(access.allows(&user("alice")));
     assert!(!access.allows(&Identity::Anonymous));
@@ -532,9 +531,10 @@ registries:
     access: $authenticated
     auth:
       type: basic
-      token: dXNlcjpwYXNz
+      token: '${BASIC_TOKEN}'
+registryEnv: [BASIC_TOKEN]
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["corp"];
     assert_eq!(auth_header(upstream), Some("Basic dXNlcjpwYXNz"));
     let access = upstream.access.as_ref().expect("upstream declares access");
@@ -551,7 +551,7 @@ registries:
     url: https://npm.corp.example/
     public: true
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     // A public upstream registry is reachable anonymously and carries no access
     // policy or upstream credential.
     assert!(config.routing.upstreams["corp"].access.is_none());
@@ -572,7 +572,7 @@ registries:
     maxPackumentSize: {value}
 ",
         );
-        let result = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None);
+        let result = load_with_graph(&yaml, Path::new("/x"), listen(), None);
         match expected {
             Some(expected) => assert_eq!(
                 result.unwrap().routing.upstreams["example"].requests.max_packument_size,

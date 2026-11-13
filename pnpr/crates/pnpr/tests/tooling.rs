@@ -67,9 +67,27 @@ cache: '{}'
 
     let config_file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(config_file.path(), yaml).unwrap();
-    let config =
-        Config::from_yaml(config_file.path(), "127.0.0.1:7677".parse().unwrap(), None).unwrap();
+    let listen = "127.0.0.1:7677".parse().unwrap();
+    let config = if registries.is_empty() {
+        Config::from_yaml(config_file.path(), listen, None).unwrap()
+    } else {
+        pnpr_fixtures::load_seeded_config(config_file.path(), listen, None)
+    };
     (config, config_file)
+}
+
+/// The config check report for the config file `yaml` serving the registries
+/// document `registries` without storing it, since the config may name a
+/// database the test cannot reach.
+fn check_with_registries(dir: &Path, yaml: &str, registries: &str) -> String {
+    let config_file = dir.join("pnpr.yaml");
+    std::fs::write(&config_file, yaml).unwrap();
+    let mut config =
+        Config::from_yaml(&config_file, "127.0.0.1:7677".parse().unwrap(), None).unwrap();
+    config.routing = pnpr_fixtures::registries_routing(&config, registries);
+    let source = pnpr::ConfigSource::Cli(config_file);
+    let report = pnpr::config_check::check_resolved_config(&mut config, &source).unwrap();
+    pnpr::config_check::format_report(&report)
 }
 
 #[tokio::test]
@@ -77,7 +95,6 @@ async fn test_config_check_success() {
     let report = check_config(None).expect("bundled config check should succeed");
     let formatted = format_report(&report);
     assert!(formatted.contains("Configuration check: OK"));
-    assert!(!report.registries.is_empty());
 }
 
 #[tokio::test]
@@ -587,36 +604,37 @@ async fn test_verify_and_export_attestations() {
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
 }
 
-#[test]
-fn test_config_check_upstream_url_sanitized() {
+#[tokio::test]
+async fn test_config_check_upstream_url_sanitized() {
     let dir = TempDir::new().unwrap();
-    let storage_dir = dir.path().join("hosted");
-    let cache_dir = dir.path().join("cache");
     let yaml = format!(
-        r"
-storage: '{}'
-cache: '{}'
-registries:
-  private:
-    type: upstream
-    url: 'https://secretuser:secretpass@registry.example.com/?auth_token=supersecret&sig=secretsig&X-Amz-Signature=amazonsig'
-    public: true
-",
-        storage_dir.display(),
-        cache_dir.display(),
+        "storage: '{}'\ncache: '{}'\n",
+        dir.path().join("hosted").display(),
+        dir.path().join("cache").display(),
     );
+    let mut config = crate::managed_registries::managed_config(
+        &dir.path().join("pnpr.yaml"),
+        &yaml,
+        "127.0.0.1:7677".parse().unwrap(),
+        None,
+    )
+    .await;
+    let url = "https://secretuser:secretpass@registry.example.com/?auth_token=supersecret&sig=secretsig&X-Amz-Signature=amazonsig";
+    let graph = serde_json::json!({
+        "registries": { "private": { "type": "upstream", "url": url, "public": true } },
+    });
+    crate::managed_registries::store_graph(&config, &graph).await;
 
-    let config_file = dir.path().join("pnpr.yaml");
-    std::fs::write(&config_file, yaml).unwrap();
-
-    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
-    let output = pnpr::config_check::format_report(&report);
-    assert!(!output.contains("secretuser"));
-    assert!(!output.contains("secretpass"));
-    assert!(!output.contains("supersecret"));
-    assert!(!output.contains("secretsig"));
-    assert!(!output.contains("amazonsig"));
-    assert!(output.contains("REDACTED"));
+    let output = pnpr::config_check::check_config_and_stored_registries(
+        &mut config,
+        &pnpr::ConfigSource::Bundled,
+    )
+    .await
+    .expect_err("a stored upstream URL with credentials is refused")
+    .to_string();
+    for secret in ["secretuser", "secretpass", "supersecret", "secretsig", "amazonsig"] {
+        assert!(!output.contains(secret), "{output}");
+    }
 }
 
 #[cfg(feature = "backend-libsql")]
@@ -635,6 +653,12 @@ database:
 auth:
   users:
     maxUsers: 3
+",
+        dir.path().join("hosted").display(),
+        dir.path().join("cache").display(),
+        dir.path().join("replica.db").display(),
+    );
+    let registries = "
 registries:
   local:
     type: hosted
@@ -651,16 +675,8 @@ registries:
 defaultRegistry:
   npm: local
   cargo: crates
-",
-        dir.path().join("hosted").display(),
-        dir.path().join("cache").display(),
-        dir.path().join("replica.db").display(),
-    );
-    let config_file = dir.path().join("pnpr.yaml");
-    std::fs::write(&config_file, yaml).unwrap();
-
-    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
-    let output = pnpr::config_check::format_report(&report);
+";
+    let output = check_with_registries(dir.path(), &yaml, registries);
     let replica = dir.path().join("replica.db.auth");
     assert!(
         output.contains(&format!(
@@ -690,12 +706,6 @@ s3:
 {prefix}
 database:
   url: libsql://db.example.turso.io
-registries:
-  local:
-    type: hosted
-    packages:
-      '@acme/*':
-        publish: $authenticated
 ",
             dir.path().join("hosted").display(),
             dir.path().join("cache").display(),
@@ -723,12 +733,6 @@ storage: '{}'
 cache: '{}'
 database:
   url: 'postgres://admin:hunter2@[::1'
-registries:
-  local:
-    type: hosted
-    packages:
-      '@acme/*':
-        publish: $authenticated
 ",
         dir.path().join("hosted").display(),
         dir.path().join("cache").display(),
@@ -751,12 +755,6 @@ cache: '{}'
 secret: 'test-secret-key-32-chars-long-12'
 database:
   url: 'libsql://db.example.com/pnpr?user=registry-admin'
-registries:
-  local:
-    type: hosted
-    packages:
-      '@acme/*':
-        publish: $authenticated
 ",
         dir.path().join("hosted").display(),
         dir.path().join("cache").display(),
@@ -907,12 +905,6 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
         );
         assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
     }
-
-    // An upstream-only proxy hosts no packages and does not bind the package store,
-    // so replicas with separate local SQLite files can share one store directory.
-    let mut proxy_replica = mismatched.clone();
-    proxy_replica.routing.hosted.clear();
-    pnpr::prepare_storage(&proxy_replica).await.unwrap();
 }
 
 mod startup;
