@@ -388,7 +388,8 @@ mod exclusions;
 use exclusions::ExcludedBins;
 
 mod linking_paths;
-pub(super) use linking_paths::shim_node_path;
+#[cfg(test)]
+use linking_paths::shim_node_path;
 
 mod relocatable;
 mod source;
