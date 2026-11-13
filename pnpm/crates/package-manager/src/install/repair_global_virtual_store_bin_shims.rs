@@ -19,7 +19,7 @@ pub(super) fn lock_store(
 fn should_repair(config: &Config, execution: InstallExecution) -> bool {
     config.enable_global_virtual_store
         && !config.frozen_store
-        && execution.node_linker == NodeLinker::Isolated
+        && !matches!(execution.node_linker, NodeLinker::Hoisted | NodeLinker::Pnp)
         && !execution.lockfile_only
         && !execution.dry_run
 }
