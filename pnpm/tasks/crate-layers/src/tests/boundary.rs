@@ -52,6 +52,7 @@ fn takes_the_product_from_the_crate_directory() {
         .iter()
         .map(|name| (name.as_str(), boundary::product_of(&graph, name).unwrap()))
         .collect::<Vec<_>>();
+    dbg!(&products);
     assert_eq!(
         products,
         vec![
@@ -66,7 +67,9 @@ fn takes_the_product_from_the_crate_directory() {
 #[test]
 fn accepts_dependencies_on_listed_crates_in_either_direction() {
     let graph = workspace(ENGINE);
-    assert_eq!(check(&graph, &["cli-shared", "engine"]), vec![]);
+    let problems = check(&graph, &["cli-shared", "engine"]);
+    dbg!(&problems);
+    assert_eq!(problems, vec![]);
 }
 
 #[test]
@@ -74,8 +77,10 @@ fn reports_a_dependency_on_an_unlisted_crate_of_another_product() {
     let graph = workspace(
         "[package]\nname = \"engine\"\n[dependencies]\ncli-shared = \"1\"\ncli-private = \"1\"\n",
     );
+    let problems = check(&graph, &["cli-shared"]);
+    dbg!(&problems);
     assert_eq!(
-        check(&graph, &["cli-shared"]),
+        problems,
         vec![
             Problem::Boundary(BoundaryViolation::Unlisted {
                 from: "cli-bench".to_owned(),
@@ -96,8 +101,10 @@ fn reports_a_dependency_on_an_unlisted_crate_of_another_product() {
 #[test]
 fn a_listed_crate_without_a_dependent_in_another_product_is_stale() {
     let graph = workspace("[package]\nname = \"engine\"\n");
+    let problems = check(&graph, &["cli-shared", "engine", "gone"]);
+    dbg!(&problems);
     assert_eq!(
-        check(&graph, &["cli-shared", "engine", "gone"]),
+        problems,
         vec![
             Problem::Boundary(BoundaryViolation::Stale("cli-shared".to_owned())),
             Problem::Boundary(BoundaryViolation::Stale("gone".to_owned())),
@@ -114,5 +121,7 @@ fn a_dependency_inside_one_product_needs_no_entry() {
         to: "cli-private".to_owned(),
         kind: DependencyKind::Normal,
     });
-    assert_eq!(check(&graph, &[]), vec![]);
+    let problems = check(&graph, &[]);
+    dbg!(&problems);
+    assert_eq!(problems, vec![]);
 }
