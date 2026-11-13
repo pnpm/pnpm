@@ -27,10 +27,7 @@ use registry_routes::VerificationRegistryRoutes;
 mod trust_check;
 
 mod policy_snapshot;
-use policy_snapshot::{
-    BuildPolicySnapshot, build_policy_snapshot, cached_policy_patterns, minimum_release_age_cutoff,
-    named_registries_routing_digest, sorted_unique,
-};
+use policy_snapshot::{build_policy_snapshot, cached_policy_patterns};
 
 mod registry_artifact;
 
@@ -61,7 +58,7 @@ use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{
     LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
-    is_git_hosted_tarball_url, is_revision_registry_tarball_url,
+    is_git_hosted_tarball_url, is_revision_registry_tarball_url, normalized_registry_key,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pnpm_registry::Package;
@@ -82,7 +79,6 @@ use crate::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
         TrustHistoryProjection, package_key, version_key,
     },
-    named_registry::named_registry_tarball_prefixes,
     pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
@@ -292,48 +288,23 @@ impl std::fmt::Debug for NpmResolutionVerifier {
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> NpmResolutionVerifier {
-    let cutoff = minimum_release_age_cutoff(&opts.release_age, opts.now);
-
-    let named_registry_prefixes = named_registry_tarball_prefixes(&opts.registries_by_prefix);
-
-    let sorted_min_age_excludes = sorted_unique(&opts.release_age.exclude_patterns);
-    let sorted_trust_excludes = sorted_unique(&opts.trust.exclude_patterns);
-    let named_registries_routing = named_registries_routing_digest(&opts.registries_by_prefix);
-
-    let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {
-        minimum_release_age: opts.release_age.minimum_minutes.unwrap_or(0),
-        sorted_min_age_excludes: &sorted_min_age_excludes,
-        ignore_missing_time_field: opts.metadata.ignore_missing_time_field,
-        trust_policy: opts.trust.policy,
-        sorted_trust_excludes: &sorted_trust_excludes,
-        trust_policy_ignore_after: opts.trust.ignore_after,
-        named_registries_routing: &named_registries_routing,
-    });
-
+    let release_age = ReleaseAgeCheck::new(opts.release_age, opts.now);
+    let trust = TrustCheck::new(opts.trust);
+    let routing = VerificationRegistryRoutes::new(
+        opts.registries,
+        opts.registries_by_prefix,
+        opts.registry_options_by_url,
+    );
+    let policy_snapshot = build_policy_snapshot(&release_age, &trust, &routing, &opts.metadata);
     NpmResolutionVerifier {
         now: opts.now,
         policy_snapshot,
         lookup_context: crate::VerifierLookups::context_or_new(opts.artifacts.lookups.as_ref()),
-        release_age: ReleaseAgeCheck {
-            minimum_minutes: opts.release_age.minimum_minutes,
-            cutoff,
-            exclude: opts.release_age.exclude,
-            sorted_excludes: sorted_min_age_excludes,
-        },
-        trust: TrustCheck {
-            policy: opts.trust.policy,
-            exclude: opts.trust.exclude,
-            ignore_after: opts.trust.ignore_after,
-            sorted_excludes: sorted_trust_excludes,
-        },
+        release_age,
+        trust,
         metadata: opts.metadata,
         artifacts: opts.artifacts,
-        routing: VerificationRegistryRoutes {
-            registries: opts.registries,
-            named_registry_prefixes,
-            registries_by_prefix: opts.registries_by_prefix,
-            registry_options_by_url: opts.registry_options_by_url,
-        },
+        routing,
     }
 }
 
@@ -571,9 +542,3 @@ fn format_trust_violation(err: TrustViolation) -> String {
 
 #[cfg(test)]
 mod tests;
-
-impl ReleaseAgeCheck {
-    fn age_check_active(&self) -> bool {
-        self.minimum_minutes.is_some_and(|minutes| minutes > 0)
-    }
-}

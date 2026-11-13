@@ -1,4 +1,5 @@
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::Lockfile;
+use pnpm_lockfile_verification::ReplacedCandidate;
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
@@ -146,13 +147,8 @@ impl UpdateSeedPolicy {
         lockfile: &Lockfile,
         requested_importer_ids: Option<&HashSet<String>>,
     ) -> Option<crate::IsReplaced> {
-        if self.max_depth() != UpdateDepth::UNLIMITED {
-            return None;
-        }
-        if let Some(requested_importer_ids) = requested_importer_ids
-            && !lockfile.importers
-                .keys()
-                .all(|id| requested_importer_ids.contains(id))
+        if self.max_depth() != UpdateDepth::UNLIMITED
+            || !covers_all_importers(lockfile, requested_importer_ids)
         {
             return None;
         }
@@ -175,14 +171,87 @@ impl UpdateSeedPolicy {
             return None;
         }
         let targets: Vec<UpdateTargets> = targets.into_iter().cloned().collect();
-        Some(Arc::new(move |name: &PkgName, version: &str| {
-            let Ok(version) = node_semver::Version::parse(version) else { return false };
-            let name = name.to_string();
+        Some(Arc::new(move |candidate: ReplacedCandidate<'_>| {
+            let Ok(version) = node_semver::Version::parse(candidate.version) else {
+                return false;
+            };
+            let name = candidate.name.to_string();
             targets
                 .iter()
                 .all(|targets| targets.covers(&name, Some(&version)))
         }))
     }
+
+    /// Entries the fresh resolution discards rather than reuses: explicit
+    /// update targets ([`Self::replaced_update_targets`]), plus plain semver
+    /// keys whose scope route moved since the lockfile was resolved (when
+    /// every recorded importer is part of this resolution). Registry-qualified
+    /// keys name their registry and may still be reused, so they are kept.
+    pub(crate) fn replaced_fresh_lockfile_entries(
+        &self,
+        lockfile: &Lockfile,
+        requested_importer_ids: Option<&HashSet<String>>,
+        config: &pnpm_config::Config,
+        locked_registries: Option<&BTreeMap<String, String>>,
+    ) -> Option<crate::IsReplaced> {
+        let update_targets = self.replaced_update_targets(lockfile, requested_importer_ids);
+        let moved_routes = replaced_moved_registry_entries(
+            lockfile,
+            requested_importer_ids,
+            config,
+            locked_registries,
+        );
+        match (update_targets, moved_routes) {
+            (Some(update_targets), Some(moved_routes)) => Some(Arc::new(move |candidate| {
+                update_targets(candidate) || moved_routes(candidate)
+            })),
+            (Some(replaced), None) | (None, Some(replaced)) => Some(replaced),
+            (None, None) => None,
+        }
+    }
+}
+
+fn covers_all_importers(
+    lockfile: &Lockfile,
+    requested_importer_ids: Option<&HashSet<String>>,
+) -> bool {
+    requested_importer_ids.is_none_or(|requested| {
+        lockfile.importers
+            .keys()
+            .all(|id| requested.contains(id))
+    })
+}
+
+fn replaced_moved_registry_entries(
+    lockfile: &Lockfile,
+    requested_importer_ids: Option<&HashSet<String>>,
+    config: &pnpm_config::Config,
+    locked_registries: Option<&BTreeMap<String, String>>,
+) -> Option<crate::IsReplaced> {
+    let locked_registries = locked_registries?;
+    if !covers_all_importers(lockfile, requested_importer_ids) {
+        return None;
+    }
+    let locked = locked_registries
+        .iter()
+        .map(|(route, url)| (route.clone(), url.clone()))
+        .collect();
+    let registries = config
+        .registry_context()
+        .with_locked_registries(Some(locked));
+    pnpm_lockfile::check_lockfile_registry_routes(lockfile, &registries).err()?;
+    Some(Arc::new(move |candidate: ReplacedCandidate<'_>| {
+        if candidate.registry_name.is_some()
+            || node_semver::Version::parse(candidate.version).is_err()
+        {
+            return false;
+        }
+        let name = candidate.name.to_string();
+        !pnpm_lockfile::same_registry(
+            registries.locked_registry(&name),
+            registries.routed_registry(&name),
+        )
+    }))
 }
 #[derive(Debug, Clone)]
 pub enum ImporterUpdateSeedPolicy {

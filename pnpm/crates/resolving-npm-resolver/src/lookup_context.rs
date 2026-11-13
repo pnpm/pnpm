@@ -73,6 +73,7 @@ pub(crate) struct TrustHistoryProjection {
 pub(crate) struct RegistryArtifactHistory {
     pub current: RegistryArtifact,
     pub revisions: Vec<RegistryArtifact>,
+    pub install_v2: Option<pnpm_registry::InstallV2Entry>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -104,6 +105,7 @@ pub(crate) struct PublishedAtLookupContext {
     /// from a version genuinely absent from the metadata; the age shortcut
     /// ignores it and falls back to per-version lookups.
     pub abbreviated_meta: SingleflightMap<Result<AbbreviatedMetaProjection, String>>,
+    pub release_records: SingleflightMap<Result<Option<Integrity>, String>>,
     pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
     /// Package-level `Last-Modified` header from a packument `HEAD`
     /// probe, keyed per `(registry, name)`. `None` for a probe the

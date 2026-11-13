@@ -40,43 +40,67 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        let value = cell.get_or_init(|| async {
-            let supports_time_field = self.supports_time_field(registry);
-            // A shared packument that turns out to hold a damaged mirror
-            // fragment falls through to the fetch below, which repairs it.
-            if let Some(shared) = self.read_shared_meta(registry, name) {
-                let projection = project_abbreviated_meta(&shared, supports_time_field);
-                if !shared.versions.corrupt_mirror_fragment_found() {
-                    return Ok(projection);
-                }
-            }
-            let opts = FetchFullMetadataCachedOptions {
-                pnpr_format: false,
-                registry,
-                cache_dir: self.metadata.cache_dir.as_deref(),
-                full_metadata: false,
-                filter_metadata: false,
-                offline: self.metadata.offline,
-                priority: pnpm_network::BACKGROUND,
-                http: crate::MetadataHttpClient {
-                    http_client: &self.metadata.http_client,
-                    auth_headers: &self.metadata.auth_headers,
-                    retry_opts: self.metadata.retry_opts,
-                },
-            };
-            // Carry a fetch failure (auth/network/5xx) as the `Err` value
-            // instead of collapsing it to a missing projection: the
-            // tarball-URL check needs to tell a transport failure apart
-            // from a version genuinely absent from the metadata, otherwise
-            // it reports a 403 as a tampering-style mismatch.
-            fetch_full_metadata_projected(&name.to_string(), &opts, |meta| {
+        cell.get_or_init(|| self.load_abbreviated_meta(registry, name)).await
+            .clone()
+    }
+
+    async fn load_abbreviated_meta(
+        &self,
+        registry: &str,
+        name: &PkgName,
+    ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
+        let supports_time_field = self.supports_time_field(registry);
+        // A shared packument that turns out to hold a damaged mirror
+        // fragment falls through to the fetch below, which repairs it.
+        if let Some(shared) = self.read_shared_meta(registry, name)
+            && !shared.versions.corrupt_mirror_fragment_found()
+        {
+            return Ok(project_abbreviated_meta(&shared, supports_time_field));
+        }
+        self.fetch_abbreviated_meta_uncached(registry, &name.to_string(), supports_time_field).await
+    }
+
+    async fn fetch_abbreviated_meta_uncached(
+        &self,
+        registry: &str,
+        name: &str,
+        supports_time_field: bool,
+    ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
+        let pnpr_format = self.routing.is_pnpr_registry(registry);
+        let opts = FetchFullMetadataCachedOptions {
+            pnpr_format,
+            registry,
+            cache_dir: self.metadata.cache_dir.as_deref(),
+            full_metadata: false,
+            filter_metadata: false,
+            offline: self.metadata.offline,
+            priority: pnpm_network::BACKGROUND,
+            http: crate::MetadataHttpClient {
+                http_client: &self.metadata.http_client,
+                auth_headers: &self.metadata.auth_headers,
+                retry_opts: self.metadata.retry_opts,
+            },
+        };
+        // Carry a fetch failure (auth/network/5xx) as the `Err` value
+        // instead of collapsing it to a missing projection: the
+        // tarball-URL check needs to tell a transport failure apart
+        // from a version genuinely absent from the metadata, otherwise
+        // it reports a 403 as a tampering-style mismatch.
+        let result = fetch_full_metadata_projected(name, &opts, |meta| {
+            project_abbreviated_meta(meta, supports_time_field)
+        })
+        .await;
+        if result.is_err() && pnpr_format && self.metadata.offline {
+            let fallback = FetchFullMetadataCachedOptions { pnpr_format: false, ..opts };
+            if let Ok(projection) = fetch_full_metadata_projected(name, &fallback, |meta| {
                 project_abbreviated_meta(meta, supports_time_field)
             })
             .await
-            .map_err(|error| render_fetch_metadata_error(&error))
-        })
-        .await;
-        value.clone()
+            {
+                return Ok(projection);
+            }
+        }
+        result.map_err(|error| render_fetch_metadata_error(&error))
     }
 
     /// Try the resolver's shared [`crate::pick_package::PackageMetaCache`] for a packument
@@ -203,12 +227,10 @@ impl NpmResolutionVerifier {
                 return Ok(Arc::new(projection));
             }
             if self.routing.is_pnpr_registry(registry)
-                && let Ok(projection) = self.metadata.fetch_abbreviated_meta_projected(
-                    registry,
-                    name,
-                    project_trust_meta,
-                )
-                .await
+                && self.trust_window_fits_pnpr_doc()
+                && let Ok(projection) =
+                    self.metadata.fetch_pnpr_meta_projected(registry, name, project_trust_meta)
+                        .await
                 && projection.time.is_some()
             {
                 return Ok(Arc::new(projection));
@@ -223,7 +245,24 @@ impl NpmResolutionVerifier {
     }
 
     pub(super) fn supports_time_field(&self, registry: &str) -> bool {
+        let pnpr_window_exceeded = self.routing.is_pnpr_registry(registry)
+            && self.release_age.minimum_minutes.is_some_and(|minutes| {
+                minutes > crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+            });
+        if pnpr_window_exceeded {
+            return false;
+        }
         self.routing.supports_time_field(registry, self.metadata.registry_supports_time_field)
+    }
+
+    /// `install-v2` clamps dates older than `timesSince` to `timesSince`:
+    /// unbounded checks order clamped versions by semver (`published_before`),
+    /// while `trustPolicyIgnoreAfter > MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`
+    /// needs exact publish dates from the full packument.
+    fn trust_window_fits_pnpr_doc(&self) -> bool {
+        self.trust.ignore_after.is_none_or(|minutes| {
+            minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+        })
     }
 
     fn shared_trust_projection(&self, registry: &str, key: &str) -> Option<TrustHistoryProjection> {
@@ -232,8 +271,7 @@ impl NpmResolutionVerifier {
             .get(&format!("{key}:full"))
             .or_else(|| cache.get(&format!("{key}:full:filtered")))
             .or_else(|| {
-                self.routing
-                    .is_pnpr_registry(registry)
+                (self.routing.is_pnpr_registry(registry) && self.trust_window_fits_pnpr_doc())
                     .then(|| cache.get(key))?
                     .filter(|entry| entry.meta.time.is_some())
             })?;
@@ -242,15 +280,24 @@ impl NpmResolutionVerifier {
     }
 }
 
+#[derive(Clone, Copy)]
+enum MetadataDocument {
+    Full,
+    PnprInstallV2,
+}
+
 impl super::VerificationMetadataClient {
     pub(super) async fn fetch_full_meta(
         &self,
         registry: &str,
         name: &PkgName,
     ) -> Result<Package, String> {
-        fetch_full_metadata_cached(&name.to_string(), &self.meta_options(registry, true))
-            .await
-            .map_err(|error| render_fetch_metadata_error(&error))
+        fetch_full_metadata_cached(
+            &name.to_string(),
+            &self.meta_options(registry, MetadataDocument::Full),
+        )
+        .await
+        .map_err(|error| render_fetch_metadata_error(&error))
     }
 
     pub(super) async fn fetch_full_meta_projected<Projection>(
@@ -259,18 +306,18 @@ impl super::VerificationMetadataClient {
         name: &PkgName,
         project: impl Fn(&Package) -> Projection,
     ) -> Result<Projection, String> {
-        let opts = self.meta_options(registry, true);
+        let opts = self.meta_options(registry, MetadataDocument::Full);
         fetch_full_metadata_projected(&name.to_string(), &opts, project).await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
 
-    pub(super) async fn fetch_abbreviated_meta_projected<Projection>(
+    pub(super) async fn fetch_pnpr_meta_projected<Projection>(
         &self,
         registry: &str,
         name: &PkgName,
         project: impl Fn(&Package) -> Projection,
     ) -> Result<Projection, String> {
-        let opts = self.meta_options(registry, false);
+        let opts = self.meta_options(registry, MetadataDocument::PnprInstallV2);
         fetch_full_metadata_projected(&name.to_string(), &opts, project).await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
@@ -278,10 +325,14 @@ impl super::VerificationMetadataClient {
     fn meta_options<'a>(
         &'a self,
         registry: &'a str,
-        full_metadata: bool,
+        document: MetadataDocument,
     ) -> FetchFullMetadataCachedOptions<'a> {
+        let (pnpr_format, full_metadata) = match document {
+            MetadataDocument::Full => (false, true),
+            MetadataDocument::PnprInstallV2 => (true, false),
+        };
         FetchFullMetadataCachedOptions {
-            pnpr_format: false,
+            pnpr_format,
             registry,
             cache_dir: self.cache_dir.as_deref(),
             full_metadata,

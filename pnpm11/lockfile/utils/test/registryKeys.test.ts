@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
 import {
+  createMovedRegistryRouteMatcher,
   findMovedRegistryKey,
   findOutdatedRegistryKey,
   keyPrefixForAlias,
@@ -157,4 +158,19 @@ test('findMovedRegistryKey() finds the smallest plain key of a scope routed else
     from: 'https://registry.npmjs.org/',
     to: WORK_REGISTRY,
   })
+})
+
+test('createMovedRegistryRouteMatcher() matches only plain semver keys under a moved scope', () => {
+  expect(createMovedRegistryRouteMatcher(context({}))).toBeUndefined()
+  expect(createMovedRegistryRouteMatcher({
+    ...context({}),
+    lockedRegistriesByScope: { '@work': WORK_REGISTRY },
+  })).toBeUndefined()
+
+  const matches = createMovedRegistryRouteMatcher(movedContext())
+  expect(matches).toBeDefined()
+  expect(matches!({ name: '@work/foo' })).toBe(true)
+  expect(matches!({ name: '@work/foo', registryName: 'work' })).toBe(false)
+  expect(matches!({ name: '@work/foo', nonSemverVersion: 'file:../foo' })).toBe(false)
+  expect(matches!({ name: '@other/foo' })).toBe(false)
 })

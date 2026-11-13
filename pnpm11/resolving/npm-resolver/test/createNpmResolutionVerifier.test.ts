@@ -809,6 +809,76 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects a changed named-re
   expect(changedVerifier.canTrustPastCheck(verifier.policy)).toBe(false)
 })
 
+test('createNpmResolutionVerifier() canTrustPastCheck rejects a changed default or scoped registry and missing registriesRouting', () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://registry.example.test/',
+      '@corp': 'https://npm.corp.example.test/',
+    },
+  }))
+  const changedDefault = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://other.example.test/',
+      '@corp': 'https://npm.corp.example.test/',
+    },
+  }))
+  const changedScope = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://registry.example.test/',
+      '@corp': 'https://evil.example.test/',
+    },
+  }))
+  const removedScope = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://registry.example.test/',
+    },
+  }))
+  const addedScope = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://registry.example.test/',
+      '@corp': 'https://npm.corp.example.test/',
+      '@extra': 'https://extra.example.test/',
+    },
+  }))
+
+  expect(verifier.canTrustPastCheck(verifier.policy)).toBe(true)
+  expect(changedDefault.canTrustPastCheck(verifier.policy)).toBe(false)
+  expect(changedScope.canTrustPastCheck(verifier.policy)).toBe(false)
+  expect(removedScope.canTrustPastCheck(verifier.policy)).toBe(false)
+  expect(addedScope.canTrustPastCheck(verifier.policy)).toBe(false)
+
+  const { registriesRouting: _, ...legacyPolicy } = verifier.policy
+  expect(verifier.canTrustPastCheck(legacyPolicy)).toBe(false)
+})
+
+test('createNpmResolutionVerifier() normalizes registriesRouting URLs and matches the v12 digest', () => {
+  const bare = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: { default: 'https://registry.example.test' },
+  }))
+  const slash = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: { default: 'https://registry.example.test/' },
+  }))
+  const defaultPort = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: { default: 'https://REGISTRY.example.test:443/' },
+  }))
+
+  expect(bare.policy.registriesRouting).toBe(slash.policy.registriesRouting)
+  expect(slash.policy.registriesRouting).toBe(defaultPort.policy.registriesRouting)
+  expect(slash.canTrustPastCheck(bare.policy)).toBe(true)
+  expect(defaultPort.canTrustPastCheck(slash.policy)).toBe(true)
+
+  const crossStack = createNpmResolutionVerifier(makeVerifierOpts({
+    registriesByScope: {
+      default: 'https://registry.npmjs.org',
+      '@jsr': 'https://npm.jsr.io/',
+      '@foo': 'https://npm.corp.example:443/subpath',
+      '@Foo': 'https://UPPER.example',
+    },
+  }))
+  expect(crossStack.policy.registriesRouting)
+    .toBe('f0d898eb155ba369da30037757894816c7c572b33d75d2ea8196ca26bef3d559')
+})
+
 test('createNpmResolutionVerifier() propagates the registry fetch error instead of reporting a tampering-style mismatch', async () => {
   // A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
   // authorized to read a private package) must not be reported as a lockfile
