@@ -174,7 +174,11 @@ export async function prepareBinPaths ({ depPath, pkgRoot }: Pick<PackageToBuild
   const binPath = path.join(pkgRoot, 'node_modules', '.bin')
   const snapshot = state.pkgSnapshots[depPath]
   const forceForPackages = builtBinPackages(modules, { ...snapshot.dependencies, ...snapshot.optionalDependencies }, state)
-  await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn: state.warn, forceForPackages })
+  await linkBins(modules, binPath, {
+    extraNodePaths: opts.enableGlobalVirtualStore ? [] : ctx.extraNodePaths,
+    forceForPackages,
+    warn: state.warn,
+  })
   return ctx.extraBinPaths
 }
 

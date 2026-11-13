@@ -221,100 +221,26 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
     let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
-    let bin = package.join("node_modules/.bin/hello-world-js-bin");
-    let shim = fs::read_dir(bin.parent().expect("bin directory exists"))
+    let shim_path = fs::read_dir(package.join("node_modules/.bin"))
         .expect("read package bin directory")
-        .map(|entry| entry.expect("read bin entry"))
-        .find(|entry| {
-            entry
-                .file_name()
-                .to_string_lossy()
-                .starts_with("hello-world-js-bin")
+        .map(|entry| entry.expect("read bin entry").path())
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("hello-world-js-bin"))
         })
         .expect("the dependency bin shim exists");
-    let shim_path = shim.path();
-    let content = fs::read_to_string(&shim_path).expect("read dependency bin shim");
-    let project_hoisted_modules_path = workspace.join("node_modules/.pnpm/node_modules");
-    let project_hoisted_modules_path = project_hoisted_modules_path.display().to_string();
-    assert_shim_excludes_project_path(&content, &project_hoisted_modules_path);
-
-    let stale_content = format!("{content}\nexport NODE_PATH='{project_hoisted_modules_path}'\n");
-    fs::write(&shim_path, stale_content).expect("restore a shim written by an earlier install");
-    pacquet(&workspace)
-        .with_args(["install", "--frozen-lockfile"])
-        .assert()
-        .success();
-    let repaired = fs::read_to_string(shim_path).expect("read repaired dependency bin shim");
-    assert_shim_excludes_project_path(&repaired, &project_hoisted_modules_path);
-
-    drop((root, mock_instance));
-}
-
-#[test]
-fn frozen_store_refuses_to_rewrite_a_stale_shared_bin_shim() {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
-
-    set_gvs_workspace_yaml(&workspace, "");
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
-    );
-    pacquet(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-
-    let shim_path = shared_bin_shim_path(&store_dir);
-    let content = fs::read_to_string(&shim_path).expect("read dependency bin shim");
-    let project_path = workspace
+    let shim = fs::read_to_string(&shim_path).expect("read dependency bin shim").replace('\\', "/");
+    let project_hoisted_modules = workspace
         .join("node_modules/.pnpm/node_modules")
         .display()
-        .to_string();
-    let stale = format!("{content}\nexport NODE_PATH='{project_path}'\n");
-    fs::write(&shim_path, &stale).expect("make the shared shim stale");
-
-    set_gvs_workspace_yaml(&workspace, "frozenStore: true\n");
-    let output = pacquet(&workspace)
-        .with_args(["install", "--frozen-lockfile", "--offline"])
-        .output()
-        .expect("run a frozen-store reinstall");
-    assert!(!output.status.success(), "the install must not write to the frozen store");
+        .to_string()
+        .replace('\\', "/");
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_FROZEN_STORE_WRITE"),
-        "stderr must report that the stale shared shim cannot be updated: {}",
-        String::from_utf8_lossy(&output.stderr),
-    );
-    assert_eq!(fs::read_to_string(&shim_path).unwrap(), stale);
-
-    drop((root, mock_instance));
-}
-
-fn assert_shim_excludes_project_path(shim: &str, project_path: &str) {
-    let normalized_shim = shim.replace('\\', "/");
-    let normalized_project_path = project_path.replace('\\', "/");
-    assert!(
-        !normalized_shim.contains(&normalized_project_path),
+        !shim.contains(&project_hoisted_modules),
         "a shared bin shim must not contain the project hoisted modules path: {shim:?}",
     );
-}
 
-fn shared_bin_shim_path(store_dir: &Path) -> PathBuf {
-    let version_dir = pkg_version_dir(store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
-    let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
-    let bins_dir = package.join("node_modules/.bin");
-    fs::read_dir(&bins_dir)
-        .expect("read package bin directory")
-        .map(|entry| entry.expect("read bin entry"))
-        .find(|entry| {
-            entry
-                .file_name()
-                .to_string_lossy()
-                .starts_with("hello-world-js-bin")
-        })
-        .expect("the dependency bin shim exists")
-        .path()
+    drop((root, mock_instance));
 }
 
 /// TS: `reinstall from warm global virtual store after deleting

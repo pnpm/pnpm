@@ -56,14 +56,9 @@ test('shared global virtual store bin shims do not capture the installing projec
   expect(shim).toBeDefined()
   const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
   expect(fs.readFileSync(path.join(binDir, shim!), 'utf8')).not.toContain(projectHoistedModulesDir)
-
-  const shimPath = path.join(binDir, shim!)
-  fs.appendFileSync(shimPath, `\nexport NODE_PATH='${projectHoistedModulesDir}'\n`)
-  await execPnpm(['install'])
-  expect(fs.readFileSync(shimPath, 'utf8')).not.toContain(projectHoistedModulesDir)
 })
 
-test('builds keep shared global virtual store bin shims free of project paths', async () => {
+test('builds and rebuilds keep shared global virtual store bin shims free of project paths', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/own-bin-created-by-preinstall': '1.0.0',
@@ -89,6 +84,9 @@ test('builds keep shared global virtual store bin shims free of project paths', 
   expect(shim).toBeDefined()
   const shimPath = path.join(binDir, shim!)
   const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
+  expect(fs.readFileSync(shimPath, 'utf8')).not.toContain(projectHoistedModulesDir)
+
+  await execPnpm(['rebuild'])
   expect(fs.readFileSync(shimPath, 'utf8')).not.toContain(projectHoistedModulesDir)
 })
 
@@ -197,7 +195,7 @@ test('approve-builds updates GVS symlinks and runs builds at correct hash direct
   expect(workspaceManifest.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
 })
 
-test('warm GVS reinstall restores internal linking', async () => {
+test('warm GVS reinstall skips internal linking', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/hello-world-js-bin': '*',
@@ -217,6 +215,7 @@ test('warm GVS reinstall restores internal linking', async () => {
   // Delete node_modules
   fs.rmSync(path.resolve('node_modules'), { recursive: true })
 
+  // Reinstall with frozen lockfile — should skip internal GVS linking
   await execPnpm(['install', '--frozen-lockfile'])
 
   // Verify structure is correct after warm reinstall

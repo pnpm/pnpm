@@ -23,7 +23,7 @@ use crate::{
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadHead, FsReadToString, FsSetExecutable,
+    FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
 };
 use pnpm_config::GlobalShims;
@@ -68,12 +68,6 @@ macro_rules! delegate_cmd_shim_capabilities {
         impl FsReadToString for $system {
             fn read_to_string(path: &Path) -> io::Result<String> {
                 <Host as FsReadToString>::read_to_string(path)
-            }
-        }
-
-        impl FsReadDir for $system {
-            fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
-                <Host as FsReadDir>::read_dir(path)
             }
         }
 
@@ -590,7 +584,6 @@ fn test_link_bins<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
-        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite

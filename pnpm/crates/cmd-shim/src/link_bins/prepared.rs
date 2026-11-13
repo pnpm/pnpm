@@ -1,7 +1,7 @@
 use super::{
-    Command, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    ShimTargetCache, choose_bins_with, link_chosen_bins,
+    Command, FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
+    FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
+    choose_bins_with, link_chosen_bins,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -49,7 +49,6 @@ pub fn link_bins_of_packages_precomputed<Sys>(
 where
     Sys: FsReadToString
         + FsReadHead
-        + FsReadDir
         + FsCreateDirAll
         + FsWalkFiles
         + FsWrite

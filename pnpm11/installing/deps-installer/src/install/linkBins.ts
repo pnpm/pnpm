@@ -7,7 +7,6 @@ import { logger } from '@pnpm/logger'
 import type { DependencyManifest, DepPath, HoistedDependencies } from '@pnpm/types'
 import { safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
-import { pathExists } from 'path-exists'
 import { props } from 'ramda'
 
 import type { LinkContext } from './linkResolvedProjects.js'
@@ -43,66 +42,28 @@ export interface BuiltBinContext {
 }
 
 /**
- * Links dependency package bins into their dependents, and each project's
- * direct dependency bins into the project.
+ * Links the bins of the newly added packages into their dependents, and the
+ * bins of each project's direct dependencies into the project.
  */
 export async function linkBinsOfResolvedProjects (step: LinkContext, built: BuiltBinContext): Promise<void> {
   const { ctx, opts, projects, resolution } = step
   const { builtDepPaths, builtPackageDirs, newDepPaths } = built
-  if (!opts.virtualStoreOnly) {
-    const packagesToLink = await getPackagesToLink(resolution.dependenciesGraph, {
+  if (newDepPaths?.length && !opts.virtualStoreOnly) {
+    const newPkgs = selectPackagesToLink(resolution.dependenciesGraph, {
       builtDepPaths,
-      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       newDepPaths,
-      optional: opts.include.optionalDependencies,
       skipped: ctx.skipped,
     })
-    if (packagesToLink.length > 0) {
-      await linkAllBins(packagesToLink, resolution.dependenciesGraph, {
-        builtPackageDirs,
-        extraNodePaths: opts.enableGlobalVirtualStore ? [] : ctx.extraNodePaths,
-        optional: opts.include.optionalDependencies,
-        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-        warn: warnAboutBins.bind(null, opts.lockfileDir),
-      })
-    }
+    await linkAllBins(newPkgs, resolution.dependenciesGraph, {
+      builtPackageDirs,
+      extraNodePaths: opts.enableGlobalVirtualStore ? [] : ctx.extraNodePaths,
+      optional: opts.include.optionalDependencies,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      warn: warnAboutBins.bind(null, opts.lockfileDir),
+    })
   }
 
   if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
-}
-
-async function getPackagesToLink (
-  dependenciesGraph: DependenciesGraph,
-  opts: {
-    builtDepPaths: ReadonlySet<DepPath> | undefined
-    enableGlobalVirtualStore: boolean | undefined
-    newDepPaths: DepPath[] | undefined
-    optional: boolean
-    skipped: ReadonlySet<DepPath>
-  }
-): Promise<DependenciesGraphNode[]> {
-  if (opts.enableGlobalVirtualStore) {
-    const results = await Promise.all((Object.entries(dependenciesGraph) as Array<[DepPath, DependenciesGraphNode]>).map(async ([depPath, node]) => ({
-      node,
-      hasBins: hasBinsToLink(node, dependenciesGraph, opts.optional) ||
-        (!opts.skipped.has(depPath) && await pathExists(path.join(node.dir, 'node_modules/.bin'))),
-    })))
-    return results
-      .filter(({ hasBins }) => hasBins)
-      .map(({ node }) => node)
-  }
-  if (!opts.newDepPaths?.length) return []
-  return selectPackagesToLink(dependenciesGraph, {
-    builtDepPaths: opts.builtDepPaths,
-    newDepPaths: opts.newDepPaths,
-    skipped: opts.skipped,
-  })
-}
-
-function hasBinsToLink (node: DependenciesGraphNode, dependenciesGraph: DependenciesGraph, optional: boolean): boolean {
-  return node.hasBin || node.hasBundledDependencies || Object.entries(node.children).some(([alias, childDepPath]) =>
-    (optional || !node.optionalDependencies.has(alias)) && dependenciesGraph[childDepPath]?.hasBin
-  )
 }
 
 function selectPackagesToLink (

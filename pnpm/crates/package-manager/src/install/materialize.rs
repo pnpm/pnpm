@@ -209,8 +209,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 self.install.context.config,
             ),
             prune: self.modules.prune,
-            relink_every_slot_bin: self.modules.relink_every_slot_bin
-                || self.install.context.config.enable_global_virtual_store,
+            relink_every_slot_bin: self.modules.relink_every_slot_bin,
         }
     }
 

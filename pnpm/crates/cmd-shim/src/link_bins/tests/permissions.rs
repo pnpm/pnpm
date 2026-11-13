@@ -1,5 +1,5 @@
 use super::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadHead, FsReadToString, FsSetExecutable,
+    FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, Host, LinkBinsOptions, PackageBinSource, json, link_bins_of_packages,
     tempdir,
 };
@@ -24,11 +24,6 @@ fn relinking_a_current_shim_skips_its_chmod() {
     impl FsReadToString for ChmodDenied {
         fn read_to_string(path: &Path) -> io::Result<String> {
             Host::read_to_string(path)
-        }
-    }
-    impl FsReadDir for ChmodDenied {
-        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
-            Host::read_dir(path)
         }
     }
     impl FsCreateDirAll for ChmodDenied {

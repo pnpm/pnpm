@@ -16,10 +16,9 @@ use crate::{PackageBins, PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    BinLinkMode, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions,
-    PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir,
-    link_bins_of_packages_cached,
+    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
+    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
+    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages_cached,
 };
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
@@ -109,7 +108,7 @@ pub struct LinkVirtualStoreBins<'a> {
     /// `<slot>/node_modules/<alias>` would fail. Excluding them up
     /// front matches the rest of the install pipeline's filtering.
     pub skipped: &'a SkippedSnapshots,
-    /// [`shim_link_options`] output used for importer bins.
+    /// [`shim_link_options`] output.
     pub link_options: &'a LinkBinsOptions,
 }
 
@@ -135,15 +134,7 @@ impl LinkVirtualStoreBins<'_> {
             + FsSetExecutable
             + FsEnsureExecutableBits,
     {
-        let link_options = if self.layout.enable_global_virtual_store() {
-            let mut options = self.link_options.clone();
-            options.extra_node_paths.clear();
-            options.mode =
-                if options.store_frozen { BinLinkMode::Verify } else { BinLinkMode::Write };
-            Cow::Owned(options)
-        } else {
-            Cow::Borrowed(self.link_options)
-        };
+        let link_options = self.slot_link_options();
         if let Some(snapshots) = self.snapshots {
             let has_bin_set = build_has_bin_set(self.packages);
             let bundling_set = build_bundling_set(self.packages);
@@ -160,6 +151,18 @@ impl LinkVirtualStoreBins<'_> {
             // today's behaviour exactly when GVS is off.
             run_with_readdir::<Sys>(self.layout.package_store_dir(), &link_options)
         }
+    }
+
+    /// [`Self::link_options`] for slot-internal shims. A global virtual
+    /// store slot is shared by every project that links it, so its shims
+    /// omit the installing project's `extra_node_paths`.
+    fn slot_link_options(&self) -> Cow<'_, LinkBinsOptions> {
+        if !self.layout.enable_global_virtual_store() {
+            return Cow::Borrowed(self.link_options);
+        }
+        let mut options = self.link_options.clone();
+        options.extra_node_paths.clear();
+        Cow::Owned(options)
     }
 
     /// Walk the lockfile's `snapshots:` map, build each slot's bin output

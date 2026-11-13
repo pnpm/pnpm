@@ -1,6 +1,8 @@
+#[cfg(any(unix, target_os = "wasi"))]
+use super::is_shim_pointing_at;
 #[cfg(windows)]
 use super::shim_writer::with_extension_appended;
-use super::{FsEnsureExecutableBits, LinkBinsError, Path, io, remove_stale_bin};
+use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
 use crate::shim::is_within_root;
 #[cfg(any(unix, target_os = "wasi"))]
 use crate::{FsReadHead, read_head_filled};
@@ -212,12 +214,26 @@ pub(super) fn link_node_bin(
 /// when the caller must fall through to the shim path (Windows, where
 /// the setting is inert — pnpm gates on `!isWindows()` the same way).
 #[cfg(any(unix, target_os = "wasi"))]
-pub(super) fn link_symlinked_executable(
+pub(super) fn link_symlinked_executable<Sys>(
     target_path: &Path,
     shim_path: &Path,
-) -> Result<bool, LinkBinsError> {
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadToString,
+{
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
+    // pnpm's warm-install short-circuit also accepts an existing shim
+    // that points at the target, so enabling the setting rewrites no
+    // valid shims — only bins that are missing or wrong get the
+    // symlink form. (Symlinks already pointing at the target were
+    // accepted before this branch was reached.)
+    if matches!(
+        Sys::read_to_string(shim_path),
+        Ok(existing) if is_shim_pointing_at(&existing, shim_path, target_path),
+    ) {
+        return Ok(true);
+    }
     let link_target = match shim_path.parent() {
         Some(bins_dir) => pnpm_fs::relative_path(bins_dir, target_path),
         None => target_path.to_path_buf(),
@@ -285,10 +301,17 @@ pub(super) fn symlink_tolerating_concurrent_writers(
 }
 
 #[cfg(windows)]
-pub(super) fn link_symlinked_executable(
+#[expect(
+    clippy::extra_unused_type_parameters,
+    reason = "the stub keeps the unix signature so callers stay platform-agnostic"
+)]
+pub(super) fn link_symlinked_executable<Sys>(
     _target_path: &Path,
     _shim_path: &Path,
-) -> Result<bool, LinkBinsError> {
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadToString + FsEnsureExecutableBits,
+{
     Ok(false)
 }
 
@@ -329,7 +352,7 @@ pub(super) fn symlink_already_points_at(
 /// after a quick size check, which also treats a byte-identical copy as the
 /// same file.
 #[cfg(windows)]
-pub(super) fn is_same_file(first_path: &Path, second_path: &Path) -> bool {
+fn is_same_file(first_path: &Path, second_path: &Path) -> bool {
     if let (Ok(handle_a), Ok(handle_b)) =
         (same_file::Handle::from_path(first_path), same_file::Handle::from_path(second_path))
         && handle_a == handle_b

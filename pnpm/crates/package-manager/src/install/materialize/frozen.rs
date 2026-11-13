@@ -50,11 +50,6 @@ impl<'a> MaterializationInputs<'a, '_> {
         }
     }
 
-    fn relink_every_slot_bin(&self) -> bool {
-        self.modules.relink_every_slot_bin
-            || self.install.context.config.enable_global_virtual_store
-    }
-
     fn frozen_installer<'b>(
         &'b mut self,
         scope: &'b FrozenScope<'a>,
@@ -90,7 +85,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 unbuilt_builds: prior_unbuilt_builds,
                 previously_skipped,
                 prune: self.modules.prune,
-                relink_every_slot_bin: self.relink_every_slot_bin(),
+                relink_every_slot_bin: self.modules.relink_every_slot_bin,
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,
