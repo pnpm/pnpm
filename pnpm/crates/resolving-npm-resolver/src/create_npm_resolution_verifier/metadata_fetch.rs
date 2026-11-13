@@ -49,22 +49,22 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
-        let supports_time_field = self.supports_time_field(registry);
+        let include_time = self.release_age_window_fits_pnpr_doc(registry);
         // A shared packument that turns out to hold a damaged mirror
         // fragment falls through to the fetch below, which repairs it.
         if let Some(shared) = self.read_shared_meta(registry, name)
             && !shared.versions.corrupt_mirror_fragment_found()
         {
-            return Ok(project_abbreviated_meta(&shared, supports_time_field));
+            return Ok(project_abbreviated_meta(&shared, include_time));
         }
-        self.fetch_abbreviated_meta_uncached(registry, &name.to_string(), supports_time_field).await
+        self.fetch_abbreviated_meta_uncached(registry, &name.to_string(), include_time).await
     }
 
     async fn fetch_abbreviated_meta_uncached(
         &self,
         registry: &str,
         name: &str,
-        supports_time_field: bool,
+        include_time: bool,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         let pnpr_format = self.routing.is_pnpr_registry(registry);
         let opts = FetchFullMetadataCachedOptions {
@@ -87,13 +87,13 @@ impl NpmResolutionVerifier {
         // from a version genuinely absent from the metadata, otherwise
         // it reports a 403 as a tampering-style mismatch.
         let result = fetch_full_metadata_projected(name, &opts, |meta| {
-            project_abbreviated_meta(meta, supports_time_field)
+            project_abbreviated_meta(meta, include_time)
         })
         .await;
         if result.is_err() && pnpr_format && self.metadata.offline {
             let fallback = FetchFullMetadataCachedOptions { pnpr_format: false, ..opts };
             if let Ok(projection) = fetch_full_metadata_projected(name, &fallback, |meta| {
-                project_abbreviated_meta(meta, supports_time_field)
+                project_abbreviated_meta(meta, include_time)
             })
             .await
             {
@@ -244,21 +244,19 @@ impl NpmResolutionVerifier {
         .clone()
     }
 
-    pub(super) fn supports_time_field(&self, registry: &str) -> bool {
-        let pnpr_window_exceeded = self.routing.is_pnpr_registry(registry)
-            && self.release_age.minimum_minutes.is_some_and(|minutes| {
-                minutes > crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
-            });
-        if pnpr_window_exceeded {
-            return false;
-        }
-        self.routing.supports_time_field(registry, self.metadata.registry_supports_time_field)
-    }
-
     /// `install-v2` clamps dates older than `timesSince` to `timesSince`:
     /// unbounded checks order clamped versions by semver (`published_before`),
-    /// while `trustPolicyIgnoreAfter > MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`
+    /// while a window past [`crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`]
     /// needs exact publish dates from the full packument.
+    fn release_age_window_fits_pnpr_doc(&self, registry: &str) -> bool {
+        !self.routing.is_pnpr_registry(registry)
+            || self.release_age.minimum_minutes.is_none_or(|minutes| {
+                minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+            })
+    }
+
+    /// The `trustPolicyIgnoreAfter` counterpart of
+    /// [`Self::release_age_window_fits_pnpr_doc`].
     fn trust_window_fits_pnpr_doc(&self) -> bool {
         self.trust.ignore_after.is_none_or(|minutes| {
             minutes <= crate::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES

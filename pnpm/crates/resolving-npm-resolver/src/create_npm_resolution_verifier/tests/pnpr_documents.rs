@@ -193,6 +193,68 @@ async fn trust_ignore_after_beyond_pnpr_window_falls_back_to_full_packument() {
 }
 
 #[tokio::test]
+async fn release_age_beyond_pnpr_window_reads_the_full_packument_time() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let integrity = revision_integrity(REVISION_ONE_DIGEST);
+    let install_v2 = serde_json::json!({
+        "name": "settled-pkg",
+        "distTags": { "latest": "1.0.0" },
+        "modified": "2025-01-20T00:00:00.000Z",
+        "timesSince": "2025-01-02T00:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "integrity": integrity.to_string(),
+                "manifest": {},
+            },
+        },
+    });
+    server
+        .mock("GET", "/settled-pkg")
+        .match_header("accept", crate::fetch_full_metadata::ACCEPT_PNPR_DOC)
+        .with_status(200)
+        .with_header("content-type", "application/vnd.pnpr.install-v2+json")
+        .with_body(install_v2.to_string())
+        .create_async()
+        .await;
+    let full_packument = serde_json::json!({
+        "name": "settled-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2024-06-01T00:00:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "settled-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": integrity.to_string(),
+                    "tarball": format!("{registry}settled-pkg@1.0.0"),
+                },
+            },
+        },
+    });
+    let full_mock = server
+        .mock("GET", "/settled-pkg")
+        .match_header("accept", crate::fetch_full_metadata::ACCEPT_FULL_DOC)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(full_packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut opts = default_opts(&registry);
+    opts.now = Some(now_at("2025-02-01T00:00:00Z"));
+    opts.release_age.minimum_minutes = Some(60 * 24 * 45);
+    declare_pnpr_registry(&mut opts, &registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "settled-pkg".parse().expect("parse");
+    let resolution = LockfileResolution::Registry(RegistryResolution { integrity, revision: None });
+
+    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+    full_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn undeclared_registry_cannot_spoof_install_v2_marker_to_skip_history_check() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());

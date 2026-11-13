@@ -178,13 +178,6 @@ pub struct VerificationMetadataClient {
     /// is saying it never published this pin, which fails closed either
     /// way. Default `false`.
     pub ignore_missing_time_field: bool,
-    /// Backs `registrySupportsTimeField`: the registry serves the
-    /// per-version `time` map in abbreviated metadata (Verdaccio
-    /// 5.15.1+, pnpr), so the verifier can take a version's publish
-    /// timestamp from the document it already fetched instead of
-    /// paying an attestation round-trip and a full-packument download
-    /// per cold-cache package. Default `false`.
-    pub registry_supports_time_field: bool,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
@@ -268,7 +261,6 @@ impl std::fmt::Debug for NpmResolutionVerifier {
             .field("minimum_release_age_minutes", &self.release_age.minimum_minutes)
             .field("cutoff", &self.release_age.cutoff)
             .field("ignore_missing_time_field", &self.metadata.ignore_missing_time_field)
-            .field("registry_supports_time_field", &self.metadata.registry_supports_time_field)
             .field("trust_policy", &self.trust.policy)
             .field("trust_policy_ignore_after", &self.trust.ignore_after)
             .field("offline", &self.metadata.offline)

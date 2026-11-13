@@ -39,7 +39,6 @@ fn canonical_registry_url(registry: &str) -> String {
 
 fn registry_options_digest(
     registry_options_by_url: Option<&BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
-    registry_supports_time_field: bool,
 ) -> String {
     let non_default: BTreeMap<&str, &pnpm_lockfile::RegistryOptions> = registry_options_by_url
         .into_iter()
@@ -47,15 +46,13 @@ fn registry_options_digest(
         .filter(|(_, options)| **options != pnpm_lockfile::RegistryOptions::default())
         .map(|(url, options)| (url.as_str(), options))
         .collect();
-    let encoded = serde_json::to_vec(&(registry_supports_time_field, non_default))
-        .expect("registry options are serializable");
+    let encoded = serde_json::to_vec(&non_default).expect("registry options are serializable");
     format!("{:x}", Sha256::digest(encoded))
 }
 
 fn insert_structural_and_routing_policy(
     map: &mut serde_json::Map<String, JsonValue>,
     routing: &VerificationRegistryRoutes,
-    registry_supports_time_field: bool,
 ) {
     // Marks runs that enforced the (unconditional) tarball-URL binding so
     // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
@@ -74,10 +71,7 @@ fn insert_structural_and_routing_policy(
     );
     map.insert(
         "registryOptions".to_string(),
-        JsonValue::String(registry_options_digest(
-            routing.registry_options_by_url.as_ref(),
-            registry_supports_time_field,
-        )),
+        JsonValue::String(registry_options_digest(routing.registry_options_by_url.as_ref())),
     );
 }
 
@@ -88,7 +82,7 @@ pub(super) fn build_policy_snapshot(
     metadata: &VerificationMetadataClient,
 ) -> serde_json::Map<String, JsonValue> {
     let mut map = serde_json::Map::new();
-    insert_structural_and_routing_policy(&mut map, routing, metadata.registry_supports_time_field);
+    insert_structural_and_routing_policy(&mut map, routing);
     map.insert(
         "minimumReleaseAge".to_string(),
         JsonValue::from(release_age.minimum_minutes.unwrap_or(0)),

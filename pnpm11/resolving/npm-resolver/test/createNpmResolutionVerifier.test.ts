@@ -134,6 +134,37 @@ test('createNpmResolutionVerifier() verifies tarball URLs from cached metadata i
   getMockAgent().assertNoPendingInterceptors()
 })
 
+test('createNpmResolutionVerifier() reads a version publish time offline from an upgraded abbreviated mirror', async () => {
+  // The resolver's release-age upgrade stores the full document, `time`
+  // included, in the abbreviated mirror.
+  const cacheDir = temporaryDirectory()
+  const meta = {
+    name: 'upgraded-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'upgraded-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/upgraded-pkg/-/upgraded-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    time: { '1.0.0': '2024-01-01T00:00:00.000Z' },
+    modified: '2025-12-31T23:00:00.000Z',
+  }
+  await saveMeta(
+    getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, registriesByScope.default, 'upgraded-pkg'),
+    prepareJsonForDisk(meta, '"cached"')
+  )
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({ cacheDir, minimumReleaseAge: 1440, offline: true }))
+  const result = await verifier.verify(
+    makeTarballResolution('upgraded-pkg', '1.0.0'),
+    { name: 'upgraded-pkg', version: '1.0.0' }
+  )
+
+  expect(result).toStrictEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() passes package name to auth header lookup', async () => {
   const tarball = 'https://registry.npmjs.org/@scope/pkg/-/pkg-1.0.0.tgz'
   const meta = {

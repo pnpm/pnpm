@@ -78,6 +78,8 @@ interface AbbreviatedMetaProjection {
   versionTarballs?: Map<string, unknown>
   /** Versions whose metadata selects a registry revision. */
   revisionVersions?: Set<string>
+  /** The document's `time` map, when it has one. */
+  time?: PackageMeta['time']
 }
 
 /**
@@ -223,13 +225,17 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
  *    `modified` timestamp as a conservative upper bound and skip the
  *    rest of the chain. Costs one conditional GET that the resolver
  *    has usually already paid for.
- * 2. **On-disk full-metadata mirror.** If a previous verification
+ * 2. **Abbreviated per-version `time`.** When the document step 1 read
+ *    carries a `time` map, it already holds the per-version timestamp.
+ *    A mirror the resolver upgraded to the full document for its own
+ *    release-age check does.
+ * 3. **On-disk full-metadata mirror.** If a previous verification
  *    populated `FULL_META_DIR`, take the per-version timestamp from
  *    there.
- * 3. **npm attestation endpoint.** Small payload, just this version's
+ * 4. **npm attestation endpoint.** Small payload, just this version's
  *    Sigstore-anchored timestamp. Wins on cold cache when the package
  *    was published with provenance.
- * 4. **Full metadata fetch.** Last resort — only paid when the
+ * 5. **Full metadata fetch.** Last resort — only paid when the
  *    abbreviated shortcut can't decide, the local full mirror is
  *    cold, and there's no attestation.
  */
@@ -256,6 +262,10 @@ async function resolvePublishedAt (
 ): Promise<string | undefined> {
   const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name, version)
   if (abbreviatedShortcut != null) return abbreviatedShortcut
+
+  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
+  const abbreviatedTime = meta?.time?.[version]
+  if (abbreviatedTime) return abbreviatedTime
 
   const localTime = await readLocalMetaTime(context, registry, name)
   if (localTime?.[version]) return localTime[version]
@@ -413,6 +423,7 @@ function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
     modified: meta.modified,
     versionTarballs: meta.versions ? projectVersionTarballs(meta.versions) : undefined,
     revisionVersions: meta.versions ? projectRevisionVersions(meta.versions) : undefined,
+    time: meta.time,
   }
 }
 

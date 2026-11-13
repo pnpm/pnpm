@@ -86,7 +86,6 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         },
         metadata: crate::VerificationMetadataClient {
             ignore_missing_time_field: false,
-            registry_supports_time_field: false,
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),
             cache_dir: None,

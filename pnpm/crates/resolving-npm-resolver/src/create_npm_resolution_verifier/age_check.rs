@@ -179,12 +179,13 @@ impl NpmResolutionVerifier {
     ///    timestamps. Costs at most one abbreviated GET per name on
     ///    cold cache; the full-meta fallback below is hundreds of KB
     ///    bigger per package.
-    /// 2. **Abbreviated per-version `time`** — only with
-    ///    `registrySupportsTimeField`. Registries that serve the `time`
-    ///    map in abbreviated metadata (Verdaccio 5.15.1+, pnpr) already
-    ///    gave us the exact per-version timestamp in the document step 1
-    ///    fetched, so a recent `modified` does not have to escalate to
-    ///    the per-version fallbacks below.
+    /// 2. **Abbreviated per-version `time`.** When the document step 1
+    ///    read carries a `time` map, it already holds the exact
+    ///    per-version timestamp, so a recent `modified` does not have
+    ///    to escalate to the per-version fallbacks below. Registries
+    ///    that serve `time` in abbreviated metadata (Verdaccio 5.15.1+,
+    ///    pnpr) do, and so does a mirror the resolver upgraded to the
+    ///    full document for its own release-age check.
     /// 3. **On-disk full-meta mirror.** If a previous verification
     ///    populated `<cache_dir>/v12/metadata-full/.../<name>.jsonl`,
     ///    take the per-version timestamp from there with no network.
@@ -201,9 +202,7 @@ impl NpmResolutionVerifier {
         if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
             return Ok(Some(value));
         }
-        if self.supports_time_field(registry)
-            && let Some(value) = self.abbreviated_version_time(registry, name, version).await
-        {
+        if let Some(value) = self.abbreviated_version_time(registry, name, version).await {
             return Ok(Some(value));
         }
         if let Some(map) = self.read_local_meta_time(registry, name).await
@@ -255,9 +254,8 @@ impl NpmResolutionVerifier {
 
     /// The pinned version's publish timestamp from the abbreviated
     /// document's `time` map. Reuses the same cached projection as the
-    /// `modified` shortcut, so with `registrySupportsTimeField` the
-    /// whole lookup stays within the one document the verifier already
-    /// holds. A fetch failure or an absent entry falls through to the
+    /// `modified` shortcut, so the whole lookup stays within the one
+    /// document the verifier already holds. A fetch failure or an absent entry falls through to the
     /// per-version fallbacks, exactly like the shortcut above.
     pub(super) async fn abbreviated_version_time(
         &self,
