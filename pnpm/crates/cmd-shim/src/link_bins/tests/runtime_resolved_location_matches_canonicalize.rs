@@ -4,6 +4,7 @@ use super::{
     ShimTargetCache, Value, create_dir_all, io, is_shim_pointing_at, json, link_bins_of_packages,
     link_bins_of_packages_cached, read_file, read_to_string, tempdir, write_file,
 };
+use crate::OwnNodePaths;
 
 /// A caller-supplied resolved location and the canonicalize fallback
 /// must derive the same shim `NODE_PATH` for a package reached through
@@ -41,13 +42,13 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
         &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
         None,
         &extras,
-        false,
+        OwnNodePaths::WithExtras,
     );
     let via_resolved = super::super::shim_node_path(
         &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
         None,
         &extras,
-        false,
+        OwnNodePaths::WithExtras,
     );
     assert_eq!(via_fallback, via_resolved);
     assert_eq!(
@@ -100,7 +101,7 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
             .with_resolved_location(pkg_dir.clone()),
         Some(&project),
         &[slot_dir.clone(), hoisted.clone()],
-        false,
+        OwnNodePaths::WithExtras,
     );
 
     assert_eq!(
@@ -465,8 +466,12 @@ fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
         .join(format!("vendor{delimiter}other"));
     let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
     let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
-    let node_path =
-        super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[], false);
+    let node_path = super::super::shim_node_path(
+        &pkg,
+        Some(&project.to_string_lossy()),
+        &[],
+        OwnNodePaths::WithExtras,
+    );
     assert_eq!(node_path, Vec::<String>::new());
 }
 
@@ -482,7 +487,7 @@ fn own_node_paths_keeps_the_target_directories_without_extras() {
     let pkg =
         PackageBinSource::new(pkg_dir.clone(), manifest).with_resolved_location(pkg_dir.clone());
 
-    let node_path = super::super::shim_node_path(&pkg, None, &[], true);
+    let node_path = super::super::shim_node_path(&pkg, None, &[], OwnNodePaths::Always);
 
     assert_eq!(
         node_path,

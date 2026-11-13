@@ -1,5 +1,5 @@
 pub use discovery::collect_packages_in_modules_dir;
-pub use options::LinkBinsOptions;
+pub use options::{LinkBinsOptions, OwnNodePaths};
 pub use prepared::{PreparedPackageBins, link_bins_of_packages_precomputed};
 pub use refresh::{DirectoryBinPlan, prune_stale_bins, prune_stale_bins_with};
 pub use relocatable::bin_dir_is_relocatable;

@@ -1,6 +1,6 @@
 use super::{
-    DirCreation, FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths,
-    remove_bin, shim_writer::with_extension_appended,
+    DirCreation, FsReadHead, LinkBinsError, LinkBinsOptions, OwnNodePaths, PackageBinSource,
+    bin_node_paths, remove_bin, shim_writer::with_extension_appended,
 };
 use crate::bin_resolver::Command;
 use pnpm_fs::{is_subdir, realpath_missing};
@@ -136,7 +136,7 @@ impl<'a> LinkingPaths<'a> {
 /// dir when there is one, then the target's own `node_modules` dirs
 /// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
 /// appears again keeps its first position. With no project dir, no
-/// extras, and no `own_node_paths` the shims get no `NODE_PATH` at all
+/// extras, and [`OwnNodePaths::WithExtras`] the shims get no `NODE_PATH` at all
 /// (`extendNodePath: false`, a non-isolated linker, or no hoist pattern),
 /// matching pnpm's bins linker.
 ///
@@ -149,11 +149,14 @@ pub(super) fn shim_node_path(
     pkg: &PackageBinSource,
     project_node_path: Option<&str>,
     extra_node_paths: &[String],
-    own_node_paths: bool,
+    own_node_paths: OwnNodePaths,
 ) -> Vec<String> {
     let delimiter = if cfg!(windows) { ';' } else { ':' };
     let project_node_path = project_node_path.filter(|entry| !entry.contains(delimiter));
-    if project_node_path.is_none() && extra_node_paths.is_empty() && !own_node_paths {
+    if project_node_path.is_none()
+        && extra_node_paths.is_empty()
+        && own_node_paths == OwnNodePaths::WithExtras
+    {
         return Vec::new();
     }
     let own = if let Some(resolved) = &pkg.resolved_location {

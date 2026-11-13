@@ -17,8 +17,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages_cached,
+    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, OwnNodePaths,
+    PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir,
+    link_bins_of_packages_cached,
 };
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
@@ -162,7 +163,9 @@ impl LinkVirtualStoreBins<'_> {
             return Cow::Borrowed(self.link_options);
         }
         let mut options = self.link_options.clone();
-        options.own_node_paths = !options.extra_node_paths.is_empty();
+        if !options.extra_node_paths.is_empty() {
+            options.own_node_paths = OwnNodePaths::Always;
+        }
         options.extra_node_paths.clear();
         Cow::Owned(options)
     }
