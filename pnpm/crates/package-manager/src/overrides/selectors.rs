@@ -6,6 +6,7 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::OverrideDependencyType;
 use pnpm_matcher::WildcardMatcher;
+use pnpm_semver_include_prerelease::is_semver_subset;
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -54,13 +55,12 @@ impl VersionsOverrider {
         dep_name: &str,
         dep_spec: &str,
     ) -> Option<&'b ResolvedOverride> {
-        let mut matching: Vec<&'b ResolvedOverride> = candidates
+        let matching: Vec<&'b ResolvedOverride> = candidates
             .iter()
             .copied()
             .filter(|entry| matches_resolved_target(entry, group, dep_name, dep_spec))
             .collect();
-        sort_by_specificity(&mut matching);
-        matching.into_iter().next()
+        pick_most_specific_match(&matching)
     }
 
     fn pick_most_specific_generic(
@@ -69,12 +69,11 @@ impl VersionsOverrider {
         dep_name: &str,
         dep_spec: &str,
     ) -> Option<&ResolvedOverride> {
-        let mut matching: Vec<&ResolvedOverride> = self.generic
+        let matching: Vec<&ResolvedOverride> = self.generic
             .iter()
             .filter(|entry| matches_resolved_target(entry, group, dep_name, dep_spec))
             .collect();
-        sort_by_specificity(&mut matching);
-        matching.into_iter().next()
+        pick_most_specific_match(&matching)
     }
 }
 
@@ -173,36 +172,64 @@ fn specificity_key(entry: &ResolvedOverride) -> Specificity {
     Specificity { has_wildcard_parent, has_wildcard_target, is_untyped_target }
 }
 
-fn compare_range_specificity(lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> std::cmp::Ordering {
-    let lhs_spec = lhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-    let rhs_spec = rhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-    // Rust's `sort_by` requires a total order, so the comparison
-    // widens to a 3-way result: `lhs` is
-    // strictly more specific when `rhs ⊇ lhs` but not vice versa,
-    // strictly less specific in the mirror case, and equal when
-    // both ranges cover each other (e.g. identical strings, or
-    // mutually-intersecting unions). The `Equal` arm is what keeps
-    // `sort_by`'s preconditions satisfied.
-    let rhs_covers_lhs = is_intersecting_range(Some(rhs_spec), lhs_spec);
-    let lhs_covers_rhs = is_intersecting_range(Some(lhs_spec), rhs_spec);
-    match (rhs_covers_lhs, lhs_covers_rhs) {
-        (true, false) => std::cmp::Ordering::Less,
-        (false, true) => std::cmp::Ordering::Greater,
-        _ => std::cmp::Ordering::Equal,
-    }
-}
-
-/// Sort overrides so the most specific one sorts first:
+/// Select the first most-specific override among `matching`:
 /// 1. Exact parent name before wildcard parent name.
 /// 2. Exact target name before wildcard target name.
 /// 3. Dependency-type-qualified target (`:peer`, `:optional`, `:prod`) before untyped.
-/// 4. Narrower target semver range (`b ⊃ a ⇒ a sorts before b`).
-pub(super) fn sort_by_specificity(matching: &mut [&ResolvedOverride]) {
-    matching.sort_by(|lhs, rhs| {
-        specificity_key(lhs)
-            .cmp(&specificity_key(rhs))
-            .then_with(|| compare_range_specificity(lhs, rhs))
-    });
+/// 4. Narrower `(parent, target)` semver range (`b ⊃ a ⇒ a beats b`),
+///    regardless of declaration order.
+fn pick_most_specific_match<'b>(matching: &[&'b ResolvedOverride]) -> Option<&'b ResolvedOverride> {
+    if matching.len() <= 1 {
+        return matching.first().copied();
+    }
+    let best_key = matching
+        .iter()
+        .map(|entry| specificity_key(entry))
+        .min()?;
+    let top_tier: Vec<&'b ResolvedOverride> = matching
+        .iter()
+        .copied()
+        .filter(|entry| specificity_key(entry) == best_key)
+        .collect();
+    if top_tier.len() <= 1 {
+        return top_tier.first().copied();
+    }
+    top_tier
+        .iter()
+        .copied()
+        .find(|candidate| !top_tier.iter().any(|other| is_strictly_narrower(other, candidate)))
+}
+
+fn is_strictly_narrower(lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> bool {
+    selector_covers(rhs, lhs) && !selector_covers(lhs, rhs)
+}
+
+fn selector_covers(broad: &ResolvedOverride, narrow: &ResolvedOverride) -> bool {
+    let broad_parent =
+        broad.inner.parent_pkg.as_ref().and_then(|pkg| pkg.bare_specifier.as_deref());
+    let narrow_parent =
+        narrow.inner.parent_pkg.as_ref().and_then(|pkg| pkg.bare_specifier.as_deref());
+    is_sub_range(broad_parent, narrow_parent)
+        && is_sub_range(
+            broad.inner.target_pkg.bare_specifier.as_deref(),
+            narrow.inner.target_pkg.bare_specifier.as_deref(),
+        )
+}
+
+fn is_sub_range(super_range: Option<&str>, sub_range: Option<&str>) -> bool {
+    let Some(super_str) = super_range
+        .map(str::trim)
+        .filter(|range| !range.is_empty())
+    else {
+        return true;
+    };
+    let Some(sub_str) = sub_range
+        .map(str::trim)
+        .filter(|range| !range.is_empty())
+    else {
+        return false;
+    };
+    sub_str == super_str || is_semver_subset(sub_str, super_str)
 }
 
 /// An absent `range1` (or empty target spec) matches everything. An
