@@ -53,6 +53,7 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
       builtDepPaths,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       newDepPaths,
+      optional: opts.include.optionalDependencies,
       skipped: ctx.skipped,
     })
     if (packagesToLink.length > 0) {
@@ -75,12 +76,13 @@ function getPackagesToLink (
     builtDepPaths: ReadonlySet<DepPath> | undefined
     enableGlobalVirtualStore: boolean | undefined
     newDepPaths: DepPath[] | undefined
+    optional: boolean
     skipped: ReadonlySet<DepPath>
   }
 ): DependenciesGraphNode[] {
   if (opts.enableGlobalVirtualStore) {
     return (Object.entries(dependenciesGraph) as Array<[DepPath, DependenciesGraphNode]>)
-      .filter(([depPath]) => !opts.skipped.has(depPath))
+      .filter(([depPath, node]) => !opts.skipped.has(depPath) && hasBinsToLink(node, dependenciesGraph, opts.optional))
       .map(([, node]) => node)
   }
   if (!opts.newDepPaths?.length) return []
@@ -89,6 +91,12 @@ function getPackagesToLink (
     newDepPaths: opts.newDepPaths,
     skipped: opts.skipped,
   })
+}
+
+function hasBinsToLink (node: DependenciesGraphNode, dependenciesGraph: DependenciesGraph, optional: boolean): boolean {
+  return node.hasBin || Object.entries(node.children).some(([alias, childDepPath]) =>
+    (optional || !node.optionalDependencies.has(alias)) && dependenciesGraph[childDepPath]?.hasBin
+  )
 }
 
 function selectPackagesToLink (
