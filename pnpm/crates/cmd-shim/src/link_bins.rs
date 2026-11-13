@@ -7,6 +7,10 @@ pub use selection::choose_bins;
 pub use shim_writer::remove_bin;
 pub use source::{BinOrigin, PackageBinSource};
 
+pub(super) use crate::{
+    bin_resolver::{Command, PackageBin},
+    capabilities::DirCreation,
+};
 use crate::{
     bin_resolver::{commands_from_precalculated_bins, get_bins_from_package_manifest},
     capabilities::{
@@ -348,11 +352,12 @@ where
         .iter()
         .map(|(command, _)| command.name.clone())
         .collect();
-    let held_back = chosen_bins::link::<Sys>(chosen, bins_dir, options, cache)?;
+    let held_back = link_chosen_bins::<Sys>(chosen, bins_dir, options, cache)?;
     Ok(LinkBinsOutcome { held_back, linked_commands })
 }
 
 mod chosen_bins;
+pub(super) use chosen_bins::link_chosen_bins;
 #[cfg(test)]
 mod tests;
 

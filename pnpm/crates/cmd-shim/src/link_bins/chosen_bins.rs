@@ -10,7 +10,7 @@ use crate::bin_resolver::Command;
 use rayon::prelude::*;
 use std::{io, path::Path};
 
-pub(super) fn link<Sys>(
+pub(super) fn link_chosen_bins<Sys>(
     chosen: Vec<(Command, &PackageBinSource)>,
     bins_dir: &Path,
     options: &LinkBinsOptions,
