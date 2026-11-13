@@ -1,7 +1,6 @@
-//! Team administration through the npm team API on registries the metadata
-//! database stores (`registriesManagedBy: api`): who may edit a roster, how an
-//! edit reaches the `team:` rules, and that the roster persists in the metadata
-//! database.
+//! Team administration through the npm team API: who may edit a roster, how
+//! an edit reaches the `team:` rules, and that the roster persists in the
+//! metadata database.
 
 use axum::{
     body::{Body, to_bytes},
@@ -219,7 +218,7 @@ async fn a_new_process_serves_the_stored_roster() {
 }
 
 #[tokio::test]
-async fn directory_reports_admin_and_registry_management() {
+async fn directory_reports_admin_and_registry_admin() {
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path()).await).await;
     let root = add_user(&app, "root").await;
@@ -228,7 +227,6 @@ async fn directory_reports_admin_and_registry_management() {
     let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&root), None).await;
     assert_eq!(directory["admin"], json!(true));
     assert_eq!(directory["registryAdmin"], json!(false));
-    assert_eq!(directory["registriesManagedBy"], json!("api"));
     let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&bob), None).await;
     assert_eq!(directory["admin"], json!(false));
 }

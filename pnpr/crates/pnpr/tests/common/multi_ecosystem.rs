@@ -12,10 +12,9 @@ pub fn multi_ecosystem_config(root: &Path, npm_access: &str) -> Config {
     yaml.push_str("defaultRegistry:\n  npm: npm-main\n  cargo: cargo-main\n  pypi: pypi-main\n  oci: oci-main\n");
     let path = root.join("config.yaml");
     fs::write(&path, yaml).unwrap();
-    Config::from_yaml(
+    pnpr_fixtures::load_seeded_config(
         &path,
         "127.0.0.1:4873".parse().unwrap(),
         Some("http://pnpr.test".to_string()),
     )
-    .unwrap()
 }

@@ -123,7 +123,7 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
     let config_path = temp.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let config =
-        crate::Config::from_yaml(&config_path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+        pnpr_fixtures::load_seeded_config(&config_path, "127.0.0.1:4873".parse().unwrap(), None);
     let path = temp.path().join("gc.log");
     let logs = pnpr_config::LogConfig {
         format: pnpr_config::LogFormat::Json,

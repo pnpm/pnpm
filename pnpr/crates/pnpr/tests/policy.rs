@@ -48,7 +48,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let config =
-        Config::from_yaml(&path, listen(), Some("http://example.test".to_string())).unwrap();
+        pnpr_fixtures::load_seeded_config(&path, listen(), Some("http://example.test".to_string()));
     (dir, config)
 }
 

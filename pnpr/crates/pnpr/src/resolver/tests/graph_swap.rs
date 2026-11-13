@@ -11,7 +11,7 @@ async fn a_resolution_cached_under_one_graph_is_not_served_under_the_next() {
         "storage: ./store\nregistries:\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\ndefaultRegistry: npmjs\n",
     )
     .unwrap();
-    let config = crate::Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
     let state = crate::server::state_and_router(config, AuthState::in_memory(), None).unwrap().0;
     let ttl = Duration::from_mins(1);
     let before = state.inner.current_routing();

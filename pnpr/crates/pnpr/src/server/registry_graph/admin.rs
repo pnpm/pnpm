@@ -1,7 +1,6 @@
 //! The registry admin API: `/-/pnpr/v0/admin/registries` and
-//! `/-/pnpr/v0/admin/registry-revisions`. Only with `registriesManagedBy:
-//! api`; reads need one of the `auth.admins` or `auth.registryAdmins`, and
-//! writes one of the `auth.registryAdmins`.
+//! `/-/pnpr/v0/admin/registry-revisions`. Reads need one of the `auth.admins`
+//! or `auth.registryAdmins`, and writes one of the `auth.registryAdmins`.
 
 use super::{
     super::{

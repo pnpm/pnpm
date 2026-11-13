@@ -90,6 +90,7 @@ async fn slow_upstream_misses_do_not_block_a_fresh_cached_package() {
     let tmp = TempDir::new().unwrap();
     let mut config = Config::proxy("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
     config.routing.upstreams.get_mut("npmjs").unwrap().url = format!("http://{address}");
+    allow_loopback_upstreams(&mut config);
     let (state, app) =
         crate::server::routing::state_and_router(config, pnpr_auth::AuthState::in_memory(), None)
             .unwrap();
@@ -291,6 +292,7 @@ async fn controlled_upstream(cache: bool, capacity: usize) -> ControlledUpstream
     let upstream = config.routing.upstreams.get_mut("npmjs").unwrap();
     upstream.url = format!("http://{address}");
     upstream.cache = cache;
+    allow_loopback_upstreams(&mut config);
     let mut inner =
         crate::server::state::AppInner::new(config, pnpr_auth::AuthState::in_memory(), None)
             .unwrap();
@@ -306,6 +308,13 @@ async fn controlled_upstream(cache: bool, capacity: usize) -> ControlledUpstream
         origin,
         _storage: storage,
     }
+}
+
+/// Let `config` reach the mock upstreams this module serves on loopback.
+fn allow_loopback_upstreams(config: &mut Config) {
+    config.http.public_url = "http://example.test".to_string();
+    config.routing.route_policy.allowed_private_networks =
+        vec![pnpr_config::IpNetwork::parse("127.0.0.0/8").unwrap()];
 }
 
 async fn read_upstream(state: &AppState, name: &str) -> Option<Vec<u8>> {

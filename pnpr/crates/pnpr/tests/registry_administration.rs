@@ -1,5 +1,5 @@
 //! The registry admin API (`/-/pnpr/v0/admin/registries` and
-//! `/-/pnpr/v0/admin/registry-revisions`) with `registriesManagedBy: api`:
+//! `/-/pnpr/v0/admin/registry-revisions`):
 //! writes, versions, revisions, who may make a change, the changes pnpr
 //! refuses, and how replicas follow the stored graph.
 
@@ -69,15 +69,6 @@ async fn load_config(dir: &Path) -> Config {
 /// The config [`load_config`] wrote, without storing its graph again.
 fn reload_config(dir: &Path) -> Config {
     Config::from_yaml(&config_path(dir), listen(), public_url()).unwrap()
-}
-
-/// [`CONFIG`] with the registries in the config file.
-fn load_file_config(dir: &Path) -> Config {
-    let path = config_path(dir);
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage_dir(dir).display())).unwrap();
-    let yaml = std::fs::read_to_string(&path).unwrap().replace("registryEnv: [PATH]\n", "");
-    std::fs::write(&path, yaml).unwrap();
-    Config::from_yaml(&path, listen(), public_url()).unwrap()
 }
 
 fn config_path(dir: &Path) -> std::path::PathBuf {
@@ -364,23 +355,6 @@ async fn registry_admins_read_teams() {
         assert_eq!((status, teams), (StatusCode::OK, json!([])), "{path}");
         let (status, _, _) = replica.send("GET", path, Some(&replica.bob), None).await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
-    }
-}
-
-#[tokio::test]
-async fn the_api_refuses_registries_the_config_file_declares() {
-    let dir = TempDir::new().unwrap();
-    let replica = Replica::new(load_file_config(dir.path())).await;
-    for (method, path) in [
-        ("GET", DOCUMENT),
-        ("PUT", "/-/pnpr/v0/admin/registries/extra"),
-        ("GET", REVISIONS),
-        ("POST", "/-/pnpr/v0/admin/registry-revisions/1/restore"),
-    ] {
-        let body = Some(json!({ "type": "hosted" }));
-        let (status, error, _) = replica.send(method, path, Some(&replica.root), body).await;
-        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {path}");
-        assert_eq!(error["code"], "ERR_PNPR_REGISTRIES_CONFIG_MANAGED", "{method} {path}");
     }
 }
 
@@ -752,16 +726,23 @@ async fn offline_cache_gc_keeps_the_caches_of_stored_upstreams() {
 }
 
 #[tokio::test]
-async fn a_file_upstream_on_loopback_is_reached() {
+async fn an_upstream_on_an_allowed_private_network_is_reached() {
     let dir = TempDir::new().unwrap();
     let (address, hits, server) = counting_server().await;
     let yaml = format!(
-        "storage: {}\nregistries:\n  literal:\n    type: upstream\n    public: true\n    url: http://127.0.0.1:{}/\n",
+        "storage: {}\nroutes:\n  allowedPrivateNetworks: ['127.0.0.0/8']\n\
+         registries:\n  literal:\n    type: upstream\n    public: true\n    url: http://127.0.0.1:{}/\n",
         storage_dir(dir.path()).display(),
         address.port(),
     );
-    std::fs::write(config_path(dir.path()), yaml).unwrap();
-    let replica = Replica::new(reload_config(dir.path())).await;
+    let config = crate::managed_registries::managed_config(
+        &config_path(dir.path()),
+        &yaml,
+        listen(),
+        public_url(),
+    )
+    .await;
+    let replica = Replica::new(config).await;
     let (status, body, _) =
         replica.send("GET", "/npm/~literal/example", Some(&replica.bob), None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -1024,7 +1005,8 @@ async fn an_exported_graph_imports_as_no_change() {
 #[tokio::test]
 async fn offline_commands_read_the_stored_registries() {
     let dir = TempDir::new().unwrap();
-    let config = load_config(dir.path()).await;
+    load_config(dir.path()).await;
+    let config = reload_config(dir.path());
     pnpr::prepare_storage(&config).await.unwrap();
     let storage = Storage::from_config(&config.storage).unwrap();
     let package = pnpr_package_name::CanonicalPackageName::parse(
@@ -1185,9 +1167,7 @@ async fn offline_paths_refuse_a_public_upstream_with_a_credential() {
 async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
-        "storage: {}\nregistryEnv: [PNPR_TEST_UNSET_TOKEN]\nregistries:\n  corp:\n    type: upstream\n    \
-         url: https://npm.corp.example/\n    access: $authenticated\n    \
-         auth: {{ type: bearer, tokenEnv: PNPR_TEST_UNSET_TOKEN }}\n",
+        "storage: {}\nregistryEnv: [PNPR_TEST_UNSET_TOKEN]\n",
         storage_dir(dir.path()).display(),
     );
     let mut config = crate::managed_registries::managed_config(
@@ -1197,6 +1177,14 @@ async fn config_check_accepts_a_stored_upstream_whose_credential_is_unset_here()
         public_url(),
     )
     .await;
+    let corp = json!({
+        "type": "upstream",
+        "url": "https://npm.corp.example/",
+        "access": "$authenticated",
+        "auth": { "type": "bearer", "tokenEnv": "PNPR_TEST_UNSET_TOKEN" },
+    });
+    crate::managed_registries::store_graph(&config, &json!({ "registries": { "corp": corp } }))
+        .await;
     let report = pnpr::config_check::check_config_and_stored_registries(
         &mut config,
         &pnpr::ConfigSource::Bundled,

@@ -27,7 +27,7 @@ const STATE_RETRY: Duration = Duration::from_secs(1);
 pub(super) const WRITE_ATTEMPTS: usize = 5;
 
 /// The state admins and identity providers manage at runtime: the registry
-/// graph (`registriesManagedBy: api`) and the SCIM directory (`auth.scim`).
+/// graph and the SCIM directory (`auth.scim`).
 ///
 /// The metadata database holds both, so every replica sees the same state.
 pub(super) struct ManagedState {

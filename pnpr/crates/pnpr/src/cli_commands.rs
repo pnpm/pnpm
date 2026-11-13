@@ -107,8 +107,7 @@ pub enum Command {
         #[arg(skip)]
         password: Option<String>,
     },
-    /// Read or replace the registries the metadata database stores, with
-    /// `registriesManagedBy: api`.
+    /// Read or replace the registries the metadata database stores.
     Registries {
         #[command(subcommand)]
         action: RegistriesSubcommand,

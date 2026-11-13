@@ -49,8 +49,8 @@ pub fn check_resolved_config(
     Ok(build_report(config, source_description))
 }
 
-/// [`check_resolved_config`] that, with `registriesManagedBy: api`, first
-/// reads and validates the registries the metadata database stores.
+/// [`check_resolved_config`] that first reads and validates the registries
+/// the metadata database stores.
 pub async fn check_config_and_stored_registries(
     config: &mut Config,
     source: &ConfigSource,

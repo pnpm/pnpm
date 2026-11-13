@@ -1,7 +1,6 @@
 //! The admin API for package rules: `/-/pnpr/v0/admin/rules/{ecosystem}/{name}`.
 //! Every endpoint requires one of the `auth.admins` or `auth.registryAdmins`.
-//! Changing the rules needs `registriesManagedBy: api`; a change edits the
-//! stored registry graph.
+//! A change edits the stored registry graph.
 
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode,

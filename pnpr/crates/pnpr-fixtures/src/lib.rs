@@ -9,7 +9,8 @@ pub use presets::{
     proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 pub use registries::{
-    MOCK_REGISTRIES_YAML, load_seeded_config, seed_registries, split_graph, store_document,
+    MOCK_REGISTRIES_YAML, load_seeded_config, registries_routing, seed_registries, split_graph,
+    store_document, write_document,
 };
 
 mod metadata;

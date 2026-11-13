@@ -26,7 +26,7 @@ fn config(registries: &str) -> Config {
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, format!("storage: ./s\n{PROVIDER}registries:\n{registries}")).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-    Config::from_yaml(&path, listen, None).unwrap()
+    pnpr_fixtures::load_seeded_config(&path, listen, None)
 }
 
 const LOCAL: &str = "  local:

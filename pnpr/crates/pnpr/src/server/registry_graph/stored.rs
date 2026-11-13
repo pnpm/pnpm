@@ -1,6 +1,6 @@
-//! The registry graph the metadata database stores (`registriesManagedBy:
-//! api`): reading a stored revision, building its routing, and the checks a
-//! new revision must pass before it is written.
+//! The registry graph the metadata database stores: reading a stored
+//! revision, building its routing, and the checks a new revision must pass
+//! before it is written.
 
 use super::super::{oidc::validate_workloads, oidc_groups::validate_group_grants};
 use pnpm_env_replace::EnvVar;

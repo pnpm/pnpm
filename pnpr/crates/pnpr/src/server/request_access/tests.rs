@@ -8,7 +8,7 @@ fn config_from(yaml: &str) -> Config {
     let path = dir.path().join("pnpr.yaml");
     std::fs::write(&path, yaml).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let mut config = Config::from_yaml(&path, listen, None).unwrap();
+    let mut config = pnpr_fixtures::load_seeded_config(&path, listen, None);
     config.resolution_cache_secret = b"fixed-secret".to_vec().into();
     config
 }

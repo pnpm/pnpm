@@ -2,7 +2,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{AuthState, router_with_auth};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt as _;
@@ -28,7 +28,7 @@ impl Fixture {
         );
         let path = directory.path().join("config.yaml");
         std::fs::write(&path, format!("{yaml}defaultRegistry: local\n")).unwrap();
-        let config = Config::from_yaml(&path, "127.0.0.1:0".parse().unwrap(), None).unwrap();
+        let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
         let app = router_with_auth(config, auth);
         Self { _directory: directory, app, operator, member, member_id }
     }

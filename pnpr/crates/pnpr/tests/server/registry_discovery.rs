@@ -455,7 +455,7 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("config.yaml");
     fs::write(&path, "storage: ./storage\nregistries:\n  internal: {type: hosted, ecosystem: oci}\ndefaultRegistry:\n  oci: internal\n").unwrap();
-    let config = Config::from_yaml(&path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+    let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:4873".parse().unwrap(), None);
     let app = router(config);
     let response = app
         .clone()

@@ -71,7 +71,6 @@ impl Replica {
                 r"
 storage: '{storage}'
 secret: 'test-secret-key-32-chars-long-12'
-registriesManagedBy: api
 auth:
   registryAdmins: [reader]
 {scim}

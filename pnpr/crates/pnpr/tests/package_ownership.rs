@@ -48,7 +48,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let config =
-        Config::from_yaml(&path, listen(), Some("http://example.test".to_string())).unwrap();
+        pnpr_fixtures::load_seeded_config(&path, listen(), Some("http://example.test".to_string()));
     (dir, config)
 }
 
@@ -899,12 +899,13 @@ async fn staged_publish_approval_rejects_malformed_body_without_claiming_stage()
 
 #[tokio::test]
 async fn mutations_reauthorize_after_concurrent_package_update() {
-    let (dir, mut config) = config_with_packages(
+    let primary_dir = TempDir::new().unwrap();
+    let (primary, address, _server) =
+        pnpr_libsql::testing::serve_primary(primary_dir.path().join("primary.db")).await;
+    let (_dir, mut config) = config_with_packages(
         "packages:\n  'race-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
         &[],
     );
-    let (primary, address, _server) =
-        pnpr_libsql::testing::serve_primary(dir.path().join("primary.db")).await;
     config.has_configured_secret = true;
     config.storage.metadata = pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
         url: format!("http://{address}"),
@@ -913,6 +914,8 @@ async fn mutations_reauthorize_after_concurrent_package_update() {
         sync_interval_secs: None,
         max_connections: None,
     });
+    // The libSQL database holds no graph: serve the one seeded into SQLite.
+    config.graph_source = pnpr_config::GraphSource::Supplied;
     let app = app_router(config, &[]).await;
     let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;

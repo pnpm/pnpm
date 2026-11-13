@@ -21,12 +21,12 @@ pub async fn managed_config(
 }
 
 /// Store `graph`, the JSON shape of a registry graph document, as the next
-/// revision.
-#[expect(clippy::unused_async, reason = "callers await it like the server setup around it")]
+/// revision, on the caller's runtime, which may be serving the database.
 pub async fn store_graph(config: &Config, graph: &Value) {
     let document: RegistryGraphDocument = serde_json::from_value(graph.clone()).unwrap();
-    pnpr_fixtures::store_document(
+    pnpr_fixtures::write_document(
         &pnpr_storage::Storage::from_config(&config.storage).unwrap(),
         &document,
-    );
+    )
+    .await;
 }

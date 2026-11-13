@@ -1,8 +1,6 @@
 //! npm's team package access endpoints (`npm access grant`, `revoke`, and
-//! `list packages`) on registries the metadata database stores
-//! (`registriesManagedBy: api`): what a grant
-//! writes into the package rules, who may make one, and which packages it
-//! applies to.
+//! `list packages`): what a grant writes into the stored package rules, who
+//! may make one, and which packages it applies to.
 
 use axum::{
     body::{Body, to_bytes},
@@ -59,13 +57,6 @@ async fn load_config(dir: &Path) -> Config {
         public_url(),
     )
     .await
-}
-
-/// [`CONFIG`] with the registries in the config file.
-fn load_file_config(dir: &Path) -> Config {
-    let path = dir.join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage_dir(dir).display())).unwrap();
-    Config::from_yaml(&path, listen(), public_url()).unwrap()
 }
 
 fn storage_dir(dir: &Path) -> std::path::PathBuf {
@@ -212,18 +203,6 @@ async fn grants_need_an_admin_a_declared_package_and_a_known_team() {
         assert_eq!(status, expected, "{path} {body}");
     }
     assert_eq!(app_rule(&app, &root).await["access"], json!(["root"]));
-}
-
-#[tokio::test]
-async fn grants_need_registries_the_database_stores() {
-    let dir = TempDir::new().unwrap();
-    let app = app_router(load_file_config(dir.path())).await;
-    let root = add_user(&app, "root").await;
-    let grant = json!({ "package": "@acme/app", "permissions": "read-write" });
-
-    let (status, error) = send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(error["code"], "ERR_PNPR_RULES_CONFIG_MANAGED");
 }
 
 #[tokio::test]

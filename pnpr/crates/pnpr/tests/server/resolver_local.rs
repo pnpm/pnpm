@@ -98,6 +98,8 @@ async fn resolve_private_upstream(header: &str) {
         b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
     )
     .await;
+    // The upstream is on `127.0.0.1` too, which as the own host it could not reach.
+    let public_url = public_url.replace("://127.0.0.1:", "://localhost:");
     let mut upstream = mockito::Server::new_async().await;
     let (_, tgz) = package_tar_and_tgz(r#"{"name":"private-widget","version":"1.0.0"}"#);
     let packument = upstream.mock("GET", "/private-widget")

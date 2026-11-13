@@ -20,9 +20,23 @@ pub const MOCK_REGISTRIES_YAML: &str = include_str!("../../../.fixtures/registri
 ///
 /// The document does not parse, does not build, or cannot be stored.
 pub fn seed_registries(config: &mut Config, yaml: &str) {
-    let document = RegistryGraphDocument::from_yaml(yaml)
-        .unwrap_or_else(|error| panic!("parse the registries document: {error}"));
-    seed_document(config, &document);
+    seed_document(config, &parse_document(yaml));
+}
+
+/// The routing the registries document `yaml` builds under `config`, without
+/// storing it, for a config whose metadata database a test cannot reach.
+///
+/// # Panics
+///
+/// The document does not parse or does not build.
+#[must_use]
+pub fn registries_routing(config: &Config, yaml: &str) -> RoutingConfig {
+    build_routing(config, &parse_document(yaml))
+}
+
+fn parse_document(yaml: &str) -> RegistryGraphDocument {
+    RegistryGraphDocument::from_yaml(yaml)
+        .unwrap_or_else(|error| panic!("parse the registries document: {error}"))
 }
 
 /// Load the config file at `path`, written with `registries`,
@@ -82,6 +96,12 @@ pub fn split_graph(yaml: &str) -> (Map<String, Value>, Option<Value>) {
 }
 
 fn seed_document(config: &mut Config, document: &RegistryGraphDocument) {
+    let routing = build_routing(config, document);
+    store_document(&Storage::from_config(&config.storage).expect("open the storage"), document);
+    config.routing = routing;
+}
+
+fn build_routing(config: &Config, document: &RegistryGraphDocument) -> RoutingConfig {
     let options = RoutingOptions {
         registry_env: &config.registry_env,
         allowed_private_networks: config.routing.route_policy
@@ -89,10 +109,8 @@ fn seed_document(config: &mut Config, document: &RegistryGraphDocument) {
             .clone(),
         resolve_upstreams: config.features.registry.enabled,
     };
-    let routing = RoutingConfig::from_document(document, &options)
-        .unwrap_or_else(|error| panic!("build the registries document: {error}"));
-    store_document(&Storage::from_config(&config.storage).expect("open the storage"), document);
-    config.routing = routing;
+    RoutingConfig::from_document(document, &options)
+        .unwrap_or_else(|error| panic!("build the registries document: {error}"))
 }
 
 /// Store `document` as the next revision in `storage`'s metadata database.
@@ -101,26 +119,32 @@ fn seed_document(config: &mut Config, document: &RegistryGraphDocument) {
 ///
 /// The revision cannot be written.
 pub fn store_document(storage: &Storage, document: &RegistryGraphDocument) {
+    crate::metadata::run(write_document(storage, document));
+}
+
+/// [`store_document`] on the caller's runtime, for a database served by that
+/// runtime.
+///
+/// # Panics
+///
+/// The revision cannot be written.
+pub async fn write_document(storage: &Storage, document: &RegistryGraphDocument) {
     let bound: Vec<HostedNamespace> = document
         .registry_names()
         .filter_map(|name| document.hosted_storage(name))
         .map(|hosted| HostedNamespace { namespace: hosted.namespace, ecosystem: hosted.ecosystem })
         .collect();
     let json = serde_json::to_string(document).expect("serialize the registries document");
-    crate::metadata::run(async {
-        let current = storage
-            .read_registry_graph_generation()
-            .await
-            .expect("read the stored registries version");
-        let revision = NewRegistryGraph {
-            document: &json,
-            actor_id: "-",
-            restored_from: None,
-            vacated: &[],
-            bound: &bound,
-        };
-        let written =
-            storage.write_registry_graph(current, revision).await.expect("store the registries");
-        assert!(matches!(written, RegistryGraphWrite::Written(_)), "{written:?}");
-    });
+    let current =
+        storage.read_registry_graph_generation().await.expect("read the stored registries version");
+    let revision = NewRegistryGraph {
+        document: &json,
+        actor_id: "-",
+        restored_from: None,
+        vacated: &[],
+        bound: &bound,
+    };
+    let written =
+        storage.write_registry_graph(current, revision).await.expect("store the registries");
+    assert!(matches!(written, RegistryGraphWrite::Written(_)), "{written:?}");
 }
