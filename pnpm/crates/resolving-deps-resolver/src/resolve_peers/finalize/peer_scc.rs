@@ -215,7 +215,11 @@ impl Walker<'_> {
         let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
             return false;
         };
-        pkg.name().as_ref() != peer_alias && !pkg.peer_set.taken().contains_key(peer_alias)
+        !pkg.peer_set.taken().contains_key(peer_alias)
+            && (pkg.name().as_ref() != peer_alias
+                || self.tree.dependencies_tree
+                    .get(peer_owner)
+                    .is_some_and(|peer| peer.resolved_package_id != tree_node.resolved_package_id))
     }
 
     fn apply_propagated_peers(&mut self, node_id: &NodeId, additions: Vec<(String, NodeId)>) {
