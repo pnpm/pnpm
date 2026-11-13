@@ -387,7 +387,7 @@ describe('listFilesFromDir with entries removed while the package is walked', ()
     mockReaddir((dir, callback) => {
       if (dir === pkgDir && !failed) {
         failed = true
-        callback(Object.assign(new Error(`ENOENT: no such file or directory, scandir '${dir}'`), { code: 'ENOENT' }), [])
+        callback(Object.assign(new Error(`ENOENT: no such file or directory, '${dir}'`), { code: 'ENOENT' }), [])
         return
       }
       readdir(dir, callback)
