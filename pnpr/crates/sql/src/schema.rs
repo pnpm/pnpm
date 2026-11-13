@@ -58,7 +58,7 @@ pub const ALPHA_REPLACEMENT: &str = "version_notes";
 pub const MARKER_TABLE: DialectSql = DialectSql {
     sqlite: "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, applied_at INTEGER NOT NULL) STRICT",
     postgres: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL)",
-    mysql: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL) ENGINE=InnoDB COMMENT='pnpr-init:1'",
+    mysql: "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL) ENGINE=InnoDB COMMENT='pnpr-init:1.0'",
 };
 
 /// The tables and indexes created by step 1. Every dialect's script creates
@@ -348,15 +348,11 @@ fn inspect_marked(
     has: impl Fn(&str) -> bool,
 ) -> Result<Inspection> {
     let rows = connection.query(&format!("SELECT version FROM {MARKER}"), params![])?;
+    let alpha = has(ALPHA_TABLE) && !has(ALPHA_REPLACEMENT);
     if rows.is_empty() {
-        if connection.is_recoverable_empty_migrations()? {
-            return Ok(Inspection::Current(0));
-        }
-        return Ok(Inspection::Refused(Stored::Unreadable));
+        return inspect_empty_marker(connection, alpha);
     }
-    // An alpha database recorded its steps, so an interrupted first
-    // migration is resumed even when it has not created the replacement yet.
-    if has(ALPHA_TABLE) && !has(ALPHA_REPLACEMENT) {
+    if alpha {
         return Ok(Inspection::Refused(Stored::Pre1_0Alpha));
     }
     let Some(max_version) = parse_contiguous_versions(rows) else {
@@ -369,6 +365,16 @@ fn inspect_marked(
         return Ok(Inspection::Refused(stored));
     }
     Ok(Inspection::Current(max_version))
+}
+
+/// An interrupted 1.0 first migration resumes even before it creates
+/// [`ALPHA_REPLACEMENT`]. An interrupted `alpha` one carries another marker.
+fn inspect_empty_marker(connection: &dyn Connection, alpha: bool) -> Result<Inspection> {
+    if connection.is_recoverable_empty_migrations()? {
+        return Ok(Inspection::Current(0));
+    }
+    let stored = if alpha { Stored::Pre1_0Alpha } else { Stored::Unreadable };
+    Ok(Inspection::Refused(stored))
 }
 
 fn parse_contiguous_versions(rows: Vec<crate::adapter::Row>) -> Option<i64> {

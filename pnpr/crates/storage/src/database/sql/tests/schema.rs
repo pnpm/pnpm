@@ -943,6 +943,45 @@ mod mysql_recovery {
         .unwrap()
         .unwrap();
     }
+
+    /// An alpha build marked its unfinished first migration `pnpr-init:1`
+    /// and created tables in their alpha shape, which step 1 would keep.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires PNPR_TEST_MYSQL_URL"]
+    async fn on_mysql_an_interrupted_alpha_setup_is_refused() {
+        let db = Db::network("PNPR_TEST_MYSQL_URL").await;
+        let adapter = db.adapter();
+        tokio::task::spawn_blocking(move || {
+            adapter.write(&mut |connection| {
+                connection.execute(
+                    &format!(
+                        "CREATE TABLE {MARKER} (version BIGINT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL) COMMENT='pnpr-init:1'",
+                    ),
+                    params![],
+                )?;
+                connection.execute(
+                    &format!("CREATE TABLE {ALPHA_TABLE} (namespace VARBINARY(512) NOT NULL)"),
+                    params![],
+                )
+            })
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        let metadata = Arc::new(SqlDatabase::with_adapter(db.instance_adapter(), "test".into()));
+        let error = tokio::task::spawn_blocking(move || metadata.ensure_schema())
+            .await
+            .unwrap()
+            .unwrap_err();
+        let RegistryError::InvalidConfig { reason } = error else {
+            panic!("an alpha database is refused as incompatible: {error:?}");
+        };
+        assert!(
+            reason.contains(&format!("holds a pre-1.0 alpha {ALPHA_TABLE} table,")),
+            "{reason}",
+        );
+        assert!(reason.contains("wipe pnpr's tables"), "{reason}");
+    }
 }
 
 #[tokio::test]
