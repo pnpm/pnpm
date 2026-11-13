@@ -87,9 +87,17 @@ fn clean_rejects_self_and_symlink_parent_and_sibling_modules_dir_escapes() {
     fs::write(workspace.join("package.json"), r#"{"name":"demo-app","version":"1.0.0"}"#)
         .expect("write package.json");
 
-    for modules_dir in [".", "escape/nm", "escape/../keep_dir"] {
-        fs::write(workspace.join("pnpm-workspace.yaml"), format!("modulesDir: {modules_dir}\n"))
-            .expect("write pnpm-workspace.yaml");
+    let mut escape_cases = vec![".", ". ", ".. ", "escape/nm", "escape/../keep_dir"];
+    if cfg!(windows) {
+        escape_cases.extend([r"escape\nm", r"escape\..\keep_dir"]);
+    }
+    for modules_dir in escape_cases {
+        let quoted_modules_dir = serde_json::to_string(modules_dir).expect("quote modulesDir");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("modulesDir: {quoted_modules_dir}\n"),
+        )
+        .expect("write pnpm-workspace.yaml");
         let output = Command::cargo_bin("pnpm")
             .expect("find pnpm binary")
             .with_current_dir(&workspace)
@@ -164,13 +172,15 @@ fn ci_does_not_delete_files_in_external_modules_dir() {
         )
         .expect("write pnpm-workspace.yaml");
 
-        let _output = Command::cargo_bin("pnpm")
+        let ci_output = Command::cargo_bin("pnpm")
             .expect("find pnpm binary")
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config()
             .with_args(["ci"])
             .output()
             .expect("run pnpm ci");
+        let stderr = String::from_utf8_lossy(&ci_output.stderr);
+        assert!(ci_output.status.success(), "pnpm ci (abs={use_absolute}) failed: {stderr}");
 
         assert!(
             external.join("keep.txt").exists(),
@@ -179,6 +189,10 @@ fn ci_does_not_delete_files_in_external_modules_dir() {
         assert!(
             external.join("existing-pkg/package.json").exists(),
             "pnpm ci (abs={use_absolute}) must not delete existing external package",
+        );
+        assert!(
+            external.join("local-dependency/package.json").exists(),
+            "pnpm ci (abs={use_absolute}) should complete install into configured modulesDir",
         );
 
         drop(root);
@@ -299,6 +313,51 @@ fn ci_unlinks_symlinked_node_modules_without_deleting_target_and_reinstalls() {
         node_modules.join("local-dependency/package.json").exists(),
         "dependency should be installed in fresh node_modules",
     );
+
+    drop(root);
+}
+
+#[test]
+fn clean_keeps_project_root_and_rejects_symlinked_parent_virtual_store_and_dir_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let outside_store = root.path().join("outside/store");
+    fs::create_dir_all(&outside_store).expect("create outside/store");
+    fs::write(outside_store.join("keep.txt"), "keep").expect("write outside store keep.txt");
+    pnpm_fs::symlink_dir(
+        outside_store.parent().expect("outside parent"),
+        &workspace.join("escape"),
+    )
+    .expect("link escape -> outside");
+    fs::write(workspace.join("package.json"), r#"{"name":"demo-app","version":"1.0.0"}"#)
+        .expect("write package.json");
+
+    let lockfile_dir = workspace.join("pnpm-lock.yaml");
+    fs::create_dir_all(&lockfile_dir).expect("create directory named pnpm-lock.yaml");
+    fs::write(lockfile_dir.join("keep.txt"), "keep").expect("write keep.txt inside lockfile dir");
+
+    for virtual_store_dir in [".", ". ", ".. ", "escape/store"] {
+        let quoted_store_dir =
+            serde_json::to_string(virtual_store_dir).expect("quote virtualStoreDir");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("virtualStoreDir: {quoted_store_dir}\n"),
+        )
+        .expect("write pnpm-workspace.yaml");
+        let output = Command::cargo_bin("pnpm")
+            .expect("find pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(["clean", "--lockfile"])
+            .output()
+            .expect("run pnpm clean --lockfile");
+        assert!(output.status.success(), "clean failed for {virtual_store_dir}: {output:?}");
+        assert!(workspace.join("package.json").exists(), "package.json removed");
+        assert!(outside_store.join("keep.txt").exists(), "outside store file removed");
+        assert!(
+            lockfile_dir.join("keep.txt").exists(),
+            "real directory named pnpm-lock.yaml must not be deleted",
+        );
+    }
 
     drop(root);
 }

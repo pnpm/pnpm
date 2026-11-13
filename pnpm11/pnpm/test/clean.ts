@@ -333,7 +333,18 @@ test('pnpm clean rejects self, symlinked parent, and sibling modulesDir escapes'
   fs.writeFileSync(path.join('keep-dir', 'keep.txt'), 'keep')
   writeJsonFile('package.json', { name: 'demo-app', version: '1.0.0' })
 
-  for (const modulesDir of ['.', 'escape/nm', 'escape/../keep-dir']) {
+  const drivePrefix = path.parse(process.cwd()).root.slice(0, 2)
+  const escapeCases = [
+    '.',
+    '. ',
+    '.. ',
+    'escape/nm',
+    'escape/../keep-dir',
+    ...(process.platform === 'win32'
+      ? ['escape\\nm', 'escape\\..\\keep-dir', `${drivePrefix}escape\\..\\keep-dir`]
+      : []),
+  ]
+  for (const modulesDir of escapeCases) {
     writeYamlFileSync('pnpm-workspace.yaml', { modulesDir })
     const result = execPnpmSync(['clean'])
     expect(result.status).toBe(0)
@@ -387,12 +398,15 @@ test('pnpm clean keeps project root and rejects symlinked parent for virtual-sto
   fs.symlinkSync(path.dirname(outsideStore), 'escape', process.platform === 'win32' ? 'junction' : 'dir')
   writeJsonFile('package.json', { name: 'demo-app', version: '1.0.0' })
 
-  for (const virtualStoreDir of ['.', 'escape/store']) {
-    const result = execPnpmSync(['clean'], {
-      env: { pnpm_config_virtual_store_dir: virtualStoreDir },
-    })
+  fs.mkdirSync('pnpm-lock.yaml', { recursive: true })
+  fs.writeFileSync(path.join('pnpm-lock.yaml', 'keep.txt'), 'keep')
+
+  for (const virtualStoreDir of ['.', '. ', '.. ', 'escape/store']) {
+    writeYamlFileSync('pnpm-workspace.yaml', { virtualStoreDir })
+    const result = execPnpmSync(['clean', '--lockfile'])
     expect(result.status).toBe(0)
     expect(fs.existsSync('package.json')).toBe(true)
     expect(fs.existsSync(path.join(outsideStore, 'keep.txt'))).toBe(true)
+    expect(fs.existsSync(path.join('pnpm-lock.yaml', 'keep.txt'))).toBe(true)
   }
 })

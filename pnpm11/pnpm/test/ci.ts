@@ -152,9 +152,11 @@ test('pnpm ci does not delete files in external modulesDir', () => {
       modulesDir: useAbsolute ? externalTarget : '../external-target',
     })
 
-    execPnpmSync(['ci'])
+    const result = execPnpmSync(['ci'])
+    expect(result.status).toBe(0)
     expect(fs.existsSync(path.join(externalTarget, 'keep.txt'))).toBe(true)
     expect(fs.existsSync(path.join(externalTarget, 'existing-pkg', 'package.json'))).toBe(true)
+    expect(fs.existsSync(path.join(externalTarget, 'is-positive'))).toBe(true)
   }
 })
 

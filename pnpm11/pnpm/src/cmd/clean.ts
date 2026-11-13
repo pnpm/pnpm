@@ -159,7 +159,8 @@ async function removableModulesEntries (modulesDir: string): Promise<string[]> {
 async function removeProjectLockfile (opts: CleanProjectContext, dir: string): Promise<void> {
   const lockfilePath = await resolveInside(dir, 'pnpm-lock.yaml')
   if (lockfilePath == null || !isStrictSubdir(opts.realRootDir, lockfilePath)) return
-  if (await lstatIfExists(lockfilePath) == null) return
+  const stat = await lstatIfExists(lockfilePath)
+  if (stat == null || (!stat.isSymbolicLink() && stat.isDirectory())) return
   printRemoving(opts.cwd, lockfilePath)
   await rimraf(lockfilePath)
 }
@@ -187,8 +188,11 @@ async function resolveInside (rootDir: string, targetSpec: string): Promise<stri
     return undefined
   }
   const candidatePath = normalizeTargetSpec(realRoot, targetSpec)
+  if (candidatePath == null) {
+    return undefined
+  }
   const parsed = path.parse(candidatePath)
-  if (parsed.base === '' || parsed.base === '.' || parsed.base === '..') {
+  if (parsed.base.replace(/[. ]+$/u, '') === '') {
     return undefined
   }
   const realParent = await resolveParentDir(realRoot, parsed)
@@ -203,10 +207,14 @@ async function resolveParentDir (realRoot: string, parsed: ParsedPath): Promise<
   if (parsed.dir === realRoot) {
     return realRoot
   }
-  if (!parsed.dir.split(path.sep).includes('..')) {
+  if (!parsed.dir.split(path.sep).some(needsStepwiseResolution)) {
     return tryRealpath(parsed.dir)
   }
   return resolveParentSegments(realRoot, parsed)
+}
+
+function needsStepwiseResolution (segment: string): boolean {
+  return segment === '..' || (path.sep === '\\' && segment !== '' && segment.replace(/[. ]+$/u, '') === '')
 }
 
 async function resolveParentSegments (realRoot: string, parsed: ParsedPath): Promise<string | undefined> {
@@ -231,12 +239,12 @@ async function stepParentSegment (current: string | undefined, segment: string):
   return segment === '..' ? path.dirname(current) : tryRealpath(path.join(current, segment))
 }
 
-function normalizeTargetSpec (realRoot: string, targetSpec: string): string {
+function normalizeTargetSpec (realRoot: string, targetSpec: string): string | undefined {
   const nativeSpec = path.sep === '\\' ? targetSpec.replaceAll('/', '\\') : targetSpec
   if (path.parse(nativeSpec).root === '') {
     return `${appendPathSep(realRoot)}${nativeSpec}`
   }
-  return path.isAbsolute(nativeSpec) ? nativeSpec : path.resolve(nativeSpec)
+  return path.isAbsolute(nativeSpec) ? nativeSpec : undefined
 }
 
 function appendPathSep (dirPath: string): string {

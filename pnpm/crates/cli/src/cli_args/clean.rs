@@ -86,7 +86,10 @@ fn remove_workspace_lockfile(
     else {
         return Ok(());
     };
-    if symlink_metadata_with_retry(&lockfile_path).is_err() {
+    let Ok(metadata) = symlink_metadata_with_retry(&lockfile_path) else {
+        return Ok(());
+    };
+    if !is_symlink_metadata(&metadata) && metadata.is_dir() {
         return Ok(());
     }
     print_removing(cwd, &lockfile_path);
@@ -152,10 +155,20 @@ fn resolve_project_modules_dir(
 /// cannot be resolved.
 fn resolve_inside(real_root: &Path, path: &Path) -> Option<PathBuf> {
     let path = to_native_separators(path);
+    let file_name = path.file_name()?;
+    // Windows strips trailing dots and spaces on non-verbatim paths, so `. ` or
+    // `.. ` would pass lexical leaf checks while naming `real_root` or its parent.
+    if file_name
+        .to_string_lossy()
+        .trim_end_matches(['.', ' '])
+        .is_empty()
+    {
+        return None;
+    }
     let resolved = resolve_path_with_symlinks(path.parent()?)
         .and_then(dunce::canonicalize)
         .ok()?
-        .join(path.file_name()?);
+        .join(file_name);
     (resolved.starts_with(real_root) && resolved != real_root).then_some(resolved)
 }
 
