@@ -30,6 +30,28 @@ async fn unlisted_importers_do_not_hoist_other_importers_locked_required_peers()
     assert!(!result.peers_result.direct_dependencies_by_alias.contains_key("peer"));
 }
 
+#[tokio::test]
+async fn retained_required_peer_pin_survives_without_a_current_provider() {
+    let mut lockfile =
+        peer_context_lockfile(None, [("consumer@1.0.0(peer@2.0.0)", SnapshotEntry::default())]);
+    lockfile.importers.insert(
+        ".".to_string(),
+        serde_json::from_value(json!({
+            "dependencies": {
+                "consumer": { "specifier": "1.0.0", "version": "1.0.0(peer@2.0.0)" },
+            },
+        }))
+        .unwrap(),
+    );
+    let result =
+        resolve_with_peer_preference(EXISTING_VERSION_SELECTOR_WEIGHT, Some(Arc::new(lockfile)))
+            .await;
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("consumer"),
+        Some(&DepPath::from("consumer@1.0.0(peer@2.0.0)")),
+    );
+}
+
 async fn resolve_with_peer_preference(
     weight: u32,
     lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,

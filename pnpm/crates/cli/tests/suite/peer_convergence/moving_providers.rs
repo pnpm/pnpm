@@ -740,3 +740,56 @@ fn check_same_named_cycle_provider(bundle: Option<&OsStr>, format: &str, suffix_
     let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     assert_eq!(fresh, reused, "{bundle:?}, {format}, {suffix_length}");
 }
+
+#[test]
+fn reinstall_keeps_injected_peer_dependency_classification() {
+    for suffix_length in [20, 1000] {
+        for format in ["v9", "v13"] {
+            check_injected_children_owner(None, format, suffix_length);
+        }
+        if let Some(bundle) = read_v11_bundle_path() {
+            check_injected_children_owner(Some(&bundle), "v9", suffix_length);
+        }
+    }
+}
+
+fn check_injected_children_owner(bundle: Option<&OsStr>, format: &str, suffix_length: usize) {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let manifests = [
+        json!({ "name": "p1", "version": "1.0.0", "dependencies": { "p3": "^1.0.0" } }),
+        json!({ "name": "p1", "version": "2.0.0", "peerDependencies": { "p2": "^1.0.0" } }),
+        json!({ "name": "p2", "version": "1.0.0" }),
+        json!({ "name": "p2", "version": "2.0.0" }),
+        json!({ "name": "p3", "version": "1.0.0", "peerDependencies": { "p4": "^2.0.0" }, "peerDependenciesMeta": { "p4": { "optional": true } } }),
+        json!({ "name": "p3", "version": "2.0.0", "dependencies": { "p4": "^2.0.0" } }),
+        json!({ "name": "p4", "version": "2.0.0", "dependencies": { "p2": "^1.0.0" }, "peerDependencies": { "p2": "^1.0.0" } }),
+    ];
+    let mut fixture = WorkspaceFixture::new();
+    fixture.registry.mock_instance = registry_from_manifests(registry_dir.path(), manifests);
+    fixture.append_workspace_yaml(&format!("autoInstallPeers: false\nresolvePeersFromWorkspaceRoot: false\ndedupePeerDependents: true\ndedupePeers: false\ndedupeInjectedDeps: false\npeersSuffixMaxLength: {suffix_length}\nlockfile:\n  format: {format}\n"));
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project("a", "app", ManifestDeps::default());
+    fixture.project("shared", "shared", ManifestDeps::default());
+    for (dir, manifest) in [
+        (
+            ".",
+            json!({ "name": "root", "dependencies": { "p2": "^2.0.0", "shared": "workspace:*" }, "dependenciesMeta": { "shared": { "injected": true } } }),
+        ),
+        (
+            "packages/a",
+            json!({ "name": "app", "dependencies": { "p1": "^2.0.0", "p3": "^2.0.0", "shared": "workspace:*" }, "dependenciesMeta": { "shared": { "injected": true } } }),
+        ),
+        (
+            "packages/shared",
+            json!({ "name": "shared", "version": "1.0.0", "dependencies": { "p1": "^1.0.0" }, "peerDependencies": { "p3": "^2.0.0" } }),
+        ),
+    ] {
+        fs::write(fixture.workspace.join(dir).join("package.json"), manifest.to_string()).unwrap();
+    }
+    install_lockfile(&fixture, bundle);
+    let fresh = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    install_lockfile(&fixture, bundle);
+    let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    dbg!(&fresh, &reused);
+    assert_eq!(fresh, reused, "{bundle:?}, {format}, {suffix_length}");
+}
