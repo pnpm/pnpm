@@ -74,14 +74,14 @@ impl PythonPattern {
         }
         if let Some(prefix) = pattern.strip_suffix('*') {
             // A prefix may end with a separator, but a complete Python name cannot.
-            let name = exact_name(&format!("{prefix}x"))?;
+            let name = exact_name(&format!("{prefix}x"), pattern)?;
             return Ok(Self::Prefix(
                 name.strip_suffix('x')
                     .expect("Python name normalization preserves the final ASCII letter")
                     .to_string(),
             ));
         }
-        exact_name(pattern).map(Self::Exact)
+        exact_name(pattern, pattern).map(Self::Exact)
     }
 
     pub(super) fn matches(&self, name: &str) -> bool {
@@ -115,21 +115,23 @@ impl PythonPattern {
     }
 }
 
-/// The normalized project name `pattern` spells, or why it spells none.
-fn exact_name(pattern: &str) -> Result<String, String> {
-    if pattern.is_empty() || pattern.contains('*') {
-        return Err(format!(
-            "unsupported pypi registry pattern {pattern:?}: use an exact name, nothing narrower, \
-             or `**`",
-        ));
+/// The shapes a Python index's `packages` entry may take, for the message
+/// that rejects one.
+const PATTERN_SHAPES: &str = "use an exact name, a prefix such as `company-*`, or `**`";
+
+/// The normalized project name `candidate` spells, or why `pattern`, the
+/// entry it was derived from, spells none.
+fn exact_name(candidate: &str, pattern: &str) -> Result<String, String> {
+    if candidate.is_empty() || candidate.contains('*') {
+        return Err(format!("unsupported pypi registry pattern {pattern:?}: {PATTERN_SHAPES}"));
     }
-    canonicalize_python_name(pattern)
+    canonicalize_python_name(candidate)
         .ok()
         .filter(|name| name.len() <= MAX_NAME_LENGTH)
         .ok_or_else(|| {
             format!(
-                "registry pattern {pattern:?} is not a valid package name, so it can never \
-                 match; to claim every package in a scope use `@scope/*`",
+                "registry pattern {pattern:?} is not a valid pypi package name, so it can never \
+                 match; {PATTERN_SHAPES}",
             )
         })
 }
