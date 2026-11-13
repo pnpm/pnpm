@@ -88,6 +88,7 @@ impl DirectoryBinPlan {
         Sys: FsReadFile
             + FsReadToString
             + FsReadHead
+            + FsReadDir
             + FsCreateDirAll
             + FsWalkFiles
             + FsWrite
