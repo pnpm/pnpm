@@ -847,6 +847,74 @@ test('pack: package-level .npmignore disables workspace root gitignore', async (
   expect(output).not.toContain('src/ignored.js')
 })
 
+test.each([
+  ['listed', 'readdir', (dir: string) => path.join(dir, '.npmignore')],
+  ['read', 'readFile', (file: string) => path.basename(file) === '.npmignore' ? file : undefined],
+] as const)('pack: a workspace package whose .npmignore is removed before it is %s keeps the workspace root gitignore', async (_, method, npmignoreToRemove) => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.writeFileSync('.gitignore', 'secret.js\n', 'utf8')
+
+  process.chdir('project')
+  fs.writeFileSync('.npmignore', 'secret.js\n', 'utf8')
+  fs.writeFileSync('index.js', 'source', 'utf8')
+  fs.writeFileSync('secret.js', 'secret', 'utf8')
+  const original = fs[method] as (...args: unknown[]) => void
+  jest.spyOn(fs, method).mockImplementation(((target: string, ...args: unknown[]) => {
+    const npmignore = npmignoreToRemove(target)
+    if (npmignore != null) fs.rmSync(npmignore, { force: true })
+    return original(target, ...args)
+  }) as never)
+
+  try {
+    const output = await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+      dryRun: true,
+      workspaceDir,
+    })
+
+    expect(output).toContain('index.js')
+    expect(output).not.toContain('secret.js')
+  } finally {
+    jest.restoreAllMocks()
+  }
+})
+
+test('pack: an unreadable workspace root gitignore fails the pack', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.mkdirSync('.gitignore')
+
+  process.chdir('project')
+  fs.writeFileSync('index.js', 'source', 'utf8')
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    workspaceDir,
+  })).rejects.toMatchObject({ code: 'EISDIR' })
+})
+
 // A symlinked workspace-root LICENSE must not be injected: following it would
 // leak the target's bytes — potentially a file outside the workspace — into
 // the published tarball.
