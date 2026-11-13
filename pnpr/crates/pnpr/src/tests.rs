@@ -347,6 +347,7 @@ fn an_env_var_read_by_serve_keeps_the_explicit_top_level_flag() {
 
 #[test]
 fn package_export_is_not_a_command() {
+    let _env = scrubbed_env();
     let error = Args::try_parse_from(["pnpr", "export", "--out", "backup"]).unwrap_err();
     assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
     assert!(
