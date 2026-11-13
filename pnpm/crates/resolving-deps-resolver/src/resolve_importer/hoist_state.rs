@@ -92,8 +92,11 @@ pub(super) struct ImporterHoistSelection {
 impl super::ImporterHoistState {
     /// Enable lockfile-only required providers after current-graph hoists settle.
     pub(crate) fn enable_locked_peer_fallbacks(&mut self) -> bool {
-        if matches!(self.progress.required_peer_phase, RequiredPeerPhase::LockedFallbacks)
-            || !self.policy.should_hoist_peers()
+        match self.progress.required_peer_phase {
+            RequiredPeerPhase::CurrentProviders => {}
+            RequiredPeerPhase::LockedFallbacks => return false,
+        }
+        if !self.policy.should_hoist_peers()
             || self.policy.peers.auto_install_peers
             || self.ctx
                 .workspace()
