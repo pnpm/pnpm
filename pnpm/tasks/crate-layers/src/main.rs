@@ -24,6 +24,7 @@ mod dependencies;
 mod diff;
 mod extent;
 mod graph;
+mod item;
 mod layers;
 mod leaks;
 mod lexer;
@@ -34,6 +35,7 @@ mod report;
 mod surface;
 mod tree;
 mod use_tree;
+mod visibility;
 
 #[cfg(test)]
 mod tests;

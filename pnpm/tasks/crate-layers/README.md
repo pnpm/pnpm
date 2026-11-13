@@ -73,13 +73,19 @@ leak by re-exporting the item from the crate that exposes it, or by keeping
 it out of the public signature.
 
 The public signatures are those of `pub` functions, fields, enums, traits,
-type aliases, constants, and statics, outside test-only modules. The tool
-reads `pub` alone, so a `pub` item in a private module counts. It follows
-the imports of the item's own file or inline module, and `extern crate … as …`
-aliases from the item's module and the crate root. It misses:
+type aliases, constants, and statics, outside test-only modules, that a
+caller can reach. An item is reachable when a chain of `pub mod` leads to it
+from the crate root, or when a reachable `pub use` re-exports it, its module,
+or a glob over its module. A field or an `impl` method is reachable with the
+type it belongs to, and a `pub use` covers a leak only when it is reachable.
+The tool follows the imports of the item's own file or inline module, and
+`extern crate … as …` aliases from the item's module and the crate root. It
+misses:
 
 - a path that reaches the dependency through another module of the crate;
 - a name brought in by a glob import such as `use dep::*`;
+- an item a `pub use` reaches through another `use` rather than through
+  the module tree, which it counts as unreachable;
 - a dependency renamed in `Cargo.toml`, which it looks for under its package
   name.
 
