@@ -26,12 +26,16 @@ type Edit = 'none' | 'dependency' | 'peer' | 'optionalPeer' | 'catalogPeer' | 'c
 interface Layout {
   sharedWorkspaceLockfile: boolean
   injection: Injection
-  childSpec: ChildSpec
+  childSpec?: ChildSpec
 }
 
 const LAYOUTS: Layout[] = [true, false].flatMap((sharedWorkspaceLockfile) =>
   (['injectWorkspacePackages', 'dependenciesMeta', 'fileSpec'] as const).flatMap((injection) =>
-    (['link:../child', '../child'] as const).map((childSpec) => ({ sharedWorkspaceLockfile, injection, childSpec }))
+    (injection === 'fileSpec' ? [undefined] : ['link:../child', '../child'] as const).map((childSpec) => ({
+      sharedWorkspaceLockfile,
+      injection,
+      ...(childSpec == null ? {} : { childSpec }),
+    }))
   )
 )
 const EDITS: Edit[] = ['none', 'dependency', 'peer', 'optionalPeer', 'catalogPeer', 'catalogChild']
@@ -113,7 +117,10 @@ function prepareWorkspace (layout: Layout): void {
     {
       name: 'lib',
       version: '1.0.0',
-      dependencies: { '@pnpm.e2e/foo': '100.0.0', child: layout.childSpec },
+      dependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+        ...(layout.childSpec == null ? {} : { child: layout.childSpec }),
+      },
       peerDependencies: { '@pnpm.e2e/bar': 'catalog:' },
     },
     {

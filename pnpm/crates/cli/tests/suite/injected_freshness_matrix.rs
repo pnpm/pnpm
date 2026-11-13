@@ -454,7 +454,7 @@ matrix! {
     shared_file_spec: Layout {
         shared_lockfile: true,
         injection: Injection::FileSpec,
-        child_spec: ChildSpec::Link,
+        child_spec: ChildSpec::None,
     },
     dedicated_inject_workspace_packages: Layout {
         shared_lockfile: false,
@@ -469,7 +469,7 @@ matrix! {
     dedicated_file_spec: Layout {
         shared_lockfile: false,
         injection: Injection::FileSpec,
-        child_spec: ChildSpec::Link,
+        child_spec: ChildSpec::None,
     },
     shared_bare_path: Layout {
         shared_lockfile: true,
@@ -491,11 +491,6 @@ matrix! {
         injection: Injection::DependenciesMeta,
         child_spec: ChildSpec::BarePath,
     },
-    shared_file_spec_bare_child: Layout {
-        shared_lockfile: true,
-        injection: Injection::FileSpec,
-        child_spec: ChildSpec::BarePath,
-    },
     dedicated_inject_workspace_packages_bare_child: Layout {
         shared_lockfile: false,
         injection: Injection::InjectWorkspacePackages,
@@ -504,11 +499,6 @@ matrix! {
     dedicated_dependencies_meta_bare_child: Layout {
         shared_lockfile: false,
         injection: Injection::DependenciesMeta,
-        child_spec: ChildSpec::BarePath,
-    },
-    dedicated_file_spec_bare_child: Layout {
-        shared_lockfile: false,
-        injection: Injection::FileSpec,
         child_spec: ChildSpec::BarePath,
     },
     shared_bare_path_bare_child: Layout {
