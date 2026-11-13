@@ -40,31 +40,40 @@ pub(super) struct DocumentPlaceholders {
     pub(super) resolvable: Vec<usize>,
 }
 
+const SENTINEL_STEM: &str = "pnpmplaceholder";
+const MIN_SENTINEL_PREFIX_LEN: usize = SENTINEL_STEM.len() + 2;
+
 /// Collect the `${...}` placeholders of `text` in source order, returning
 /// `None` when `text` contains none.
 ///
 /// Only a placeholder that resolves without missing variables to a bare token
-/// (`[A-Za-z0-9_.-]+`) and is not preceded by a YAML anchor/alias sigil (`&`
-/// or `*`) receives `resolved: Some(...)`. Every placeholder also receives a
-/// bare-token `sentinel` (`{prefix}{index}_`) so YAML syntax indicators inside
-/// `${...}` (such as `{`, `}`, or `: `) do not prevent a free-text setting
-/// from parsing with its placeholder left unexpanded.
+/// (`[A-Za-z0-9_.-]+`) and is not inside a YAML anchor/alias token (`&` or
+/// `*`) receives `resolved: Some(...)`. Every placeholder also receives a
+/// bare-token `sentinel` (`{prefix}{index}_`) whose prefix cannot appear in
+/// `text` (even after YAML double-quoted unescaping) or in any resolved value,
+/// so YAML syntax indicators inside `${...}` (such as `{`, `}`, or `: `) do not
+/// prevent a free-text setting from parsing with its placeholder left
+/// unexpanded.
 pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentPlaceholders> {
-    let raw_items: Vec<(Range<usize>, Option<String>)> = placeholder_ranges(text)
+    let ranges: Vec<Range<usize>> = placeholder_ranges(text)
         .into_iter()
         .filter(|range| !text[range.clone()].contains(['\r', '\n']))
-        .map(|range| {
-            let resolved = (!text[..range.start].ends_with(['&', '*']))
+        .collect();
+    if ranges.is_empty() {
+        return None;
+    }
+    let raw_items: Vec<(Range<usize>, Option<String>)> = ranges
+        .iter()
+        .enumerate()
+        .map(|(index, range)| {
+            let resolved = (!preceded_by_anchor_or_alias_sigil(text, &ranges, index))
                 .then(|| env_replace_lossy::<Sys>(&text[range.clone()]))
                 .and_then(|(expanded, unresolved)| {
                     (unresolved.is_empty() && is_bare_token(&expanded)).then_some(expanded)
                 });
-            (range, resolved)
+            (range.clone(), resolved)
         })
         .collect();
-    if raw_items.is_empty() {
-        return None;
-    }
     let sentinel_prefix = unique_sentinel_prefix(text, &raw_items);
     let mut items = Vec::with_capacity(raw_items.len());
     let mut resolvable = Vec::new();
@@ -136,20 +145,141 @@ impl DocumentPlaceholders {
     }
 }
 
-fn unique_sentinel_prefix(text: &str, raw_items: &[(Range<usize>, Option<String>)]) -> String {
-    let mut counter = 0_u32;
-    loop {
-        let candidate = format!("pnpmplaceholder{counter}_");
-        let collides = text.contains(&candidate)
-            || raw_items
-                .iter()
-                .filter_map(|(_, resolved)| resolved.as_deref())
-                .any(|resolved| resolved.contains(&candidate));
-        if !collides {
-            return candidate;
+fn preceded_by_anchor_or_alias_sigil(
+    text: &str,
+    ranges: &[Range<usize>],
+    mut index: usize,
+) -> bool {
+    let mut cursor = ranges[index].start;
+    while cursor > 0 {
+        if index > 0 && ranges[index - 1].end == cursor {
+            index -= 1;
+            cursor = ranges[index].start;
+            continue;
         }
-        counter += 1;
+        let Some(character) = text[..cursor].chars().next_back() else {
+            break;
+        };
+        if matches!(character, '&' | '*') {
+            return true;
+        }
+        if matches!(character, ' ' | '\t' | '\r' | '\n' | ',' | '[' | ']' | '{' | '}') {
+            break;
+        }
+        cursor -= character.len_utf8();
     }
+    false
+}
+
+fn unique_sentinel_prefix(text: &str, raw_items: &[(Range<usize>, Option<String>)]) -> String {
+    let unescaped = text.contains('\\').then(|| unescape_yaml_double_quoted(text));
+    let resolved_bytes: usize = raw_items
+        .iter()
+        .filter_map(|(_, resolved)| resolved.as_deref())
+        .map(str::len)
+        .sum();
+    let total_bytes = text.len() + unescaped.as_ref().map_or(0, String::len) + resolved_bytes;
+    let mut occupied = vec![false; total_bytes / MIN_SENTINEL_PREFIX_LEN + 1];
+    mark_occupied_prefixes(text, &mut occupied);
+    if let Some(unescaped) = &unescaped {
+        mark_occupied_prefixes(unescaped, &mut occupied);
+    }
+    for resolved in raw_items.iter().filter_map(|(_, resolved)| resolved.as_deref()) {
+        mark_occupied_prefixes(resolved, &mut occupied);
+    }
+    let counter = occupied
+        .iter()
+        .position(|&used| !used)
+        .unwrap_or(0);
+    format!("{SENTINEL_STEM}{counter}_")
+}
+
+fn mark_occupied_prefixes(haystack: &str, occupied: &mut [bool]) {
+    for (offset, _) in haystack.match_indices(SENTINEL_STEM) {
+        let after = &haystack[offset + SENTINEL_STEM.len()..];
+        let digits_len = after
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .count();
+        if digits_len > 0
+            && after.as_bytes().get(digits_len) == Some(&b'_')
+            && let Ok(counter) = after[..digits_len].parse::<usize>()
+            && let Some(slot) = occupied.get_mut(counter)
+        {
+            *slot = true;
+        }
+    }
+}
+
+fn unescape_yaml_double_quoted(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let bytes = text.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] != b'\\' {
+            let Some(character) = text[index..].chars().next() else {
+                break;
+            };
+            out.push(character);
+            index += character.len_utf8();
+            continue;
+        }
+        match bytes.get(index + 1).copied() {
+            Some(b'\\') => {
+                out.push('\\');
+                index += 2;
+            }
+            Some(b'x') => index += push_hex_escape(&text[index + 2..], 2, &mut out),
+            Some(b'u') => index += push_hex_escape(&text[index + 2..], 4, &mut out),
+            Some(b'U') => index += push_hex_escape(&text[index + 2..], 8, &mut out),
+            Some(b' ' | b'\t' | b'\r' | b'\n') => {
+                if let Some(consumed) = escaped_line_break_len(&bytes[index + 1..]) {
+                    index += 1 + consumed;
+                } else {
+                    out.push(' ');
+                    index += 1;
+                }
+            }
+            _ => {
+                out.push(' ');
+                index += 1;
+            }
+        }
+    }
+    out
+}
+
+fn push_hex_escape(rest: &str, hex_digits: usize, out: &mut String) -> usize {
+    if rest
+        .as_bytes()
+        .get(..hex_digits)
+        .is_some_and(|slice| slice.iter().all(u8::is_ascii_hexdigit))
+        && let Ok(codepoint) = u32::from_str_radix(&rest[..hex_digits], 16)
+        && let Some(decoded) = char::from_u32(codepoint)
+    {
+        out.push(decoded);
+        2 + hex_digits
+    } else {
+        out.push(' ');
+        1
+    }
+}
+
+fn escaped_line_break_len(after_backslash: &[u8]) -> Option<usize> {
+    let trailing_spaces = after_backslash
+        .iter()
+        .take_while(|&&byte| matches!(byte, b' ' | b'\t'))
+        .count();
+    let newline_len = match after_backslash.get(trailing_spaces..) {
+        Some([b'\r', b'\n', ..]) => 2,
+        Some([b'\r' | b'\n', ..]) => 1,
+        _ => return None,
+    };
+    let leading_indent = after_backslash[trailing_spaces + newline_len..]
+        .iter()
+        .take_while(|&&byte| matches!(byte, b' ' | b'\t'))
+        .count();
+    Some(trailing_spaces + newline_len + leading_indent)
 }
 
 fn is_bare_token(value: &str) -> bool {

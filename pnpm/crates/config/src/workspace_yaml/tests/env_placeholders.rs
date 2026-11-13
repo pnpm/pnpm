@@ -419,49 +419,102 @@ fn config_dependency_and_local_include_refuse_flow_registry_placeholders() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("pnpm-workspace.yaml"),
-        "include:\n  ./reg.yaml:\n    - registry\n",
+        "include:\n  ./reg.yaml:\n    - shamefullyHoist\n    - registry\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("reg.yaml"),
-        "{registry: \"https://example.com/${PNPM_TEST_HOST}/\"}\n",
+        "{registry: https://example.com/${PNPM_TEST_HOST}/}\n",
+    )
+    .unwrap();
+    let unquoted_error = pnpm_workspace::read_workspace_manifest_document(dir.path()).unwrap_err();
+    assert!(matches!(
+        &unquoted_error,
+        pnpm_workspace::IncludeError::ParseFragment { spec, .. } if spec == "./reg.yaml"
+    ));
+
+    let reg_path = dir.path().join("reg.yaml");
+    std::fs::write(
+        &reg_path,
+        "shamefullyHoist: ${PNPM_TEST_IGNORE_SCRIPTS}\nregistry: 'https://example.com/${PNPM_TEST_UNSET:-x''y}/'\n",
     )
     .unwrap();
     let document = pnpm_workspace::read_workspace_manifest_document(dir.path()).unwrap().unwrap();
-    let mut merged = WorkspaceSettings::read_document(document, SettingsRead::All, |text, path| {
-        parse_settings::<Env, WorkspaceSettings>(text)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.to_path_buf(),
-                source,
-            })
-    })
-    .unwrap();
-    let error = merged.substitute_env_untrusted::<Env>().unwrap_err();
+    let fragment_error =
+        WorkspaceSettings::read_document(document, SettingsRead::All, |text, path| {
+            let mut settings = parse_settings::<Env, WorkspaceSettings>(text)
+                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                    path: path.to_path_buf(),
+                    source,
+                })?;
+            settings
+                .substitute_env_untrusted::<Env>()
+                .map_err(|error| match error {
+                    LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } => {
+                        LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+                            setting,
+                            file: path.display().to_string(),
+                        }
+                    }
+                    other => other,
+                })?;
+            Ok(settings)
+        })
+        .unwrap_err();
     assert!(matches!(
-        &error,
-        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
+        &fragment_error,
+        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, file }
+            if setting == "registry" && Path::new(file) == reg_path
     ));
 }
 
 #[test]
-fn sentinel_prefix_avoids_colliding_with_document_or_environment_text() {
+fn sentinel_prefix_avoids_colliding_with_document_escapes_or_environment_text() {
     struct CollidingEnv;
     impl EnvVar for CollidingEnv {
         fn var(name: &str) -> Option<String> {
             match name {
                 "HOIST" => Some("true".to_owned()),
-                "COLLIDE" => Some("pnpmplaceholder0_value".to_owned()),
+                "COLLIDE" => Some("pnpmplaceholder2_value".to_owned()),
                 _ => None,
             }
         }
     }
 
     let settings = parse_settings::<CollidingEnv, WorkspaceSettings>(
-        "{shamefullyHoist: ${HOIST}, storeDir: pnpmplaceholder0_/${COLLIDE}}\n",
+        r#"{shamefullyHoist: ${HOIST}, storeDir: "\u0070npmplaceholder0_0_", cacheDir: ${UNSET:-cache}, virtualStoreDir: "pnpm\
+  placeholder1_0_/${COLLIDE}"}"#,
     )
     .unwrap();
     assert_eq!(settings.shamefully_hoist, Some(true));
-    assert_eq!(settings.store_dir.as_deref(), Some("pnpmplaceholder0_/${COLLIDE}"));
+    assert_eq!(settings.store_dir.as_deref(), Some("pnpmplaceholder0_0_"));
+    assert_eq!(settings.cache_dir.as_deref(), Some("${UNSET:-cache}"));
+    assert_eq!(settings.virtual_store_dir.as_deref(), Some("pnpmplaceholder1_0_/${COLLIDE}"));
+
+    let mut occupied_comment = String::from("# ");
+    for counter in 0..2048 {
+        use std::fmt::Write as _;
+        let _ = write!(occupied_comment, "pnpmplaceholder{counter}_ ");
+    }
+    occupied_comment.push_str("\n{shamefullyHoist: ${HOIST}, cacheDir: ${UNSET:-cache}}\n");
+    let many = parse_settings::<CollidingEnv, WorkspaceSettings>(&occupied_comment).unwrap();
+    assert_eq!(many.shamefully_hoist, Some(true));
+    assert_eq!(many.cache_dir.as_deref(), Some("${UNSET:-cache}"));
+}
+
+#[test]
+fn yaml_anchors_and_aliases_do_not_expand_environment_placeholders() {
+    for yaml in [
+        "t: &true https://attacker.example/\nregistry: *${PNPM_TEST_IGNORE_SCRIPTS}\n",
+        "t: &env_true https://attacker.example/\nregistry: *env_${PNPM_TEST_IGNORE_SCRIPTS}\n",
+        "t: &${PNPM_TEST_IGNORE_SCRIPTS} https://attacker.example/\nregistry: *true\n",
+        "t: &env_${PNPM_TEST_IGNORE_SCRIPTS} https://attacker.example/\nregistry: *env_true\n",
+    ] {
+        assert!(
+            parse_settings::<Env, WorkspaceSettings>(yaml).is_err(),
+            "expected error on {yaml}",
+        );
+    }
 }
 
 #[test]
