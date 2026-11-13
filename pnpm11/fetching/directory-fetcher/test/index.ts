@@ -418,9 +418,35 @@ describe('listFilesFromDir with entries removed while the package is walked', ()
     expect(await listPackageFiles()).toStrictEqual(['index.js', 'package.json'])
   })
 
-  test('a missing package root fails the walk', async () => {
-    rimrafSync(pkgDir)
+  test.each([
+    ['package root', () => pkgDir],
+    ['subdirectory', () => path.join(pkgDir, 'lib')],
+  ])('a %s listing that keeps failing with ENOENT fails the walk', async (_, failingDir) => {
+    let attempts = 0
+    mockReaddir((dir, callback) => {
+      if (path.resolve(dir) !== failingDir()) {
+        readdir(dir, callback)
+        return
+      }
+      attempts++
+      callback(Object.assign(new Error(`ENOENT: no such file or directory, '${dir}'`), { code: 'ENOENT' }), [])
+    })
 
     await expect(listPackageFiles()).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(attempts).toBe(8)
+  })
+
+  test('an .npmignore removed before it is read falls back to the .gitignore', async () => {
+    fs.writeFileSync(path.join(pkgDir, 'lib/secret.js'), '')
+    fs.writeFileSync(path.join(pkgDir, 'lib/other.js'), '')
+    fs.writeFileSync(path.join(pkgDir, 'lib/.npmignore'), 'other.js\n')
+    fs.writeFileSync(path.join(pkgDir, 'lib/.gitignore'), 'secret.js\n')
+    const readFile = fs.readFile
+    jest.spyOn(fs, 'readFile').mockImplementation(((file: string, ...args: unknown[]) => {
+      if (path.basename(file) === '.npmignore') fs.rmSync(file, { force: true })
+      return (readFile as (...readArgs: unknown[]) => void)(file, ...args)
+    }) as unknown as typeof fs.readFile)
+
+    expect(await listPackageFiles()).toStrictEqual(['index.js', 'lib/a.js', 'lib/other.js', 'package.json'])
   })
 })

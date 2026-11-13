@@ -18,18 +18,28 @@ export class VanishedEntriesWalker extends npmPacklist.Walker {
   }
 
   // On macOS, listings of a directory that still exists have failed with
-  // ENOENT while another process renamed one of its entries, so a failed
-  // listing is read again. A subdirectory that keeps failing is gone.
+  // ENOENT while another process renamed one of its entries, so such a
+  // listing is read again, and one that keeps failing is an error.
   private readdir (attemptsLeft: number): void {
     fs.readdir(this.path, (err, entries) => {
       if (err == null) {
         this.onReaddir(entries)
-      } else if (err.code !== 'ENOENT') {
+        return
+      }
+      if (err.code === 'ENOENT') {
+        this.onListingNotFound(err, attemptsLeft)
+      } else {
         this.emit('error', err)
-      } else if (attemptsLeft > 1) {
-        this.readdir(attemptsLeft - 1)
-      } else if (this.parent != null) {
+      }
+    })
+  }
+
+  private onListingNotFound (err: NodeJS.ErrnoException, attemptsLeft: number): void {
+    fs.lstat(this.path, (statErr) => {
+      if (statErr?.code === 'ENOENT' && this.parent != null) {
         this.onReaddir([])
+      } else if (statErr == null && attemptsLeft > 1) {
+        this.readdir(attemptsLeft - 1)
       } else {
         this.emit('error', err)
       }

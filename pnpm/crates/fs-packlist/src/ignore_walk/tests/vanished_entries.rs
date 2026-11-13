@@ -1,13 +1,25 @@
 //! Entries that another process removes or renames while the walk reads them.
 
-use super::super::{FsReadDir, Host, LISTING_ATTEMPTS, PackageRules, walk_files};
+use super::super::{FsRead, FsReadDir, Host, LISTING_ATTEMPTS, PackageRules, walk_files};
 use std::{
     fs, io,
     path::Path,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-fn walked_files<Sys: FsReadDir>(pkg_dir: &Path) -> io::Result<Vec<String>> {
+/// Implements [`FsRead`] for a fake that only changes how directories are
+/// listed.
+macro_rules! reads_from_disk {
+    ($fake:ty) => {
+        impl FsRead for $fake {
+            fn read(path: &Path) -> io::Result<Vec<u8>> {
+                fs::read(path)
+            }
+        }
+    };
+}
+
+fn walked_files<Sys: FsReadDir + FsRead>(pkg_dir: &Path) -> io::Result<Vec<String>> {
     let manifest = serde_json::json!({});
     let rules = PackageRules {
         workspace_dir: None,
@@ -49,6 +61,7 @@ fn a_listing_failed_by_a_concurrent_rename_is_read_again() {
                 .chain(interrupt.then(not_found)))
         }
     }
+    reads_from_disk!(InterruptedOnce);
     let root = package_with_lib();
 
     let files = walked_files::<InterruptedOnce>(root.path()).unwrap();
@@ -66,12 +79,30 @@ fn a_listing_that_keeps_failing_is_an_error() {
             Ok(fs::read_dir(path)?.chain([not_found()]))
         }
     }
+    reads_from_disk!(AlwaysInterrupted);
     let root = package_with_lib();
 
     let error = walked_files::<AlwaysInterrupted>(root.path()).unwrap_err();
 
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
     assert_eq!(ATTEMPTS.load(Ordering::SeqCst), LISTING_ATTEMPTS);
+}
+
+#[test]
+fn a_subdirectory_listing_that_keeps_failing_is_an_error() {
+    struct LibAlwaysInterrupted;
+    impl FsReadDir for LibAlwaysInterrupted {
+        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>> {
+            let interrupt = path.ends_with("lib");
+            Ok(fs::read_dir(path)?.chain(interrupt.then(not_found)))
+        }
+    }
+    reads_from_disk!(LibAlwaysInterrupted);
+    let root = package_with_lib();
+
+    let error = walked_files::<LibAlwaysInterrupted>(root.path()).unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
 
 #[test]
@@ -87,11 +118,45 @@ fn a_directory_removed_before_the_walk_enters_it_is_skipped() {
             Ok(entries.into_iter())
         }
     }
+    reads_from_disk!(RemovesLibAfterListing);
     let root = package_with_lib();
 
     let files = walked_files::<RemovesLibAfterListing>(root.path()).unwrap();
 
     assert_eq!(files, ["index.js", "package.json"]);
+}
+
+#[test]
+fn an_npmignore_removed_before_it_is_read_falls_back_to_the_gitignore() {
+    struct RemovesNpmignoreBeforeReading;
+    impl FsReadDir for RemovesNpmignoreBeforeReading {
+        fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>> {
+            fs::read_dir(path)
+        }
+    }
+    impl FsRead for RemovesNpmignoreBeforeReading {
+        fn read(path: &Path) -> io::Result<Vec<u8>> {
+            if path.ends_with(".npmignore") {
+                fs::remove_file(path)?;
+            }
+            fs::read(path)
+        }
+    }
+    let root = tempfile::tempdir().unwrap();
+    for (name, contents) in [
+        ("package.json", "{}"),
+        ("index.js", ""),
+        ("secret.js", ""),
+        ("other.js", ""),
+        (".npmignore", "other.js\n"),
+        (".gitignore", "secret.js\n"),
+    ] {
+        fs::write(root.path().join(name), contents).unwrap();
+    }
+
+    let files = walked_files::<RemovesNpmignoreBeforeReading>(root.path()).unwrap();
+
+    assert_eq!(files, ["index.js", "other.js", "package.json"]);
 }
 
 #[test]

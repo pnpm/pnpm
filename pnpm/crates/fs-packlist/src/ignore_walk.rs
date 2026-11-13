@@ -26,11 +26,22 @@ pub(crate) trait FsReadDir {
     fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>>;
 }
 
+/// Reads a file, like [`fs::read`].
+pub(crate) trait FsRead {
+    fn read(path: &Path) -> io::Result<Vec<u8>>;
+}
+
 pub(crate) struct Host;
 
 impl FsReadDir for Host {
     fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = io::Result<fs::DirEntry>>> {
         fs::read_dir(path)
+    }
+}
+
+impl FsRead for Host {
+    fn read(path: &Path) -> io::Result<Vec<u8>> {
+        fs::read(path)
     }
 }
 
@@ -52,12 +63,12 @@ pub(crate) struct PackageRules<'a> {
 ///
 /// An entry below `pkg_dir` that is removed while the walk reads it is not
 /// part of the package and is skipped. A missing `pkg_dir` is an error.
-pub(crate) fn walk_files<Sys: FsReadDir>(
+pub(crate) fn walk_files<Sys: FsReadDir + FsRead>(
     pkg_dir: &Path,
     options: PackageRules<'_>,
     on_file: &mut dyn FnMut(&Path, fs::FileType),
 ) -> io::Result<()> {
-    let matcher = root_rules(pkg_dir, options)?;
+    let matcher = root_rules::<Sys>(pkg_dir, options)?;
     let root_rules = matcher.rules;
     let root = DirRules {
         parent: None,
@@ -77,13 +88,16 @@ pub(crate) fn walk_files<Sys: FsReadDir>(
     walker.walk_dir(pkg_dir, &root, 0)
 }
 
-fn root_rules(pkg_dir: &Path, options: PackageRules<'_>) -> io::Result<files_field::FilesMatcher> {
+fn root_rules<Sys: FsRead>(
+    pkg_dir: &Path,
+    options: PackageRules<'_>,
+) -> io::Result<files_field::FilesMatcher> {
     let files = options.manifest.get("files").and_then(serde_json::Value::as_array);
     let mut matcher =
         files_field::compile_files_rules(pkg_dir, files.map_or(&[][..], Vec::as_slice));
     if files.is_none() {
-        matcher.rules = inherited_rules(pkg_dir, options.workspace_dir)?;
-        matcher.rules.extend(read_dir_rules(pkg_dir)?);
+        matcher.rules = inherited_rules::<Sys>(pkg_dir, options.workspace_dir)?;
+        matcher.rules.extend(read_dir_rules::<Sys>(pkg_dir)?);
     }
     matcher.rules.extend(root_required_rules());
     matcher.rules.extend(
@@ -108,12 +122,9 @@ struct Walker<'a, Sys> {
     sys: PhantomData<Sys>,
 }
 
-impl<Sys: FsReadDir> Walker<'_, Sys> {
+impl<Sys: FsReadDir + FsRead> Walker<'_, Sys> {
     fn walk_dir(&mut self, dir: &Path, rules: &DirRules<'_>, depth: usize) -> io::Result<()> {
-        let entries = match list_dir::<Sys>(dir) {
-            Err(error) if depth > 0 && pnpm_fs::is_not_found(&error) => return Ok(()),
-            entries => entries?,
-        };
+        let Some(entries) = list_dir::<Sys>(dir, depth > 0)? else { return Ok(()) };
         for entry in &entries {
             self.visit_entry(entry, rules, depth)?;
         }
@@ -190,7 +201,7 @@ impl<Sys: FsReadDir> Walker<'_, Sys> {
         included: Included,
         depth: usize,
     ) -> io::Result<()> {
-        let rules = read_dir_rules(path)?;
+        let rules = read_dir_rules::<Sys>(path)?;
         let rel_path = parent.child_rel_path(&name);
         let defaults = parent.defaults.child(&name);
         let exact = included.as_file
@@ -228,15 +239,25 @@ enum Named {
 /// The entries of `dir`, all read before any is visited. A listing that fails
 /// with `NotFound` part-way is read again: on macOS, listings of a directory
 /// that still exists have failed that way while another process renamed one
-/// of its entries. Opening a missing `dir` fails without a retry.
-fn list_dir<Sys: FsReadDir>(dir: &Path) -> io::Result<Vec<fs::DirEntry>> {
+/// of its entries, so a listing that keeps failing is an error.
+///
+/// `None` when `dir` is missing and `may_be_missing` allows that. Otherwise
+/// opening a missing `dir` fails without a retry.
+fn list_dir<Sys: FsReadDir>(
+    dir: &Path,
+    may_be_missing: bool,
+) -> io::Result<Option<Vec<fs::DirEntry>>> {
     let mut attempt = 1;
     loop {
-        match Sys::read_dir(dir)?.collect::<io::Result<Vec<_>>>() {
+        let listing = match Sys::read_dir(dir) {
+            Err(error) if may_be_missing && pnpm_fs::is_not_found(&error) => return Ok(None),
+            listing => listing?,
+        };
+        match listing.collect::<io::Result<Vec<_>>>() {
             Err(error) if pnpm_fs::is_not_found(&error) && attempt < LISTING_ATTEMPTS => {
                 attempt += 1;
             }
-            entries => return entries,
+            entries => return entries.map(Some),
         }
     }
 }
@@ -371,10 +392,10 @@ fn matches_as_dir(rule: &IgnoreRule, entry: &str) -> bool {
 
 /// The rules of `dir`'s `.npmignore`, or of its `.gitignore` when it has no
 /// `.npmignore`.
-fn read_dir_rules(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
-    let content = match read_ignore_file(&dir.join(".npmignore"))? {
+fn read_dir_rules<Sys: FsRead>(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
+    let content = match read_ignore_file::<Sys>(&dir.join(".npmignore"))? {
         Some(content) => content,
-        None => match read_ignore_file(&dir.join(".gitignore"))? {
+        None => match read_ignore_file::<Sys>(&dir.join(".gitignore"))? {
             Some(content) => content,
             None => return Ok(Vec::new()),
         },
@@ -389,11 +410,11 @@ fn read_dir_rules(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
 
 /// The contents of the ignore file at `path`, or `None` when it is not a file,
 /// including when it is removed before it is read.
-fn read_ignore_file(path: &Path) -> io::Result<Option<Vec<u8>>> {
+fn read_ignore_file<Sys: FsRead>(path: &Path) -> io::Result<Option<Vec<u8>>> {
     if !path.is_file() {
         return Ok(None);
     }
-    match fs::read(path) {
+    match Sys::read(path) {
         Err(error) if pnpm_fs::is_not_found(&error) => Ok(None),
         content => content.map(Some),
     }
@@ -405,7 +426,10 @@ fn trim_ignore_line(line: &str) -> &str {
     line.trim_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}')
 }
 
-fn inherited_rules(pkg_dir: &Path, workspace_dir: Option<&Path>) -> io::Result<Vec<IgnoreRule>> {
+fn inherited_rules<Sys: FsRead>(
+    pkg_dir: &Path,
+    workspace_dir: Option<&Path>,
+) -> io::Result<Vec<IgnoreRule>> {
     let mut rules = Vec::new();
     let Some(workspace_dir) = workspace_dir else { return Ok(rules) };
     if pkg_dir.join(".npmignore").is_file() {
@@ -418,13 +442,13 @@ fn inherited_rules(pkg_dir: &Path, workspace_dir: Option<&Path>) -> io::Result<V
         return Ok(rules);
     };
     let mut current = workspace_dir.to_path_buf();
-    rules.extend(read_dir_rules(&current)?);
+    rules.extend(read_dir_rules::<Sys>(&current)?);
     for component in parent_rel.components() {
         // A component other than `Normal` means a non-canonical path; stop
         // rather than read ignore files outside the workspace.
         let Component::Normal(segment) = component else { break };
         current.push(segment);
-        rules.extend(read_dir_rules(&current)?);
+        rules.extend(read_dir_rules::<Sys>(&current)?);
     }
     Ok(rules)
 }
