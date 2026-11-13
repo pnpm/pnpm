@@ -1,7 +1,4 @@
-use crate::_utils::{
-    append_workspace_yaml_key, bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age,
-    flatten_report,
-};
+use crate::_utils::{append_workspace_yaml_key, flatten_report};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -778,7 +775,7 @@ fn dlx_isolates_caller_workspace_overrides_and_keys_explicit_overrides() {
 fn dlx_does_not_reuse_unverified_cache_under_minimum_release_age() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let cutoff = bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age();
+    let cutoff = crate::_utils::bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age();
     let cutoff_flag = format!("--config.minimum-release-age={cutoff}");
 
     let print_bravo_dep = concat!(
