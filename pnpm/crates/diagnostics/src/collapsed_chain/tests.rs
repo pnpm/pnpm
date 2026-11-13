@@ -241,3 +241,26 @@ fn the_handler_renders_a_repeated_message_once() {
         "the message must be rendered once, got:\n{rendered}",
     );
 }
+
+/// The suffixed level folds into the prefixed one, and the level below it
+/// must still fold, though the prefixed line neither starts nor ends with it.
+#[test]
+fn a_prefixed_wrapper_over_a_suffixed_one_absorbs_both() {
+    let leaf = Leaf {
+        message: "Failed to resolve dependency tree: Failed to resolve dependency: hook failed\n\nFailed to resolve is-number@^7.0.0",
+        source: Some(Box::new(Leaf {
+            message: "Failed to resolve dependency: hook failed\n\nFailed to resolve is-number@^7.0.0",
+            source: Some(Box::new(Leaf {
+                message: "Failed to resolve dependency: hook failed",
+                source: Some(Box::new(Leaf { message: "hook failed", source: None })),
+            })),
+        })),
+    };
+
+    let collapsed = Collapsed::new(&leaf);
+
+    assert_eq!(
+        messages(&collapsed),
+        vec!["Failed to resolve dependency tree: Failed to resolve dependency: hook failed\n\nFailed to resolve is-number@^7.0.0".to_string()],
+    );
+}

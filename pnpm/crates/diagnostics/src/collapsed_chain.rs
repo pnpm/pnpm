@@ -81,15 +81,19 @@ struct Cause {
 
 impl<'a> Collapsed<'a> {
     fn new(head: &'a dyn Diagnostic) -> Self {
-        let mut messages = Vec::new();
-        let mut last = head.to_string();
+        let mut messages: Vec<String> = Vec::new();
+        let head_message = head.to_string();
+        let mut above = head_message.clone();
         let mut level = nested(Level::Diagnostic(head));
         while let Some(current) = level {
             let message = current.to_string();
-            if !restates(&last, &message) {
+            let last = messages.last().unwrap_or(&head_message);
+            // The level directly above can fold into `last` and still
+            // restate this one, which `last` alone does not.
+            if !restates(last, &message) && !restates(&above, &message) {
                 messages.push(message.clone());
-                last = message;
             }
+            above = message;
             level = nested(current);
         }
 
