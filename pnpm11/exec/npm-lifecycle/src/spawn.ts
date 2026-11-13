@@ -94,8 +94,10 @@ function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw
   if (!options.detached || process.platform === 'win32') return { raw: spawnProcess(cmd, args, options) }
   const executable = resolveScript(cmd, options)
   const usesBash = path.basename(cmd) === 'bash'
-  const shell = usesBash ? executable : which.sync('sh', { nothrow: true })
-  if (shell == null || executable == null) {
+  const sh = which.sync('sh', { nothrow: true })
+  const shell = usesBash ? executable : sh
+  const command = usesBash ? preserveBashOptions(cmd, args, options.env ?? process.env) : [cmd, ...args]
+  if (sh == null || shell == null || executable == null || command == null) {
     return { raw: spawnProcess(cmd, args, options) }
   }
   const stdio = scriptStdio(options.stdio)
@@ -117,12 +119,20 @@ function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw
   ].join('\n')
   // Bash -p preserves exported functions without loading BASH_ENV before registration.
   const shellFlags = usesBash ? ['-p', '-c'] : ['-c']
-  const raw = spawnProcess(path.resolve(shell), [...shellFlags, registration, shell, cmd, ...args], {
+  const raw = spawnProcess(path.resolve(shell), [...shellFlags, registration, shell, ...command], {
     ...options,
     stdio: [...stdio, watch.lifeline, 'pipe'],
   })
   if (raw.pid != null) recoverScriptRegistration(raw, receipt, () => watch.recover(raw.pid!))
   return { raw, watchdog: raw.pid == null ? undefined : watch.watch(raw.pid) }
+}
+
+function preserveBashOptions (cmd: string, args: string[], environment: NodeJS.ProcessEnv): string[] | undefined {
+  const options = ['SHELLOPTS', 'BASHOPTS'].flatMap((name) => environment[name] == null ? [] : [`${name}=${environment[name]}`])
+  if (options.length === 0) return [cmd, ...args]
+  // Bash replaces these readonly exports even when -p prevents importing their values.
+  const env = which.sync('env', { nothrow: true })
+  return env == null ? undefined : [path.resolve(env), ...options, cmd, ...args]
 }
 
 function recoverScriptRegistration (raw: ChildProcess, descriptor: number, recover: () => Promise<void>): void {

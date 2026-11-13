@@ -15,24 +15,31 @@ const testOnPosix = process.platform === 'win32' ? test.skip : test
 const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
 const startupScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'startup.mjs')
 
-testOnPosix.each(['/bin/bash', 'bash', './bash'])('a %s script keeps exported functions and loads BASH_ENV once', (scriptShell) => {
+testOnPosix.each([
+  { scriptShell: '/bin/bash', exportedOptions: false },
+  { scriptShell: 'bash', exportedOptions: false },
+  { scriptShell: './bash', exportedOptions: false },
+  { scriptShell: '/bin/bash', exportedOptions: true },
+  { scriptShell: '/bin/bash', exportedOptions: false, withoutSh: true },
+])('a $scriptShell script keeps exported functions and loads BASH_ENV once (options: $exportedOptions, without sh: $withoutSh)', ({ scriptShell, exportedOptions, withoutSh = false }) => {
   const directory = temporaryDirectory()
   const startupFile = path.join(directory, 'bash-env')
   const startupMarker = path.join(directory, 'loaded')
   const functionMarker = path.join(directory, 'greeted')
   try {
-    fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
+    if (!withoutSh) fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
     fs.symlinkSync('/bin/bash', path.join(directory, 'bash'))
     fs.writeFileSync(startupFile, 'printf "loaded\\n" >> "$BASH_ENV_MARKER"\n')
-    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, scriptShell], {
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, scriptShell, String(exportedOptions)], {
       cwd: directory,
       env: {
         ...process.env,
-        PATH: `${directory}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        PATH: withoutSh ? directory : `${directory}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
         BASH_ENV: startupFile,
         BASH_ENV_MARKER: startupMarker,
         FUNCTION_MARKER: functionMarker,
         'BASH_FUNC_greet%%': '() { printf greeted > "$FUNCTION_MARKER"; }',
+        ...(exportedOptions ? { SHELLOPTS: 'pipefail', BASHOPTS: 'nullglob' } : {}),
       },
       encoding: 'utf8',
       timeout: 10_000,
