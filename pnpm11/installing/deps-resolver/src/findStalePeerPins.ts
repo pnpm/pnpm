@@ -7,7 +7,7 @@ import semver from 'semver'
 
 import { getPinnedNameVer } from './resolveDependencies.js'
 
-type ManifestDependencies = Pick<ProjectManifest, 'dependencies' | 'devDependencies' | 'optionalDependencies'>
+type ManifestDependencies = Pick<ProjectManifest, 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'>
 
 export interface DirectDependencySpecs {
   ranges: Map<string, Set<string>>
@@ -19,12 +19,13 @@ export function collectDirectDependencySpecs (
   catalogs: Catalogs,
   lockfile: LockfileObject
 ): DirectDependencySpecs {
+  const peerAliases = new Set(importers.flatMap(({ manifest }) => Object.keys(manifest.peerDependencies ?? {})
+    .filter((alias) => manifest.dependencies?.[alias] == null && manifest.devDependencies?.[alias] == null && manifest.optionalDependencies?.[alias] == null)))
   const specs = { ranges: new Map<string, Set<string>>(), rangePins: new Map<string, Set<string>>() }
   for (const { id, manifest } of importers) {
     const snapshot = lockfile.importers[id]
-    const lockedDependencies = { ...snapshot?.dependencies, ...snapshot?.devDependencies, ...snapshot?.optionalDependencies }
     for (const deps of [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]) {
-      addSemverSpecs(specs, { catalogs, deps, lockfile, lockedDependencies })
+      addSemverSpecs(specs, { catalogs, deps, lockfile, snapshot, peerAliases })
     }
   }
   return specs
@@ -32,15 +33,16 @@ export function collectDirectDependencySpecs (
 
 function addSemverSpecs (
   directSpecs: DirectDependencySpecs,
-  opts: { catalogs: Catalogs, deps: Record<string, string> | undefined, lockfile: LockfileObject, lockedDependencies: ResolvedDependencies }
+  opts: { catalogs: Catalogs, deps: Record<string, string> | undefined, lockfile: LockfileObject, snapshot: LockfileObject['importers'][ProjectId] | undefined, peerAliases: Set<string> }
 ): void {
   for (const [alias, bareSpecifier] of Object.entries(opts.deps ?? {})) {
     const catalogLookup = resolveFromCatalog(opts.catalogs, { alias, bareSpecifier })
     const spec = catalogLookup.type === 'found' ? catalogLookup.resolution.specifier : bareSpecifier
     if (semver.validRange(spec) == null) continue
-    recordRangePin(directSpecs.rangePins, {
-      alias, spec, lockfile: opts.lockfile, reference: opts.lockedDependencies[alias],
-    })
+    if (opts.peerAliases.has(alias)) {
+      const reference = opts.snapshot?.optionalDependencies?.[alias] ?? opts.snapshot?.devDependencies?.[alias] ?? opts.snapshot?.dependencies?.[alias]
+      recordRangePin(directSpecs.rangePins, { alias, spec, lockfile: opts.lockfile, reference })
+    }
     const specs = directSpecs.ranges.get(alias)
     if (specs == null) {
       directSpecs.ranges.set(alias, new Set([spec]))

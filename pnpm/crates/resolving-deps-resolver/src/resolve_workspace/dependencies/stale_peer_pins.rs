@@ -5,7 +5,7 @@ use crate::{
 };
 use node_semver::{Range, Version};
 use pnpm_lockfile::{Lockfile, PkgName};
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
     VersionSelectorWithWeight, VersionSelectors, pinned_by_lockfile,
@@ -82,6 +82,11 @@ fn collect_direct_specs(
     opts: &[ResolveImporterOptions],
     lockfile: &Lockfile,
 ) -> DirectSpecs {
+    let peer_aliases = importers
+        .iter()
+        .filter(|importer| declares_peers(importer))
+        .flat_map(|importer| auto_installed_peers(importer.manifest).map(|(alias, _)| alias))
+        .collect::<HashSet<_>>();
     let mut direct_specs = DirectSpecs::default();
     for (importer, importer_opts) in importers.iter().zip(opts) {
         let Ok(wanted) = importer_direct_wanted_specs(
@@ -94,7 +99,10 @@ fn collect_direct_specs(
             continue;
         };
         for spec in wanted {
-            let pinned = locked_importer_version(lockfile, &importer.id, &spec.alias);
+            let pinned = peer_aliases
+                .contains(spec.alias.as_str())
+                .then(|| locked_importer_version(lockfile, &importer.id, &spec.alias))
+                .flatten();
             direct_specs.record(spec, pinned);
         }
     }
@@ -165,14 +173,7 @@ fn importer_stale_peer_pins(
     lockfile: &Lockfile,
     direct_specs: &DirectSpecs,
 ) -> HashMap<String, Version> {
-    let manifest = importer.manifest;
-    let declared = manifest
-        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
-        .map(|(name, _)| name)
-        .collect::<HashSet<_>>();
-    manifest
-        .dependencies([DependencyGroup::Peer])
-        .filter(|(alias, _)| !declared.contains(alias))
+    auto_installed_peers(importer.manifest)
         .filter_map(|(alias, peer_spec)| {
             let ranges = direct_specs.ranges.get(alias)?;
             let peer_range = peer_spec.parse::<Range>().ok()?;
@@ -190,6 +191,16 @@ fn importer_stale_peer_pins(
                 .then(|| (alias.to_string(), pinned))
         })
         .collect()
+}
+
+fn auto_installed_peers(manifest: &PackageManifest) -> impl Iterator<Item = (&str, &str)> {
+    let declared = manifest
+        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+        .map(|(name, _)| name)
+        .collect::<HashSet<_>>();
+    manifest
+        .dependencies([DependencyGroup::Peer])
+        .filter(move |(alias, _)| !declared.contains(alias))
 }
 
 fn locked_importer_version(lockfile: &Lockfile, importer_id: &str, alias: &str) -> Option<Version> {

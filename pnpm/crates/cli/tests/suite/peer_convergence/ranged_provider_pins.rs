@@ -1,4 +1,6 @@
-use super::moving_providers::{install_lockfile, registry_from_manifests};
+use super::moving_providers::{
+    install_lockfile, normalize_registry_origin, registry_from_manifests,
+};
 use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path};
 use pnpm_lockfile::Lockfile;
 use serde_json::json;
@@ -17,11 +19,14 @@ fn injected_peer_only_importer_keeps_its_preferred_version() {
         for initial in
             [InitialProvider::Declared, InitialProvider::Added, InitialProvider::OlderPin]
         {
-            for format in ["v9", "v13"] {
-                check_repeated_installs(None, format, auto_dedupe, initial);
-            }
-            if let Some(bundle) = read_v11_bundle_path() {
-                check_repeated_installs(Some(&bundle), "v9", auto_dedupe, initial);
+            let v12 = check_repeated_installs(None, "v9", auto_dedupe, initial);
+            check_repeated_installs(None, "v13", auto_dedupe, initial);
+            if let Some(bundle) = read_v11_bundle_path()
+                && !auto_dedupe
+            {
+                let v11 = check_repeated_installs(Some(&bundle), "v9", auto_dedupe, initial);
+                dbg!(&v11, &v12);
+                assert_eq!(v11, v12, "autoDedupe={auto_dedupe}, initial={initial:?}");
             }
         }
     }
@@ -32,7 +37,7 @@ fn check_repeated_installs(
     format: &str,
     auto_dedupe: bool,
     initial: InitialProvider,
-) {
+) -> Lockfile {
     let registry_dir = tempfile::tempdir().unwrap();
     let mut fixture = WorkspaceFixture::new();
     fixture.registry.mock_instance = registry_from_manifests(
@@ -109,6 +114,7 @@ fn check_repeated_installs(
             "{bundle:?}, {format}, autoDedupe={auto_dedupe}, initial={initial:?}",
         );
     }
+    normalize_registry_origin(fresh, &fixture)
 }
 
 fn write_consumer(fixture: &WorkspaceFixture, directory: &str, specifier: &str) {
@@ -127,15 +133,16 @@ fn write_consumer(fixture: &WorkspaceFixture, directory: &str, specifier: &str) 
 
 #[test]
 fn adding_a_cyclic_provider_keeps_injected_peers_stable() {
+    let v12 = check_cyclic_provider(None, "v9");
+    check_cyclic_provider(None, "v13");
     if let Some(bundle) = read_v11_bundle_path() {
-        check_cyclic_provider(Some(&bundle), "v9");
-    }
-    for format in ["v9", "v13"] {
-        check_cyclic_provider(None, format);
+        let v11 = check_cyclic_provider(Some(&bundle), "v9");
+        dbg!(&v11, &v12);
+        assert_eq!(v11, v12);
     }
 }
 
-fn check_cyclic_provider(bundle: Option<&OsStr>, format: &str) {
+fn check_cyclic_provider(bundle: Option<&OsStr>, format: &str) -> Lockfile {
     let registry_dir = tempfile::tempdir().unwrap();
     let mut fixture = WorkspaceFixture::new();
     fixture.registry.mock_instance = registry_from_manifests(
@@ -168,4 +175,5 @@ fn check_cyclic_provider(bundle: Option<&OsStr>, format: &str) {
     let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     dbg!(&changed, &reused);
     assert_eq!(changed, reused, "{bundle:?} {format}");
+    normalize_registry_origin(changed, &fixture)
 }

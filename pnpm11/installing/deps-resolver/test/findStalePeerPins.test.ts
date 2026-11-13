@@ -33,6 +33,7 @@ test.each([
   }
   const specs = collectDirectDependencySpecs([
     { id, manifest: { dependencies: { provider: specifier } } },
+    { id: 'shared' as ProjectId, manifest: { peerDependencies: { provider: '*' } } },
   ], { default: { provider: '^2.0.0' } }, lockfile)
   expect([...specs.rangePins.get('provider') ?? []]).toStrictEqual(expected)
 })
@@ -48,4 +49,23 @@ test.each([
     lockfile: { lockfileVersion: '9.0', importers: {}, packages: { ['provider@1.0.0' as DepPath]: { resolution: { integrity: '' } } } },
   })
   expect(pins.has('provider')).toBe(stale)
+})
+
+test.each([{}, { provider: '*' }] as Array<Record<string, string>>)('does not read range pins for dependencies without a peer-only consumer: %j', (peerDependencies) => {
+  const id = '.' as ProjectId
+  const specs = collectDirectDependencySpecs([
+    { id, manifest: { dependencies: { provider: '^1.0.0' }, peerDependencies } },
+  ], {}, {
+    lockfileVersion: '9.0',
+    importers: {
+      [id]: {
+        specifiers: { provider: '^1.0.0' },
+        get dependencies (): never {
+          throw new Error('Unrelated pins should not be read')
+        },
+      },
+    },
+  })
+  expect(specs.ranges.get('provider')).toStrictEqual(new Set(['^1.0.0']))
+  expect(specs.rangePins.size).toBe(0)
 })

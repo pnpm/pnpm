@@ -1,5 +1,5 @@
 use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, LockfileResolution};
 use pnpm_testing_utils::registry::TestRegistry;
 use serde_json::{Value, json};
 use std::{ffi::OsStr, fs, path::Path};
@@ -792,4 +792,19 @@ fn check_injected_children_owner(bundle: Option<&OsStr>, format: &str, suffix_le
     let reused = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     dbg!(&fresh, &reused);
     assert_eq!(fresh, reused, "{bundle:?}, {format}, {suffix_length}");
+}
+
+pub(super) fn normalize_registry_origin(
+    mut lockfile: Lockfile,
+    fixture: &WorkspaceFixture,
+) -> Lockfile {
+    for package in lockfile.packages.iter_mut().flat_map(|packages| packages.values_mut()) {
+        if let LockfileResolution::Tarball(resolution) = &mut package.resolution {
+            resolution.tarball = resolution.tarball.replace(
+                fixture.registry.mock_instance.server_url(),
+                "https://registry.example.test/",
+            );
+        }
+    }
+    lockfile
 }
