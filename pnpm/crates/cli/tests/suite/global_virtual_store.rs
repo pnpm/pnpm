@@ -324,7 +324,8 @@ fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
     );
     assert_ne!(stale_shim, shim, "the fixture contains a shim path assignment");
     fs::write(&shim_path, &stale_shim).expect("write a legacy shim");
-    fs::remove_file(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1")).ok();
+    fs::remove_file(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1"))
+        .expect("remove the migration marker");
 
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
