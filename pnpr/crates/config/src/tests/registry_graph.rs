@@ -1,6 +1,6 @@
 use super::{
-    Config, Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config,
-    listen, load_with_graph, load_with_graph_and_overrides, user,
+    Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config, listen,
+    load_with_graph, load_with_graph_and_overrides, user,
 };
 
 /// A router registry routes each package to exactly one concrete source — the
@@ -89,8 +89,9 @@ storage: ./s
 registries:
   acme: { type: hosted, namespace: acme, packages: { '@acme/*': {}, '@acme/*': {} } }
 ";
-    Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+    let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
         .expect_err("a duplicate packages key must be rejected");
+    assert!(err.to_string().contains("@acme/*"), "{err}");
 }
 
 /// `defaultRegistry` naming an undefined registry fails closed.

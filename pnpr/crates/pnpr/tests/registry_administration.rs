@@ -1035,6 +1035,37 @@ async fn an_empty_first_import_is_stored_so_the_defaults_are_not() {
 }
 
 #[tokio::test]
+async fn an_unchanged_import_is_checked_against_the_current_config() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let file = dir.path().join("registries.yaml");
+    std::fs::write(
+        &file,
+        "registries:\n  up:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: $authenticated\n    auth: { type: bearer, token: '${PATH}' }\n",
+    )
+    .unwrap();
+    let import = || pnpr::Command::Registries {
+        action: pnpr::RegistriesSubcommand::Import {
+            file: file.clone(),
+            dry_run: false,
+            check: false,
+        },
+    };
+    pnpr::run_command(&config, import()).await.unwrap();
+
+    let raw = std::fs::read_to_string(config_path(dir.path())).unwrap();
+    let mut file: Value = serde_json::from_str(&raw).unwrap();
+    file.as_object_mut()
+        .unwrap()
+        .remove("registryEnv")
+        .unwrap();
+    std::fs::write(config_path(dir.path()), file.to_string()).unwrap();
+    let err = pnpr::run_command(&reload_config(dir.path()), import()).await
+        .expect_err("the stored upstream references a variable no longer listed");
+    assert!(err.to_string().contains("registryEnv"), "{err}");
+}
+
+#[tokio::test]
 async fn an_exported_graph_imports_as_no_change() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path()).await;

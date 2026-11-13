@@ -106,7 +106,8 @@ defaultRegistry: main
 
 Store them once from any machine that can reach the database, with the same
 config and environment variables, using
-[`pnpr registries import`](cli.md#registries):
+[`pnpr registries import`](cli.md#registries). Leave `replicaPath` out of that
+config unless its directory exists on that machine:
 
 ```sh
 pnpr -c ./pnpr.yaml registries import ./registries.yaml

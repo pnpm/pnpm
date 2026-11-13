@@ -82,15 +82,21 @@ async fn import(config: &Config, file: &Path, mode: ImportMode) -> Result<Import
     // With nothing stored, the server stores the default registries on its
     // first start, so even an empty file is a change to store.
     let unchanged = changes.is_empty() && current.is_some();
-    if unchanged && mode != ImportMode::DryRun {
-        println!("Version {} already holds these registries.", graph_version(current));
-        return Ok(Imported::Done);
-    }
+    // `--check` only compares, so a file that differs is reported even when
+    // storing it would be refused.
     if mode == ImportMode::Check {
+        if unchanged {
+            println!("Version {} already holds these registries.", graph_version(current));
+            return Ok(Imported::Done);
+        }
         println!("Would change: {}", describe_import(&changes, current));
         return Ok(Imported::Differs);
     }
     let checked = check_revision(config, &storage, &previous, &next, Credentials::Skip).await?;
+    if unchanged && mode == ImportMode::Store {
+        println!("Version {} already holds these registries.", graph_version(current));
+        return Ok(Imported::Done);
+    }
     if mode == ImportMode::DryRun {
         println!("Would change: {}", describe_import(&changes, current));
         return Ok(Imported::Done);

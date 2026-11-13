@@ -374,7 +374,7 @@ fn a_sqlite_url_resolves_against_the_config_directory() {
 
 #[test]
 fn a_metadata_url_is_refused_when_it_cannot_serve() {
-    let with_s3 = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: sqlite:./m.db\nregistries:\n  local:\n    type: hosted\n";
+    let with_s3 = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: sqlite:./m.db\n";
     let no_path = "storage: /s\ndatabase:\n  url: 'sqlite:'\n";
     let unknown = "storage: /s\ndatabase:\n  url: unsupported://db/pnpr\n";
     let old_path = "storage: /s\ndatabase:\n  path: ./m.db\n";
