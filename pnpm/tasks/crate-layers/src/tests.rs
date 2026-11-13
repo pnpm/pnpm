@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod boundary;
 mod dsm;
+mod git_log;
 mod leaks;
 mod modules;
 

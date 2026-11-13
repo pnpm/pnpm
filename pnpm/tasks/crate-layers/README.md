@@ -128,8 +128,9 @@ upward dependency sits above it, highlighted. Lines separate the layers.
 
 A cell's shade grows with how many commits changed both crates. A commit
 changes a crate when it changes a file in the crate's directory, and a move
-changes both directories. A path that `git` quotes, such as one with a tab
-or a non-ASCII character, is not counted. A pair
+changes both directories. In a shallow clone, the oldest commit is left
+out, since `git` lists every file of a commit without parents as changed. A
+pair
 that is shaded but not marked changes together without depending on each
 other, and the page lists those pairs below the matrix. Hover a cell for
 its dependency kinds and commit counts.

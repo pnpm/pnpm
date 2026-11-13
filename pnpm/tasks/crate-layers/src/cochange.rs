@@ -9,7 +9,9 @@ use std::{
 };
 
 /// Starts each commit's record in the `git log` output that [`read_log`]
-/// asks for. A control character, so `git` quotes it in a path.
+/// asks for. The record holds the commit date and the changed paths, each
+/// followed by a NUL, and `git` prints a newline before the first path.
+/// A path that holds this control character splits its record.
 const RECORD_START: char = '\u{1e}';
 
 /// The co-change counts of the commits in one `git log` output.
@@ -39,9 +41,15 @@ impl CoChange {
         let mut co_change = Self { max_units, ..Self::default() };
         let mut dates = Vec::new();
         for record in log.split(RECORD_START).skip(1) {
-            let mut lines = record.lines();
-            dates.extend(lines.next().map(str::to_owned));
-            let units = lines.filter_map(&unit_of).collect::<BTreeSet<_>>();
+            let (date, paths) = record
+                .split_once('\0')
+                .unwrap_or((record, ""));
+            dates.push(date.to_owned());
+            let paths = paths.strip_prefix('\n').unwrap_or(paths);
+            let units = paths
+                .split('\0')
+                .filter_map(&unit_of)
+                .collect::<BTreeSet<_>>();
             co_change.add_commit(&units);
         }
         co_change.span = dates
@@ -94,7 +102,7 @@ impl CoChange {
 pub fn read_log(root: &Path, commits: usize) -> Result<String, String> {
     let max_count = format!("--max-count={commits}");
     let format = format!("--format={RECORD_START}%cs");
-    let mut args = ["log", "--no-merges", "--no-renames", "--name-only", &max_count, &format]
+    let mut args = ["log", "-z", "--no-merges", "--no-renames", "--name-only", &max_count, &format]
         .map(str::to_owned)
         .to_vec();
     args.push("HEAD".to_owned());

@@ -8,24 +8,35 @@ use crate::{
     page,
 };
 use pretty_assertions::assert_eq;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write as _};
 
-/// Three commits, newest first, as `cochange::read_log` asks `git` for them.
-const LOG: &str = "\u{1e}2026-11-03\n\
-                   \n\
-                   crates/top/src/lib.rs\n\
-                   crates/base/src/lib.rs\n\
-                   crates/base/Cargo.toml\n\
-                   README.md\n\
-                   \u{1e}2026-11-02\n\
-                   \n\
-                   crates/base/src/lib.rs\n\
-                   crates/mid/src/lib.rs\n\
-                   crates/top/src/main.rs\n\
-                   \u{1e}2026-11-01\n\
-                   \n\
-                   crates/top/src/lib.rs\n\
-                   crates/base/src/lib.rs\n";
+/// The commits, newest first, as `cochange::read_log` asks `git` for them.
+fn log(commits: &[(&str, &[&str])]) -> String {
+    let mut log = String::new();
+    for (date, paths) in commits {
+        write!(log, "\u{1e}{date}\0\n{}\0", paths.join("\0")).unwrap();
+    }
+    log
+}
+
+fn three_commits() -> String {
+    log(&[
+        (
+            "2026-11-03",
+            &[
+                "crates/top/src/lib.rs",
+                "crates/base/src/lib.rs",
+                "crates/base/Cargo.toml",
+                "README.md",
+            ],
+        ),
+        (
+            "2026-11-02",
+            &["crates/base/src/lib.rs", "crates/mid/src/lib.rs", "crates/top/src/main.rs"],
+        ),
+        ("2026-11-01", &["crates/top/src/lib.rs", "crates/base/src/lib.rs"]),
+    ])
+}
 
 fn dirs() -> BTreeMap<String, String> {
     ["base", "mid", "top"]
@@ -40,7 +51,7 @@ fn pair(left: &str, right: &str, count: usize) -> ((String, String), usize) {
 
 #[test]
 fn counts_the_commits_that_change_each_pair_of_crates() {
-    let co_change = CoChange::count(LOG, cochange::crate_of(&dirs()), 2);
+    let co_change = CoChange::count(&three_commits(), cochange::crate_of(&dirs()), 2);
     dbg!(&co_change);
     assert_eq!(co_change.commits, 3);
     assert_eq!(co_change.span, Some(("2026-11-01".to_owned(), "2026-11-03".to_owned())));
@@ -51,7 +62,7 @@ fn counts_the_commits_that_change_each_pair_of_crates() {
     assert_eq!(co_change.pairs, BTreeMap::from([pair("base", "top", 2)]));
     assert_eq!(co_change.together("top", "base"), 2);
 
-    let all_commits = CoChange::count(LOG, cochange::crate_of(&dirs()), 3);
+    let all_commits = CoChange::count(&three_commits(), cochange::crate_of(&dirs()), 3);
     assert_eq!(
         all_commits.pairs,
         BTreeMap::from([pair("base", "mid", 1), pair("base", "top", 3), pair("mid", "top", 1)]),
@@ -147,12 +158,14 @@ fn marks_upward_dependencies_unless_only_tests_use_them() {
 
 #[test]
 fn lists_pairs_that_change_together_without_a_dependency() {
-    let log = "\u{1e}2026-11-02\n\ncrates/mid/a.rs\ncrates/top/a.rs\ncrates/stray/a.rs\n\
-               \u{1e}2026-11-01\n\ncrates/base/a.rs\ncrates/top/a.rs\ncrates/stray/a.rs\n\
-               \u{1e}2026-11-01\n\ncrates/top/a.rs\ncrates/stray/a.rs\n";
+    let log = log(&[
+        ("2026-11-02", &["crates/mid/a.rs", "crates/top/a.rs", "crates/stray/a.rs"]),
+        ("2026-11-01", &["crates/base/a.rs", "crates/top/a.rs", "crates/stray/a.rs"]),
+        ("2026-11-01", &["crates/top/a.rs", "crates/stray/a.rs"]),
+    ]);
     let mut dirs = dirs();
     dirs.insert("stray".to_owned(), "crates/stray".to_owned());
-    let co_change = CoChange::count(log, cochange::crate_of(&dirs), 10);
+    let co_change = CoChange::count(&log, cochange::crate_of(&dirs), 10);
     let matrix = dsm::crates(&layered_graph(), &layers(""), co_change);
     assert_eq!(
         matrix.independent_pairs(),
@@ -168,7 +181,7 @@ fn shades_grow_with_the_square_root_of_the_count() {
 
 #[test]
 fn the_page_highlights_upward_dependencies_and_draws_layers() {
-    let co_change = CoChange::count(LOG, cochange::crate_of(&dirs()), 10);
+    let co_change = CoChange::count(&three_commits(), cochange::crate_of(&dirs()), 10);
     let html = page::render(&dsm::crates(&layered_graph(), &layers(""), co_change));
     println!("{html}");
     assert!(html.contains("<th class=g rowspan=2>high"));
