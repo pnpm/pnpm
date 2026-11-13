@@ -2,8 +2,8 @@ use super::super::{adapter::Connection, schema::MARKER};
 use pnpr_error::{RegistryError, Result};
 
 /// The table comment [`crate::schema::MARKER_TABLE`] places on [`MARKER`] on
-/// `MySQL` before step 1 finishes. Alpha builds wrote `pnpr-init:1`, so an
-/// interrupted alpha setup is not resumed as a 1.0 one.
+/// `MySQL` before step 1 finishes. It differs from the `pnpr-init:1` of alpha
+/// databases, which are not resumed.
 pub(super) const INIT_COMMENT: &str = "pnpr-init:1.0";
 
 pub(super) fn is_recoverable(connection: &dyn Connection) -> Result<bool> {

@@ -944,8 +944,8 @@ mod mysql_recovery {
         .unwrap();
     }
 
-    /// An alpha build marked its unfinished first migration `pnpr-init:1`
-    /// and created tables in their alpha shape, which step 1 would keep.
+    /// An empty `pnpr-init:1` marker beside the alpha table is an alpha
+    /// database, whose tables step 1 would keep in their alpha shape.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "requires PNPR_TEST_MYSQL_URL"]
     async fn on_mysql_an_interrupted_alpha_setup_is_refused() {
