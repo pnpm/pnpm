@@ -4,12 +4,12 @@
 //! Each range is normalized into coalesced half-open intervals over release
 //! `(major, minor, patch)` tuples plus coalesced half-open prerelease
 //! intervals per admitted `(major, minor, patch)` tuple, so unions whose
-//! branches jointly span a subrange (such as `^1.0.0 || ^2.0.0` covering
-//! `>=1.5.0 <2.5.0`) are recognized without re-parsing on repeated checks.
+//! branches jointly span a narrower range are recognized without re-parsing on
+//! repeated checks.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use node_semver::{Identifier, Range, Version};
+use node_semver::{Identifier, Range};
 
 use crate::{glue_operators_to_versions, npm_upper_bound};
 
@@ -112,9 +112,26 @@ enum BoundOp {
     Lte,
 }
 
+struct FormattedVersion {
+    major: u64,
+    minor: u64,
+    patch: u64,
+    pre_release: Vec<Identifier>,
+}
+
+impl FormattedVersion {
+    fn is_prerelease(&self) -> bool {
+        !self.pre_release.is_empty()
+    }
+
+    fn tuple(&self) -> ReleaseTuple {
+        (self.major, self.minor, self.patch)
+    }
+}
+
 enum ElemComp {
     Any,
-    Bound { op: BoundOp, version: Version },
+    Bound { op: BoundOp, version: FormattedVersion },
 }
 
 fn parse_branch_comparators(alternative: &str) -> Option<Vec<ElemComp>> {
@@ -134,8 +151,42 @@ fn parse_formatted_bound(token: &str) -> Option<ElemComp> {
         return Some(ElemComp::Any);
     }
     let (op, version_str) = split_bound_operator(token);
-    let version = version_str.parse::<Version>().ok()?;
+    let version = parse_formatted_version(version_str)?;
     Some(ElemComp::Bound { op, version })
+}
+
+fn parse_formatted_version(raw: &str) -> Option<FormattedVersion> {
+    let without_build = raw.split('+').next()?;
+    let (core, pre_str) = match without_build.split_once('-') {
+        Some((core, pre)) => (core, Some(pre)),
+        None => (without_build, None),
+    };
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse::<u64>().ok()?;
+    let minor = parts.next()?.parse::<u64>().ok()?;
+    let patch = parts.next()?.parse::<u64>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let pre_release = match pre_str {
+        Some(pre) => pre
+            .split('.')
+            .map(parse_pre_identifier)
+            .collect(),
+        None => Vec::new(),
+    };
+    Some(FormattedVersion { major, minor, patch, pre_release })
+}
+
+fn parse_pre_identifier(segment: &str) -> Identifier {
+    if !segment.is_empty()
+        && segment.bytes().all(|byte| byte.is_ascii_digit())
+        && (segment == "0" || !segment.starts_with('0'))
+        && let Ok(num) = segment.parse::<u64>()
+    {
+        return Identifier::Numeric(num);
+    }
+    Identifier::AlphaNumeric(segment.to_string())
 }
 
 fn split_bound_operator(token: &str) -> (BoundOp, &str) {
@@ -205,7 +256,7 @@ fn apply_release_bound(
     low: ReleasePoint,
     high: Upper<ReleasePoint>,
     op: BoundOp,
-    version: &Version,
+    version: &FormattedVersion,
 ) -> Option<(ReleasePoint, Upper<ReleasePoint>)> {
     let point: ReleasePoint = (version.major, version.minor, u128::from(version.patch));
     let next_point: ReleasePoint = (version.major, version.minor, u128::from(version.patch) + 1);
@@ -220,65 +271,97 @@ fn apply_release_bound(
     }
 }
 
-fn branch_prerelease_intervals(comps: &[ElemComp]) -> Vec<(ReleaseTuple, Interval<PrePoint>)> {
-    let candidate_tuples: BTreeSet<ReleaseTuple> = comps
-        .iter()
-        .filter_map(|comp| match comp {
-            ElemComp::Bound { version, .. } if version.is_prerelease() => {
-                Some((version.major, version.minor, version.patch))
+#[derive(Default)]
+struct TupleWindow {
+    exclusive_floor: Option<ReleaseTuple>,
+    inclusive_floor: Option<ReleaseTuple>,
+    inclusive_ceiling: Option<ReleaseTuple>,
+    impossible: bool,
+}
+
+impl TupleWindow {
+    fn record(&mut self, op: BoundOp, tuple: ReleaseTuple, has_pre: bool) {
+        match (op, has_pre) {
+            (BoundOp::Eq, false) => self.impossible = true,
+            (BoundOp::Eq, true) => {
+                self.raise_inclusive_floor(tuple);
+                self.lower_inclusive_ceiling(tuple);
             }
-            _ => None,
-        })
-        .collect();
-    candidate_tuples
+            (BoundOp::Gt | BoundOp::Gte, false) => self.raise_exclusive_floor(tuple),
+            (BoundOp::Gt | BoundOp::Gte, true) => self.raise_inclusive_floor(tuple),
+            (BoundOp::Lt | BoundOp::Lte, _) => self.lower_inclusive_ceiling(tuple),
+        }
+    }
+
+    fn admits(&self, target: ReleaseTuple) -> bool {
+        !self.impossible
+            && self.exclusive_floor.is_none_or(|floor| target > floor)
+            && self.inclusive_floor.is_none_or(|floor| target >= floor)
+            && self.inclusive_ceiling.is_none_or(|ceiling| target <= ceiling)
+    }
+
+    fn raise_exclusive_floor(&mut self, tuple: ReleaseTuple) {
+        self.exclusive_floor = Some(self.exclusive_floor.map_or(tuple, |prev| prev.max(tuple)));
+    }
+
+    fn raise_inclusive_floor(&mut self, tuple: ReleaseTuple) {
+        self.inclusive_floor = Some(self.inclusive_floor.map_or(tuple, |prev| prev.max(tuple)));
+    }
+
+    fn lower_inclusive_ceiling(&mut self, tuple: ReleaseTuple) {
+        self.inclusive_ceiling = Some(self.inclusive_ceiling.map_or(tuple, |prev| prev.min(tuple)));
+    }
+}
+
+fn branch_prerelease_intervals(comps: &[ElemComp]) -> Vec<(ReleaseTuple, Interval<PrePoint>)> {
+    let mut window = TupleWindow::default();
+    let mut per_tuple: BTreeMap<ReleaseTuple, Vec<(BoundOp, &[Identifier])>> = BTreeMap::new();
+    for comp in comps {
+        if let ElemComp::Bound { op, version } = comp {
+            let tuple = version.tuple();
+            let has_pre = version.is_prerelease();
+            window.record(*op, tuple, has_pre);
+            if has_pre {
+                per_tuple
+                    .entry(tuple)
+                    .or_default()
+                    .push((*op, &version.pre_release));
+            }
+        }
+    }
+    per_tuple
         .into_iter()
-        .filter_map(|tuple| tuple_prerelease_interval(tuple, comps).map(|iv| (tuple, iv)))
+        .filter(|(tuple, _)| window.admits(*tuple))
+        .filter_map(|(tuple, bounds)| same_tuple_prerelease_interval(&bounds).map(|iv| (tuple, iv)))
         .collect()
 }
 
-fn tuple_prerelease_interval(
-    tuple: ReleaseTuple,
-    comps: &[ElemComp],
+fn same_tuple_prerelease_interval(
+    bounds: &[(BoundOp, &[Identifier])],
 ) -> Option<Interval<PrePoint>> {
     let mut low: PrePoint = vec![Identifier::Numeric(0)];
     let mut high: Upper<PrePoint> = Upper::Unbounded;
-    for comp in comps {
-        if let ElemComp::Bound { op, version } = comp {
-            (low, high) = apply_prerelease_bound(tuple, low, high, *op, version)?;
-        }
+    for &(op, pre) in bounds {
+        (low, high) = narrow_same_tuple_prerelease(low, high, op, pre);
     }
     let interval = Interval { low, high };
     interval.is_non_empty().then_some(interval)
 }
 
-fn apply_prerelease_bound(
-    target: ReleaseTuple,
+fn narrow_same_tuple_prerelease(
     low: PrePoint,
     high: Upper<PrePoint>,
     op: BoundOp,
-    version: &Version,
-) -> Option<(PrePoint, Upper<PrePoint>)> {
-    let comp_tuple = (version.major, version.minor, version.patch);
-    if comp_tuple != target || !version.is_prerelease() {
-        return admits_non_matching_tuple(target, comp_tuple, op).then_some((low, high));
-    }
-    let pre = version.pre_release.clone();
-    let next_pre = succ_pre(&pre);
-    let updated = match op {
-        BoundOp::Eq => (low.max(pre), high.min(Upper::Finite(next_pre))),
-        BoundOp::Gte => (low.max(pre), high),
+    pre: &[Identifier],
+) -> (PrePoint, Upper<PrePoint>) {
+    let owned_pre = pre.to_vec();
+    let next_pre = succ_pre(pre);
+    match op {
+        BoundOp::Eq => (low.max(owned_pre), high.min(Upper::Finite(next_pre))),
+        BoundOp::Gte => (low.max(owned_pre), high),
         BoundOp::Gt => (low.max(next_pre), high),
         BoundOp::Lte => (low, high.min(Upper::Finite(next_pre))),
-        BoundOp::Lt => (low, high.min(Upper::Finite(pre))),
-    };
-    Some(updated)
-}
-
-fn admits_non_matching_tuple(target: ReleaseTuple, comp_tuple: ReleaseTuple, op: BoundOp) -> bool {
-    if comp_tuple < target {
-        matches!(op, BoundOp::Gt | BoundOp::Gte)
-    } else {
-        matches!(op, BoundOp::Lt | BoundOp::Lte)
+        BoundOp::Lt => (low, high.min(Upper::Finite(owned_pre))),
     }
 }
 
@@ -308,12 +391,27 @@ fn coalesce_intervals<Point: Ord + Clone>(
     merged
 }
 
+fn ends_at_or_before<Point: Ord>(high: &Upper<Point>, point: &Point) -> bool {
+    match high {
+        Upper::Finite(end) => end <= point,
+        Upper::Unbounded => false,
+    }
+}
+
 fn intervals_cover<Point: Ord>(dom: &[Interval<Point>], sub: &[Interval<Point>]) -> bool {
-    sub.iter()
-        .all(|sub_iv| {
-            dom.iter()
-                .any(|dom_iv| dom_iv.low <= sub_iv.low && sub_iv.high <= dom_iv.high)
-        })
+    let mut dom_idx = 0;
+    for sub_iv in sub {
+        while dom_idx < dom.len() && ends_at_or_before(&dom[dom_idx].high, &sub_iv.low) {
+            dom_idx += 1;
+        }
+        let Some(dom_iv) = dom.get(dom_idx) else {
+            return false;
+        };
+        if !(dom_iv.low <= sub_iv.low && sub_iv.high <= dom_iv.high) {
+            return false;
+        }
+    }
+    true
 }
 
 #[cfg(test)]

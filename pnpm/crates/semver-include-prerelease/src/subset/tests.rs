@@ -87,3 +87,16 @@ fn invalid_or_loose_garbage_tokens_are_rejected() {
     assert!(is_semver_subset("1.1.0", "<1.2"));
     assert!(is_semver_subset("1.1.0", "<1.2.x"));
 }
+
+#[test]
+fn max_safe_integer_wildcard_and_disjoint_multi_branch_ranges_are_handled() {
+    assert!(is_semver_subset("0.0.0", "<=0.900719925474099.x"));
+    assert!(!is_semver_subset("<=0.900719925474099.x", "0.0.0"));
+    assert!(is_semver_subset("900719925474099.0.0", "^900719925474099.0.0"));
+    assert!(is_semver_subset("1.0.0 || 2.0.0 || 3.0.0", "^1.0.0 || ^2.0.0 || ^3.0.0"));
+    assert!(!is_semver_subset("1.0.0 || 2.0.0 || 3.0.0", "^1.0.0 || ^3.0.0"));
+    assert!(is_semver_subset("1.0.0-alpha.2 || 2.0.0-beta.0", ">=1.0.0-alpha.1 <=2.0.0-beta.1"));
+    assert!(!is_semver_subset("1.5.0-alpha.1", ">=1.0.0-alpha.1 <=2.0.0-beta.1"));
+    assert!(is_semver_subset(">=1.0.0-alpha.1 >=1.0.0", ">=1.0.0"));
+    assert!(is_semver_subset(">=1.0.0-alpha.1 >=1.0.0 <2.0.0-0", "^1.0.0"));
+}

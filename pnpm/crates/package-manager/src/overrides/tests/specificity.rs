@@ -162,3 +162,12 @@ fn undeclared_dependency_override_uses_narrower_range_in_both_orders() {
     assert_eq!(undeclared(&broad_first, "foo", "1.0.0").as_deref(), Some("1.0.1"));
     assert_eq!(undeclared(&exact_first, "foo", "1.0.0").as_deref(), Some("1.0.1"));
 }
+
+#[test]
+fn max_safe_integer_wildcard_range_yields_to_exact_version_in_both_orders() {
+    let broad_first = &[("foo@<=0.900719925474099.x", "broad"), ("foo@0.0.0", "exact")];
+    let exact_first = &[("foo@0.0.0", "exact"), ("foo@<=0.900719925474099.x", "broad")];
+
+    assert_eq!(apply_single_dep(broad_first, "foo", "0.0.0"), "exact");
+    assert_eq!(apply_single_dep(exact_first, "foo", "0.0.0"), "exact");
+}

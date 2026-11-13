@@ -1678,5 +1678,44 @@ describe('createVersionsOverrider() range specificity', () => {
       dependencies: { foo: '2.9.0' },
     })
   })
+
+  test('wildcard union normalized by node-semver preserves declaration order against wildcard', () => {
+    const unionFirst = createVersionsOverrider(parseOverrides({
+      'foo@* || 1.0.0-alpha.1': '1.0.0',
+      'foo@*': '2.0.0',
+    }), rootDir)
+    const starFirst = createVersionsOverrider(parseOverrides({
+      'foo@*': '2.0.0',
+      'foo@* || 1.0.0-alpha.1': '1.0.0',
+    }), rootDir)
+    expect(unionFirst({ dependencies: { foo: '^1.0.0' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0' },
+    })
+    expect(starFirst({ dependencies: { foo: '^1.0.0' } })).toStrictEqual({
+      dependencies: { foo: '2.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'broad large-identifier range first',
+      {
+        'foo@>=1.0.0-9007199254740992': '1.0.0-broad',
+        'foo@>=1.0.0-9007199254740992 <1.0.0-10000000000000000': '1.0.0-narrow',
+      },
+    ],
+    [
+      'narrow large-identifier range first',
+      {
+        'foo@>=1.0.0-9007199254740992 <1.0.0-10000000000000000': '1.0.0-narrow',
+        'foo@>=1.0.0-9007199254740992': '1.0.0-broad',
+      },
+    ],
+  ])('large numeric prerelease bounds select narrower range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '1.0.0-9007199254740992' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0-narrow' },
+    })
+  })
 })
 

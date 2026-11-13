@@ -16,6 +16,18 @@ interface SemverSelectorRange {
   prereleaseIntervals: Map<string, Array<Interval<PrePoint>>>
 }
 
+interface TupleWindow {
+  exclusiveFloor: ReleaseTuple | null
+  inclusiveFloor: ReleaseTuple | null
+  inclusiveCeiling: ReleaseTuple | null
+  impossible: boolean
+}
+
+interface TuplePrereleaseEntry {
+  tuple: ReleaseTuple
+  bounds: semver.Comparator[]
+}
+
 export type ParsedSelectorRange =
   | { kind: 'unbounded' }
   | { kind: 'non-semver', raw: string }
@@ -56,12 +68,9 @@ function semverIntervalsCover (dom: SemverSelectorRange, sub: SemverSelectorRang
 function parseValidSemverRange (trimmed: string): SemverSelectorRange {
   const releaseRaw: Array<Interval<ReleasePoint>> = []
   const prereleaseRaw = new Map<string, Array<Interval<PrePoint>>>()
-  for (const rawBranch of trimmed.split('||')) {
-    const branch = rawBranch.trim()
-    const branchRange = new semver.Range(branch === '' ? '*' : branch)
-    for (const comparators of branchRange.set) {
-      collectConjunctionIntervals(comparators, releaseRaw, prereleaseRaw)
-    }
+  const parsedRange = new semver.Range(trimmed)
+  for (const comparators of parsedRange.set) {
+    collectConjunctionIntervals(comparators, releaseRaw, prereleaseRaw)
   }
   const prereleaseIntervals = new Map<string, Array<Interval<PrePoint>>>()
   for (const [tupleKey, intervals] of prereleaseRaw) {
@@ -113,50 +122,43 @@ function applyReleaseComparator (
   comparator: semver.Comparator
 ): Interval<ReleasePoint> | undefined {
   if (comparator.value === '') return current
-  const { major, minor, patch, prerelease } = comparator.semver
-  const hasPre = prerelease.length > 0
-  const point: ReleasePoint = [major, minor, BigInt(patch)]
-  const nextPoint: ReleasePoint = [major, minor, BigInt(patch) + 1n]
-  return narrowReleaseBounds(current, comparator.operator, hasPre, point, nextPoint)
-}
-
-function narrowReleaseBounds (
-  current: Interval<ReleasePoint>,
-  operator: string,
-  hasPre: boolean,
-  point: ReleasePoint,
-  nextPoint: ReleasePoint
-): Interval<ReleasePoint> | undefined {
+  const operator = comparator.operator
   if (operator === '' || operator === '=') {
-    if (hasPre) return undefined
+    if (comparator.semver.prerelease.length > 0) return undefined
+    const point = releasePoint(comparator.semver, 0n)
     return {
       low: maxPoint(current.low, point, compareReleasePoint),
-      high: minHigh(current.high, nextPoint, compareReleasePoint),
+      high: minHigh(current.high, releasePoint(comparator.semver, 1n), compareReleasePoint),
     }
   }
   if (operator === '>=' || operator === '>') {
-    const floor = releaseFloor(operator, hasPre, point, nextPoint)
-    return { low: maxPoint(current.low, floor, compareReleasePoint), high: current.high }
+    return { low: maxPoint(current.low, releaseFloor(comparator), compareReleasePoint), high: current.high }
   }
-  const ceiling = releaseCeiling(operator, hasPre, point, nextPoint)
-  return { low: current.low, high: minHigh(current.high, ceiling, compareReleasePoint) }
+  return { low: current.low, high: minHigh(current.high, releaseCeiling(comparator), compareReleasePoint) }
 }
 
-function releaseFloor (operator: string, hasPre: boolean, point: ReleasePoint, nextPoint: ReleasePoint): ReleasePoint {
-  return operator === '>' && !hasPre ? nextPoint : point
+function releasePoint (version: semver.SemVer, patchDelta: bigint): ReleasePoint {
+  return [version.major, version.minor, BigInt(version.patch) + patchDelta]
 }
 
-function releaseCeiling (operator: string, hasPre: boolean, point: ReleasePoint, nextPoint: ReleasePoint): ReleasePoint {
-  return operator === '<=' && !hasPre ? nextPoint : point
+function releaseFloor (comparator: semver.Comparator): ReleasePoint {
+  const step = comparator.operator === '>' && comparator.semver.prerelease.length === 0 ? 1n : 0n
+  return releasePoint(comparator.semver, step)
+}
+
+function releaseCeiling (comparator: semver.Comparator): ReleasePoint {
+  const step = comparator.operator === '<=' && comparator.semver.prerelease.length === 0 ? 1n : 0n
+  return releasePoint(comparator.semver, step)
 }
 
 function conjunctionPrereleaseIntervals (
   comparators: readonly semver.Comparator[]
 ): Array<[string, Interval<PrePoint>]> {
-  const tuples = collectPrereleaseTuples(comparators)
+  const { window, perTuple } = indexPrereleaseBounds(comparators)
   const results: Array<[string, Interval<PrePoint>]> = []
-  for (const [tupleKey, tuple] of tuples) {
-    const interval = tuplePrereleaseInterval(tuple, comparators)
+  for (const [tupleKey, entry] of perTuple) {
+    if (!admitsTuple(window, entry.tuple)) continue
+    const interval = sameTuplePrereleaseInterval(entry.bounds)
     if (interval != null) {
       results.push([tupleKey, interval])
     }
@@ -164,55 +166,95 @@ function conjunctionPrereleaseIntervals (
   return results
 }
 
-function collectPrereleaseTuples (comparators: readonly semver.Comparator[]): Map<string, ReleaseTuple> {
-  const tuples = new Map<string, ReleaseTuple>()
+function indexPrereleaseBounds (
+  comparators: readonly semver.Comparator[]
+): { window: TupleWindow, perTuple: Map<string, TuplePrereleaseEntry> } {
+  const window: TupleWindow = {
+    exclusiveFloor: null,
+    inclusiveFloor: null,
+    inclusiveCeiling: null,
+    impossible: false,
+  }
+  const perTuple = new Map<string, TuplePrereleaseEntry>()
   for (const comparator of comparators) {
-    if (comparator.value !== '' && comparator.semver.prerelease.length > 0) {
-      const { major, minor, patch } = comparator.semver
-      tuples.set(`${major}.${minor}.${patch}`, [major, minor, patch])
+    if (comparator.value === '') continue
+    recordTupleWindow(window, comparator)
+    if (comparator.semver.prerelease.length > 0) {
+      appendTupleBound(perTuple, comparator)
     }
   }
-  return tuples
+  return { window, perTuple }
 }
 
-function tuplePrereleaseInterval (
-  target: ReleaseTuple,
-  comparators: readonly semver.Comparator[]
+function appendTupleBound (perTuple: Map<string, TuplePrereleaseEntry>, comparator: semver.Comparator): void {
+  const { major, minor, patch } = comparator.semver
+  const key = `${major}.${minor}.${patch}`
+  const existing = perTuple.get(key)
+  if (existing != null) {
+    existing.bounds.push(comparator)
+  } else {
+    perTuple.set(key, { tuple: [major, minor, patch], bounds: [comparator] })
+  }
+}
+
+function recordTupleWindow (window: TupleWindow, comparator: semver.Comparator): void {
+  const { major, minor, patch, prerelease } = comparator.semver
+  const tuple: ReleaseTuple = [major, minor, patch]
+  const hasPre = prerelease.length > 0
+  const operator = comparator.operator
+  if (operator === '' || operator === '=') {
+    if (!hasPre) {
+      window.impossible = true
+      return
+    }
+    window.inclusiveFloor = raiseFloor(window.inclusiveFloor, tuple)
+    window.inclusiveCeiling = lowerCeiling(window.inclusiveCeiling, tuple)
+    return
+  }
+  if (operator === '>' || operator === '>=') {
+    if (hasPre) {
+      window.inclusiveFloor = raiseFloor(window.inclusiveFloor, tuple)
+    } else {
+      window.exclusiveFloor = raiseFloor(window.exclusiveFloor, tuple)
+    }
+    return
+  }
+  window.inclusiveCeiling = lowerCeiling(window.inclusiveCeiling, tuple)
+}
+
+function admitsTuple (window: TupleWindow, target: ReleaseTuple): boolean {
+  if (window.impossible) return false
+  if (window.exclusiveFloor != null && compareTuple(target, window.exclusiveFloor) <= 0) return false
+  if (window.inclusiveFloor != null && compareTuple(target, window.inclusiveFloor) < 0) return false
+  return window.inclusiveCeiling == null || compareTuple(target, window.inclusiveCeiling) <= 0
+}
+
+function raiseFloor (current: ReleaseTuple | null, candidate: ReleaseTuple): ReleaseTuple {
+  if (current == null) return candidate
+  return maxPoint(current, candidate, compareTuple)
+}
+
+function lowerCeiling (current: ReleaseTuple | null, candidate: ReleaseTuple): ReleaseTuple {
+  if (current == null) return candidate
+  return compareTuple(current, candidate) <= 0 ? current : candidate
+}
+
+function sameTuplePrereleaseInterval (
+  bounds: readonly semver.Comparator[]
 ): Interval<PrePoint> | undefined {
   let current: Interval<PrePoint> = { low: [0], high: null }
-  for (const comparator of comparators) {
-    const next = applyPrereleaseComparator(target, current, comparator)
-    if (next == null) return undefined
-    current = next
+  for (const comparator of bounds) {
+    current = narrowSameTuplePrerelease(current, comparator)
   }
   return isNonEmpty(current, comparePrePoint) ? current : undefined
 }
 
-function applyPrereleaseComparator (
-  target: ReleaseTuple,
-  current: Interval<PrePoint>,
-  comparator: semver.Comparator
-): Interval<PrePoint> | undefined {
-  if (comparator.value === '') return current
-  const { major, minor, patch, prerelease } = comparator.semver
-  const tupleCmp = compareTuple([major, minor, patch], target)
-  if (tupleCmp !== 0 || prerelease.length === 0) {
-    return admitsNonMatchingTuple(tupleCmp, comparator.operator) ? current : undefined
-  }
-  return narrowSameTuplePrerelease(current, comparator.operator, prerelease)
-}
-
-function admitsNonMatchingTuple (tupleCmp: number, operator: string): boolean {
-  return tupleCmp < 0
-    ? operator === '>' || operator === '>='
-    : operator === '<' || operator === '<='
-}
-
 function narrowSameTuplePrerelease (
   current: Interval<PrePoint>,
-  operator: string,
-  pre: PrePoint
+  comparator: semver.Comparator
 ): Interval<PrePoint> {
+  const operator = comparator.operator
+  const pre = comparator.semver.prerelease
   const nextPre: PrePoint = [...pre, 0]
   if (operator === '' || operator === '=') {
     return { low: maxPoint(current.low, pre, comparePrePoint), high: minHigh(current.high, nextPre, comparePrePoint) }
@@ -264,16 +306,34 @@ function coalesceIntervals<Point> (
   return merged
 }
 
+function endsAtOrBefore<Point> (
+  high: Point | null,
+  point: Point,
+  compare: (lhs: Point, rhs: Point) => number
+): boolean {
+  return high !== null && compare(high, point) <= 0
+}
+
 function intervalsCover<Point> (
   dom: ReadonlyArray<Interval<Point>>,
   sub: ReadonlyArray<Interval<Point>>,
   compare: (lhs: Point, rhs: Point) => number
 ): boolean {
-  return sub.every((subIv) =>
-    dom.some((domIv) =>
-      compare(domIv.low, subIv.low) <= 0 && compareUpper(subIv.high, domIv.high, compare) <= 0
-    )
-  )
+  let domIndex = 0
+  for (const subInterval of sub) {
+    while (domIndex < dom.length && endsAtOrBefore(dom[domIndex].high, subInterval.low, compare)) {
+      domIndex++
+    }
+    const domInterval = dom[domIndex]
+    if (
+      domInterval == null ||
+      compare(domInterval.low, subInterval.low) > 0 ||
+      compareUpper(subInterval.high, domInterval.high, compare) > 0
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 function compareTuple (lhs: ReleaseTuple, rhs: ReleaseTuple): number {
@@ -292,16 +352,8 @@ function compareReleasePoint (lhs: ReleasePoint, rhs: ReleasePoint): number {
 function comparePrePoint (lhs: PrePoint, rhs: PrePoint): number {
   const sharedLen = Math.min(lhs.length, rhs.length)
   for (let idx = 0; idx < sharedLen; idx++) {
-    const diff = comparePreId(lhs[idx], rhs[idx])
+    const diff = semver.compareIdentifiers(String(lhs[idx]), String(rhs[idx]))
     if (diff !== 0) return diff
   }
   return lhs.length - rhs.length
-}
-
-function comparePreId (lhs: PreId, rhs: PreId): number {
-  if (lhs === rhs) return 0
-  if (typeof lhs === 'number' && typeof rhs === 'number') return lhs - rhs
-  if (typeof lhs === 'number') return -1
-  if (typeof rhs === 'number') return 1
-  return lhs < rhs ? -1 : 1
 }

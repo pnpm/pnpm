@@ -34,10 +34,29 @@ describe('isSubRange()', () => {
     expect(isSubRange('*', '<1.0.0')).toBe(true)
     expect(isSubRange('*', '<0.0.0-alpha.5')).toBe(false)
     expect(isSubRange('*', '1.0.0-alpha.1')).toBe(false)
+    expect(isSubRange('*', '* || 1.0.0-alpha.1')).toBe(true)
+    expect(isSubRange('* || 1.0.0-alpha.1', '*')).toBe(true)
     expect(isSubRange('^1.0.0-alpha.0', '1.0.0-alpha.1 || 1.0.0')).toBe(true)
+    expect(isSubRange('>=1.0.0-alpha.1 <=2.0.0-beta.1', '1.0.0-alpha.2 || 2.0.0-beta.0')).toBe(true)
+    expect(isSubRange('>=1.0.0-alpha.1 <=2.0.0-beta.1', '1.5.0-alpha.1')).toBe(false)
+    expect(isSubRange('>=1.0.0', '>=1.0.0-alpha.1 >=1.0.0')).toBe(true)
+    expect(isSubRange('^1.0.0', '>=1.0.0-alpha.1 >=1.0.0 <2.0.0-0')).toBe(true)
+    expect(isSubRange('^1.0.0 || ^2.0.0 || ^3.0.0', '1.0.0 || 2.0.0 || 3.0.0')).toBe(true)
+    expect(isSubRange('^1.0.0 || ^3.0.0', '1.0.0 || 2.0.0 || 3.0.0')).toBe(false)
     expect(isSubRange('^1.0.0', '>2.0.0 <1.0.0')).toBe(true)
     expect(isSubRange('^1.0.0', '<0.0.0')).toBe(true)
     expect(isSubRange('>2.0.0 <1.0.0', '^1.0.0')).toBe(false)
+  })
+
+  test('large numeric prerelease identifiers compare numerically like node-semver', () => {
+    expect(isSubRange('>=1.0.0-9007199254740992', '1.0.0-10000000000000000')).toBe(true)
+    expect(isSubRange('1.0.0-10000000000000000', '>=1.0.0-9007199254740992')).toBe(false)
+    expect(
+      isSubRange('>=1.0.0-9007199254740992', '>=1.0.0-9007199254740992 <1.0.0-10000000000000000')
+    ).toBe(true)
+    expect(
+      isSubRange('>=1.0.0-9007199254740992 <1.0.0-10000000000000000', '>=1.0.0-9007199254740992')
+    ).toBe(false)
   })
 
   test('non-semver specifiers only cover identical non-semver specifiers', () => {
