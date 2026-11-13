@@ -7,6 +7,7 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
+import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
@@ -281,7 +282,7 @@ function updateResolvedDeps ({
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          return [alias, linkedDependencyRef({ depPath, depGraph, lockfileDir, parentPkg, parentDepPath })]
+          return [alias, linkedDependencyRef({ alias, depPath, depGraph, lockfileDir, parentPkg, parentDepPath })]
         }
         const depNode = depGraph[depPath]
         return [
@@ -295,7 +296,8 @@ function updateResolvedDeps ({
   )
 }
 
-function linkedDependencyRef ({ depPath, depGraph, lockfileDir, parentPkg, parentDepPath }: {
+function linkedDependencyRef ({ alias, depPath, depGraph, lockfileDir, parentPkg, parentDepPath }: {
+  alias: string
   depPath: DepPath
   depGraph: DependenciesGraph
   lockfileDir: string | undefined
@@ -307,6 +309,13 @@ function linkedDependencyRef ({ depPath, depGraph, lockfileDir, parentPkg, paren
     !parentDepPath.includes('@file:') ||
     parentPkg.resolution.type !== 'directory'
   ) return depPath
+  const localSpec = parentPkg.localLinkedDependencies?.get(alias)
+  if (localSpec != null) {
+    const localPkgDir = localSpecPath(parentPkg.pkgIdWithPatchHash, lockfileDir)
+    const childDir = localSpecPath(localSpec, localPkgDir)
+    if (recordedLocalPath(depPath.slice('link:'.length), lockfileDir) === childDir) return depPath
+    return createNodeIdForLinkedLocalPkg(lockfileDir, childDir) as string
+  }
   const childPkg = depGraph[depPath]
   if (childPkg == null || childPkg.resolution.type !== 'directory') return depPath
   return createNodeIdForLinkedLocalPkg(lockfileDir, childPkg.resolution.directory) as string

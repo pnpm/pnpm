@@ -66,8 +66,10 @@ test('injected package child links are recorded relative to the lockfile directo
     [parentDepPath]: {
       name: 'lib',
       version: '1.0.0',
+      pkgIdWithPatchHash: 'file:../packages/lib',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
       resolvedVia: 'local-filesystem',
+      localLinkedDependencies: new Map([['child', 'link:../child']]),
       optional: false,
       children: { child: 'link:../child' },
       optionalDependencies: new Set<string>(),
@@ -103,7 +105,9 @@ test('reused injected package child links are not rebased again', () => {
     [parentDepPath]: {
       name: 'lib',
       version: '1.0.0',
+      pkgIdWithPatchHash: 'file:../packages/lib',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
+      localLinkedDependencies: new Map([['child', 'link:../child']]),
       optional: false,
       children: { child: 'link:../packages/child' },
       optionalDependencies: new Set<string>(),
@@ -139,7 +143,9 @@ test('workspace children with prototype-property aliases keep their lockfile ref
     [parentDepPath]: {
       name: 'lib',
       version: '1.0.0',
+      pkgIdWithPatchHash: 'file:../packages/lib',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
+      localLinkedDependencies: new Map(),
       optional: false,
       children: { constructor: 'link:../child' },
       optionalDependencies: new Set<string>(),
@@ -174,6 +180,7 @@ test('workspace child links keep their lockfile-relative target', () => {
     [parentDepPath]: {
       name: 'lib',
       version: '1.0.0',
+      pkgIdWithPatchHash: 'file:../packages/lib',
       resolution: { type: 'directory', directory: '/workspace/packages/lib' },
       optional: false,
       children: { child: 'link:../child' },
