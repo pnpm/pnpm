@@ -448,7 +448,7 @@ database:
   replicaPath: ./replica.db
   syncInterval: 15s
 registries:
-  npm:
+  local:
     type: hosted
   remote:
     type: upstream
@@ -475,7 +475,7 @@ registries:
         }
         other => panic!("expected libsql, got {other:?}"),
     }
-    assert!(config.routing.hosted.contains_key("npm"));
+    assert!(config.routing.hosted.contains_key("local"));
     let upstream = &config.routing.upstreams["remote"];
     assert_eq!(upstream.requests.max_fails, 4);
     assert_eq!(upstream.requests.fail_timeout, std::time::Duration::from_secs(25));

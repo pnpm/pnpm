@@ -85,7 +85,7 @@ async fn config_check_and_serve_reject_s3_or_populated_cache_without_secret() {
     std::fs::write(
         &s3_cfg,
         format!(
-            "storage: '{}'\ncache: '{}'\ns3:\n  bucket: packages\n  region: auto\n  endpoint: https://storage.example.test\nregistries:\n  npm:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\ndefaultRegistry: npm\n",
+            "storage: '{}'\ncache: '{}'\ns3:\n  bucket: packages\n  region: auto\n  endpoint: https://storage.example.test\nregistries:\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\ndefaultRegistry: npmjs\n",
             s3_dir.path().join("hosted").display(),
             s3_dir.path().join("cache").display(),
         ),

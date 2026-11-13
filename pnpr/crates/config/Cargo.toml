@@ -16,6 +16,7 @@ pnpr-package-name = { workspace = true }
 pnpr-policy = { workspace = true }
 pnpr-registry = { workspace = true }
 pnpm-config-dir = { workspace = true }
+pnpm-deps-path = { workspace = true }
 pnpm-env-replace = { workspace = true }
 pnpm-transparency-log = { workspace = true }
 derive_more = { workspace = true }

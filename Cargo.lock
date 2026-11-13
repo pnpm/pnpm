@@ -7211,6 +7211,7 @@ dependencies = [
  "indexmap 2.14.2",
  "object_store",
  "pnpm-config-dir",
+ "pnpm-deps-path",
  "pnpm-env-replace",
  "pnpm-testing-utils",
  "pnpm-transparency-log",

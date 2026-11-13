@@ -179,22 +179,59 @@ fn from_yaml_str_rejects_dot_prefixed_hosted_namespace() {
     }
 }
 
-/// A registry name is addressed as the single URL path segment `/~<name>/` and is
-/// embedded in rewritten tarball URLs, so a name that cannot survive that
-/// round trip (separators, traversal, URL delimiters, whitespace) must fail at
-/// load instead of becoming an unreachable or URL-ambiguous registry.
+/// A registry name is a URL path segment and a lockfile key prefix, so a name
+/// outside the prefix grammar fails at load.
 #[test]
-fn from_yaml_str_rejects_url_unsafe_registry_names() {
-    for name in
-        ["'a/b'", "'npm/local'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"]
-    {
+fn from_yaml_str_rejects_malformed_registry_names() {
+    for name in [
+        "'a/b'",
+        "'npm/local'",
+        "'..'",
+        "'.hidden'",
+        "'a b'",
+        "'a%2Fb'",
+        "'a?b'",
+        "'a#b'",
+        "'C:d'",
+        "'1st'",
+        "'-a'",
+        "'_a'",
+        "'team+a'",
+        "'a~b'",
+        "'@acme'",
+        "'café'",
+    ] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a URL-unsafe registry name must be rejected");
+            .expect_err("a malformed registry name must be rejected");
         assert!(
-            err.to_string().contains("URL-safe path segment"),
+            err.to_string().contains("must start with a letter"),
             "unexpected error for {name}: {err}",
         );
+    }
+}
+
+/// A registry named like a dependency specifier prefix would make
+/// `<pkg>@<name>:<version>` ambiguous.
+#[test]
+fn from_yaml_str_rejects_reserved_registry_names() {
+    for name in ["npm", "jsr", "workspace", "file", "git", "pkg", "PKG"] {
+        let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a reserved registry name must be rejected");
+        assert!(
+            err.to_string().contains("reserved dependency specifier prefix"),
+            "unexpected error for {name}: {err}",
+        );
+    }
+}
+
+#[test]
+fn from_yaml_str_accepts_well_formed_registry_names() {
+    for name in ["npmjs", "gh", "Team-A", "a.b_c-1"] {
+        let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
+        Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .unwrap_or_else(|err| panic!("rejected {name}: {err}"));
     }
 }
 
@@ -476,9 +513,9 @@ fn ecosystem_default_does_not_assign_the_registry_ecosystem() {
 
 #[test]
 fn ecosystem_default_requires_a_router_source_for_that_ecosystem() {
-    for (sources, valid) in [("npm", false), ("npm, crates", true)] {
+    for (sources, valid) in [("js", false), ("js, crates", true)] {
         let yaml = format!(
-            "registries:\n  npm: {{type: hosted, namespace: npm}}\n  crates: {{type: hosted, ecosystem: cargo, namespace: crates}}\n  main: {{type: router, sources: [{sources}]}}\ndefaultRegistry:\n  cargo: main\n",
+            "registries:\n  js: {{type: hosted, namespace: js}}\n  crates: {{type: hosted, ecosystem: cargo, namespace: crates}}\n  main: {{type: router, sources: [{sources}]}}\ndefaultRegistry:\n  cargo: main\n",
         );
         let result = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None);
         if valid {

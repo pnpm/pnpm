@@ -88,8 +88,8 @@ use release_records::{ReleaseRecordsFile, build_release_records_config};
 
 mod registry_graph;
 use registry_graph::{
-    namespace_collision_error, registry_err, resolve_file_registries, validate_namespace,
-    validate_registry_key, validate_registry_name,
+    namespace_collision_error, registry_err, resolve_file_registries,
+    validate_artifact_owner_name, validate_namespace, validate_registry_key,
 };
 
 mod s3;
