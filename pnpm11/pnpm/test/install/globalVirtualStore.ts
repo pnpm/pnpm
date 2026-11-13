@@ -73,6 +73,8 @@ test('reused global virtual store bin shims are repaired once per store', async 
   })
   await execPnpm(['install'])
 
+  expect(readYamlFileSync<Record<string, unknown>>(path.resolve('node_modules/.modules.yaml')).enableGlobalVirtualStore).toBe(true)
+
   const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/hello-world-js-bin-parent/1.0.0')
   const [hash] = fs.readdirSync(versionDir)
   const shimPath = path.join(
