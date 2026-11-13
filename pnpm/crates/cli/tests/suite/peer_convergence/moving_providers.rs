@@ -95,7 +95,7 @@ fn cycle_registry(root: &Path) -> TestRegistry {
     registry_from_manifests(root, manifests)
 }
 
-fn registry_from_manifests(
+pub(super) fn registry_from_manifests(
     root: &Path,
     manifests: impl IntoIterator<Item = Value>,
 ) -> TestRegistry {
@@ -112,7 +112,7 @@ fn registry_from_manifests(
     TestRegistry::start_static_with_storage(&storage)
 }
 
-fn install_lockfile(fixture: &WorkspaceFixture, bundle: Option<&OsStr>) {
+pub(super) fn install_lockfile(fixture: &WorkspaceFixture, bundle: Option<&OsStr>) {
     let args = ["install", "--lockfile-only", "--no-prefer-frozen-lockfile"];
     let output = match bundle {
         Some(bundle) => fixture.v11_command_at(bundle, &fixture.workspace, args),

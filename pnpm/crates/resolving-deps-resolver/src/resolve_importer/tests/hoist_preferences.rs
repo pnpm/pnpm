@@ -31,7 +31,7 @@ async fn unlisted_importers_do_not_hoist_other_importers_locked_required_peers()
 }
 
 #[tokio::test]
-async fn retained_required_peer_pin_survives_without_a_current_provider() {
+async fn retained_required_peer_does_not_install_a_lockfile_only_provider() {
     let mut lockfile =
         peer_context_lockfile(None, [("consumer@1.0.0(peer@2.0.0)", SnapshotEntry::default())]);
     lockfile.importers.insert(
@@ -48,7 +48,7 @@ async fn retained_required_peer_pin_survives_without_a_current_provider() {
             .await;
     assert_eq!(
         result.peers_result.direct_dependencies_by_alias.get("consumer"),
-        Some(&DepPath::from("consumer@1.0.0(peer@2.0.0)")),
+        Some(&DepPath::from("consumer@1.0.0")),
     );
 }
 

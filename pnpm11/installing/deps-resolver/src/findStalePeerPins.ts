@@ -2,47 +2,64 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { EXISTING_VERSION_SELECTOR_WEIGHT, pinnedByLockfile, type PreferredVersions } from '@pnpm/resolving.resolver-base'
-import type { ProjectManifest } from '@pnpm/types'
+import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
 import { getPinnedNameVer } from './resolveDependencies.js'
 
 type ManifestDependencies = Pick<ProjectManifest, 'dependencies' | 'devDependencies' | 'optionalDependencies'>
 
-/**
- * Collects the distinct semver ranges the given projects declare for each
- * package in their dependencies, devDependencies, and optionalDependencies,
- * with `catalog:` specifiers replaced by the catalog entry. Specifiers that
- * are not semver ranges are left out.
- */
+export interface DirectDependencySpecs {
+  ranges: Map<string, Set<string>>
+  rangePins: Map<string, Set<string>>
+}
+
 export function collectDirectDependencySpecs (
-  manifests: ManifestDependencies[],
-  catalogs: Catalogs
-): Map<string, Set<string>> {
-  const specsByName = new Map<string, Set<string>>()
-  for (const manifest of manifests) {
+  importers: Array<{ id: ProjectId, manifest: ManifestDependencies }>,
+  catalogs: Catalogs,
+  lockfile: LockfileObject
+): DirectDependencySpecs {
+  const specs = { ranges: new Map<string, Set<string>>(), rangePins: new Map<string, Set<string>>() }
+  for (const { id, manifest } of importers) {
+    const snapshot = lockfile.importers[id]
+    const lockedDependencies = { ...snapshot?.dependencies, ...snapshot?.devDependencies, ...snapshot?.optionalDependencies }
     for (const deps of [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]) {
-      addSemverSpecs(specsByName, { catalogs, deps })
+      addSemverSpecs(specs, { catalogs, deps, lockfile, lockedDependencies })
     }
   }
-  return specsByName
+  return specs
 }
 
 function addSemverSpecs (
-  specsByName: Map<string, Set<string>>,
-  opts: { catalogs: Catalogs, deps: Record<string, string> | undefined }
+  directSpecs: DirectDependencySpecs,
+  opts: { catalogs: Catalogs, deps: Record<string, string> | undefined, lockfile: LockfileObject, lockedDependencies: ResolvedDependencies }
 ): void {
   for (const [alias, bareSpecifier] of Object.entries(opts.deps ?? {})) {
     const catalogLookup = resolveFromCatalog(opts.catalogs, { alias, bareSpecifier })
     const spec = catalogLookup.type === 'found' ? catalogLookup.resolution.specifier : bareSpecifier
     if (semver.validRange(spec) == null) continue
-    const specs = specsByName.get(alias)
+    recordRangePin(directSpecs.rangePins, {
+      alias, spec, lockfile: opts.lockfile, reference: opts.lockedDependencies[alias],
+    })
+    const specs = directSpecs.ranges.get(alias)
     if (specs == null) {
-      specsByName.set(alias, new Set([spec]))
+      directSpecs.ranges.set(alias, new Set([spec]))
     } else {
       specs.add(spec)
     }
   }
+}
+
+function recordRangePin (
+  rangePins: Map<string, Set<string>>,
+  opts: { alias: string, spec: string, lockfile: LockfileObject, reference: string | undefined }
+): void {
+  if (semver.clean(opts.spec) != null || !opts.reference) return
+  const pinned = getPinnedNameVer(opts.lockfile, opts.reference, opts.alias)
+  if (!pinned || !semver.satisfies(pinned.version, opts.spec, true)) return
+  const pins = rangePins.get(opts.alias) ?? new Set<string>()
+  pins.add(pinned.version)
+  rangePins.set(opts.alias, pins)
 }
 
 /**
@@ -51,12 +68,14 @@ function addSemverSpecs (
  * workspace project's specifier for that package rejects, although the
  * specifier overlaps the peer range. Such a peer has to be re-resolved, or it
  * stays on its first resolution while the projects that provide it move on
- * (pnpm/pnpm#11800, pnpm/pnpm#17058).
+ * (pnpm/pnpm#11800, pnpm/pnpm#17058). A current range pin stays valid unless an
+ * overlapping exact specifier names another version.
  */
 export function findStalePeerPins (
   resolvedDependencies: ResolvedDependencies,
   opts: {
     directSpecsByName: Map<string, Set<string>>
+    rangePins: Map<string, Set<string>>
     lockfile: LockfileObject
     manifest: ProjectManifest
   }
@@ -70,11 +89,25 @@ export function findStalePeerPins (
     const overlappingSpecs = [...directSpecs].filter((spec) => semver.intersects(spec, peerRange))
     if (!overlappingSpecs.length) continue
     const pinned = getPinnedNameVer(opts.lockfile, resolvedDependencies[alias], alias)
-    if (pinned != null && overlappingSpecs.some((spec) => !semver.satisfies(pinned.version, spec, true))) {
+    if (pinned != null && isStalePeerPin(pinned.version, { alias, peerRange, rangePins: opts.rangePins, overlappingSpecs })) {
       stale.set(alias, pinned.version)
     }
   }
   return stale
+}
+
+function isStalePeerPin (
+  version: string,
+  opts: { alias: string, peerRange: string, rangePins: Map<string, Set<string>>, overlappingSpecs: string[] }
+): boolean {
+  if (opts.rangePins.get(opts.alias)?.has(version)) {
+    const exactProviderChanged = opts.overlappingSpecs.some((spec) => {
+      const exact = semver.clean(spec)
+      return exact != null && exact !== version && semver.satisfies(exact, opts.peerRange, true)
+    })
+    if (!exactProviderChanged) return false
+  }
+  return opts.overlappingSpecs.some((spec) => !semver.satisfies(version, spec, true))
 }
 
 function isAutoInstalledPeerWithRange (

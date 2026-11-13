@@ -1,6 +1,6 @@
 use super::super::{importers::SortedImporters, options::WorkspaceImporter};
 use crate::{
-    resolve_dependency_tree::{WorkspaceTreeCtx, importer_direct_wanted_specs},
+    resolve_dependency_tree::{DependencySpec, WorkspaceTreeCtx, importer_direct_wanted_specs},
     resolve_importer::ResolveImporterOptions,
 };
 use node_semver::{Range, Version};
@@ -26,7 +26,7 @@ pub(super) fn release_stale_peer_pins(
     if !sorted.importers.iter().any(|importer| declares_peers(importer)) {
         return;
     }
-    let direct_specs = collect_direct_specs(&sorted.importers, &sorted.opts);
+    let direct_specs = collect_direct_specs(&sorted.importers, &sorted.opts, &lockfile);
     let stale_peer_pins = find_stale_peer_pins(&sorted.importers, &direct_specs, &lockfile);
     for (importer, opts) in sorted.importers.iter().zip(sorted.opts.iter_mut()) {
         if let Some(stale) = stale_peer_pins.get(&importer.id) {
@@ -48,6 +48,8 @@ pub(super) fn release_stale_peer_pins(
 /// although the specifier overlaps the peer range. Such a peer has to be
 /// re-resolved, or it stays on its first resolution while the projects
 /// that provide it move on (pnpm/pnpm#11800, pnpm/pnpm#17058).
+/// A current range pin stays valid unless an overlapping exact specifier
+/// names another version.
 fn find_stale_peer_pins(
     importers: &[&WorkspaceImporter<'_>],
     direct_specs: &DirectSpecs,
@@ -55,7 +57,7 @@ fn find_stale_peer_pins(
 ) -> HashMap<String, HashMap<String, Version>> {
     let mut stale = HashMap::<String, HashMap<String, Version>>::default();
     for importer in importers.iter().filter(|importer| declares_peers(importer)) {
-        let peers = importer_stale_peer_pins(importer, lockfile, &direct_specs.ranges);
+        let peers = importer_stale_peer_pins(importer, lockfile, direct_specs);
         if !peers.is_empty() {
             stale.insert(importer.id.clone(), peers);
         }
@@ -72,11 +74,13 @@ struct DirectSpecs {
     ranges: HashMap<String, HashSet<Range>>,
     /// The exact versions among them.
     versions: HashMap<String, HashSet<String>>,
+    range_pins: HashMap<String, HashSet<String>>,
 }
 
 fn collect_direct_specs(
     importers: &[&WorkspaceImporter<'_>],
     opts: &[ResolveImporterOptions],
+    lockfile: &Lockfile,
 ) -> DirectSpecs {
     let mut direct_specs = DirectSpecs::default();
     for (importer, importer_opts) in importers.iter().zip(opts) {
@@ -90,21 +94,54 @@ fn collect_direct_specs(
             continue;
         };
         for spec in wanted {
-            if let Ok(version) = exact_version(&spec.bare_specifier) {
-                direct_specs.versions
+            let pinned = locked_importer_version(lockfile, &importer.id, &spec.alias);
+            direct_specs.record(spec, pinned);
+        }
+    }
+    direct_specs
+}
+
+impl DirectSpecs {
+    fn retains_range_pin(&self, alias: &str, pinned: &Version, peer_range: &Range) -> bool {
+        if !self.range_pins
+            .get(alias)
+            .is_some_and(|pins| pins.contains(&pinned.to_string()))
+        {
+            return false;
+        }
+        !self.versions
+            .get(alias)
+            .into_iter()
+            .flatten()
+            .map(|version| {
+                version.parse::<Version>().expect("exact versions are recorded in canonical form")
+            })
+            .any(|version| version != *pinned && peer_range.satisfies(&version))
+    }
+
+    fn record(&mut self, spec: DependencySpec, pinned: Option<Version>) {
+        let Ok(range) = spec.bare_specifier.parse::<Range>() else { return };
+        match exact_version(&spec.bare_specifier) {
+            Ok(version) => {
+                self.versions
                     .entry(spec.alias.clone())
                     .or_default()
                     .insert(version.to_string());
             }
-            if let Ok(range) = spec.bare_specifier.parse::<Range>() {
-                direct_specs.ranges
-                    .entry(spec.alias)
-                    .or_default()
-                    .insert(range);
+            Err(_) => {
+                if let Some(pinned) = pinned.filter(|version| range.satisfies(version)) {
+                    self.range_pins
+                        .entry(spec.alias.clone())
+                        .or_default()
+                        .insert(pinned.to_string());
+                }
             }
         }
+        self.ranges
+            .entry(spec.alias)
+            .or_default()
+            .insert(range);
     }
-    direct_specs
 }
 
 /// The version an exact specifier such as `1.0.0`, `v1.0.0` or `=1.0.0`
@@ -126,7 +163,7 @@ fn declares_peers(importer: &WorkspaceImporter<'_>) -> bool {
 fn importer_stale_peer_pins(
     importer: &WorkspaceImporter<'_>,
     lockfile: &Lockfile,
-    direct_ranges: &HashMap<String, HashSet<Range>>,
+    direct_specs: &DirectSpecs,
 ) -> HashMap<String, Version> {
     let manifest = importer.manifest;
     let declared = manifest
@@ -137,7 +174,7 @@ fn importer_stale_peer_pins(
         .dependencies([DependencyGroup::Peer])
         .filter(|(alias, _)| !declared.contains(alias))
         .filter_map(|(alias, peer_spec)| {
-            let ranges = direct_ranges.get(alias)?;
+            let ranges = direct_specs.ranges.get(alias)?;
             let peer_range = peer_spec.parse::<Range>().ok()?;
             let mut overlapping = ranges
                 .iter()
@@ -145,6 +182,9 @@ fn importer_stale_peer_pins(
                 .peekable();
             overlapping.peek()?;
             let pinned = locked_importer_version(lockfile, &importer.id, alias)?;
+            if direct_specs.retains_range_pin(alias, &pinned, &peer_range) {
+                return None;
+            }
             overlapping
                 .any(|range| !range.satisfies(&pinned))
                 .then(|| (alias.to_string(), pinned))

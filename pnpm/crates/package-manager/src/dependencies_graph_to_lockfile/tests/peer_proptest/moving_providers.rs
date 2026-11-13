@@ -846,3 +846,114 @@ fn adding_a_consumer_to_a_peer_cycle_preserves_required_pins() {
         }
     }
 }
+
+#[test]
+fn adding_a_ranged_provider_keeps_injected_peers_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 1 }], vec![Edge { target: 1, major: 1 }]],
+    };
+    let settings = Settings { auto_install_peers: true, injected: true, ..Default::default() };
+    check_changes(
+        workspace,
+        settings,
+        vec![DependencyChange { importer: 0, target: 1, major: Some(2) }],
+    )
+    .unwrap();
+}
+
+#[test]
+fn adding_a_ranged_cyclic_provider_keeps_injected_peers_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Major(1),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 1 }], vec![Edge { target: 1, major: 1 }]],
+    };
+    let settings = Settings { auto_install_peers: true, injected: true, ..Default::default() };
+    check_changes(
+        workspace,
+        settings,
+        vec![DependencyChange { importer: 0, target: 1, major: Some(2) }],
+    )
+    .unwrap();
+}
+
+#[test]
+fn removing_a_retargeted_provider_keeps_injected_peers_stable() {
+    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion { dependencies: vec![Edge { target: 1, major: 1 }], peers: vec![] },
+                leaf(),
+            ],
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 0,
+                        range: PeerRange::Major(2),
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+        ],
+        importers: vec![vec![Edge { target: 0, major: 2 }]],
+    };
+    let settings = Settings { auto_install_peers: false, injected: true, ..Default::default() };
+    check_changes(
+        workspace,
+        settings,
+        vec![
+            DependencyChange { importer: 0, target: 0, major: Some(1) },
+            DependencyChange { importer: 0, target: 1, major: Some(1) },
+            DependencyChange { importer: 0, target: 0, major: None },
+        ],
+    )
+    .unwrap();
+}

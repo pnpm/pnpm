@@ -893,3 +893,42 @@ fn reinstall_preserves_injected_peer_dependency_classification() {
         }
     }
 }
+
+#[test]
+fn peer_only_importer_keeps_a_provider_locked_by_a_range() {
+    use super::{Settings, lockfile_with_settings, resolve_with};
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: false,
+                        also_dependency: false,
+                    }],
+                },
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![direct(1, 2), direct(1, 1)],
+    };
+    let order = in_order(&workspace);
+    for format in [pnpm_lockfile::LockfileFormat::V9, pnpm_lockfile::LockfileFormat::V13] {
+        for catalogs in [false, true] {
+            let settings = Settings { injected: true, catalogs, format, ..Default::default() };
+            let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+            let expected = outcome_of(&fresh, &workspace);
+            assert_eq!(expected.direct["shared"]["p1"], "p1@2.0.0");
+            let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+            for reuse in [Reuse::Install(&lockfile), Reuse::Dedupe(&lockfile)] {
+                let reused = resolve_with(&workspace, &order, settings, reuse).unwrap();
+                let actual = outcome_of(&reused, &workspace);
+                dbg!(&expected, &actual);
+                assert_eq!(expected, actual);
+            }
+        }
+    }
+}
