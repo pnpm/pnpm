@@ -14,6 +14,10 @@
 //! instead, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
+pub use sentinel::SentinelPlaceholders;
+
+mod sentinel;
+
 /// Capability: read a process environment variable as a UTF-8 string.
 pub trait EnvVar {
     /// Return the value of the named environment variable, or `None`

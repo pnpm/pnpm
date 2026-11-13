@@ -6927,6 +6927,7 @@ dependencies = [
  "miette 7.6.0",
  "pathdiff",
  "pnpm-catalogs-types",
+ "pnpm-env-replace",
  "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-package-manifest",
