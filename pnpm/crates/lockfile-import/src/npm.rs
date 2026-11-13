@@ -94,9 +94,8 @@ fn collect_from_flat_entry<'a>(
     }
 }
 
-/// Unwrap an `npm:<target>@<version>` alias value (written by npm v1/v2
-/// `version` entries and flat `dependencies` maps) into the target package
-/// name and version.
+/// Unwrap an `npm:<target>@<version>` alias value into the target package name
+/// and version.
 fn add_resolved_npm_version(versions: &mut VersionsByPackageName, name: &str, spec: &str) {
     let Some(npm_spec) = spec.strip_prefix("npm:") else {
         add_version(versions, name, spec);

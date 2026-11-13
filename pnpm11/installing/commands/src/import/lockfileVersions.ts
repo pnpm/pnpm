@@ -280,19 +280,27 @@ function getYarnDescriptorPackageName (descriptor: string): string | undefined {
 function getYarnLockfileType (
   lockFileContents: string
 ): YarnLockType {
-  for (const rawLine of lockFileContents.split('\n')) {
-    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-    if (isBerryMetadataLine(line)) {
+  let lineStart = 0
+  while (lineStart < lockFileContents.length) {
+    const newlineIdx = lockFileContents.indexOf('\n', lineStart)
+    const lineEnd = newlineIdx === -1 ? lockFileContents.length : newlineIdx
+    if (isBerryMetadataLineAt(lockFileContents, lineStart, lineEnd)) {
       return YarnLockType.yarn2
     }
+    if (newlineIdx === -1) break
+    lineStart = newlineIdx + 1
   }
   return YarnLockType.yarn
 }
 
-function isBerryMetadataLine (line: string): boolean {
+function isBerryMetadataLineAt (
+  contents: string,
+  lineStart: number,
+  lineEnd: number
+): boolean {
   for (const prefix of BERRY_METADATA_PREFIXES) {
-    if (line.startsWith(prefix)) {
-      const rest = line.slice(prefix.length).trimStart()
+    if (contents.startsWith(prefix, lineStart)) {
+      const rest = contents.slice(lineStart + prefix.length, lineEnd).trim()
       return rest === '' || rest.startsWith('#') || rest.startsWith('{')
     }
   }

@@ -67,8 +67,7 @@ pub fn collect_yarn_lockfile_versions(
 }
 
 /// Yarn berry stamps every lockfile it writes with a top-level `__metadata:`
-/// YAML mapping. Checking for that unindented key avoids misclassifying yarn
-/// classic lockfiles that name a `__metadata*` package.
+/// YAML mapping.
 fn is_berry(contents: &str) -> bool {
     contents.lines().any(is_berry_metadata_line)
 }
@@ -131,7 +130,7 @@ fn record_berry_entry_versions(
 
 fn berry_resolution_package_name(resolution: &str) -> Option<&str> {
     let (name, spec) = split_descriptor(resolution.trim().trim_matches(QUOTES))?;
-    (!name.is_empty() && spec.starts_with("npm:")).then_some(name)
+    spec.starts_with("npm:").then_some(name)
 }
 
 /// A berry `version:` is usually an unquoted scalar, which YAML types as
@@ -251,24 +250,19 @@ fn split_key_and_value(content: &str) -> Option<(&str, &str)> {
     (!value.is_empty()).then(|| (key.trim().trim_matches(QUOTES), value.trim_matches(QUOTES)))
 }
 
-/// An entry's key lists every descriptor that resolved to it, comma separated.
-/// Splitting at the first `@` after the leading character preserves scopes and
-/// extracts the target package name when an `npm:` alias redirects to another
-/// package (`my-alias@npm:minimatch@^3.0.4`).
+/// An entry's key lists every descriptor that resolved to it, comma separated,
+/// yielding each descriptor's target package name.
 fn descriptor_package_names(key: &str, dialect: YarnDialect) -> impl Iterator<Item = &str> {
     key.split(',').filter_map(move |descriptor| descriptor_package_name(descriptor, dialect))
 }
 
 fn descriptor_package_name(descriptor: &str, dialect: YarnDialect) -> Option<&str> {
     let (name, spec) = split_descriptor(descriptor.trim().trim_matches(QUOTES))?;
-    if name.is_empty() {
-        return None;
-    }
     let Some(npm_spec) = spec.strip_prefix("npm:") else {
         return Some(name);
     };
     if let Some((target, _)) = split_descriptor(npm_spec) {
-        return (!target.is_empty()).then_some(target);
+        return Some(target);
     }
     if npm_spec.starts_with('@') && npm_spec.contains('/') {
         return Some(npm_spec);
