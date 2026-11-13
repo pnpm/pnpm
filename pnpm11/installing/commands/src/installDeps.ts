@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import { createAllowBuildFunction, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import { getExtraNodePaths } from '@pnpm/bins.linker'
+import { createAllowBuildFunction, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import type { CommandHandler } from '@pnpm/cli.command'
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
