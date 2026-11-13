@@ -7,7 +7,7 @@ import { getFilePathByModeInCafs } from '@pnpm/store.cafs'
 import { getStorePath } from '@pnpm/store.path'
 import { renderHelp } from 'render-help'
 
-const INTEGRITY_REGEX: RegExp = /^[^-]+-([a-z0-9+/]+={0,2})$/i
+const INTEGRITY_REGEX: RegExp = /^[^-]+-([A-Z0-9+/]+={0,2})$/i
 
 export const skipPackageManagerCheck = true
 
@@ -38,12 +38,18 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
   }
 
   const match = INTEGRITY_REGEX.exec(params[0])
-  if (!match || (match[1].endsWith('=') && match[1].length % 4 !== 0)) {
+  if (!match) {
     throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
   }
 
-  const toHex = Buffer.from(match[1], 'base64').toString('hex')
-  if (toHex.length <= 2) {
+  const encoded = match[1]
+  const decoded = Buffer.from(encoded, 'base64')
+  const canonical = decoded.toString('base64')
+  const isValidBase64 = encoded.includes('=')
+    ? canonical === encoded
+    : canonical.replace(/=+$/, '') === encoded
+  const toHex = decoded.toString('hex')
+  if (!isValidBase64 || toHex.length <= 2) {
     throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
   }
 

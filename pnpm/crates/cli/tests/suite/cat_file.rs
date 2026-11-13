@@ -153,7 +153,14 @@ fn should_fail_on_invalid_base64() {
 
     let CommandTempCwd { workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    for invalid in ["sha512-InvalidBase64!!!", "sha512-YWJj=", "sha512-YWI==="] {
+    for invalid in [
+        "sha512-InvalidBase64!!!",
+        "sha512-YWJjA",
+        "sha512-YWJj=",
+        "sha512-YWI===",
+        "sha512-YWJ=",
+        "sha512-YWJ",
+    ] {
         let output = std::process::Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()

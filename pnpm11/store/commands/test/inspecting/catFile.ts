@@ -198,7 +198,7 @@ test('print hash file content error', async () => {
         version: '8.12.1',
       },
     })
-    await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08'])
+    await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa0'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -227,6 +227,7 @@ test('reject malformed or short hash inputs with ERR_PNPM_INVALID_HASH', async (
 
   expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWJj'])).toBe('abc')
   expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWI'])).toBe('ab')
+  expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWI='])).toBe('ab')
 
   const invalidHashes = [
     'sha512-',
@@ -235,9 +236,13 @@ test('reject malformed or short hash inputs with ERR_PNPM_INVALID_HASH', async (
     'sha512-InvalidBase64!!!',
     'sha512-==',
     'sha512-YQ==',
+    'sha512-YQ',
+    'sha512-YWJjA',
     'sha512-YWJj=',
     'sha512-YWI===',
     'sha512-YW=Jj',
+    'sha512-YWJ=',
+    'sha512-YWJ',
   ]
   await Promise.all(invalidHashes.map(async (invalid) => {
     await expect(
