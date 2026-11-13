@@ -131,8 +131,8 @@ function appendPolicyCacheKeyInputs (args: unknown[], opts: DlxCacheKeyOptions):
   if (opts.trustLockfile === true) {
     args.push({ trustLockfile: true })
   }
-  if (opts.blockExoticSubdeps === false) {
-    args.push({ blockExoticSubdeps: false })
+  if (opts.blockExoticSubdeps === true) {
+    args.push({ blockExoticSubdeps: true })
   }
 }
 

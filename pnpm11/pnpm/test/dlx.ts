@@ -21,7 +21,11 @@ beforeAll(async () => {
   registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 })
 
-const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registriesByScope })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
+  registriesByScope,
+  blockExoticSubdeps: true,
+})
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
