@@ -57,12 +57,6 @@ pub enum Command {
         #[arg(long)]
         skip_hashes: bool,
     },
-    /// Export hosted packages and blobs to a directory.
-    Export {
-        /// Target directory to export packages into.
-        #[arg(long)]
-        out: PathBuf,
-    },
     /// Migrate hosted packages and blobs from local disk storage to S3.
     MigrateStorage {
         /// Source local storage directory. Defaults to config storage directory.
@@ -155,7 +149,6 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::Config { .. } => run_config_check(),
         Command::Verify { .. } => run_verify_command(config, command).await,
-        Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
         Command::ImportHtpasswd { .. } => run_import_command(config, command).await,
         Command::AddUser { username, password } => {
@@ -170,10 +163,9 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 async fn with_registries(config: &Config, command: &Command) -> miette::Result<Config> {
     let credentials = match command {
         Command::CacheGc { .. } => Credentials::Resolve,
-        Command::Gc { .. }
-        | Command::Verify { .. }
-        | Command::Export { .. }
-        | Command::MigrateStorage { .. } => Credentials::Skip,
+        Command::Gc { .. } | Command::Verify { .. } | Command::MigrateStorage { .. } => {
+            Credentials::Skip
+        }
         _ => return Ok(config.clone()),
     };
     with_stored_routing(config, credentials, FileReferences::Warn).await
@@ -208,13 +200,6 @@ async fn run_verify_command(config: &Config, command: Command) -> miette::Result
         return Ok(());
     };
     run_verify(config, !skip_hashes).await
-}
-
-async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Export { out } = command else {
-        return Ok(());
-    };
-    run_export(config, out).await
 }
 
 async fn run_migrate_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -278,12 +263,6 @@ async fn run_verify(config: &Config, check_hashes: bool) -> miette::Result<()> {
             "storage verification failed: {missing_count} missing, {corrupted_count} corrupted blobs",
         ));
     }
-    Ok(())
-}
-
-async fn run_export(config: &Config, out: PathBuf) -> miette::Result<()> {
-    let report = crate::export::export_storage(config, &out).await?;
-    print!("{}", crate::export::format_export_report(&report));
     Ok(())
 }
 

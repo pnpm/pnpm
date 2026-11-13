@@ -7,7 +7,6 @@ use pnpr::{
     Config,
     archive_gc::{GcOptions, GcReport, collect_archives},
     config_check::{check_config, format_report},
-    export::{export_storage, format_export_report},
     htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
     migrate_storage::{MigrateStorageOptions, format_migrate_report, migrate_local_to_s3},
     verify::{VerifyOptions, format_verify_report, verify_storage},
@@ -155,53 +154,7 @@ async fn test_htpasswd_import() {
 }
 
 #[tokio::test]
-async fn test_export_storage() {
-    let dir = TempDir::new().unwrap();
-    let (config, _cfg_file) = create_test_config(dir.path());
-    let export_out = dir.path().join("exported");
-
-    // Seed a package in storage
-    let pkg = "demo-pkg";
-    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
-    let doc = serde_json::json!({
-        "name": "demo-pkg",
-        "versions": {
-            "1.0.0": {
-                "name": "demo-pkg",
-                "version": "1.0.0",
-                "dist": {
-                    "tarball": "http://localhost:7677/demo-pkg/-/demo-pkg-1.0.0.tgz"
-                }
-            }
-        }
-    });
-    seed_document(
-        &config.storage.hosted_dir,
-        Ecosystem::Npm,
-        pkg,
-        &serde_json::to_vec(&doc).unwrap(),
-    );
-    seed_archive(
-        &config.storage.hosted_dir,
-        Ecosystem::Npm,
-        pkg,
-        "demo-pkg-1.0.0.tgz",
-        b"fake tarball bytes",
-    );
-
-    let report = export_storage(&config, &export_out).await.unwrap();
-    assert_eq!(report.packages_exported, 1);
-    assert_eq!(report.versions_exported, 1);
-    assert_eq!(report.blobs_exported, 1);
-
-    let formatted = format_export_report(&report);
-    assert!(formatted.contains("Export completed successfully"));
-    assert!(export_out.join("demo-pkg/package.json").exists());
-    assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tgz").exists());
-}
-
-#[tokio::test]
-async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
+async fn verify_keeps_the_stored_tar_of_a_hosted_tar_registry() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
     let pkg = "demo-pkg";
@@ -235,11 +188,6 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     assert_eq!(stored_tar.as_deref(), Some(b"zstd tar bytes".as_slice()));
     assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
     assert!(report.corrupted_blobs[0].contains("no recorded tar integrity"));
-
-    let export_out = dir.path().join("exported");
-    let exported = export_storage(&config, &export_out).await.unwrap();
-    assert_eq!(exported.blobs_exported, 1);
-    assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tar.zst").exists());
 }
 
 #[tokio::test]
@@ -543,7 +491,7 @@ async fn test_migrate_storage_refuses_metadata_an_s3_deployment_cannot_read() {
 }
 
 #[tokio::test]
-async fn test_verify_and_export_attestations() {
+async fn test_verify_attestations() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
 
@@ -595,13 +543,6 @@ async fn test_verify_and_export_attestations() {
     assert_eq!(rep.missing_blobs.len(), 0);
     assert_eq!(rep.corrupted_blobs.len(), 0);
     assert_eq!(rep.orphaned_blobs.len(), 0);
-
-    let export_out = dir.path().join("export-signed");
-    let exp_rep = export_storage(&config, &export_out).await.unwrap();
-    assert_eq!(exp_rep.packages_exported, 1);
-    assert_eq!(exp_rep.blobs_exported, 2);
-    assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.tgz").exists());
-    assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
 }
 
 #[tokio::test]
@@ -866,7 +807,6 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
     wiped_store.storage.hosted_dir = dir_a.path().join("empty-store");
     std::fs::create_dir_all(&wiped_store.storage.hosted_dir).unwrap();
 
-    let export_out = dir_a.path().join("export-out");
     let migrate_opts = MigrateStorageOptions {
         to_bucket: Some("mock-bucket".to_string()),
         to_region: Some("us-east-1".to_string()),
@@ -898,11 +838,6 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
             .is_err(),
         );
         assert!(verify_storage(bad, &verify_opts).await.is_err());
-        assert!(
-            pnpr::run_command(bad, pnpr::Command::Export { out: export_out.clone() },)
-                .await
-                .is_err(),
-        );
         assert!(migrate_local_to_s3(bad, &migrate_opts).await.is_err());
     }
 }

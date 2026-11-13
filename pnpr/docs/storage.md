@@ -76,7 +76,7 @@ incarnation, so a key is never written again once a reclaim may remove it.
 When pnpr initializes an empty hosted store and database, it writes a
 random `store_id` into `layout.json` and into the database's
 `hosted_store` table. pnpr refuses to start, collect (`pnpr gc`), verify
-(`pnpr verify`), export (`pnpr export`), or migrate (`pnpr migrate-storage`)
+(`pnpr verify`), or migrate (`pnpr migrate-storage`)
 when `layout.json` and `hosted_store` hold different store IDs or when only one
 side holds one. It also refuses a store written by a newer pnpr, or one in an
 earlier layout, including the one pnpr used before `layout.json` existed: move
@@ -243,6 +243,8 @@ file and pulls the primary's changes every `syncInterval`:
   retried publish read the primary.
 - When the replica cannot sync, pnpr reads the primary.
 
+### Metadata concurrency {#metadata-concurrency}
+
 Two instances publishing to one package at the same moment both land. The
 publish that commits second finds the package at another generation, rebases
 its versions, tags, and other changes onto what the first committed, and
@@ -257,8 +259,8 @@ instead.
 By default both are local directories. Adding an `s3:` block moves the
 **hosted** store and the enabled **shared-artifact** store into an S3-compatible
 object store, so they can be shared by several stateless pnpr replicas. Their
-metadata then lives in a [libSQL database](#libsql-database) the replicas
-share. The ordinary upstream and resolver cache stays on local disk.
+metadata then lives in a [shared database](auth-backends.md), using libSQL,
+PostgreSQL, or MySQL. The ordinary upstream and resolver cache stays on local disk.
 
 Shared artifacts use a reserved `.artifacts/` namespace under the
 configured prefix; hosted package objects keep their normal namespace. Without
@@ -287,7 +289,7 @@ s3:
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 
 database:
-  # Package metadata of a hosted registry on S3 lives in a libSQL database.
+  # Example shared database for hosted storage on S3.
   url: libsql://<your-db>.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
 ```
@@ -307,18 +309,12 @@ database:
 
 ## Concurrent writers {#concurrent-writers}
 
-Several stateless pnpr replicas can share one bucket. Because a replica's
-in-process package lock only serializes that replica, writes to the hosted
-store are made safe across replicas at the object-store level rather than by
-locking:
+Several stateless pnpr replicas can share one bucket and database.
 
-- **Packument updates**: publish, partial unpublish, and dist-tag writes read
-  the packument together with its object-store version and write back
-  conditionally, so an update computed from a stale copy is rejected instead of
-  overwriting a newer one. Dist-tag writes retry on conflict, since their
-  mutation can be replayed against the fresh packument. A write that
-  keeps losing surfaces as an HTTP `409` rather than silently discarding
-  another writer's update.
+- **Package metadata**: lives only in the database. Publishes, unpublishes,
+  and dist-tag changes commit in database transactions. Concurrent changes
+  are checked against the package generation to prevent lost updates. See
+  [metadata concurrency](#metadata-concurrency).
 - **Archives**: an archive is stored under the identity of its bytes and an
   incarnation the database counts (see [Layout](#layout)), so two
   replicas that store the same key store the same bytes, and a store needs no
@@ -362,7 +358,7 @@ artifacts:
   enabled: true
 ```
 
-The registries live in the libSQL database with the package metadata. The
+The registries live in the shared database with the package metadata. The
 first start stores the
 [default registries](configuration.md#registries-in-the-database), and
 [`pnpr registries import`](cli.md#registries) replaces them with your own.
@@ -418,6 +414,6 @@ are in progress, another large publish returns `429 Too Many Requests`.
 ### Operational recommendations
 
 - **Abort incomplete multipart uploads**: Configure a lifecycle rule on your S3 bucket to abort incomplete multipart uploads after 1 to 7 days.
-- **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
+- **Bucket versioning**: Versioning can protect against accidental deletion. If enabled, configure a lifecycle rule to expire noncurrent object versions after your recovery window and remove expired delete markers. `pnpr gc` deletes current objects; their older versions keep using space until the lifecycle rule expires them.
 - **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr gc` to remove the archives no file maps. Both run while the registry serves.
-- **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
+- **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring the database and hosted objects.

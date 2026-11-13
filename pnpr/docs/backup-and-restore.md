@@ -62,13 +62,10 @@ With filesystem snapshots, follow the [snapshot order](#snapshot-order):
    ```
 4. Unmount and release the filesystem snapshot, then resume scheduled `pnpr gc` jobs and unpublishes.
 
-`pnpr export` writes the current package documents and tarballs to a directory:
-
-```sh
-pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d)
-```
-
-An export does not include accounts, tokens, transparency logs, unpublished versions, former maintainer claims, dist-tag history, release notes, registries kept in the database, SCIM users, or staged publishes. `pnpr registries export` writes the stored registries to a file. Back up the [database](storage.md#database) and hosted storage to retain those records.
+Back up the database and hosted storage together. pnpr has no full logical
+export/import command for restoring an instance or switching database backends.
+`pnpr registries export` and `pnpr registries import` transfer only the stored
+registry configuration, not packages or accounts.
 
 ### Restore
 
@@ -97,7 +94,7 @@ With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparenc
 
 ### Recommended S3 settings
 
-- **S3 Bucket Versioning**: Enable versioning on the bucket so deleted or overwritten objects can be restored to a chosen timestamp.
+- **S3 Bucket Versioning**: Enable versioning on the bucket so deleted or overwritten objects can be restored within your recovery window. Configure lifecycle rules to expire noncurrent versions after that window and remove expired delete markers. `pnpr gc` deletes current objects; versioning retains their bytes until those rules expire them.
 - **Cross-Region Replication**: For disaster recovery across regions, enable S3 bucket replication.
 - **Lifecycle rules**: Do not set lifecycle expiration on active objects in hosted storage or `.transparency-log/`. Retain noncurrent object versions and delete markers across your full backup retention window so `pnpr gc` and unpublishes stay recoverable.
 

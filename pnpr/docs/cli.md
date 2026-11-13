@@ -10,7 +10,6 @@ subcommands are maintenance tools.
 pnpr [serve] [OPTIONS]
 pnpr config check
 pnpr verify [OPTIONS]
-pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
 pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username>
@@ -85,20 +84,6 @@ pnpr verify --skip-hashes
 | Flag | Description |
 | --- | --- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). |
-
-### export
-
-Exports hosted packages, packuments, and tarball blobs to a local directory.
-Accounts and tokens are not exported. Back up the
-[database](backup-and-restore.md) to keep them.
-
-```sh
-pnpr export --out /mnt/backups/pnpr-export
-```
-
-| Flag | Description |
-| --- | --- |
-| `--out <dir>` | Destination directory for exported packages and files. Required. |
 
 ### migrate-storage
 

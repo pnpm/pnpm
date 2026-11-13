@@ -51,7 +51,7 @@ pub async fn migrate_local_to_s3(
             .map_err(|err| miette::miette!("target: {err}"))?;
     }
 
-    for namespace in crate::export::configured_hosted_namespaces(config) {
+    for namespace in crate::hosted_storage::configured_hosted_namespaces(config) {
         for ecosystem in Ecosystem::all() {
             let src = source.for_hosted(&namespace, ecosystem);
             let tgt = target.for_hosted(&namespace, ecosystem);
