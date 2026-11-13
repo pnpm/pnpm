@@ -31,6 +31,24 @@ use serde_json::{Value, json};
 struct Layout {
     shared_lockfile: bool,
     injection: Injection,
+    child_spec: ChildSpec,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ChildSpec {
+    None,
+    Link,
+    BarePath,
+}
+
+impl ChildSpec {
+    fn as_str(self) -> Option<&'static str> {
+        match self {
+            ChildSpec::None => None,
+            ChildSpec::Link => Some("link:../child"),
+            ChildSpec::BarePath => Some("../child"),
+        }
+    }
 }
 
 /// How `app` declares its injected dependency on `lib`.
@@ -70,18 +88,25 @@ impl Scenario {
         fixture.write_root_manifest("root", ManifestDeps::default());
         let scenario = Self { fixture, layout, copies: 0 };
         scenario.write_workspace_yaml("^100.0.0");
+        let mut dependencies = json!({
+            "@pnpm.e2e/foo": "100.0.0",
+            "other": "workspace:*",
+            "vendored": r"file:.\vendor",
+        });
+        if let Some(spec) = layout.child_spec.as_str() {
+            dependencies["child"] = json!(spec);
+        }
         scenario.write_manifest(
             "lib",
             json!({
-                "dependencies": {
-                    "@pnpm.e2e/foo": "100.0.0",
-                    "other": "workspace:*",
-                    "vendored": r"file:.\vendor",
-                },
+                "dependencies": dependencies,
                 "peerDependencies": { "@pnpm.e2e/bar": "catalog:" },
             }),
         );
         scenario.write_manifest("other", json!({}));
+        if layout.child_spec.as_str().is_some() {
+            scenario.write_manifest("child", json!({}));
+        }
         let vendor = scenario.workspace().join("packages/lib/vendor");
         fs::create_dir_all(&vendor).expect("create the vendored package dir");
         write_manifest_value(&vendor, &json!({ "name": "vendored", "version": "1.0.0" }));
@@ -377,7 +402,7 @@ macro_rules! matrix {
     ($($module:ident: $layout:expr,)*) => {
         $(
             mod $module {
-                use super::{Edit, Injection, Layout, check};
+                use super::{ChildSpec, Edit, Injection, Layout, check};
 
                 const LAYOUT: Layout = $layout;
 
@@ -418,34 +443,82 @@ matrix! {
     shared_inject_workspace_packages: Layout {
         shared_lockfile: true,
         injection: Injection::InjectWorkspacePackages,
+        child_spec: ChildSpec::Link,
     },
     shared_dependencies_meta: Layout {
         shared_lockfile: true,
         injection: Injection::DependenciesMeta,
+        child_spec: ChildSpec::Link,
     },
     shared_file_spec: Layout {
         shared_lockfile: true,
         injection: Injection::FileSpec,
+        child_spec: ChildSpec::Link,
     },
     dedicated_inject_workspace_packages: Layout {
         shared_lockfile: false,
         injection: Injection::InjectWorkspacePackages,
+        child_spec: ChildSpec::Link,
     },
     dedicated_dependencies_meta: Layout {
         shared_lockfile: false,
         injection: Injection::DependenciesMeta,
+        child_spec: ChildSpec::Link,
     },
     dedicated_file_spec: Layout {
         shared_lockfile: false,
         injection: Injection::FileSpec,
+        child_spec: ChildSpec::Link,
     },
     shared_bare_path: Layout {
         shared_lockfile: true,
         injection: Injection::BarePath,
+        child_spec: ChildSpec::Link,
     },
     dedicated_bare_path: Layout {
         shared_lockfile: false,
         injection: Injection::BarePath,
+        child_spec: ChildSpec::Link,
+    },
+    shared_inject_workspace_packages_bare_child: Layout {
+        shared_lockfile: true,
+        injection: Injection::InjectWorkspacePackages,
+        child_spec: ChildSpec::BarePath,
+    },
+    shared_dependencies_meta_bare_child: Layout {
+        shared_lockfile: true,
+        injection: Injection::DependenciesMeta,
+        child_spec: ChildSpec::BarePath,
+    },
+    shared_file_spec_bare_child: Layout {
+        shared_lockfile: true,
+        injection: Injection::FileSpec,
+        child_spec: ChildSpec::BarePath,
+    },
+    dedicated_inject_workspace_packages_bare_child: Layout {
+        shared_lockfile: false,
+        injection: Injection::InjectWorkspacePackages,
+        child_spec: ChildSpec::BarePath,
+    },
+    dedicated_dependencies_meta_bare_child: Layout {
+        shared_lockfile: false,
+        injection: Injection::DependenciesMeta,
+        child_spec: ChildSpec::BarePath,
+    },
+    dedicated_file_spec_bare_child: Layout {
+        shared_lockfile: false,
+        injection: Injection::FileSpec,
+        child_spec: ChildSpec::BarePath,
+    },
+    shared_bare_path_bare_child: Layout {
+        shared_lockfile: true,
+        injection: Injection::BarePath,
+        child_spec: ChildSpec::BarePath,
+    },
+    dedicated_bare_path_bare_child: Layout {
+        shared_lockfile: false,
+        injection: Injection::BarePath,
+        child_spec: ChildSpec::BarePath,
     },
 }
 
@@ -459,6 +532,7 @@ fn publish_config_directory_with_built_manifest_agrees_across_layouts() {
         let mut scenario = Scenario::new(Layout {
             shared_lockfile,
             injection: Injection::InjectWorkspacePackages,
+            child_spec: ChildSpec::None,
         });
         let lib_dir = scenario.workspace().join("packages/lib");
         let dist_dir = lib_dir.join("dist");
@@ -492,6 +566,7 @@ fn pnpmfile_read_package_hook_agrees_across_layouts() {
         let mut scenario = Scenario::new(Layout {
             shared_lockfile,
             injection: Injection::InjectWorkspacePackages,
+            child_spec: ChildSpec::None,
         });
         fs::write(
             scenario.workspace().join(".pnpmfile.cjs"),
@@ -517,6 +592,7 @@ fn a_workspace_version_that_is_not_semver_agrees_across_layouts() {
         let mut scenario = Scenario::new(Layout {
             shared_lockfile,
             injection: Injection::InjectWorkspacePackages,
+            child_spec: ChildSpec::None,
         });
         let lib_dir = scenario.workspace().join("packages/lib");
         let mut lib_manifest = read_manifest(&lib_dir);

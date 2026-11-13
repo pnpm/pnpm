@@ -4,6 +4,7 @@ use super::{
         publishing_project_manifest, target_manifest, workspace_path_matches_target,
     },
 };
+use pnpm_local_spec::is_filespec;
 use pnpm_resolving_deps_resolver::locked_child_admits;
 use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
 use pnpm_workspace_spec::is_workspace_path_specifier;
@@ -96,6 +97,15 @@ fn file_or_link_spec_satisfies(
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
     if spec.starts_with("link:") {
+        let Some(lockfile_target) = lockfile_dep.as_link_target() else {
+            return Some(false);
+        };
+        return Some(
+            local_spec_path(spec, local_dep_dir)
+                == recorded_local_path(lockfile_target, lockfile_dir),
+        );
+    }
+    if is_filespec(spec) {
         let Some(lockfile_target) = lockfile_dep.as_link_target() else {
             return Some(false);
         };

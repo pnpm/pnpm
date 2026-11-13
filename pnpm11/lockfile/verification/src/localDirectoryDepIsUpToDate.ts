@@ -364,7 +364,7 @@ async function localChildIsUpToDate (
 }
 
 function isLocalSpec (spec: string): boolean {
-  return spec.startsWith('link:') || spec.startsWith('file:') || spec.startsWith('workspace:')
+  return isLocalFilesystemSpecifier(spec) || spec.startsWith('workspace:')
 }
 
 /**
@@ -433,11 +433,18 @@ async function localSpecIsUpToDate (
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
-      localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfileDep.slice(5), localDep.lockfileDir)
+      localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfileDep.slice(5), localDep.localDepDir)
     )
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
+  if (!currentSpec.includes(':') && isLocalFilesystemSpecifier(currentSpec)) {
+    if (lockfileDep.startsWith('link:')) {
+      return localSpecPath(currentSpec, localDep.localDepDir) ===
+        recordedLocalPath(lockfileDep.slice(5), localDep.localDepDir)
+    }
+    return localPathMatches(localDep, currentSpec, lockfilePath)
+  }
   if (currentSpec.startsWith('file:')) {
     return localPathMatches(localDep, currentSpec, lockfilePath)
   }
