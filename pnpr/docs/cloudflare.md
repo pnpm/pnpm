@@ -17,7 +17,7 @@ survive lives somewhere else:
 - Published packages go to an R2 bucket. pnpr talks to it through its
   [S3 backend](storage.md), and R2 charges nothing for egress.
 - Package metadata, users, and tokens go to a [Turso](https://turso.tech)
-  database, through [libSQL metadata](storage.md#libsql-metadata) and the
+  database, through [libSQL](storage.md#libsql-database) and the
   [libsql auth backend](auth-backends.md). Cloudflare's own databases do not
   speak a protocol pnpr can use, so Turso is the simplest option.
 - The upstream cache stays on the container's disk. Losing it only means

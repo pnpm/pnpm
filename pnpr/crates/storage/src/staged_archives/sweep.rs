@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     BlobId, Result, Storage,
-    metadata::{StagedId, StagedRecord, StagedState},
+    database::{StagedId, StagedRecord, StagedState},
     parse_blob_key,
 };
 use std::collections::HashMap;

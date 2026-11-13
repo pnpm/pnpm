@@ -61,7 +61,7 @@ impl fmt::Debug for Secret {
     }
 }
 
-/// The value as written. A graph document the metadata database stores holds
+/// The value as written. A graph document the database stores holds
 /// only `${VAR}` references here, which its credential rules require.
 impl serde::Serialize for Secret {
     fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>

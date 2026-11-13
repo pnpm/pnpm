@@ -10,7 +10,7 @@ use axum::{
 use pnpr::{AuthState, Config, router_with_auth};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    metadata::{NewRegistryGraph, RegistryGraphWrite},
+    database::{NewRegistryGraph, RegistryGraphWrite},
 };
 use serde_json::{Value, json};
 use std::{

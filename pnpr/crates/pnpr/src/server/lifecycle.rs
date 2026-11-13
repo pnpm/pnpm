@@ -27,7 +27,7 @@ pub(super) fn load_active_osv_index(
 }
 
 /// Check the hosted store's layout, empty a proxy cache in another layout,
-/// and reconcile hosted transparency logs with the metadata database.
+/// and reconcile hosted transparency logs with the database.
 /// [`serve`] and [`serve_listener`] call this before binding; an embedder that
 /// builds a router directly should call it itself on startup, before serving
 /// requests.

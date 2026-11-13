@@ -12,7 +12,7 @@ pub(super) enum RegistriesHome {
     /// `routes.public`. The resolver may reach any port of the server's own
     /// host.
     ConfigFile,
-    /// The metadata database holds them, stored with `pnpr registries import`
+    /// The database holds them, stored with `pnpr registries import`
     /// before the server starts. No upstream may be on the server's own
     /// `public_url` host, the resolver reaches that host only at the
     /// `public_url` origin, and loopback addresses need
@@ -28,7 +28,7 @@ impl RegistriesHome {
         if fixture_registries(source).is_some() { Self::Database } else { Self::ConfigFile }
     }
 
-    /// Whether the revision's registries live in the metadata database.
+    /// Whether the revision's registries live in the database.
     pub(super) fn in_database(self) -> bool {
         match self {
             Self::ConfigFile => false,

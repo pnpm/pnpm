@@ -4,13 +4,13 @@ use super::{
 };
 use pnpr_error::redact_connection_url;
 
-/// The database that holds auth (users + tokens): the metadata database.
+/// The database that holds accounts and tokens.
 /// Unlike [`crate::HostedStoreConfig`], this only carries the parsed
 /// settings — the fallible step (opening the database and ensuring its
 /// schema) runs in `AuthState::load` rather than at config-parse time.
 #[derive(Debug, Clone)]
 pub enum BackendConfig {
-    /// The `SQLite` metadata database at this path.
+    /// The `SQLite` database at this path.
     Sqlite(PathBuf),
     /// Networked `SQLite` (libsql / Turso): both records live in one
     /// shared database reachable over the network.
@@ -333,11 +333,11 @@ pub(crate) fn build_libsql_settings(
     })
 }
 
-pub(super) fn build_backend_config(metadata: &crate::MetadataBackend) -> BackendConfig {
-    use crate::MetadataBackend;
+pub(super) fn build_backend_config(metadata: &crate::DatabaseBackend) -> BackendConfig {
+    use crate::DatabaseBackend;
     match metadata {
-        MetadataBackend::Sqlite(path) => BackendConfig::Sqlite(path.clone()),
-        MetadataBackend::Libsql(settings) => {
+        DatabaseBackend::Sqlite(path) => BackendConfig::Sqlite(path.clone()),
+        DatabaseBackend::Libsql(settings) => {
             let mut auth = settings.clone();
             // Independent sync schedules need independent replica files.
             auth.replica_path = auth.replica_path.map(|path| {
@@ -347,7 +347,7 @@ pub(super) fn build_backend_config(metadata: &crate::MetadataBackend) -> Backend
             });
             BackendConfig::Libsql(auth)
         }
-        MetadataBackend::Postgres(settings) => BackendConfig::Postgres(settings.clone()),
-        MetadataBackend::Mysql(settings) => BackendConfig::Mysql(settings.clone()),
+        DatabaseBackend::Postgres(settings) => BackendConfig::Postgres(settings.clone()),
+        DatabaseBackend::Mysql(settings) => BackendConfig::Mysql(settings.clone()),
     }
 }

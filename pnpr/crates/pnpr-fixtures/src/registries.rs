@@ -1,11 +1,11 @@
-//! Registry graphs stored in a test's metadata database, the way
+//! Registry graphs stored in a test's database, the way
 //! `pnpr registries import` stores one, since pnpr reads its registries only
 //! from there.
 
 use pnpr_config::{Config, RegistryGraphDocument, RoutingConfig, RoutingOptions, StorageConfig};
 use pnpr_storage::{
     Storage,
-    metadata::{HostedNamespace, NewRegistryGraph, RegistryGraphWrite},
+    database::{HostedNamespace, NewRegistryGraph, RegistryGraphWrite},
 };
 use serde_json::{Map, Value};
 use std::{net::SocketAddr, path::Path};
@@ -24,7 +24,7 @@ pub fn seed_registries(config: &mut Config, yaml: &str) {
 }
 
 /// The routing the registries document `yaml` builds under `config`, without
-/// storing it, for a config whose metadata database a test cannot reach.
+/// storing it, for a config whose database a test cannot reach.
 ///
 /// # Panics
 ///
@@ -41,7 +41,7 @@ fn parse_document(yaml: &str) -> RegistryGraphDocument {
 
 /// Load the config file at `path`, written with `registries`,
 /// `defaultRegistry`, and `routes.public` in it: those keys move into the
-/// metadata database as its next revision, the empty graph when the file
+/// database as its next revision, the empty graph when the file
 /// declares none, and the file keeps the rest.
 ///
 /// # Panics
@@ -113,7 +113,7 @@ fn build_routing(config: &Config, document: &RegistryGraphDocument) -> RoutingCo
         .unwrap_or_else(|error| panic!("build the registries document: {error}"))
 }
 
-/// Store `document` as the next revision in the metadata database of
+/// Store `document` as the next revision in the database of
 /// `storage`.
 ///
 /// # Panics
@@ -125,7 +125,7 @@ pub fn store_document(storage: &StorageConfig, document: &RegistryGraphDocument)
 }
 
 pub(crate) fn store_into(storage: &Storage, document: &RegistryGraphDocument) {
-    crate::metadata::run(write_into(storage, document));
+    crate::database::run(write_into(storage, document));
 }
 
 /// [`store_document`] on the caller's runtime, for a database served by that

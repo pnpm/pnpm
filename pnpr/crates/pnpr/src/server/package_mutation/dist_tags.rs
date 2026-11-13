@@ -10,7 +10,7 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{
     DOCUMENT_WRITE_RETRIES,
-    metadata::{Generation, TagChange, TagUpdate, validate_dist_tag},
+    database::{Generation, TagChange, TagUpdate, validate_dist_tag},
     wait_after_document_write_conflict,
 };
 

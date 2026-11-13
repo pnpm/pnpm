@@ -8,7 +8,7 @@ pnpr keeps two kinds of data:
 - **Hosted**: the source of truth. It holds packages published to this server plus
   anything served in static mode. Lives under `storage`. The bodies of packages
   awaiting approval through [staged publishing](endpoints.md#staged-publishing-endpoints)
-  are held under `.staged/`. Their approval records live in the metadata database.
+  are held under `.staged/`. Their approval records live in the database.
 - **Cache**: the disposable mirror of upstream registries plus the resolver
   cache, lockfile-verdict cache, local shared-artifact store, and S3 upload
   staging scratch. Lives under `cache` (defaults to
@@ -43,7 +43,7 @@ npm's `dist.integrity`, and the `sha256` of an image blob's digest, a crate's
 checksum, or a Python distribution's hash. `<shard>` is the first two hex
 digits of the digest, so `sha512-ab12…` is under `archives/ab/`. A public file
 name, such as `left-pad-1.0.0.tgz`, never reaches the store: the
-[metadata](#sqlite-metadata) maps each file of a package to the identity of
+[database](#database) maps each file of a package to the identity of
 its bytes, and a download of the file reads the bytes through that mapping.
 Files with the same bytes, of one package or of several, share one stored
 archive.
@@ -73,8 +73,8 @@ archive, including blobs allowed by the [OCI size limit](configuration.md#oci).
 [reclaim](cli.md#gc) removed and a later publish stores again take the next
 incarnation, so a key is never written again once a reclaim may remove it.
 
-When pnpr initializes an empty hosted store and metadata database, it writes a
-random `store_id` into `layout.json` and into the metadata database's
+When pnpr initializes an empty hosted store and database, it writes a
+random `store_id` into `layout.json` and into the database's
 `hosted_store` table. pnpr refuses to start, collect (`pnpr gc`), verify
 (`pnpr verify`), export (`pnpr export`), or migrate (`pnpr migrate-storage`)
 when `layout.json` and `hosted_store` hold different store IDs or when only one
@@ -84,11 +84,11 @@ to a fresh storage directory or bucket prefix, wipe pnpr's metadata tables, and
 republish. A cache in another layout is emptied on startup and refilled on
 demand.
 
-## Metadata in SQLite {#sqlite-metadata}
+## The database {#database}
 
-pnpr keeps the metadata of every hosted package in an embedded SQLite
-database, by default `<storage>/.metadata/metadata.sqlite`. The `database`
-block names another database by URL:
+pnpr keeps package metadata, accounts, registries, and the rest of its state
+in a SQL database, by default an embedded SQLite database at
+`<storage>/.metadata/metadata.sqlite`. The `database` block names another database by URL:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
@@ -186,11 +186,11 @@ some of pnpr's tables. It also refuses a pre-1.0 database without
 To replace a pre-1.0 database, drop its pnpr tables (or delete the SQLite file
 and its `-wal` and `-shm` files) together with the hosted store, or move to a
 fresh hosted store (such as a new storage directory or bucket prefix) and a
-fresh metadata database (moving the storage directory replaces the default
+fresh database (moving the storage directory replaces the default
 SQLite file only when `database.url` is not set), so pnpr initializes both with
 a new store ID.
 
-## PostgreSQL and MySQL metadata
+## PostgreSQL and MySQL {#postgresql-and-mysql}
 
 Set `database.url` to a `postgres://` or `mysql://` URL to store package
 metadata, accounts, and tokens in the same shared database. Both work with a
@@ -205,11 +205,11 @@ Publication writes commit atomically. Metadata writes from every pnpr instance
 on the database wait their turn on a database lock, and each metadata read sees
 a committed snapshot.
 
-## Metadata in libSQL {#libsql-metadata}
+## libSQL {#libsql-database}
 
-Several pnpr instances share one metadata database when its URL names a
+Several pnpr instances share one database when its URL names a
 libSQL server, such as [Turso](https://turso.tech) or a self-hosted `sqld`.
-Every behavior of [SQLite metadata](#sqlite-metadata) applies. A libSQL URL
+Every behavior of [the database](#database) applies. A libSQL URL
 works with an `s3:` block, so archives stay in the bucket:
 
 ```yaml title="pnpr.yaml"
@@ -257,7 +257,7 @@ instead.
 By default both are local directories. Adding an `s3:` block moves the
 **hosted** store and the enabled **shared-artifact** store into an S3-compatible
 object store, so they can be shared by several stateless pnpr replicas. Their
-metadata then lives in a [libSQL database](#libsql-metadata) the replicas
+metadata then lives in a [libSQL database](#libsql-database) the replicas
 share. The ordinary upstream and resolver cache stays on local disk.
 
 Shared artifacts use a reserved `.artifacts/` namespace under the
@@ -320,7 +320,7 @@ locking:
   keeps losing surfaces as an HTTP `409` rather than silently discarding
   another writer's update.
 - **Archives**: an archive is stored under the identity of its bytes and an
-  incarnation the metadata database counts (see [Layout](#layout)), so two
+  incarnation the database counts (see [Layout](#layout)), so two
   replicas that store the same key store the same bytes, and a store needs no
   compare-and-swap. A publish reads the row of the bytes it is about to store
   with the package's document: when they are stored already it stores nothing,
@@ -398,7 +398,7 @@ When publishing packages to an S3 backend, pnpr:
 
 1. **Stages locally**: Incoming blobs are staged under `<cache>/.staging/`.
 2. **Uploads the blobs**: pnpr uploads each blob whose bytes the namespace does not hold live yet under its next incarnation; bytes it holds are not uploaded again.
-3. **Commits the metadata**: pnpr commits every package of the publish to the metadata database in one transaction.
+3. **Commits the metadata**: pnpr commits every package of the publish to the database in one transaction.
 
 Publishes of different packages can upload concurrently. Metadata commits share
 the database's write lock. If archive reclamation races an npm

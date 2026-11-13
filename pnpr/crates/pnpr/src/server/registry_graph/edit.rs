@@ -14,7 +14,7 @@ use super::{
 };
 use crate::audit::Actor;
 use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig};
-use pnpr_storage::metadata::{NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite};
+use pnpr_storage::database::{NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite};
 use std::sync::Arc;
 
 /// The version the caller expects the stored graph to have.

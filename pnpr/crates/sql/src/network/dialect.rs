@@ -37,9 +37,9 @@ impl NetworkDialect {
         {
             "postgres" | "postgresql" => Ok(Self::Postgres),
             "mysql" => Ok(Self::Mysql),
-            _ => Err(RegistryError::InvalidConfig {
-                reason: "unsupported metadata database URL".to_string(),
-            }),
+            _ => {
+                Err(RegistryError::InvalidConfig { reason: "unsupported database URL".to_string() })
+            }
         }
     }
 

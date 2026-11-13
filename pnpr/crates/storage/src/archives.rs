@@ -1,6 +1,6 @@
 //! A namespace's archives: stored once by the identity of their bytes, and
 //! reached through the files of packages the metadata maps to them (see
-//! [`crate::metadata::BlobRow`]).
+//! [`crate::database::BlobRow`]).
 
 #[cfg(test)]
 pub(crate) mod testing;
@@ -11,7 +11,7 @@ mod tests;
 
 use crate::{
     BlobId, BlobSlot, GetRange, HostedDocumentVersion, RangedBlob, Storage,
-    metadata::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase, PublishIncarnation},
+    database::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase, PublishIncarnation},
 };
 use axum::body::Body;
 use pnpr_error::Result;
@@ -131,7 +131,7 @@ impl Storage {
     /// live incarnation is reused and nothing is stored; otherwise the next
     /// incarnation is stored. Either way the staged file is consumed, and
     /// the commit that maps the file decides whether the incarnation holds
-    /// (see [`crate::metadata::BlobFence`]).
+    /// (see [`crate::database::BlobFence`]).
     pub async fn promote_blob_slot(
         &self,
         mut slot: BlobSlot,
@@ -189,9 +189,9 @@ impl Storage {
         principal: Option<&str>,
     ) -> Result<PackageRemoval> {
         let ids = match self.metadata.remove_package(name, Some(version), principal).await? {
-            crate::metadata::sql::RemovedPackage::Removed(ids) => ids,
-            crate::metadata::sql::RemovedPackage::NotFound => return Ok(PackageRemoval::NotFound),
-            crate::metadata::sql::RemovedPackage::Conflict => return Ok(PackageRemoval::Conflict),
+            crate::database::sql::RemovedPackage::Removed(ids) => ids,
+            crate::database::sql::RemovedPackage::NotFound => return Ok(PackageRemoval::NotFound),
+            crate::database::sql::RemovedPackage::Conflict => return Ok(PackageRemoval::Conflict),
         };
         if let Err(error) = self.reclaim_blobs(ids).await {
             tracing::warn!(

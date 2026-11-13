@@ -27,7 +27,7 @@ credentials are rejected even for public resources.
 The serving registry determines the package policy. Its most specific matching
 `packages` rule selects `access`, `publish`, or `unpublish`; omitted fields use
 the registry defaults. The rules are the ones
-[stored in the metadata database](configuration.md#registries-in-the-database).
+[stored in the database](configuration.md#registries-in-the-database).
 
 An access list admits a caller when any listed entry matches. Entries can be
 account IDs, built-in groups, or `team:<teamId>` references to that registry's

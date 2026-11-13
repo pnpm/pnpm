@@ -12,7 +12,7 @@ async fn cached_authentication_does_not_bypass_a_newer_database_schema() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let database = pnpr_config::default_metadata_path(temp.path());
+    let database = pnpr_config::default_database_path(temp.path());
     let connection = rusqlite::Connection::open(database).unwrap();
     connection
         .execute(

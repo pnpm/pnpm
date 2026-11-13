@@ -35,7 +35,7 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
         &HostedStoreConfig::Fs,
         temp.path().join("store"),
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(temp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let name = CanonicalPackageName::parse("pkg", Ecosystem::Npm).unwrap();

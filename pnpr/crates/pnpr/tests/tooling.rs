@@ -103,11 +103,11 @@ async fn test_config_check_nonexistent() {
     assert!(err.to_string().contains("does not exist"));
 }
 
-/// The login names and password hashes stored in the metadata database of
+/// The login names and password hashes stored in the database of
 /// `config`.
 fn stored_accounts(config: &Config) -> Vec<(String, String)> {
     let pnpr::BackendConfig::Sqlite(path) = &config.identity.backend else {
-        panic!("test configs keep accounts in their SQLite metadata database");
+        panic!("test configs keep accounts in their SQLite database");
     };
     if !path.exists() {
         return Vec::new();
@@ -854,12 +854,12 @@ async fn tooling_and_startup_refuse_mismatched_or_unbound_store_and_database() {
 
     // Database B pointed at store A (differing store_ids).
     let mut mismatched = config_a.clone();
-    mismatched.storage.metadata = config_b.storage.metadata.clone();
+    mismatched.storage.database = config_b.storage.database.clone();
 
     // Fresh empty database pointed at store A (store has id, database doesn't).
     let mut wiped_db = config_a.clone();
-    wiped_db.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(dir_a.path().join("wiped.sqlite"));
+    wiped_db.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(dir_a.path().join("wiped.sqlite"));
 
     // Database A pointed at an unmarked empty store (database has id, store doesn't).
     let mut wiped_store = config_a.clone();

@@ -210,7 +210,7 @@ impl Config {
         reject_file_graph(&file)?;
         let storage = build_storage_config(&mut file, base_dir, !overrides.disable_registry)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
-        let backend = super::backend_config::build_backend_config(&storage.metadata);
+        let backend = super::backend_config::build_backend_config(&storage.database);
         let (routing, features) = build_routing_and_features(&mut file, &registry_env, overrides)?;
         let secrets = resolve_secrets(file.secret.as_ref())?;
         Ok(Self {
@@ -246,7 +246,7 @@ fn build_registry_env(registry_env: Vec<String>) -> Result<Vec<String>, Registry
     Ok(registry_env)
 }
 
-/// The metadata database holds the registry graph, so the file must not
+/// The database holds the registry graph, so the file must not
 /// declare one that would be silently ignored.
 fn reject_file_graph(file: &ConfigFile) -> Result<(), RegistryError> {
     let declared = [
@@ -263,7 +263,7 @@ fn reject_file_graph(file: &ConfigFile) -> Result<(), RegistryError> {
         return Err(RegistryError::InvalidConfig {
             reason: format!(
                 "`{key}` is not read from the config file: the registries live in the \
-                 metadata database; import them with `pnpr registries import`",
+                 database; import them with `pnpr registries import`",
             ),
         });
     }
@@ -295,14 +295,14 @@ fn build_storage_config(
 ) -> Result<super::StorageConfig, RegistryError> {
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
     let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
-    let metadata = crate::storage_config::resolve_metadata_backend(
+    let database = crate::storage_config::resolve_database_backend(
         file.database.as_ref(),
         &hosted_dir,
         base_dir,
         &hosted_backend,
         hosts_packages,
     )?;
-    Ok(super::StorageConfig { hosted_dir, cache_dir, cache, hosted_backend, metadata })
+    Ok(super::StorageConfig { hosted_dir, cache_dir, cache, hosted_backend, database })
 }
 
 pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {

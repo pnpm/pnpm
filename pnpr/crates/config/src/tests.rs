@@ -56,7 +56,7 @@ impl EnvVar for FakeEnv {
 
 /// Load `yaml` as a config file plus the registry graph its graph keys
 /// declare (`registries`, `defaultRegistry`, `routes.public`), as a server
-/// does with the graph stored in the metadata database: the graph is held to
+/// does with the graph stored in the database: the graph is held to
 /// the stored-document rules under the file's `registryEnv`, its credentials
 /// resolve through [`FakeEnv`], and it becomes `config.routing`.
 fn load_with_graph(

@@ -320,7 +320,7 @@ fn metadata_defaults_to_sqlite_in_storage() {
     let config =
         Config::from_yaml_str("storage: /var/lib/pnpr\n", Path::new("/"), listen(), None).unwrap();
     let expected = PathBuf::from("/var/lib/pnpr/.metadata/metadata.sqlite");
-    assert_eq!(config.storage.metadata, crate::MetadataBackend::Sqlite(expected));
+    assert_eq!(config.storage.database, crate::DatabaseBackend::Sqlite(expected));
 }
 
 #[test]
@@ -346,8 +346,8 @@ fn an_object_store_that_hosts_no_packages_needs_no_metadata_url() {
     )
     .unwrap();
     assert_eq!(
-        config.storage.metadata,
-        crate::MetadataBackend::Sqlite(PathBuf::from("/s/.metadata/metadata.sqlite")),
+        config.storage.database,
+        crate::DatabaseBackend::Sqlite(PathBuf::from("/s/.metadata/metadata.sqlite")),
     );
 }
 
@@ -369,7 +369,7 @@ fn a_sqlite_url_resolves_against_the_config_directory() {
     let yaml = "storage: /var/lib/pnpr\ndatabase:\n  url: sqlite:./meta.db\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     let expected = PathBuf::from("/etc/pnpr/./meta.db");
-    assert_eq!(config.storage.metadata, crate::MetadataBackend::Sqlite(expected));
+    assert_eq!(config.storage.database, crate::DatabaseBackend::Sqlite(expected));
 }
 
 #[test]
@@ -389,8 +389,8 @@ fn a_libsql_url_carries_its_replica_settings_with_any_hosted_store() {
     let yaml = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: libsql://db.example.turso.io\n  \
                 authToken: token\n  replicaPath: ./replica.db\n  syncInterval: 5s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    let crate::MetadataBackend::Libsql(settings) = config.storage.metadata else {
-        panic!("libSQL metadata, got {:?}", config.storage.metadata);
+    let crate::DatabaseBackend::Libsql(settings) = config.storage.database else {
+        panic!("libSQL metadata, got {:?}", config.storage.database);
     };
     assert_eq!(settings.url, "libsql://db.example.turso.io");
     assert_eq!(settings.auth_token.as_deref(), Some("token"));

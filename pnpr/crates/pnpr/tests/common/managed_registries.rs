@@ -1,4 +1,4 @@
-//! Configs whose registries the metadata database stores, seeded with a
+//! Configs whose registries the database stores, seeded with a
 //! stored graph the way `pnpr registries import` seeds one.
 
 use pnpr::Config;
@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::{net::SocketAddr, path::Path};
 
 /// Load `yaml`, written like a pnpr.yaml that declares its registries, with
-/// the registries moved into the metadata database: see
+/// the registries moved into the database: see
 /// [`pnpr_fixtures::load_seeded_config`].
 #[expect(clippy::unused_async, reason = "callers await it like the server setup around it")]
 pub async fn managed_config(

@@ -281,7 +281,7 @@ async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path());
     let _storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = &config.storage.metadata else {
+    let pnpr_config::DatabaseBackend::Sqlite(sqlite_path) = &config.storage.database else {
         unreachable!();
     };
     let conn = rusqlite::Connection::open(sqlite_path).unwrap();
@@ -334,7 +334,7 @@ async fn deleting_retries_cleanup_after_the_resource_was_marked_removed() {
     let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
     assert!(matches!(
         storage.remove_scim_user(id).await.unwrap(),
-        pnpr_storage::metadata::ScimUserRemoval::Removed(_),
+        pnpr_storage::database::ScimUserRemoval::Removed(_),
     ));
     assert_eq!(
         scim(&app, "DELETE", &format!("{USERS}/{id}"), None).await.0,
@@ -349,8 +349,8 @@ async fn deleting_retries_cleanup_after_the_resource_was_marked_removed() {
 async fn deactivating_and_deleting_complete_cleanup_when_directory_reload_fails() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path());
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = config.storage
-        .metadata
+    let pnpr_config::DatabaseBackend::Sqlite(sqlite_path) = config.storage
+        .database
         .clone()
     else {
         unreachable!();
@@ -400,8 +400,8 @@ async fn deactivating_and_deleting_complete_cleanup_when_directory_reload_fails(
 async fn patch_rolls_back_username_when_scim_row_fails_to_commit() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path());
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = config.storage
-        .metadata
+    let pnpr_config::DatabaseBackend::Sqlite(sqlite_path) = config.storage
+        .database
         .clone()
     else {
         unreachable!();
@@ -602,8 +602,8 @@ async fn concurrent_scim_activation_and_deactivation_stay_ordered_across_replica
 async fn status_transitions_do_not_block_rollback_of_aborted_scim_rename() {
     let dir = TempDir::new().unwrap();
     let config = load_config(dir.path());
-    let pnpr_config::MetadataBackend::Sqlite(sqlite_path) = config.storage
-        .metadata
+    let pnpr_config::DatabaseBackend::Sqlite(sqlite_path) = config.storage
+        .database
         .clone()
     else {
         unreachable!();
@@ -683,10 +683,10 @@ async fn directory_reload_reconciles_uncommitted_account_status_transitions() {
         .await
         .unwrap()
         .unwrap();
-    let pnpr_storage::metadata::ScimUserWrite::Written(deactivated) = storage
+    let pnpr_storage::database::ScimUserWrite::Written(deactivated) = storage
         .replace_scim_user(
             Some(current.generation),
-            pnpr_storage::metadata::NewScimUser {
+            pnpr_storage::database::NewScimUser {
                 user_id: alice_id.to_string(),
                 active: false,
                 attributes: current.attributes.clone(),
@@ -714,7 +714,7 @@ async fn directory_reload_reconciles_uncommitted_account_status_transitions() {
     let reactivated = storage
         .replace_scim_user(
             Some(deactivated.generation),
-            pnpr_storage::metadata::NewScimUser {
+            pnpr_storage::database::NewScimUser {
                 user_id: alice_id.to_string(),
                 active: true,
                 attributes: current.attributes,
@@ -722,7 +722,7 @@ async fn directory_reload_reconciles_uncommitted_account_status_transitions() {
         )
         .await
         .unwrap();
-    assert!(matches!(reactivated, pnpr_storage::metadata::ScimUserWrite::Written(_)));
+    assert!(matches!(reactivated, pnpr_storage::database::ScimUserWrite::Written(_)));
     let replica_two = router_with_auth(load_config(dir.path()), auth.clone());
     assert_eq!(scim(&replica_two, "GET", USERS, None).await.0, StatusCode::OK);
     assert_eq!(

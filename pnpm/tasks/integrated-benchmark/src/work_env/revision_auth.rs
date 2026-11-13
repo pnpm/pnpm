@@ -38,7 +38,7 @@ pub(super) fn seed_auth(source: &str, home: &Path) -> Value {
         return json!({"htpasswd": {"file": path, "maxUsers": -1}});
     };
     if config["auth"].get("tokens").is_none() {
-        // Accounts live in the metadata database, so the benchmark login
+        // Accounts live in the database, so the benchmark login
         // registers the account the first time it runs.
         let mut users = users.clone();
         users["maxUsers"] = json!(1);

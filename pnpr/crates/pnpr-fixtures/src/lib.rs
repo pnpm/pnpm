@@ -1,5 +1,5 @@
 pub mod presets;
-pub use metadata::{
+pub use database::{
     deprecate_version, read_hosted_document, read_hosted_file, read_packument, remove_version,
     set_dist_tag, tarball_path, write_hosted_document, write_hosted_file, write_packuments,
     write_packuments_into,
@@ -13,7 +13,7 @@ pub use registries::{
     store_document, write_document,
 };
 
-mod metadata;
+mod database;
 mod registries;
 mod tarball;
 use tarball::{build_tarball, fixture_files};
@@ -24,8 +24,8 @@ use node_semver::{Range, Version};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId,
+    database::{ArtifactBlob, BlobRef},
     layout::{local_archive_path, write_local_layout_marker},
-    metadata::{ArtifactBlob, BlobRef},
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
@@ -68,11 +68,11 @@ pub fn ensure_storage() -> &'static Path {
     STORAGE.as_path()
 }
 
-/// The metadata database of the fixture storage at `storage`, the one pnpr
+/// The database of the fixture storage at `storage`, the one pnpr
 /// reads by default.
 #[must_use]
-pub fn metadata_path(storage: &Path) -> PathBuf {
-    pnpr_config::default_metadata_path(storage)
+pub fn database_path(storage: &Path) -> PathBuf {
+    pnpr_config::default_database_path(storage)
 }
 
 #[must_use]
@@ -82,7 +82,7 @@ pub fn packages_dir() -> PathBuf {
 
 /// Build registry storage from the raw package fixtures in `packages` into
 /// `out`, replacing any existing contents: the tarballs as hosted blobs and
-/// the packuments in the `SQLite` metadata database pnpr reads by default.
+/// the packuments in the `SQLite` database pnpr reads by default.
 /// Used by the `pnpr-prepare` binary so the JS test harness can serve the
 /// moved fixtures; pacquet's own tests use [`ensure_storage`]
 /// (process-global, cached) instead.
@@ -235,8 +235,8 @@ fn fixture_fingerprint(root: &Path) -> String {
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
     hasher.update(MOCK_REGISTRIES_YAML.as_bytes());
-    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.to_le_bytes());
-    for statements in pnpr_storage::metadata::SqlMetadata::SCHEMA_STATEMENTS {
+    hasher.update(pnpr_storage::database::SqlDatabase::SCHEMA_VERSION.to_le_bytes());
+    for statements in pnpr_storage::database::SqlDatabase::SCHEMA_STATEMENTS {
         hasher.update(statements.as_bytes());
         hasher.update([0]);
     }
@@ -284,11 +284,11 @@ fn build_storage(
         remove_version_field(&mut packuments, removed);
     }
     write_local_layout_marker(storage_root).expect("write registry fixture layout marker");
-    metadata::write_packuments_with_archives(storage_root, packuments, archives);
+    database::write_packuments_with_archives(storage_root, packuments, archives);
     seed_storage_registries(storage_root, MOCK_REGISTRIES_YAML);
 }
 
-/// Store the registries document `yaml` in the metadata database of the
+/// Store the registries document `yaml` in the database of the
 /// fixture storage at `storage`.
 ///
 /// # Panics
@@ -297,7 +297,7 @@ fn build_storage(
 pub fn seed_storage_registries(storage: &Path, yaml: &str) {
     let document = pnpr_config::RegistryGraphDocument::from_yaml(yaml)
         .unwrap_or_else(|error| panic!("parse the registries document: {error}"));
-    registries::store_into(&metadata::open(storage), &document);
+    registries::store_into(&database::open(storage), &document);
 }
 
 fn remove_version_field(packuments: &mut [(String, Value)], removed: &RemovedVersionField<'_>) {

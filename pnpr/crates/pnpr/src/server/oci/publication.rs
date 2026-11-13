@@ -14,7 +14,7 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId,
-    metadata::{ArtifactBlob, BlobLookup, BlobRef, BlobState, MappedArtifact},
+    database::{ArtifactBlob, BlobLookup, BlobRef, BlobState, MappedArtifact},
 };
 use std::collections::HashSet;
 

@@ -50,7 +50,7 @@ pub fn check_resolved_config(
 }
 
 /// [`check_resolved_config`] that first reads and validates the registries
-/// the metadata database stores.
+/// the database stores.
 pub async fn check_config_and_stored_registries(
     config: &mut Config,
     source: &ConfigSource,

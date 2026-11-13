@@ -53,7 +53,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
-use pnpr_storage::metadata::MAX_NOTE_BYTES;
+use pnpr_storage::database::MAX_NOTE_BYTES;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;

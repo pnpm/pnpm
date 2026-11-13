@@ -199,7 +199,7 @@ database:
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Postgres(settings) => {
-            assert_eq!(config.storage.metadata, crate::MetadataBackend::Postgres(settings.clone()));
+            assert_eq!(config.storage.database, crate::DatabaseBackend::Postgres(settings.clone()));
             assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, Some(12));
             assert_eq!(settings.timeout, Duration::from_secs(5));
@@ -219,7 +219,7 @@ database:
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Mysql(settings) => {
-            assert_eq!(config.storage.metadata, crate::MetadataBackend::Mysql(settings.clone()));
+            assert_eq!(config.storage.database, crate::DatabaseBackend::Mysql(settings.clone()));
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
             assert_eq!(settings.timeout, super::super::SqlBackendSettings::DEFAULT_TIMEOUT);

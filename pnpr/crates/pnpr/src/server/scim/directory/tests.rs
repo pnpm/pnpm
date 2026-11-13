@@ -2,7 +2,7 @@ use super::ScimState;
 use pnpr_auth::AuthState;
 use pnpr_config::{Config, ScimConfig};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::metadata::ScimStatus;
+use pnpr_storage::database::ScimStatus;
 use std::{
     sync::Arc,
     thread,
@@ -72,12 +72,12 @@ async fn superseded_deactivation_preserves_post_reactivation_tokens_and_director
     };
     let (id, _) = super::create_user(&state, "example-user", &active_user).await.unwrap();
 
-    let pnpr_storage::metadata::ScimUserWrite::Written(stale_deactivation) = state
+    let pnpr_storage::database::ScimUserWrite::Written(stale_deactivation) = state
         .inner
         .storage
         .replace_scim_user(
             Some(1),
-            pnpr_storage::metadata::NewScimUser {
+            pnpr_storage::database::NewScimUser {
                 user_id: id.clone(),
                 active: false,
                 attributes: serde_json::Map::new(),
@@ -292,7 +292,7 @@ async fn directory_reload_skips_writes_for_already_reconciled_accounts() {
     state.inner.storage
         .replace_scim_user(
             Some(current.generation),
-            pnpr_storage::metadata::NewScimUser {
+            pnpr_storage::database::NewScimUser {
                 user_id: active_id.clone(),
                 active: false,
                 attributes: serde_json::Map::new(),
@@ -338,12 +338,12 @@ async fn failed_post_reconcile_name_lookup_does_not_mark_directory_unreadable() 
         .await
         .unwrap();
 
-    let pnpr_storage::metadata::ScimUserWrite::Written(deactivation) = state
+    let pnpr_storage::database::ScimUserWrite::Written(deactivation) = state
         .inner
         .storage
         .replace_scim_user(
             Some(1),
-            pnpr_storage::metadata::NewScimUser {
+            pnpr_storage::database::NewScimUser {
                 user_id: member_one.clone(),
                 active: false,
                 attributes: serde_json::Map::new(),

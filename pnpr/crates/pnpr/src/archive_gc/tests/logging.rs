@@ -15,7 +15,7 @@ async fn collection_logs_only_removed_archives_with_sizes_and_image_repositories
             .unwrap();
         if pre_unmapped {
             storage
-                .sql_metadata()
+                .sql_database()
                 .unmap_artifacts(
                     "",
                     Ecosystem::Oci,
@@ -64,7 +64,7 @@ async fn collection_logs_successful_removals_when_another_archive_cannot_be_dele
         std::fs::write(blocked.join("keep"), b"blocked").unwrap();
         if pre_unmapped {
             storage
-                .sql_metadata()
+                .sql_database()
                 .unmap_artifacts(
                     "",
                     Ecosystem::Oci,
@@ -107,7 +107,7 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
         let view = storage.for_hosted(namespace, Ecosystem::Oci);
         let digest = blob(&view, &repository, b"orphan").await;
         if pre_unmapped {
-            view.sql_metadata()
+            view.sql_database()
                 .unmap_artifacts(
                     namespace,
                     Ecosystem::Oci,

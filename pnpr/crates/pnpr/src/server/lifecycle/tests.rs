@@ -382,8 +382,8 @@ async fn default_osv_dir_in_unmarked_hosted_store_passes_layout_check() {
     let mut config = Config::from_default_yaml(tmp.path(), listen, None);
     config.storage.hosted_dir = storage_dir.clone();
     config.storage.cache_dir = tmp.path().join("cache");
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage_dir));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage_dir));
 
     super::prepare_storage(&config).await.unwrap();
     assert!(storage_dir.join(pnpr_storage::layout::LAYOUT_FILE).exists());
@@ -401,8 +401,8 @@ async fn non_dot_cache_subdir_inside_fresh_hosted_storage_starts_cleanly() {
     let mut config = Config::from_default_yaml(tmp.path(), listen, None);
     config.storage.hosted_dir = storage_dir.clone();
     config.storage.cache_dir = cache_dir.clone();
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage_dir));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage_dir));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

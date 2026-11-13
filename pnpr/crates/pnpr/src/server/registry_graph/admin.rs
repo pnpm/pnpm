@@ -20,7 +20,7 @@ use axum::{
 };
 use pnpr_config::RegistryGraphDocument;
 use pnpr_policy::Identity;
-use pnpr_storage::metadata::RegistryGraphRevision;
+use pnpr_storage::database::RegistryGraphRevision;
 use serde::Deserialize;
 use serde_json::{Value, json};
 

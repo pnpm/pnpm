@@ -1,6 +1,6 @@
 //! Team administration through the npm team API: who may edit a roster, how
 //! an edit reaches the `team:` rules, and that the roster persists in the
-//! metadata database.
+//! database.
 
 use axum::{
     body::{Body, to_bytes},
@@ -257,7 +257,7 @@ async fn a_replica_that_cannot_read_the_graph_serves_no_registry() {
     );
     let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
     let current = storage.read_registry_graph_generation().await.unwrap();
-    let unreadable = pnpr_storage::metadata::NewRegistryGraph {
+    let unreadable = pnpr_storage::database::NewRegistryGraph {
         document: "{",
         actor_id: "-",
         restored_from: None,

@@ -4,14 +4,14 @@
 //! Each archive is stored by the identity of its bytes: when the namespace
 //! holds those bytes live already, nothing is stored and the commit depends
 //! on that incarnation; otherwise the next incarnation is stored, and the
-//! commit creates it (see [`pnpr_storage::metadata::BlobRow`]).
+//! commit creates it (see [`pnpr_storage::database::BlobRow`]).
 
 use super::{RegistryError, StagedPublish};
 use crate::server::AppState;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId, BlobSlot, PromotedArchive, Storage,
-    metadata::{ArtifactMember, BlobFence, BlobRef, BlobRow, Uncommitted},
+    database::{ArtifactMember, BlobFence, BlobRef, BlobRow, Uncommitted},
 };
 use std::collections::BTreeMap;
 

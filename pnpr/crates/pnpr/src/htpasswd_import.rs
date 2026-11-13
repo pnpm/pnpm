@@ -33,7 +33,7 @@ pub async fn import_htpasswd(
 ) -> miette::Result<HtpasswdImportReport> {
     let BackendConfig::Sqlite(target_path) = &config.identity.backend else {
         return Err(miette::miette!(
-            "htpasswd import writes to the SQLite metadata database; this config keeps accounts in a shared database"
+            "htpasswd import writes to the SQLite database; this config keeps accounts in a shared database"
         ));
     };
     let source_content = std::fs::read_to_string(&options.source)

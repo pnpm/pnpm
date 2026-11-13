@@ -1,7 +1,7 @@
 use super::{
     COMPLETE_FILE, RemovedVersionField, build_storage_at, build_storage_at_with_edits,
-    build_storage_at_with_substitutions, deprecate_version, discard_unusable_storage,
-    ensure_storage, latest_version, metadata::read_packument, packages_dir, publish_storage,
+    build_storage_at_with_substitutions, database::read_packument, deprecate_version,
+    discard_unusable_storage, ensure_storage, latest_version, packages_dir, publish_storage,
     remove_tree, remove_version, restore_claimed_storage, set_dist_tag,
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -50,7 +50,7 @@ fn latest_version_uses_semver_prerelease_order() {
 fn ensure_storage_generates_packuments_and_tarballs() {
     let storage = ensure_storage();
     assert!(packages_dir().join("@pnpm.e2e/abc/1.0.0/package.json").exists());
-    assert!(pnpr_config::default_metadata_path(storage).is_file());
+    assert!(pnpr_config::default_database_path(storage).is_file());
     assert_eq!(read_packument(storage, "@pnpm.e2e/abc")["name"], "@pnpm.e2e/abc");
     assert!(crate::tarball_path(storage, "@pnpm.e2e/abc", "1.0.0").exists());
     assert!(storage.join(pnpr_storage::layout::LAYOUT_FILE).exists());

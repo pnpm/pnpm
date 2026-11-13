@@ -89,7 +89,7 @@ pub(super) fn wait_for_pnpr_ready(port: u16) {
 pub(super) struct PnprBenchmarkFiles {
     pub(super) config: PathBuf,
     /// The `routes.public` document to import, for a revision that reads
-    /// its registries from the metadata database.
+    /// its registries from the database.
     pub(super) registries: Option<PathBuf>,
 }
 pub(super) fn write_pnpr_benchmark_config(
@@ -118,7 +118,7 @@ pub(super) fn write_pnpr_benchmark_config(
     PnprBenchmarkFiles { config, registries }
 }
 /// The `--public-url` of a benchmark pnpr server whose registries live in
-/// the metadata database. Its resolver reaches its own host only at this
+/// the database. Its resolver reaches its own host only at this
 /// origin, and the registries it resolves from listen on `localhost` and
 /// `127.0.0.1`, so the URL names a host neither spells. Clients reach the
 /// server at `127.0.0.1`; nothing they fetch is built from this URL, since
@@ -165,7 +165,7 @@ pub(super) fn cold_mock_config_yaml(
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
 /// The cold mock's registries, for a revision that reads them from the
-/// metadata database.
+/// database.
 pub(super) fn cold_mock_registries_yaml(origin: &str) -> String {
     serde_saphyr::to_string(&cold_mock_graph(origin)).expect("serialize cold mock registries")
 }

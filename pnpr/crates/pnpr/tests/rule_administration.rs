@@ -1,6 +1,6 @@
 //! The admin API for package rules (`/-/pnpr/v0/admin/rules/{registry}`): what
 //! a change does to requests, who may make one, and that changes live in the
-//! metadata database.
+//! database.
 
 use axum::{
     body::{Body, to_bytes},

@@ -34,7 +34,7 @@ pub use secrets::{
     CACHE_SECRET_MARKER, MIN_SECRET_LEN, cache_secret_fingerprint, derive_subkey, random_secret,
 };
 pub use storage_config::{
-    CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
+    CacheConfig, DatabaseBackend, StorageConfig, default_cache_dir, default_database_path,
     default_osv_path,
 };
 pub use trusted_proxy_header::TrustedProxyHeader;

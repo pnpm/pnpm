@@ -1,4 +1,4 @@
-//! The credential rules of a document the metadata database stores: upstream
+//! The credential rules of a document the database stores: upstream
 //! credentials are `${VAR}` references to listed variables, resolved by each
 //! replica when it builds the routing.
 

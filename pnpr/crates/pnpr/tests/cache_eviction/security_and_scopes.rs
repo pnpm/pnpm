@@ -201,8 +201,8 @@ async fn cli_cache_gc_rejects_unconfigured_secret_on_populated_persistent_cache(
     let mut config = Config::from_default_yaml(tmp.path(), listen, None);
     config.storage.hosted_dir = tmp.path().join("storage");
     config.storage.cache_dir = tmp.path().join("cache");
-    config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(
-        pnpr_config::default_metadata_path(&config.storage.hosted_dir),
+    config.storage.database = pnpr_config::DatabaseBackend::Sqlite(
+        pnpr_config::default_database_path(&config.storage.hosted_dir),
     );
 
     let active_file = config.storage.cache_dir.join("~upstreams/existing-secret/pkg/doc.json");

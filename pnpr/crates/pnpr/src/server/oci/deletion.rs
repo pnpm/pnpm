@@ -7,7 +7,7 @@ use axum::{http::StatusCode, response::Response};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
-    DOCUMENT_WRITE_RETRIES, metadata::BlobLookup, wait_after_document_write_conflict,
+    DOCUMENT_WRITE_RETRIES, database::BlobLookup, wait_after_document_write_conflict,
 };
 
 impl Request {

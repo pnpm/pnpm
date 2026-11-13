@@ -193,7 +193,7 @@ async fn check_request_schema(state: &AppState, path: &str) -> Result<(), Regist
     {
         return Ok(());
     }
-    state.inner.storage.sql_metadata().check_schema().await
+    state.inner.storage.sql_database().check_schema().await
 }
 
 fn token_failure_response(mut response: Response, header: Option<&str>) -> Response {

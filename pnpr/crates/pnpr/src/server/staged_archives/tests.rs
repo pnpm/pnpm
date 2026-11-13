@@ -40,7 +40,7 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap();
     let integrity = format!("sha512-{}==", "A".repeat(86));

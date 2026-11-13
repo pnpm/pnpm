@@ -56,12 +56,12 @@ fn setup() -> (TempDir, Storage) {
     let db_path = temp.path().join("metadata.sqlite");
     std::fs::create_dir_all(&store_dir).unwrap();
     pnpr_storage::layout::write_local_layout_marker(&store_dir).unwrap();
-    std::fs::copy(pnpr_config::default_metadata_path(&store_dir), &db_path).unwrap();
+    std::fs::copy(pnpr_config::default_database_path(&store_dir), &db_path).unwrap();
     let storage = Storage::new(
         &HostedStoreConfig::Fs,
         store_dir,
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(db_path),
+        &pnpr_config::DatabaseBackend::Sqlite(db_path),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
@@ -347,7 +347,7 @@ async fn collection_streams_an_object_store_inventory() {
         &config,
         temp.path().join("store"),
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(temp.path().join("metadata.sqlite")),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
@@ -385,7 +385,7 @@ async fn collection_finishes_an_interrupted_reclaim_after_the_lease() {
     let repository = name("acme/app");
     let digest = blob(&storage, &repository, b"pending deletion").await;
     let unmapped = storage
-        .sql_metadata()
+        .sql_database()
         .unmap_artifacts(
             "",
             Ecosystem::Oci,
@@ -394,7 +394,7 @@ async fn collection_finishes_an_interrupted_reclaim_after_the_lease() {
         );
     let ids = unmapped.await.unwrap().unwrap();
     let marked = storage
-        .sql_metadata()
+        .sql_database()
         .mark_reclaiming("", Ecosystem::Oci, ids)
         .await
         .unwrap();
@@ -518,7 +518,7 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
         &HostedStoreConfig::Fs,
         temp.path().join("store"),
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("empty.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(temp.path().join("empty.sqlite")),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
@@ -533,7 +533,7 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
         &HostedStoreConfig::Fs,
         temp.path().join("store"),
         temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(other_temp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(other_temp.path().join("metadata.sqlite")),
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
@@ -543,7 +543,7 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
     assert!(layer_archive.exists());
 
     // A partial database reset that leaves only `hosted_store` is refused before
-    // opening the metadata database, so gc cannot run against missing blob rows.
+    // opening the database, so gc cannot run against missing blob rows.
     let partial_db_path = temp.path().join("partial.sqlite");
     std::fs::copy(temp.path().join("metadata.sqlite"), &partial_db_path).unwrap();
     let partial_conn = rusqlite::Connection::open(&partial_db_path).unwrap();
@@ -565,7 +565,7 @@ async fn collection_refuses_an_empty_or_wrong_database_and_leaves_archives_intac
             &HostedStoreConfig::Fs,
             temp.path().join("store"),
             temp.path().join("cache"),
-            &pnpr_config::MetadataBackend::Sqlite(partial_db_path),
+            &pnpr_config::DatabaseBackend::Sqlite(partial_db_path),
         )
         .is_err(),
     );

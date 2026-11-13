@@ -9,7 +9,7 @@ pub(crate) use remote::RemoteUploadStore;
 
 mod remote;
 
-use crate::{BlobId, BlobSlot, Storage, metadata::Uncommitted};
+use crate::{BlobId, BlobSlot, Storage, database::Uncommitted};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use std::{

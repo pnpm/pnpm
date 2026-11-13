@@ -1,8 +1,8 @@
 use super::testing::{promote_file, served, store_file};
 use crate::{
     BlobId, HostedStoreConfig, Storage,
+    database::{BlobRef, Uncommitted},
     layout::local_archive_path,
-    metadata::{BlobRef, Uncommitted},
 };
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use tempfile::TempDir;
@@ -12,7 +12,7 @@ fn storage_in(tmp: &TempDir) -> Storage {
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap()
 }
@@ -36,7 +36,7 @@ async fn a_stalled_delete_leaves_the_next_incarnation_served() {
     let first = store_file(&storage, &pkg("a"), "a-1.0.0.tgz", b"bytes").await
         .artifact
         .blob;
-    let database = storage.sql_metadata();
+    let database = storage.sql_database();
     let file = vec!["a-1.0.0.tgz".to_string()];
     database
         .unmap_artifacts(

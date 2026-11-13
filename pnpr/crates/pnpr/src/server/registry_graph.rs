@@ -1,6 +1,6 @@
 //! The registry graph requests route by, held as one swappable
 //! [`RoutingSnapshot`]: the graph itself and everything the server builds
-//! from it. The metadata database stores the graph, the admin API edits it,
+//! from it. The database stores the graph, the admin API edits it,
 //! and every replica follows it.
 
 pub(super) use admin::{if_match, is_registry_admin_path, registry_admin_routes, versioned};

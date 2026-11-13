@@ -1,4 +1,4 @@
-//! The registry graph the metadata database stores: reading a stored
+//! The registry graph the database stores: reading a stored
 //! revision, building its routing, and the checks a new revision must pass
 //! before it is written.
 
@@ -9,7 +9,7 @@ use pnpr_error::RegistryError;
 use pnpr_route::RouteContext;
 use pnpr_storage::{
     Storage,
-    metadata::{HostedNamespace, StoredRegistryGraph},
+    database::{HostedNamespace, StoredRegistryGraph},
 };
 use std::net::IpAddr;
 use url::{Host, Url};
@@ -97,7 +97,7 @@ pub(crate) struct CheckedRevision {
 }
 
 /// The hosted namespaces of a revision, as
-/// [`pnpr_storage::metadata::NewRegistryGraph`] takes them.
+/// [`pnpr_storage::database::NewRegistryGraph`] takes them.
 pub(crate) struct HostedChange {
     /// The namespaces the revision stops serving. The write checks again, in
     /// its transaction, that they hold no package.

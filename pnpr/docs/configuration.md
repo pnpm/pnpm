@@ -8,7 +8,7 @@ pnpr uses a YAML config. When you don't pass `-c`, pnpr looks for a global
 production default.
 
 The config file holds the server settings. The registries pnpr serves live in
-the [metadata database](#registries-in-the-database). On its first start, pnpr
+the [database](#registries-in-the-database). On its first start, pnpr
 stores a default set: the public npm registry and a hosted registry for
 private packages.
 
@@ -109,8 +109,8 @@ Use [`pnpr cache-gc`](cli.md#cache-gc) for on-demand or offline reclamation.
 The hosted store can instead live in an S3-compatible object store. See
 [Storage backends](storage.md). With the filesystem hosted store, package
 metadata lives in an embedded SQLite database by default. Several instances can
-share a [libSQL database](storage.md#libsql-metadata) instead, which an `s3:`
-block needs. The [`database` block](storage.md#sqlite-metadata) configures
+share a [libSQL database](storage.md#libsql-database) instead, which an `s3:`
+block needs. The [`database` block](storage.md#database) configures
 each of these.
 
 ## `registries` and `defaultRegistry`
@@ -502,7 +502,7 @@ See [Admin endpoints](endpoints.md#admin-endpoints) and
 ## Registries in the database {#registries-in-the-database}
 
 pnpr keeps the registries in the
-[metadata database](storage.md#sqlite-metadata). Every replica serves the same
+[database](storage.md#database). Every replica serves the same
 registries, and admins change them through the
 [registry admin endpoints](endpoints.md#registry-admin-endpoints) without a
 config deploy. The stored registries are a registries document: the
@@ -883,7 +883,7 @@ ui:
 
 ## `auth`
 
-Accounts and tokens live in the [metadata database](storage.md#sqlite-metadata),
+Accounts and tokens live in the [database](storage.md#database),
 next to package metadata: `<storage>/.metadata/metadata.sqlite` unless
 `database.url` names another one. Back up that database to keep them.
 

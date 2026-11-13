@@ -37,7 +37,7 @@ pub fn ensure_schema(connection: &rusqlite::Connection, name: &str) -> Result<()
     schema::ensure(connection, name)
 }
 
-/// A metadata database in one `SQLite` file.
+/// A database in one `SQLite` file.
 #[derive(Debug)]
 pub struct SqliteAdapter {
     /// The database file, or `None` for an in-memory database.

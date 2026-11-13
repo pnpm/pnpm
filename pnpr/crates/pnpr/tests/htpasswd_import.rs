@@ -5,12 +5,12 @@ use pnpr::{
 use pnpr_config::MaxUsers;
 use pnpr_fixtures::MockConfigPresets as _;
 
-/// A config whose accounts live in the SQLite metadata database under
+/// A config whose accounts live in the SQLite database under
 /// `storage`, and that database.
 fn config_and_accounts(storage: &std::path::Path) -> (Config, SqliteAuth) {
     let config = Config::static_serve("127.0.0.1:0".parse().unwrap(), storage.to_path_buf());
     let BackendConfig::Sqlite(path) = &config.identity.backend else {
-        panic!("a static-serve config keeps accounts in its SQLite metadata database");
+        panic!("a static-serve config keeps accounts in its SQLite database");
     };
     let users = SqliteAuth::open(path, MaxUsers::Unlimited).unwrap().with_bcrypt_cost(4);
     (config, users)
@@ -70,5 +70,5 @@ async fn importing_into_a_shared_database_is_refused() {
     });
     let options = HtpasswdImportOptions { source, dry_run: false, overwrite: false };
     let error = import_htpasswd(&config, &options).await.unwrap_err();
-    assert!(error.to_string().contains("SQLite metadata database"), "{error}");
+    assert!(error.to_string().contains("SQLite database"), "{error}");
 }

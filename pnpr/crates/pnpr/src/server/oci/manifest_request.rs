@@ -7,7 +7,7 @@ use super::{
     unknown_repository,
 };
 use pnpr_oci::ManifestRemoval;
-use pnpr_storage::metadata::HostedLookup;
+use pnpr_storage::database::HostedLookup;
 
 impl Request {
     /// `HEAD`/`GET`/`PUT`/`DELETE /v2/<name>/manifests/<reference>`.

@@ -278,8 +278,8 @@ async fn variants_are_served_from_sqlite_metadata() {
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
     let mut config = acme_config(tmp.path().to_path_buf());
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router_with_auth(config, auth);
     let (_, any_tgz) = archive(&any_manifest(), "any");
     let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
@@ -796,8 +796,8 @@ async fn a_version_without_an_any_archive_gets_a_generated_one_for_npm() {
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
     let mut config = acme_config(tmp.path().to_path_buf());
-    config.storage.metadata =
-        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    config.storage.database =
+        pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router_with_auth(config, auth);
 
     let mut base = any_manifest();

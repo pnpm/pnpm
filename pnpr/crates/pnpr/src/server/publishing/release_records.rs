@@ -22,7 +22,7 @@ use pnpm_release_record::{Purl, RECORD_SCHEMA};
 use pnpm_tarball::PublicationArchive;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{DerivedTar, metadata::ReleaseRecords};
+use pnpr_storage::{DerivedTar, database::ReleaseRecords};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
@@ -78,7 +78,7 @@ fn accepted_record(
 ) -> Result<Value, RegistryError> {
     let version = tar.version.as_str();
     let profile = manifest
-        .pointer(&format!("/{}/profile", pnpr_storage::metadata::ARCHIVE_MANIFEST_FIELD))
+        .pointer(&format!("/{}/profile", pnpr_storage::database::ARCHIVE_MANIFEST_FIELD))
         .and_then(Value::as_str)
         .ok_or_else(|| missing(name, version, "an interpretation profile"))?;
     let purl = version_purl(name, version)?;

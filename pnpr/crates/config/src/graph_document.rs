@@ -1,5 +1,5 @@
 //! The registry graph as one document: the `registries`, `defaultRegistry`,
-//! and `routes.public` keys the metadata database stores.
+//! and `routes.public` keys the database stores.
 
 pub use edits::{HostedStorage, PackageLists, RegistryGraphChanges, RuleLists};
 

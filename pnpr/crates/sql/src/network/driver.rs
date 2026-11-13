@@ -242,7 +242,7 @@ macro_rules! driver {
                     self.schema_locked.set(false);
                     self.writes_locked.set(false);
                     RegistryError::StorageUnavailable {
-                        reason: "metadata database operation timed out".to_string(),
+                        reason: "database operation timed out".to_string(),
                     }
                 }
 

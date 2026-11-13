@@ -1,4 +1,4 @@
-# The registries pnpr stores in its metadata database on first start, when
+# The registries pnpr stores in its database on first start, when
 # the database holds none. Change them afterwards with the registry admin API
 # or `pnpr registries import`.
 registries:

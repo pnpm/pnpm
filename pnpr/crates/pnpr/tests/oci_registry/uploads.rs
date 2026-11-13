@@ -400,16 +400,16 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
     let objects: std::sync::Arc<dyn object_store::ObjectStore> =
         std::sync::Arc::new(object_store::memory::InMemory::new());
     let auth_state = AuthState::in_memory();
-    // Replicas share the bucket and the metadata database that maps its
+    // Replicas share the bucket and the database that maps its
     // blobs.
-    let metadata = pnpr_config::MetadataBackend::Sqlite(first_disk.path().join("shared.sqlite"));
+    let metadata = pnpr_config::DatabaseBackend::Sqlite(first_disk.path().join("shared.sqlite"));
     let replica = |disk: &TempDir| {
         let mut config = oci_config(disk.path().to_path_buf(), "$all");
         config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
             store: std::sync::Arc::clone(&objects),
             prefix: "shared/".into(),
         };
-        config.storage.metadata = metadata.clone();
+        config.storage.database = metadata.clone();
         router_with_auth(config, auth_state.clone())
     };
     let first = replica(&first_disk);
