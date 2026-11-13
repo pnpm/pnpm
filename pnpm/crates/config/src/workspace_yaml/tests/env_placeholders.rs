@@ -15,6 +15,8 @@ impl EnvVar for Env {
             "PNPM_TEST_HOST" => Some("internal.example.com".to_owned()),
             "PNPM_TEST_REGISTRY" => Some("https://registry.example.com/".to_owned()),
             "PNPM_TEST_TOKEN" => Some("s3cr3t".to_owned()),
+            "PNPM_TEST_PORT" => Some("8080".to_owned()),
+            "PNPM_TEST_HEX" => Some("1secret".to_owned()),
             _ => None,
         }
     }
@@ -574,14 +576,46 @@ fn many_flow_placeholders_exceeding_demotion_budget_still_preserve_strings() {
         .map(|index| format!("pkg-{index}: ${{PNPM_TEST_UNSET:-1.0.{index}}}"))
         .collect();
     let yaml = format!(
-        "{{overrides: {{{}}}, registry: https://example.com/${{PNPM_TEST_HOST}}/}}\n",
+        r#"{{overrides: {{{}}}, storeDir: "${{PNPM_TEST_UNSET:-a\"b}}", cacheDir: 'x''${{PNPM_TEST_UNSET:-y''z}}', registry: https://example.com/${{PNPM_TEST_HOST}}/}}"#,
         entries.join(", "),
     );
     let mut settings = parse_settings::<Env, WorkspaceSettings>(&yaml).unwrap();
+    assert_eq!(settings.store_dir.as_deref(), Some(r#"${PNPM_TEST_UNSET:-a"b}"#));
+    assert_eq!(settings.cache_dir.as_deref(), Some("x'${PNPM_TEST_UNSET:-y'z}"));
     assert_eq!(settings.registry.as_deref(), Some("https://example.com/${PNPM_TEST_HOST}/"));
     let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
     assert!(matches!(
         &error,
         LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
     ));
+}
+
+#[test]
+fn yaml_distinct_keys_preserve_placeholders_and_restoration_failures_fail_closed() {
+    let mut settings = parse_settings::<Env, WorkspaceSettings>(
+        r#"{registry: https://${PNPM_TEST_HOST}.attacker.example/, catalog: {"1": a, 1: b}}"#,
+    )
+    .unwrap();
+    assert_eq!(settings.registry.as_deref(), Some("https://${PNPM_TEST_HOST}.attacker.example/"));
+    let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
+    assert!(matches!(
+        &error,
+        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
+    ));
+
+    for invalid_yaml in [
+        r#"{overrides: {"${PNPM_TEST_PORT}": 1.0.0, ${PNPM_TEST_PORT}: 2.0.0}}"#,
+        r#"{registry: https://example.com/${PNPM_TEST_UNSET:-a}/, overrides: {"\x24{PNPM_TEST_PORT}": 1.0.0, ${PNPM_TEST_PORT}: 2.0.0}}"#,
+        r#"{registry: "https://${PNPM_TEST_HOST:-a"b}.attacker.example/"}"#,
+        r#"{registry: "https://${PNPM_TEST_HOST:-\q}.attacker.example/"}"#,
+        "{registry: 'https://${PNPM_TEST_HOST:-a'b}.attacker.example/'}\n",
+        r#"{registry: "https://\x4${PNPM_TEST_HEX}.attacker.example/", storeDir: ${PNPM_TEST_UNSET:-x}}"#,
+        r#"{overrides: {a: ${PNPM_TEST_UNSET:-1.0.0}}, storeDir: "${PNPM_TEST_UNSET:-a"b}"}"#,
+        r#"{overrides: {a: ${PNPM_TEST_UNSET:-1.0.0}}, storeDir: "${PNPM_TEST_UNSET:-a\qb}"}"#,
+    ] {
+        assert!(
+            parse_settings::<Env, WorkspaceSettings>(invalid_yaml).is_err(),
+            "expected error on {invalid_yaml}",
+        );
+    }
 }

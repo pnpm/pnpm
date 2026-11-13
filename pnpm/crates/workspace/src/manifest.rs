@@ -164,11 +164,10 @@ pub fn parse_workspace_manifest(
 
 fn parse_manifest_preserving_placeholders(text: &str) -> Option<WorkspaceManifest> {
     let sentinels = SentinelPlaceholders::new(text)?;
-    let replaced = sentinels.replace_minimal(text, |candidate| {
-        serde_saphyr::from_str::<Option<WorkspaceManifest>>(candidate).is_ok()
-    })?;
     let mut manifest =
-        serde_saphyr::from_str::<Option<WorkspaceManifest>>(&replaced).ok()?.unwrap_or_default();
+        serde_saphyr::from_str::<Option<WorkspaceManifest>>(&sentinels.replace_all(text))
+            .ok()?
+            .unwrap_or_default();
     restore_manifest_placeholders(&sentinels, text, &mut manifest).then_some(manifest)
 }
 
@@ -177,12 +176,13 @@ fn restore_manifest_placeholders(
     original_text: &str,
     manifest: &mut WorkspaceManifest,
 ) -> bool {
-    for entry in manifest.packages.iter_mut().flatten() {
-        sentinels.restore_in_place(original_text, entry);
-    }
-    manifest.catalog
-        .as_mut()
-        .is_none_or(|catalog| restore_catalog_placeholders(sentinels, original_text, catalog))
+    manifest.packages
+        .iter_mut()
+        .flatten()
+        .all(|entry| sentinels.try_restore_in_place(original_text, entry))
+        && manifest.catalog
+            .as_mut()
+            .is_none_or(|catalog| restore_catalog_placeholders(sentinels, original_text, catalog))
         && manifest.catalogs
             .as_mut()
             .is_none_or(|catalogs| {
@@ -197,8 +197,8 @@ fn restore_catalogs_placeholders(
 ) -> bool {
     let mut restored = Catalogs::new();
     for (mut name, mut catalog) in std::mem::take(catalogs) {
-        sentinels.restore_in_place(original_text, &mut name);
-        if !restore_catalog_placeholders(sentinels, original_text, &mut catalog)
+        if !sentinels.try_restore_in_place(original_text, &mut name)
+            || !restore_catalog_placeholders(sentinels, original_text, &mut catalog)
             || restored.insert(name, catalog).is_some()
         {
             return false;
@@ -215,9 +215,10 @@ fn restore_catalog_placeholders(
 ) -> bool {
     let mut restored = Catalog::new();
     for (mut name, mut specifier) in std::mem::take(catalog) {
-        sentinels.restore_in_place(original_text, &mut name);
-        sentinels.restore_in_place(original_text, &mut specifier);
-        if restored.insert(name, specifier).is_some() {
+        if !sentinels.try_restore_in_place(original_text, &mut name)
+            || !sentinels.try_restore_in_place(original_text, &mut specifier)
+            || restored.insert(name, specifier).is_some()
+        {
             return false;
         }
     }

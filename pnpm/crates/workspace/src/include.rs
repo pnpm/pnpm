@@ -243,10 +243,7 @@ fn parse_mapping(text: &str) -> Result<Option<Mapping>, yaml_serde::Error> {
 
 fn parse_value_preserving_placeholders(text: &str) -> Option<Value> {
     let sentinels = SentinelPlaceholders::new(text)?;
-    let replaced = sentinels.replace_minimal(text, |candidate| {
-        yaml_serde::from_str::<Value>(candidate).is_ok()
-    })?;
-    let mut value = yaml_serde::from_str::<Value>(&replaced).ok()?;
+    let mut value = yaml_serde::from_str::<Value>(&sentinels.replace_all(text)).ok()?;
     restore_value_placeholders(&sentinels, text, &mut value).then_some(value)
 }
 
@@ -256,10 +253,7 @@ fn restore_value_placeholders(
     value: &mut Value,
 ) -> bool {
     match value {
-        Value::String(scalar) => {
-            sentinels.restore_in_place(original_text, scalar);
-            true
-        }
+        Value::String(scalar) => sentinels.try_restore_in_place(original_text, scalar),
         Value::Sequence(items) => {
             items.iter_mut().all(|item| restore_value_placeholders(sentinels, original_text, item))
         }

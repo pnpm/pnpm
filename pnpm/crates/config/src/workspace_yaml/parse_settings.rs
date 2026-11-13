@@ -25,7 +25,6 @@ const MAX_DOCUMENT_READS: u32 = 512;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PlaceholderChoice {
-    AsWritten,
     Sentinel,
     Expanded,
 }
@@ -56,15 +55,10 @@ impl<'text> Prober<'text> {
         read_candidate(self.text, self.placeholders, &self.choices)
     }
 
-    /// Demote as many indices in `group` as possible from `keep` to `lighter`
-    /// while `self.read::<Settings>()` continues to succeed, returning `false`
-    /// if [`MAX_DOCUMENT_READS`] is exceeded.
-    fn demote<Settings: DeserializeOwned + Default>(
-        &mut self,
-        group: &[usize],
-        keep: PlaceholderChoice,
-        lighter: PlaceholderChoice,
-    ) -> bool {
+    /// Demote as many indices in `group` as possible from `Expanded` to
+    /// `Sentinel` while `self.read::<Settings>()` continues to succeed,
+    /// returning `false` if [`MAX_DOCUMENT_READS`] is exceeded.
+    fn demote<Settings: DeserializeOwned + Default>(&mut self, group: &[usize]) -> bool {
         if group.is_empty() {
             return true;
         }
@@ -72,17 +66,38 @@ impl<'text> Prober<'text> {
             return false;
         }
         self.reads += 1;
-        self.set_group(group, lighter);
+        self.set_group(group, PlaceholderChoice::Sentinel);
         if self.read::<Settings>().is_some() {
             return true;
         }
-        self.set_group(group, keep);
+        self.set_group(group, PlaceholderChoice::Expanded);
         if group.len() == 1 {
             return true;
         }
         let (left, right) = group.split_at(group.len() / 2);
-        self.demote::<Settings>(left, keep, lighter)
-            && self.demote::<Settings>(right, keep, lighter)
+        self.demote::<Settings>(left) && self.demote::<Settings>(right)
+    }
+
+    /// Confirm every placeholder left `Expanded` is rejected even as an
+    /// unrestored sentinel by `serde_saphyr`, ruling out free-text slots whose
+    /// restoration failed on a quote or duplicate-key check.
+    fn verify_expanded_require_resolution<Settings: DeserializeOwned + Default>(&mut self) -> bool {
+        for index in 0..self.choices.len() {
+            if self.choices[index] != PlaceholderChoice::Expanded {
+                continue;
+            }
+            if self.reads >= MAX_DOCUMENT_READS {
+                return false;
+            }
+            self.reads += 1;
+            self.choices[index] = PlaceholderChoice::Sentinel;
+            let candidate = render_choices(self.text, self.placeholders, &self.choices);
+            self.choices[index] = PlaceholderChoice::Expanded;
+            if serde_saphyr::from_str::<Option<Settings>>(&candidate).is_ok() {
+                return false;
+            }
+        }
+        true
     }
 
     fn set_group(&mut self, group: &[usize], choice: PlaceholderChoice) {
@@ -96,10 +111,9 @@ impl<'text> Prober<'text> {
 /// setting written as `${VAR}` or `${VAR:-fallback}`.
 ///
 /// Only the placeholders the document cannot be read without are resolved
-/// here. Placeholders that already parse as written stay untouched, while
-/// unquoted placeholders whose YAML syntax indicators (`{`, `}`, `: `) would
-/// break parsing stand in as bare-token sentinels and are restored to their
-/// literal `${...}` text as serde reads string values. Free-text settings are
+/// here. Placeholders whose YAML syntax indicators (`{`, `}`, `: `) would
+/// break parsing stand in as style-probing sentinels and are restored to their
+/// decoded `${...}` text as serde reads string values. Free-text settings are
 /// therefore always left unexpanded for the trusted / untrusted substitution
 /// that follows. A document that reads as written resolves nothing at all.
 pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned + Default>(
@@ -121,25 +135,11 @@ pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned + Default>(
         }
         return Err(Box::new(classify::<Settings>(text, &placeholders, as_written)));
     }
-    if !prober.demote::<Settings>(
-        &placeholders.resolvable,
-        PlaceholderChoice::Expanded,
-        PlaceholderChoice::Sentinel,
-    ) {
+    if !prober.demote::<Settings>(&placeholders.resolvable)
+        || !prober.verify_expanded_require_resolution::<Settings>()
+    {
         return Err(Box::new(as_written));
     }
-    let sentinel_indices: Vec<usize> = prober.choices
-        .iter()
-        .enumerate()
-        .filter_map(|(index, &choice)| (choice == PlaceholderChoice::Sentinel).then_some(index))
-        .collect();
-    // Sentinel -> AsWritten only drops unnecessary sentinels; any remaining
-    // sentinels in `prober.choices` are already accepted and never expand env.
-    let _ = prober.demote::<Settings>(
-        &sentinel_indices,
-        PlaceholderChoice::Sentinel,
-        PlaceholderChoice::AsWritten,
-    );
     prober.read().ok_or_else(|| Box::new(as_written))
 }
 
@@ -166,24 +166,26 @@ fn classify<Settings: DeserializeOwned + Default>(
     }
 }
 
-fn read_candidate<Settings: DeserializeOwned + Default>(
+fn render_choices(
     text: &str,
     placeholders: &DocumentPlaceholders,
     choices: &[PlaceholderChoice],
-) -> Option<Settings> {
-    let has_sentinel = choices.contains(&PlaceholderChoice::Sentinel);
-    let candidate = placeholders.render(text, |index, placeholder: &Placeholder| {
+) -> String {
+    placeholders.render(text, |index, placeholder: &Placeholder| {
         match (choices[index], placeholder.resolved.as_deref()) {
-            (PlaceholderChoice::AsWritten, _) => &text[placeholder.range.clone()],
             (PlaceholderChoice::Expanded, Some(value)) => value,
             (PlaceholderChoice::Expanded, None) | (PlaceholderChoice::Sentinel, _) => {
                 &placeholder.sentinel
             }
         }
-    });
-    if has_sentinel {
-        deserialize_restoring(&candidate, text, placeholders)
-    } else {
-        serde_saphyr::from_str::<Option<Settings>>(&candidate).ok().map(Option::unwrap_or_default)
-    }
+    })
+}
+
+fn read_candidate<Settings: DeserializeOwned + Default>(
+    text: &str,
+    placeholders: &DocumentPlaceholders,
+    choices: &[PlaceholderChoice],
+) -> Option<Settings> {
+    let candidate = render_choices(text, placeholders, choices);
+    deserialize_restoring(&candidate, text, placeholders)
 }

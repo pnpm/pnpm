@@ -352,17 +352,14 @@ fn parse_present_top_level_keys(text: &str) -> Option<Vec<String>> {
     let sentinels = SentinelPlaceholders::new(text)?;
     let replaced = sentinels.replace_all(text);
     let document = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(&replaced).ok()?;
-    Some(
-        document
-            .into_iter()
-            .filter_map(|(key, value)| {
-                let restored = if sentinels.may_contain_sentinel(&key) {
-                    sentinels.restore(text, &key)
-                } else {
-                    key
-                };
-                value.map(|_| restored)
-            })
-            .collect(),
-    )
+    let mut keys = Vec::new();
+    for (mut key, value) in document {
+        if !sentinels.try_restore_in_place(text, &mut key) {
+            return None;
+        }
+        if value.is_some() {
+            keys.push(key);
+        }
+    }
+    Some(keys)
 }

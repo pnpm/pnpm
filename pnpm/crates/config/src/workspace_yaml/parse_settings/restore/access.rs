@@ -1,15 +1,14 @@
-use super::{DocumentPlaceholders, RestoringDeserializer, visitor::RestoringVisitor};
+use super::{DocumentPlaceholders, RestoringDeserializer, SeenKeys, visitor::RestoringVisitor};
 use serde::{
     Deserializer,
     de::{DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
 };
-use std::collections::HashSet;
 
 struct RestoringSeed<'text, 'keys, Seed> {
     inner: Seed,
     original_text: &'text str,
     placeholders: &'text DocumentPlaceholders,
-    seen_keys: Option<&'keys mut HashSet<String>>,
+    seen_keys: Option<&'keys mut SeenKeys>,
 }
 
 impl<'de, Seed: DeserializeSeed<'de>> DeserializeSeed<'de> for RestoringSeed<'_, '_, Seed> {
@@ -65,7 +64,7 @@ pub(super) struct RestoringMapAccess<'text, Inner> {
     pub(super) inner: Inner,
     pub(super) original_text: &'text str,
     pub(super) placeholders: &'text DocumentPlaceholders,
-    pub(super) seen_keys: HashSet<String>,
+    pub(super) seen_keys: SeenKeys,
 }
 
 impl<'de, Inner: MapAccess<'de>> MapAccess<'de> for RestoringMapAccess<'_, Inner> {

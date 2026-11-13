@@ -9,8 +9,31 @@ use serde::{
 };
 use std::collections::HashSet;
 
+/// Keys seen so far in one YAML mapping. Collisions are rejected only when at
+/// least one side had a sentinel restored, so YAML-distinct raw keys that
+/// stringify alike (`"1"` and `1`) behave identically whether placeholders
+/// elsewhere are expanded or sentinels.
+#[derive(Default)]
+pub(super) struct SeenKeys {
+    raw: HashSet<String>,
+    restored: HashSet<String>,
+}
+
+impl SeenKeys {
+    pub(super) fn record(&mut self, key: &str, was_restored: bool) -> bool {
+        if was_restored {
+            !self.raw.contains(key) && self.restored.insert(key.to_owned())
+        } else if self.restored.contains(key) {
+            false
+        } else {
+            self.raw.insert(key.to_owned());
+            true
+        }
+    }
+}
+
 /// Deserialize `candidate` YAML into `Settings`, restoring every placeholder
-/// sentinel inside string values back to its literal `${...}` slice from
+/// sentinel inside string values back to its decoded `${...}` slice from
 /// `original_text`.
 pub(super) fn deserialize_restoring<Settings: DeserializeOwned + Default>(
     candidate: &str,
@@ -33,7 +56,7 @@ pub(super) struct RestoringDeserializer<'text, 'keys, Inner> {
     pub(super) inner: Inner,
     pub(super) original_text: &'text str,
     pub(super) placeholders: &'text DocumentPlaceholders,
-    pub(super) seen_keys: Option<&'keys mut HashSet<String>>,
+    pub(super) seen_keys: Option<&'keys mut SeenKeys>,
 }
 
 impl<'text, 'keys, Inner> RestoringDeserializer<'text, 'keys, Inner> {

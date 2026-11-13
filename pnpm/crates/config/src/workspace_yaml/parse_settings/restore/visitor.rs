@@ -1,28 +1,44 @@
 use super::{
-    DocumentPlaceholders, RestoringDeserializer,
+    DocumentPlaceholders, RestoringDeserializer, SeenKeys,
     access::{RestoringAccess, RestoringMapAccess},
 };
 use serde::{
     Deserializer,
     de::{EnumAccess, MapAccess, SeqAccess, Visitor},
 };
-use std::{collections::HashSet, fmt};
+use std::fmt;
 
 pub(super) struct RestoringVisitor<'text, 'keys, Inner> {
     pub(super) inner: Inner,
     pub(super) original_text: &'text str,
     pub(super) placeholders: &'text DocumentPlaceholders,
-    pub(super) seen_keys: Option<&'keys mut HashSet<String>>,
+    pub(super) seen_keys: Option<&'keys mut SeenKeys>,
 }
 
 impl<Inner> RestoringVisitor<'_, '_, Inner> {
-    fn record_key<Err: serde::de::Error>(&mut self, key: &str) -> Result<(), Err> {
+    fn record_key<Err: serde::de::Error>(
+        &mut self,
+        key: &str,
+        was_restored: bool,
+    ) -> Result<(), Err> {
         if let Some(seen_keys) = self.seen_keys.as_deref_mut()
-            && !seen_keys.insert(key.to_owned())
+            && !seen_keys.record(key, was_restored)
         {
             return Err(Err::custom(format!("duplicate mapping key: {key}")));
         }
         Ok(())
+    }
+
+    fn restore_str<Err: serde::de::Error>(&mut self, value: &str) -> Result<Option<String>, Err> {
+        if !self.placeholders.may_contain_sentinel(value) {
+            self.record_key(value, false)?;
+            return Ok(None);
+        }
+        let restored = self.placeholders
+            .try_restore(self.original_text, value)
+            .ok_or_else(|| Err::custom("invalid escape or quote in placeholder"))?;
+        self.record_key(&restored, true)?;
+        Ok(Some(restored))
     }
 }
 
@@ -64,13 +80,9 @@ impl<'de, Inner: Visitor<'de>> Visitor<'de> for RestoringVisitor<'_, '_, Inner> 
     );
 
     fn visit_str<Err: serde::de::Error>(mut self, value: &str) -> Result<Self::Value, Err> {
-        if self.placeholders.may_contain_sentinel(value) {
-            let restored = self.placeholders.restore(self.original_text, value);
-            self.record_key(&restored)?;
-            self.inner.visit_string(restored)
-        } else {
-            self.record_key(value)?;
-            self.inner.visit_str(value)
+        match self.restore_str(value)? {
+            Some(restored) => self.inner.visit_string(restored),
+            None => self.inner.visit_str(value),
         }
     }
 
@@ -78,23 +90,14 @@ impl<'de, Inner: Visitor<'de>> Visitor<'de> for RestoringVisitor<'_, '_, Inner> 
         mut self,
         value: &'de str,
     ) -> Result<Self::Value, Err> {
-        if self.placeholders.may_contain_sentinel(value) {
-            let restored = self.placeholders.restore(self.original_text, value);
-            self.record_key(&restored)?;
-            self.inner.visit_string(restored)
-        } else {
-            self.record_key(value)?;
-            self.inner.visit_borrowed_str(value)
+        match self.restore_str(value)? {
+            Some(restored) => self.inner.visit_string(restored),
+            None => self.inner.visit_borrowed_str(value),
         }
     }
 
     fn visit_string<Err: serde::de::Error>(mut self, value: String) -> Result<Self::Value, Err> {
-        let value = if self.placeholders.may_contain_sentinel(&value) {
-            self.placeholders.restore(self.original_text, &value)
-        } else {
-            value
-        };
-        self.record_key(&value)?;
+        let value = self.restore_str(&value)?.unwrap_or(value);
         self.inner.visit_string(value)
     }
 
@@ -140,7 +143,7 @@ impl<'de, Inner: Visitor<'de>> Visitor<'de> for RestoringVisitor<'_, '_, Inner> 
             inner: map,
             original_text: self.original_text,
             placeholders: self.placeholders,
-            seen_keys: HashSet::new(),
+            seen_keys: SeenKeys::default(),
         })
     }
 

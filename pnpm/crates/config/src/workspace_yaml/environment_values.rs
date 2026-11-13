@@ -24,8 +24,8 @@ pub(super) fn has_env_placeholder(value: &str) -> bool {
 }
 
 /// A `${VAR}` / `${VAR:-fallback}` placeholder in a YAML document, its
-/// bare-token expansion when it has one, and a unique bare-token sentinel used
-/// while probing whether the target setting accepts free text.
+/// bare-token expansion when it has one, and a unique style-probing sentinel
+/// used while probing whether the target setting accepts free text.
 pub(super) struct Placeholder {
     pub(super) range: Range<usize>,
     pub(super) resolved: Option<String>,
@@ -44,13 +44,13 @@ pub(super) struct DocumentPlaceholders {
 /// `None` when `text` contains none.
 ///
 /// Only a placeholder that resolves without missing variables to a bare token
-/// (`[A-Za-z0-9_.-]+`) and is not inside a YAML anchor/alias token (`&` or
-/// `*`) receives `resolved: Some(...)`. Every placeholder also receives a
-/// bare-token `sentinel` (`{prefix}{index}_`) whose prefix cannot appear in
-/// `text` (even after YAML double-quoted unescaping) or in any resolved value,
-/// so YAML syntax indicators inside `${...}` (such as `{`, `}`, or `: `) do not
-/// prevent a free-text setting from parsing with its placeholder left
-/// unexpanded.
+/// (`[A-Za-z0-9_.-]+`) outside YAML anchor/alias/tag tokens (`&`, `*`, `!`) and
+/// incomplete `\x`/`\u`/`\U` hex escapes receives `resolved: Some(...)`. Every
+/// placeholder also receives a style-probing `sentinel` whose prefix cannot
+/// appear in `text` (even after YAML double-quoted unescaping) or in any
+/// resolved value, so YAML syntax indicators inside `${...}` (such as `{`, `}`,
+/// or `: `) do not prevent a free-text setting from parsing with its
+/// placeholder left unexpanded.
 pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentPlaceholders> {
     let ranges = SentinelPlaceholders::single_line_ranges(text);
     if ranges.is_empty() {
@@ -78,14 +78,15 @@ pub(super) fn document_placeholders<Sys: EnvVar>(text: &str) -> Option<DocumentP
 }
 
 fn resolve_bare_tokens<Sys: EnvVar>(text: &str, ranges: &[Range<usize>]) -> Vec<Option<String>> {
-    let mut in_anchor_or_alias = false;
+    let mut in_meta_token = false;
     let mut cursor = 0;
     let mut resolved = Vec::with_capacity(ranges.len());
     for range in ranges {
-        advance_anchor_or_alias_state(&mut in_anchor_or_alias, &text[cursor..range.start]);
+        advance_yaml_meta_state(&mut in_meta_token, &text[cursor..range.start]);
         cursor = range.end;
+        let eligible = !in_meta_token && !has_incomplete_hex_escape_before(&text[..range.start]);
         resolved.push(
-            (!in_anchor_or_alias)
+            eligible
                 .then(|| resolve_bare_token::<Sys>(&text[range.clone()]))
                 .flatten(),
         );
@@ -93,14 +94,42 @@ fn resolve_bare_tokens<Sys: EnvVar>(text: &str, ranges: &[Range<usize>]) -> Vec<
     resolved
 }
 
-fn advance_anchor_or_alias_state(in_anchor_or_alias: &mut bool, segment: &str) {
+fn advance_yaml_meta_state(in_meta_token: &mut bool, segment: &str) {
     for character in segment.chars() {
-        if matches!(character, '&' | '*') {
-            *in_anchor_or_alias = true;
+        if matches!(character, '&' | '*' | '!') {
+            *in_meta_token = true;
         } else if matches!(character, ' ' | '\t' | '\r' | '\n' | ',' | '[' | ']' | '{' | '}') {
-            *in_anchor_or_alias = false;
+            *in_meta_token = false;
         }
     }
+}
+
+fn has_incomplete_hex_escape_before(prefix: &str) -> bool {
+    let bytes = prefix.as_bytes();
+    let hex_len = bytes
+        .iter()
+        .rev()
+        .take(8)
+        .take_while(|byte| byte.is_ascii_hexdigit())
+        .count();
+    let Some(escape_pos) = bytes.len().checked_sub(hex_len + 1) else {
+        return false;
+    };
+    let required_digits = match bytes[escape_pos] {
+        b'x' => 2,
+        b'u' => 4,
+        b'U' => 8,
+        _ => return false,
+    };
+    if hex_len >= required_digits {
+        return false;
+    }
+    let backslashes = bytes[..escape_pos]
+        .iter()
+        .rev()
+        .take_while(|&&byte| byte == b'\\')
+        .count();
+    backslashes % 2 == 1
 }
 
 fn resolve_bare_token<Sys: EnvVar>(placeholder: &str) -> Option<String> {
@@ -130,10 +159,10 @@ impl DocumentPlaceholders {
         self.sentinels.may_contain_sentinel(value)
     }
 
-    /// Replace every `{sentinel_prefix}{index}_` token in `value` back with
-    /// the original `&original_text[range]` slice.
-    pub(super) fn restore(&self, original_text: &str, value: &str) -> String {
-        self.sentinels.restore(original_text, value)
+    /// Restore every sentinel token in `value` back to its `${...}` text
+    /// decoded according to the enclosing YAML scalar style.
+    pub(super) fn try_restore(&self, original_text: &str, value: &str) -> Option<String> {
+        self.sentinels.try_restore(original_text, value)
     }
 }
 
