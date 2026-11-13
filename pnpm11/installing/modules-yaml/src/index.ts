@@ -36,6 +36,7 @@ interface ModulesRaw {
   storeDir: string
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
+  enableGlobalVirtualStore?: boolean
   injectedDeps?: Record<string, string[]>
   hoistedLocations?: Record<string, string[]>
   allowBuilds?: Record<string, boolean | string>

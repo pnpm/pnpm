@@ -411,6 +411,7 @@ async function writeModulesManifestIfChanged (
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
     virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     allowBuilds: opts.allowBuilds,
   })
 }

@@ -66,10 +66,12 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
   }
 
   if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
+  const enableGlobalVirtualStore = opts.enableGlobalVirtualStore || ctx.modulesFile?.enableGlobalVirtualStore
+  if (!enableGlobalVirtualStore) return
   await repairGlobalVirtualStoreBinShims({
     extraNodePaths: ctx.extraNodePaths,
     virtualStoreDir: path.join(ctx.storeDir, 'links'),
-  }, opts)
+  }, { ...opts, enableGlobalVirtualStore })
 }
 
 function selectPackagesToLink (

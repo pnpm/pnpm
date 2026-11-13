@@ -252,14 +252,16 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
 }
 
 async function globalVirtualStoreBinShimsArePending (opts: InstallDepsOptions): Promise<boolean> {
-  if (!opts.enableGlobalVirtualStore || opts.frozenStore) return false
+  if (opts.frozenStore) return false
   const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
   const modules = await readModulesManifest(modulesDir)
+  const enableGlobalVirtualStore = opts.enableGlobalVirtualStore || modules?.enableGlobalVirtualStore
+  if (!enableGlobalVirtualStore) return false
   if (modules?.virtualStoreDir == null) return true
   const globalVirtualStoreDir = path.resolve(modules.virtualStoreDir) === path.join(modulesDir, '.pnpm')
     ? path.join(modules.storeDir, 'links')
     : modules.virtualStoreDir
-  return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, opts)
+  return globalVirtualStoreBinShimsNeedRepair(globalVirtualStoreDir, { ...opts, enableGlobalVirtualStore })
 }
 
 function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
