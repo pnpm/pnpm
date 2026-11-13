@@ -1,6 +1,6 @@
 use super::{append_attested_time, load_attested_times};
 use pretty_assertions::assert_eq;
-use std::fs;
+use std::{fs, path::Path};
 use tempfile::TempDir;
 
 #[test]
@@ -36,6 +36,13 @@ fn a_missing_file_holds_no_times() {
     assert!(load_attested_times(&dir.path().join("acme.jsonl")).is_empty());
 }
 
+fn append_versions_of(path: &Path, writer: usize) {
+    for patch in 0..50 {
+        let version = format!("{writer}.0.{patch}");
+        append_attested_time(path, &version, "2025-01-01T00:00:00.000Z").expect("append");
+    }
+}
+
 #[test]
 fn concurrent_appends_keep_every_record() {
     let dir = TempDir::new().expect("tempdir");
@@ -44,13 +51,7 @@ fn concurrent_appends_keep_every_record() {
     std::thread::scope(|scope| {
         for writer in 0..8 {
             let path = &path;
-            scope.spawn(move || {
-                for patch in 0..50 {
-                    let version = format!("{writer}.0.{patch}");
-                    append_attested_time(path, &version, "2025-01-01T00:00:00.000Z")
-                        .expect("append");
-                }
-            });
+            scope.spawn(move || append_versions_of(path, writer));
         }
     });
 
