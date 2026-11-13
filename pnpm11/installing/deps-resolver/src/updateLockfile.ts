@@ -310,7 +310,7 @@ function linkedDependencyRef (
   if (
     lockfileDir == null ||
     !parentDepPath.includes('@file:') ||
-    !('directory' in parentPkg.resolution)
+    parentPkg.resolution.type !== 'directory'
   ) return depPath
   const linkSpec = depPath.slice('link:'.length)
   if (!linkSpec.startsWith('../') && !linkSpec.startsWith('./')) return depPath
