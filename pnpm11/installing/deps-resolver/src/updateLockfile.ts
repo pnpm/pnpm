@@ -7,7 +7,6 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { localSpecPath } from '@pnpm/resolving.local-resolver'
 import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
@@ -282,8 +281,7 @@ function updateResolvedDeps ({
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          const localSpec = parentPkg.localLinkedDependencies?.get(alias)
-          return [alias, localSpec == null ? depPath : linkedDependencyRef({ depPath, lockfileDir, localSpec, parentPkg, parentDepPath })]
+          return [alias, linkedDependencyRef({ depPath, depGraph, lockfileDir, parentPkg, parentDepPath })]
         }
         const depNode = depGraph[depPath]
         return [
@@ -297,10 +295,10 @@ function updateResolvedDeps ({
   )
 }
 
-function linkedDependencyRef ({ depPath, lockfileDir, localSpec, parentPkg, parentDepPath }: {
+function linkedDependencyRef ({ depPath, depGraph, lockfileDir, parentPkg, parentDepPath }: {
   depPath: DepPath
+  depGraph: DependenciesGraph
   lockfileDir: string | undefined
-  localSpec: string
   parentPkg: ResolvedPackage
   parentDepPath: string
 }): string {
@@ -309,9 +307,7 @@ function linkedDependencyRef ({ depPath, lockfileDir, localSpec, parentPkg, pare
     !parentDepPath.includes('@file:') ||
     parentPkg.resolution.type !== 'directory'
   ) return depPath
-  const linkSpec = depPath.slice('link:'.length)
-  if (!linkSpec.startsWith('../') && !linkSpec.startsWith('./')) return depPath
-  const resolvedChildPath = localSpecPath(localSpec, parentPkg.resolution.directory)
-  if (localSpecPath(depPath, lockfileDir) === resolvedChildPath) return depPath
-  return createNodeIdForLinkedLocalPkg(lockfileDir, resolvedChildPath) as string
+  const childPkg = depGraph[depPath]
+  if (childPkg == null || childPkg.resolution.type !== 'directory') return depPath
+  return createNodeIdForLinkedLocalPkg(lockfileDir, childPkg.resolution.directory)
 }

@@ -2882,7 +2882,6 @@ snapshots:
 				"@pnpm/lockfile.utils": "workspace:*",
 				"@pnpm/lockfile.verification": "workspace:*",
 				"@pnpm/logger": "catalog:",
-				"@pnpm/resolving.local-resolver": "workspace:*",
 				"@pnpm/resolving.resolver-base": "workspace:*",
 				"@pnpm/types": "workspace:*",
 				"@pnpm/workspace.projects-reader": "workspace:*",
