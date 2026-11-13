@@ -21,7 +21,7 @@ supply the new `userId` with the current name. A mismatched ID and name are reje
 
 Teams also have stable IDs and mutable names:
 
-```yaml
+```yaml title="registries.yaml"
 registries:
   private:
     type: hosted

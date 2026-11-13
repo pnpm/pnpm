@@ -9,7 +9,8 @@ pnpr routes packages through declared
 [registries](configuration.md#registries-and-defaultregistry): every origin
 (a locally-hosted registry, an upstream like npmjs) is declared explicitly and
 claims the package names it serves, and a router resolves each name to exactly
-one of them. Save this as `pnpr.yaml`:
+one of them. The registries live in pnpr's database, apart from the server
+config. Save the server config as `pnpr.yaml`:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
@@ -19,7 +20,11 @@ auth:
   users:
     # Allow one user to self-register, for the publish step below.
     maxUsers: 1
+```
 
+Save the registries as `registries.yaml`:
+
+```yaml title="registries.yaml"
 registries:
   # Packages published to this server. The `packages:` map claims the
   # package names served here: only these names can live here.
@@ -54,18 +59,22 @@ dependency confusion.
 ## Start the server
 
 Generate a secret once, store it securely, and reuse the same `PNPR_SECRET`
-value across restarts:
+value across restarts. Store the registries with
+[`pnpr registries import`](cli.md#registries), then start the server:
 
 ```sh
 export PNPR_SECRET="$(openssl rand -hex 32)"
+pnpr -c ./pnpr.yaml registries import ./registries.yaml
 pnpr -c ./pnpr.yaml
 ```
 
 It listens on `127.0.0.1:7677`. Running plain `pnpr` with no config works for a
 single ephemeral run too, using a random cache secret until `.pnpr-cache` is
-removed or `secret` is configured in `pnpr.yaml`. The bundled config proxies
-npmjs and provides a local hosted registry at `/npm/~local/`, whose packages
-need a login. It allows no self-registration, so create accounts with
+removed or `secret` is configured in `pnpr.yaml`. Without an import, the first
+start stores the
+[default registries](configuration.md#registries-in-the-database): a proxy of
+npmjs and a local hosted registry at `/npm/~local/`, whose packages need a
+login. The bundled config allows no self-registration, so create accounts with
 [`pnpr add-user`](cli.md#add-user).
 
 ## Point a client at it

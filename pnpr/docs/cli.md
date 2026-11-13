@@ -34,7 +34,7 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `packumentTtl` overrides it for that registry. |
 | `--osv [<bool>]` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<storage>/.osv/npm/all.zip`. `--osv false` turns off checks that the config enables. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
-| `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
+| `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise always served. The health and login/token endpoints stay available. |
 | `--disable-resolver` | Disable the install-accelerator surface: `GET /-/pnpr`, `POST /-/pnpr/v0/resolve`, and `POST /-/pnpr/v0/verify-lockfile`. Overrides `resolver.enabled`. |
 | `--disable-artifacts` | Disable the signed shared-artifact surface. Overrides `artifacts.enabled` independently of the resolver. |
 | `--disable-pipeline` | Disable the pipeline run-record surface: `/-/pnpr/v0/pipeline`. Overrides `pipeline.enabled`. |
@@ -60,13 +60,13 @@ PNPR_LISTEN=0.0.0.0:7677 PNPR_PUBLIC_URL=https://registry.example.com pnpr
 
 ### config check
 
-Validates the YAML configuration file and prints diagnostic details, including configured registries, upstreams, hosted storage, cache directory, auth backends, and enabled surface toggles (`registry`, `resolver`, `artifacts`).
+Validates the YAML configuration file and the stored registries, and prints diagnostic details, including registries, upstreams, hosted storage, cache directory, auth backends, and enabled surface toggles (`registry`, `resolver`, `artifacts`).
 
 ```sh
 pnpr config check
 ```
 
-Database validation checks the connection URL and options, token transport security, and whether this build supports the configured database driver. It does not connect to the database, except with [`registriesManagedBy: api`](configuration.md#registries-in-the-database), where it reads and checks the stored registries.
+Database validation checks the connection URL and options, token transport security, and whether this build supports the configured database driver. It also reads and checks the [stored registries](configuration.md#registries-in-the-database), so it connects to the database.
 
 ### verify
 
@@ -234,7 +234,7 @@ stored longer than `--min-age` ago.
 Added in: v0.1.0-alpha.16
 
 Reclaims cached upstream and resolver files across the whole cache directory,
-prunes orphaned upstream namespaces from changed configurations or rotated
+prunes orphaned upstream namespaces from changed registries or rotated
 secrets, and enforces cache size and age limits. It also sweeps abandoned
 publish staging files under `<cache>/.staging/` older than
 [`requestTimeout`](configuration.md#requesttimeout) (or `1h` when request
@@ -249,13 +249,15 @@ timeouts are disabled).
 
 ### registries
 
-Reads and stores the registries kept in the metadata database with
-[`registriesManagedBy: api`](configuration.md#registries-in-the-database).
-`pnpr registries export` writes them as YAML, in the shape of the
-`registries`, `defaultRegistry`, and `routes.public` blocks of a config file.
+Reads and stores the
+[registries kept in the metadata database](configuration.md#registries-in-the-database).
+`pnpr registries export` writes them as a YAML registries document, with the
+`registries`, `defaultRegistry`, and `routes.public` keys.
 `pnpr registries import` stores such a file as a new revision, after the same
 checks the [registry admin endpoints](endpoints.md#registry-admin-endpoints)
-apply. Both connect to the configured database directly. Run
+apply. `pnpr registries import --check` compares the file with the stored
+registries and fails when they differ, without storing anything. These
+commands connect to the configured database directly. Run
 `pnpr registries --help` for their options.
 
 ## Logging

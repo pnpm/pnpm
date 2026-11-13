@@ -72,14 +72,13 @@ auth:
 - `teamId` is the stable team ID, not its display name.
 - A session whose claim lists `group` is a member of `teamId` on the hosted
   registry `registry`, as if the team listed its account ID. `registry` is the
-  registry's key in `registries:`.
+  registry's key in the
+  [stored registries](configuration.md#registries-in-the-database).
 - The membership lasts as long as the session. Removing someone from a group
   takes effect at their next sign-in, within an hour. It never applies to the
   user's password logins or `npm token`s.
-- The registry must declare the team. With
-  [`registriesManagedBy: api`](configuration.md#registries-in-the-database),
-  pnpr refuses a change to the stored registries that removes a team or
-  registry a grant names.
+- The registry must declare the team. pnpr refuses a change to the stored
+  registries that removes a team or registry a grant names.
 
 Configure the provider to issue the claim, and use the values it emits as
 `group`. Entra ID emits group object IDs under `groups` once group claims are
@@ -143,15 +142,21 @@ An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](contain
 
 Create a dedicated workload account, a named hosted npm registry, and exact
 package names. The package's normal `publish` rule must grant that account ID
-access too.
+access too, in the
+[stored registries](configuration.md#registries-in-the-database):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   private:
     type: hosted
     packages:
       '@example/widget':
         publish: [<workload-account-id>]
+```
+
+The workload itself is configured in the config file:
+
+```yaml title="pnpr.yaml"
 auth:
   oidc:
     - name: github

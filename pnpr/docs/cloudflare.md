@@ -79,7 +79,12 @@ trustedProxies:
 auth:
   users:
     maxUsers: 3
+```
 
+The registries live in the database, not in the image. Describe them in a file
+that stays outside the image:
+
+```yaml title="registries.yaml"
 registries:
   local:
     type: hosted
@@ -98,6 +103,17 @@ registries:
 
 defaultRegistry: main
 ```
+
+Store them once from any machine that can reach the database, with the same
+config and environment variables, using
+[`pnpr registries import`](cli.md#registries):
+
+```sh
+pnpr -c ./pnpr.yaml registries import ./registries.yaml
+```
+
+Without this step, the first start stores the
+[default registries](configuration.md#registries-in-the-database).
 
 The Wrangler config declares the container, the Durable Object that owns it,
 and the public URL pnpr writes into tarball links:

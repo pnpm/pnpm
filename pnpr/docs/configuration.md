@@ -5,16 +5,24 @@ title: Configuration
 
 pnpr uses a YAML config. When you don't pass `-c`, pnpr looks for a global
 `config.yaml` in its config directory and otherwise falls back to a minimal
-production default (which proxies public npmjs packages and serves locally
-hosted packages).
+production default.
 
-A minimal config that hosts a private scope locally and routes everything else
-to the public npm registry:
+The config file holds the server settings. The registries pnpr serves live in
+the [metadata database](#registries-in-the-database). On its first start, pnpr
+stores a default set: the public npm registry and a hosted registry for
+private packages.
+
+A minimal config:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
 secret: ${PNPR_SECRET}
+```
 
+To host a private scope locally and route everything else to the public npm
+registry, describe the registries in a file of their own:
+
+```yaml title="registries.yaml"
 registries:
   local:
     type: hosted
@@ -35,12 +43,14 @@ registries:
 defaultRegistry: main
 ```
 
-Pass it with `-c`, and create the first account with
-[`pnpr add-user`](cli.md#add-user). Generate `PNPR_SECRET` once, store it
+Pass the config with `-c`, import the registries with
+[`pnpr registries import`](cli.md#registries), and create the first account
+with [`pnpr add-user`](cli.md#add-user). Generate `PNPR_SECRET` once, store it
 securely, and supply the same value on every restart:
 
 ```sh
 export PNPR_SECRET="$(openssl rand -hex 32)"
+pnpr -c ./pnpr.yaml registries import ./registries.yaml
 pnpr -c ./pnpr.yaml add-user alice
 pnpr -c ./pnpr.yaml
 ```
@@ -105,7 +115,8 @@ each of these.
 
 ## `registries` and `defaultRegistry`
 
-The `registries:` map declares every registry pnpr serves. Every addressable
+The `registries:` map of the [registries document](#registries-in-the-database)
+declares every registry pnpr serves. Every addressable
 registry origin is a named registry, exposed at `https://<pnpr>/~<name>/`. There
 are three kinds:
 
@@ -129,10 +140,6 @@ resolves through it. Each registry checks only its own claims, so a request
 addressed to an upstream's own `/~<name>/` URL gets any name that upstream
 claims, including a name in a scope a hosted registry claims. Point clients at
 a router, not at an upstream.
-
-The registries live in this file by default. To change them at runtime instead,
-keep them in the metadata database. See
-[Registries in the database](#registries-in-the-database).
 
 `defaultRegistry` names the registry that an ecosystem's base URL, such as
 `https://<pnpr>/npm/`, aliases. This is usually a router. When omitted, the base serves
@@ -173,14 +180,14 @@ statically:
 | `@scope/*` | Every package in one scope. |
 | `foo`, `@scope/foo` | Exactly that package. |
 
-Any other wildcard is a config error rather than a silently-never-matching
+Any other wildcard is refused rather than kept as a silently-never-matching
 literal.
 
 The **most specific matching key wins**: an exact name beats `@scope/*`, which
 beats `@*/*`, which beats `**`. Key order carries no meaning. At most one key
 per specificity tier can match a name, so the winning rule is unique and
 reordering the map (by a formatter, or a YAML round-trip) can never change
-which rule applies. A duplicate key is a config error.
+which rule applies. A duplicate key is refused.
 
 Each value can set `access`, `publish`, and `unpublish`. When a field is
 omitted, `access` falls back to the registry-level `access:` default,
@@ -200,7 +207,7 @@ them, and the grammar is deliberately small:
 | `team:<id>` | The members of a [team](#teams) declared on this registry. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
-Tokens are validated at config load:
+Tokens are validated when the registries are stored:
 
 - `$` is reserved for the built-ins above. Any other `$token` is an error.
 - `all`, `authenticated`, `anonymous`, and `@`-prefixed spellings like `@all`
@@ -208,7 +215,7 @@ Tokens are validated at config load:
 - `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
   (IDs cannot contain `:`.)
 - `team:<id>` must resolve to a team the **same registry** declares. An
-  undeclared team ID is a config error, so a typo can't silently grant to nobody.
+  undeclared team ID is refused, so a typo can't silently grant to nobody.
 - One entry is one token: an entry containing whitespace is an error, so write
   `[<account-id-1>, <account-id-2>]` rather than `<account-id-1> <account-id-2>`.
 - The empty string is an error. To admit nobody, write `[]`; to take the
@@ -216,7 +223,7 @@ Tokens are validated at config load:
 
 ### Hosted registries
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   private:
     type: hosted
@@ -240,7 +247,7 @@ registries:
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
 Two hosted registries of the same ecosystem cannot share a `namespace`.
-That's rejected at config load. Hosted registries of different ecosystems can
+pnpr refuses to store them. Hosted registries of different ecosystems can
 share a `namespace` because each ecosystem uses its own `<ecosystem>/` directory
 inside the namespace.
 
@@ -258,7 +265,7 @@ cache namespace. It is either `public` (fetched anonymously, no credential)
 or private (carries a server-owned credential and an `access:` policy naming
 who may use it):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   npmjs:
     type: upstream
@@ -279,9 +286,9 @@ registries:
 | Key | Description |
 | --- | --- |
 | `url` | Upstream registry URL. |
-| `public` | Marks an anonymous, world-readable origin (e.g. the public npm registry). A public upstream sends no credential and no custom headers; declaring `auth`, `access`, or `headers` alongside `public: true` is a config error. |
-| `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token`, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. |
-| `headers` | Extra request headers to send upstream. If `headers.Authorization` is set, it overrides the `auth`-derived header. |
+| `public` | Marks an anonymous, world-readable origin (e.g. the public npm registry). A public upstream sends no credential and no custom headers; declaring `auth`, `access`, or `headers` alongside `public: true` is refused. |
+| `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token` as a `${NAME}` reference, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. See [Upstream credentials](#upstream-credentials). |
+| `headers` | Extra request headers to send upstream, each value a `${NAME}` reference. If `headers.Authorization` is set, it overrides the `auth`-derived header. |
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
@@ -335,7 +342,7 @@ resolves to the **first listed source whose `packages:` keys claim its name**,
 authoritatively. Later sources are never consulted, and a name that no source
 claims is a definitive 404:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   main:
     type: router
@@ -349,7 +356,7 @@ concrete registry, and are enforced there on every path.
 
 Because source order is load-bearing (a misordered router is the one way a
 mistake could send a private scope to a public origin), pnpr **refuses to
-start** on an invalid router:
+store** an invalid router:
 
 - a source that is unreachable: everything it claims is already covered by
   earlier sources (including a catch-all that isn't last);
@@ -368,7 +375,7 @@ A registry with `tarballs: tar` serves each version as an uncompressed tar, the 
 
 To offer tars next to `.tgz` files, add a router over the same sources:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   local:
     type: hosted
@@ -394,7 +401,7 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
 
 - Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
 - For an upstream package without fresh cached metadata, pnpr reads the version's metadata from `<upstream>/<name>/<version>`. If the upstream does not serve it, pnpr reads the package's full metadata.
-- A hosted registry that declares `tarballs: tar` keeps no `.tgz`. At publish, pnpr compresses the tar at level 19 and stores only that. A `zstd` client gets the stored bytes, and any other client gets the tar decoded, compressed as the request accepts. pnpr refuses to start when a router without `tarballs: tar` lists such a registry as a source, because the router would have no `.tgz` to serve. npm signatures and provenance sign the `.tgz`, so these packages have neither.
+- A hosted registry that declares `tarballs: tar` keeps no `.tgz`. At publish, pnpr compresses the tar at level 19 and stores only that. A `zstd` client gets the stored bytes, and any other client gets the tar decoded, compressed as the request accepts. pnpr refuses to store a router without `tarballs: tar` that lists such a registry as a source, because the router would have no `.tgz` to serve. npm signatures and provenance sign the `.tgz`, so these packages have neither.
 - For every other registry, pnpr keeps the published `.tgz` and derives the tar from it:
   - A `gzip` client gets the `.tgz` itself, which is the gzip encoding of its tar.
   - A `zstd` client gets a level-19 encoding once pnpr has stored one. Until then pnpr compresses the tar at level 3 as it streams, and a background worker stores the level-19 encoding. Tars larger than 256 MiB stay at level 3. The level-19 encodings live in the cache, so they can be evicted and are made again.
@@ -412,7 +419,7 @@ A team has a stable ID, a mutable name, and a list of account IDs. It is declare
 referenced from that registry's access lists as `team:<id>`, in the
 registry-level `access:` default and the per-package `packages:` rules alike:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   corp:
     type: upstream
@@ -433,7 +440,7 @@ Teams are **registry-scoped**: a registry can only reference teams it declares
 itself, never another registry's. To share one roster between registries, use a
 YAML anchor:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   private:
     type: hosted
@@ -449,7 +456,7 @@ registries:
 ```
 
 A team's members are account IDs. A team cannot contain another team. An
-entry with a `:` in it is a config error.
+entry with a `:` in it is refused.
 
 The keys under `teams:` are stable team IDs. Keep a key when changing its `name`.
 Use a new key for a replacement team. Access lists and OIDC group grants refer
@@ -457,10 +464,8 @@ to that key. A bare access token refers to an account ID.
 
 ### Managing teams through the API {#managing-teams-through-the-api}
 
-With [`registriesManagedBy: api`](#registries-in-the-database), the
-[`auth.admins`](#auth) and `auth.registryAdmins` can edit the teams of a hosted
-npm registry with `pnpm team`. In the default mode, the `teams:` map is the
-roster, and npm's team endpoints serve it read-only and refuse every change.
+The [`auth.admins`](#auth) and `auth.registryAdmins` can edit the teams of a
+hosted npm registry with `pnpm team`.
 
 - A change applies at once on the replica that took it. Other replicas follow
   the [replica reload timing](#replica-reloads).
@@ -474,9 +479,8 @@ See [Team endpoints](endpoints.md#team-endpoints).
 
 ### Changing rules through the API {#changing-rules-through-the-api}
 
-With [`registriesManagedBy: api`](#registries-in-the-database), the
-[`auth.admins`](#auth) and `auth.registryAdmins` can change the rules of a
-hosted registry without a config deploy:
+The [`auth.admins`](#auth) and `auth.registryAdmins` can change the rules of a
+hosted registry through the API:
 
 - An admin can replace the registry-level `access:` and the `access`,
   `publish`, and `unpublish` lists of every key the `packages:` map declares.
@@ -497,29 +501,25 @@ See [Admin endpoints](endpoints.md#admin-endpoints) and
 
 ## Registries in the database {#registries-in-the-database}
 
-Set `registriesManagedBy: api` to keep the registries in the
-[metadata database](storage.md#sqlite-metadata) instead of this file. Admins
-then add, change, and remove registries through the
-[registry admin endpoints](endpoints.md#registry-admin-endpoints), and every
-replica serves the same registries without a config deploy.
+pnpr keeps the registries in the
+[metadata database](storage.md#sqlite-metadata). Every replica serves the same
+registries, and admins change them through the
+[registry admin endpoints](endpoints.md#registry-admin-endpoints) without a
+config deploy. The stored registries are a registries document: the
+`registries`, `defaultRegistry`, and `routes.public` keys this page describes,
+in a file of their own.
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
 secret: ${PNPR_SECRET}
-registriesManagedBy: api
 registryEnv: [CORP_NPM_TOKEN, CORP_API_KEY]
 auth:
   admins: [<account-id>]
   registryAdmins: [<account-id>]
 ```
 
-To move existing registries into the database, copy the `registries`,
-`defaultRegistry`, and `routes.public` blocks from the config into a file of
-their own, remove them from the config, and import the file with
-[`pnpr registries import`](cli.md#registries). `pnpr registries export`
-writes the stored registries back out in the same shape.
-
-The setting decides where each part of the configuration lives:
+The config file holds the server settings, and the database holds the
+registries:
 
 | In the database | In the config file |
 | --- | --- |
@@ -528,11 +528,44 @@ The setting decides where each part of the configuration lives:
 | `routes.public` | `routes.allowedPrivateNetworks` |
 | | `registryEnv`, and every other setting on this page |
 
-With `registriesManagedBy: api`, the config file must not declare
-`registries`, `defaultRegistry`, or `routes.public`, and an
-[`artifacts.owners`](#registry-resolver-and-artifact-surfaces) list must not
-name a `team:`. pnpr refuses to start otherwise. The registry surface is
-served even while no registry is stored.
+A config file that declares `registries`, `defaultRegistry`, or
+`routes.public` is refused at startup, and so is an
+[`artifacts.owners`](#registry-resolver-and-artifact-surfaces) list that names
+a `team:`. To move registries out of a config file, copy those blocks into a
+file of their own, remove them from the config, and import the file with
+[`pnpr registries import`](cli.md#registries). `pnpr registries export`
+writes the stored registries back out in the same shape.
+
+On its first start against an empty database, pnpr stores a default set of
+registries:
+
+- `npmjs`, the public npm registry, which is also the `defaultRegistry`;
+- `local`, a hosted registry whose packages only signed-in users may read.
+
+pnpr stores the defaults once, as the first revision. When several replicas
+start at the same time, one of them stores the defaults and the others load
+them. Later changes and imports replace them like any other revision.
+
+The registry surface is served even while no registry is stored. A server
+started with `--disable-registry`, which serves only the resolver, also reads
+the stored registries, so it needs the database too.
+
+### Reviewed changes
+
+To change the registries only through a reviewed file, keep the registries
+document in version control and leave `auth.registryAdmins` empty, so nobody
+can change the registries through the API. After a change is reviewed, CI
+imports the file:
+
+```sh
+pnpr -c ./pnpr.yaml registries import ./registries.yaml
+```
+
+`pnpr registries import --check` compares the file with the stored registries
+without changing them. It lists what differs and exits with a nonzero code when
+they differ, so a scheduled CI job can detect a change made outside the
+reviewed file. The `auth.admins` can still edit teams and package access
+lists, and `--check` reports those edits too.
 
 ### Who may change the registries
 
@@ -549,9 +582,9 @@ Each change is stored as a new revision and logged under
 
 ### Upstream credentials
 
-The database stores no credential values. A stored upstream names the
-environment variables that hold its credential, and each replica reads them
-when it loads the registries:
+The database stores no credential values. An upstream names the environment
+variables that hold its credential, and each replica reads them when it loads
+the registries:
 
 ```yaml title="registries.yaml"
 registries:
@@ -581,8 +614,8 @@ registries:
 
 ### Upstream addresses
 
-An upstream stored in the database cannot reach loopback, private, or
-link-local addresses, the same rule the resolver follows. A `url` that names
+An upstream cannot reach loopback, private, or link-local addresses, the same
+rule the resolver follows. A `url` that names
 one, or `localhost`, is refused, and a hostname that resolves to one is not
 connected to. To use an upstream on an internal network, list its addresses in
 [`routes.allowedPrivateNetworks`](#routes). An upstream on pnpr's own
@@ -592,8 +625,8 @@ upstream written as that address is checked by the rules above.
 
 ### Changes pnpr refuses
 
-A change is refused with `400` when the result would not load as a config
-file. pnpr also refuses with `409` to:
+A change is refused with `400` when the registries it would store do not load.
+pnpr also refuses with `409` to:
 
 - remove or rename a hosted registry that holds packages, or move it to
   another `namespace` or `ecosystem`;
@@ -613,8 +646,7 @@ namespace again lifts the refusal.
 
 ## Replica reloads {#replica-reloads}
 
-The registries stored with
-[`registriesManagedBy: api`](#registries-in-the-database) and the
+The [stored registries](#registries-in-the-database) and the
 [SCIM directory](scim.md) reload when a request arrives after the replica's
 state is 10 seconds old. That request starts a background reload and can still
 use the existing state, so a change can take effect later than 10 seconds after
@@ -897,8 +929,7 @@ may:
 - create and remove accounts, change passwords, and revoke tokens through the
   [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
   is disabled;
-- with [`registriesManagedBy: api`](#registries-in-the-database), edit
-  [teams](#managing-teams-through-the-api) and change
+- edit [teams](#managing-teams-through-the-api) and change
   [package access lists](#changing-rules-through-the-api).
 
 Create the first admin with [`pnpr add-user`](cli.md#add-user), then copy the
@@ -911,9 +942,9 @@ auth:
   admins: [<account-id>]
 ```
 
-`auth.registryAdmins` lists the account IDs that may change the registries
-stored with [`registriesManagedBy: api`](#registries-in-the-database): add,
-replace, and remove registries, and restore earlier revisions. A registry
+`auth.registryAdmins` lists the account IDs that may change the
+[stored registries](#registries-in-the-database): add, replace, and remove
+registries, and restore earlier revisions. A registry
 admin may also edit teams and change package access lists, but does not
 manage accounts unless `auth.admins` lists them too.
 
@@ -959,10 +990,9 @@ pnpr exposes four independently deployable HTTP surfaces:
 
 - The **registry surface**: package and tarball reads, publish,
   unpublish, dist-tags, and search, on each ecosystem's base and on every
-  `/~<name>/` endpoint under it, for [every ecosystem](ecosystems.md) the config
-  declares. It has no config toggle: it is served exactly when at
-  least one registry is declared under `registries:`. The CLI flag
-  `--disable-registry` turns it off for one process.
+  `/~<name>/` endpoint under it, for [every ecosystem](ecosystems.md). It has
+  no config toggle. The CLI flag `--disable-registry` turns it off for one
+  process.
 - The **resolver surface**: the pnpr install-accelerator routes
   (`GET /-/pnpr`, `POST /-/pnpr/v0/resolve`, and
   `POST /-/pnpr/v0/verify-lockfile`). It is enabled by default; the CLI flag
@@ -1002,11 +1032,8 @@ artifacts:
   - its [pipeline run records](pipeline-runs.md).
 
   `access` and `publish` list pnpr account IDs, or `$authenticated` for every
-  signed-in account. Use `team:<registry>:<teamId>` for a hosted registry's team,
-  for example `team:local:builders`. The registry key and team ID must exist
-  in the config. With
-  [`registriesManagedBy: api`](#registries-in-the-database), `owners` cannot
-  name a team. These rules follow OIDC session grants for that registry.
+  signed-in account. `owners` cannot name a team, because teams belong to the
+  [stored registries](#registries-in-the-database).
   Publishing also requires `access`. An empty list denies everyone. An owner nobody may read is invisible: requests for it answer
   as if it did not exist. An undeclared owner is unavailable.
   See [Access evaluation](access.md) for how these rules combine with authentication.
@@ -1037,9 +1064,9 @@ pipeline:
 
   Who may read and submit runs is decided by [`artifacts.owners`](#registry-resolver-and-artifact-surfaces).
 
-Something must be served: a config with no registries (or the registry
-surface disabled by flag), the resolver disabled, artifacts disabled, and the
-pipeline surface disabled is a startup error.
+Something must be served: a server with the registry surface disabled by flag,
+the resolver disabled, artifacts disabled, and the pipeline surface disabled
+is a startup error.
 
 The health endpoint (`/-/ping`) and the account endpoints (login, whoami, and
 token management) are always served, whichever surfaces are enabled, so
@@ -1054,7 +1081,7 @@ official npm registry and `npm.jsr.io` as public out of the box. If clients reso
 other registries that serve anonymously-readable content, declare them as
 public routes so their resolutions can be cached and shared across all callers:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 routes:
   public:
     - registry: https://registry.mirror.example.com/
@@ -1062,24 +1089,20 @@ routes:
       package: '@oss/*'
 ```
 
+`routes.public` belongs to the
+[registries document](#registries-in-the-database), not to the config file.
 Each rule may name a `registry` origin, a `package` glob, or both. An
-unparsable `registry` URL or `package` glob is a startup error.
+unparsable `registry` URL or `package` glob is refused.
 
 The same public routes are the download allowlist of the Cargo and Python
 proxies (see [Ecosystems](ecosystems.md)).
 
-With [`registriesManagedBy: api`](#registries-in-the-database), `routes.public`
-is stored with the registries instead of in this file.
-
 The resolver refuses to connect to loopback, private, and link-local
-addresses, other than the `--public-url` host. With
-[`registriesManagedBy: api`](#registries-in-the-database), only the
-`--public-url` origin is exempt, so another port of that host is refused,
-even when the host is a public IP. A
-stored `routes.public` registry that the resolver would refuse is refused when
-it is written. To resolve through an upstream
-on an internal network, list its addresses in `allowedPrivateNetworks`, as IPs
-or CIDR blocks:
+addresses, other than the `--public-url` origin. Another port of that host is
+refused, even when the host is a public IP. A `routes.public` registry that the
+resolver would refuse is refused when it is stored. To resolve through an upstream
+on an internal network, list its addresses in `allowedPrivateNetworks`, which
+stays in the config file, as IPs or CIDR blocks:
 
 ```yaml title="pnpr.yaml"
 routes:
@@ -1159,6 +1182,7 @@ Events about another account name it with `user` and `user_id`. The operation-sp
   - `registries.delete`: removing one registry (`actor`, `registry`, `version`, `previous_version`).
   - `registries.restore`: restoring an earlier revision (`actor`, `restored`, `version`, `previous_version`).
   - `registries.import`: storing registries with `pnpr registries import` (`actor`, `version`, `previous_version`). The actor is `-`.
+  - `registries.seed`: storing the default registries on the first start against an empty database (`actor`, `version`). The actor is `-`.
   - `rules.replace`: replacing a registry's package access lists (`actor`, `registry`, `ecosystem`, `version`).
 - **Team administration and package access**:
   - `team.create`: creating a team (`actor`, `scope`, `team`).
@@ -1244,11 +1268,9 @@ An unset variable in a field that holds a credential fails startup, so pnpr
 never runs with an empty credential. These fields are `secret`, `secret.cache`,
 `secret.oci`, `database.url`, `database.authToken`, `s3.secretAccessKey`,
 `auth.scim.token`, OIDC `clientSecret`, `metrics.token`,
-`cloudflareCdn.apiToken`, the `releaseRecords` signing keys, and an upstream
-registry's `auth.token` and `headers` values.
+`cloudflareCdn.apiToken`, and the `releaseRecords` signing keys.
 
-The registries stored with
-[`registriesManagedBy: api`](#registries-in-the-database) are not part of the
+The [stored registries](#registries-in-the-database) are not part of the
 file. They take `${ENV_VAR}` references only in upstream credentials. See
 [Upstream credentials](#upstream-credentials).
 

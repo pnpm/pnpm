@@ -42,9 +42,10 @@ sends it as written.
 Give a hosted or upstream registry an `ecosystem:`; npm is the default. A router
 may list sources of every ecosystem, because a request only ever sees the
 sources that speak its own protocol, so one router can be the default target for
-all of them.
+all of them. Store the registries with
+[`pnpr registries import`](cli.md#registries):
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 registries:
   local:
     type: hosted
@@ -88,14 +89,14 @@ root.
 
 ### Defaults for each ecosystem
 
-Registry names are unique across the configuration. Declare every registry
+Registry names are unique across the stored registries. Declare every registry
 directly under `registries:` and select its protocol with `ecosystem:`.
 Nesting registries under ecosystem keys is rejected.
 
 `defaultRegistry` can name a shared router, as above, or select a target for
 each ecosystem:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 defaultRegistry:
   npm: local
   cargo: crates
@@ -239,7 +240,7 @@ allowlist. The official crates.io and PyPI upstreams also permit their download
 hosts, `static.crates.io` and `files.pythonhosted.org`. A custom registry that
 serves downloads from a separate host needs that host declared:
 
-```yaml title="pnpr.yaml"
+```yaml title="registries.yaml"
 routes:
   public:
     - registry: https://downloads.example.com/

@@ -8,8 +8,7 @@ plus four surfaces:
 
 - **Registry surface** - npm-compatible package, publish, staged-publish, and
   team endpoints, plus the [Cargo, Python, and image](ecosystems.md) protocols.
-  Served exactly when at least one registry is declared under
-  [`registries:`](configuration.md#registries-and-defaultregistry);
+  Served for the [stored registries](configuration.md#registries-and-defaultregistry);
   `--disable-registry` turns it off for one process. On a resolver-only server
   these routes aren't mounted at all. They answer `404`, not `403`.
 - **Resolver surface** (`resolver.enabled`) - pnpr install-accelerator
@@ -43,7 +42,7 @@ produce an "Authentication required" explanation.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/-/ping` | Lightweight reachability check (`npm ping` / `pnpm ping`). Returns `{}`. |
-| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks that the server is not shutting down and that storage and auth backends are reachable, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure (`{"status": "shutting_down"}` during graceful shutdown). With `registriesManagedBy: api`, the response adds `"registries": "ok"`, and the probe fails while the replica [cannot serve the stored registries](configuration.md#replica-reloads). |
+| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks that the server is not shutting down and that storage and auth backends are reachable, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure (`{"status": "shutting_down"}` during graceful shutdown). The response also carries `"registries": "ok"`, and the probe fails while the replica [cannot serve the stored registries](configuration.md#replica-reloads). |
 | `GET` | `/-/live` | Container / Kubernetes liveness probe. Returns `{"status": "ok"}` when the server process is alive and handling requests. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
 | `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |
@@ -70,7 +69,7 @@ and `favicon.ico` are reserved. Existing upstream names retain their legacy
 read behavior.
 
 The npm base (`/npm/`) aliases the registry named by `defaultRegistry`. With
-no `defaultRegistry` configured, it serves no registry and only the
+no `defaultRegistry` stored, it serves no registry and only the
 `/npm/~<name>/` bases answer.
 
 Every request routes through the registry graph:
@@ -758,12 +757,9 @@ consumes. Teams are [registry-scoped](configuration.md#teams).
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
 
-Changes are accepted only with
-[`registriesManagedBy: api`](configuration.md#managing-teams-through-the-api),
-and only on npm hosted registries:
+Changes are accepted only on npm hosted registries, and
+[change the stored registries](configuration.md#managing-teams-through-the-api):
 
-- Otherwise a change returns `403` with the error code
-  `ERR_PNPR_TEAMS_CONFIG_MANAGED`.
 - The caller must be one of the `auth.admins` or `auth.registryAdmins`.
   Others get `401` when anonymous and `403` when signed in.
 - Creating a team that exists, or destroying one a `packages:` rule names,
@@ -778,9 +774,9 @@ that declares no teams returns an empty array.
 ### Team package access
 
 `npm access grant`, `npm access revoke`, and `npm access list packages
-<scope:team>` read the `packages:` rules of a hosted registry, and with
-[`registriesManagedBy: api`](configuration.md#changing-rules-through-the-api)
-edit them.
+<scope:team>` read and
+[edit](configuration.md#changing-rules-through-the-api) the `packages:` rules
+of a hosted registry.
 
 The `{team}` path segment is a team name. The stored `team:<id>` token uses
 the immutable team ID returned by the team endpoints.
@@ -798,8 +794,6 @@ the immutable team ID returned by the team endpoints.
   `PUT` to the [rules admin API](#admin-endpoints) does.
 - The caller must be one of the `auth.admins` or `auth.registryAdmins`, and
   the team must exist.
-- Without `registriesManagedBy: api` a change returns `403` with
-  `ERR_PNPR_RULES_CONFIG_MANAGED`.
 
 ## User and token endpoints
 
@@ -841,8 +835,8 @@ get `401` when anonymous and `403` when signed in.
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}` | Delete the account and revoke its credentials. The login name becomes available; a replacement account receives a fresh ID. Returns `204`. |
 | `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{id}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
-| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `registriesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the [revision](#registry-admin-endpoints) of the stored registries. |
-| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the lists the body names, and return the rules that result. Only with [`registriesManagedBy: api`](configuration.md#changing-rules-through-the-api); otherwise `403` with `ERR_PNPR_RULES_CONFIG_MANAGED`. |
+| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `version` (also the `ETag`) names the [revision](#registry-admin-endpoints) of the stored registries. |
+| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the lists the body names, and return the rules that result. See [Changing rules through the API](configuration.md#changing-rules-through-the-api). |
 
 To keep two admins from overwriting each other's changes, send the `version`
 you read as `If-Match` with a `PUT`. If the stored registries have moved on
@@ -875,10 +869,10 @@ before it.
 
 ### Registry admin endpoints {#registry-admin-endpoints}
 
-With [`registriesManagedBy: api`](configuration.md#registries-in-the-database),
-these endpoints read and change the stored registries. A body or response is
-a registries document: the `registries`, `defaultRegistry`, and
-`routes.public` blocks of a config file, as JSON. A `{name}` is a key of
+These endpoints read and change the
+[stored registries](configuration.md#registries-in-the-database). A body or
+response is a registries document, with the `registries`, `defaultRegistry`,
+and `routes.public` keys, as JSON. A `{name}` is a key of
 `registries`.
 
 | Method | Path | Description |
@@ -906,8 +900,6 @@ a registries document: the `registries`, `defaultRegistry`, and
   nothing, and the error names the reason.
 - Replacing the whole document and restoring a version work while the stored
   document cannot be loaded, so they repair it.
-- Without `registriesManagedBy: api`, every endpoint returns `403` with
-  `ERR_PNPR_REGISTRIES_CONFIG_MANAGED`.
 
 With the default account file store, each replica keeps its own accounts, so an
 account change reaches only the replica that served it. Use a
@@ -919,7 +911,7 @@ account change reaches only the replica that served it. Use a
 endpoints return JSON with `error`, `reason`, and `code` fields.
 `error` and `reason` contain the same message.
 `code` identifies the error as `ERR_PNPR_<KIND>`, for example
-`ERR_PNPR_NOT_FOUND` or `ERR_PNPR_TEAMS_CONFIG_MANAGED`.
+`ERR_PNPR_NOT_FOUND` or `ERR_PNPR_REGISTRIES_UNAVAILABLE`.
 HTTP status codes and `Retry-After` headers still describe retry behavior.
 
 Resolution streams report failures in a terminal `type: "error"` frame with
