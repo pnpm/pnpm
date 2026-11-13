@@ -403,18 +403,19 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
+    let versions_overrider = settings::freshness_overrider(inputs, parsed_overrides_opt.as_deref());
     let nested_packages = directory_manifests::nested_directory_packages(lockfile, inputs);
     let nested = directory_manifests::checked_nested(&nested_packages, inputs);
     let directory_manifests = directory_manifests::hooked_directory_manifests(
         lockfile,
         inputs,
-        (parsed_overrides_opt.as_deref(), &nested),
+        (versions_overrider.as_ref(), &nested),
     )
     .await?;
     check_importer_freshness(
         lockfile,
         inputs,
-        (parsed_overrides_opt.as_deref(), &directory_manifests),
+        (versions_overrider.as_deref(), &directory_manifests),
         &nested,
     )
 }
@@ -423,10 +424,7 @@ pub(super) async fn check_lockfile_freshness(
 fn check_importer_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    (parsed_overrides, directory_manifests): (
-        Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-        &DirectoryManifests,
-    ),
+    (overrider, directory_manifests): (Option<&crate::VersionsOverrider>, &DirectoryManifests),
     nested: &directory_deps::NestedByImporter<'_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
@@ -459,7 +457,7 @@ fn check_importer_freshness(
             check_single_importer(
                 lockfile,
                 inputs,
-                parsed_overrides,
+                overrider,
                 (&ignored_optional_matcher, workspace),
                 (importer_id, manifest),
                 nested.of(importer_id),
@@ -476,7 +474,7 @@ fn check_importer_freshness(
 fn check_single_importer(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    overrider: Option<&crate::VersionsOverrider>,
     (ignored_optional_matcher, workspace): (&pnpm_matcher::Matcher, WorkspaceProjects<'_>),
     (importer_id, manifest): (&str, &PackageManifest),
     nested: &[&NestedDirectoryPackage],
@@ -498,7 +496,7 @@ fn check_single_importer(
             ignored: ignored_optional_matcher,
             frozen_lockfile: inputs.scope.frozen_lockfile,
         },
-        parsed_overrides,
+        overrider,
     };
     let skipped = check_importer_satisfies(&check)?;
     for package in nested {

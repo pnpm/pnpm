@@ -11,6 +11,7 @@ import { partition } from 'ramda'
 import semver from 'semver'
 
 import { isIntersectingRange } from './isIntersectingRange.js'
+import { type ParsedSelectorRange, parseSelectorRange, selectorRangeCovers } from './isSubRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 
@@ -163,6 +164,8 @@ function splitOverrides (overrides: VersionOverrideWithoutRawSelector[], rootDir
     explicitOverrides.map((override) => ({
       ...override,
       localTarget: createLocalTarget(override, rootDir),
+      parentRange: parseSelectorRange(override.parentPkg?.bareSpecifier),
+      targetRange: parseSelectorRange(override.targetPkg.bareSpecifier),
     }))
   ) as [VersionOverrideWithParent[], VersionOverride[]]
   return {
@@ -208,6 +211,8 @@ function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir
 
 interface VersionOverride extends VersionOverrideBase {
   localTarget?: LocalTarget
+  parentRange: ParsedSelectorRange
+  targetRange: ParsedSelectorRange
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
@@ -444,5 +449,17 @@ function renderBarePath (path: string): string {
 }
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
-  return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.bareSpecifier ?? '', a.targetPkg.bareSpecifier ?? '') ? -1 : 1)[0]
+  if (versionOverrides.length <= 1) return versionOverrides[0]
+  return versionOverrides.find((candidate) =>
+    !versionOverrides.some((other) => other !== candidate && isStrictlyNarrowerOverride(other, candidate))
+  )
+}
+
+function isStrictlyNarrowerOverride (lhs: VersionOverride, rhs: VersionOverride): boolean {
+  return selectorCovers(rhs, lhs) && !selectorCovers(lhs, rhs)
+}
+
+function selectorCovers (broad: VersionOverride, narrow: VersionOverride): boolean {
+  return selectorRangeCovers(broad.parentRange, narrow.parentRange) &&
+    selectorRangeCovers(broad.targetRange, narrow.targetRange)
 }
