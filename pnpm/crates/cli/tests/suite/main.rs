@@ -82,6 +82,7 @@ mod hoisted_node_linker;
 mod hooks;
 mod ignore_workspace;
 mod import;
+mod import_aliases_and_metadata;
 mod import_yarn_patches;
 mod init;
 mod inject_workspace_packages;
