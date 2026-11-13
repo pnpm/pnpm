@@ -7,7 +7,6 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { localSpecPath } from '@pnpm/resolving.local-resolver'
 import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
@@ -101,7 +100,7 @@ function toLockfileDependency (
   if (shouldRecordVersion(pkg.version, { depPath: opts.depPath, registryName: opts.registryName, lockfileResolution })) {
     result['version'] = pkg.version
   }
-  addChildDependencies(result, opts, pkg)
+  addChildDependencies(result, opts)
   if (pkg.optional) {
     result['optional'] = true
   }
@@ -126,28 +125,21 @@ function toLockfileDependency (
 function addChildDependencies (
   result: PackageSnapshot,
   opts: {
-    depPath: string
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
     lockfileDir?: string
-  },
-  pkg: ResolvedPackage
+  }
 ): void {
-  const isInjectedWorkspacePackage = pkg.resolvedVia === 'workspace' && opts.depPath.includes('@file:')
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph,
-    opts.lockfileDir,
-    pkg.resolution,
-    isInjectedWorkspacePackage
+    opts.lockfileDir
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.updatedOptionalDeps,
     opts.depGraph,
-    opts.lockfileDir,
-    pkg.resolution,
-    isInjectedWorkspacePackage
+    opts.lockfileDir
   )
   if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
@@ -280,19 +272,15 @@ function getDeprecationToRecord (
 function updateResolvedDeps (
   updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph,
-  lockfileDir: string | undefined,
-  parentResolution: ResolvedPackage['resolution'],
-  isInjectedWorkspacePackage: boolean
+  lockfileDir: string | undefined
 ): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          if (isInjectedWorkspacePackage || lockfileDir == null || parentResolution.type !== 'directory') return [alias, depPath]
-          const linkSpec = depPath.slice(5)
-          if (!linkSpec.startsWith('../') && !linkSpec.startsWith('./')) return [alias, depPath]
-          const linkTarget = localSpecPath(linkSpec, parentResolution.directory)
-          return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, linkTarget) as string]
+          const depNode = depGraph[depPath]
+          if (lockfileDir == null || depNode?.resolution.type !== 'directory') return [alias, depPath]
+          return [alias, createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string]
         }
         const depNode = depGraph[depPath]
         return [
