@@ -322,9 +322,10 @@ fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
         &format!("{path_assignment}{};", legacy_path.to_string_lossy()),
         1,
     );
+    let migration_marker = gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1");
     assert_ne!(stale_shim, shim, "the fixture contains a shim path assignment");
     fs::write(&shim_path, &stale_shim).expect("write a legacy shim");
-    assert!(!gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1").exists());
+    assert_eq!(fs::read(&migration_marker).unwrap(), b"1");
 
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -332,6 +333,7 @@ fn frozen_store_install_skips_global_virtual_store_bin_shim_repair() {
         .success();
 
     assert_eq!(fs::read_to_string(&shim_path).expect("read dependency bin shim"), stale_shim);
+    assert_eq!(fs::read(&migration_marker).unwrap(), b"1");
     drop((root, mock_instance));
 }
 
