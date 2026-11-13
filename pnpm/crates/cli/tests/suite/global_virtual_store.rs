@@ -278,7 +278,8 @@ fn reused_global_virtual_store_bin_shims_are_repaired_once_per_store() {
         gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1").is_file(),
         "the global virtual store records the completed shim repair",
     );
-    assert_eq!(fs::read(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1")).unwrap(), b"1",);
+    let migration_marker = fs::read(gvs_root(&store_dir).join(".pnpm-gvs-bin-shims-v1")).unwrap();
+    assert_eq!(migration_marker, b"1");
     let output = pacquet(&workspace)
         .with_arg("install")
         .assert()
