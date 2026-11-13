@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.config",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Picks the setting that applies to a URL from settings keyed by registry URL",
   "keywords": [
     "pnpm",
