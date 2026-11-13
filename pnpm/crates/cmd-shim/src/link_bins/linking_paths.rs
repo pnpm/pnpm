@@ -153,10 +153,11 @@ pub(super) fn shim_node_path(
 ) -> Vec<String> {
     let delimiter = if cfg!(windows) { ';' } else { ':' };
     let project_node_path = project_node_path.filter(|entry| !entry.contains(delimiter));
-    if project_node_path.is_none()
-        && extra_node_paths.is_empty()
-        && own_node_paths == OwnNodePaths::WithExtras
-    {
+    let writes_node_path = match own_node_paths {
+        OwnNodePaths::WithExtras => project_node_path.is_some() || !extra_node_paths.is_empty(),
+        OwnNodePaths::Always => true,
+    };
+    if !writes_node_path {
         return Vec::new();
     }
     let own = if let Some(resolved) = &pkg.resolved_location {
