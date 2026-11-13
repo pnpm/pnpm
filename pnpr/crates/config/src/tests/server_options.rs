@@ -35,6 +35,20 @@ fn owner_policies_reject_ambiguous_or_incomplete_declarations() {
     }
 }
 
+/// An artifact owner is not a registry, so its name is not held to the
+/// registry name grammar.
+#[test]
+fn owner_names_may_break_the_registry_name_grammar() {
+    for owner in ["npm", "1st", "team+a"] {
+        let yaml = format!(
+            "artifacts:\n  enabled: true\n  owners:\n    {owner}: {{ access: ci, publish: ci }}\n",
+        );
+        let config = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None)
+            .unwrap_or_else(|err| panic!("rejected owner {owner}: {err}"));
+        assert!(config.features.artifacts.owners.contains_key(owner));
+    }
+}
+
 #[test]
 fn artifact_quota_is_configured_as_byte_sizes() {
     let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
