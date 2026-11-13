@@ -3087,6 +3087,7 @@ snapshots:
 				"@pnpm/cli.command": "workspace:*",
 				"@pnpm/cli.common-cli-options-help": "workspace:*",
 				"@pnpm/cli.utils": "workspace:*",
+				"@pnpm/config.parse-overrides": "workspace:*",
 				"@pnpm/config.reader": "workspace:*",
 				"@pnpm/config.version-policy": "workspace:*",
 				"@pnpm/core-loggers": "workspace:*",

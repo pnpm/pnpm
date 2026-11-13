@@ -234,29 +234,35 @@ fn create_cache_key_changes_with_package_extensions() {
     let empty = IndexMap::new();
     assert_eq!(base, key_with(&empty), "empty packageExtensions must leave the key unchanged");
 
-    let alpha_ext = PackageExtension {
+    let broad_ext = PackageExtension {
         dependencies: Some(BTreeMap::from([("dep-a".to_string(), "^1.0.0".to_string())])),
         ..PackageExtension::default()
     };
-    let beta_ext = PackageExtension {
-        peer_dependencies: Some(BTreeMap::from([("peer-b".to_string(), "^2.0.0".to_string())])),
+    let narrow_ext = PackageExtension {
+        dependencies: Some(BTreeMap::from([("dep-a".to_string(), "^2.0.0".to_string())])),
         ..PackageExtension::default()
     };
     let forward = IndexMap::from([
-        ("alpha".to_string(), alpha_ext.clone()),
-        ("beta".to_string(), beta_ext.clone()),
+        ("alpha".to_string(), broad_ext.clone()),
+        ("alpha@^1.0.0".to_string(), narrow_ext.clone()),
     ]);
-    let reversed =
-        IndexMap::from([("beta".to_string(), beta_ext), ("alpha".to_string(), alpha_ext)]);
+    let reversed = IndexMap::from([
+        ("alpha@^1.0.0".to_string(), narrow_ext),
+        ("alpha".to_string(), broad_ext),
+    ]);
     let different = IndexMap::from([(
         "alpha".to_string(),
         PackageExtension {
-            dependencies: Some(BTreeMap::from([("dep-a".to_string(), "^2.0.0".to_string())])),
+            dependencies: Some(BTreeMap::from([("dep-a".to_string(), "^3.0.0".to_string())])),
             ..PackageExtension::default()
         },
     )]);
     assert_ne!(base, key_with(&forward), "packageExtensions must change the cache key");
-    assert_eq!(key_with(&forward), key_with(&reversed), "reordered selectors hash identically");
+    assert_ne!(
+        key_with(&forward),
+        key_with(&reversed),
+        "extension selector order decides precedence on overlapping selectors and must change the key",
+    );
     assert_ne!(key_with(&forward), key_with(&different), "different extensions must differ");
 }
 

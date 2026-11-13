@@ -34,6 +34,9 @@
       "path": "../../cli/utils"
     },
     {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../config/reader"
     },
     {

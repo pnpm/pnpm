@@ -2,7 +2,6 @@ use crate::cli_args::add::AllowBuildSelector;
 use indexmap::IndexMap;
 use pnpm_config::{Config, PackageExtension, TrustPolicy};
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_package_is_installable::SupportedArchitectures;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -156,11 +155,15 @@ fn policy_key_inputs(policy: &CachePolicyInputs<'_>) -> Vec<Value> {
             .collect();
         items.push(json!({ "overrides": pairs }));
     }
-    if let Some(extensions) = policy.package_extensions.filter(|map| !map.is_empty())
-        && let Ok(value) = serde_json::to_value(extensions)
-        && let Some(checksum) = hash_object_nullable_with_prefix(&value)
-    {
-        items.push(json!({ "packageExtensions": checksum }));
+    if let Some(extensions) = policy.package_extensions.filter(|map| !map.is_empty()) {
+        // Entry order decides which extension wins a conflicting dependency,
+        // so the cache key preserves it while `PackageExtension`'s `BTreeMap`
+        // fields keep each extension's own maps canonical.
+        let pairs: Vec<(&str, &PackageExtension)> = extensions
+            .iter()
+            .map(|(selector, extension)| (selector.as_str(), extension))
+            .collect();
+        items.push(json!({ "packageExtensions": pairs }));
     }
     if let Some(release_age) = &policy.minimum_release_age {
         items.push(minimum_release_age_json(release_age));

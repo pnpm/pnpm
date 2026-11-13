@@ -81,18 +81,20 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   validateParams(opts, params)
   const targets = await getApprovalTargets(opts)
   const automaticallyIgnoredBuilds = sortUniqueStrings(targets.flatMap((target) => target.automaticallyIgnoredBuilds ?? []))
-  if (!automaticallyIgnoredBuilds.length && !params.length) {
+  const existingAllowBuilds = await readExistingAllowBuilds(opts)
+  const undecidedBuilds = automaticallyIgnoredBuilds.filter((name) => existingAllowBuilds?.[name] !== false)
+  if (!undecidedBuilds.length && !params.length) {
     globalInfo('There are no packages awaiting approval')
     return
   }
   const { approved, denied } = parseSelectors(params, automaticallyIgnoredBuilds)
-  const buildPackages = await chooseBuildPackages({ opts, params, approved, automaticallyIgnoredBuilds })
-  const allowBuilds: Record<string, boolean | string> = { ...await readExistingAllowBuilds(opts) }
+  const buildPackages = await chooseBuildPackages({ opts, params, approved, undecidedBuilds })
+  const allowBuilds: Record<string, boolean | string> = { ...existingAllowBuilds }
   if (params.length) {
     setAllowBuilds(allowBuilds, approved, true)
     setAllowBuilds(allowBuilds, denied, false)
   } else {
-    setAllowBuilds(allowBuilds, automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild)), false)
+    setAllowBuilds(allowBuilds, undecidedBuilds.filter((undecidedBuild) => !buildPackages.includes(undecidedBuild)), false)
     setAllowBuilds(allowBuilds, buildPackages, true)
   }
   if (!opts.all && !params.length && !await confirmBuildPackages(buildPackages)) {
@@ -160,18 +162,18 @@ interface ChooseBuildPackagesOptions {
   opts: ApproveBuildsCommandOpts
   params: string[]
   approved: string[]
-  automaticallyIgnoredBuilds: string[]
+  undecidedBuilds: string[]
 }
 
-async function chooseBuildPackages ({ opts, params, approved, automaticallyIgnoredBuilds }: ChooseBuildPackagesOptions): Promise<string[]> {
+async function chooseBuildPackages ({ opts, params, approved, undecidedBuilds }: ChooseBuildPackagesOptions): Promise<string[]> {
   if (params.length) {
     return sortUniqueStrings([...approved])
   }
   if (opts.all) {
-    return sortUniqueStrings([...automaticallyIgnoredBuilds])
+    return sortUniqueStrings([...undecidedBuilds])
   }
   return exitOnPromptCancel(() => checkbox({
-    choices: sortUniqueStrings([...automaticallyIgnoredBuilds]).map((name) => ({
+    choices: sortUniqueStrings([...undecidedBuilds]).map((name) => ({
       name,
       value: name,
     })),

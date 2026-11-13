@@ -609,11 +609,12 @@ test('dlx --allow-build=!pkg denies build scripts and rejects empty negated sele
       ...DEFAULT_OPTS,
       enableGlobalVirtualStore: false,
       allowBuild: ['!demo-pkg'],
+      argv: { original: ['dlx', '--allow-build', '!demo-pkg', demoPkgDir, '--allow-build'] },
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
       cacheDir: path.resolve('cache'),
       dlxCacheMaxAge: Infinity,
-    }, [demoPkgDir], { 'approve-builds': approveBuilds.handler })
+    }, [demoPkgDir, '--allow-build'], { 'approve-builds': approveBuilds.handler })
 
     expect(fs.existsSync('bin-ran')).toBe(true)
     expect(fs.existsSync(marker)).toBe(false)

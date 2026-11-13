@@ -1,12 +1,11 @@
 import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
 
-import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { engineName } from '@pnpm/engine.runtime.system-version'
-import { isError, PnpmError } from '@pnpm/error'
+import { isError } from '@pnpm/error'
 import { add } from '@pnpm/installing.commands'
-import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { PackageExtension, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
@@ -112,7 +111,14 @@ function appendPolicyCacheKeyInputs (args: unknown[], opts: DlxCacheKeyOptions):
     args.push({ overrides: overrideEntries })
   }
   if (opts.packageExtensions && Object.keys(opts.packageExtensions).length > 0) {
-    args.push({ packageExtensions: canonicalizeJsonValue(opts.packageExtensions) })
+    // Selector order decides which extension wins a conflicting dependency,
+    // so keep the outer order while canonicalizing each extension's content.
+    args.push({
+      packageExtensions: Object.entries(opts.packageExtensions).map(([selector, extension]) => [
+        selector,
+        canonicalizeJsonValue(extension),
+      ]),
+    })
   }
   const minimumReleaseAge = buildMinimumReleaseAgeInput(opts)
   if (minimumReleaseAge != null) {
@@ -208,45 +214,15 @@ function getPrepareDir (cachePath: string): string {
   return path.join(cachePath, name)
 }
 
-const OVERRIDE_PARENT_DELIMITER = /[^ |@]>/
-
 export function resolveDlxOverrides (
   overrides: Record<string, string> | undefined,
-  catalogs: Parameters<typeof resolveFromCatalog>[0] | undefined
+  catalogs: Parameters<typeof parseOverrides>[1]
 ): Record<string, string> | undefined {
   if (!overrides) return undefined
-  const entries = Object.entries(overrides)
-  if (!entries.some(([, spec]) => spec.startsWith('catalog:'))) {
+  if (!Object.values(overrides).some((spec) => spec.startsWith('catalog:'))) {
     return overrides
   }
-  const catalogResolver = resolveFromCatalog.bind(null, catalogs ?? {})
-  const resolved: Record<string, string> = {}
-  for (const [selector, newBareSpecifier] of entries) {
-    const trimmedSelector = selector.trim()
-    const targetAlias = parseOverrideTargetAlias(trimmedSelector)
-    const resolvedCatalog = matchCatalogResolveResult(catalogResolver({
-      alias: targetAlias,
-      bareSpecifier: newBareSpecifier,
-    }), {
-      found: ({ resolution }) => resolution.specifier,
-      unused: () => undefined,
-      misconfiguration: ({ error }) => {
-        throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${error.message}`)
-      },
-    })
-    resolved[trimmedSelector] = resolvedCatalog ?? newBareSpecifier
-  }
-  return resolved
-}
-
-function parseOverrideTargetAlias (selector: string): string {
-  const delimiterIndex = selector.search(OVERRIDE_PARENT_DELIMITER)
-  const targetSelector = delimiterIndex !== -1
-    ? selector.slice(delimiterIndex + 2).trim()
-    : selector
-  const wantedDep = parseWantedDependency(targetSelector)
-  if (!wantedDep.alias) {
-    throw new PnpmError('INVALID_SELECTOR', `Cannot parse the "${selector}" selector`)
-  }
-  return wantedDep.alias
+  return Object.fromEntries(
+    parseOverrides(overrides, catalogs).map(({ selector, newBareSpecifier }) => [selector, newBareSpecifier])
+  )
 }

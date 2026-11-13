@@ -110,7 +110,7 @@ export async function handler (
     }
     throw new PnpmError('DLX_MISSING_COMMAND', "'pnpm dlx' requires a command to run")
   }
-  const allowBuildSelectors = add.parseAllowBuildSelectors(opts)
+  const allowBuildSelectors = add.parseAllowBuildSelectors({ allowBuild: opts.allowBuild })
   const resolvedOverrides = resolveDlxOverrides(opts.overrides, opts.catalogs)
   const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(opts, opts.package ?? [command])
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true

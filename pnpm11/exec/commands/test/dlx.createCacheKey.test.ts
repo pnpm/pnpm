@@ -112,13 +112,20 @@ test('changes with active overrides, packageExtensions, and security policies wh
     ...base,
     packageExtensions: {
       alpha: { dependencies: { b: '^2.0.0', a: '^1.0.0' } },
-      beta: { peerDependencies: { p: '^1.0.0' } },
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
     },
   })
-  const extensionsReordered = createCacheKey({
+  const extensionsInnerReordered = createCacheKey({
     ...base,
     packageExtensions: {
-      beta: { peerDependencies: { p: '^1.0.0' } },
+      alpha: { dependencies: { a: '^1.0.0', b: '^2.0.0' } },
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
+    },
+  })
+  const extensionsSelectorsReversed = createCacheKey({
+    ...base,
+    packageExtensions: {
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
       alpha: { dependencies: { a: '^1.0.0', b: '^2.0.0' } },
     },
   })
@@ -126,11 +133,12 @@ test('changes with active overrides, packageExtensions, and security policies wh
     ...base,
     packageExtensions: {
       alpha: { dependencies: { a: '^1.0.0', b: '^3.0.0' } },
-      beta: { peerDependencies: { p: '^1.0.0' } },
+      'alpha@^1.0.0': { dependencies: { a: '^2.0.0' } },
     },
   })
   expect(extensionsForward).not.toBe(defaultKey)
-  expect(extensionsForward).toBe(extensionsReordered)
+  expect(extensionsForward).toBe(extensionsInnerReordered)
+  expect(extensionsForward).not.toBe(extensionsSelectorsReversed)
   expect(extensionsForward).not.toBe(extensionsChanged)
 
   const ageStrict = createCacheKey({ ...base, minimumReleaseAge: 1440, minimumReleaseAgeStrict: true })
