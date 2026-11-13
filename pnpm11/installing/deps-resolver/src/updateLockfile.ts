@@ -311,8 +311,9 @@ function getLinkedPackageRef (
   }
   if (
     parentResolution.type === 'directory' &&
-    !linkSpec.includes('/') &&
-    !linkSpec.includes('\\')
+    (linkSpec.startsWith('../') ||
+      linkSpec.startsWith('./') ||
+      (!linkSpec.includes('/') && !linkSpec.includes('\\')))
   ) {
     return createNodeIdForLinkedLocalPkg(
       lockfileDir,
