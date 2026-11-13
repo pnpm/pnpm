@@ -752,16 +752,24 @@ test('isReplaced distinguishes plain semver keys from registry-qualified keys', 
   expect(seen).toStrictEqual([{ name: '@corp/foo', registryName: 'legacy' }])
 })
 
-test('matchReplacedLockfileEntries covers uninstallSome when a scope route moved and returns undefined when routes match', () => {
+test('matchReplacedLockfileEntries covers uninstallSome without pre-uninstall scripts and keeps verification when pre-uninstall scripts run', () => {
   const rootDir = '/workspace' as import('@pnpm/types').ProjectRootDir
-  const ctx = {
+  const makeCtx = (scripts?: Record<string, string>) => ({
     existsNonEmptyWantedLockfile: true,
-    projects: { [rootDir]: { id: '.' as import('@pnpm/types').ProjectId } } as never,
+    projects: {
+      [rootDir]: {
+        id: '.' as import('@pnpm/types').ProjectId,
+        manifest: {
+          dependencies: { bar: '1.0.0' },
+          scripts,
+        },
+      },
+    } as never,
     wantedLockfile: {
       lockfileVersion: LOCKFILE_VERSION,
       importers: { '.': {} },
     } as unknown as LockfileObject,
-  }
+  })
   const baseOpts = {
     depth: 0,
     fixLockfile: false,
@@ -781,18 +789,34 @@ test('matchReplacedLockfileEntries covers uninstallSome when a scope route moved
     rootDir,
   }]
 
-  expect(matchReplacedLockfileEntries(uninstallMutation, ctx, {
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx(), {
     ...baseOpts,
     lockedRegistriesByScope: { '@corp': 'https://new.example/' },
   })).toBeUndefined()
 
-  const isReplaced = matchReplacedLockfileEntries(uninstallMutation, ctx, {
+  const isReplaced = matchReplacedLockfileEntries(uninstallMutation, makeCtx(), {
     ...baseOpts,
     lockedRegistriesByScope: { '@corp': 'https://old.example/' },
   })
   expect(isReplaced).toBeDefined()
   expect(isReplaced!('@corp/foo', '1.0.0')).toBe(true)
   expect(isReplaced!('@corp/foo', '1.0.0', { registryName: 'legacy' })).toBe(false)
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx({ preuninstall: 'node check.js' }), {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })).toBeUndefined()
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx({ uninstall: 'node check.js' }), {
+    ...baseOpts,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })).toBeUndefined()
+
+  expect(matchReplacedLockfileEntries(uninstallMutation, makeCtx({ preuninstall: 'node check.js' }), {
+    ...baseOpts,
+    ignoreScripts: true,
+    lockedRegistriesByScope: { '@corp': 'https://old.example/' },
+  })).toBeDefined()
 })
 
 test('invalidates lockfile-verified.jsonl when default or scoped registry changes', async () => {

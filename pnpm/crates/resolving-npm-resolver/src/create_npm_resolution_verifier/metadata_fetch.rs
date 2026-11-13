@@ -327,11 +327,15 @@ impl super::VerificationMetadataClient {
         registry: &'a str,
         document: MetadataDocument,
     ) -> FetchFullMetadataCachedOptions<'a> {
+        let (pnpr_format, full_metadata) = match document {
+            MetadataDocument::Full => (false, true),
+            MetadataDocument::PnprInstallV2 => (true, false),
+        };
         FetchFullMetadataCachedOptions {
-            pnpr_format: matches!(document, MetadataDocument::PnprInstallV2),
+            pnpr_format,
             registry,
             cache_dir: self.cache_dir.as_deref(),
-            full_metadata: matches!(document, MetadataDocument::Full),
+            full_metadata,
             filter_metadata: false,
             offline: self.offline,
             priority: pnpm_network::BACKGROUND,

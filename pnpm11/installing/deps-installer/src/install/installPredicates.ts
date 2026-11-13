@@ -1,4 +1,5 @@
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
+import { PRE_UNINSTALL_STAGES } from '@pnpm/exec.lifecycle'
 import type { PnpmContext } from '@pnpm/installing.context'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -170,12 +171,14 @@ function coversEveryRecordedImporter (
  * Matches lockfile entries that this install re-resolves instead of reusing:
  * explicit update targets ({@link matchUpdateTargetsReplacedEverywhere}), plus
  * plain semver keys whose scope route moved since the lockfile was resolved
- * when the install resolves every recorded importer.
+ * when the install resolves every recorded importer without running
+ * pre-uninstall scripts against the existing installation.
  */
 export function matchReplacedLockfileEntries (
   projects: MutatedProject[],
   ctx: Pick<PnpmContext, 'existsNonEmptyWantedLockfile' | 'projects' | 'wantedLockfile'>,
-  opts: Pick<StrictInstallOptions, 'depth' | 'fixLockfile' | 'frozenLockfile' | 'frozenLockfileIfExists' | 'ignorePackageManifest' | 'lockedRegistriesByScope' | 'registriesByPrefix' | 'registriesByScope' | 'registryOptionsByUrl' | 'useLockfile'>
+  opts: Pick<StrictInstallOptions, 'depth' | 'fixLockfile' | 'frozenLockfile' | 'frozenLockfileIfExists' | 'ignorePackageManifest' | 'lockedRegistriesByScope' | 'registriesByPrefix' | 'registriesByScope' | 'registryOptionsByUrl' | 'useLockfile'> &
+    Partial<Pick<StrictInstallOptions, 'dryRun' | 'ignoreScripts' | 'lockfileCheck' | 'lockfileOnly' | 'virtualStoreOnly'>>
 ): ((name: string, version: string, candidate?: ReplacedCandidate) => boolean) | undefined {
   const matchUpdateTargets = matchUpdateTargetsReplacedEverywhere(projects, ctx, opts.depth)
   const matchMovedRoutes = matchMovedRegistryEntries(projects, ctx, opts)
@@ -188,14 +191,16 @@ export function matchReplacedLockfileEntries (
 function matchMovedRegistryEntries (
   projects: MutatedProject[],
   ctx: Pick<PnpmContext, 'existsNonEmptyWantedLockfile' | 'projects' | 'wantedLockfile'>,
-  opts: Pick<StrictInstallOptions, 'fixLockfile' | 'frozenLockfile' | 'frozenLockfileIfExists' | 'ignorePackageManifest' | 'lockedRegistriesByScope' | 'registriesByPrefix' | 'registriesByScope' | 'registryOptionsByUrl' | 'useLockfile'>
+  opts: Pick<StrictInstallOptions, 'fixLockfile' | 'frozenLockfile' | 'frozenLockfileIfExists' | 'ignorePackageManifest' | 'lockedRegistriesByScope' | 'registriesByPrefix' | 'registriesByScope' | 'registryOptionsByUrl' | 'useLockfile'> &
+    Partial<Pick<StrictInstallOptions, 'dryRun' | 'ignoreScripts' | 'lockfileCheck' | 'lockfileOnly' | 'virtualStoreOnly'>>
 ): ((name: string, version: string, candidate?: ReplacedCandidate) => boolean) | undefined {
   const frozenLockfile = opts.frozenLockfile || (opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile)
   const resolvesFromManifests = opts.useLockfile && !frozenLockfile && !opts.ignorePackageManifest && !opts.fixLockfile
   if (
     opts.lockedRegistriesByScope == null ||
     !resolvesFromManifests ||
-    !coversEveryRecordedImporter(projects, ctx)
+    !coversEveryRecordedImporter(projects, ctx) ||
+    runsPreUninstallScripts(projects, ctx, opts)
   ) {
     return undefined
   }
@@ -205,6 +210,22 @@ function matchMovedRegistryEntries (
     name,
     nonSemverVersion: candidate?.nonSemverVersion,
     registryName: candidate?.registryName,
+  })
+}
+
+function runsPreUninstallScripts (
+  projects: MutatedProject[],
+  ctx: Pick<PnpmContext, 'projects'>,
+  opts: Partial<Pick<StrictInstallOptions, 'dryRun' | 'ignorePackageManifest' | 'ignoreScripts' | 'lockfileCheck' | 'lockfileOnly' | 'virtualStoreOnly'>>
+): boolean {
+  if (opts.ignoreScripts || opts.ignorePackageManifest || opts.lockfileOnly || opts.virtualStoreOnly || isCheckOnlyInstall(opts)) {
+    return false
+  }
+  return projects.some((project) => {
+    if (project.mutation !== 'uninstallSome') return false
+    const manifest = ctx.projects[project.rootDir]?.manifest
+    return removesAnyDependency(project, manifest) &&
+      PRE_UNINSTALL_STAGES.some((stage) => Boolean(manifest?.scripts?.[stage]) && manifest?.scripts?.[stage] !== 'npx only-allow pnpm')
   })
 }
 
