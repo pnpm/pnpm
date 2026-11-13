@@ -290,6 +290,21 @@ test('runLifecycleHook() should throw an error while missing script start or fil
   ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
 })
 
+test('runLifecycleHook() resolves server.js in pkgRoot when scripts.start is absent', async () => {
+  const pkgRoot = testFixtures.prepare('without-script-start-serverjs')
+  const marker = path.join(pkgRoot, 'server-ran.txt')
+  fs.writeFileSync(path.join(pkgRoot, 'server.js'), "require('node:fs').writeFileSync('server-ran.txt', 'ok')\n", 'utf8')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  await runLifecycleHook('start', pkg, {
+    depPath: '/without-script-start-serverjs/1.0.0',
+    optional: false,
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+  })
+  expect(fs.readFileSync(marker, 'utf8')).toBe('ok')
+})
+
 test('gypfile: false does not trigger node-gyp rebuild', async () => {
   const ranAScript = await runPostinstallHooks({
     depPath: '/gyp-with-gypfile-false/1.0.0',
