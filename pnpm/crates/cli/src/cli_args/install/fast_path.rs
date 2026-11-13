@@ -253,6 +253,15 @@ impl InstallArgs {
     ) -> Option<&'static str> {
         let gates = [
             (self.effective_frozen_lockfile(config), "the lockfile is frozen"),
+            (
+                config.enable_global_virtual_store
+                    && !config.frozen_store
+                    && pnpm_package_manager::global_virtual_store_bin_shims_need_repair(
+                        config.virtual_store_dir(),
+                    )
+                    .unwrap_or(true),
+                "global virtual store bin shims need repair",
+            ),
             (self.lockfile.only, "--lockfile-only"),
             (self.lockfile.fix, "--fix-lockfile"),
             (self.materialization.force, "--force"),
