@@ -36,7 +36,7 @@ use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    metadata::{PublicationRequest, PublishNotes},
+    database::{PublicationRequest, PublishNotes},
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
         verify_and_write, write_sigstore_bundle,

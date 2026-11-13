@@ -452,7 +452,7 @@ impl BenchmarkScenario {
                 &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
                 &[SAVED_PACKAGE_JSON],
             ),
-            // Keep the running mock's metadata database while emptying its
+            // Keep the running mock's database while emptying its
             // proxy cache, so each iteration refetches tarballs from the origin.
             Self::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup::new(
                 &["node_modules", "store-dir", "cache-dir", "cold-mock-storage/cache"],

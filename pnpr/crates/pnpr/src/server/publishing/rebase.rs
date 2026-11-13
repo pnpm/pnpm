@@ -4,7 +4,7 @@
 //! A publish computes its packument from the one the store held when it was
 //! staged, and commits it only while the store still holds that one. On a
 //! single replica the package lock makes that hold. Replicas sharing one
-//! metadata database can still race: the publish that commits second finds
+//! database can still race: the publish that commits second finds
 //! another generation and is refused. Rather than answer `409` to a publish
 //! whose bytes are already in place, the commit takes what the publish
 //! changed and applies it to the packument the store now holds, as if the two
@@ -13,7 +13,7 @@
 use super::{RegistryError, StagedPublish};
 use crate::server::AppState;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::metadata::{
+use pnpr_storage::database::{
     ArtifactMember, BatchDocument, BlobFence, PublicationCommit, PublicationRequest, PublishNotes,
 };
 use serde_json::{Map, Value};
@@ -116,7 +116,7 @@ pub(super) async fn commit_rebasing(
     bases: Option<Vec<Option<Value>>>,
 ) -> Result<PublicationCommit, RegistryError> {
     let namespace = publication.namespace;
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     // What the publish computed, parsed only once a race calls for it.
     let mut ours: Option<Vec<Value>> = None;
     let mut attempts = 0;

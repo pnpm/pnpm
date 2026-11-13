@@ -11,8 +11,8 @@ A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
    - **Hosted storage (`storage`)**: Contains package archives stored by content digest, staged publish bodies (`.staged/`), and transparency log tiles, entry bundles, and checkpoints (`.transparency-log/`). Back this up regularly.
-   - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): Holds package metadata, former maintainers, unpublished versions, and transparency log entries. It also stores the [registries kept in the database](configuration.md#registries-in-the-database) with their revisions, SCIM users, and staged-publish approval records in SQLite, libSQL, PostgreSQL, or MySQL.
-   - **Accounts and tokens** live in the metadata database too, so its backup covers them. The database holds password and token hashes, so keep its backups readable only by the operator.
+   - **[Database](storage.md#database) (`database`)**: Holds package metadata, former maintainers, unpublished versions, and transparency log entries. It also stores the [registries kept in the database](configuration.md#registries-in-the-database) with their revisions, SCIM users, and staged-publish approval records in SQLite, libSQL, PostgreSQL, or MySQL.
+   - **Accounts and tokens** live in the database too, so its backup covers them. The database holds password and token hashes, so keep its backups readable only by the operator.
 2. **Disposable cache (`cache` / `.pnpr-cache`) (optional)**:
    - Upstream proxy packument and tarball cache.
    - Resolver query cache.
@@ -21,10 +21,10 @@ A pnpr instance stores two categories of data:
 
 ## Snapshot and restore order {#snapshot-order}
 
-A publish writes archives to hosted storage before committing metadata in the database. Transparency log entry bundles, hash tiles, and checkpoints live under `.transparency-log/` in hosted storage, sequenced from the database's log entries. Managed databases and object stores cannot be snapshotted at one atomic instant. Online backups must therefore make hosted storage at least as recent as the metadata database:
+A publish writes archives to hosted storage before committing metadata in the database. Transparency log entry bundles, hash tiles, and checkpoints live under `.transparency-log/` in hosted storage, sequenced from the database's log entries. Managed databases and object stores cannot be snapshotted at one atomic instant. Online backups must therefore make hosted storage at least as recent as the database:
 
 1. **Pause scheduled `pnpr gc` jobs and package unpublishes, and let any running ones finish** before starting step 2. Garbage collection and unpublish operations reclaim unmapped archives immediately, which could delete an archive still referenced by the database snapshot.
-2. **Back up the metadata database first.** Record the backup timestamp ($T_{\text{db}}$) when using point-in-time recovery.
+2. **Back up the database first.** Record the backup timestamp ($T_{\text{db}}$) when using point-in-time recovery.
 3. **Block new publishes, let in-flight publishes and log integration finish, and capture hosted storage second** ($T_{\text{storage}} \ge T_{\text{db}}$). Draining publishes and integration ensures a signed checkpoint covers every entry bundle written after $T_{\text{db}}$.
 4. **Resume publishes, `pnpr gc`, and package unpublishes** once the storage snapshot or S3 restore timestamp is recorded.
 
@@ -32,7 +32,7 @@ Why this order keeps both archives and the transparency log consistent:
 
 - Every archive referenced at $T_{\text{db}}$ was uploaded before $T_{\text{db}}$ and stays in hosted storage at $T_{\text{storage}}$ while `pnpr gc` and unpublishes are paused.
 - If publishes reached `.transparency-log/` between $T_{\text{db}}$ and $T_{\text{storage}}$, their signed checkpoint authenticates the stored entry bundles. pnpr re-imports those entries before serving, marks rolled-back npm versions removed so they cannot be reused, and extends the same Merkle tree.
-- Never restore hosted storage to an **older** state than the metadata database ($T_{\text{storage}} < T_{\text{db}}$). An older store lacks archives and integrated log tiles that the database already references. pnpr refuses to start or sign checkpoints when `.transparency-log/` lacks entry bundles for its tree or diverges from the database's log.
+- Never restore hosted storage to an **older** state than the database ($T_{\text{storage}} < T_{\text{db}}$). An older store lacks archives and integrated log tiles that the database already references. pnpr refuses to start or sign checkpoints when `.transparency-log/` lacks entry bundles for its tree or diverges from the database's log.
 
 ## Local filesystem storage
 
@@ -44,14 +44,14 @@ To back up while pnpr is stopped, stop pnpr and any scheduled `pnpr gc` jobs fir
 tar -czf "/mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz" -C /var/lib/pnpr storage
 ```
 
-The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
+The default database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A SQLite file outside `<storage>` needs its own copy, and a PostgreSQL, MySQL, or libSQL `database.url` needs a database snapshot before archiving storage.
 
 To back up while pnpr runs, your storage volume must provide point-in-time filesystem snapshots (such as ZFS, Btrfs, LVM, or cloud block-volume snapshots). A live `tar` walk across a changing directory can copy a newly written log checkpoint without the tiles and entry bundles written earlier in the walk. Without filesystem snapshots, stop pnpr or block writes and let background log integration finish before archiving.
 
 With filesystem snapshots, follow the [snapshot order](#snapshot-order):
 
 1. Pause scheduled `pnpr gc` jobs and block package unpublishes, then wait for any running `pnpr gc` or unpublish operations to finish.
-2. Back up the metadata database first:
+2. Back up the database first:
    ```sh
    sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
    ```
@@ -68,7 +68,7 @@ With filesystem snapshots, follow the [snapshot order](#snapshot-order):
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d)
 ```
 
-An export does not include accounts, tokens, transparency logs, unpublished versions, former maintainer claims, dist-tag history, release notes, registries kept in the database, SCIM users, or staged publishes. `pnpr registries export` writes the stored registries to a file. Back up the [metadata database](storage.md#sqlite-metadata) and hosted storage to retain those records.
+An export does not include accounts, tokens, transparency logs, unpublished versions, former maintainer claims, dist-tag history, release notes, registries kept in the database, SCIM users, or staged publishes. `pnpr registries export` writes the stored registries to a file. Back up the [database](storage.md#database) and hosted storage to retain those records.
 
 ### Restore
 
@@ -80,7 +80,7 @@ To restore local filesystem storage:
    rm -rf /var/lib/pnpr/storage
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
-3. Restore the metadata database so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
+3. Restore the database so the storage archive comes from the same offline backup or a snapshot captured **after** $T_{\text{db}}$:
    - **SQLite**: Keep any `-wal` file extracted from an offline `tar` archive because it can hold committed transactions. When restoring a standalone `sqlite3 .backup` file or an external `sqlite:` database, delete destination `-wal` and `-shm` files before copying it into place.
    - **PostgreSQL, MySQL, or libSQL (`database.url`)**: Restore the database to $T_{\text{db}}$. When `replicaPath` is configured for libSQL, delete that local replica file and its `-wal` and `-shm` files before starting pnpr.
 4. Run `pnpr verify` to confirm all referenced package documents and archives match:
@@ -88,7 +88,7 @@ To restore local filesystem storage:
    pnpr verify
    ```
    Archives uploaded between the metadata backup and the storage backup appear as orphaned blobs; they do not fail verification.
-5. Start pnpr. Startup reconciles `.transparency-log/` against the metadata database and re-imports any log entries bundled after the metadata backup. pnpr refuses to start if `.transparency-log/` lacks entry bundles for its tree or diverges from the database's log.
+5. Start pnpr. Startup reconciles `.transparency-log/` against the database and re-imports any log entries bundled after the metadata backup. pnpr refuses to start if `.transparency-log/` lacks entry bundles for its tree or diverges from the database's log.
 6. Re-enable `pnpr gc` (or run `pnpr gc` once) to reclaim unreferenced archives uploaded after the metadata backup.
 
 ## S3 and object storage
@@ -104,14 +104,14 @@ With S3 hosted storage (`s3:` in YAML configuration), archives and `.transparenc
 ### Coordinated backup
 
 1. Pause scheduled `pnpr gc` jobs and block package unpublishes until step 3 finishes. Wait for any running `pnpr gc` or unpublish operations to complete before step 2.
-2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the metadata database (`database.url`).
+2. Take a snapshot or record the point-in-time recovery timestamp ($T_{\text{db}}$) of the database (`database.url`).
 3. Block new publishes, let in-flight publishes finish, and wait for background log integration to complete. Record a restore timestamp ($T_{\text{bucket}} \ge T_{\text{db}}$) on the versioned S3 bucket. Do not copy a live bucket without versioning unless writes are stopped. A live object walk can copy a newer log checkpoint without the tiles and bundles written earlier.
 4. Resume publishes, scheduled `pnpr gc` jobs, and package unpublishes.
 
 ### Restore
 
 1. Stop all running pnpr replicas and scheduled `pnpr gc` jobs.
-2. Restore the metadata database to $T_{\text{db}}$ and restore the S3 bucket to $T_{\text{bucket}} \ge T_{\text{db}}$ (never earlier than $T_{\text{db}}$). If an unpublish ran between $T_{\text{db}}$ and $T_{\text{bucket}}$, also restore the archive object versions deleted during that window.
+2. Restore the database to $T_{\text{db}}$ and restore the S3 bucket to $T_{\text{bucket}} \ge T_{\text{db}}$ (never earlier than $T_{\text{db}}$). If an unpublish ran between $T_{\text{db}}$ and $T_{\text{bucket}}$, also restore the archive object versions deleted during that window.
 3. Run `pnpr verify` to confirm every referenced archive exists in the bucket and matches its hash:
    ```sh
    pnpr verify

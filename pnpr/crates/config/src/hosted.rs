@@ -31,7 +31,7 @@ impl HostedConfig {
 /// Where a server takes its registry graph from.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum GraphSource {
-    /// The metadata database: the server seeds it on first start and follows
+    /// The database: the server seeds it on first start and follows
     /// every stored revision. Every config file selects this.
     #[default]
     Database,

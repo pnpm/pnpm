@@ -9,7 +9,7 @@ use super::{
     stored::{Credentials, FileReferences, loaded_routing, stored_document},
 };
 use pnpr_config::RoutingConfig;
-use pnpr_storage::metadata::StoredRegistryGraph;
+use pnpr_storage::database::StoredRegistryGraph;
 use std::{
     sync::{
         Arc, Mutex, PoisonError,

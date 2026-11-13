@@ -275,8 +275,8 @@ fn served_from(yaml: &str, storage: &std::path::Path) -> pnpr::Config {
 fn a_storage_override_takes_the_default_metadata_database_along() {
     let storage = std::path::Path::new("/srv/pnpr");
     let config = served_from("storage: ./storage\n", storage);
-    let metadata = pnpr_config::default_metadata_path(storage);
-    assert_eq!(config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(metadata.clone()));
+    let metadata = pnpr_config::default_database_path(storage);
+    assert_eq!(config.storage.database, pnpr_config::DatabaseBackend::Sqlite(metadata.clone()));
     assert!(matches!(
         config.identity.backend,
         pnpr_config::BackendConfig::Sqlite(ref path) if *path == metadata,
@@ -310,7 +310,7 @@ fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
             .replace('\'', "''"),
     );
     let config = served_from(&yaml, std::path::Path::new("/srv/pnpr"));
-    assert_eq!(config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(database));
+    assert_eq!(config.storage.database, pnpr_config::DatabaseBackend::Sqlite(database));
 }
 
 /// A database the config names at the default path is the storage
@@ -323,8 +323,8 @@ fn a_storage_override_takes_a_database_named_at_the_default_path_along() {
         storage,
     );
     assert_eq!(
-        config.storage.metadata,
-        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(storage)),
+        config.storage.database,
+        pnpr_config::DatabaseBackend::Sqlite(pnpr_config::default_database_path(storage)),
     );
 }
 

@@ -20,7 +20,7 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::{Ecosystem, Resolved};
-use pnpr_storage::metadata::{ArtifactMember, Note, NoteChange, Publication, SqlMetadata};
+use pnpr_storage::database::{ArtifactMember, Note, NoteChange, Publication, SqlDatabase};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -34,7 +34,7 @@ pub(super) async fn serve_publication(
     Path((namespace, id_or_name)): Path<(String, String)>,
 ) -> Response {
     let namespace = namespace_of(&namespace);
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let found = database.publication(namespace, &id_or_name).await;
     private_no_cache(respond(&state, &identity, found))
 }
@@ -51,7 +51,7 @@ pub(super) async fn serve_member_publication(
     Query(query): Query<MemberQuery>,
 ) -> Response {
     let namespace = namespace_of(&namespace);
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let Some((name, version)) = parse_member(&query.member) else {
         return RegistryError::BadRequest {
             reason: "`member` must be <ecosystem>:<name>@<version>".to_string(),
@@ -198,7 +198,7 @@ pub(super) fn anonymously_readable(
 pub(super) async fn readable_publication_note(
     state: &AppState,
     identity: &Identity,
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     publication: Publication,
 ) -> Result<PublicationNoteLink, RegistryError> {
     let note = database.publication_note(&publication.namespace, publication.id).await?;
@@ -258,7 +258,7 @@ pub(super) async fn serve_publication_note(
         Ok(request) => request,
         Err(response) => return response,
     };
-    let database = Arc::clone(state.inner.storage.sql_metadata());
+    let database = Arc::clone(state.inner.storage.sql_database());
     let publication = match database.publication(namespace_of(&namespace), &id_or_name).await {
         Ok(Some(publication)) if reads_every_member(&state, &identity, &publication) => publication,
         Ok(_) => return not_found(),
@@ -278,7 +278,7 @@ pub(super) async fn serve_publication_note(
 
 async fn read_publication_note(
     state: &AppState,
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     publication: &Publication,
 ) -> Result<Response, RegistryError> {
     let note = database.publication_note(&publication.namespace, publication.id).await?;
@@ -298,7 +298,7 @@ async fn read_publication_note(
 async fn change_publication_note(
     state: &AppState,
     identity: &Identity,
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     publication: &Publication,
     text: Option<String>,
 ) -> Result<Response, RegistryError> {

@@ -36,7 +36,7 @@ export default async () => {
   global.registryMockStorage = storage
   const config = writeTestConfig(storage)
   // The current-version registry serves other registries, so it gets a
-  // storage and metadata database of its own.
+  // storage and database of its own.
   const currentVersionStorage = mkdtempSync(path.join(tmpdir(), STORAGE_PREFIX))
   global.registryMockCurrentVersionStorage = currentVersionStorage
   const currentVersionConfig = buildCurrentVersionStorage(currentVersionStorage, pnpmVersion)

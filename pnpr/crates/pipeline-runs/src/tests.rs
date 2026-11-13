@@ -27,7 +27,7 @@ fn storage_in(hosted: &HostedStoreConfig, root: &TempDir) -> Storage {
         hosted,
         root.path().join("storage"),
         root.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(root.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(root.path().join("metadata.sqlite")),
     )
     .expect("open storage")
 }

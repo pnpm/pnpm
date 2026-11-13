@@ -287,7 +287,7 @@ async fn logged_record(
     if state.inner.config.release_records.log_signing_key.is_none() {
         return Err(not_found());
     }
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let entry = database.release_record_entry(&name, &namespace, version).await;
     let (index, digest) = entry.map_err(IntoResponse::into_response)?.ok_or_else(not_found)?;
     Ok(LoggedRecord { namespace, name, version: version.to_string(), index, digest })

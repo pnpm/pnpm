@@ -1,4 +1,4 @@
-//! Accounts and tokens in a `SQLite` database: the metadata database of a
+//! Accounts and tokens in a `SQLite` database: the database of a
 //! single-instance registry, or a private in-memory database.
 //!
 //! Every write takes the database's write lock (`BEGIN IMMEDIATE`), so a

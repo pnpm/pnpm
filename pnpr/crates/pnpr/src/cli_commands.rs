@@ -88,7 +88,7 @@ pub enum Command {
         verify: bool,
     },
     /// Import users from an existing Verdaccio or Apache htpasswd file into
-    /// the SQLite metadata database.
+    /// the SQLite database.
     ImportHtpasswd {
         /// Path to source htpasswd file.
         #[arg(long)]
@@ -107,7 +107,7 @@ pub enum Command {
         #[arg(skip)]
         password: Option<String>,
     },
-    /// Read or replace the registries the metadata database stores.
+    /// Read or replace the registries the database stores.
     Registries {
         #[command(subcommand)]
         action: RegistriesSubcommand,
@@ -166,7 +166,7 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 }
 
 /// `config` with the stored registries for the commands that walk them, when
-/// the metadata database stores them.
+/// the database stores them.
 async fn with_registries(config: &Config, command: &Command) -> miette::Result<Config> {
     let credentials = match command {
         Command::CacheGc { .. } => Credentials::Resolve,

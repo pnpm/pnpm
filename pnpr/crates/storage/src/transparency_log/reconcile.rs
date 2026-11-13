@@ -58,7 +58,7 @@ impl Storage {
         self.root.has_any_record(&namespace).await
     }
 
-    /// Reconcile `log` in the metadata database against `.transparency-log/`
+    /// Reconcile `log` in the database against `.transparency-log/`
     /// in the hosted store: verify that stored tiles, entry bundles, and any
     /// checkpoint agree with the database's log, re-import checkpoint-signed
     /// entries from stored entry bundles when the database was restored from an
@@ -103,7 +103,7 @@ impl Storage {
         if let Some(stored) = &checkpoint {
             verify_stored_checkpoint(log, stored, signer)?;
         }
-        let state = self.sql_metadata().log_head_and_size(log).await?;
+        let state = self.sql_database().log_head_and_size(log).await?;
         let head = integrated_head(log, origin, state.head)?;
         check_sequenced_at_least_head(log, state.sequenced, head.size)?;
         Ok(ReconcileTarget { head, sequenced: state.sequenced, checkpoint, signer })
@@ -201,7 +201,7 @@ impl Storage {
         if bundle_end <= target.authenticated_end() {
             return Ok(false);
         }
-        let sequenced = self.sql_metadata().log_size(log).await?;
+        let sequenced = self.sql_database().log_size(log).await?;
         check_sequenced_at_least_head(log, sequenced, target.head.size)?;
         let checkpoint = self.log_checkpoint(log).await?;
         validate_refreshed_checkpoint(
@@ -249,7 +249,7 @@ impl Storage {
         let import_start = target.sequenced.max(bundle_start);
         let offset = usize::try_from(import_start - bundle_start).unwrap_or_default();
         let imported = parse_imported_entries(log, import_start, &entries[offset..])?;
-        self.sql_metadata().import_log_entries(log, import_start, imported).await?;
+        self.sql_database().import_log_entries(log, import_start, imported).await?;
         target.sequenced = bundle_end;
         Ok(())
     }
@@ -267,7 +267,7 @@ impl Storage {
             return Ok(());
         }
         let existing = self
-            .sql_metadata()
+            .sql_database()
             .log_entries(log, bundle_start..overlap_end)
             .await?;
         for (offset, existing_bytes) in existing.iter().enumerate() {

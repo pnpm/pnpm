@@ -4,7 +4,7 @@ use pnpr::{
     Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
     default_cache_dir, logging::log_subscriber, run_command, serve,
 };
-use pnpr_config::{BackendConfig, MetadataBackend, default_metadata_path};
+use pnpr_config::{BackendConfig, DatabaseBackend, default_database_path};
 use std::{io::IsTerminal, path::PathBuf};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
@@ -30,7 +30,7 @@ struct Args {
 #[derive(Debug, Default, Clone, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
-    /// `-c`). A proxy cache or metadata database at its default path in
+    /// `-c`). A proxy cache or database at its default path in
     /// the storage directory moves with it.
     #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
@@ -141,11 +141,11 @@ fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs) {
         // it moves with it, whether or not the config spells the path out.
         // One anywhere else stays where it is.
         let default_metadata =
-            MetadataBackend::Sqlite(default_metadata_path(&config.storage.hosted_dir));
-        if config.storage.metadata == default_metadata {
-            let moved = default_metadata_path(&storage);
+            DatabaseBackend::Sqlite(default_database_path(&config.storage.hosted_dir));
+        if config.storage.database == default_metadata {
+            let moved = default_database_path(&storage);
             config.identity.backend = BackendConfig::Sqlite(moved.clone());
-            config.storage.metadata = MetadataBackend::Sqlite(moved);
+            config.storage.database = DatabaseBackend::Sqlite(moved);
         }
         config.storage.hosted_dir = storage;
     }
@@ -212,7 +212,7 @@ fn warn_derived_public_url(config: &Config) {
 }
 
 fn warn_experimental_database(config: &Config) {
-    let mysql = matches!(config.storage.metadata, MetadataBackend::Mysql(_))
+    let mysql = matches!(config.storage.database, DatabaseBackend::Mysql(_))
         || matches!(config.identity.backend, BackendConfig::Mysql(_));
     if mysql {
         tracing::warn!(

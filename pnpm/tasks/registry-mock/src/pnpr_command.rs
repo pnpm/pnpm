@@ -93,14 +93,14 @@ pub struct PnprMockConfig<'a> {
     pub home: &'a Path,
     /// Complete configuration in the revision's format, including its database URL.
     pub yaml: &'a str,
-    /// The registries document to store in the home's metadata database, for
+    /// The registries document to store in the home's database, for
     /// a `pnpr` that reads its registries only from there. `None` for one
     /// whose `yaml` declares them.
     pub registries: Option<&'a Path>,
 }
 
 /// Like [`pnpr_command_with_binary`], keeping the hosted store and its
-/// metadata database in `home` instead of the fixture build's when one is
+/// database in `home` instead of the fixture build's when one is
 /// given. The fixture build's store and database carry this checkout's
 /// layout and metadata schema, which a `pnpr` built from another revision
 /// may refuse; given a home of its own, that `pnpr` creates its own there
@@ -158,7 +158,7 @@ pub fn pnpr_command_with_home(
     cmd
 }
 
-/// Store the registries `document` declares in the metadata database of the
+/// Store the registries `document` declares in the database of the
 /// `pnpr` that `serve` starts, as its next revision, by running
 /// `pnpr registries import` with `serve`'s program, arguments, and
 /// environment. A server started on a database with no stored registries
@@ -210,7 +210,7 @@ fn command_without_pnpr_env(bin: &Path) -> Command {
     cmd
 }
 
-/// Pin the metadata database beside the fixture build's hosted store.
+/// Pin the database beside the fixture build's hosted store.
 /// The path includes the config's hash so concurrent configurations stay separate.
 fn runtime_mock_config(database: Option<&Path>, config: &str) -> io::Result<PathBuf> {
     let yaml = match database {

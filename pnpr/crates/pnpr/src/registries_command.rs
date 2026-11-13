@@ -1,5 +1,5 @@
 //! `pnpr registries export` and `pnpr registries import`: the registry graph
-//! the metadata database stores, as YAML, read and written through the
+//! the database stores, as YAML, read and written through the
 //! configured database without a running server.
 
 use crate::{
@@ -14,7 +14,7 @@ use pnpm_diagnostics::{print, println};
 use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument};
 use pnpr_storage::{
     Storage,
-    metadata::{NewRegistryGraph, RegistryGraphWrite},
+    database::{NewRegistryGraph, RegistryGraphWrite},
 };
 use std::path::Path;
 

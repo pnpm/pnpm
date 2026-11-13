@@ -287,7 +287,7 @@ pub(super) struct ConfigFile {
     /// of the artifact store.
     #[serde(default)]
     pub(super) pipeline: Option<PipelineFeatureFile>,
-    /// Registries belong in the metadata database; the key is read only to
+    /// Registries belong in the database; the key is read only to
     /// refuse it with a pointer to `pnpr registries import`.
     #[serde(default)]
     pub(super) registries: Option<serde::de::IgnoredAny>,

@@ -25,7 +25,7 @@ fn auth_account_and_token_files_are_not_config_keys() {
         ["auth:\n  users:\n    file: ./users.json\n", "auth:\n  tokens:\n    file: ./tokens.db\n"]
     {
         let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-            .expect_err("accounts and tokens live in the metadata database");
+            .expect_err("accounts and tokens live in the database");
         assert!(matches!(error, RegistryError::InvalidConfig { .. }), "{error:?}");
     }
 }

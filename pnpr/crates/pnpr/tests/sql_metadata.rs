@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
-use pnpr_config::MetadataBackend;
+use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
@@ -25,7 +25,7 @@ fn sqlite_config(storage: &Path) -> Config {
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
-    config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
+    config.storage.database = DatabaseBackend::Sqlite(storage.join("metadata.sqlite"));
     config
 }
 
@@ -365,7 +365,7 @@ async fn a_published_record_is_integrated_into_its_log() {
     let (status, ..) = send(&app, request("PUT", "/npm/logged", &token, Some(&doc))).await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let database = storage.sql_metadata();
+    let database = storage.sql_database();
     let logs = database.sequenced_logs().await.unwrap();
     let [(log, 1)] = logs.as_slice() else { panic!("{logs:?}") };
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
@@ -399,7 +399,7 @@ async fn a_new_router_integrates_what_was_sequenced_before() {
     assert_eq!(status, StatusCode::CREATED);
     let storage = pnpr_storage::Storage::from_config(&sqlite_config(tmp.path()).storage).unwrap();
     let logs = storage
-        .sql_metadata()
+        .sql_database()
         .sequenced_logs()
         .await
         .unwrap();
@@ -713,8 +713,8 @@ async fn rejected_tag_rewrites_do_not_mark_versions_unpublished() {
 #[tokio::test]
 async fn the_default_build_opens_postgres_and_mysql_metadata() {
     let databases = [
-        MetadataBackend::Postgres(network_settings("postgres://pnpr@127.0.0.1:1/pnpr")),
-        MetadataBackend::Mysql(network_settings("mysql://pnpr@127.0.0.1:1/pnpr")),
+        DatabaseBackend::Postgres(network_settings("postgres://pnpr@127.0.0.1:1/pnpr")),
+        DatabaseBackend::Mysql(network_settings("mysql://pnpr@127.0.0.1:1/pnpr")),
     ];
     for database in databases {
         let tmp = TempDir::new().unwrap();

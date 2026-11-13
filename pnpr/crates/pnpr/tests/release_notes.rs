@@ -10,7 +10,7 @@ use axum::{
     http::{HeaderMap, Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
-use pnpr_config::MetadataBackend;
+use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -27,7 +27,7 @@ fn app_at(tmp: &TempDir, public_url: &str) -> Router {
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     config.http.public_url = public_url.to_string();
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
-    config.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    config.storage.database = DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     router(config)
 }
 
@@ -320,7 +320,7 @@ async fn a_package_of_an_upstream_lists_no_notes() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
-    config.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    config.storage.database = DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router(config);
     let listing = send(&app, "GET", "/npm/lodash/-/notes", None, Body::empty()).await;
     assert_eq!(listing.status, StatusCode::OK, "{}", listing.text());

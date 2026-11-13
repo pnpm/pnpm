@@ -1,7 +1,7 @@
 use super::validate_startup_config;
 use object_store::memory::InMemory;
 use pnpr_config::{
-    BackendConfig, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend, S3Settings,
+    BackendConfig, Config, DatabaseBackend, HostedStoreConfig, LibsqlSettings, S3Settings,
     SqlBackendSettings,
 };
 use std::{
@@ -38,7 +38,7 @@ fn libsql_settings(url: &str) -> LibsqlSettings {
 #[test]
 fn rejects_empty_sqlite_path_on_programmatic_config() {
     let mut config = base_config();
-    config.storage.metadata = MetadataBackend::Sqlite(PathBuf::new());
+    config.storage.database = DatabaseBackend::Sqlite(PathBuf::new());
     let err = validate_startup_config(&mut config).unwrap_err().to_string();
     assert!(err.contains("sqlite:"), "{err}");
 }
@@ -52,7 +52,7 @@ fn rejects_invalid_libsql_urls_without_leaking_credentials() {
         "libsql:user:supersecret@db.example.test",
     ] {
         let mut config = base_config();
-        config.storage.metadata = MetadataBackend::Libsql(libsql_settings(url));
+        config.storage.database = DatabaseBackend::Libsql(libsql_settings(url));
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
         assert!(err.contains("database.url is not a valid URL"), "{url}: {err}");
         assert!(!err.contains("supersecret"), "{url}: {err}");
@@ -84,7 +84,7 @@ fn rejects_invalid_postgres_connect_options_without_leaking_credentials() {
         "postgresql://user:supersecret@db.example.test:99999/pnpr",
     ] {
         let mut config = base_config();
-        config.storage.metadata = MetadataBackend::Postgres(sql_settings(url));
+        config.storage.database = DatabaseBackend::Postgres(sql_settings(url));
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
         assert!(err.contains("database.url is not a valid URL"), "{url}: {err}");
         assert!(!err.contains("supersecret"), "{url}: {err}");
@@ -99,7 +99,7 @@ fn rejects_invalid_mysql_connect_options_without_leaking_credentials() {
         "mysql://user:supersecret@db.example.test:99999/pnpr",
     ] {
         let mut config = base_config();
-        config.storage.metadata = MetadataBackend::Mysql(sql_settings(url));
+        config.storage.database = DatabaseBackend::Mysql(sql_settings(url));
         let err = validate_startup_config(&mut config).unwrap_err().to_string();
         assert!(err.contains("database.url is not a valid URL"), "{url}: {err}");
         assert!(!err.contains("supersecret"), "{url}: {err}");
@@ -122,7 +122,7 @@ fn rejects_zero_pool_limits_and_timeouts() {
     let mut zero_timeout = sql_settings("postgres://db.example.test/pnpr");
     zero_timeout.timeout = Duration::ZERO;
     let mut config = base_config();
-    config.storage.metadata = MetadataBackend::Postgres(zero_timeout);
+    config.storage.database = DatabaseBackend::Postgres(zero_timeout);
     assert!(
         validate_startup_config(&mut config)
             .unwrap_err()
@@ -169,8 +169,8 @@ fn rejects_shared_backends_without_configured_secret() {
     {
         let mut shared_db = base_config();
         shared_db.storage.cache_dir = tmp.path().join("cache-libsql");
-        shared_db.storage.metadata =
-            MetadataBackend::Libsql(libsql_settings("libsql://db.example.test"));
+        shared_db.storage.database =
+            DatabaseBackend::Libsql(libsql_settings("libsql://db.example.test"));
         let err = validate_startup_config(&mut shared_db).unwrap_err().to_string();
         assert!(err.contains("`secret` or `secret.cache` must be configured"), "{err}");
 
@@ -225,8 +225,8 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
     valid_subdir.has_configured_secret = true;
     valid_subdir.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
     valid_subdir.storage.hosted_dir = storage.clone();
-    valid_subdir.storage.metadata =
-        MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage));
+    valid_subdir.storage.database =
+        DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage));
     valid_subdir.storage.cache_dir = storage.join("cache");
     validate_startup_config(&mut valid_subdir).unwrap();
 
@@ -242,8 +242,8 @@ fn rejects_cache_overlapping_hosted_storage_or_sqlite_metadata() {
 
     let mut sqlite_in_cache = valid_subdir;
     sqlite_in_cache.storage.cache_dir = tmp.path().join("separate-cache");
-    sqlite_in_cache.storage.metadata =
-        MetadataBackend::Sqlite(sqlite_in_cache.storage.cache_dir.join("metadata.sqlite"));
+    sqlite_in_cache.storage.database =
+        DatabaseBackend::Sqlite(sqlite_in_cache.storage.cache_dir.join("metadata.sqlite"));
     let err = validate_startup_config(&mut sqlite_in_cache).unwrap_err().to_string();
     assert!(err.contains("database.url SQLite path must not live inside"), "{err}");
 
@@ -264,7 +264,7 @@ fn rejects_symlinked_cache_paths_including_dot_dot_segments() {
     base.has_configured_secret = true;
     base.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
     base.storage.hosted_dir = storage.clone();
-    base.storage.metadata = MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage));
+    base.storage.database = DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage));
 
     let link = tmp.path().join("cache-link");
     std::os::unix::fs::symlink(&storage, &link).unwrap();
@@ -283,7 +283,7 @@ fn rejects_symlinked_cache_paths_including_dot_dot_segments() {
     let mut dotdot = base;
     dotdot.storage.cache_dir = tmp.path().join("else");
     dotdot.storage.hosted_dir = deep_link.join("../hosted");
-    dotdot.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("outside-meta.sqlite"));
+    dotdot.storage.database = DatabaseBackend::Sqlite(tmp.path().join("outside-meta.sqlite"));
     let err = validate_startup_config(&mut dotdot).unwrap_err().to_string();
     assert!(err.contains("cache path must not equal or contain"), "{err}");
 }
@@ -299,13 +299,13 @@ fn rejects_libsql_replica_and_osv_paths_inside_cache() {
     base.cache_secret = Arc::from(&b"configured-cache-secret-16bytes!"[..]);
     base.storage.hosted_dir = storage.clone();
     base.storage.cache_dir = cache.clone();
-    base.storage.metadata = MetadataBackend::Sqlite(pnpr_config::default_metadata_path(&storage));
+    base.storage.database = DatabaseBackend::Sqlite(pnpr_config::default_database_path(&storage));
 
     let mut meta_replica = base.clone();
     let mut libsql = libsql_settings("libsql://db.example.test");
     libsql.replica_path = Some(cache.join("meta-replica.db"));
     libsql.sync_interval_secs = Some(5);
-    meta_replica.storage.metadata = MetadataBackend::Libsql(libsql);
+    meta_replica.storage.database = DatabaseBackend::Libsql(libsql);
     let err = super::validate_cache_paths(&meta_replica).unwrap_err().to_string();
     assert!(err.contains("libSQL replicaPath must not live inside"), "{err}");
 

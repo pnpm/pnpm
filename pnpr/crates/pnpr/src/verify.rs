@@ -2,7 +2,7 @@ use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
 use pnpr_config::Config;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{Storage, metadata::BlobState};
+use pnpr_storage::{Storage, database::BlobState};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]

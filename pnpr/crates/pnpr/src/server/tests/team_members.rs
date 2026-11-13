@@ -124,6 +124,6 @@ async fn org_package_listing_does_not_render_package_views() {
             "@acme/unowned": "read",
         }),
     );
-    let rendered = state.inner.storage.sql_metadata().render_stats();
+    let rendered = state.inner.storage.sql_database().render_stats();
     assert_eq!((rendered.fragments_rendered, rendered.views_assembled), (0, 0), "{rendered:?}");
 }

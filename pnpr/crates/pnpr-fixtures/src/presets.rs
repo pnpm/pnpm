@@ -3,7 +3,7 @@ use pnpr_config::{
     ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HostedConfig,
     HostedStoreConfig, LogConfig, OciConfig, OsvConfig, PipelineFeature, RegistryFeature,
     ResolverFeature, RoutePolicy, TrustedProxyHeader, UiConfig, UpstreamConfig, default_cache_dir,
-    default_metadata_path,
+    default_database_path,
 };
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
@@ -205,7 +205,7 @@ fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
     pnpr_config::StorageConfig {
         cache_dir: default_cache_dir(&storage),
         cache: pnpr_config::CacheConfig::default(),
-        metadata: pnpr_config::MetadataBackend::Sqlite(default_metadata_path(&storage)),
+        database: pnpr_config::DatabaseBackend::Sqlite(default_database_path(&storage)),
         hosted_dir: storage,
         hosted_backend: HostedStoreConfig::Fs,
     }
@@ -220,7 +220,7 @@ fn with_routing(
 ) -> Config {
     let cache_secret: Arc<[u8]> = Arc::from(MOCK_SECRET);
     let oci_secret = pnpr_config::derive_subkey(&cache_secret, b"pnpr OCI token signing v1");
-    let metadata = default_metadata_path(&storage);
+    let metadata = default_database_path(&storage);
     Config {
         logs: LogConfig::default(),
         osv: OsvConfig::default(),

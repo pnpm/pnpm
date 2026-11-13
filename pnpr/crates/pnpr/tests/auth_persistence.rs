@@ -31,10 +31,10 @@ fn persistent_config(storage: PathBuf) -> Config {
     config
 }
 
-/// The metadata database that holds the accounts and tokens of `config`.
+/// The database that holds the accounts and tokens of `config`.
 fn auth_database(config: &Config) -> &Path {
     let BackendConfig::Sqlite(path) = &config.identity.backend else {
-        panic!("a static-serve config keeps accounts in its SQLite metadata database");
+        panic!("a static-serve config keeps accounts in its SQLite database");
     };
     path
 }
@@ -114,7 +114,7 @@ async fn user_and_token_survive_restart() {
         .to_string();
     assert!(!token.is_empty());
 
-    assert_eq!(usernames(&config), ["alice"], "the account is in the metadata database");
+    assert_eq!(usernames(&config), ["alice"], "the account is in the database");
 
     // Simulate a restart: drop the router (and the in-memory map),
     // re-load from disk, rebuild the router. Same config, same paths.
@@ -201,7 +201,7 @@ async fn invalid_usernames_do_not_change_accounts_across_restart() {
     assert_eq!(stored_password_hash(&config, "alice"), original_hash);
 }
 
-/// A damaged metadata database fails startup instead of booting with every
+/// A damaged database fails startup instead of booting with every
 /// existing account effectively erased.
 #[tokio::test]
 async fn unreadable_auth_database_fails_startup() {

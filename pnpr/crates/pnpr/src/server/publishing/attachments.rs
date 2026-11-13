@@ -16,7 +16,7 @@ use super::{
 };
 use pnpr_storage::{
     BlobId,
-    metadata::{ArtifactBlob, BlobLookup, BlobRow},
+    database::{ArtifactBlob, BlobLookup, BlobRow},
     publish::{now_iso, sigstore_bundle_bytes},
 };
 use std::{
@@ -215,7 +215,7 @@ pub(in super::super) struct Verification {
     pub(in super::super) notices: Vec<String>,
     /// The release record of each version the document introduces, which
     /// the metadata store accepts with it.
-    pub(in super::super) records: pnpr_storage::metadata::ReleaseRecords,
+    pub(in super::super) records: pnpr_storage::database::ReleaseRecords,
     /// What the publish introduces, as the `package.publish` audit record
     /// names it.
     pub(in super::super) releases: Vec<String>,
@@ -356,7 +356,7 @@ async fn read_staged_base(
 /// The packument a publish of `name` is computed from, as `base` read it.
 fn staged_base(
     name: &CanonicalPackageName,
-    base: pnpr_storage::metadata::PublishBase,
+    base: pnpr_storage::database::PublishBase,
 ) -> Result<StagedBase, RegistryError> {
     let (packument, version) = parse_hosted_packument(name, base.stored)?;
     Ok(StagedBase { version, packument, blobs: base.blobs, ..StagedBase::default() })

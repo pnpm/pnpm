@@ -46,7 +46,7 @@ pub struct StorageAccess {
 }
 
 /// The `artifacts.owners` policies. They name accounts, not registry teams,
-/// which live in the metadata database.
+/// which live in the database.
 pub(super) fn parse_storage_access(
     policies: IndexMap<String, StorageAccessFile>,
 ) -> Result<IndexMap<String, StorageAccess>, RegistryError> {

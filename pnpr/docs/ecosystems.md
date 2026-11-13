@@ -318,7 +318,7 @@ ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.
 
 Individual publishes to one package serialize their metadata updates. With a
-remote metadata database, each commit also waits for database round trips.
+remote database, each commit also waits for database round trips.
 A publisher using the HTTP API can include several versions in one npm
 publish document to commit them together. A batch accepts one document per
 package.
@@ -360,7 +360,7 @@ parallel count against those limits together, and an upload that stopped
 gives its reservation back after an hour.
 
 The bytes stay in the hosted store and their records in the
-[metadata database](storage.md#sqlite-metadata). A sweep records an expired
+[database](storage.md#database). A sweep records an expired
 archive as taken, in a transaction that holds only while no upload renewed it
 since, before it removes the bytes. An upload of the same bytes afterwards
 stores them anew under another key, so a renewal that races the sweep keeps

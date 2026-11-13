@@ -248,7 +248,7 @@ These belong to no single ecosystem, so they sit on the server root.
 
 ### Publication endpoints {#publication-endpoints}
 
-Served from the hosted [metadata database](storage.md#sqlite-metadata), SQLite or libSQL.
+Served from the [database](storage.md#database), SQLite or libSQL.
 A publication is a commit that introduced packages. Its id is the namespace
 generation it committed. `<namespace>` is `-` for registries in the default namespace.
 
@@ -259,7 +259,7 @@ generation it committed. `<namespace>` is `-` for registries in the default name
 
 ### Release note endpoints {#release-note-endpoints}
 
-Served from the hosted [metadata database](storage.md#sqlite-metadata), SQLite or libSQL.
+Served from the [database](storage.md#database), SQLite or libSQL.
 A note is Markdown of at most 64 KiB, with no control characters other than
 line feed and tab, no carriage returns, and no bidirectional overrides. A
 publish can send notes with it (see
@@ -719,7 +719,7 @@ one-time-password challenge of its own at either point. The `--otp` flag on
 A stage id is a v4 UUID drawn from the OS CSPRNG, so the id itself acts as an
 unguessable handle. Held publish bodies live under a reserved `.staged/` namespace in
 the hosted store (both the filesystem and S3 backends). Approval records live
-in the metadata database. A record is only visible through the same base it was created with. One staged through
+in the database. A record is only visible through the same base it was created with. One staged through
 `/npm/~<name>/` is not addressable on the npm base, and vice versa.
 
 | Method | Path | Description |

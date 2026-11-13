@@ -1,5 +1,5 @@
 use pnpr_config::{
-    BackendConfig, CACHE_SECRET_MARKER, Config, HostedStoreConfig, LibsqlSettings, MetadataBackend,
+    BackendConfig, CACHE_SECRET_MARKER, Config, DatabaseBackend, HostedStoreConfig, LibsqlSettings,
     SqlBackendSettings, cache_secret_fingerprint, default_osv_path,
 };
 use pnpr_error::{RegistryError, Result};
@@ -62,7 +62,7 @@ fn validate_startup_config_inner(
     if config.http.shutdown_timeout.is_zero() {
         return Err(invalid("shutdownTimeout must be greater than zero"));
     }
-    validate_metadata_backend(&config.storage.metadata)?;
+    validate_database_backend(&config.storage.database)?;
     validate_identity_backend(&config.identity.backend)?;
     validate_cache_paths(config)?;
     validate_cache_secret_inner(config, pending_policy)?;
@@ -75,7 +75,7 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     if norm_hosted.starts_with(&norm_cache) {
         return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
     }
-    validate_metadata_cache_overlap(&config.storage.metadata, &norm_cache)?;
+    validate_database_cache_overlap(&config.storage.database, &norm_cache)?;
     if let BackendConfig::Libsql(settings) = &config.identity.backend {
         reject_path_inside_cache(
             settings.replica_path.as_deref(),
@@ -95,19 +95,19 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     Ok(())
 }
 
-fn validate_metadata_cache_overlap(metadata: &MetadataBackend, norm_cache: &Path) -> Result<()> {
+fn validate_database_cache_overlap(metadata: &DatabaseBackend, norm_cache: &Path) -> Result<()> {
     match metadata {
-        MetadataBackend::Sqlite(db_path) => reject_path_inside_cache(
+        DatabaseBackend::Sqlite(db_path) => reject_path_inside_cache(
             Some(db_path.as_path()),
             norm_cache,
             CACHE_CONTAINS_METADATA_DB,
         ),
-        MetadataBackend::Libsql(settings) => reject_path_inside_cache(
+        DatabaseBackend::Libsql(settings) => reject_path_inside_cache(
             settings.replica_path.as_deref(),
             norm_cache,
             CACHE_CONTAINS_REPLICA_DB,
         ),
-        MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => Ok(()),
+        DatabaseBackend::Postgres(_) | DatabaseBackend::Mysql(_) => Ok(()),
     }
 }
 
@@ -181,9 +181,9 @@ fn uses_shared_backend(config: &Config) -> bool {
         HostedStoreConfig::Fs => false,
         HostedStoreConfig::S3(_) | HostedStoreConfig::ObjectStore { .. } => true,
     };
-    let shared_metadata = match &config.storage.metadata {
-        MetadataBackend::Sqlite(_) => false,
-        MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_) => {
+    let shared_metadata = match &config.storage.database {
+        DatabaseBackend::Sqlite(_) => false,
+        DatabaseBackend::Libsql(_) | DatabaseBackend::Postgres(_) | DatabaseBackend::Mysql(_) => {
             true
         }
     };
@@ -258,15 +258,15 @@ pub(crate) fn ensure_only_ignorable_entries(
     Ok(())
 }
 
-fn validate_metadata_backend(metadata: &MetadataBackend) -> Result<()> {
+fn validate_database_backend(metadata: &DatabaseBackend) -> Result<()> {
     match metadata {
-        MetadataBackend::Sqlite(path) if path.as_os_str().is_empty() => {
+        DatabaseBackend::Sqlite(path) if path.as_os_str().is_empty() => {
             Err(invalid("database.url `sqlite:` needs a path after the colon"))
         }
-        MetadataBackend::Sqlite(_) => Ok(()),
-        MetadataBackend::Postgres(settings) => validate_postgres(settings),
-        MetadataBackend::Mysql(settings) => validate_mysql(settings),
-        MetadataBackend::Libsql(settings) => validate_libsql(settings),
+        DatabaseBackend::Sqlite(_) => Ok(()),
+        DatabaseBackend::Postgres(settings) => validate_postgres(settings),
+        DatabaseBackend::Mysql(settings) => validate_mysql(settings),
+        DatabaseBackend::Libsql(settings) => validate_libsql(settings),
     }
 }
 

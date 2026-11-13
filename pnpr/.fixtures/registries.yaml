@@ -1,5 +1,5 @@
 # The registry-mock registries, which `pnpr-prepare` and the test helpers
-# store in the fixture metadata database.
+# store in the fixture database.
 registries:
   # The locally-hosted fixtures (and anything published during tests).
   local:

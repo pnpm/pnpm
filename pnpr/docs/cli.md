@@ -28,7 +28,7 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | --- | --- |
 | `-c, --config <path>` | Path to a [YAML config](configuration.md). When omitted, the global `config.yaml` in pnpr's config dir is used if it exists, otherwise the bundled default config. |
 | `--listen <addr>` | Address to bind to. Overrides [`listen`](configuration.md#listen-and-publicurl), which defaults to `127.0.0.1:7677`. |
-| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. The cache at `<storage>/.pnpr-cache`, a [metadata database](storage.md#sqlite-metadata) at `<storage>/.metadata/metadata.sqlite`, and an [OSV database](configuration.md#osv) at `<storage>/.osv/npm/all.zip` move with it; explicit paths stay where they are. |
+| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. The cache at `<storage>/.pnpr-cache`, a [database](storage.md#database) at `<storage>/.metadata/metadata.sqlite`, and an [OSV database](configuration.md#osv) at `<storage>/.osv/npm/all.zip` move with it; explicit paths stay where they are. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Overrides [`publicUrl`](configuration.md#listen-and-publicurl), which defaults to `http://<listen>`. |
 | `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `packumentTtl` overrides it for that registry. |
@@ -90,7 +90,7 @@ pnpr verify --skip-hashes
 
 Exports hosted packages, packuments, and tarball blobs to a local directory.
 Accounts and tokens are not exported. Back up the
-[metadata database](backup-and-restore.md) to keep them.
+[database](backup-and-restore.md) to keep them.
 
 ```sh
 pnpr export --out /mnt/backups/pnpr-export
@@ -114,7 +114,7 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 
 | Flag | Description |
 | --- | --- |
-| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). The packages come from the configured metadata database; this directory supplies their blobs. |
+| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). The packages come from the configured database; this directory supplies their blobs. |
 | `--to-bucket <name>` | Destination S3 bucket name. |
 | `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
 | `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |
@@ -135,7 +135,7 @@ pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
 
 ### import-htpasswd
 
-Imports users from an Apache or Verdaccio `htpasswd` file into the SQLite metadata database. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login). The whole file is imported in one transaction, so the command can run next to a running server.
+Imports users from an Apache or Verdaccio `htpasswd` file into the SQLite database. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login). The whole file is imported in one transaction, so the command can run next to a running server.
 
 The command refuses a config whose `database.url` names a libSQL, PostgreSQL, or MySQL database.
 
@@ -143,7 +143,7 @@ The command refuses a config whose `database.url` names a libSQL, PostgreSQL, or
 # Preview users that would be imported
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import into the metadata database
+# Import into the database
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 
@@ -159,7 +159,7 @@ Creates a user account, or changes the password of an existing one. Use it to
 create an account, then use the printed immutable account ID in `auth.admins`.
 A new account never inherits tokens or grants from a reused login name.
 
-The command writes to the configured metadata database and can run next to a
+The command writes to the configured database and can run next to a
 running server. A password change preserves the account ID and revokes the
 account's tokens. A server that reads a libSQL embedded replica sees the
 revocation after its next sync.
@@ -213,7 +213,7 @@ When it unmaps an unreachable image blob, the removal record also names
 the repository. Collection logs include the namespace and ecosystem.
 Successful removals are logged even if another archive cannot be removed.
 
-The metadata database fences every removal; no step depends on timing. A
+The database fences every removal; no step depends on timing. A
 reclaim first moves the bytes' live incarnation to `reclaiming`, in a
 transaction that holds only while no file maps them, then removes exactly that
 incarnation's key, then records it gone. A publish that depends on that
@@ -250,7 +250,7 @@ timeouts are disabled).
 ### registries
 
 Reads and stores the
-[registries kept in the metadata database](configuration.md#registries-in-the-database).
+[registries kept in the database](configuration.md#registries-in-the-database).
 `pnpr registries export` writes them as a YAML registries document, with the
 `registries`, `defaultRegistry`, and `routes.public` keys.
 `pnpr registries import` stores such a file as a new revision, after the same

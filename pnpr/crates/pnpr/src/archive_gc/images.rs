@@ -12,7 +12,7 @@ use crate::{Ecosystem, Result};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobId,
-    metadata::{BlobLookup, BlobRow, BlobState, Mapping},
+    database::{BlobLookup, BlobRow, BlobState, Mapping},
 };
 use std::{collections::HashSet, time::Duration};
 

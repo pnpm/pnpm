@@ -34,14 +34,14 @@ pub struct StorageConfig {
     pub cache: CacheConfig,
     /// Where the authoritative (hosted) store lives (local filesystem or S3).
     pub hosted_backend: HostedStoreConfig,
-    /// Where the hosted packages' metadata lives.
-    pub metadata: MetadataBackend,
+    /// Where the database lives.
+    pub database: DatabaseBackend,
 }
 
-/// Where the hosted packages' metadata lives: package documents, tags,
-/// deprecations. Archives stay in the hosted store.
+/// Where the database lives: package documents, tags, accounts, registries,
+/// and the rest of pnpr's state. Archives stay in the hosted store.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MetadataBackend {
+pub enum DatabaseBackend {
     /// An embedded `SQLite` database at this path. Single-instance only, so
     /// only with the filesystem hosted store.
     Sqlite(PathBuf),
@@ -56,11 +56,11 @@ pub enum MetadataBackend {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct DatabaseFile {
-    /// The metadata database: `sqlite:<path>`, with a relative path resolved
+    /// The database: `sqlite:<path>`, with a relative path resolved
     /// against the config file's directory, `postgres://`, `mysql://`, or
     /// libSQL (`libsql://`, `http://`, or `https://`).
     /// Without it, a filesystem hosted store keeps its metadata in
-    /// [`default_metadata_path`].
+    /// [`default_database_path`].
     #[serde(default)]
     url: Option<crate::Secret>,
     /// The libSQL database's bearer token.
@@ -84,20 +84,20 @@ pub(crate) struct DatabaseFile {
     startup_timeout: Option<Interval>,
 }
 
-/// The default `SQLite` metadata database of a filesystem hosted store. The
+/// The default `SQLite` database of a filesystem hosted store. The
 /// leading dot keeps it out of the package listing.
 #[must_use]
-pub fn default_metadata_path(storage: &Path) -> PathBuf {
+pub fn default_database_path(storage: &Path) -> PathBuf {
     storage.join(".metadata").join("metadata.sqlite")
 }
 
-pub(crate) fn resolve_metadata_backend(
+pub(crate) fn resolve_database_backend(
     file: Option<&DatabaseFile>,
     storage: &Path,
     base_dir: &Path,
     hosted: &HostedStoreConfig,
     hosts_packages: bool,
-) -> Result<MetadataBackend, RegistryError> {
+) -> Result<DatabaseBackend, RegistryError> {
     // A tier that hosts no packages, such as an artifact-only one, never
     // reads package metadata, whichever store its bucket is.
     let on_fs = matches!(hosted, HostedStoreConfig::Fs) || !hosts_packages;
@@ -112,9 +112,9 @@ pub(crate) fn resolve_metadata_backend(
     match &file.url {
         None if has_remote_settings(file) => Err(invalid(REMOTE_ONLY_SETTINGS)),
         None => default_metadata(storage, on_fs),
-        Some(url) if is_network_sql_url(url) => network_metadata(file, url),
-        Some(url) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
-        Some(url) => sqlite_metadata(file, url, base_dir, on_fs),
+        Some(url) if is_network_sql_url(url) => network_database(file, url),
+        Some(url) if is_libsql_url(url) => libsql_database(file, url, base_dir),
+        Some(url) => sqlite_database(file, url, base_dir, on_fs),
     }
 }
 
@@ -122,9 +122,9 @@ pub(crate) fn resolve_metadata_backend(
 /// store, or in a tier that hosts no packages. An object store of packages
 /// is shared by instances a local database would not be shared by, so it
 /// needs a URL.
-fn default_metadata(storage: &Path, on_fs: bool) -> Result<MetadataBackend, RegistryError> {
+fn default_metadata(storage: &Path, on_fs: bool) -> Result<DatabaseBackend, RegistryError> {
     if on_fs {
-        Ok(MetadataBackend::Sqlite(default_metadata_path(storage)))
+        Ok(DatabaseBackend::Sqlite(default_database_path(storage)))
     } else {
         Err(invalid(
             "an `s3:` hosted store needs database.url to name a shared database, such as \
@@ -148,12 +148,12 @@ fn invalid(reason: &str) -> RegistryError {
 }
 
 /// `SQLite` metadata at the path of a `sqlite:` URL.
-fn sqlite_metadata(
+fn sqlite_database(
     file: &DatabaseFile,
     url: &str,
     base_dir: &Path,
     on_fs: bool,
-) -> Result<MetadataBackend, RegistryError> {
+) -> Result<DatabaseBackend, RegistryError> {
     let Some(path) = url.strip_prefix("sqlite:") else {
         return Err(RegistryError::InvalidConfig {
             reason: "database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
@@ -171,7 +171,7 @@ fn sqlite_metadata(
              remove the `s3:` block or the metadata URL",
         ));
     }
-    Ok(MetadataBackend::Sqlite(resolve_relative(path, base_dir)))
+    Ok(DatabaseBackend::Sqlite(resolve_relative(path, base_dir)))
 }
 
 /// Whether `url` names a libSQL database: `libsql://`, or the HTTP a
@@ -187,11 +187,11 @@ fn is_libsql_url(url: &str) -> bool {
 
 /// libSQL metadata, which any hosted store can use: it is shared by every
 /// instance.
-fn libsql_metadata(
+fn libsql_database(
     file: &DatabaseFile,
     url: &str,
     base_dir: &Path,
-) -> Result<MetadataBackend, RegistryError> {
+) -> Result<DatabaseBackend, RegistryError> {
     let settings = build_libsql_settings(
         LibsqlFile {
             url: url.to_string(),
@@ -209,7 +209,7 @@ fn libsql_metadata(
              replica read may be",
         ));
     }
-    Ok(MetadataBackend::Libsql(settings))
+    Ok(DatabaseBackend::Libsql(settings))
 }
 
 pub(crate) fn default_storage_string() -> String {
@@ -278,7 +278,7 @@ pub(crate) fn resolve_storage_paths(
     Ok((storage, cache_dir, cache))
 }
 
-fn network_metadata(file: &DatabaseFile, url: &str) -> Result<MetadataBackend, RegistryError> {
+fn network_database(file: &DatabaseFile, url: &str) -> Result<DatabaseBackend, RegistryError> {
     if file.auth_token.is_some()
         || file.replica_path.is_some()
         || file.sync_interval.is_some()
@@ -299,7 +299,7 @@ fn network_metadata(file: &DatabaseFile, url: &str) -> Result<MetadataBackend, R
         timeout: file.timeout.clone(),
         startup_timeout: file.startup_timeout.clone(),
     })?;
-    Ok(if mysql { MetadataBackend::Mysql(settings) } else { MetadataBackend::Postgres(settings) })
+    Ok(if mysql { DatabaseBackend::Mysql(settings) } else { DatabaseBackend::Postgres(settings) })
 }
 
 fn is_network_sql_url(url: &str) -> bool {

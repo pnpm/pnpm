@@ -23,7 +23,7 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{
     DOCUMENT_WRITE_RETRIES, DocumentWrite, HostedDocumentVersion,
-    metadata::validate_document_dist_tags, wait_after_document_write_conflict,
+    database::validate_document_dist_tags, wait_after_document_write_conflict,
 };
 
 use super::{

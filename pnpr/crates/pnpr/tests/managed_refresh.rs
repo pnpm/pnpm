@@ -9,12 +9,12 @@ use axum::{
     response::Response,
 };
 use pnpr::{Config, router_with_auth};
-use pnpr_config::{LibsqlSettings, MetadataBackend};
+use pnpr_config::{DatabaseBackend, LibsqlSettings};
 use pnpr_libsql::testing::serve_primary;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    metadata::{NewRegistryGraph, NewScimUser},
+    database::{NewRegistryGraph, NewScimUser},
 };
 use std::{
     sync::{
@@ -107,7 +107,7 @@ auth:
         let proxy_server = tokio::spawn(async move {
             axum::serve(listener, proxy).await.unwrap();
         });
-        config.storage.metadata = MetadataBackend::Libsql(LibsqlSettings {
+        config.storage.database = DatabaseBackend::Libsql(LibsqlSettings {
             url: format!("http://{address}"),
             auth_token: None,
             replica_path: None,

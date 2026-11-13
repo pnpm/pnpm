@@ -4,11 +4,11 @@
 //!
 //! A namespace stores each archive's bytes once, under an incarnation of
 //! their identity, and its metadata maps every published file to one (see
-//! [`pnpr_storage::metadata::BlobRow`]). A collection reclaims what no file
+//! [`pnpr_storage::database::BlobRow`]). A collection reclaims what no file
 //! maps: the bytes of unpublished versions and packages, image blobs no
 //! retained manifest reaches, incarnations a refused or interrupted publish
 //! stored, and reclaims that stopped before they finished. Every removal is
-//! fenced by the metadata database, never by timing, so a commit that
+//! fenced by the database, never by timing, so a commit that
 //! depends on bytes being removed is refused rather than left pointing at
 //! nothing.
 
@@ -18,7 +18,7 @@ pub(crate) mod liveness;
 use crate::{Config, Ecosystem, RegistryError, Result};
 use pnpr_storage::{
     Storage, StoredArchive,
-    metadata::{BlobRef, BlobRow, BlobState, Uncommitted},
+    database::{BlobRef, BlobRow, BlobState, Uncommitted},
 };
 use std::{collections::BTreeMap, time::Duration};
 use tracing::Instrument as _;

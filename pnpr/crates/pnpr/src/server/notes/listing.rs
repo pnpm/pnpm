@@ -16,7 +16,7 @@ use axum::{
 };
 use pnpr_error::RegistryError;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::metadata::Note;
+use pnpr_storage::database::Note;
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 

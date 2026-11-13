@@ -322,7 +322,7 @@ database:
 MySQL needs InnoDB with its default 16 KiB page size.
 
 When the `database:` block is absent, users and tokens stay in the local SQLite
-metadata database. The `auth.users.maxUsers` registration cap is honored either
+database. The `auth.users.maxUsers` registration cap is honored either
 way.
 
 ### Running several replicas

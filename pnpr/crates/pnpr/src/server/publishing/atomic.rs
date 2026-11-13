@@ -20,7 +20,7 @@ use axum::{
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
-    metadata::{BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes},
+    database::{BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes},
     transparency_log::LogId,
 };
 use serde_json::json;
@@ -107,7 +107,7 @@ pub(in super::super) async fn replayed_outcome(
     request: Option<&PublicationRequest>,
 ) -> Result<Option<Response>, RegistryError> {
     let Some(request) = request else { return Ok(None) };
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let Some(outcome) = database.recorded_outcome(namespace, request).await? else {
         return Ok(None);
     };

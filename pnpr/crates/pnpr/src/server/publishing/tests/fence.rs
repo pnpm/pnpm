@@ -160,7 +160,7 @@ async fn a_manifest_whose_layer_was_reclaimed_after_it_was_checked_is_refused() 
             .hosted_blob_of(&repository, &layer.blob_filename())
             .await
             .unwrap(),
-        Some(pnpr_storage::metadata::BlobRef { id: layer_id, incarnation: 2 }),
+        Some(pnpr_storage::database::BlobRef { id: layer_id, incarnation: 2 }),
     );
     let staged = push(&repository, bytes.clone())
         .stage(&state)

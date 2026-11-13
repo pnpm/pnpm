@@ -8,7 +8,7 @@ use super::{RegistryError, Value};
 use crate::server::AppState;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::metadata::{PublishNotes, VersionNote, validate_note};
+use pnpr_storage::database::{PublishNotes, VersionNote, validate_note};
 
 const NOTES: &str = "notes";
 

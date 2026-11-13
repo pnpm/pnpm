@@ -22,7 +22,7 @@ use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId, BlobSlot, HostedDocumentVersion, Storage,
-    metadata::{ArtifactBlob, BlobLookup, HostedLookup},
+    database::{ArtifactBlob, BlobLookup, HostedLookup},
 };
 
 /// The per-project document a hosted registry keeps in its document slot: a
@@ -334,7 +334,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
     target: &HostedTarget<'_>,
     key: &CanonicalPackageName,
     artifact: HostedArtifact<'_>,
-    base: pnpr_storage::metadata::PublishBase,
+    base: pnpr_storage::database::PublishBase,
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {

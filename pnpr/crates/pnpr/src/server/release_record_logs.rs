@@ -18,7 +18,7 @@ use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::{
     Storage,
-    metadata::SqlMetadata,
+    database::SqlDatabase,
     transparency_log::{LogId, StoredCheckpoint},
 };
 use std::{
@@ -81,7 +81,7 @@ pub(super) async fn reconcile_configured_logs(storage: &Storage, config: &Config
     if key.is_none() && !storage.has_any_stored_log().await? {
         return Ok(());
     }
-    let logs = candidate_logs(storage.sql_metadata(), &config.routing).await?;
+    let logs = candidate_logs(storage.sql_database(), &config.routing).await?;
     for log in logs {
         storage.reconcile_log(&log, key).await?;
     }
@@ -173,7 +173,7 @@ impl Drop for RetryRecovery {
 }
 
 async fn integrate_every_log(state: &AppState, key: &NoteSigner) -> bool {
-    let database = state.inner.storage.sql_metadata();
+    let database = state.inner.storage.sql_database();
     let routing = state.routing();
     let logs = match candidate_logs(database, &routing).await {
         Ok(logs) => logs,
@@ -210,7 +210,7 @@ async fn integrate_one_log(state: &AppState, log: &LogId, key: &NoteSigner) -> b
 }
 
 async fn candidate_logs(
-    database: &Arc<SqlMetadata>,
+    database: &Arc<SqlDatabase>,
     routing: &RoutingConfig,
 ) -> Result<Vec<LogId>> {
     let mut logs: Vec<LogId> = routing.hosted

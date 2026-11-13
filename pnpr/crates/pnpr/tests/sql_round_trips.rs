@@ -11,7 +11,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
-use pnpr_config::{LibsqlSettings, MetadataBackend};
+use pnpr_config::{DatabaseBackend, LibsqlSettings};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_libsql::testing::{Primary, serve_primary};
 use serde_json::{Value, json};
@@ -28,7 +28,7 @@ fn libsql_config(storage: &Path, primary: SocketAddr) -> Config {
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
-    config.storage.metadata = MetadataBackend::Libsql(LibsqlSettings {
+    config.storage.database = DatabaseBackend::Libsql(LibsqlSettings {
         url: format!("http://{primary}"),
         auth_token: None,
         replica_path: None,

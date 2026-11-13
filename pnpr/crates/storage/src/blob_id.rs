@@ -4,8 +4,8 @@
 //! A namespace stores bytes once, by the digest of its ecosystem: npm's
 //! `sha512` integrity, and the `sha256` that images, crates, and Python
 //! distributions are checked by. The bytes of one identity are stored under
-//! `<identity>.<incarnation>`, where the metadata database counts
-//! incarnations up and never reuses one (see [`crate::metadata::BlobRow`]).
+//! `<identity>.<incarnation>`, where the database counts
+//! incarnations up and never reuses one (see [`crate::database::BlobRow`]).
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpr_package_name::Ecosystem;

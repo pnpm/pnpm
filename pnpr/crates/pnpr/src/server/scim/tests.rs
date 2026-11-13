@@ -2,7 +2,7 @@ use super::{
     directory::{ScimTracker, ScimUser, record_status_deltas},
     resources::apply_patch,
 };
-use pnpr_storage::metadata::ScimStatus;
+use pnpr_storage::database::ScimStatus;
 use serde_json::json;
 
 fn user(active: bool) -> ScimUser {

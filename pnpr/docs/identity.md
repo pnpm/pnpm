@@ -38,7 +38,7 @@ The `teams:` keys are IDs. Keep them stable when editing names. API-created
 teams receive server-generated IDs. OIDC group grants use these IDs too;
 deleting and recreating a team name does not restore an old grant.
 
-Accounts live in the `users` table of the metadata database: account IDs,
+Accounts live in the `users` table of the database: account IDs,
 status, credential kind, password hashes, and creation timestamps. Protect the
 database like any other credentials file. Apache
 and Verdaccio htpasswd files are import sources for `pnpr import-htpasswd`.

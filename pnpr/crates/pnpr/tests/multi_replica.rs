@@ -1,6 +1,6 @@
 //! Several pnpr replicas behind one load balancer: separate processes, each
 //! with its own local scratch and accounts, sharing one hosted object store
-//! and one metadata database. Replicas share a libSQL primary; here one
+//! and one database. Replicas share a libSQL primary; here one
 //! `SQLite` file stands in for it.
 //!
 //! What holds the deployment together is that every write into that shared
@@ -18,7 +18,7 @@ use npm::publish_doc;
 use object_store::{ObjectStore, memory::InMemory};
 use pausing_store::PausingStore;
 use pnpr::{Config, HostedStoreConfig, MaxUsers};
-use pnpr_config::MetadataBackend;
+use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
@@ -36,7 +36,7 @@ struct Replica {
     _storage: TempDir,
 }
 
-/// The metadata database every replica of a test shares.
+/// The database every replica of a test shares.
 struct SharedMetadata(TempDir);
 
 impl SharedMetadata {
@@ -47,16 +47,16 @@ impl SharedMetadata {
 
 impl Replica {
     async fn start(store: &Arc<dyn ObjectStore>, metadata: &SharedMetadata) -> Replica {
-        Self::start_with_metadata(
+        Self::start_with_database(
             store,
-            MetadataBackend::Sqlite(metadata.0.path().join("metadata.sqlite")),
+            DatabaseBackend::Sqlite(metadata.0.path().join("metadata.sqlite")),
         )
         .await
     }
 
-    async fn start_with_metadata(
+    async fn start_with_database(
         store: &Arc<dyn ObjectStore>,
-        metadata: MetadataBackend,
+        database: DatabaseBackend,
     ) -> Replica {
         let storage = TempDir::new().unwrap();
         let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
@@ -65,7 +65,7 @@ impl Replica {
         config.identity.auth.users.max_users = MaxUsers::Unlimited;
         config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
-        config.storage.metadata = metadata;
+        config.storage.database = database;
         let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret123")]);
         let app = pnpr::router_with_auth(config, auth);
         let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
@@ -282,14 +282,14 @@ async fn unrelated_publishes_finish_while_a_libsql_publish_upload_is_paused() {
     let metadata = SharedMetadata::new();
     let (primary, address, server) =
         pnpr_libsql::testing::serve_primary(metadata.0.path().join("primary.db")).await;
-    let backend = MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+    let backend = DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
         url: format!("http://{address}"),
         auth_token: None,
         replica_path: None,
         sync_interval_secs: None,
         max_connections: None,
     });
-    let replica = Replica::start_with_metadata(&store, backend).await;
+    let replica = Replica::start_with_database(&store, backend).await;
     assert_parallel_uploads(&objects, &replica).await;
     drop(primary);
     server.abort();
@@ -303,7 +303,7 @@ async fn an_unsynced_libsql_replica_serves_tarballs_and_exact_versions_from_the_
     let (primary, address, server) =
         pnpr_libsql::testing::serve_primary(metadata.0.path().join("primary.db")).await;
     let libsql = |name: &str| {
-        MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+        DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
             url: format!("http://{address}"),
             auth_token: None,
             replica_path: Some(
@@ -316,10 +316,10 @@ async fn an_unsynced_libsql_replica_serves_tarballs_and_exact_versions_from_the_
             max_connections: None,
         })
     };
-    let writer = Replica::start_with_metadata(&store, libsql("writer")).await;
+    let writer = Replica::start_with_database(&store, libsql("writer")).await;
     assert_eq!(writer.publish("lag-pkg", "1.0.0", b"v1").await, StatusCode::CREATED);
 
-    let reader = Replica::start_with_metadata(&store, libsql("reader")).await;
+    let reader = Replica::start_with_database(&store, libsql("reader")).await;
     assert_eq!(reader.packument("lag-pkg").await["dist-tags"]["latest"], "1.0.0");
 
     let expected_v2 = npm::publishable_tgz("lag-pkg", "2.0.0", b"v2");
@@ -424,8 +424,8 @@ async fn a_publish_retries_when_a_refused_publish_discards_the_same_bytes() {
         // The cleanup a refused publish of these bytes performs before
         // this publish reaches its metadata commit.
         storage
-            .remove_uncommitted(vec![pnpr_storage::metadata::Uncommitted {
-                blob: pnpr_storage::metadata::BlobRef { id, incarnation: 1 },
+            .remove_uncommitted(vec![pnpr_storage::database::Uncommitted {
+                blob: pnpr_storage::database::BlobRef { id, incarnation: 1 },
                 may_fence: true,
             }])
             .await
@@ -460,7 +460,7 @@ async fn a_publish_retries_when_unpublish_reclaims_the_bytes_it_read_live() {
         // Unpublish has removed the mapping, but has not marked its blob
         // reclaiming yet. The HTTP publish reads that live incarnation.
         storage
-            .sql_metadata()
+            .sql_database()
             .unmap_artifacts(
                 "",
                 pnpr_storage::Ecosystem::Npm,
@@ -496,7 +496,7 @@ fn shared_storage(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() },
         metadata.0.path().join("store"),
         metadata.0.path().join("cache"),
-        &MetadataBackend::Sqlite(metadata.0.path().join("metadata.sqlite")),
+        &DatabaseBackend::Sqlite(metadata.0.path().join("metadata.sqlite")),
     )
     .unwrap()
 }

@@ -5,7 +5,7 @@
 //!
 //! Accounts have immutable IDs and mutable login names. Tokens reference IDs.
 //! Every backend keeps both in the `users` and `tokens` tables of the
-//! metadata database and joins accounts on token lookups. [`AuthState::load`]
+//! database and joins accounts on token lookups. [`AuthState::load`]
 //! selects the backend.
 //!
 //! Raw tokens are returned once; only their SHA-256 hashes are stored.

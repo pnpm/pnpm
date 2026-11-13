@@ -8,7 +8,7 @@ mod tests;
 mod writes;
 
 use super::super::{AppState, RegistryError, managed_state::read_with_deadline};
-use pnpr_storage::metadata::ScimStatus;
+use pnpr_storage::database::ScimStatus;
 use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, HashMap},

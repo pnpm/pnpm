@@ -116,7 +116,7 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
         fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read generated workspace");
     let prewarm = fs::read_to_string(dir.join("prewarm.bash")).expect("read prewarm script");
     let registry = dir.join("registry");
-    seed_peer_heavy_registry(&pnpr_fixtures::metadata_path(&registry));
+    seed_peer_heavy_registry(&pnpr_fixtures::database_path(&registry));
     let first_packument = read_packument(&registry, &peer_heavy_package_name(0, 0));
     let leaf_packument =
         read_packument(&registry, &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0));

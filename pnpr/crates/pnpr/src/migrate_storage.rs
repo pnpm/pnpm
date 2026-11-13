@@ -1,8 +1,8 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
-use pnpr_config::{Config, HostedStoreConfig, MetadataBackend, S3Settings};
+use pnpr_config::{Config, DatabaseBackend, HostedStoreConfig, S3Settings};
 use pnpr_package_name::Ecosystem;
-use pnpr_storage::{Storage, metadata::BlobRef};
+use pnpr_storage::{Storage, database::BlobRef};
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]
@@ -86,8 +86,8 @@ fn init_source_and_target_storage(
     }
     if !options.dry_run
         && !matches!(
-            config.storage.metadata,
-            MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_),
+            config.storage.database,
+            DatabaseBackend::Libsql(_) | DatabaseBackend::Postgres(_) | DatabaseBackend::Mysql(_),
         )
     {
         return Err(miette::miette!(
@@ -104,7 +104,7 @@ fn init_source_and_target_storage(
         &HostedStoreConfig::Fs,
         source_dir,
         config.storage.cache_dir.clone(),
-        &config.storage.metadata,
+        &config.storage.database,
     )
     .map_err(|err| miette::miette!("failed to initialize source storage: {err}"))?;
 
@@ -112,7 +112,7 @@ fn init_source_and_target_storage(
         &target_hosted_config,
         config.storage.hosted_dir.clone(),
         config.storage.cache_dir.clone(),
-        &config.storage.metadata,
+        &config.storage.database,
     )
     .map_err(|err| miette::miette!("failed to initialize target S3 storage: {err}"))?;
 

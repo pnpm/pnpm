@@ -3,7 +3,7 @@ extern crate pnpr_sql;
 
 pub mod layout;
 
-pub mod metadata;
+pub mod database;
 
 pub mod publish;
 
@@ -89,7 +89,7 @@ use futures_util::{
     stream::{self, BoxStream},
 };
 use pnpr_config::{
-    HostedStoreConfig, MetadataBackend, StorageConfig, build_s3_store, normalize_key_prefix,
+    DatabaseBackend, HostedStoreConfig, StorageConfig, build_s3_store, normalize_key_prefix,
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
@@ -166,10 +166,10 @@ pub struct Storage {
     /// namespace; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
-    /// The metadata database every namespace shares.
-    database: Arc<metadata::SqlMetadata>,
+    /// The database every namespace shares.
+    database: Arc<database::SqlDatabase>,
     /// The metadata of `hosted`'s `(namespace, ecosystem)` slice.
-    metadata: metadata::PackageMetadata,
+    metadata: database::PackageMetadata,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -224,7 +224,7 @@ impl Storage {
         hosted: &HostedStoreConfig,
         storage: PathBuf,
         cache_storage: PathBuf,
-        metadata: &MetadataBackend,
+        metadata: &DatabaseBackend,
     ) -> Result<Self> {
         let cached = Store::new(cache_storage.clone());
         let root: Arc<dyn HostedBackend> = match hosted {
@@ -240,7 +240,7 @@ impl Storage {
                 cache_storage,
             )),
         };
-        Ok(Self::from_parts(root, cached, metadata::open(metadata)?))
+        Ok(Self::from_parts(root, cached, database::open(metadata)?))
     }
 
     /// A [`Storage`] over the hosted store `root` and the proxy cache
@@ -249,7 +249,7 @@ impl Storage {
     pub(crate) fn from_parts(
         root: Arc<dyn HostedBackend>,
         cached: Store,
-        database: Arc<metadata::SqlMetadata>,
+        database: Arc<database::SqlDatabase>,
     ) -> Self {
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
         let hosted = slice(&root, "", Ecosystem::Npm);
@@ -271,7 +271,7 @@ impl Storage {
             &config.hosted_backend,
             config.hosted_dir.clone(),
             config.cache_dir.clone(),
-            &config.metadata,
+            &config.database,
         )
     }
 
@@ -351,7 +351,7 @@ impl Storage {
     where
         Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
-        metadata::update_with_retry(&self.metadata, name, retries, principal, build).await
+        database::update_with_retry(&self.metadata, name, retries, principal, build).await
     }
 
     /// Where this namespace stages locally: the namespace's directory on the
@@ -397,11 +397,11 @@ pub struct MetadataRecord {
 }
 
 /// Mark the local hosted store at `root` as being in [`layout::LAYOUT_VERSION`]
-/// and bind its default `SQLite` metadata database to the same `store_id`.
+/// and bind its default `SQLite` database to the same `store_id`.
 ///
 /// # Errors
 ///
-/// Writing the marker or binding the metadata database failed.
+/// Writing the marker or binding the database failed.
 pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
     if !root.exists() {
         return Err(std::io::Error::new(
@@ -415,7 +415,7 @@ pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
         .and_then(|marker| marker.store_id)
         .filter(|id| !id.is_empty());
     let candidate = existing.unwrap_or_else(layout::new_store_id);
-    let database = metadata::SqlMetadata::open_sqlite(&pnpr_config::default_metadata_path(root))
+    let database = database::SqlDatabase::open_sqlite(&pnpr_config::default_database_path(root))
         .map_err(std::io::Error::other)?;
     let store_id = database.claim_store_id_sync(&candidate).map_err(std::io::Error::other)?;
     let marker = serde_json::to_vec(&layout::LayoutMarker {

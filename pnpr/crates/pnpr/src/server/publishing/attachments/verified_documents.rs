@@ -90,7 +90,7 @@ async fn verify_written(
     checks: PublishChecks<'_>,
     written: &mut WrittenAttachments,
     writer: SlotWriter<'_>,
-) -> Result<(Vec<String>, pnpr_storage::metadata::ReleaseRecords), RegistryError> {
+) -> Result<(Vec<String>, pnpr_storage::database::ReleaseRecords), RegistryError> {
     let notices = verify_published_manifests(name, merged, &written.tars)?;
     let archives = (written.variants.as_slice(), written.tars.as_slice());
     variants::attach_variants((name, merged), checks.declared, archives, checks.without_any)?;

@@ -907,7 +907,7 @@ async fn mutations_reauthorize_after_concurrent_package_update() {
         &[],
     );
     config.has_configured_secret = true;
-    config.storage.metadata = pnpr_config::MetadataBackend::Libsql(pnpr_config::LibsqlSettings {
+    config.storage.database = pnpr_config::DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
         url: format!("http://{address}"),
         auth_token: None,
         replica_path: None,

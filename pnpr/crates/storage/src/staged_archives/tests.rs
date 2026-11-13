@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     BlobId, Storage,
-    metadata::{StagedRecord, StagedState},
+    database::{StagedRecord, StagedState},
 };
 use pnpr_config::HostedStoreConfig;
 use std::sync::LazyLock;
@@ -30,7 +30,7 @@ fn storage_in(tmp: &TempDir) -> Storage {
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap()
 }

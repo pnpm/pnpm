@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
-use pnpr_config::MetadataBackend;
+use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
@@ -237,7 +237,7 @@ async fn stage(app: &Router, tgz: &[u8], token: &str) {
 
 fn sqlite_config(storage: &Path) -> Config {
     let mut config = config(storage);
-    config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
+    config.storage.database = DatabaseBackend::Sqlite(storage.join("metadata.sqlite"));
     config
 }
 

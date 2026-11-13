@@ -10,7 +10,7 @@ fn storage_in(tmp: &TempDir) -> Storage {
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
     )
     .unwrap()
 }
@@ -198,7 +198,7 @@ async fn a_store_without_packages_gets_the_layout_marker() {
     );
     assert_eq!(
         storage.database.store_binding().await.unwrap(),
-        crate::metadata::sql::StoreBinding::Bound(store_id.clone()),
+        crate::database::sql::StoreBinding::Bound(store_id.clone()),
     );
     storage.ensure_hosted_layout().await.unwrap();
     let marker_after = fs::read(tmp.path().join("storage/layout.json")).await.unwrap();
@@ -223,7 +223,7 @@ async fn mismatched_or_half_bound_store_and_database_are_refused() {
         &HostedStoreConfig::Fs,
         tmp_a.path().join("storage"),
         tmp_a.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp_b.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp_b.path().join("metadata.sqlite")),
     )
     .unwrap();
     let err = cross
@@ -240,7 +240,7 @@ async fn mismatched_or_half_bound_store_and_database_are_refused() {
         &HostedStoreConfig::Fs,
         tmp_a.path().join("storage"),
         tmp_a.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(empty_db.path().join("fresh.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(empty_db.path().join("fresh.sqlite")),
     )
     .unwrap();
     let err = store_only
@@ -253,7 +253,7 @@ async fn mismatched_or_half_bound_store_and_database_are_refused() {
     assert!(store_only.write_hosted_layout_marker().await.is_err());
     assert_eq!(
         store_only.database.store_binding().await.unwrap(),
-        crate::metadata::sql::StoreBinding::Unmarked { has_data: false },
+        crate::database::sql::StoreBinding::Unmarked { has_data: false },
     );
 
     // Bound database paired with an unmarked empty store.
@@ -262,7 +262,7 @@ async fn mismatched_or_half_bound_store_and_database_are_refused() {
         &HostedStoreConfig::Fs,
         empty_store.path().join("storage"),
         empty_store.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(tmp_a.path().join("metadata.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp_a.path().join("metadata.sqlite")),
     )
     .unwrap();
     let err = db_only
@@ -307,7 +307,7 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     let pending_nonce = crate::layout::new_store_id();
     assert_eq!(
         initial.database.begin_store_claim(pending_nonce.clone()).await.unwrap(),
-        crate::metadata::sql::StoreClaim::Pending(pending_nonce),
+        crate::database::sql::StoreClaim::Pending(pending_nonce),
     );
     drop(initial);
 
@@ -315,7 +315,7 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     restarted.ensure_hosted_layout().await.unwrap();
     assert!(matches!(
         restarted.database.store_binding().await.unwrap(),
-        crate::metadata::sql::StoreBinding::Bound(_),
+        crate::database::sql::StoreBinding::Bound(_),
     ));
 
     // 2. Interrupted after `layout.json` is written and before `confirm_store_claim` completes.
@@ -324,7 +324,7 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     let db_nonce = crate::layout::new_store_id();
     assert_eq!(
         first_boot.database.begin_store_claim(db_nonce.clone()).await.unwrap(),
-        crate::metadata::sql::StoreClaim::Pending(db_nonce.clone()),
+        crate::database::sql::StoreClaim::Pending(db_nonce.clone()),
     );
     let candidate = format!("{}{}", &db_nonce[..16], &crate::layout::new_store_id()[..16]);
     fs::create_dir_all(tmp.path().join("storage")).await.unwrap();
@@ -346,13 +346,13 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
         &HostedStoreConfig::Fs,
         tmp.path().join("storage"),
         tmp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(other_db.path().join("other.sqlite")),
+        &pnpr_config::DatabaseBackend::Sqlite(other_db.path().join("other.sqlite")),
     )
     .unwrap();
     assert!(other_storage.write_hosted_layout_marker().await.is_err());
     assert_eq!(
         other_storage.database.store_binding().await.unwrap(),
-        crate::metadata::sql::StoreBinding::Unmarked { has_data: false },
+        crate::database::sql::StoreBinding::Unmarked { has_data: false },
     );
 
     // A newly constructed Storage instance after restart completes the confirmation.
@@ -360,14 +360,14 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     restarted_after_marker.ensure_hosted_layout().await.unwrap();
     assert_eq!(
         restarted_after_marker.database.store_binding().await.unwrap(),
-        crate::metadata::sql::StoreBinding::Bound(candidate),
+        crate::database::sql::StoreBinding::Bound(candidate),
     );
 
     // 3. Initializer A creates pending claim N for store X, initializer B shares N and writes a
     // marker to store Y, and a conflicting marker lands in store X before A writes its marker.
     // A's failure does not erase N, so B can still confirm store Y.
     let race_dir = TempDir::new().unwrap();
-    let shared_db = pnpr_config::MetadataBackend::Sqlite(race_dir.path().join("shared.sqlite"));
+    let shared_db = pnpr_config::DatabaseBackend::Sqlite(race_dir.path().join("shared.sqlite"));
     let store_x = race_dir.path().join("store-x");
     let store_y = race_dir.path().join("store-y");
     let init_a = Storage::new(
@@ -387,14 +387,14 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     let race_nonce = crate::layout::new_store_id();
     assert_eq!(
         init_a.database.begin_store_claim(race_nonce.clone()).await.unwrap(),
-        crate::metadata::sql::StoreClaim::Pending(race_nonce.clone()),
+        crate::database::sql::StoreClaim::Pending(race_nonce.clone()),
     );
     assert_eq!(
         init_b.database
             .begin_store_claim(crate::layout::new_store_id())
             .await
             .unwrap(),
-        crate::metadata::sql::StoreClaim::Pending(race_nonce.clone()),
+        crate::database::sql::StoreClaim::Pending(race_nonce.clone()),
     );
     let candidate_b = format!("{}{}", &race_nonce[..16], &crate::layout::new_store_id()[..16]);
     fs::create_dir_all(&store_y).await.unwrap();
@@ -423,7 +423,7 @@ async fn interrupted_store_claim_recovers_across_restarts_without_binding_other_
     init_b.ensure_hosted_layout().await.unwrap();
     assert_eq!(
         init_b.database.store_binding().await.unwrap(),
-        crate::metadata::sql::StoreBinding::Bound(candidate_b),
+        crate::database::sql::StoreBinding::Bound(candidate_b),
     );
 }
 

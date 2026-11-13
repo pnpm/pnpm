@@ -353,7 +353,7 @@ impl WorkEnv {
         // run that primes the server, so timed runs measure a warm
         // long-running server even while the client is cold. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped before the mock starts; timed
-        // iterations clear only its cache so its metadata database stays open.
+        // iterations clear only its cache so its database stays open.
         for dir in self
             .benchmarked_ids()
             .map(|id| self.bench_dir(id))
