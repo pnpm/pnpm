@@ -47,7 +47,7 @@ fn schema_contract(sql: &str) -> Vec<String> {
                 .replace("LONGBLOB", "BLOB")
                 .replace("BYTEA", "BLOB")
                 .replace("BIGINT", "INTEGER")
-                .replace(" COLLATE \"C\"", "")
+                .replace(r#" COLLATE "C""#, "")
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")
