@@ -2,7 +2,7 @@
 //! `pnpr registries import` stores one, since pnpr reads its registries only
 //! from there.
 
-use pnpr_config::{Config, RegistryGraphDocument, RoutingConfig, RoutingOptions};
+use pnpr_config::{Config, RegistryGraphDocument, RoutingConfig, RoutingOptions, StorageConfig};
 use pnpr_storage::{
     Storage,
     metadata::{HostedNamespace, NewRegistryGraph, RegistryGraphWrite},
@@ -97,7 +97,7 @@ pub fn split_graph(yaml: &str) -> (Map<String, Value>, Option<Value>) {
 
 fn seed_document(config: &mut Config, document: &RegistryGraphDocument) {
     let routing = build_routing(config, document);
-    store_document(&Storage::from_config(&config.storage).expect("open the storage"), document);
+    store_document(&config.storage, document);
     config.routing = routing;
 }
 
@@ -113,13 +113,19 @@ fn build_routing(config: &Config, document: &RegistryGraphDocument) -> RoutingCo
         .unwrap_or_else(|error| panic!("build the registries document: {error}"))
 }
 
-/// Store `document` as the next revision in `storage`'s metadata database.
+/// Store `document` as the next revision in the metadata database of
+/// `storage`.
 ///
 /// # Panics
 ///
-/// The revision cannot be written.
-pub fn store_document(storage: &Storage, document: &RegistryGraphDocument) {
-    crate::metadata::run(write_document(storage, document));
+/// The storage cannot be opened or the revision cannot be written.
+pub fn store_document(storage: &StorageConfig, document: &RegistryGraphDocument) {
+    let storage = Storage::from_config(storage).expect("open the storage");
+    store_into(&storage, document);
+}
+
+pub(crate) fn store_into(storage: &Storage, document: &RegistryGraphDocument) {
+    crate::metadata::run(write_into(storage, document));
 }
 
 /// [`store_document`] on the caller's runtime, for a database served by that
@@ -127,8 +133,13 @@ pub fn store_document(storage: &Storage, document: &RegistryGraphDocument) {
 ///
 /// # Panics
 ///
-/// The revision cannot be written.
-pub async fn write_document(storage: &Storage, document: &RegistryGraphDocument) {
+/// The storage cannot be opened or the revision cannot be written.
+pub async fn write_document(storage: &StorageConfig, document: &RegistryGraphDocument) {
+    let storage = Storage::from_config(storage).expect("open the storage");
+    write_into(&storage, document).await;
+}
+
+async fn write_into(storage: &Storage, document: &RegistryGraphDocument) {
     let bound: Vec<HostedNamespace> = document
         .registry_names()
         .filter_map(|name| document.hosted_storage(name))

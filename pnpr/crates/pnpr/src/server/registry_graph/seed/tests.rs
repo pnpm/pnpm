@@ -4,10 +4,13 @@ use pnpr_storage::Storage;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use tempfile::TempDir;
 
-fn storage(dir: &TempDir) -> Storage {
+fn storage_config(dir: &TempDir) -> pnpr_config::StorageConfig {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
-    let config = pnpr_config::Config::proxy(listen, dir.path().join("storage"));
-    Storage::from_config(&config.storage).unwrap()
+    pnpr_config::Config::proxy(listen, dir.path().join("storage")).storage
+}
+
+fn storage(dir: &TempDir) -> Storage {
+    Storage::from_config(&storage_config(dir)).unwrap()
 }
 
 async fn stored_document(storage: &Storage) -> serde_json::Value {
@@ -29,7 +32,7 @@ async fn an_empty_database_stores_the_default_registries_once() {
     let default = serde_json::to_value(default_graph().unwrap()).unwrap();
     assert_eq!(stored_document(&storage).await, default);
     assert!(
-        default["registries"]["npmjs"].is_object() && default["registries"]["local"].is_object()
+        default["registries"]["npmjs"].is_object() && default["registries"]["local"].is_object(),
     );
 }
 
@@ -38,7 +41,7 @@ async fn a_stored_graph_is_never_replaced_by_the_default() {
     let dir = TempDir::new().unwrap();
     let storage = storage(&dir);
     let stored = pnpr_config::RegistryGraphDocument::from_yaml("defaultRegistry: null\n").unwrap();
-    pnpr_fixtures::write_document(&storage, &stored).await;
+    pnpr_fixtures::write_document(&storage_config(&dir), &stored).await;
     seed_default_graph(&storage).await.unwrap();
     assert_eq!(storage.read_registry_graph_generation().await.unwrap(), Some(1));
     assert_eq!(stored_document(&storage).await, serde_json::to_value(&stored).unwrap());

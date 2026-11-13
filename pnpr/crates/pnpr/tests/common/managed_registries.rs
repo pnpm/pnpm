@@ -24,9 +24,5 @@ pub async fn managed_config(
 /// revision, on the caller's runtime, which may be serving the database.
 pub async fn store_graph(config: &Config, graph: &Value) {
     let document: RegistryGraphDocument = serde_json::from_value(graph.clone()).unwrap();
-    pnpr_fixtures::write_document(
-        &pnpr_storage::Storage::from_config(&config.storage).unwrap(),
-        &document,
-    )
-    .await;
+    pnpr_fixtures::write_document(&config.storage, &document).await;
 }

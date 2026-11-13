@@ -297,7 +297,7 @@ fn build_storage(
 pub fn seed_storage_registries(storage: &Path, yaml: &str) {
     let document = pnpr_config::RegistryGraphDocument::from_yaml(yaml)
         .unwrap_or_else(|error| panic!("parse the registries document: {error}"));
-    store_document(&metadata::open(storage), &document);
+    registries::store_into(&metadata::open(storage), &document);
 }
 
 fn remove_version_field(packuments: &mut [(String, Value)], removed: &RemovedVersionField<'_>) {
