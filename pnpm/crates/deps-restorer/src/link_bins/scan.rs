@@ -107,15 +107,15 @@ fn repair_slot(
             link_bins_excluding::<Host>(&modules_dir, &bins_dir, &package_dir, link_options)
                 .map_err(LinkVirtualStoreBinsError::LinkBins)
         }
-        Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,) =>
-        {
-            Ok(())
-        }
+        Err(error) if is_missing_directory_error(&error) => Ok(()),
         Err(error) => {
             Err(LinkVirtualStoreBinsError::ReadVirtualStore { dir: package_dir.clone(), error })
         }
     }
+}
+
+fn is_missing_directory_error(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::NotFound || error.kind() == io::ErrorKind::NotADirectory
 }
 
 fn read_entries(path: &Path) -> Result<Vec<PathBuf>, LinkVirtualStoreBinsError> {
