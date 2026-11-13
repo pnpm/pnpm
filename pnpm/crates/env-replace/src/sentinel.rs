@@ -74,7 +74,8 @@ impl SentinelPlaceholders {
 
     /// Render `text` replacing only the placeholders `accepts` cannot parse
     /// without, returning `None` when `accepts` rejects full sentinel
-    /// replacement or when probing exceeds the read budget.
+    /// replacement. When probing reaches its read budget, the remaining groups
+    /// stay in their already-accepted sentinel form.
     pub fn replace_minimal(
         &self,
         text: &str,
@@ -86,9 +87,7 @@ impl SentinelPlaceholders {
         }
         let indices: Vec<usize> = (0..self.ranges.len()).collect();
         let mut reads = 1u32;
-        if !self.demote_group(text, &indices, &mut use_sentinel, &mut reads, &mut accepts) {
-            return None;
-        }
+        self.demote_group(text, &indices, &mut use_sentinel, &mut reads, &mut accepts);
         Some(self.render_subset(text, &use_sentinel))
     }
 
@@ -162,29 +161,28 @@ impl SentinelPlaceholders {
         use_sentinel: &mut [bool],
         reads: &mut u32,
         accepts: &mut impl FnMut(&str) -> bool,
-    ) -> bool {
-        if group.is_empty() {
-            return true;
-        }
-        if *reads >= MAX_DEMOTE_READS {
-            return false;
+    ) {
+        if group.is_empty() || *reads >= MAX_DEMOTE_READS {
+            return;
         }
         *reads += 1;
         for &index in group {
             use_sentinel[index] = false;
         }
         if accepts(&self.render_subset(text, use_sentinel)) {
-            return true;
+            return;
         }
         for &index in group {
             use_sentinel[index] = true;
         }
         if group.len() == 1 {
-            return true;
+            return;
         }
         let (left, right) = group.split_at(group.len() / 2);
-        self.demote_group(text, left, use_sentinel, reads, accepts)
-            && self.demote_group(text, right, use_sentinel, reads, accepts)
+        self.demote_group(text, left, use_sentinel, reads, accepts);
+        if *reads < MAX_DEMOTE_READS {
+            self.demote_group(text, right, use_sentinel, reads, accepts);
+        }
     }
 }
 
@@ -297,3 +295,6 @@ fn escaped_line_break_len(after_backslash: &[u8]) -> Option<usize> {
         .count();
     Some(trailing_spaces + newline_len + leading_indent)
 }
+
+#[cfg(test)]
+mod tests;

@@ -133,13 +133,13 @@ pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned + Default>(
         .enumerate()
         .filter_map(|(index, &choice)| (choice == PlaceholderChoice::Sentinel).then_some(index))
         .collect();
-    if !prober.demote::<Settings>(
+    // Sentinel -> AsWritten only drops unnecessary sentinels; any remaining
+    // sentinels in `prober.choices` are already accepted and never expand env.
+    let _ = prober.demote::<Settings>(
         &sentinel_indices,
         PlaceholderChoice::Sentinel,
         PlaceholderChoice::AsWritten,
-    ) {
-        return Err(Box::new(as_written));
-    }
+    );
     prober.read().ok_or_else(|| Box::new(as_written))
 }
 

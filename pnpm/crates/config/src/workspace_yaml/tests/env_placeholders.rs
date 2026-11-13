@@ -567,3 +567,21 @@ fn quoted_escapes_and_multiline_comments_survive_placeholder_probing() {
         LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
     ));
 }
+
+#[test]
+fn many_flow_placeholders_exceeding_demotion_budget_still_preserve_strings() {
+    let entries: Vec<String> = (0..300)
+        .map(|index| format!("pkg-{index}: ${{PNPM_TEST_UNSET:-1.0.{index}}}"))
+        .collect();
+    let yaml = format!(
+        "{{overrides: {{{}}}, registry: https://example.com/${{PNPM_TEST_HOST}}/}}\n",
+        entries.join(", "),
+    );
+    let mut settings = parse_settings::<Env, WorkspaceSettings>(&yaml).unwrap();
+    assert_eq!(settings.registry.as_deref(), Some("https://example.com/${PNPM_TEST_HOST}/"));
+    let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
+    assert!(matches!(
+        &error,
+        LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } if setting == "registry"
+    ));
+}
