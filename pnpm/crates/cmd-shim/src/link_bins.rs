@@ -392,7 +392,7 @@ where
         match Sys::read_dir(bins_dir) {
             Ok(entries) => {
                 drop(entries);
-                DirCreation::Unknown
+                Ok(DirCreation::Unknown)
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 return Err(LinkBinsError::FrozenStoreWrite { path: bins_dir.to_path_buf() });
@@ -407,12 +407,12 @@ where
     }
 }
 
-fn select_bins_to_link<Sys>(
-    chosen: Vec<(Command, &PackageBinSource)>,
+fn select_bins_to_link<'packages, Sys>(
+    chosen: Vec<(Command, &'packages PackageBinSource)>,
     bins_dir: &Path,
     paths: &linking_paths::LinkingPaths<'_>,
     options: &LinkBinsOptions,
-) -> Result<Vec<(Command, &PackageBinSource)>, LinkBinsError>
+) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError>
 where
     Sys: FsReadHead,
 {

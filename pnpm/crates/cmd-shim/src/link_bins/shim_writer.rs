@@ -53,7 +53,7 @@ impl ShimSpec<'_> {
         self.options.installed_modules_dir.as_deref()
     }
 
-    fn relocatable_root(&self) -> Option<&Path> {
+    pub(super) fn relocatable_root(&self) -> Option<&Path> {
         self.paths.relocatable_root.as_deref()
     }
 
@@ -122,8 +122,8 @@ fn write_frozen_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    let existing_shim = match read_or_create_shim::<Sys>(&spec, cache)? {
-        ExistingShim::Present(existing) => Some(existing),
+    let existing_shim = match read_or_create_shim::<Sys>(spec, cache)? {
+        ExistingShim::Present(existing) => existing,
         ExistingShim::Written | ExistingShim::Absent => {
             return Err(LinkBinsError::FrozenStoreWrite { path: spec.shim_path.to_path_buf() });
         }

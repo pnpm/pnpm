@@ -1,9 +1,6 @@
+use super::{FsReadHead, LinkBinsError, ShimSpec, symlink_already_points_at, target_requires_shim};
 #[cfg(windows)]
-use super::executable::is_same_file;
-use super::{
-    FsReadHead, LinkBinsError, ShimSpec, is_node_bin_name, shim_writer::with_extension_appended,
-    symlink_already_points_at, target_requires_shim,
-};
+use super::{executable::is_same_file, is_node_bin_name, shim_writer::with_extension_appended};
 use std::path::Path;
 
 pub(super) fn direct_shim_is_current<Sys>(
