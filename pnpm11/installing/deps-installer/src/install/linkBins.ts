@@ -49,7 +49,6 @@ export interface BuiltBinContext {
 export async function linkBinsOfResolvedProjects (step: LinkContext, built: BuiltBinContext): Promise<void> {
   const { ctx, opts, projects, resolution } = step
   const { builtDepPaths, builtPackageDirs, newDepPaths } = built
-  await repairGlobalVirtualStoreBinShims(ctx, opts)
   if (newDepPaths?.length && !opts.virtualStoreOnly) {
     const newPkgs = selectPackagesToLink(resolution.dependenciesGraph, {
       builtDepPaths,
@@ -67,6 +66,7 @@ export async function linkBinsOfResolvedProjects (step: LinkContext, built: Buil
   }
 
   if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
+  await repairGlobalVirtualStoreBinShims(ctx, opts)
 }
 
 function selectPackagesToLink (
