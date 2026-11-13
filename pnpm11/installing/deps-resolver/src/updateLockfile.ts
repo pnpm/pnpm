@@ -101,7 +101,12 @@ function toLockfileDependency (
   if (shouldRecordVersion(pkg.version, { depPath: opts.depPath, registryName: opts.registryName, lockfileResolution })) {
     result['version'] = pkg.version
   }
-  addChildDependencies(result, opts, pkg.resolution)
+  addChildDependencies(
+    result,
+    opts,
+    pkg.resolution,
+    pkg.resolvedVia === 'workspace' && opts.depPath.includes('@file:')
+  )
   if (pkg.optional) {
     result['optional'] = true
   }
@@ -131,19 +136,22 @@ function addChildDependencies (
     depGraph: DependenciesGraph
     lockfileDir?: string
   },
-  parentResolution: ResolvedPackage['resolution']
+  parentResolution: ResolvedPackage['resolution'],
+  isInjectedWorkspacePackage: boolean
 ): void {
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph,
     opts.lockfileDir,
-    parentResolution
+    parentResolution,
+    isInjectedWorkspacePackage
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.updatedOptionalDeps,
     opts.depGraph,
     opts.lockfileDir,
-    parentResolution
+    parentResolution,
+    isInjectedWorkspacePackage
   )
   if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
@@ -277,13 +285,14 @@ function updateResolvedDeps (
   updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph,
   lockfileDir: string | undefined,
-  parentResolution: ResolvedPackage['resolution']
+  parentResolution: ResolvedPackage['resolution'],
+  isInjectedWorkspacePackage: boolean
 ): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
-          if (lockfileDir == null || parentResolution.type !== 'directory') return [alias, depPath]
+          if (isInjectedWorkspacePackage || lockfileDir == null || parentResolution.type !== 'directory') return [alias, depPath]
           const linkSpec = depPath.slice(5)
           if (!linkSpec.startsWith('../') && !linkSpec.startsWith('./')) return [alias, depPath]
           const linkTarget = localSpecPath(linkSpec, parentResolution.directory)
