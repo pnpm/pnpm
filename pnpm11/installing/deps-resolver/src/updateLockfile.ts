@@ -306,9 +306,6 @@ function getLinkedPackageRef (
   if (lockfileDir == null) return depPath
   const linkSpec = depPath.slice(5)
   const depNode = depGraph[depPath]
-  if (depNode?.resolution.type === 'directory') {
-    return createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string
-  }
   if (
     parentResolution.type === 'directory' &&
     (linkSpec.startsWith('../') || linkSpec.startsWith('./'))
@@ -317,6 +314,9 @@ function getLinkedPackageRef (
       lockfileDir,
       localSpecPath(linkSpec, parentResolution.directory)
     ) as string
+  }
+  if (depNode?.resolution.type === 'directory') {
+    return createNodeIdForLinkedLocalPkg(lockfileDir, depNode.resolution.directory) as string
   }
   return depPath
 }
