@@ -48,22 +48,47 @@ export interface BuiltBinContext {
 export async function linkBinsOfResolvedProjects (step: LinkContext, built: BuiltBinContext): Promise<void> {
   const { ctx, opts, projects, resolution } = step
   const { builtDepPaths, builtPackageDirs, newDepPaths } = built
-  if (newDepPaths?.length && !opts.virtualStoreOnly) {
-    const newPkgs = selectPackagesToLink(resolution.dependenciesGraph, {
+  if (!opts.virtualStoreOnly) {
+    const packagesToLink = getPackagesToLink(resolution.dependenciesGraph, {
       builtDepPaths,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       newDepPaths,
       skipped: ctx.skipped,
     })
-    await linkAllBins(newPkgs, resolution.dependenciesGraph, {
-      builtPackageDirs,
-      extraNodePaths: opts.enableGlobalVirtualStore ? [] : ctx.extraNodePaths,
-      optional: opts.include.optionalDependencies,
-      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      warn: warnAboutBins.bind(null, opts.lockfileDir),
-    })
+    if (packagesToLink.length > 0) {
+      await linkAllBins(packagesToLink, resolution.dependenciesGraph, {
+        builtPackageDirs,
+        extraNodePaths: opts.enableGlobalVirtualStore ? [] : ctx.extraNodePaths,
+        optional: opts.include.optionalDependencies,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        warn: warnAboutBins.bind(null, opts.lockfileDir),
+      })
+    }
   }
 
   if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
+}
+
+function getPackagesToLink (
+  dependenciesGraph: DependenciesGraph,
+  opts: {
+    builtDepPaths: ReadonlySet<DepPath> | undefined
+    enableGlobalVirtualStore: boolean | undefined
+    newDepPaths: DepPath[] | undefined
+    skipped: ReadonlySet<DepPath>
+  }
+): DependenciesGraphNode[] {
+  if (opts.enableGlobalVirtualStore) {
+    return (Object.entries(dependenciesGraph) as Array<[DepPath, DependenciesGraphNode]>)
+      .filter(([depPath]) => !opts.skipped.has(depPath))
+      .map(([, node]) => node)
+  }
+  if (!opts.newDepPaths?.length) return []
+  return selectPackagesToLink(dependenciesGraph, {
+    builtDepPaths: opts.builtDepPaths,
+    newDepPaths: opts.newDepPaths,
+    skipped: opts.skipped,
+  })
 }
 
 function selectPackagesToLink (
