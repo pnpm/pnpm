@@ -92,11 +92,13 @@ fn dependency_name_sets(manifest: &PackageManifest) -> (HashSet<String>, HashSet
         .available_dependency_names(None)
         .into_iter()
         .collect::<HashSet<_>>();
-    let peer_only_dependencies = manifest
-        .dependencies([DependencyGroup::Peer])
-        .map(|(name, _)| name.to_string())
-        .filter(|name| !declared_dependencies.contains(name))
-        .collect::<HashSet<_>>();
+    let peer_only_dependencies =
+        pnpm_resolving_deps_resolver::PeerSet::from_manifest(manifest.value(), |_| false)
+            .taken()
+            .keys()
+            .filter(|name| !declared_dependencies.contains(*name))
+            .cloned()
+            .collect();
     (declared_dependencies, peer_only_dependencies)
 }
 

@@ -255,7 +255,7 @@ function createDeployImporterSnapshot (opts: CreateDeployFilesOptions, deployedP
   }
   const directDependencyNames = dependencyNames(opts.selectedProjectManifest)
   const peerOnlyDependencies = new Set(
-    Object.keys(opts.selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+    Object.keys(getPeerSet(opts.selectedProjectManifest).taken).filter(name => !directDependencyNames.has(name))
   )
   for (const field of DEPENDENCIES_FIELD) {
     // An excluded group's direct dependencies are left out of both the
