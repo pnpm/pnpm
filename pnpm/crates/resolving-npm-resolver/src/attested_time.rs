@@ -4,7 +4,8 @@
 //! Without this record an offline verification could not repeat a check the
 //! attestation endpoint settled online.
 //!
-//! One file per `(registry, name)` under [`ATTESTED_TIME_DIR`], one JSON
+//! One file per `(registry, name)` under
+//! [`ATTESTED_TIME_DIR`](crate::mirror::ATTESTED_TIME_DIR), one JSON
 //! line per version. A line is appended whole, so concurrent installs never
 //! rewrite each other's lines, and a line that does not parse is skipped.
 
@@ -15,10 +16,6 @@ use std::{
     io::{self, Write},
     path::Path,
 };
-
-/// Cache directory of the attested publish times. Shared with the
-/// TypeScript CLI.
-pub const ATTESTED_TIME_DIR: &str = "v12/metadata-attested-time";
 
 #[derive(Serialize, Deserialize)]
 struct AttestedTime {

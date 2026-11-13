@@ -3,11 +3,10 @@ use indexmap::IndexMap;
 use miette::IntoDiagnostic;
 use pnpm_config::{Config, ResolutionMode};
 use pnpm_fs::lexical_normalize;
-use pnpm_resolving_npm_resolver::ATTESTED_TIME_DIR;
 use pnpm_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, LEGACY_META_DIRS,
-    LEGACY_PRIVATE_META_ROOT, PNPR_META_DIR, RELEASE_RECORDS_DIR, decode_registry_name,
-    get_registry_name, is_unreadable_registry_key, load_meta,
+    ABBREVIATED_META_DIR, ATTESTED_TIME_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR,
+    LEGACY_META_DIRS, LEGACY_PRIVATE_META_ROOT, PNPR_META_DIR, RELEASE_RECORDS_DIR,
+    decode_registry_name, get_registry_name, is_unreadable_registry_key, load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;

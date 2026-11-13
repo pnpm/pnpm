@@ -3,7 +3,7 @@ use super::{
     TrustHistoryProjection,
 };
 use crate::{
-    attested_time::{ATTESTED_TIME_DIR, load_attested_times},
+    attested_time::load_attested_times, mirror::ATTESTED_TIME_DIR,
     trust_checks::get_policy_trust_evidence,
 };
 

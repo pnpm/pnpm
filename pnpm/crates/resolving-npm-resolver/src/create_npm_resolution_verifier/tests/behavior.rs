@@ -1,7 +1,7 @@
 use super::{
     FAKE_INTEGRITY, HashMap, LockfileResolution, PkgName, REVISION_ONE_DIGEST, REVISION_TWO_DIGEST,
     REVISION_ZERO_DIGEST, RegistryResolution, ResolutionVerification, TarballResolution,
-    TarballRevision, TrustPolicy, Utc, abbreviated_packument_json, assert_eq,
+    TarballRevision, TrustPolicy, abbreviated_packument_json, assert_eq,
     create_npm_resolution_verifier, create_package_version_policy, ctx, default_opts,
     fake_integrity, min_age_packument_json, now_at, registry_resolution, revision_integrity,
     tarball_resolution,

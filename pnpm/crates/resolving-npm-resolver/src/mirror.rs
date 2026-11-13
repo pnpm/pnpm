@@ -106,6 +106,10 @@ pub const FULL_META_DIR: &str = "v12/metadata-full";
 /// Mirror directory for the filtered full metadata cache.
 pub const FULL_FILTERED_META_DIR: &str = "v12/metadata-full-filtered";
 
+/// Directory of the publish times read from the attestation endpoint, one
+/// file per package. Shared with the TypeScript CLI.
+pub const ATTESTED_TIME_DIR: &str = "v12/metadata-attested-time";
+
 /// Error from [`save_meta`]. Surfaced to callers that care about
 /// individual write failures (tests, in particular); production
 /// callers ignore it and treat cache writes as fire-and-forget.

@@ -20,7 +20,6 @@ extern crate pnpm_http as reqwest;
 
 pub mod mirror;
 
-pub use attested_time::ATTESTED_TIME_DIR;
 pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
 pub use calc_specifier_for_workspace_dep::{
     DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
@@ -42,7 +41,8 @@ pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_
 pub use infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 pub use lookup_context::VerifierLookups;
 pub use mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR, RELEASE_RECORDS_DIR,
+    ABBREVIATED_META_DIR, ATTESTED_TIME_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR,
+    RELEASE_RECORDS_DIR,
 };
 pub use named_registry::{
     BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
