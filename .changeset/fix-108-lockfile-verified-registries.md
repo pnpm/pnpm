@@ -6,4 +6,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` now re-verifies lockfile resolutions when the default registry or a scoped registry changes [zkochan/pnpm-tasks#108](https://github.com/zkochan/pnpm-tasks/issues/108).
+`pnpm install` now re-verifies lockfile resolutions when the default registry or a scoped registry changes [#18070](https://github.com/pnpm/pnpm/pull/18070).

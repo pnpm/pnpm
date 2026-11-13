@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` now verifies `pnpr` package revisions against `install-v2` documents and release records when the lockfile verification cache misses [zkochan/pnpm-tasks#108](https://github.com/zkochan/pnpm-tasks/issues/108).
+`pnpm install` now verifies `pnpr` package revisions against `install-v2` documents and release records when the lockfile verification cache misses [#18070](https://github.com/pnpm/pnpm/pull/18070).
