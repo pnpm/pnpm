@@ -39,13 +39,13 @@ mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;
 mod up_to_date_scripts;
-use super::repair_global_virtual_store_bin_shims::repair_global_virtual_store_bin_shims;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
     Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
     build_resolution_verifiers, configured_or_discovered_workspace_dir, lockfile_root_dir,
+    repair_global_virtual_store_bin_shims::repair_global_virtual_store_bin_shims,
 };
 use pnpm_config::Config;
 
