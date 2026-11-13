@@ -224,9 +224,11 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
     let shim_path = package.join("node_modules/.bin/hello-world-js-bin");
     let shim = fs::read_to_string(&shim_path).expect("read dependency bin shim").replace('\\', "/");
     _utils::assert_shim_omits_path(&shim, &workspace.join("node_modules/.pnpm/node_modules"));
+    // Windows shims assign the value to `new_node_path` and export that.
     let node_path = shim
         .lines()
-        .find(|line| line.trim_start().starts_with("export NODE_PATH="))
+        .map(str::trim_start)
+        .find(|line| line.starts_with("export NODE_PATH='") || line.starts_with("new_node_path='/"))
         .expect("the shim extends NODE_PATH");
     assert!(
         node_path.contains("/v11/links/@pnpm.e2e/"),

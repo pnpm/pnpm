@@ -55,7 +55,8 @@ test('shared global virtual store bin shims do not capture the installing projec
   const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
   const shimContent = fs.readFileSync(path.join(binDir, 'hello-world-js-bin'), 'utf8')
   expectShimOmitsPath(shimContent, projectHoistedModulesDir)
-  expect(shimContent).toMatch(/export NODE_PATH='[^']*[\\/]v11[\\/]links[\\/]/)
+  // Windows shims assign the value to `new_node_path` and export that.
+  expect(shimContent).toMatch(/(?:export NODE_PATH|new_node_path)='[^']*[\\/]v11[\\/]links[\\/]/)
 })
 
 test('builds and rebuilds keep shared global virtual store bin shims free of project paths', async () => {
