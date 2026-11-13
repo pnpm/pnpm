@@ -280,7 +280,7 @@ fn redirected_output_does_not_wrap_long_messages() {
 
     assert!(
         rendered.contains(message),
-        "the complete message must stay on one line, got:\n{rendered}"
+        "the complete message must stay on one line, got:\n{rendered}",
     );
 }
 
@@ -293,5 +293,5 @@ fn terminal_output_does_not_wrap_long_messages() {
 
     let rendered = render(&handler, &diagnostic);
 
-    assert!(rendered.contains(message), "the complete URL must stay intact, got:\n{rendered}");
+    assert!(rendered.contains(message), "the complete URL must stay intact, got:\n{rendered}",);
 }
