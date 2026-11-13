@@ -5,9 +5,7 @@
 //! `installing/deps-installer/test/install/customResolvers.ts`.
 
 #[cfg(unix)]
-use crate::_utils::terminal::Terminal;
-#[cfg(unix)]
-use crate::_utils::wait_for_child;
+use crate::_utils::{terminal::Terminal, wait_for_child};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
@@ -42,7 +40,7 @@ fn write_failing_resolver(workspace: &Path) {
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         format!(
-            "module.exports = {{ resolvers: [{{ canResolve () {{ throw new Error('lookup failed. Add it with this link: {LONG_RESOLVER_ERROR_URL}'); }}, resolve () {{}} }}] }}\n"
+            "module.exports = {{ resolvers: [{{ canResolve () {{ throw new Error('lookup failed. Add it with this link: {LONG_RESOLVER_ERROR_URL}'); }}, resolve () {{}} }}] }}\n",
         ),
     )
     .expect("write failing resolver pnpmfile");
