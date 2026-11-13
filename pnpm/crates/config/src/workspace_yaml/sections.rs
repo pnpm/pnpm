@@ -443,9 +443,13 @@ impl<'de> Deserialize<'de> for TaskSettings {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         let raw = RawTaskSettings::deserialize(deserializer)?;
         let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
-        let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
+        let invalid_concurrency = raw
+            .concurrency
+            .filter(|value| !value.is_null() && value.as_i64().is_none());
         let priority = raw.priority.as_ref().and_then(json_i32);
-        let invalid_priority = raw.priority.filter(|value| json_i32(value).is_none());
+        let invalid_priority = raw
+            .priority
+            .filter(|value| !value.is_null() && json_i32(value).is_none());
         Ok(Self {
             concurrency,
             invalid_concurrency,
