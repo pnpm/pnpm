@@ -11,7 +11,7 @@ import { partition } from 'ramda'
 import semver from 'semver'
 
 import { isIntersectingRange } from './isIntersectingRange.js'
-import { isSubRange } from './isSubRange.js'
+import { type ParsedSelectorRange, parseSelectorRange, selectorRangeCovers } from './isSubRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 
@@ -164,11 +164,10 @@ function splitOverrides (overrides: VersionOverrideWithoutRawSelector[], rootDir
     explicitOverrides.map((override) => ({
       ...override,
       localTarget: createLocalTarget(override, rootDir),
-      narrowerOverrides: new Set<VersionOverride>(),
+      parentRange: parseSelectorRange(override.parentPkg?.bareSpecifier),
+      targetRange: parseSelectorRange(override.targetPkg.bareSpecifier),
     }))
   ) as [VersionOverrideWithParent[], VersionOverride[]]
-  populateNarrowerOverrides(versionOverrides)
-  populateNarrowerOverrides(genericVersionOverrides)
   return {
     versionOverrides,
     genericVersionOverrides,
@@ -212,7 +211,8 @@ function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir
 
 interface VersionOverride extends VersionOverrideBase {
   localTarget?: LocalTarget
-  narrowerOverrides: Set<VersionOverride>
+  parentRange: ParsedSelectorRange
+  targetRange: ParsedSelectorRange
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
@@ -448,28 +448,10 @@ function renderBarePath (path: string): string {
   return isFilespec(spec) ? spec : `./${spec}`
 }
 
-function populateNarrowerOverrides (overrides: VersionOverride[]): void {
-  for (const candidate of overrides) {
-    for (const other of overrides) {
-      if (dominatesCandidate(other, candidate)) {
-        candidate.narrowerOverrides.add(other)
-      }
-    }
-  }
-}
-
-function dominatesCandidate (other: VersionOverride, candidate: VersionOverride): boolean {
-  return other !== candidate &&
-    other.targetPkg.name === candidate.targetPkg.name &&
-    other.parentPkg?.name === candidate.parentPkg?.name &&
-    isStrictlyNarrowerOverride(other, candidate)
-}
-
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
   if (versionOverrides.length <= 1) return versionOverrides[0]
   return versionOverrides.find((candidate) =>
-    candidate.narrowerOverrides.size === 0 ||
-    !versionOverrides.some((other) => candidate.narrowerOverrides.has(other))
+    !versionOverrides.some((other) => other !== candidate && isStrictlyNarrowerOverride(other, candidate))
   )
 }
 
@@ -478,6 +460,6 @@ function isStrictlyNarrowerOverride (lhs: VersionOverride, rhs: VersionOverride)
 }
 
 function selectorCovers (broad: VersionOverride, narrow: VersionOverride): boolean {
-  return isSubRange(broad.parentPkg?.bareSpecifier, narrow.parentPkg?.bareSpecifier) &&
-    isSubRange(broad.targetPkg.bareSpecifier, narrow.targetPkg.bareSpecifier)
+  return selectorRangeCovers(broad.parentRange, narrow.parentRange) &&
+    selectorRangeCovers(broad.targetRange, narrow.targetRange)
 }

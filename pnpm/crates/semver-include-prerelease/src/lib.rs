@@ -1,7 +1,7 @@
 //! npm `semver` range semantics, built on `node_semver`.
 
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
-pub use subset::is_semver_subset;
+pub use subset::{ParsedSemverRange, is_semver_subset};
 
 use std::borrow::Cow;
 
@@ -186,12 +186,13 @@ pub(crate) fn npm_upper_bound(token: &str) -> Option<String> {
     let major: u64 = components.next()?.parse().ok()?;
     let minor = parse_optional_component(components.next())?;
     let patch = parse_optional_component(components.next())?;
-    if components.next().is_some() || patch.is_some() {
+    if components.next().is_some() {
         return None;
     }
-    match minor {
-        None => Some(format!("<{major}.0.0-0")),
-        Some(minor) => Some(format!("<{major}.{minor}.0-0")),
+    match (minor, patch) {
+        (Some(_), Some(_)) => None,
+        (None, _) => Some(format!("<{major}.0.0-0")),
+        (Some(minor), None) => Some(format!("<{major}.{minor}.0-0")),
     }
 }
 

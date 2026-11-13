@@ -6,7 +6,7 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::OverrideDependencyType;
 use pnpm_matcher::WildcardMatcher;
-use pnpm_semver_include_prerelease::is_semver_subset;
+use pnpm_semver_include_prerelease::ParsedSemverRange;
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -172,48 +172,38 @@ fn specificity_key(entry: &ResolvedOverride) -> Specificity {
     Specificity { has_wildcard_parent, has_wildcard_target, is_untyped_target }
 }
 
-/// Precomputes strict range dominance among peers in the same specificity
-/// tier whose selector names can co-match, so per-dependency lookup never
-/// reparses override ranges.
-pub(super) fn populate_dominators(entries: &mut [ResolvedOverride]) {
-    let keys: Vec<Specificity> = entries
-        .iter()
-        .map(specificity_key)
-        .collect();
-    let dominators: Vec<Vec<usize>> =
-        (0..entries.len()).map(|idx| dominators_for_index(entries, &keys, idx)).collect();
-    for (entry, dominated_by) in entries.iter_mut().zip(dominators) {
-        entry.dominated_by = dominated_by;
+/// Pre-parsed range constraint on an override selector half (`parent` or `target`),
+/// constructed once per override so manifest dependency lookups compare interval
+/// bounds without reparsing range strings or retaining quadratic edge tables.
+pub(super) enum SelectorBound {
+    Unbounded,
+    Semver(ParsedSemverRange),
+    NonSemver(String),
+}
+
+impl SelectorBound {
+    pub(super) fn parse(specifier: Option<&str>) -> Self {
+        let Some(trimmed) = specifier
+            .map(str::trim)
+            .filter(|range| !range.is_empty())
+        else {
+            return Self::Unbounded;
+        };
+        match ParsedSemverRange::parse(trimmed) {
+            Some(parsed) => Self::Semver(parsed),
+            None => Self::NonSemver(trimmed.to_string()),
+        }
     }
-}
 
-fn dominators_for_index(
-    entries: &[ResolvedOverride],
-    keys: &[Specificity],
-    idx: usize,
-) -> Vec<usize> {
-    let candidate = &entries[idx];
-    let key = &keys[idx];
-    entries
-        .iter()
-        .enumerate()
-        .filter(|&(other_idx, other)| {
-            other_idx != idx
-                && keys[other_idx] == *key
-                && can_co_match(key, candidate, other)
-                && is_strictly_narrower(other, candidate)
-        })
-        .map(|(_, other)| other.id)
-        .collect()
-}
-
-fn can_co_match(key: &Specificity, lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> bool {
-    let targets_compatible = key.has_wildcard_target
-        || lhs.inner.target_pkg.name == rhs.inner.target_pkg.name;
-    let parents_compatible = key.has_wildcard_parent
-        || lhs.inner.parent_pkg.as_ref().map(|pkg| &pkg.name)
-            == rhs.inner.parent_pkg.as_ref().map(|pkg| &pkg.name);
-    targets_compatible && parents_compatible
+    fn covers(&self, narrow: &Self) -> bool {
+        match (self, narrow) {
+            (Self::Unbounded, _) => true,
+            (_, Self::Unbounded) => false,
+            (Self::Semver(dom), Self::Semver(sub)) => dom.covers(sub),
+            (Self::NonSemver(lhs), Self::NonSemver(rhs)) => lhs == rhs,
+            (Self::Semver(_), Self::NonSemver(_)) | (Self::NonSemver(_), Self::Semver(_)) => false,
+        }
+    }
 }
 
 /// Select the first most-specific override among `matching`:
@@ -242,12 +232,10 @@ fn pick_most_specific_match<'b>(matching: &[&'b ResolvedOverride]) -> Option<&'b
         .iter()
         .copied()
         .find(|candidate| {
-            !candidate.dominated_by
+            !top_tier
                 .iter()
-                .any(|&dom_id| {
-                    top_tier
-                        .iter()
-                        .any(|other| other.id == dom_id)
+                .any(|other| {
+                    !std::ptr::eq(*other, *candidate) && is_strictly_narrower(other, candidate)
                 })
         })
 }
@@ -257,31 +245,8 @@ fn is_strictly_narrower(lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> bool 
 }
 
 fn selector_covers(broad: &ResolvedOverride, narrow: &ResolvedOverride) -> bool {
-    let broad_parent =
-        broad.inner.parent_pkg.as_ref().and_then(|pkg| pkg.bare_specifier.as_deref());
-    let narrow_parent =
-        narrow.inner.parent_pkg.as_ref().and_then(|pkg| pkg.bare_specifier.as_deref());
-    is_sub_range(broad_parent, narrow_parent)
-        && is_sub_range(
-            broad.inner.target_pkg.bare_specifier.as_deref(),
-            narrow.inner.target_pkg.bare_specifier.as_deref(),
-        )
-}
-
-fn is_sub_range(super_range: Option<&str>, sub_range: Option<&str>) -> bool {
-    let Some(super_str) = super_range
-        .map(str::trim)
-        .filter(|range| !range.is_empty())
-    else {
-        return true;
-    };
-    let Some(sub_str) = sub_range
-        .map(str::trim)
-        .filter(|range| !range.is_empty())
-    else {
-        return false;
-    };
-    sub_str == super_str || is_semver_subset(sub_str, super_str)
+    broad.parent_bound.covers(&narrow.parent_bound)
+        && broad.target_bound.covers(&narrow.target_bound)
 }
 
 /// An absent `range1` (or empty target spec) matches everything. An

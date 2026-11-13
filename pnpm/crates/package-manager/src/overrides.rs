@@ -67,33 +67,37 @@ struct ConvergeOverride {
     version: Option<Version>,
 }
 
-/// `VersionOverride` augmented with pre-compiled glob matchers and a
-/// pre-parsed [`LocalSpec`] for the values naming a local path.
-/// Splitting once at construction time avoids re-parsing them on every
-/// manifest read.
+/// `VersionOverride` augmented with pre-compiled glob matchers, pre-parsed
+/// selector range bounds, and a pre-parsed [`LocalSpec`] for the values naming
+/// a local path. Splitting once at construction time avoids re-parsing them on
+/// every manifest read.
 struct ResolvedOverride {
-    id: usize,
     inner: VersionOverride,
     parent_name_matcher: Option<WildcardMatcher>,
     target_name_matcher: WildcardMatcher,
+    parent_bound: selectors::SelectorBound,
+    target_bound: selectors::SelectorBound,
     local_target: Option<LocalSpec>,
-    dominated_by: Vec<usize>,
 }
 
 impl ResolvedOverride {
-    fn new(id: usize, override_entry: &VersionOverride, root_dir: &Path) -> Self {
+    fn new(override_entry: &VersionOverride, root_dir: &Path) -> Self {
+        let parent_spec = override_entry.parent_pkg
+            .as_ref()
+            .and_then(|parent| parent.bare_specifier.as_deref());
+        let target_spec = override_entry.target_pkg.bare_specifier.as_deref();
         Self {
-            id,
             parent_name_matcher: override_entry.parent_pkg
                 .as_ref()
                 .map(|parent| WildcardMatcher::new(&parent.name)),
             target_name_matcher: WildcardMatcher::new(&override_entry.target_pkg.name),
+            parent_bound: selectors::SelectorBound::parse(parent_spec),
+            target_bound: selectors::SelectorBound::parse(target_spec),
             inner: override_entry.clone(),
             local_target: LocalSpec::parse_filesystem(&override_entry.new_bare_specifier, root_dir)
                 .or_else(|| {
                     LocalSpec::parse_workspace_path(&override_entry.new_bare_specifier, root_dir)
                 }),
-            dominated_by: Vec::new(),
         }
     }
 
@@ -147,15 +151,11 @@ impl VersionsOverrider {
                     },
                 );
             } else if override_entry.parent_pkg.is_some() {
-                let id = parent_scoped.len();
-                parent_scoped.push(ResolvedOverride::new(id, override_entry, root_dir));
+                parent_scoped.push(ResolvedOverride::new(override_entry, root_dir));
             } else {
-                let id = generic.len();
-                generic.push(ResolvedOverride::new(id, override_entry, root_dir));
+                generic.push(ResolvedOverride::new(override_entry, root_dir));
             }
         }
-        selectors::populate_dominators(&mut parent_scoped);
-        selectors::populate_dominators(&mut generic);
         VersionsOverrider {
             parent_scoped,
             generic,

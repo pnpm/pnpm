@@ -17,6 +17,20 @@ fn union_requires_every_branch_of_sub_to_be_covered() {
 }
 
 #[test]
+fn adjacent_superrange_union_branches_combine_coverage() {
+    assert!(is_semver_subset(">=1.5.0 <2.5.0", "^1.0.0 || ^2.0.0"));
+    assert!(!is_semver_subset("^1.0.0 || ^2.0.0", ">=1.5.0 <2.5.0"));
+    assert!(is_semver_subset(">=1.5.0 <2.5.0", ">=1.0.0 <2.0.0 || >=2.0.0 <3.0.0"));
+    assert!(is_semver_subset(">=1.0.0 <=1.0.1", "1.0.0 || 1.0.1"));
+    assert!(is_semver_subset("1.0.0 || 1.0.1", ">=1.0.0 <=1.0.1"));
+    assert!(is_semver_subset(
+        ">=1.0.0-alpha.2 <1.0.0",
+        ">=1.0.0-alpha.0 <1.0.0-alpha.5 || >=1.0.0-alpha.5 <1.0.0"
+    ));
+    assert!(!is_semver_subset(">=1.5.0 <2.5.0", "^1.0.0 || ^3.0.0"));
+}
+
+#[test]
 fn partially_overlapping_intervals_are_incomparable() {
     assert!(!is_semver_subset(">=1.0.0 <2.0.0", ">=1.5.0 <3.0.0"));
     assert!(!is_semver_subset(">=1.5.0 <3.0.0", ">=1.0.0 <2.0.0"));

@@ -138,6 +138,17 @@ fn upper_only_target_range_beats_star_in_both_orders() {
 }
 
 #[test]
+fn cross_branch_subrange_beats_enclosing_union_in_both_orders() {
+    let union_first = &[("foo@^1.0.0 || ^2.0.0", "2.9.0"), ("foo@>=1.5.0 <2.5.0", "2.4.0")];
+    let subrange_first = &[("foo@>=1.5.0 <2.5.0", "2.4.0"), ("foo@^1.0.0 || ^2.0.0", "2.9.0")];
+
+    assert_eq!(apply_single_dep(union_first, "foo", "2.1.0"), "2.4.0");
+    assert_eq!(apply_single_dep(subrange_first, "foo", "2.1.0"), "2.4.0");
+    assert_eq!(apply_single_dep(union_first, "foo", "2.6.0"), "2.9.0");
+    assert_eq!(apply_single_dep(subrange_first, "foo", "2.6.0"), "2.9.0");
+}
+
+#[test]
 fn undeclared_dependency_override_uses_narrower_range_in_both_orders() {
     let broad_first = VersionsOverrider::new(
         &parsed(&[("foo@^1.0.0", "1.9.0"), ("foo@1.0.0", "1.0.1")]),

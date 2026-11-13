@@ -1659,5 +1659,24 @@ describe('createVersionsOverrider() range specificity', () => {
       dependencies: { foo: '1.0.0-alpha.2' },
     })
   })
+
+  test.each([
+    [
+      'union first',
+      { 'foo@^1.0.0 || ^2.0.0': '2.9.0', 'foo@>=1.5.0 <2.5.0': '2.4.0' },
+    ],
+    [
+      'cross-branch range first',
+      { 'foo@>=1.5.0 <2.5.0': '2.4.0', 'foo@^1.0.0 || ^2.0.0': '2.9.0' },
+    ],
+  ])('cross-branch narrower range beats enclosing union range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '2.1.0' } })).toStrictEqual({
+      dependencies: { foo: '2.4.0' },
+    })
+    expect(overrider({ dependencies: { foo: '2.6.0' } })).toStrictEqual({
+      dependencies: { foo: '2.9.0' },
+    })
+  })
 })
 
