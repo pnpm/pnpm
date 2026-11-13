@@ -86,6 +86,8 @@ misses:
 - a name brought in by a glob import such as `use dep::*`;
 - an item a `pub use` reaches through another `use` rather than through
   the module tree, which it counts as unreachable;
+- the methods of an `impl` on a private type alias of a public type, which
+  it counts as unreachable;
 - a dependency renamed in `Cargo.toml`, which it looks for under its package
   name.
 
