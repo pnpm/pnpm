@@ -128,7 +128,7 @@ fn link_direct_executable<Sys>(
     stale_powershell: Option<&Path>,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsReadHead + FsEnsureExecutableBits,
+    Sys: FsReadToString + FsReadHead + FsEnsureExecutableBits,
 {
     let linked =
         if symlink_already_points_at(spec.shim_path, spec.target_path, spec.relocatable_root())
