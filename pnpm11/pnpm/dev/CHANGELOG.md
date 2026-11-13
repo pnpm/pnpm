@@ -1,5 +1,12 @@
 # pd
 
+## 1100.0.30
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/workspace.projects-reader@1101.1.7
+
 ## 1100.0.29
 
 ### Patch Changes
