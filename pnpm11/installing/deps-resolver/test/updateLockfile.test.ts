@@ -80,7 +80,16 @@ test('injected package child links are recorded relative to the lockfile directo
   } as unknown as DependenciesGraph
   const lockfile = updateLockfile({
     dependenciesGraph,
-    lockfile: { lockfileVersion: LOCKFILE_VERSION, importers: {}, packages: {} },
+    lockfile: {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { lib: 'file:../packages/lib' },
+          specifiers: { lib: 'file:../packages/lib' },
+        },
+      },
+      packages: {},
+    },
     prefix: '/workspace/app',
     lockfileDir: '/workspace/app',
     registriesByScope: REGISTRIES,
@@ -107,7 +116,16 @@ test('reused injected package child links are not rebased again', () => {
   } as unknown as DependenciesGraph
   const lockfile = updateLockfile({
     dependenciesGraph,
-    lockfile: { lockfileVersion: LOCKFILE_VERSION, importers: {}, packages: {} },
+    lockfile: {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { lib: 'file:../packages/lib' },
+          specifiers: { lib: 'file:../packages/lib' },
+        },
+      },
+      packages: {},
+    },
     prefix: '/workspace/app',
     lockfileDir: '/workspace/app',
     registriesByScope: REGISTRIES,
@@ -134,7 +152,16 @@ test('workspace children with prototype-property aliases keep their lockfile ref
   } as unknown as DependenciesGraph
   const lockfile = updateLockfile({
     dependenciesGraph,
-    lockfile: { lockfileVersion: LOCKFILE_VERSION, importers: {}, packages: {} },
+    lockfile: {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { lib: 'file:../packages/lib' },
+          specifiers: { lib: 'file:../packages/lib' },
+        },
+      },
+      packages: {},
+    },
     prefix: '/workspace/app',
     lockfileDir: '/workspace/app',
     registriesByScope: REGISTRIES,
@@ -160,7 +187,16 @@ test('workspace child links keep their lockfile-relative target', () => {
   } as unknown as DependenciesGraph
   const lockfile = updateLockfile({
     dependenciesGraph,
-    lockfile: { lockfileVersion: LOCKFILE_VERSION, importers: {}, packages: {} },
+    lockfile: {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { lib: 'file:../packages/lib' },
+          specifiers: { lib: 'file:../packages/lib' },
+        },
+      },
+      packages: {},
+    },
     prefix: '/workspace/app',
     lockfileDir: '/workspace/app',
     registriesByScope: REGISTRIES,
