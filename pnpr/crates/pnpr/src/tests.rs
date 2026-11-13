@@ -352,7 +352,7 @@ fn package_export_is_not_a_command() {
     assert!(
         !Args::command()
             .get_subcommands()
-            .any(|command| command.get_name() == "export")
+            .any(|command| command.get_name() == "export"),
     );
     assert!(Args::try_parse_from(["pnpr", "registries", "export"]).is_ok());
 }
