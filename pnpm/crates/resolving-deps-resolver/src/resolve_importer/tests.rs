@@ -14,6 +14,7 @@ mod optional_peers;
 mod hoist_preferences;
 mod locked_peer_cycles;
 mod locked_peers;
+mod manifest_peer_pins;
 
 mod hashed_peer_suffix;
 

@@ -117,3 +117,19 @@ test.each(['dependencies', 'optionalDependencies'])('ignores inherited reference
     ['toString', new Set(['1.0.0'])],
   ]))
 })
+
+
+test('new importers use global pins without treating manifest children as peers', () => {
+  const lockfile = lockfileOf({
+    'owner@1.0.0(patch_hash=abc)(0123456789abcdef0123456789abcdef)': {
+      resolution: { integrity: 'sha512-owner' },
+      dependencies: { ordinary: '1.0.0', peer: '2.0.0' },
+      peerDependencies: { ordinary: '*', peer: '*' },
+    },
+  } as unknown as LockfileObject['packages'], {})
+  const takenPeers = new Map([['owner@1.0.0(patch_hash=abc)', new Set(['peer'])]])
+  expect(getImporterLockedPeerVersions(lockfile, undefined, takenPeers)).toStrictEqual(new Map([
+    ['peer', new Set(['2.0.0'])],
+  ]))
+  expect(getImporterLockedPeerVersions(lockfile, '.' as ProjectId, takenPeers)).toStrictEqual(new Map())
+})

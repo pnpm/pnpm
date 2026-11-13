@@ -1,5 +1,3 @@
-pub(super) mod legacy_bindings;
-
 use super::{HashMap, HashSet, PkgName, all_peer_versions, hashed_suffix, retained_peer_versions};
 
 pub(in crate::resolve_importer) fn importer_locked_peer_versions(
@@ -31,6 +29,6 @@ pub(in crate::resolve_importer) fn all_locked_peer_versions(
 
 impl Default for hashed_suffix::ProviderContexts {
     fn default() -> Self {
-        Self::Legacy(std::cell::RefCell::default())
+        Self::legacy()
     }
 }

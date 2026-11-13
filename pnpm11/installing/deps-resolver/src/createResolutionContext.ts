@@ -97,6 +97,7 @@ function getResolutionSettings (opts: ResolveDependenciesOptions): ResolutionSet
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
+    originalImporterIds: opts.originalImporterIds,
     workspacePackages: opts.workspacePackages,
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
   }

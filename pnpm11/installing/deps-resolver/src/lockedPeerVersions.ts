@@ -2,6 +2,26 @@ import { getBoundPeerProviders, getPeerBindingProviders, parsePeerBindings, refT
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
+import type { ResolutionContext } from './resolutionTypes.js'
+
+/** Captures the manifest peer split after every importer's initial dependency resolution. */
+export function createImporterLockedPeerVersions (
+  { wantedLockfile, originalImporterIds, resolvedPkgsById }: Pick<ResolutionContext, 'wantedLockfile' | 'originalImporterIds' | 'resolvedPkgsById'>
+): (importerId: ProjectId) => Map<string, Set<string>> {
+  const takenPeers = new Map(Object.values(resolvedPkgsById).map((pkg) => [pkg.pkgIdWithPatchHash, new Set(Object.keys(pkg.peers.taken))]))
+  const byImporter = new Map<ProjectId | undefined, Map<string, Set<string>>>()
+  return (importerId) => {
+    const listed = originalImporterIds?.has(importerId) ?? (wantedLockfile.importers != null && Object.hasOwn(wantedLockfile.importers, importerId))
+    const key = listed ? importerId : undefined
+    let versions = byImporter.get(key)
+    if (versions == null) {
+      versions = getImporterLockedPeerVersions(wantedLockfile, key, takenPeers)
+      byImporter.set(key, versions)
+    }
+    return versions
+  }
+}
+
 type LockedPeer = [peerName: string, provider: DepPath]
 
 /**
@@ -9,10 +29,14 @@ type LockedPeer = [peerName: string, provider: DepPath]
  * importer's direct dependencies, or on every snapshot for an importer the
  * lockfile does not list.
  */
-export function getImporterLockedPeerVersions (lockfile: LockfileObject, importerId: ProjectId): Map<string, Set<string>> {
-  const lookup: SnapshotLookup = { lockfile, children: new WeakMap() }
+export function getImporterLockedPeerVersions (
+  lockfile: LockfileObject,
+  importerId: ProjectId | undefined,
+  takenPeers?: ReadonlyMap<string, ReadonlySet<string>>
+): Map<string, Set<string>> {
+  const lookup: SnapshotLookup = { lockfile, children: new WeakMap(), takenPeers }
   const versions = new Map<string, Set<string>>()
-  const importer = lockfile.importers != null && Object.hasOwn(lockfile.importers, importerId)
+  const importer = importerId != null && lockfile.importers != null && Object.hasOwn(lockfile.importers, importerId)
     ? lockfile.importers[importerId]
     : undefined
   const depPaths: DepPath[] = importer == null
@@ -60,6 +84,7 @@ function getLockedPeerVersionsOfKey (lookup: SnapshotLookup, depPath: DepPath): 
 interface SnapshotLookup {
   lockfile: LockfileObject
   children: WeakMap<PackageSnapshot, Array<[DepPath, PackageSnapshot]>>
+  takenPeers?: ReadonlyMap<string, ReadonlySet<string>>
 }
 
 interface LockedPeerTraversal extends SnapshotLookup {
@@ -119,7 +144,7 @@ function getLockedPeerKeys (lookup: SnapshotLookup, depPath: DepPath): LockedPee
   const bindings = parsePeerBindings(depPath)
   if (bindings == null) return []
   const snapshot = lookup.lockfile.packages?.[depPath]
-  if (bindings.kind === 'hashed') return getHashedPeerKeys(lookup, snapshot)
+  if (bindings.kind === 'hashed') return getHashedPeerKeys(lookup, depPath, snapshot)
   const providers = getPeerBindingProviders(bindings)
   const names = providers.map((provider) => provider.substring(0, provider.indexOf('@', 1)))
   if (snapshot != null) restoreAliasedPeerNames(snapshot, providers, names)
@@ -188,14 +213,10 @@ function claimProviderAlias (aliases: ProviderAliases): string | undefined {
   return undefined
 }
 
-/**
- * The peers a hashed suffix stands for: the package's declared peers, read
- * from its own edges, and its `transitivePeerDependencies`, read from the
- * descendants that declare them.
- */
-function getHashedPeerKeys (lookup: SnapshotLookup, snapshot: PackageSnapshot | undefined): LockedPeer[] {
+/** Candidate providers for the manifest's taken peers and the snapshot's transitive peers. */
+function getHashedPeerKeys (lookup: SnapshotLookup, depPath: DepPath, snapshot: PackageSnapshot | undefined): LockedPeer[] {
   if (snapshot == null) return []
-  const keys: LockedPeer[] = getPeerEdgeKeys(snapshot, (name) => declaresPeer(snapshot, name))
+  const keys: LockedPeer[] = getPeerEdgeKeys(snapshot, (name) => takesPeer(lookup, depPath, name))
   for (const peerName of snapshot.transitivePeerDependencies ?? []) {
     for (const provider of getTransitivePeerProviders(lookup, snapshot, peerName)) {
       keys.push([peerName, provider])
@@ -210,7 +231,7 @@ function getTransitivePeerProviders (lookup: SnapshotLookup, snapshot: PackageSn
   const pending = [snapshot]
   while (pending.length > 0) {
     for (const child of getUnvisitedChildSnapshots(lookup, pending.pop()!, visited)) {
-      visitTransitivePeerChild(child, { peerName, pending, providers })
+      visitTransitivePeerChild(lookup, child, { peerName, pending, providers })
     }
   }
   return providers
@@ -218,10 +239,11 @@ function getTransitivePeerProviders (lookup: SnapshotLookup, snapshot: PackageSn
 
 /** A child that binds the peer holds the provider edge. One that lists it as a transitive peer is descended into. */
 function visitTransitivePeerChild (
+  lookup: SnapshotLookup,
   [childKey, child]: [DepPath, PackageSnapshot],
   { peerName, pending, providers }: { peerName: string, pending: PackageSnapshot[], providers: DepPath[] }
 ): void {
-  const childProviders = getBoundPeerEdgeProviders(childKey, child, peerName)
+  const childProviders = getBoundPeerEdgeProviders(lookup, [childKey, child], peerName)
   if (childProviders.length > 0) {
     providers.push(...childProviders)
   } else if (child.transitivePeerDependencies?.includes(peerName)) {
@@ -229,8 +251,8 @@ function visitTransitivePeerChild (
   }
 }
 
-function getBoundPeerEdgeProviders (childKey: DepPath, child: PackageSnapshot, peerName: string): DepPath[] {
-  if (!declaresPeer(child, peerName)) return []
+function getBoundPeerEdgeProviders (lookup: SnapshotLookup, [childKey, child]: [DepPath, PackageSnapshot], peerName: string): DepPath[] {
+  if (!takesPeer(lookup, childKey, peerName)) return []
   const bindings = parsePeerBindings(childKey)
   if (bindings == null) return []
   const bound = getBoundPeerProviders(bindings)
@@ -284,4 +306,11 @@ function getDependencyEdges (snapshot: PackageSnapshot): Array<[string, string]>
 // some of which are valid package names.
 function declaresPeer (snapshot: PackageSnapshot, name: string): boolean {
   return snapshot.peerDependencies != null && Object.hasOwn(snapshot.peerDependencies, name)
+}
+
+function takesPeer (lookup: SnapshotLookup, depPath: DepPath, name: string): boolean {
+  const taken = lookup.takenPeers?.get(removePeersSuffix(depPath))
+  if (taken != null) return taken.has(name)
+  const snapshot = lookup.lockfile.packages?.[depPath]
+  return snapshot != null && declaresPeer(snapshot, name)
 }

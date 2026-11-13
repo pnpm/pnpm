@@ -319,7 +319,7 @@ fn importers_missing_from_the_lockfile_share_one_locked_peer_scan() {
             importer_id,
             wanted,
         );
-        Arc::clone(LockedPeers::from_resolved(&ctx, importer_id, &retained).versions(&workspace))
+        Arc::clone(LockedPeers::for_importer(&ctx, importer_id, &retained).versions(&workspace))
     };
     let wanted = [crate::resolve_dependency_tree::DependencySpec {
         alias: "consumer".to_string(),

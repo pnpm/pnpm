@@ -10,43 +10,49 @@ mod hashed_suffix;
 
 /// The peer versions the prior lockfile locked for the importer.
 pub(super) struct LockedPeers {
+    importer: Option<RetainedImporter>,
     versions: std::sync::OnceLock<Arc<HashMap<String, HashSet<String>>>>,
 }
 
+struct RetainedImporter {
+    id: String,
+    dependencies: HashSet<PkgName>,
+}
+
 impl LockedPeers {
-    pub(super) fn from_resolved(
+    pub(super) fn for_importer(
         ctx: &TreeCtx,
         importer_id: &str,
         retained: &HashSet<PkgName>,
     ) -> Self {
-        let Some(lockfile) = ctx.workspace().wanted_lockfile() else {
-            return Self { versions: std::sync::OnceLock::from(Arc::default()) };
-        };
-        if !lockfile.importers.contains_key(importer_id) {
-            return Self { versions: std::sync::OnceLock::new() };
-        }
-        let contexts = hashed_suffix::ProviderContexts::Workspace(Arc::clone(ctx.workspace()));
-        let versions = retained_peer_versions(
-            lockfile,
-            &lockfile.importers[importer_id],
-            |name| retained.contains(name),
-            &contexts,
-        );
-        Self { versions: std::sync::OnceLock::from(Arc::new(versions)) }
+        let importer = ctx
+            .workspace()
+            .wanted_lockfile()
+            .filter(|lockfile| lockfile.importers.contains_key(importer_id))
+            .map(|_| RetainedImporter {
+                id: importer_id.to_string(),
+                dependencies: retained.clone(),
+            });
+        Self { importer, versions: std::sync::OnceLock::new() }
     }
+
     /// Read after every importer has completed its initial dependency wave.
     pub(super) fn versions(
         &self,
         workspace: &Arc<crate::WorkspaceTreeCtx>,
     ) -> &Arc<HashMap<String, HashSet<String>>> {
         self.versions.get_or_init(|| {
-            workspace.unlisted_importer_locked_peers(|| {
-                let Some(lockfile) = workspace.wanted_lockfile() else { return HashMap::default() };
-                all_peer_versions(
+            let Some(lockfile) = workspace.wanted_lockfile() else { return Arc::default() };
+            let contexts = hashed_suffix::ProviderContexts::workspace(Arc::clone(workspace));
+            if let Some(importer) = &self.importer {
+                return Arc::new(retained_peer_versions(
                     lockfile,
-                    &hashed_suffix::ProviderContexts::Workspace(Arc::clone(workspace)),
-                )
-            })
+                    &lockfile.importers[&importer.id],
+                    |name| importer.dependencies.contains(name),
+                    &contexts,
+                ));
+            }
+            workspace.unlisted_importer_locked_peers(|| all_peer_versions(lockfile, &contexts))
         })
     }
 }
@@ -189,9 +195,7 @@ impl<'lockfile> LockedPeerTraversal<'lockfile, '_> {
                 let recovered = self.recover_providers(snapshot, &name, &peer);
                 self.recovered.extend(recovered);
             }
-            if verified_context {
-                pending.extend(provider_with_peers(self.lockfile, peer));
-            }
+            pending.extend(provider_with_peers(self.lockfile, peer));
             if encoded.is_none() {
                 self.versions.push((name, version));
             }

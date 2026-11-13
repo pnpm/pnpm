@@ -276,7 +276,7 @@ impl SeededImporter {
         .await?;
         self.seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         self.ctx.resolve_new_direct_deps_as_subdeps();
-        let locked = LockedPeers::from_resolved(&self.ctx, &self.importer_id, &self.retained);
+        let locked = LockedPeers::for_importer(&self.ctx, &self.importer_id, &self.retained);
         Ok(ImporterHoistState::assemble(
             &self.importer_id,
             self.ctx,

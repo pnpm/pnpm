@@ -1,63 +1,91 @@
 //! Peer-provider candidates from recorded edges and resolved manifests.
 
-use super::{HashSet, dependency_edges};
+use super::{HashMap, HashSet, dependency_edges};
 use pnpm_lockfile::{BoundProviders, Lockfile, PkgName, PkgNameVerPeer};
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 
-pub(super) enum ProviderContexts {
+pub(super) struct ProviderContexts {
+    source: PeerSource,
+    bindings: RefCell<HashMap<PkgNameVerPeer, Arc<BoundProviders>>>,
+    names: RefCell<HashMap<PkgNameVerPeer, Arc<HashSet<PkgName>>>>,
+}
+
+enum PeerSource {
     Workspace(Arc<crate::WorkspaceTreeCtx>),
     #[cfg(test)]
-    Legacy(std::cell::RefCell<super::test_utils::legacy_bindings::BoundCache>),
+    Legacy,
 }
 
 impl ProviderContexts {
-    pub(super) fn bound(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> BoundProviders {
-        match self {
-            Self::Workspace(_) => BoundProviders::from_recorded_snapshot(lockfile.into(), key),
-            #[cfg(test)]
-            Self::Legacy(cache) => super::test_utils::legacy_bindings::cached_bound_providers(
-                lockfile,
-                key,
-                &mut cache.borrow_mut(),
-            ),
-        }
+    pub(super) fn workspace(workspace: Arc<crate::WorkspaceTreeCtx>) -> Self {
+        Self::new(PeerSource::Workspace(workspace))
+    }
+
+    #[cfg(test)]
+    pub(super) fn legacy() -> Self {
+        Self::new(PeerSource::Legacy)
+    }
+
+    fn new(source: PeerSource) -> Self {
+        Self { source, bindings: RefCell::default(), names: RefCell::default() }
+    }
+
+    pub(super) fn bound(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> Arc<BoundProviders> {
+        Arc::clone(
+            self.bindings
+                .borrow_mut()
+                .entry(key.clone())
+                .or_insert_with(|| {
+                    Arc::new(match &self.source {
+                        PeerSource::Workspace(_) => {
+                            BoundProviders::from_recorded_snapshot(lockfile.into(), key)
+                        }
+                        #[cfg(test)]
+                        PeerSource::Legacy => BoundProviders::of_snapshot(lockfile.into(), key),
+                    })
+                }),
+        )
     }
 
     pub(super) fn has_verified_context(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> bool {
-        match self {
-            Self::Workspace(_) => {
-                !BoundProviders::from_recorded_snapshot(lockfile.into(), key).is_hashed()
-            }
-            #[cfg(test)]
-            Self::Legacy(cache) => !cache
-                .borrow()
-                .get(key)
-                .is_some_and(BoundProviders::is_hashed),
-        }
+        !self.bound(lockfile, key).is_hashed()
     }
 
-    fn peer_names(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> HashSet<PkgName> {
-        let _ = lockfile;
-        match self {
-            Self::Workspace(workspace) => workspace
-                .inspect_package(&key.without_peer().to_string(), |package| {
+    fn peer_names(&self, lockfile: &Lockfile, key: &PkgNameVerPeer) -> Arc<HashSet<PkgName>> {
+        let package = PkgNameVerPeer::new(key.name.clone(), key.suffix.without_peer_bindings());
+        Arc::clone(
+            self.names
+                .borrow_mut()
+                .entry(package)
+                .or_insert_with_key(|package| Arc::new(self.read_peer_names(lockfile, package))),
+        )
+    }
+
+    fn read_peer_names(&self, lockfile: &Lockfile, package: &PkgNameVerPeer) -> HashSet<PkgName> {
+        match &self.source {
+            PeerSource::Workspace(workspace) => {
+                if let Some(names) = workspace.inspect_package(&package.to_string(), |package| {
                     package.peer_set
                         .taken()
                         .keys()
                         .filter_map(|name| name.parse().ok())
                         .collect()
-                })
-                .unwrap_or_default(),
+                }) {
+                    return names;
+                }
+            }
             #[cfg(test)]
-            Self::Legacy(_) => lockfile.packages
-                .as_ref()
-                .and_then(|packages| packages.get(&key.without_peer()))
-                .and_then(|metadata| metadata.peer_dependencies.as_ref())
-                .into_iter()
-                .flatten()
-                .filter_map(|(name, _)| name.parse().ok())
-                .collect(),
+            PeerSource::Legacy => {}
         }
+        // A partial resolve can leave a prior snapshot outside the current tree.
+        lockfile.packages
+            .as_ref()
+            .and_then(|packages| packages.get(&package.without_peer()))
+            .and_then(|metadata| metadata.peer_dependencies.as_ref())
+            .into_iter()
+            .flatten()
+            .filter_map(|(name, _)| name.parse().ok())
+            .collect()
     }
 }
 
