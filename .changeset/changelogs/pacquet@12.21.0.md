@@ -1,77 +1,61 @@
 ## 12.21.0
 
+pnpm 12.21.0 lets `pnpm store add` prepare tarball and git dependencies for offline installs. It also makes repeated installs keep their peer dependency choices and fixes several `lockfile.format: v13`, `nodeLinker: hoisted`, and `pnpm deploy` failures. If a pnpr server refuses a setting, pnpm now resolves locally.
+
 ### Minor Changes
 
 - `pnpm store add` run in a project now prepares downloaded tarballs for every lockfile entry that pins them. Besides registry packages, `pnpm install --offline --frozen-lockfile` can then install dependencies on a tarball URL and dependencies on a git host such as GitHub whose lockfile entry records an `integrity`.
 
 ### Patch Changes
 
-- A `requirements.txt` beside a `pyproject.toml` that declares `[tool.uv.workspace]` without a `[project]` table no longer makes that directory a Python project. `pnpm install` stopped there with an error when the directory had a `.venv` that pnpm did not create [#18023](https://github.com/pnpm/pnpm/issues/18023).
-
-- Fixed aliased dependencies sharing the wrong peer provider across workspace projects when a child uses another version of the aliased package as a peer.
-
-- `pnpm install` with `pnprServer` now bounds response sizes from `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`. Oversized NDJSON frames, excessive frame counts, and large error bodies abort the exchange cleanly [zkochan/pnpm-tasks#76](https://github.com/zkochan/pnpm-tasks/issues/76).
-
-- Fixed `pnpm install` changing optional peer providers on repeated installs when another version of the provider participates in a peer dependency cycle.
-
-- Fixed cyclic peer dependencies sharing the wrong provider across workspace projects when the projects select different versions of that provider.
-
-- `pnpm deploy` now binds optional peers declared only in `peerDependenciesMeta` for linked workspace packages. The deployed manifest and lockfile also retain these peers when filtering dependency groups.
-
-- Fixed `pnpm deploy` failing with `lockfile.format: v13` when injected workspace packages have hashed peer bindings.
-
-- Fixed repeated installs changing peer providers after a dependency update.
-
-- Fixed creating `lockfile.format: v13` lockfiles when a package has many dependencies that it also declares as peers.
-
-- Frozen installs with v13 lockfiles now accept valid peer dependencies of injected workspace packages that use catalogs.
-
-- `pnpm fetch` with `nodeLinker` set to `hoisted` no longer populates global virtual store links. `pnpm fetch` also preserves an existing hoisted `node_modules` directory. `pnpm fetch` no longer modifies linked agent skills. `pnpm install` with `frozenStore` enabled no longer fails with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` when `nodeLinker` is `hoisted` [#18037](https://github.com/pnpm/pnpm/issues/18037).
-
-- Fixed `pnpm install` creating duplicate copies of a package with identical resolved peers when `nodeLinker` is `hoisted` and `autoInstallPeers` is `false`. This happened when an ancestor depended on a different version of one of those peers [#18003](https://github.com/pnpm/pnpm/issues/18003).
-
-- With `nodeLinker: hoisted` and `autoInstallPeers: false`, a package no longer loads a copy of its dependency that was resolved with different peer versions. This could happen when one package version had several copies with different peers in the dependency graph [#18004](https://github.com/pnpm/pnpm/pull/18004).
-
-- Fixed injected workspace packages that depend on themselves linking to a nonexistent directory.
-
-- An explicit `lockfileDir` that points to the default lockfile directory keeps the default install behavior [pnpm/tasks#275](https://github.com/pnpm/tasks/issues/275).
+#### Installs that failed
 
 - pnpm now reads a lockfile with a mapping key longer than 1,024 characters written as `'key':`, without the `? ` marker. Before, `pnpm install` and other commands failed on such a lockfile with `ERR_PNPM_BROKEN_LOCKFILE`.
 
-- `pnpm install` now uses package manifests when retaining peer versions from lockfiles with hashed peer suffixes.
+- With `lockfile.format: v13`, `pnpm install` no longer fails to create or rewrite the lockfile when a package declares many of its dependencies as peers.
 
-- `pnpm pipeline` now rebuilds local packages and reruns build scripts after it restores a shared Cargo build cache with Cargo 1.100 or newer. Before, a worktree could reuse build-script output from the worktree that created the cache.
+- Fixed `pnpm deploy` failing with `lockfile.format: v13` when injected workspace packages have hashed peer bindings.
 
-- If the pnpr server refuses a setting the install uses, or cannot return the lockfile format pnpm reads, `pnpm install` and `pnpm update` print a warning and resolve locally. Cargo and Python resolution also fall back to resolving locally. pnpm now rejects a pnpr resolution of npm dependencies that does not name its lockfile format.
+- Frozen installs with v13 lockfiles now accept valid peer dependencies of injected workspace packages that use catalogs.
 
-- Fixed rewriting `lockfile.format: v13` lockfiles when a package has many dependencies that it also declares as peers.
+- Fixed injected workspace packages that depend on themselves linking to a nonexistent directory.
 
-- `pnpm install` now checks peer dependencies against package manifests when reusing a lockfile with hashed peer suffixes.
+- `pnpm install` with `frozenStore` enabled no longer fails with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` when `nodeLinker` is `hoisted`. `pnpm fetch` with `nodeLinker: hoisted` no longer populates global virtual store links or modifies linked agent skills, and it preserves an existing hoisted `node_modules` directory [#18037](https://github.com/pnpm/pnpm/issues/18037).
 
-- pnpm now displays pnpr error codes and reasons when remote requests fail.
+- A `requirements.txt` beside a `pyproject.toml` that declares `[tool.uv.workspace]` without a `[project]` table no longer makes that directory a Python project. `pnpm install` stopped there with an error when the directory had a `.venv` that pnpm did not create [#18023](https://github.com/pnpm/pnpm/issues/18023).
 
-- Repeated installs now keep optional peer bindings stable after a workspace adds or removes peer providers [pnpm/tasks#221](https://github.com/pnpm/tasks/issues/221).
+#### Peer dependencies
 
-- With `autoInstallPeers: false`, removing a dependency no longer restores it from an old peer resolution.
+- Repeated installs no longer change the peer dependency providers that the previous install chose. This covers adding, updating, or removing a dependency, projects that use different ranges of one dependency, dependency cycles, and injected dependencies with `autoInstallPeers: false` [pnpm/tasks#221](https://github.com/pnpm/tasks/issues/221).
 
-- Fixed repeated installs changing peer dependency bindings in workspaces with injected dependencies and `autoInstallPeers` disabled.
+  An unchanged install keeps a valid locked peer provider even when a direct dependency provides another compatible version. Explicit `pnpm add` and `pnpm update` requests take precedence over it.
 
-- Fixed repeated installs changing required peer dependency versions after adding a dependency.
+- Workspace projects that select different versions of a peer provider no longer share one copy of the package that depends on it. This affected peers reached through an aliased dependency or a peer dependency cycle.
 
-- Removed direct dependencies no longer supply their old peer context when they are hoisted again.
+- A removed dependency no longer comes back as a peer provider. Before, a direct dependency removed with `autoInstallPeers: false` could be restored from an old peer resolution, and a removed one could still supply its old peer context.
 
-- Refactored peer dependency processing during installs.
+- With `nodeLinker: hoisted` and `autoInstallPeers: false`, `pnpm install` no longer creates duplicate copies of a package whose resolved peers are identical. A package also no longer loads a copy of its dependency that was resolved with different peer versions [#18003](https://github.com/pnpm/pnpm/issues/18003).
 
-- `pnpm setup` and the install script now support PowerShell as the login shell on Linux and macOS. They add `PNPM_HOME` to `PATH` in `profile.ps1` under `$XDG_CONFIG_HOME/powershell` or `~/.config/powershell` [#18026](https://github.com/pnpm/pnpm/issues/18026).
+- `pnpm deploy` now binds optional peers declared only in `peerDependenciesMeta` for linked workspace packages. The deployed manifest and lockfile also retain these peers when filtering dependency groups.
 
-- Fixed repeated installs changing peer versions in dependency cycles.
+#### Running scripts
 
-- Unchanged installs now preserve peer contexts when peer-dependent packages are deduplicated. Removing a workspace dependency preserves nested peer providers still required by the remaining packages.
-
-  Unchanged installs retain valid locked peer providers even when a direct dependency provides another compatible version. Explicit `pnpm add` and `pnpm update` requests take precedence over those retained bindings.
-
-- Repeated installs now keep automatically installed peer versions stable when workspace projects use different ranges of the same dependency. Adding another ranged provider also preserves a valid peer pin.
+- Scripts now stop when pnpm's process group is killed while they are starting.
 
 - Bin shims in the global virtual store no longer include the hoisted modules directory of the project that installed them [#18035](https://github.com/pnpm/pnpm/issues/18035).
 
-- Scripts now stop when pnpm's process group is killed while they are starting.
+- `pnpm pipeline` now rebuilds local packages and reruns build scripts after it restores a shared Cargo build cache with Cargo 1.100 or newer. Before, a worktree could reuse build-script output from the worktree that created the cache.
+
+#### pnpr
+
+- If the pnpr server refuses a setting the install uses, or cannot return the lockfile format pnpm reads, `pnpm install` and `pnpm update` print a warning and resolve locally. Cargo and Python resolution also fall back to resolving locally. pnpm now rejects a pnpr resolution of npm dependencies that does not name its lockfile format.
+
+- `pnpm install` with `pnprServer` now limits the size of the server's resolve and lockfile verification responses. An oversized response ends the request with an error.
+
+- pnpm now displays pnpr error codes and reasons when remote requests fail.
+
+#### Other commands and settings
+
+- `pnpm setup` and the install script now support PowerShell as the login shell on Linux and macOS. They add `PNPM_HOME` to `PATH` in `profile.ps1` under `$XDG_CONFIG_HOME/powershell` or `~/.config/powershell` [#18026](https://github.com/pnpm/pnpm/issues/18026).
+
+- A `lockfileDir` setting that points at the default lockfile directory now installs the same way as leaving it unset [pnpm/tasks#275](https://github.com/pnpm/tasks/issues/275).
