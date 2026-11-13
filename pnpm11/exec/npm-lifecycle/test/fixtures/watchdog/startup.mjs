@@ -38,7 +38,7 @@ if (mode === 'script') {
     stdio: 'ignore',
     unsafePerm: true,
     runConcurrently: true,
-    scriptShell: identifier === 'relative' ? './script-shell' : undefined,
+    scriptShell: identifier === 'relative' ? './script-shell' : identifier === 'bash' ? '/bin/bash' : undefined,
     ...(identifier === 'extended' ? { stdio: ['ignore', 'ignore', 'ignore', 'pipe'] } : {}),
     log: { info: noop, verbose: noop, silly: noop, warn: noop, pause: noop, resume: noop },
   })))

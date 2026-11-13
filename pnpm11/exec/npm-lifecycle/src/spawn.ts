@@ -91,8 +91,11 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
 }
 
 function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw: ChildProcess, watchdog?: ProcessGroupWatchdog } {
-  const shell = options.detached && process.platform !== 'win32' ? which.sync('sh', { nothrow: true }) : null
-  if (shell == null || !scriptExists(cmd, options)) {
+  if (!options.detached || process.platform === 'win32') return { raw: spawnProcess(cmd, args, options) }
+  const executable = resolveScript(cmd, options)
+  const usesBash = path.basename(cmd) === 'bash'
+  const shell = usesBash ? executable : which.sync('sh', { nothrow: true })
+  if (shell == null || executable == null) {
     return { raw: spawnProcess(cmd, args, options) }
   }
   const stdio = scriptStdio(options.stdio)
@@ -112,7 +115,9 @@ function spawnScript (cmd: string, args: string[], options: SpawnOptions): { raw
     'trap - PIPE',
     'exec "$@"',
   ].join('\n')
-  const raw = spawnProcess(path.resolve(shell), ['-c', registration, shell, cmd, ...args], {
+  // Bash -p preserves exported functions without loading BASH_ENV before registration.
+  const shellFlags = usesBash ? ['-p', '-c'] : ['-c']
+  const raw = spawnProcess(path.resolve(shell), [...shellFlags, registration, shell, cmd, ...args], {
     ...options,
     stdio: [...stdio, watch.lifeline, 'pipe'],
   })
@@ -134,14 +139,14 @@ function recoverScriptRegistration (raw: ChildProcess, descriptor: number, recov
   })
 }
 
-function scriptExists (cmd: string, options: SpawnOptions): boolean {
+function resolveScript (cmd: string, options: SpawnOptions): string | null {
   const cwd = typeof options.cwd === 'string' ? options.cwd : options.cwd == null ? process.cwd() : fileURLToPath(options.cwd)
   const executable = cmd.includes('/') ? path.resolve(cwd, cmd) : cmd
   const searchPath = (options.env == null ? process.env.PATH : options.env.PATH) ?? '/usr/bin:/bin'
   return which.sync(executable, {
     path: searchPath.split(path.delimiter).map((entry) => path.resolve(cwd, entry)).join(path.delimiter),
     nothrow: true,
-  }) != null
+  })
 }
 
 function scriptStdio (stdio: StdioOptions | undefined): Exclude<StdioOptions, string> {

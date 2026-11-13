@@ -28,8 +28,12 @@ if (mode === 'script') {
   await lifecycle({ name: 'warm', version: '1.0.0', scripts: { start: 'exit 0' } }, 'start', directory, options)
   // Keep automatic replacement pending until the launcher requests recovery.
   if (replacement === 'pending') watchdogProcess.removeAllListeners('exit')
+  if (replacement === 'destroyed') {
+    watchdogProcess.removeAllListeners('exit')
+    watchdogProcess.stdin.destroy()
+  }
   childProcess.spawn = (command, args, spawnOptions) => {
-    if (args.some((arg) => arg.includes('restart.mjs') && arg.includes('script'))) {
+    if (replacement !== 'destroyed' && args.some((arg) => arg.includes('restart.mjs') && arg.includes('script'))) {
       const { stdout } = childProcess.spawnSync('ps', ['-A', '-o', 'pid=', '-o', 'ppid=', '-o', 'args='], { encoding: 'utf8' })
       const watchdog = stdout.split('\n')
         .map((line) => line.trim().split(/\s+/))

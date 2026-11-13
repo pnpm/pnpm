@@ -6,6 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { endsWithin, killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
+import which from 'which'
 
 import { relaySignals, reserveSignalRelay, waitForProcessGroup, watchProcessGroup } from '../src/signals.js'
 
@@ -14,7 +15,37 @@ const testOnPosix = process.platform === 'win32' ? test.skip : test
 const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
 const startupScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'startup.mjs')
 
-testOnPosix.each(['observed', 'pending'])('a script starts after its inherited watchdog pipe loses its reader (%s replacement)', (replacement) => {
+testOnPosix.each(['/bin/bash', 'bash', './bash'])('a %s script keeps exported functions and loads BASH_ENV once', (scriptShell) => {
+  const directory = temporaryDirectory()
+  const startupFile = path.join(directory, 'bash-env')
+  const startupMarker = path.join(directory, 'loaded')
+  const functionMarker = path.join(directory, 'greeted')
+  try {
+    fs.symlinkSync(which.sync('dash', { nothrow: true }) ?? '/bin/sh', path.join(directory, 'sh'))
+    fs.symlinkSync('/bin/bash', path.join(directory, 'bash'))
+    fs.writeFileSync(startupFile, 'printf "loaded\\n" >> "$BASH_ENV_MARKER"\n')
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'bash.mjs'), directory, scriptShell], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        PATH: `${directory}${path.delimiter}${process.env.PATH ?? '/usr/bin:/bin'}`,
+        BASH_ENV: startupFile,
+        BASH_ENV_MARKER: startupMarker,
+        FUNCTION_MARKER: functionMarker,
+        'BASH_FUNC_greet%%': '() { printf greeted > "$FUNCTION_MARKER"; }',
+      },
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    expect({ status: result.status, stderr: result.stderr }).toStrictEqual({ status: 0, stderr: '' })
+    expect(fs.readFileSync(functionMarker, 'utf8')).toBe('greeted')
+    expect(fs.readFileSync(startupMarker, 'utf8')).toBe('loaded\n')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+}, 15_000)
+
+testOnPosix.each(['observed', 'pending', 'destroyed'])('a script starts after its inherited watchdog pipe loses its reader (%s replacement)', (replacement) => {
   const directory = temporaryDirectory()
   try {
     const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'fixtures', 'watchdog', 'restart.mjs'), directory, 'runner', replacement], {
@@ -34,6 +65,7 @@ testOnPosix.each([
   { count: 1, mode: 'relative' },
   { count: 1, mode: 'relative-path' },
   { count: 1, mode: 'extended' },
+  { count: 1, mode: 'bash' },
 ])('$count $mode scripts and their descendants are watched before the spawn returns', async ({ count, mode }) => {
   const directory = temporaryDirectory()
   if (mode === 'relative') fs.symlinkSync('/bin/sh', path.join(directory, 'script-shell'))

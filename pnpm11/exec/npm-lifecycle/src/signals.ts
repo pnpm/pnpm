@@ -370,8 +370,7 @@ let watchdogLifeline: Writable | undefined
 
 /** The child writes its registration before exec and closes its copy of the lifeline. */
 export function prepareProcessGroupWatchdog (): PreparedProcessGroupWatchdog {
-  if (watchdogLifeline == null) startWatchdog()
-  const lifeline = watchdogLifeline!
+  const lifeline = getWatchdogLifeline()
   return {
     lifeline,
     watch: (leader) => {
@@ -405,8 +404,12 @@ async function recoverProcessGroupWatchdog (lifeline: Writable, leader: number):
 }
 
 function flushWatchdogRegistration (): Promise<void> {
-  if (watchdogLifeline == null) startWatchdog()
-  return writeWatchdogRegistration(watchdogLifeline!, '')
+  return writeWatchdogRegistration(getWatchdogLifeline(), '')
+}
+
+function getWatchdogLifeline (): Writable {
+  if (watchdogLifeline == null || watchdogLifeline.destroyed) startWatchdog()
+  return watchdogLifeline!
 }
 
 function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<void> {
@@ -433,12 +436,9 @@ function writeWatchdogRegistration (lifeline: Writable, line: string): Promise<v
  * are on their own.
  */
 export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
+  const lifeline = getWatchdogLifeline()
   watchedLeaders.push(leader)
-  if (watchdogLifeline == null) {
-    startWatchdog()
-  } else {
-    watchdogLifeline.write(`+${leader}\n`)
-  }
+  lifeline.write(`+${leader}\n`)
   return createProcessGroupWatch(leader)
 }
 
