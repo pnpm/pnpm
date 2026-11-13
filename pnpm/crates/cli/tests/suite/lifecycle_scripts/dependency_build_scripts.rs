@@ -1,5 +1,8 @@
 use super::{
-    _utils::{assert_success, enable_gvs_in_workspace_yaml, ndjson_records, pacquet_in},
+    _utils::{
+        assert_shim_omits_path, assert_success, enable_gvs_in_workspace_yaml, ndjson_records,
+        pacquet_in,
+    },
     workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
 };
 use assert_cmd::prelude::*;
@@ -308,11 +311,7 @@ fn global_virtual_store_build_shims_do_not_capture_the_project_path() {
         })
         .expect("built package bin shim exists");
     let content = fs::read_to_string(shim).expect("read built package bin shim");
-    let project_hoisted_modules = workspace.join("node_modules/.pnpm/node_modules");
-    assert!(
-        !content.contains(&project_hoisted_modules.to_string_lossy().to_string()),
-        "a shared built bin shim must not contain the project hoisted modules path: {content:?}",
-    );
+    assert_shim_omits_path(&content, &workspace.join("node_modules/.pnpm/node_modules"));
 
     drop((root, mock_instance));
 }

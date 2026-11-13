@@ -155,12 +155,14 @@ impl LinkVirtualStoreBins<'_> {
 
     /// [`Self::link_options`] for slot-internal shims. A global virtual
     /// store slot is shared by every project that links it, so its shims
-    /// omit the installing project's `extra_node_paths`.
+    /// omit the installing project's `extra_node_paths` and keep only the
+    /// target's own directories.
     fn slot_link_options(&self) -> Cow<'_, LinkBinsOptions> {
         if !self.layout.enable_global_virtual_store() {
             return Cow::Borrowed(self.link_options);
         }
         let mut options = self.link_options.clone();
+        options.own_node_paths = !options.extra_node_paths.is_empty();
         options.extra_node_paths.clear();
         Cow::Owned(options)
     }

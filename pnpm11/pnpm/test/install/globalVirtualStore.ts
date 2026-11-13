@@ -52,10 +52,10 @@ test('shared global virtual store bin shims do not capture the installing projec
     hash!,
     'node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin'
   )
-  const shim = fs.readdirSync(binDir).find((name) => name.startsWith('hello-world-js-bin'))
-  expect(shim).toBeDefined()
   const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
-  expect(fs.readFileSync(path.join(binDir, shim!), 'utf8')).not.toContain(projectHoistedModulesDir)
+  const shimContent = fs.readFileSync(path.join(binDir, 'hello-world-js-bin'), 'utf8')
+  expectShimOmitsPath(shimContent, projectHoistedModulesDir)
+  expect(shimContent).toMatch(/export NODE_PATH='[^']*[\\/]v11[\\/]links[\\/]/)
 })
 
 test('builds and rebuilds keep shared global virtual store bin shims free of project paths', async () => {
@@ -84,11 +84,20 @@ test('builds and rebuilds keep shared global virtual store bin shims free of pro
   expect(shim).toBeDefined()
   const shimPath = path.join(binDir, shim!)
   const projectHoistedModulesDir = path.join(process.cwd(), 'node_modules', '.pnpm', 'node_modules')
-  expect(fs.readFileSync(shimPath, 'utf8')).not.toContain(projectHoistedModulesDir)
+  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
 
   await execPnpm(['rebuild'])
-  expect(fs.readFileSync(shimPath, 'utf8')).not.toContain(projectHoistedModulesDir)
+  expectShimOmitsPath(fs.readFileSync(shimPath, 'utf8'), projectHoistedModulesDir)
 })
+
+/**
+ * Checks every form a shim writes a path in: native, forward-slashed, and the
+ * `/mnt/<drive>` form of a Windows shell shim.
+ */
+function expectShimOmitsPath (shim: string, dir: string): void {
+  const withoutDrive = dir.replace(/^[a-z]:/i, '').replaceAll('\\', '/')
+  expect(shim.replaceAll('\\', '/')).not.toContain(withoutDrive)
+}
 
 test('scripts resolve phantom ESM imports through the private hoist', async () => {
   prepare({

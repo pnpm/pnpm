@@ -386,7 +386,12 @@ where
                 if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {
                     Vec::new()
                 } else {
-                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
+                    shim_node_path(
+                        pkg,
+                        paths.project_node_path.as_deref(),
+                        &paths.extra_node_paths,
+                        options.own_node_paths,
+                    )
                 };
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(

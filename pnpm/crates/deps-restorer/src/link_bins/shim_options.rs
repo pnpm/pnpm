@@ -11,6 +11,7 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
     LinkBinsOptions {
         force: false,
         extra_node_paths,
+        own_node_paths: false,
         prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
         relocatable_root: config.modules_dir_anchor().map(Path::to_path_buf),
         project_modules_dir_name: (config.extend_node_path

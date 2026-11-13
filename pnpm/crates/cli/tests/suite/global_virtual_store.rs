@@ -221,23 +221,16 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/hello-world-js-bin-parent", "1.0.0");
     let package = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/hello-world-js-bin-parent");
-    let shim_path = fs::read_dir(package.join("node_modules/.bin"))
-        .expect("read package bin directory")
-        .map(|entry| entry.expect("read bin entry").path())
-        .find(|path| {
-            path.file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with("hello-world-js-bin"))
-        })
-        .expect("the dependency bin shim exists");
+    let shim_path = package.join("node_modules/.bin/hello-world-js-bin");
     let shim = fs::read_to_string(&shim_path).expect("read dependency bin shim").replace('\\', "/");
-    let project_hoisted_modules = workspace
-        .join("node_modules/.pnpm/node_modules")
-        .display()
-        .to_string()
-        .replace('\\', "/");
+    _utils::assert_shim_omits_path(&shim, &workspace.join("node_modules/.pnpm/node_modules"));
+    let node_path = shim
+        .lines()
+        .find(|line| line.trim_start().starts_with("export NODE_PATH="))
+        .expect("the shim extends NODE_PATH");
     assert!(
-        !shim.contains(&project_hoisted_modules),
-        "a shared bin shim must not contain the project hoisted modules path: {shim:?}",
+        node_path.contains("/v11/links/@pnpm.e2e/"),
+        "the shim keeps the target's own directories on NODE_PATH: {node_path:?}",
     );
 
     drop((root, mock_instance));

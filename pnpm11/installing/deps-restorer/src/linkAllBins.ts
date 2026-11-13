@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getSlotShimNodePathOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { isPackagePlaced } from '@pnpm/building.during-install'
 import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/deps.graph-builder'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -11,6 +11,7 @@ import { limitLinking } from './limits.js'
 
 interface LinkAllBinsOptions {
   depNodes?: DependenciesGraphNode[]
+  enableGlobalVirtualStore?: boolean
   extraNodePaths?: string[]
   forceForPackages?: ReadonlySet<string>
   optional: boolean
@@ -41,7 +42,7 @@ async function linkBinsOfDepNode (depNode: DependenciesGraphNode, depGraph: Depe
 
   if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
     await linkBins(depNode.modules, binPath, {
-      extraNodePaths: opts.extraNodePaths,
+      ...getSlotShimNodePathOptions(opts),
       forceForPackages: opts.forceForPackages,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: opts.warn,
@@ -54,7 +55,7 @@ async function linkBinsOfDepNode (depNode: DependenciesGraphNode, depGraph: Depe
   if (depNode.hasBundledDependencies) {
     const bundledModules = path.join(depNode.dir, 'node_modules')
     await linkBins(bundledModules, binPath, {
-      extraNodePaths: opts.extraNodePaths,
+      ...getSlotShimNodePathOptions(opts),
       forceForPackages: opts.forceForPackages,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: opts.warn,
@@ -73,7 +74,7 @@ async function linkBinsOfChildren (children: DependenciesGraphNode[], binPath: s
   )
 
   await linkBinsOfPackages(pkgs, binPath, {
-    extraNodePaths: opts.extraNodePaths,
+    ...getSlotShimNodePathOptions(opts),
     forceForPackages: opts.forceForPackages,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })

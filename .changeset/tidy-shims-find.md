@@ -1,5 +1,8 @@
 ---
+"@pnpm/bins.cmd-shim": patch
+"@pnpm/bins.linker": patch
 "@pnpm/building.after-install": patch
+"@pnpm/building.during-install": patch
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.deps-restorer": patch
 "pnpm": patch

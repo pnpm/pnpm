@@ -30,7 +30,8 @@ export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: Headle
   const newHoistedDependencies = shouldHoistDependencies(ctx) ? await hoistDependencies(ctx, depGraph) : {}
   if (!ctx.skipPostImportLinking && !skipGvsInternalLinking) {
     await linkAllBins(depGraph.graph, {
-      extraNodePaths: opts.enableGlobalVirtualStore ? [] : opts.extraNodePaths,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      extraNodePaths: opts.extraNodePaths,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: (message: string) => {

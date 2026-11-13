@@ -135,10 +135,10 @@ impl<'a> LinkingPaths<'a> {
 /// The `NODE_PATH` entries for one package's shims: the project modules
 /// dir when there is one, then the target's own `node_modules` dirs
 /// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
-/// appears again keeps its first position. With no project dir and no
-/// extras the shims get no `NODE_PATH` at all (`extendNodePath: false`, a
-/// non-isolated linker, or no hoist pattern), matching pnpm's bins
-/// linker.
+/// appears again keeps its first position. With no project dir, no
+/// extras, and no `own_node_paths` the shims get no `NODE_PATH` at all
+/// (`extendNodePath: false`, a non-isolated linker, or no hoist pattern),
+/// matching pnpm's bins linker.
 ///
 /// The result depends only on the package's symlink-resolved
 /// directory — every bin lives under the package root — so a
@@ -149,10 +149,11 @@ pub(super) fn shim_node_path(
     pkg: &PackageBinSource,
     project_node_path: Option<&str>,
     extra_node_paths: &[String],
+    own_node_paths: bool,
 ) -> Vec<String> {
     let delimiter = if cfg!(windows) { ';' } else { ':' };
     let project_node_path = project_node_path.filter(|entry| !entry.contains(delimiter));
-    if project_node_path.is_none() && extra_node_paths.is_empty() {
+    if project_node_path.is_none() && extra_node_paths.is_empty() && !own_node_paths {
         return Vec::new();
     }
     let own = if let Some(resolved) = &pkg.resolved_location {

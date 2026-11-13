@@ -8,6 +8,10 @@ pub struct LinkBinsOptions {
     pub force: bool,
     /// pnpm's `extraNodePaths` — see [`super::link_bins_of_packages`].
     pub extra_node_paths: Vec<String>,
+    /// Put the target's own `node_modules` directories on `NODE_PATH` even
+    /// when [`Self::extra_node_paths`] is empty, for a shim that must not
+    /// name the installing project but still extends `NODE_PATH`.
+    pub own_node_paths: bool,
     /// pnpm's `preferSymlinkedExecutables`: on Unix, materialize each
     /// bin as a relative symlink to the target file instead of a shell
     /// shim. Inert on Windows, where bins always get shims. The node

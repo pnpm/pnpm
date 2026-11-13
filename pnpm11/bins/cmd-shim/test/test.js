@@ -509,6 +509,20 @@ fi
     assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
     assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
   })
+
+  test('matches a NODE_PATH made only of the middle entries', () => {
+    const shim = `
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH='/slot/node_modules/pkg/node_modules:/slot/node_modules'
+else
+  export NODE_PATH='/slot/node_modules/pkg/node_modules:/slot/node_modules':"$NODE_PATH"
+fi
+`
+    const middle = ['/slot/node_modules/pkg/node_modules', '/slot/node_modules']
+    assert.equal(isShimNodePath(shim, { middle, last: [] }), true)
+    assert.equal(isShimNodePath(shim, { middle: ['/other/node_modules'], last: [] }), false)
+    assert.equal(isShimNodePath('#!/bin/sh\n', { middle, last: [] }), false)
+  })
 })
 
 describe('readShRelativeTarget', () => {

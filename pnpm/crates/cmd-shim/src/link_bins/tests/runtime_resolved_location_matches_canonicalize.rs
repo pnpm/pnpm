@@ -41,11 +41,13 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
         &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
         None,
         &extras,
+        false,
     );
     let via_resolved = super::super::shim_node_path(
         &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
         None,
         &extras,
+        false,
     );
     assert_eq!(via_fallback, via_resolved);
     assert_eq!(
@@ -98,6 +100,7 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
             .with_resolved_location(pkg_dir.clone()),
         Some(&project),
         &[slot_dir.clone(), hoisted.clone()],
+        false,
     );
 
     assert_eq!(
@@ -462,6 +465,33 @@ fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
         .join(format!("vendor{delimiter}other"));
     let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
     let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
-    let node_path = super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[]);
+    let node_path =
+        super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[], false);
     assert_eq!(node_path, Vec::<String>::new());
+}
+
+#[test]
+fn own_node_paths_keeps_the_target_directories_without_extras() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp
+        .path()
+        .join("slot")
+        .join("node_modules");
+    let pkg_dir = modules.join("foo");
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+    let pkg =
+        PackageBinSource::new(pkg_dir.clone(), manifest).with_resolved_location(pkg_dir.clone());
+
+    let node_path = super::super::shim_node_path(&pkg, None, &[], true);
+
+    assert_eq!(
+        node_path,
+        [
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            modules.to_string_lossy().into_owned(),
+        ],
+    );
 }
