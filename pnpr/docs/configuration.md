@@ -124,7 +124,7 @@ Use [`pnpr cache-gc`](cli.md#cache-gc) for on-demand or offline reclamation.
 | `database` | Names the database for accounts, tokens, and package metadata. See [The database](storage.md#database). |
 
 With the filesystem hosted store, package metadata lives in an embedded SQLite
-database by default. A `storage.s3` block needs a
+database by default. A server that hosts packages in `storage.s3` needs a
 [shared database](auth-backends.md) instead.
 
 ## `registries` and `defaultRegistry`
