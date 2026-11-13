@@ -1,4 +1,4 @@
-use super::{Collapsed, CollapsingHandler, collapsed_message};
+use super::{Collapsed, CollapsingHandler, collapsed_message, handler_options};
 use miette::{Diagnostic, MietteHandlerOpts, ReportHandler};
 use std::{error::Error, fmt};
 
@@ -63,6 +63,18 @@ fn messages(collapsed: &Collapsed<'_>) -> Vec<String> {
         source = cause.source();
     }
     messages
+}
+
+fn render(handler: &CollapsingHandler, diagnostic: &dyn Diagnostic) -> String {
+    struct Rendered<'a>(&'a CollapsingHandler, &'a dyn Diagnostic);
+
+    impl fmt::Debug for Rendered<'_> {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.debug(self.1, formatter)
+        }
+    }
+
+    format!("{:?}", Rendered(handler, diagnostic))
 }
 
 #[test]
@@ -222,18 +234,10 @@ fn a_diagnostic_source_is_folded_like_an_error_source() {
 /// it.
 #[test]
 fn the_handler_renders_a_repeated_message_once() {
-    struct Rendered<'a>(&'a CollapsingHandler, &'a dyn Diagnostic);
-
-    impl fmt::Debug for Rendered<'_> {
-        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            self.0.debug(self.1, formatter)
-        }
-    }
-
     let handler = CollapsingHandler { inner: MietteHandlerOpts::new().build() };
     let wrapped = Wrapper { inner: Wrapper { inner: Leaf { message: "boom", source: None } } };
 
-    let rendered = format!("{:?}", Rendered(&handler, &wrapped));
+    let rendered = render(&handler, &wrapped);
 
     assert_eq!(
         rendered.matches("boom").count(),
@@ -263,4 +267,16 @@ fn a_prefixed_wrapper_over_a_suffixed_one_absorbs_both() {
         messages(&collapsed),
         vec!["Failed to resolve dependency tree: Failed to resolve dependency: hook failed\n\nFailed to resolve is-number@^7.0.0".to_string()],
     );
+}
+
+#[test]
+fn long_messages_are_not_wrapped_at_the_output_width() {
+    let message =
+        "https://example.com/merge#%7B%22destination%22%3A%22MyVersionSet%2Fdevelopment%22%7D";
+    let diagnostic = Leaf { message, source: None };
+    let handler = CollapsingHandler { inner: handler_options().width(20).build() };
+
+    let rendered = render(&handler, &diagnostic);
+
+    assert!(rendered.contains(message), "the message must stay on one line, got:\n{rendered}");
 }

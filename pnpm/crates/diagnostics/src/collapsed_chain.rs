@@ -8,8 +8,9 @@
 //! wrapper that prefixes the inner message with context
 //! ("Failed to resolve dependency tree: {inner}") repeats it just as
 //! fully, one line above. The handler here folds those levels away
-//! before delegating to miette's own renderer, which keeps every theme,
-//! width, and colour decision miette would otherwise make.
+//! before delegating to miette's own renderer, which keeps every theme
+//! and colour decision miette would otherwise make. Line wrapping is
+//! off, so URLs and paths in a message stay intact and copyable.
 
 use miette::{
     Diagnostic, LabeledSpan, MietteHandler, MietteHandlerOpts, ReportHandler, Severity, SourceCode,
@@ -23,8 +24,12 @@ use std::{error::Error, fmt};
 /// already installed is left alone — the first caller wins.
 pub fn install_report_handler() {
     let _ = miette::set_hook(Box::new(|_| {
-        Box::new(CollapsingHandler { inner: MietteHandlerOpts::new().build() })
+        Box::new(CollapsingHandler { inner: handler_options().build() })
     }));
+}
+
+fn handler_options() -> MietteHandlerOpts {
+    MietteHandlerOpts::new().wrap_lines(false)
 }
 
 /// The reported error and its distinct causes on one line, joined by

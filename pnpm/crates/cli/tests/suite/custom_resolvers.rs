@@ -4,6 +4,8 @@
 //! failures aborting the install. Mirrors pnpm's
 //! `installing/deps-installer/test/install/customResolvers.ts`.
 
+#[cfg(unix)]
+use crate::_utils::{terminal::Terminal, wait_for_child};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
@@ -18,6 +20,8 @@ use std::{
 };
 use tempfile::TempDir;
 
+const LONG_RESOLVER_ERROR_URL: &str = "https://example.com/merge#%7B%22destination%22%3A%22MyVersionSet%2Fdevelopment%22%2C%22options%22%3A%7B%22add%22%3A%5B%22some-package-1.0%22%5D%7D%7D";
+
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
@@ -29,6 +33,17 @@ fn write_manifest(workspace: &Path) {
         },
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+}
+
+fn write_failing_resolver(workspace: &Path) {
+    write_manifest(workspace);
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ resolvers: [{{ canResolve () {{ throw new Error('lookup failed. Add it with this link: {LONG_RESOLVER_ERROR_URL}'); }}, resolve () {{}} }}] }}\n",
+        ),
+    )
+    .expect("write failing resolver pnpmfile");
 }
 
 fn declare_pnpr_registry(workspace: &Path, registry_url: &str) {
@@ -255,6 +270,49 @@ fn failing_should_refresh_resolution_aborts_the_install() {
     assert!(unwrapped.contains("refresh check crashed"), "stderr: {stderr}");
 
     drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn failing_custom_resolver_keeps_urls_intact_with_redirected_stderr() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_failing_resolver(&workspace);
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run install");
+
+    assert!(!output.status.success(), "the resolver error must fail the install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains(LONG_RESOLVER_ERROR_URL), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
+fn failing_custom_resolver_keeps_urls_intact_in_a_terminal() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_failing_resolver(&workspace);
+    let mut terminal = Terminal::open();
+    let mut child = terminal.spawn_foreground(pacquet_at(&workspace).with_arg("install"));
+    let status = wait_for_child(&mut child);
+    let output = terminal.captured_output();
+
+    assert!(!status.success(), "the resolver error must fail the install");
+    assert!(output.contains(LONG_RESOLVER_ERROR_URL), "terminal output: {output}");
+
+    drop((root, mock_instance));
 }
 
 /// Port of upstream's `'custom resolver receives currentPkg on
