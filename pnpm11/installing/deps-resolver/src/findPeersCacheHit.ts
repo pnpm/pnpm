@@ -41,7 +41,7 @@ function cacheItemMatchesParentPkgs<Pkg extends PartialResolvedPackage> (
     if (!cachedPeerMatches(ctx, parentPkgs[name]?.nodeId, cachedNodeId)) return false
   }
   for (const missingPeer of cache.missingPeers.keys()) {
-    if (parentPkgs[missingPeer]) return false
+    if (Object.hasOwn(parentPkgs, missingPeer)) return false
   }
   return true
 }

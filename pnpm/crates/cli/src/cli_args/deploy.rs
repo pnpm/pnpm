@@ -10,8 +10,7 @@ use derive_more::{Display, Error};
 use install::source_pnpmfile_hooks;
 use legacy_source::LegacyDeploySource;
 use lockfile::{
-    ConvertCtx, DeployFiles, create_deploy_files, deployed_workspace_projects,
-    load_deploy_lockfile, manifest_dependency_names,
+    ConvertCtx, DeployFiles, create_deploy_files, deployed_workspace_projects, load_deploy_lockfile,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use path_compare::{ProjectPathKey, is_ancestor_path, is_child_path, same_path};
@@ -133,13 +132,7 @@ struct ProjectInfo {
     linked_publish_dir: Option<PathBuf>,
     name: Option<String>,
     has_bin: bool,
-    peer_dependencies: Vec<PkgName>,
-    /// The `packages:` entry blocks for the peers the project declares.
-    peer_blocks: pnpm_resolving_deps_resolver::LockfilePeerBlocks,
-    /// Names the project declares as prod or optional dependencies. A peer it
-    /// depends on itself is already bound by that edge, whether or not the
-    /// deploy's group filter kept the edge in the deployed snapshot.
-    declared_dependencies: HashSet<PkgName>,
+    peer_set: pnpm_resolving_deps_resolver::PeerSet,
 }
 
 struct SelectedProject {
@@ -387,21 +380,10 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
                     .and_then(Value::as_str)
                     .map(str::to_string),
                 has_bin: manifest_has_bin(Some(project.manifest.value())).is_some(),
-                peer_dependencies: manifest_dependency_names(
-                    &project.manifest,
-                    &["peerDependencies"],
+                peer_set: pnpm_resolving_deps_resolver::PeerSet::from_manifest(
+                    project.manifest.value(),
+                    |_| false,
                 ),
-                peer_blocks: pnpm_resolving_deps_resolver::lockfile_peer_blocks(
-                    &pnpm_resolving_deps_resolver::declared_peer_dependencies(
-                        project.manifest.value(),
-                    ),
-                ),
-                declared_dependencies: manifest_dependency_names(
-                    &project.manifest,
-                    &["dependencies", "optionalDependencies"],
-                )
-                .into_iter()
-                .collect(),
             });
     }
     projects_by_path

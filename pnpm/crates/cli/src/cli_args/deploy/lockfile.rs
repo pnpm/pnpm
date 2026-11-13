@@ -36,19 +36,6 @@ pub(super) enum ReferenceLocation {
     Deploy,
 }
 
-pub(super) fn manifest_dependency_names(
-    manifest: &PackageManifest,
-    groups: &[&str],
-) -> Vec<PkgName> {
-    groups
-        .iter()
-        .filter_map(|group| manifest.value().get(group))
-        .filter_map(Value::as_object)
-        .flat_map(|dependencies| dependencies.keys())
-        .filter_map(|name| name.parse().ok())
-        .collect()
-}
-
 pub(super) fn create_deploy_files(
     lockfile: &Lockfile,
     selected: &SelectedProject,
@@ -105,11 +92,13 @@ fn dependency_name_sets(manifest: &PackageManifest) -> (HashSet<String>, HashSet
         .available_dependency_names(None)
         .into_iter()
         .collect::<HashSet<_>>();
-    let peer_only_dependencies = manifest
-        .dependencies([DependencyGroup::Peer])
-        .map(|(name, _)| name.to_string())
-        .filter(|name| !declared_dependencies.contains(name))
-        .collect::<HashSet<_>>();
+    let peer_only_dependencies =
+        pnpm_resolving_deps_resolver::PeerSet::from_manifest(manifest.value(), |_| false)
+            .taken()
+            .keys()
+            .filter(|name| !declared_dependencies.contains(*name))
+            .cloned()
+            .collect();
     (declared_dependencies, peer_only_dependencies)
 }
 
@@ -249,7 +238,9 @@ fn workspace_project_package_metadata(
 ) -> PackageMetadata {
     let (peer_dependencies, peer_dependencies_meta) = selected
         .project_info(project_root)
-        .map(|project| project.peer_blocks.clone())
+        .map(|project| {
+            pnpm_resolving_deps_resolver::lockfile_peer_blocks(project.peer_set.declared())
+        })
         .unwrap_or_default();
     PackageMetadata {
         specifiers: None,

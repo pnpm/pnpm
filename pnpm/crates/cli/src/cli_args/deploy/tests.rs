@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
 };
 #[cfg(unix)]
@@ -147,9 +147,7 @@ fn create_file_url_key_prefers_workspace_project_name() {
             linked_publish_dir: None,
             name: Some("workspace-name".to_string()),
             has_bin: false,
-            peer_dependencies: Vec::new(),
-            peer_blocks: (None, None),
-            declared_dependencies: HashSet::default(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
         },
     );
     let lockfile_name = "lockfile-name".parse().expect("parse package name");
@@ -373,4 +371,47 @@ fn legacy_deploy_hook_rebases_workspace_paths() {
 fn legacy_deploy_hook_keeps_naming_the_copy_through_a_case_variant_project_dir() {
     let (_tmp, dependencies) = deploy_copied_dependency(&json!({ "detour": "file:../APP/copied" }));
     assert_eq!(dependencies, json!({ "detour": "file:copied" }));
+}
+
+#[test]
+fn deploy_preserves_metadata_only_peers_in_an_excluded_group() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lockfile: Lockfile = serde_json::from_value(json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": {
+            "dependencies": { "peer": { "specifier": "1.0.0", "version": "1.0.0" } },
+        } },
+        "snapshots": { "peer@1.0.0": {} },
+    }))
+    .unwrap();
+    let selected = SelectedProject {
+        project: Project {
+            root_dir: tmp.path().to_path_buf(),
+            manifest: PackageManifest::from_value(
+                tmp.path().join("package.json"),
+                json!({
+                    "name": "app", "peerDependenciesMeta": { "peer": { "optional": true } },
+                }),
+            ),
+            dependency_manifest: None,
+        },
+        projects_by_path: HashMap::new(),
+        workspace_projects: Vec::new(),
+    };
+    let result = create_deploy_files(
+        &lockfile,
+        &selected,
+        ".",
+        tmp.path(),
+        &tmp.path().join("out"),
+        &Config::default(),
+        &[DependencyGroup::Dev],
+    )
+    .unwrap();
+    assert_eq!(result.manifest["dependencies"], json!({"peer": "1.0.0"}));
+    assert!(
+        result.lockfile.snapshots
+            .unwrap()
+            .contains_key(&"peer@1.0.0".parse().unwrap()),
+    );
 }

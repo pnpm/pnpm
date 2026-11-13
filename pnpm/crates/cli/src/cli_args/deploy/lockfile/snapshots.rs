@@ -53,8 +53,9 @@ impl DeploySnapshots {
             else {
                 continue;
             };
+            // Own dependencies declared as peers still need manifest-based edge classification.
             if let Some(project) = selected.project_info(project_root)
-                && !project.peer_dependencies.is_empty()
+                && !project.peer_set.declared().is_empty()
             {
                 self.linked_workspace_projects.insert(
                     package_key,

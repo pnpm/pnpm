@@ -225,7 +225,7 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
   expect(prodOnly.lockfile.packages?.[optionalDepPath]).toBeUndefined()
 })
 
-test('createDeployFiles preserves peer-only dependencies auto-installed into an excluded group', () => {
+test.each([false, true])('createDeployFiles preserves peers in an excluded group (metadata only: %s)', (metadataOnly) => {
   const lockfileDir = path.resolve('workspace')
   const projectId = '.' as ProjectId
   const externalDepPath = 'external@1.0.0' as DepPath
@@ -261,7 +261,7 @@ test('createDeployFiles preserves peer-only dependencies auto-installed into an 
       name: 'app',
       version: '1.0.0',
       devDependencies: { dev: '1.0.0' },
-      peerDependencies: { external: '*' },
+      peerDependencies: metadataOnly ? undefined : { external: '*' },
       peerDependenciesMeta: { external: { optional: true } },
     },
     projectId,
@@ -270,7 +270,7 @@ test('createDeployFiles preserves peer-only dependencies auto-installed into an 
 
   expect(result.manifest.dependencies).toStrictEqual({ external: '1.0.0' })
   expect(result.manifest.devDependencies).toStrictEqual({ dev: '1.0.0' })
-  expect(result.manifest.peerDependencies).toStrictEqual({ external: '*' })
+  expect(result.manifest.peerDependencies).toStrictEqual(metadataOnly ? undefined : { external: '*' })
   expect(result.manifest.peerDependenciesMeta).toStrictEqual({ external: { optional: true } })
   expect(result.lockfile.packages?.[externalDepPath]).toBeDefined()
 })
@@ -605,4 +605,49 @@ test.each([undefined, 'dist'])('createDeployFiles preserves an injected snapshot
   expect(result.lockfile.packages?.[targetPath]).toMatchObject({ peerDependencies: { provider: '^1.0.0' } })
   expect(result.lockfile.packages?.[targetPath].dependencies).toBeUndefined()
   expect(result.lockfile.packages?.['provider@1.0.0' as DepPath]).toBeUndefined()
+})
+
+test.each([false, true])('createDeployFiles binds metadata-only optional peers with an own-peer parent: %s', (ownPeerParent) => {
+  const lockfileDir = path.resolve('workspace')
+  const libDir = path.join(lockfileDir, 'packages/lib')
+  const consumerDir = path.join(lockfileDir, 'packages/consumer')
+  const parent = ownPeerParent ? 'consumer' : 'lib'
+  const libKey = `lib@${url.pathToFileURL(libDir)}` as DepPath
+  const result = createDeployFiles({
+    allProjects: [{
+      rootDir: libDir as ProjectRootDir,
+      rootDirRealPath: libDir as ProjectRootDirRealPath,
+      manifest: { name: 'lib', version: '1.0.0', peerDependenciesMeta: { peer: { optional: true } } },
+    }, {
+      rootDir: consumerDir as ProjectRootDir,
+      rootDirRealPath: consumerDir as ProjectRootDirRealPath,
+      manifest: { name: 'consumer', dependencies: { lib: 'workspace:*', peer: '2.0.0' }, peerDependencies: { lib: 'workspace:*' } },
+    }],
+    deployDir: path.join(lockfileDir, 'out'),
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    lockfile: {
+      lockfileVersion: '9.0',
+      settings: { autoInstallPeers: false, excludeLinksFromLockfile: false },
+      importers: {
+        ['.' as ProjectId]: {
+          specifiers: { [parent]: 'workspace:*', peer: '1.0.0' },
+          dependencies: { [parent]: `link:packages/${parent}`, peer: '1.0.0' },
+        },
+        ['packages/lib' as ProjectId]: { specifiers: {} },
+        ['packages/consumer' as ProjectId]: {
+          specifiers: { lib: 'workspace:*', peer: '2.0.0' },
+          dependencies: { lib: 'link:../lib', peer: '2.0.0' },
+        },
+      },
+      packages: {
+        ['peer@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer' } },
+        ['peer@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer-2' } },
+      },
+    },
+    lockfileDir,
+    selectedProjectManifest: { name: 'app', version: '1.0.0', dependencies: { [parent]: 'workspace:*', peer: '1.0.0' } },
+    projectId: '.' as ProjectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+  expect(result.lockfile.packages?.[libKey]?.dependencies?.peer).toBe(ownPeerParent ? '2.0.0' : '1.0.0')
 })

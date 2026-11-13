@@ -91,7 +91,7 @@ function addChildrenToParentPkgs<Pkg extends PartialResolvedPackage> (
   const newParentPkgs = toPkgByName(getPeerProvidingChildren(ctx, opts))
   for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
     const inheritedParentPkg = parentPkgs[newParentPkgName]
-    if (!inheritedParentPkg) {
+    if (!Object.hasOwn(parentPkgs, newParentPkgName)) {
       parentPkgs[newParentPkgName] = newParentPkg
       continue
     }
@@ -138,7 +138,7 @@ function reusePeersCacheHit<Pkg extends PartialResolvedPackage> (
 ): NodePeersResolution {
   const { hit } = opts
   for (const [peerName, { range: wantedRange, optional }] of hit.missingPeers.entries()) {
-    if (ctx.peerDependencyIssues.missing[peerName] == null) {
+    if (!Object.hasOwn(ctx.peerDependencyIssues.missing, peerName)) {
       ctx.peerDependencyIssues.missing[peerName] = []
     }
     const { parents } = getLocationFromParentNodeIds({
