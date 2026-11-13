@@ -9,8 +9,8 @@ import { checkDepsStatus, findDanglingDirectDependencyLink } from '@pnpm/deps.st
 import { PnpmError } from '@pnpm/error'
 import {
   type DryRunInstallResult,
-  IgnoredBuildsError,
   globalVirtualStoreBinShimsNeedRepair,
+  IgnoredBuildsError,
   repairGlobalVirtualStoreBinShims,
   type UpdateMatchingFunction,
 } from '@pnpm/installing.deps-installer'
