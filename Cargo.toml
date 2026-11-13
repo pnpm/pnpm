@@ -291,7 +291,7 @@ wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.1" }
 zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
-zstd = { version = "0.14.3", default-features = false }
+zstd = { version = "0.14.4", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
 # Dev dependencies
