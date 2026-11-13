@@ -28,13 +28,17 @@ impl Walker<'_> {
             );
         }
 
-        // A package doesn't peer-depend on itself, so its own name never
-        // enters its suffix.
         let mut all_resolved = context.external_from_children;
         for (peer_alias, peer_node_id) in &own_resolved {
             all_resolved.insert(peer_alias.clone(), peer_node_id.clone());
         }
-        all_resolved.remove(context.pkg_name);
+        if all_resolved
+            .get(context.pkg_name)
+            .and_then(|id| self.tree.dependencies_tree.get(id))
+            .is_some_and(|node| node.resolved_package_id == context.pkg.id)
+        {
+            all_resolved.remove(context.pkg_name);
+        }
 
         let mut all_missing = context.missing_from_children.clone();
         for (peer_alias, info) in &own_missing {
