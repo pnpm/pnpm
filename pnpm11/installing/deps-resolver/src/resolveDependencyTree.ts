@@ -150,6 +150,7 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string
+  sharedWorkspaceLockfile?: boolean
   storeController: StoreController
   tag: string
   virtualStoreDir: string

@@ -39,6 +39,7 @@ import {
 
 export interface LocalDirectoryDepContext {
   lockfileDir: string
+  childLinkLockfileDir?: string
   lockfilePackages?: PackageSnapshots
   manifestsByDir: Record<string, DependencyManifest>
   workspaceDir?: string
@@ -77,6 +78,7 @@ const DEFAULT_REGISTRY_CONTEXT: RegistryContext = { registriesByScope: DEFAULT_R
 
 interface LocalDirectoryDep {
   lockfileDir: string
+  childLinkLockfileDir?: string
   localDepDir: string
   manifestsByDir: Record<string, DependencyManifest>
   workspaceRoot: string
@@ -174,6 +176,7 @@ async function localDirectoryDepIsUpToDateRec (
   if (!recordedChildrenAreExpected(manifest, children, pkgSnapshot)) return false
   const localDep: LocalDirectoryDep = {
     lockfileDir: ctx.lockfileDir,
+    childLinkLockfileDir: ctx.childLinkLockfileDir,
     localDepDir,
     manifestsByDir: ctx.manifestsByDir,
     workspaceRoot: ctx.workspaceDir ?? ctx.lockfileDir,
@@ -453,7 +456,8 @@ async function localSpecIsUpToDate (
 function linkPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfileDep: string): boolean {
   const currentPath = localSpecPath(currentSpec, localDep.localDepDir)
   const lockfilePath = lockfileDep.slice(5)
-  return currentPath === recordedLocalPath(lockfilePath, localDep.lockfileDir) ||
+  return (localDep.childLinkLockfileDir != null && currentPath === recordedLocalPath(lockfilePath, localDep.childLinkLockfileDir)) ||
+    currentPath === recordedLocalPath(lockfilePath, localDep.lockfileDir) ||
     currentPath === recordedLocalPath(lockfilePath, localDep.localDepDir)
 }
 
