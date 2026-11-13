@@ -166,10 +166,10 @@ impl RunArgs {
         if script_name == "start" {
             return Err(RunError::NoScriptOrServer.into());
         }
-        if matches!(missing_script, MissingScript::FallbackToExec) {
-            return exec_fallback(script_name, args, dirs, config);
+        match missing_script {
+            MissingScript::FallbackToExec => exec_fallback(script_name, args, dirs, config),
+            MissingScript::ReportError => Err(RunError::no_script(script_name, args).into()),
         }
-        Err(RunError::no_script(script_name, args).into())
     }
 }
 

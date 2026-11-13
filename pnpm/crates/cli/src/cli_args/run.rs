@@ -213,10 +213,13 @@ impl RunArgs {
         };
         let manifest = match read_project_manifest_only(dir) {
             Ok(manifest) => manifest,
-            Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-                if matches!(missing_script, MissingScript::FallbackToExec) =>
-            {
-                return exec_fallback(script_name, args, dirs, config);
+            Err(err @ ReadProjectManifestOnlyError::NoImporterManifestFound { .. }) => {
+                match missing_script {
+                    MissingScript::FallbackToExec => {
+                        return exec_fallback(script_name, args, dirs, config);
+                    }
+                    MissingScript::ReportError => return Err(RunError::Manifest(err).into()),
+                }
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };

@@ -1,8 +1,3 @@
-// Every test here drives `/bin/sh`-style lifecycle scripts, so the whole
-// module is Unix-only; gating it keeps Windows builds free of unused-import
-// and dead-code warnings.
-#![cfg(unix)]
-
 use super::ScriptShortcutArgs;
 use crate::cli_args::reporter::ReporterType;
 use serde_json::json;
@@ -17,7 +12,7 @@ fn setup_project(dir: &std::path::Path, scripts: &serde_json::Value) {
     std::fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
-#[cfg(unix)]
+#[cfg_attr(windows, ignore = "runs a `touch` shell command, which Windows does not provide")]
 #[test]
 fn stop_runs_declared_script() {
     let tmp = TempDir::new().expect("tmp dir");
@@ -37,7 +32,6 @@ fn stop_runs_declared_script() {
     assert!(marker.exists(), "stop script should have run");
 }
 
-#[cfg(unix)]
 #[test]
 fn stop_with_if_present_skips_missing_script() {
     let tmp = TempDir::new().expect("tmp dir");
@@ -50,7 +44,6 @@ fn stop_with_if_present_skips_missing_script() {
         .expect("--if-present should succeed when script is missing");
 }
 
-#[cfg(unix)]
 #[test]
 fn stop_fails_on_missing_script_without_if_present() {
     let tmp = TempDir::new().expect("tmp dir");
@@ -63,7 +56,6 @@ fn stop_fails_on_missing_script_without_if_present() {
     assert!(res.is_err(), "should fail because script is missing");
 }
 
-#[cfg(unix)]
 #[test]
 fn test_fails_on_missing_script_without_if_present() {
     let tmp = TempDir::new().expect("tmp dir");
@@ -76,7 +68,6 @@ fn test_fails_on_missing_script_without_if_present() {
     assert!(res.is_err(), "test shortcut should fail when scripts.test is missing");
 }
 
-#[cfg(unix)]
 #[test]
 fn start_with_if_present_skips_when_script_and_server_js_are_missing() {
     let tmp = TempDir::new().expect("tmp dir");
@@ -91,7 +82,7 @@ fn start_with_if_present_skips_when_script_and_server_js_are_missing() {
         );
 }
 
-/// These tests drive `ScriptShortcutArgs::run` in-process, so the
+/// These tests drive `RunArgs::run` in-process, so the
 /// verify-deps-before-run gate must stay off: its `install` default
 /// would spawn `current_exe()` — the test harness binary — as the
 /// installer. pnpm's unit tests equally construct their options
