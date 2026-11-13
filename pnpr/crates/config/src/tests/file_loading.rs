@@ -1,6 +1,6 @@
 use super::{
     Config, DEFAULT_CONFIG_YAML, Ecosystem, LogFormat, LogLevel, Path, RegistryError,
-    config_file_in, listen, parse_interval, write_yaml,
+    bundled_registries, config_file_in, listen, load_with_graph, parse_interval, write_yaml,
 };
 
 #[test]
@@ -11,7 +11,7 @@ registries:
 resolver:
   enabled: false
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.features.registry.enabled);
     assert!(!config.features.resolver.enabled);
 }
@@ -24,14 +24,14 @@ registries:
 routes:
   allowedPrivateNetworks: [10.20.0.0/16, fd00::1]
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let networks = &config.routing.route_policy.allowed_private_networks;
     assert_eq!(networks.len(), 2);
     assert!(networks[0].contains("10.20.3.4".parse().unwrap()));
     assert!(networks[1].contains("fd00::1".parse().unwrap()));
 
     let invalid = yaml.replace("10.20.0.0/16", "10.20.0.0/40");
-    let error = Config::from_yaml_str(&invalid, Path::new("/x"), listen(), None).unwrap_err();
+    let error = load_with_graph(&invalid, Path::new("/x"), listen(), None).unwrap_err();
     assert!(error.to_string().contains(r#""10.20.0.0/40" is not an IP address or a CIDR network"#));
 }
 
@@ -50,7 +50,7 @@ registries:
     packumentTtl: 10m
     timeout: 45
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["npmjs"];
     assert_eq!(upstream.packument_ttl, Some(Duration::from_mins(10)));
     assert_eq!(upstream.requests.timeout, Duration::from_secs(45));
@@ -70,27 +70,27 @@ storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
 fn from_default_yaml_parses_bundled_file() {
     use pnpr_registry::{ConcreteKind, Resolved};
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    assert!(config.routing.upstreams.contains_key("npmjs"));
-    assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
+    let routing = bundled_registries();
+    assert_eq!(routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
     assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
-    assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
-    assert!(config.routing.hosted.contains_key("local"));
+    assert_eq!(routing.registries.default_registry(), Some("npmjs"));
+    assert!(routing.hosted.contains_key("local"));
     assert_eq!(config.logs.level, LogLevel::Info);
     assert!(!config.has_configured_secret);
     assert_eq!(config.resolution_cache_secret.len(), 32);
     // The bundled file defaults to npmjs, proxying public npm packages.
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
-            config.routing.registries.resolve_default(Ecosystem::Npm, upstream),
+            routing.registries.resolve_default(Ecosystem::Npm, upstream),
             Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
     }
     assert_eq!(
-        config.routing.registries.resolve("local", Ecosystem::Npm, "my-pkg"),
+        routing.registries.resolve("local", Ecosystem::Npm, "my-pkg"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
-    let rules = &config.routing.hosted["local"].rules;
+    let rules = &routing.hosted["local"].rules;
     assert!(!rules.access_admits("my-pkg", &super::Identity::Anonymous));
     assert!(rules.access_admits("my-pkg", &super::Identity::user("alice")));
 }
@@ -343,7 +343,7 @@ routes:
       package: '@babel/*'
     - package: '@types/*'
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.routing.route_policy.public.len(), 2);
     assert_eq!(
         config.routing.route_policy.public[0].registry.as_deref(),
@@ -416,7 +416,7 @@ fn config_rejects_unknown_fields_across_subsystems() {
         ),
     ];
     for (name, yaml, expected_snippet) in cases {
-        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        let err = load_with_graph(yaml, Path::new("/x"), listen(), None)
             .expect_err(&format!("expected {name} to reject unknown field"));
         assert!(
             err.to_string().contains(expected_snippet),
@@ -447,6 +447,7 @@ database:
   authToken: secret
   replicaPath: ./replica.db
   syncInterval: 15s
+registryEnv: [CUSTOM_TOKEN]
 registries:
   local:
     type: hosted
@@ -459,9 +460,9 @@ registries:
     packumentTtl: 12m
     auth:
       type: bearer
-      token: secret-token
+      token: '${CUSTOM_TOKEN}'
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.http.packument_ttl, std::time::Duration::from_secs(42));
     assert_eq!(config.http.request_timeout, Some(std::time::Duration::from_secs(55)));
     assert_eq!(config.http.shutdown_timeout, std::time::Duration::from_secs(20));
@@ -509,14 +510,6 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
         (
             "database.url",
             "database:\n  url: postgres://pnpr:${PNPR_TEST_UNRESOLVED_VAR_123}@db/pnpr\n",
-        ),
-        (
-            "upstream.auth.token",
-            "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    auth:\n      type: bearer\n      token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
-        ),
-        (
-            "upstream.headers.authorization",
-            "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    headers:\n      Authorization: Bearer ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
     ];
 

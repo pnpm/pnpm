@@ -336,12 +336,10 @@ fn build_routing_and_features(
         &options,
     )?;
     let features = build_features(
-        true,
         file.resolver.take(),
         file.artifacts.take(),
         file.pipeline.take(),
         overrides,
-        &routing.hosted,
     )?;
     Ok((routing, features))
 }

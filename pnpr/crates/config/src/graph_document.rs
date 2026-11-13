@@ -1,6 +1,5 @@
 //! The registry graph as one document: the `registries`, `defaultRegistry`,
-//! and `routes.public` keys of pnpr.yaml. The config file declares it, or,
-//! with `registriesManagedBy: api`, the metadata database stores it.
+//! and `routes.public` keys the metadata database stores.
 
 pub use edits::{HostedStorage, PackageLists, RegistryGraphChanges, RuleLists};
 
@@ -94,9 +93,8 @@ impl RegistryGraphDocument {
 }
 
 impl RoutingConfig {
-    /// Build and validate the routing a document declares. Every rule the
-    /// config file's `registries:` block is held to applies, plus the
-    /// stored-credential rules for a [`DocumentOrigin::Stored`] document.
+    /// Build and validate the routing a document declares, holding it to the
+    /// stored-credential rules ([`RegistryGraphDocument::check_stored`]).
     pub fn from_document(
         document: &RegistryGraphDocument,
         options: &RoutingOptions<'_>,

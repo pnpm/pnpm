@@ -2,8 +2,8 @@
 //! each artifact owner owns, and how much the artifact store keeps.
 
 use super::{
-    AccessList, AccessSpec, ArtifactQuotaFile, ByteSize, HostedConfig, IndexMap, RegistryError,
-    StorageAccessFile, TeamDirectory, validate_artifact_owner_name,
+    AccessList, AccessSpec, ArtifactQuotaFile, ByteSize, IndexMap, RegistryError,
+    StorageAccessFile, validate_artifact_owner_name,
 };
 use crate::byte_size::parse_positive_byte_size;
 
@@ -45,9 +45,10 @@ pub struct StorageAccess {
     pub publish: AccessList,
 }
 
+/// The `artifacts.owners` policies. They name accounts, not registry teams,
+/// which live in the metadata database.
 pub(super) fn parse_storage_access(
     policies: IndexMap<String, StorageAccessFile>,
-    hosted: &IndexMap<String, HostedConfig>,
 ) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
     policies
         .into_iter()
@@ -55,7 +56,7 @@ pub(super) fn parse_storage_access(
             validate_artifact_owner_name(&name)?;
             let parse = |field: &str, spec: &AccessSpec| {
                 let list = spec
-                    .to_access_list_resolving(|reference| artifact_team(reference, hosted))
+                    .to_access_list_resolving(|_| Err("artifact owners name accounts, not teams".to_string()))
                     .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("artifact owner {name:?}: {reason}"),
                     })?;
@@ -92,17 +93,4 @@ pub(super) fn parse_artifact_quota(
         });
     }
     Ok(quota)
-}
-
-fn artifact_team(
-    reference: &str,
-    hosted: &IndexMap<String, HostedConfig>,
-) -> Result<(String, TeamDirectory), String> {
-    let (registry, team) = reference
-        .rsplit_once(':')
-        .ok_or_else(|| "artifact teams require team:<registry>:<teamId>".to_string())?;
-    let config = hosted
-        .get(registry)
-        .ok_or_else(|| format!("{registry:?} is not a hosted registry"))?;
-    Ok((team.to_string(), config.teams.clone()))
 }

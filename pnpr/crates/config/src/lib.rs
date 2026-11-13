@@ -471,22 +471,20 @@ pub struct Features {
 /// Folding the `--disable-registry` override in here lets the registry-only
 /// work below (upstream credential resolution) key off effective enablement.
 fn build_features(
-    registry_declared: bool,
     resolver: Option<FeatureFile>,
     artifacts: Option<ArtifactsFeatureFile>,
     pipeline: Option<PipelineFeatureFile>,
     overrides: FeatureOverrides,
-    hosted: &IndexMap<String, HostedConfig>,
 ) -> Result<Features, RegistryError> {
     let resolver_file = resolver.unwrap_or_default();
     let artifacts_file = artifacts.unwrap_or_default();
     let pipeline_file = pipeline.unwrap_or_default();
     Ok(Features {
-        registry: RegistryFeature { enabled: registry_declared && !overrides.disable_registry },
+        registry: RegistryFeature { enabled: !overrides.disable_registry },
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            owners: parse_storage_access(artifacts_file.owners, hosted)?,
+            owners: parse_storage_access(artifacts_file.owners)?,
             quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
         pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },
